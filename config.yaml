@@ -1,0 +1,30 @@
+# MIDI to MP3 Converter Configuration File
+
+# Audio settings
+sample_rate: 44100
+block_size: 512
+max_polyphony: 512
+master_volume: 1.0
+
+# SoundFont files
+sf2_files:
+  - "C:/Tools/Soundfonts/Timbres Of Heaven GM_GS_XG_SFX V 3.4 Final.sf2" 
+
+# # Bank blacklists (exclude specific banks from SF2 files)
+# bank_blacklists:
+#   "soundfonts/FluidR3_GM.sf2":
+#     - 120
+#     - 121
+#     - 122
+
+# # Preset blacklists (exclude specific presets from SF2 files)
+# preset_blacklists:
+#   "soundfonts/FluidR3_GM.sf2":
+#     - [0, 30]  # Bank 0, Program 30
+#     - [0, 31]  # Bank 0, Program 31
+
+# # Bank mappings (map MIDI banks to SF2 banks)
+# bank_mappings:
+#   "soundfonts/FluidR3_GM.sf2":
+#     1: 0  # Map MIDI bank 1 to SF2 bank 0
+#     2: 1  # Map MIDI bank 2 to SF2 bank 1
