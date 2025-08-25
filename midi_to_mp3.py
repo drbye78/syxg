@@ -339,7 +339,8 @@ Examples:
     
     parser.add_argument(
         '-c', '--config',
-        help='Path to YAML configuration file'
+        help='Path to YAML configuration file',
+        default='config.yaml'
     )
     
     parser.add_argument(

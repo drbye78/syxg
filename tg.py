@@ -276,6 +276,8 @@ class LFO:
         self.key_aftertouch = key_aftertouch
         self.brightness_mod = 0.0
         self.harmonic_content_mod = 0.0
+        self.breath_controller = 0.0
+        self.foot_controller = 0.0
         
         # Поддержка модуляции параметров
         self.modulated_rate = rate
@@ -1134,11 +1136,12 @@ class PartialGenerator:
     
     def note_off(self):
         """Обработка события Note Off"""
-        self.amp_envelope.note_off()
-        if self.filter_envelope:
-            self.filter_envelope.note_off()
-        if self.pitch_envelope:
-            self.pitch_envelope.note_off()
+        if self.is_active():
+            self.amp_envelope.note_off()
+            if self.filter_envelope:
+                self.filter_envelope.note_off()
+            if self.pitch_envelope:
+                self.pitch_envelope.note_off()
     
     def generate_sample(self, lfos, global_pitch_mod=0.0, velocity_crossfade=0.0, note_crossfade=0.0):
         """
@@ -1579,6 +1582,7 @@ class XGToneGenerator:
         self.same_note_key_on_assign = same_note_key_on_assign  # Режим SAME NOTE NUMBER KEY ON ASSIGN
         self.note_shift = note_shift  # Сдвиг ноты в полутонах
         self.is_drum = is_drum  # Режим барабана
+        self.id = 0
         
         # Состояние контроллеров
         self.controllers = {

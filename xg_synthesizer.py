@@ -129,8 +129,44 @@ class XGSynthesizer:
     
     def _initialize_xg(self):
         """Инициализация XG синтезатора в соответствии со стандартом"""
-        # Отправляем XG System On сообщение
-        self.send_sysex([0xF0, 0x43, 0x10, 0x4C, 0x00, 0x00, 0x7E, 0x00, 0xF7])
+        # Инициализация XG без отправки SYSEX сообщения
+        # Сброс всех каналов в состояние по умолчанию
+        for channel in range(16):
+            # Сброс всех контроллеров
+            self._handle_reset_all_controllers(channel)
+            
+            # Установка стандартных значений XG
+            self.channel_states[channel]["pitch_bend_range"] = 2  # Стандартный диапазон питчбенд
+            self.channel_states[channel]["reverb_send"] = 40     # Стандартная посылка реверберации
+            self.channel_states[channel]["chorus_send"] = 0      # Нет посылки хора по умолчанию
+            self.channel_states[channel]["variation_send"] = 0   # Нет посылки вариаций по умолчанию
+            
+            # Инициализация стандартных значений для всех контроллеров
+            for i in range(128):
+                self.channel_states[channel]["controllers"][i] = 0
+            self.channel_states[channel]["controllers"][7] = 100   # Volume = 100
+            self.channel_states[channel]["controllers"][10] = 64   # Pan = 64 (центр)
+            self.channel_states[channel]["controllers"][11] = 127  # Expression = 127
+            self.channel_states[channel]["controllers"][91] = 40   # Reverb Send = 40
+            self.channel_states[channel]["controllers"][93] = 0    # Chorus Send = 0
+            
+            # Сброс RPN/NRPN состояний
+            self.rpn_states[channel] = {"msb": 127, "lsb": 127}
+            self.nrpn_states[channel] = {"msb": 127, "lsb": 127}
+            self.data_entry_states[channel] = {"msb": 0, "lsb": 0}
+        
+        # Сброс эффектов в стандартное состояние XG
+        self.effect_manager.reset_effects()
+        
+        # Дополнительная инициализация для соответствия стандарту XG
+        # Установка стандартных параметров для всех каналов
+        for channel in range(16):
+            # Program Change на пианино (программа 0) для всех каналов, кроме 9 (drum channel)
+            if channel != 9:
+                self._handle_program_change(channel, 0)
+            else:
+                # Для канала 9 (drum channel) устанавливаем стандартную программу барабанов
+                self._handle_program_change(channel, 0)
     
     def set_sf2_files(self, sf2_paths: List[str]):
         """
@@ -421,60 +457,14 @@ class XGSynthesizer:
         if len(data) < 6:
             return
         
-        # device_id = data[2]
-        sub_status = data[3]
-        
-        # XG System On
-        if sub_status == 0x4C and len(data) >= 8 and data[4] == 0x00 and data[5] == 0x00 and data[6] == 0x7E:
-            self._initialize_xg()
-        # XG Parameter Change
-        elif sub_status == 0x4C and len(data) >= 7:
-            self._handle_xg_parameter_change(data[4:])
-        # XG Bulk Parameter Dump
-        elif sub_status == 0x7F:
-            self._handle_xg_bulk_parameter_dump(data[4:])
-        # Другие XG сообщения
-        else:
-            # Передаем сообщение менеджеру эффектов
-            manufacturer_id = [0x43]
-            self.effect_manager.handle_sysex(manufacturer_id, data[1:])
-    
-    def _handle_xg_parameter_change(self, data: List[int]):
-        """Обработка XG Parameter Change сообщения"""
-        if len(data) < 3:
-            return
-        
-        # Извлечение параметра и значения
-        parameter_msb = data[0]
-        parameter_lsb = data[1]
-        value_msb = data[2]
-        value_lsb = data[3] if len(data) > 3 else 0
-        
-        # 14-битное значение
-        value = (value_msb << 7) | value_lsb
-        
+        mid = data[1]
         # Передаем сообщение активным тон-генераторам
         for generator in self.tone_generators:
-            generator.handle_xg_parameter_change(parameter_msb, parameter_lsb, value_msb, value_lsb)
+            generator.handle_sysex(mid, data)
         
         # Передаем сообщение менеджеру эффектов
-        self.effect_manager.handle_xg_parameter_change(parameter_msb, parameter_lsb, value_msb, value_lsb)
-    
-    def _handle_xg_bulk_parameter_dump(self, data: List[int]):
-        """Обработка XG Bulk Parameter Dump сообщения"""
-        if len(data) < 2:
-            return
-        
-        # Извлечение типа данных
-        bank = data[0]
-        data_type = data[1]
-        
-        # Передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
-            generator.handle_xg_bulk_parameter_dump(bank, data_type, data[2:])
-        
-        # Передаем сообщение менеджеру эффектов
-        self.effect_manager.handle_xg_bulk_parameter_dump(bank, data_type, data[2:])
+        self.effect_manager.handle_sysex(mid, data)
+
     
     def _handle_all_sound_off(self, channel: int):
         """Обработка All Sound Off контроллера"""

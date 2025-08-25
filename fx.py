@@ -620,7 +620,7 @@ class XGEffectManager:
             self._update_parameter(self._temp_state, param_info["target"], param_info["param"], real_value)
             self.state_update_pending = True
     
-    def handle_sysex(self, manufacturer_id: List[int], data:  List[int]):
+    def handle_sysex(self, manufacturer_id: int, data:  List[int]):
         """
         Обработка SysEx сообщения (System Exclusive) для эффектов.
         
