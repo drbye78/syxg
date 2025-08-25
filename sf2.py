@@ -130,6 +130,13 @@ class SF2InstrumentZone:
         self.brightness_to_filter = 0.0
         self.portamento_to_pitch = 0.0
         self.tremolo_depth = 0.0
+        self.mod_env_to_pitch = 0.0
+        self.mod_lfo_to_pitch = 0.0
+        self.vib_lfo_to_pitch = 0.0
+        self.vibrato_depth = 0.0
+        self.mod_lfo_to_filter = 0.0
+        self.mod_env_to_filter = 0.0
+        self.mod_lfo_to_volume = 0.0
         self.mod_ndx = 0
         self.gen_ndx = 0
 
@@ -161,6 +168,7 @@ class SF2PresetZone:
         self.brightness_to_filter = 0.0
         self.portamento_to_pitch = 0.0
         self.tremolo_depth = 0.0
+        self.vibrato_depth = 0.0
         self.gen_ndx = 0
         self.mod_ndx = 0
 
@@ -346,7 +354,7 @@ class Sf2WavetableManager:
         "cc_portamento_control": ModulationSource.PORTAMENTO
     }
 
-    def __init__(self, sf2_path: str, cache_size: int = None):
+    def __init__(self, sf2_path: str, cache_size: Optional[int] = None):
         """
         Инициализация менеджера SoundFont.
         

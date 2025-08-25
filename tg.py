@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 
 class ADSREnvelope:
     """ADSR огибающая в соответствии со стандартом MIDI XG с расширенной поддержкой контроллеров"""
@@ -245,8 +246,22 @@ class ADSREnvelope:
 class LFO:
     """Низкочастотный осциллятор с расширенной поддержкой модуляции от контроллеров"""
     def __init__(self, id=0, waveform="sine", rate=5.0, depth=1.0, delay=0.0, 
-                 mod_wheel=0.0, channel_aftertouch=0.0, key_aftertouch=0.0,
-                 sample_rate=44100):
+                mod_wheel=0.0, channel_aftertouch=0.0, key_aftertouch=0.0,
+                sample_rate=44100):
+        """
+        Инициализация низкочастотного осциллятора с расширенной поддержкой модуляции от контроллеров
+        
+        Args:
+            id: идентификатор LFO
+            waveform: форма волны (sine, triangle, square, sawtooth)
+            rate: частота в Гц
+            depth: глубина модуляции (0.0-1.0)
+            delay: задержка в секундах
+            mod_wheel: значение модуляционного колеса (0.0-1.0)
+            channel_aftertouch: значение channel aftertouch (0.0-1.0)
+            key_aftertouch: значение key aftertouch (0.0-1.0)
+            sample_rate: частота дискретизации
+        """
         self.id = id
         self.waveform = waveform
         self.rate = rate
@@ -266,9 +281,17 @@ class LFO:
         self.modulated_rate = rate
         self.modulated_depth = depth
         
+        # Параметры фильтра для контроллеров дыхания и педали
+        self.filter_params = {
+            'base_cutoff': 1000.0,
+            'base_resonance': 0.7,
+            'base_depth': 0.5,
+            'base_harmonic': 0.3
+        }
+        
         self._update_phase_step()
     
-    def _update_phase_step(self):
+    def __update_phase_step(self):
         """Обновление скорости изменения фазы"""
         # Модулированная скорость
         effective_rate = self.modulated_rate
@@ -307,6 +330,139 @@ class LFO:
         """Установка значения модуляционного колеса (0-127)"""
         self.mod_wheel = value / 127.0
         self._update_phase_step()
+    
+    def set_breath_controller(self, value):
+        """
+        Установка значения контроллера дыхания (0-127)
+        
+        Args:
+            value: значение контроллера дыхания (0-127)
+        """
+        self.breath_controller = value / 127.0
+        self._update_phase_step()
+        
+        # Обновление параметров фильтра, которые управляются контроллером дыхания
+        if hasattr(self, 'filter_params'):
+            # Модуляция частоты среза фильтра в зависимости от дыхания
+            breath_mod = 1.0 + self.breath_controller * 0.5
+            self.filter_params['cutoff'] = self.filter_params['base_cutoff'] * breath_mod
+            
+            # Модуляция резонанса фильтра в зависимости от дыхания
+            resonance_mod = 1.0 + self.breath_controller * 0.3
+            self.filter_params['resonance'] = self.filter_params['base_resonance'] * resonance_mod
+            
+            # Обновление коэффициентов фильтра
+            self._update_filter_coefficients()
+        
+    def set_foot_controller(self, value):
+        """
+        Установка значения контроллера педали (0-127)
+        
+        Args:
+            value: значение контроллера педали (0-127)
+        """
+        self.foot_controller = value / 127.0
+        self._update_phase_step()
+        
+        # Обновление параметров фильтра, которые управляются контроллером педали
+        if hasattr(self, 'filter_params'):
+            # Модуляция глубины LFO в зависимости от педали
+            depth_mod = 1.0 + self.foot_controller * 0.5
+            self.filter_params['depth'] = self.filter_params['base_depth'] * depth_mod
+            
+            # Модуляция гармонического содержания в зависимости от педали
+            harmonic_mod = 1.0 + self.foot_controller * 0.7
+            self.filter_params['harmonic_content'] = self.filter_params['base_harmonic'] * harmonic_mod
+            
+            # Обновление коэффициентов фильтра
+            self._update_filter_coefficients()
+
+    def _update_filter_coefficients(self):
+        """Обновление коэффициентов фильтра на основе текущих параметров"""
+        if not hasattr(self, 'filter_params'):
+            return
+        
+        # Получаем текущие параметры фильтра
+        base_cutoff = self.filter_params['base_cutoff']
+        base_resonance = self.filter_params['base_resonance']
+        
+        # Применение модуляции от контроллеров
+        effective_cutoff = base_cutoff * (1 + self.brightness_mod * 0.5)
+        effective_resonance = base_resonance * (1 + self.harmonic_content_mod * 0.3)
+        
+        # Расчет коэффициентов для фильтра низких частот
+        w0 = 2 * math.pi * min(effective_cutoff, self.sample_rate/2) / self.sample_rate
+        alpha = math.sin(w0) / (2 * max(0.001, effective_resonance))
+        cos_omega = math.cos(w0)
+        
+        # Коэффициенты для фильтра низких частот
+        b0_low = (1 - cos_omega) / 2
+        b1_low = 1 - cos_omega
+        b2_low = (1 - cos_omega) / 2
+        a0_low = 1 + alpha
+        a1_low = -2 * cos_omega
+        a2_low = 1 - alpha
+        
+        # Коэффициенты для фильтра высоких частот
+        b0_high = (1 + cos_omega) / 2
+        b1_high = -(1 + cos_omega)
+        b2_high = (1 + cos_omega) / 2
+        a0_high = 1 + alpha
+        a1_high = -2 * cos_omega
+        a2_high = 1 - alpha
+        
+        # Коэффициенты для полосового фильтра
+        b0_band = alpha
+        b1_band = 0
+        b2_band = -alpha
+        a0_band = 1 + alpha
+        a1_band = -2 * cos_omega
+        a2_band = 1 - alpha
+        
+        # Сохранение коэффициентов для последующего использования
+        self.filter_coefficients = {
+            'lowpass': {
+                'b0': b0_low / a0_low,
+                'b1': b1_low / a0_low,
+                'b2': b2_low / a0_low,
+                'a1': a1_low / a0_low,
+                'a2': a2_low / a0_low
+            },
+            'highpass': {
+                'b0': b0_high / a0_high,
+                'b1': b1_high / a0_high,
+                'b2': b2_high / a0_high,
+                'a1': a1_high / a0_high,
+                'a2': a2_high / a0_high
+            },
+            'bandpass': {
+                'b0': b0_band / a0_band,
+                'b1': b1_band / a0_band,
+                'b2': b2_band / a0_band,
+                'a1': a1_band / a0_band,
+                'a2': a2_band / a0_band
+            }
+        }
+    
+    def _update_phase_step(self):
+        """Обновление скорости изменения фазы с учетом модуляции"""
+        # Модулированная скорость
+        effective_rate = self.modulated_rate
+        
+        # Модуляция скорости от различных источников
+        effective_rate *= (
+            1 + self.mod_wheel * 0.5 +
+            self.channel_aftertouch * 0.3 +
+            self.key_aftertouch * 0.3 +
+            self.brightness_mod * 0.2 +
+            self.harmonic_content_mod * 0.2 +
+            self.breath_controller * 0.4 +
+            self.foot_controller * 0.3
+        )
+        
+        # Расчет шага фазы с учетом модулированной скорости
+        self.phase_step = max(0.1, effective_rate) * 2 * math.pi / self.sample_rate
+
     
     def set_channel_aftertouch(self, value):
         """Установка значения channel aftertouch (0-127)"""
@@ -423,7 +579,7 @@ class ModulationDestination:
     LFO2_RATE = "lfo2_rate"
     LFO3_RATE = "lfo3_rate"
     LFO1_DEPTH = "lfo1_depth"
-    LFO2_DEPTH = "lfo2_depth"ki9u,l87mmm
+    LFO2_DEPTH = "lfo2_depth"
     LFO3_DEPTH = "lfo3_depth"
     VELOCITY_CROSSFADE = "velocity_crossfade"
     NOTE_CROSSFADE = "note_crossfade"
@@ -431,15 +587,18 @@ class ModulationDestination:
     # Новые цели из SoundFont
     FILTER_ATTACK = "filter_attack"
     FILTER_DECAY = "filter_decay"
+    FILTER_DELAY = "filter_delay"
     FILTER_SUSTAIN = "filter_sustain"
     FILTER_RELEASE = "filter_release"
     FILTER_HOLD = "filter_hold"
     AMP_ATTACK = "amp_attack"
     AMP_DECAY = "amp_decay"
+    AMP_DELAY = "amp_delay"
     AMP_SUSTAIN = "amp_sustain"
     AMP_RELEASE = "amp_release"
     AMP_HOLD = "amp_hold"
-    PITCH_ATTACK = "pitch_attack" ,. .  nb/n slnvlc   vbyp6k,lyyyygbjbb                                                                        
+    PITCH_ATTACK = "pitch_attack" 
+    PITCH_DECAY = "pitch_decay"                                                                     
     PITCH_SUSTAIN = "pitch_sustain"
     PITCH_RELEASE = "pitch_release"
     PITCH_HOLD = "pitch_hold"
@@ -559,7 +718,7 @@ class ModulationMatrix:
             key_scaling: зависимость от высоты ноты
         """
         if 0 <= index < self.num_routes:
-            self.routes[index] = ModulationRoute(
+            self.routes[index] = ModulationRoute( # type: ignore
                 source, destination, amount, polarity,
                 velocity_sensitivity, key_scaling
             )
@@ -1100,7 +1259,7 @@ class PartialGenerator:
             left_out = filtered_sample[0] * amp_env * effective_level
             right_out = filtered_sample[1] * amp_env * effective_level
         else:
-            mono_sample = filtered_sample * amp_env * effective_level
+            mono_sample = filtered_sample * amp_env * effective_level # type: ignore
             # Применение панорамирования для этой частичной структуры
             panner = StereoPanner(pan_position=self.pan, sample_rate=self.sample_rate)
             left_out, right_out = panner.process(mono_sample)

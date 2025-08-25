@@ -437,6 +437,27 @@ class XGEffectManager:
             62: ["speed", "balance", "steps", "level"]
         }
         
+        # Внутренние состояния эффектов
+        self._reverb_state = {
+            "allpass_buffers": [np.zeros(441) for _ in range(4)],
+            "allpass_indices": [0] * 4,
+            "comb_buffers": [np.zeros(441 * i) for i in range(1, 5)],
+            "comb_indices": [0] * 4,
+            "early_reflection_buffer": np.zeros(441),
+            "early_reflection_index": 0,
+            "late_reflection_buffer": np.zeros(441 * 10),
+            "late_reflection_index": 0
+        }
+        
+        self._chorus_state = {
+            "delay_lines": [np.zeros(4410) for _ in range(2)],  # 100ms задержки
+            "lfo_phases": [0.0, 0.0],
+            "lfo_rates": [1.0, 0.5],
+            "lfo_depths": [0.5, 0.3],
+            "write_indices": [0, 0],
+            "feedback_buffers": [0.0, 0.0]
+        }
+
         # Инициализация состояния
         self.reset_effects()
     
@@ -1218,51 +1239,215 @@ class XGEffectManager:
                         equalizer_params: Dict[str, float]) -> Tuple[float, float]:
         """Применение эквалайзера к аудио сэмплу"""
         # Реализация 3-полосного эквалайзера с использованием билинейного преобразования
-        low_gain = 10 ** (equalizer_params.get("low_gain", 0.0) / 20.0)
-        mid_gain = 10 ** (equalizer_params.get("mid_gain", 0.0) / 20.0)
-        high_gain = 10 ** (equalizer_params.get("high_gain", 0.0) / 20.0)
+        low_gain = 10 ** (equalizer_params["low_gain"] / 20.0)
+        mid_gain = 10 ** (equalizer_params["mid_gain"] / 20.0)
+        high_gain = 10 ** (equalizer_params["high_gain"] / 20.0)
+        mid_freq = equalizer_params["mid_freq"]
+        q_factor = equalizer_params["q_factor"]
+        
+        # Вычисляем коэффициенты для полосового фильтра
+        w0 = 2 * math.pi * mid_freq / self.sample_rate
+        alpha = math.sin(w0) / (2 * q_factor)
+        
+        # Коэффициенты для полосового фильтра
+        b0 = alpha
+        b1 = 0
+        b2 = -alpha
+        a0 = 1 + alpha
+        a1 = -2 * math.cos(w0)
+        a2 = 1 - alpha
+        
+        # Применение фильтрации
+        # В реальной реализации здесь были бы буферы состояния фильтра
+        # Для упрощения просто умножаем на коэффициенты
+        mid_left = left * (mid_gain - 1.0)
+        mid_right = right * (mid_gain - 1.0)
         
         return (
-            left * low_gain * mid_gain * high_gain,
-            right * low_gain * mid_gain * high_gain
+            left * low_gain + mid_left + right * high_gain,
+            right * low_gain + mid_right + right * high_gain
         )
-    
+
     def _process_reverb(self, left: float, right: float, 
                        reverb_params: Dict[str, float], 
                        state: Dict[str, Any]) -> Tuple[float, float]:
         """Обработка реверберации с использованием алгоритма Schroeder"""
         # Используем параметры реверберации
-        time = reverb_params.get("time", 2.5)
-        level = reverb_params.get("level", 0.6)
-        pre_delay = reverb_params.get("pre_delay", 20.0)
-        hf_damping = reverb_params.get("hf_damping", 0.5)
-        density = reverb_params.get("density", 0.8)
-        early_level = reverb_params.get("early_level", 0.7)
-        tail_level = reverb_params.get("tail_level", 0.9)
+        reverb_type = reverb_params["type"]
+        time = reverb_params["time"]
+        level = reverb_params["level"]
+        pre_delay = reverb_params["pre_delay"]
+        hf_damping = reverb_params["hf_damping"]
+        density = reverb_params["density"]
+        early_level = reverb_params["early_level"]
+        tail_level = reverb_params["tail_level"]
+        
+        # Алгоритм Schroeder для реверберации
+        allpass_buffers = state["allpass_buffers"]
+        allpass_indices = state["allpass_indices"]
+        comb_buffers = state["comb_buffers"]
+        comb_indices = state["comb_indices"]
+        early_reflection_buffer = state["early_reflection_buffer"]
+        early_reflection_index = state["early_reflection_index"]
+        late_reflection_buffer = state["late_reflection_buffer"]
+        late_reflection_index = state["late_reflection_index"]
         
         # Входной сигнал
         input_sample = (left + right) / 2.0
         
-        # Здесь должна быть реализация реверберации
-        # Для упрощения возвращаем оригинальный сигнал
-        return (input_sample * level, input_sample * level)
-    
+        # Предварительная задержка
+        pre_delay_samples = int(pre_delay * self.sample_rate / 1000.0)
+        if pre_delay_samples >= len(early_reflection_buffer):
+            pre_delay_samples = len(early_reflection_buffer) - 1
+        
+        # Запись в буфер предварительной задержки
+        early_reflection_buffer[early_reflection_index] = input_sample
+        early_reflection_index = (early_reflection_index + 1) % len(early_reflection_buffer)
+        
+        # Чтение из буфера с предварительной задержкой
+        pre_delay_index = (early_reflection_index - pre_delay_samples) % len(early_reflection_buffer)
+        pre_delay_sample = early_reflection_buffer[int(pre_delay_index)]
+        
+        # Ранние отражения
+        early_reflections = pre_delay_sample * early_level
+        
+        # Плотность отражений (density)
+        # Влияет на количество и распределение комб-фильтров
+        num_comb_filters = 4 + int(density * 4)
+        
+        # Обработка через комб-фильтры
+        comb_input = early_reflections
+        for i in range(min(num_comb_filters, len(comb_buffers))):
+            # Длина задержки для комб-фильтра (увеличивается для каждого фильтра)
+            delay_length = int(time * self.sample_rate * (i + 1) / 8.0)
+            if delay_length >= len(comb_buffers[i]):
+                delay_length = len(comb_buffers[i]) - 1
+            
+            # Чтение из буфера задержки
+            read_index = (comb_indices[i] - delay_length) % len(comb_buffers[i])
+            comb_sample = comb_buffers[i][int(read_index)]
+            
+            # Запись в буфер задержки с обратной связью и затуханием высоких частот
+            feedback = 0.7 + (i * 0.05)  # Увеличиваем feedback для более длинных задержек
+            comb_buffers[i][comb_indices[i]] = comb_input + comb_sample * feedback * (1.0 - hf_damping)
+            comb_indices[i] = (comb_indices[i] + 1) % len(comb_buffers[i])
+            
+            # Добавляем к выходу
+            comb_input += comb_sample * tail_level
+        
+        # Обработка через allpass фильтры для диффузии
+        allpass_output = comb_input
+        for i in range(len(allpass_buffers)):
+            # Длина задержки для allpass фильтра
+            delay_length = int(time * self.sample_rate * (i + 1) / 16.0)
+            if delay_length >= len(allpass_buffers[i]):
+                delay_length = len(allpass_buffers[i]) - 1
+            
+            # Чтение из буфера задержки
+            read_index = (allpass_indices[i] - delay_length) % len(allpass_buffers[i])
+            allpass_sample = allpass_buffers[i][int(read_index)]
+            
+            # Запись в буфер задержки
+            allpass_buffers[i][allpass_indices[i]] = allpass_output
+            allpass_indices[i] = (allpass_indices[i] + 1) % len(allpass_buffers[i])
+            
+            # Применение allpass фильтра
+            g = 0.7  # Коэффициент затухания
+            allpass_output = -g * allpass_output + allpass_sample + g * allpass_sample
+        
+        # Сохраняем состояние
+        state["allpass_indices"] = allpass_indices
+        state["comb_indices"] = comb_indices
+        state["early_reflection_index"] = early_reflection_index
+        state["late_reflection_index"] = late_reflection_index
+        
+        # Возвращаем стерео сигнал
+        return (allpass_output * level * 0.7, allpass_output * level * 0.7)
+
     def _process_chorus(self, left: float, right: float, 
                        chorus_params: Dict[str, float], 
                        state: Dict[str, Any]) -> Tuple[float, float]:
         """Обработка хоруса с использованием двух LFO и стерео обработки"""
         # Используем параметры хоруса
-        rate = chorus_params.get("rate", 1.0)
-        depth = chorus_params.get("depth", 0.5)
-        feedback = chorus_params.get("feedback", 0.3)
-        level = chorus_params.get("level", 0.4)
-        delay = chorus_params.get("delay", 0.0)
-        output = chorus_params.get("output", 0.8)
-        cross_feedback = chorus_params.get("cross_feedback", 0.2)
+        chorus_type = chorus_params["type"]
+        rate = chorus_params["rate"]
+        depth = chorus_params["depth"]
+        feedback = chorus_params["feedback"]
+        level = chorus_params["level"]
+        delay = chorus_params["delay"]
+        output = chorus_params["output"]
+        cross_feedback = chorus_params["cross_feedback"]
         
-        # Здесь должна быть реализация хоруса
-        # Для упрощения возвращаем оригинальный сигнал
-        return (left * level, right * level)
+        # Стерео хорус с двумя LFO
+        delay_lines = state["delay_lines"]
+        lfo_phases = state["lfo_phases"]
+        lfo_rates = state["lfo_rates"]
+        lfo_depths = state["lfo_depths"]
+        write_indices = state["write_indices"]
+        feedback_buffers = state["feedback_buffers"]
+        
+        # Обработка левого канала
+        left_input = left
+        
+        # Обновление LFO для левого канала
+        lfo_phases[0] = (lfo_phases[0] + lfo_rates[0] * 2 * math.pi / self.sample_rate) % (2 * math.pi)
+        
+        # Модуляция задержки
+        base_delay_samples = int(delay * self.sample_rate / 1000.0)
+        modulation = int(lfo_depths[0] * depth * self.sample_rate / 1000.0 * (1 + math.sin(lfo_phases[0])) / 2)
+        total_delay = base_delay_samples + modulation
+        
+        if total_delay >= len(delay_lines[0]):
+            total_delay = len(delay_lines[0]) - 1
+        
+        # Чтение из буфера
+        read_index = (write_indices[0] - total_delay) % len(delay_lines[0])
+        delayed_sample = delay_lines[0][int(read_index)]
+        
+        # Применение feedback
+        feedback_sample = delayed_sample * feedback + feedback_buffers[0] * cross_feedback
+        delay_lines[0][write_indices[0]] = left_input + feedback_sample
+        
+        # Обновление индекса записи
+        write_indices[0] = (write_indices[0] + 1) % len(delay_lines[0])
+        feedback_buffers[0] = feedback_sample
+        
+        # Обработка правого канала
+        right_input = right
+        
+        # Обновление LFO для правого канала (с фазовым сдвигом)
+        lfo_phases[1] = (lfo_phases[1] + lfo_rates[1] * 2 * math.pi / self.sample_rate) % (2 * math.pi)
+        
+        # Модуляция задержки
+        base_delay_samples = int(delay * self.sample_rate / 1000.0)
+        modulation = int(lfo_depths[1] * depth * self.sample_rate / 1000.0 * (1 + math.sin(lfo_phases[1])) / 2)
+        total_delay = base_delay_samples + modulation
+        
+        if total_delay >= len(delay_lines[1]):
+            total_delay = len(delay_lines[1]) - 1
+        
+        # Чтение из буфера
+        read_index = (write_indices[1] - total_delay) % len(delay_lines[1])
+        delayed_sample = delay_lines[1][int(read_index)]
+        
+        # Применение feedback
+        feedback_sample = delayed_sample * feedback + feedback_buffers[1] * cross_feedback
+        delay_lines[1][write_indices[1]] = right_input + feedback_sample
+        
+        # Обновление индекса записи
+        write_indices[1] = (write_indices[1] + 1) % len(delay_lines[1])
+        feedback_buffers[1] = feedback_sample
+        
+        # Сохраняем состояние
+        state["lfo_phases"] = lfo_phases
+        state["write_indices"] = write_indices
+        state["feedback_buffers"] = feedback_buffers
+        
+        # Смешивание оригинала и хоруса
+        return (
+            left * (1 - output) + delayed_sample * output * level,
+            right * (1 - output) + delayed_sample * output * level
+        )
     
     def _process_variation_effect(self, left: float, right: float, 
                                 variation_params: Dict[str, float], 
@@ -5367,6 +5552,27 @@ class XGEffectManager:
                 "stereo_width": 0.5,  # Ширина стерео (0.0-1.0)
                 "master_level": 0.8,  # Общий уровень
                 "bypass_all": False  # Обход всех эффектов
+            }
+
+            # Внутренние состояния эффектов
+            self._reverb_state = {
+                "allpass_buffers": [np.zeros(441) for _ in range(4)],
+                "allpass_indices": [0] * 4,
+                "comb_buffers": [np.zeros(441 * i) for i in range(1, 5)],
+                "comb_indices": [0] * 4,
+                "early_reflection_buffer": np.zeros(441),
+                "early_reflection_index": 0,
+                "late_reflection_buffer": np.zeros(441 * 10),
+                "late_reflection_index": 0
+            }
+            
+            self._chorus_state = {
+                "delay_lines": [np.zeros(4410) for _ in range(2)],  # 100ms задержки
+                "lfo_phases": [0.0, 0.0],
+                "lfo_rates": [1.0, 0.5],
+                "lfo_depths": [0.5, 0.3],
+                "write_indices": [0, 0],
+                "feedback_buffers": [0.0, 0.0]
             }
             
             # Параметры для каждого MIDI-канала (16 каналов)
