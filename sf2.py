@@ -207,9 +207,11 @@ class SF2Instrument:
 
 class Sf2WavetableManager:
     """
-    Менеджер wavetable сэмплов, основанный на SoundFont 2.0 файле.
+    Менеджер wavetable сэмплов, основанный на SoundFont 2.0 файлах.
     Предоставляет интерфейс для XG Tone Generator с поддержкой нескольких слоев
     и барабанов. Реализует ленивую загрузку сэмплов и кэширование.
+    Поддерживает загрузку нескольких SF2 файлов с приоритетами, черными списками
+    и настраиваемым маппингом банков.
     """
     
     # Константы для преобразования параметров
@@ -354,61 +356,101 @@ class Sf2WavetableManager:
         "cc_portamento_control": ModulationSource.PORTAMENTO
     }
 
-    def __init__(self, sf2_path: str, cache_size: Optional[int] = None):
+    def __init__(self, sf2_paths: Union[str, List[str]], cache_size: int = None):
         """
         Инициализация менеджера SoundFont.
         
         Args:
-            sf2_path: путь к файлу SoundFont (.sf2)
+            sf2_paths: путь к файлу SoundFont (.sf2) или список путей
             cache_size: максимальный размер кэша в сэмплах (по умолчанию MAX_CACHE_SIZE)
         """
-        self.sf2_path = sf2_path
+        # Поддержка одного или нескольких SF2 файлов
+        self.sf2_paths = sf2_paths if isinstance(sf2_paths, list) else [sf2_paths]
+        
+        # Список менеджеров для каждого SF2 файла
+        self.sf2_managers: List[Dict[str, Any]] = []
+        
+        # Глобальные данные
         self.presets: List[SF2Preset] = []
         self.instruments: List[SF2Instrument] = []
         self.sample_headers: List[SF2SampleHeader] = []
         self.bank_instruments: Dict[int, Dict[int, int]] = {}  # bank -> program -> preset index
+        
+        # Настройки для каждого SF2 файла
+        self.bank_blacklists: Dict[str, List[int]] = {}  # sf2_path -> список банков для исключения
+        self.preset_blacklists: Dict[str, List[Tuple[int, int]]] = {}  # sf2_path -> список (bank, program) для исключения
+        self.bank_mappings: Dict[str, Dict[int, int]] = {}  # sf2_path -> bank_mapping (midi_bank -> sf2_bank)
         
         # Кэш для загруженных сэмплов
         self.sample_cache = OrderedDict()
         self.current_cache_size = 0
         self.max_cache_size = cache_size if cache_size is not None else self.MAX_CACHE_SIZE
         
-        # Открываем файл для чтения
-        self.sf2_file = open(sf2_path, 'rb')
+        # Загружаем все SF2 файлы
+        self._load_all_sf2_files()
         
-        # Парсим структуру файла
-        self._parse_structure()
-        
-        # Проверяем, что файл корректен
-        if not self.presets or not self.instruments or not self.sample_headers:
-            raise ValueError("Некорректный файл SoundFont: отсутствуют необходимые данные")
+        # Собираем все пресеты в один глобальный список с приоритетами
+        self._build_global_preset_map()
     
     def __del__(self):
-        """Закрываем файл при уничтожении объекта"""
-        if hasattr(self, 'sf2_file') and not self.sf2_file.closed:
-            self.sf2_file.close()
+        """Закрываем все файлы при уничтожении объекта"""
+        for manager in self.sf2_managers:
+            if 'file' in manager and hasattr(manager['file'], 'closed') and not manager['file'].closed:
+                manager['file'].close()
     
+    def _load_all_sf2_files(self):
+        """Загрузка всех SF2 файлов"""
+        for i, sf2_path in enumerate(self.sf2_paths):
+            try:
+                # Открываем файл для чтения
+                sf2_file = open(sf2_path, 'rb')
+                
+                # Проверка заголовка RIFF
+                sf2_file.seek(0)
+                header = sf2_file.read(12)
+                if len(header) < 12 or header[:4] != b'RIFF' or header[8:12] != b'sfbk':
+                    raise ValueError(f"Некорректный формат SoundFont файла: {sf2_path}")
+                
+                # Определение размера файла
+                file_size = struct.unpack('<I', header[4:8])[0] + 8
+                
+                # Создаем менеджер для этого файла
+                manager = {
+                    'path': sf2_path,
+                    'file': sf2_file,
+                    'priority': i,  # Приоритет по порядку загрузки
+                    'presets': [],
+                    'instruments': [],
+                    'sample_headers': [],
+                    'bank_instruments': {}
+                }
+                
+                # Парсинг чанков
+                self._parse_chunks_for_manager(manager, 12, file_size)
+                
+                # Проверяем, что файл корректен
+                if not manager['presets'] or not manager['instruments'] or not manager['sample_headers']:
+                    raise ValueError(f"Некорректный файл SoundFont: отсутствуют необходимые данные в {sf2_path}")
+                
+                self.sf2_managers.append(manager)
+                
+            except Exception as e:
+                print(f"Ошибка при загрузке SF2 файла {sf2_path}: {str(e)}")
+                if 'sf2_file' in locals() and not sf2_file.closed:
+                    sf2_file.close()
+
     def _parse_structure(self):
-        """Парсинг структуры файла SoundFont"""
-        # Проверка заголовка RIFF
-        self.sf2_file.seek(0)
-        header = self.sf2_file.read(12)
-        if len(header) < 12 or header[:4] != b'RIFF' or header[8:12] != b'sfbk':
-            raise ValueError("Некорректный формат SoundFont файла")
+        """Парсинг структуры файла SoundFont (устаревший метод, оставлен для совместимости)"""
+        pass
+
+    def _parse_chunks_for_manager(self, manager: Dict[str, Any], start_offset: int, end_offset: int):
+        """Парсинг чанков SoundFont файла для конкретного менеджера"""
+        sf2_file = manager['file']
+        sf2_file.seek(start_offset)
         
-        # Определение размера файла
-        file_size = struct.unpack('<I', header[4:8])[0] + 8
-        
-        # Парсинг чанков
-        self._parse_chunks(12, file_size)
-    
-    def _parse_chunks(self, start_offset: int, end_offset: int):
-        """Парсинг чанков SoundFont файла"""
-        self.sf2_file.seek(start_offset)
-        
-        while self.sf2_file.tell() < end_offset - 8:
+        while sf2_file.tell() < end_offset - 8:
             # Чтение заголовка чанка
-            chunk_header = self.sf2_file.read(8)
+            chunk_header = sf2_file.read(8)
             if len(chunk_header) < 8:
                 break
                 
@@ -416,57 +458,72 @@ class Sf2WavetableManager:
             chunk_size = struct.unpack('<I', chunk_header[4:8])[0]
             
             # Определение конца чанка
-            chunk_end = self.sf2_file.tell() + chunk_size
+            chunk_end = sf2_file.tell() + chunk_size
             
             # Обработка различных типов чанков
             if chunk_id == b'ifil':
-                self._parse_ifil_chunk(chunk_size)
+                self._parse_ifil_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'INAM':
-                self._parse_inam_chunk(chunk_size)
+                self._parse_inam_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'ibag':
-                self._parse_ibag_chunk(chunk_size)
+                self._parse_ibag_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'igen':
-                self._parse_igen_chunk(chunk_size)
+                self._parse_igen_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'imod':
-                self._parse_imod_chunk(chunk_size)
+                self._parse_imod_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'inst':
-                self._parse_inst_chunk(chunk_size)
+                self._parse_inst_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'pbag':
-                self._parse_pbag_chunk(chunk_size)
+                self._parse_pbag_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'pmod':
-                self._parse_pmod_chunk(chunk_size)
+                self._parse_pmod_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'pgen':
-                self._parse_pgen_chunk(chunk_size)
+                self._parse_pgen_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'phdr':
-                self._parse_phdr_chunk(chunk_size)
+                self._parse_phdr_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'shdr':
-                self._parse_shdr_chunk(chunk_size)
+                self._parse_shdr_chunk_for_manager(manager, chunk_size)
             elif chunk_id == b'sdta':
-                self._parse_sdta_chunk(chunk_size, chunk_end)
+                self._parse_sdta_chunk_for_manager(manager, chunk_size, chunk_end)
             
             # Переход к следующему чанку
-            self.sf2_file.seek(chunk_end)
+            sf2_file.seek(chunk_end)
             # Выравнивание до четного числа байт
             if chunk_size % 2 != 0:
-                self.sf2_file.seek(1, 1)
+                sf2_file.seek(1, 1)
     
-    def _parse_ifil_chunk(self, chunk_size: int):
+    # Все остальные методы парсинга остаются без изменений, только добавляем суффикс _for_manager
+    # и заменяем self.sf2_file на manager['file'], self.presets на manager['presets'], и т.д.
+    
+    def _parse_ifil_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка ifil (версия SoundFont)"""
         # Формат: major version (2 bytes), minor version (2 bytes)
-        data = self.sf2_file.read(chunk_size)
+        sf2_file = manager['file']
+        data = sf2_file.read(chunk_size)
         if len(data) >= 4:
             major = struct.unpack('<H', data[0:2])[0]
             minor = struct.unpack('<H', data[2:4])[0]
             # Можно сохранить версию для справки
-            self.sf2_version = (major, minor)
+            manager['sf2_version'] = (major, minor)
+
+    def _parse_ifil_chunk(self, chunk_size: int):
+        """Парсинг чанка ifil (версия SoundFont) - для совместимости"""
+        pass
     
-    def _parse_inam_chunk(self, chunk_size: int):
+    def _parse_inam_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка INAM (имя SoundFont)"""
         # В реальной реализации здесь обрабатывалось бы имя SoundFont
         pass
+
+    def _parse_inam_chunk(self, chunk_size: int):
+        """Парсинг чанка INAM (имя SoundFont) - для совместимости"""
+        pass
     
-    def _parse_phdr_chunk(self, chunk_size: int):
+    def _parse_phdr_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка phdr (заголовки пресетов)"""
+        sf2_file = manager['file']
+        presets = manager['presets']
+        
         num_presets = chunk_size // 38  # Каждый заголовок пресета 38 байт
         
         for i in range(num_presets - 1):  # Последний пресет - терминальный
@@ -478,7 +535,7 @@ class Sf2WavetableManager:
             # uint32 library
             # uint32 genre
             # uint32 morphology
-            preset_data = self.sf2_file.read(38)
+            preset_data = sf2_file.read(38)
             if len(preset_data) < 38:
                 break
                 
@@ -494,19 +551,26 @@ class Sf2WavetableManager:
             sf2_preset.preset = preset
             sf2_preset.bank = bank
             sf2_preset.preset_bag_index = preset_bag_ndx
-            self.presets.append(sf2_preset)
+            presets.append(sf2_preset)
+
+    def _parse_phdr_chunk(self, chunk_size: int):
+        """Парсинг чанка phdr (заголовки пресетов) - для совместимости"""
+        pass
     
-    def _parse_pbag_chunk(self, chunk_size: int):
+    def _parse_pbag_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка pbag (заголовки зон пресетов)"""
+        sf2_file = manager['file']
+        presets = manager['presets']
+        
         num_zones = chunk_size // 4  # Каждая зона пресета 4 байта
         
         # Сохраняем текущую позицию файла
-        start_pos = self.sf2_file.tell()
+        start_pos = sf2_file.tell()
         
         # Собираем все индексы зон для каждого пресета
         preset_zone_indices = []
         for i in range(num_zones - 1):  # Последняя зона - терминальная
-            zone_data = self.sf2_file.read(4)
+            zone_data = sf2_file.read(4)
             if len(zone_data) < 4:
                 break
                 
@@ -518,13 +582,13 @@ class Sf2WavetableManager:
             preset_zone_indices.append((gen_ndx, mod_ndx))
         
         # Возвращаемся к началу чанка
-        self.sf2_file.seek(start_pos)
+        sf2_file.seek(start_pos)
         
         # Привязываем зоны к пресетам
-        for i, preset in enumerate(self.presets):
+        for i, preset in enumerate(presets):
             # Находим начало и конец зон для этого пресета
             start_idx = preset.preset_bag_index
-            end_idx = self.presets[i+1].preset_bag_index if i < len(self.presets) - 1 else num_zones - 1
+            end_idx = presets[i+1].preset_bag_index if i < len(presets) - 1 else num_zones - 1
             
             # Добавляем зоны в пресет
             for j in range(start_idx, end_idx):
@@ -540,18 +604,26 @@ class Sf2WavetableManager:
                 preset_zone.mod_ndx = mod_ndx
                 
                 preset.zones.append(preset_zone)
+
+    def _parse_pbag_chunk(self, chunk_size: int):
+        """Парсинг чанка pbag (заголовки зон пресетов) - для совместимости"""
+        pass
     
-    def _parse_pgen_chunk(self, chunk_size: int):
+    def _parse_pgen_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка pgen (генераторы пресетов)"""
+        sf2_file = manager['file']
+        presets = manager['presets']
+        instruments = manager['instruments']
+        
         num_gens = chunk_size // 4  # Каждый генератор 4 байта
         
         # Сохраняем текущую позицию файла
-        start_pos = self.sf2_file.tell()
+        start_pos = sf2_file.tell()
         
         # Собираем все генераторы
         generators = []
         for i in range(num_gens):
-            gen_data = self.sf2_file.read(4)
+            gen_data = sf2_file.read(4)
             if len(gen_data) < 4:
                 break
                 
@@ -563,10 +635,10 @@ class Sf2WavetableManager:
             generators.append((gen_type, gen_amount))
         
         # Возвращаемся к началу чанка
-        self.sf2_file.seek(start_pos)
+        sf2_file.seek(start_pos)
         
         # Привязываем генераторы к зонам пресетов
-        for preset in self.presets:
+        for preset in presets:
             for zone in preset.zones:
                 # Находим генераторы для этой зоны
                 start_idx = zone.gen_ndx
@@ -586,8 +658,8 @@ class Sf2WavetableManager:
                     if gen_type == 41:  # instrument
                         zone.instrument_index = gen_amount
                         # Ищем имя инструмента
-                        if zone.instrument_index < len(self.instruments):
-                            zone.instrument_name = self.instruments[zone.instrument_index].name
+                        if zone.instrument_index < len(instruments):
+                            zone.instrument_name = instruments[zone.instrument_index].name
                     elif gen_type == 42:  # keyRange
                         zone.lokey = gen_amount & 0xFF
                         zone.hikey = (gen_amount >> 8) & 0xFF
@@ -638,18 +710,25 @@ class Sf2WavetableManager:
                         zone.KeynumToVolEnvHold = gen_amount
                     elif gen_type == 41:  # keynumToVolEnvDecay
                         zone.KeynumToVolEnvDecay = gen_amount
+
+    def _parse_pgen_chunk(self, chunk_size: int):
+        """Парсинг чанка pgen (генераторы пресетов) - для совместимости"""
+        pass
     
-    def _parse_pmod_chunk(self, chunk_size: int):
+    def _parse_pmod_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка pmod (модуляторы пресетов)"""
+        sf2_file = manager['file']
+        presets = manager['presets']
+        
         num_modulators = chunk_size // 10  # Каждый модулятор 10 байт
         
         # Сохраняем текущую позицию файла
-        start_pos = self.sf2_file.tell()
+        start_pos = sf2_file.tell()
         
         # Собираем все модуляторы
         modulators = []
         for i in range(num_modulators):
-            mod_data = self.sf2_file.read(10)
+            mod_data = sf2_file.read(10)
             if len(mod_data) < 10:
                 break
                 
@@ -688,10 +767,10 @@ class Sf2WavetableManager:
             modulators.append(modulator)
         
         # Возвращаемся к началу чанка
-        self.sf2_file.seek(start_pos)
+        sf2_file.seek(start_pos)
         
         # Привязываем модуляторы к зонам пресетов
-        for preset in self.presets:
+        for preset in presets:
             for zone in preset.zones:
                 # Находим модуляторы для этой зоны
                 start_idx = zone.mod_ndx
@@ -710,16 +789,23 @@ class Sf2WavetableManager:
                     
                     # Обработка часто используемых модуляций
                     self._process_preset_modulator(zone, modulator)
+
+    def _parse_pmod_chunk(self, chunk_size: int):
+        """Парсинг чанка pmod (модуляторы пресетов) - для совместимости"""
+        pass
     
-    def _parse_inst_chunk(self, chunk_size: int):
+    def _parse_inst_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка inst (заголовки инструментов)"""
+        sf2_file = manager['file']
+        instruments = manager['instruments']
+        
         num_instruments = chunk_size // 22  # Каждый заголовок инструмента 22 байта
         
         for i in range(num_instruments - 1):  # Последний инструмент - терминальный
             # Формат заголовка инструмента:
             # char instName[20]
             # uint16 instBagNdx
-            inst_data = self.sf2_file.read(22)
+            inst_data = sf2_file.read(22)
             if len(inst_data) < 22:
                 break
                 
@@ -731,19 +817,26 @@ class Sf2WavetableManager:
             sf2_instrument = SF2Instrument()
             sf2_instrument.name = name
             sf2_instrument.instrument_bag_index = inst_bag_ndx
-            self.instruments.append(sf2_instrument)
+            instruments.append(sf2_instrument)
+
+    def _parse_inst_chunk(self, chunk_size: int):
+        """Парсинг чанка inst (заголовки инструментов) - для совместимости"""
+        pass
     
-    def _parse_ibag_chunk(self, chunk_size: int):
+    def _parse_ibag_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка ibag (заголовки зон инструментов)"""
+        sf2_file = manager['file']
+        instruments = manager['instruments']
+        
         num_zones = chunk_size // 4  # Каждая зона инструмента 4 байта
         
         # Сохраняем текущую позицию файла
-        start_pos = self.sf2_file.tell()
+        start_pos = sf2_file.tell()
         
         # Собираем все индексы зон для каждого инструмента
         instrument_zone_indices = []
         for i in range(num_zones - 1):  # Последняя зона - терминальная
-            zone_data = self.sf2_file.read(4)
+            zone_data = sf2_file.read(4)
             if len(zone_data) < 4:
                 break
                 
@@ -755,13 +848,13 @@ class Sf2WavetableManager:
             instrument_zone_indices.append((gen_ndx, mod_ndx))
         
         # Возвращаемся к началу чанка
-        self.sf2_file.seek(start_pos)
+        sf2_file.seek(start_pos)
         
         # Привязываем зоны к инструментам
-        for i, instrument in enumerate(self.instruments):
+        for i, instrument in enumerate(instruments):
             # Находим начало и конец зон для этого инструмента
             start_idx = instrument.instrument_bag_index
-            end_idx = self.instruments[i+1].instrument_bag_index if i < len(self.instruments) - 1 else num_zones - 1
+            end_idx = instruments[i+1].instrument_bag_index if i < len(instruments) - 1 else num_zones - 1
             
             # Добавляем зоны в инструмент
             for j in range(start_idx, end_idx):
@@ -774,18 +867,25 @@ class Sf2WavetableManager:
                 inst_zone.mod_ndx = mod_ndx
                 
                 instrument.zones.append(inst_zone)
+
+    def _parse_ibag_chunk(self, chunk_size: int):
+        """Парсинг чанка ibag (заголовки зон инструментов) - для совместимости"""
+        pass
     
-    def _parse_igen_chunk(self, chunk_size: int):
+    def _parse_igen_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка igen (генераторы инструментов)"""
+        sf2_file = manager['file']
+        instruments = manager['instruments']
+        
         num_gens = chunk_size // 4  # Каждый генератор 4 байта
         
         # Сохраняем текущую позицию файла
-        start_pos = self.sf2_file.tell()
+        start_pos = sf2_file.tell()
         
         # Собираем все генераторы
         generators = []
         for i in range(num_gens):
-            gen_data = self.sf2_file.read(4)
+            gen_data = sf2_file.read(4)
             if len(gen_data) < 4:
                 break
                 
@@ -797,10 +897,10 @@ class Sf2WavetableManager:
             generators.append((gen_type, gen_amount))
         
         # Возвращаемся к началу чанка
-        self.sf2_file.seek(start_pos)
+        sf2_file.seek(start_pos)
         
         # Привязываем генераторы к зонам инструментов
-        for instrument in self.instruments:
+        for instrument in instruments:
             for zone in instrument.zones:
                 # Находим генераторы для этой зоны
                 start_idx = zone.gen_ndx
@@ -894,18 +994,25 @@ class Sf2WavetableManager:
                         zone.KeynumToVolEnvHold = gen_amount
                     elif gen_type == 37:  # keynumToVolEnvDecay
                         zone.KeynumToVolEnvDecay = gen_amount
+
+    def _parse_igen_chunk(self, chunk_size: int):
+        """Парсинг чанка igen (генераторы инструментов) - для совместимости"""
+        pass
     
-    def _parse_imod_chunk(self, chunk_size: int):
+    def _parse_imod_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка imod (модуляторы инструментов)"""
+        sf2_file = manager['file']
+        instruments = manager['instruments']
+        
         num_modulators = chunk_size // 10  # Каждый модулятор 10 байт
         
         # Сохраняем текущую позицию файла
-        start_pos = self.sf2_file.tell()
+        start_pos = sf2_file.tell()
         
         # Собираем все модуляторы
         modulators = []
         for i in range(num_modulators):
-            mod_data = self.sf2_file.read(10)
+            mod_data = sf2_file.read(10)
             if len(mod_data) < 10:
                 break
                 
@@ -944,10 +1051,10 @@ class Sf2WavetableManager:
             modulators.append(modulator)
         
         # Возвращаемся к началу чанка
-        self.sf2_file.seek(start_pos)
+        sf2_file.seek(start_pos)
         
         # Привязываем модуляторы к зонам инструментов
-        for instrument in self.instruments:
+        for instrument in instruments:
             for zone in instrument.zones:
                 # Находим модуляторы для этой зоны
                 start_idx = zone.mod_ndx
@@ -966,9 +1073,16 @@ class Sf2WavetableManager:
                     
                     # Обработка часто используемых модуляций
                     self._process_instrument_modulator(zone, modulator)
+
+    def _parse_imod_chunk(self, chunk_size: int):
+        """Парсинг чанка imod (модуляторы инструментов) - для совместимости"""
+        pass
     
-    def _parse_shdr_chunk(self, chunk_size: int):
+    def _parse_shdr_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка shdr (заголовки сэмплов)"""
+        sf2_file = manager['file']
+        sample_headers = manager['sample_headers']
+        
         num_samples = chunk_size // 46  # Каждый заголовок сэмпла 46 байт
         
         for i in range(num_samples - 1):  # Последний сэмпл - терминальный
@@ -983,7 +1097,7 @@ class Sf2WavetableManager:
             # int8 pitchCorrection
             # uint16 sampleLink
             # uint16 sampleType
-            sample_data = self.sf2_file.read(46)
+            sample_data = sf2_file.read(46)
             if len(sample_data) < 46:
                 break
                 
@@ -1011,14 +1125,19 @@ class Sf2WavetableManager:
             sample_header.pitch_correction = pitch_correction
             sample_header.link = sample_link
             sample_header.type = sample_type
-            self.sample_headers.append(sample_header)
+            sample_headers.append(sample_header)
+
+    def _parse_shdr_chunk(self, chunk_size: int):
+        """Парсинг чанка shdr (заголовки сэмплов) - для совместимости"""
+        pass
     
-    def _parse_sdta_chunk(self, chunk_size: int, chunk_end: int):
+    def _parse_sdta_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int, chunk_end: int):
         """Парсинг чанка sdta (данные сэмплов)"""
+        sf2_file = manager['file']
         # Нам нужно найти подчанк smpl
-        while self.sf2_file.tell() < chunk_end - 8:
+        while sf2_file.tell() < chunk_end - 8:
             # Чтение заголовка подчанка
-            subchunk_header = self.sf2_file.read(8)
+            subchunk_header = sf2_file.read(8)
             if len(subchunk_header) < 8:
                 break
                 
@@ -1027,17 +1146,21 @@ class Sf2WavetableManager:
             
             # Проверка, является ли это подчанком smpl
             if subchunk_id == b'smpl':
-                self.smpl_data_offset = self.sf2_file.tell()
-                self.smpl_data_size = subchunk_size
+                manager['smpl_data_offset'] = sf2_file.tell()
+                manager['smpl_data_size'] = subchunk_size
                 # Пропускаем данные, так как будем загружать их по требованию
-                self.sf2_file.seek(subchunk_size, 1)
+                sf2_file.seek(subchunk_size, 1)
                 return
             
             # Переход к следующему подчанку
-            self.sf2_file.seek(subchunk_size, 1)
+            sf2_file.seek(subchunk_size, 1)
             # Выравнивание до четного числа байт
             if subchunk_size % 2 != 0:
-                self.sf2_file.seek(1, 1)
+                sf2_file.seek(1, 1)
+
+    def _parse_sdta_chunk(self, chunk_size: int, chunk_end: int):
+        """Парсинг чанка sdta (данные сэмплов) - для совместимости"""
+        pass
     
     def _process_preset_modulator(self, zone: SF2PresetZone, modulator: SF2Modulator):
         """Обработка модулятора пресета для извлечения полезных параметров"""
@@ -1254,6 +1377,66 @@ class Sf2WavetableManager:
         else:
             return abs(amount) / 1000.0  # Общая нормализация
     
+    def _build_global_preset_map(self):
+        """Собираем все пресеты из всех SF2 файлов в один глобальный список с приоритетами"""
+        # Очищаем глобальные структуры
+        self.presets.clear()
+        self.instruments.clear()
+        self.sample_headers.clear()
+        self.bank_instruments.clear()
+        
+        # Собираем все пресеты с учетом приоритетов
+        all_presets = []
+        
+        for manager in self.sf2_managers:
+            sf2_path = manager['path']
+            presets = manager['presets']
+            
+            # Получаем настройки для этого SF2 файла
+            bank_blacklist = self.bank_blacklists.get(sf2_path, [])
+            preset_blacklist = self.preset_blacklists.get(sf2_path, [])
+            bank_mapping = self.bank_mappings.get(sf2_path, {})
+            
+            for i, preset in enumerate(presets):
+                # Применяем черный список банков
+                if preset.bank in bank_blacklist:
+                    continue
+                
+                # Применяем черный список пресетов
+                if (preset.bank, preset.preset) in preset_blacklist:
+                    continue
+                
+                # Применяем маппинг банков
+                mapped_bank = bank_mapping.get(preset.bank, preset.bank)
+                
+                # Добавляем информацию о приоритете и источнике
+                all_presets.append({
+                    'preset': preset,
+                    'manager': manager,
+                    'original_bank': preset.bank,
+                    'mapped_bank': mapped_bank,
+                    'priority': manager['priority']
+                })
+        
+        # Сортируем по приоритету (меньше значение = выше приоритет)
+        all_presets.sort(key=lambda x: x['priority'])
+        
+        # Строим финальную карту с учетом приоритетов
+        preset_index = 0
+        for preset_info in all_presets:
+            preset = preset_info['preset']
+            mapped_bank = preset_info['mapped_bank']
+            
+            # Проверяем, есть ли уже пресет с таким банком и программой
+            if mapped_bank not in self.bank_instruments:
+                self.bank_instruments[mapped_bank] = {}
+            
+            # Если пресет еще не добавлен, добавляем его
+            if preset.preset not in self.bank_instruments[mapped_bank]:
+                self.bank_instruments[mapped_bank][preset.preset] = preset_index
+                self.presets.append(preset)
+                preset_index += 1
+
     def _build_bank_instruments_map(self):
         """Построение карты банк -> программа -> индекс пресета"""
         for i, preset in enumerate(self.presets):
@@ -1272,7 +1455,7 @@ class Sf2WavetableManager:
         Returns:
             словарь с параметрами программы
         """
-        # Найти пресет по банку и программе
+        # Найти пресет и его менеджер по банку и программе
         preset_idx = self._find_preset_index(program, bank)
         if preset_idx is None:
             # Возвращаем параметры по умолчанию
@@ -1280,11 +1463,26 @@ class Sf2WavetableManager:
         
         preset = self.presets[preset_idx]
         
+        # Определяем, из какого менеджера взят этот пресет
+        manager = None
+        for mgr in self.sf2_managers:
+            for preset_in_mgr in mgr['presets']:
+                if (preset_in_mgr.name == preset.name and 
+                    preset_in_mgr.preset == preset.preset and 
+                    preset_in_mgr.bank == preset.bank):
+                    manager = mgr
+                    break
+            if manager:
+                break
+        
+        # Получаем инструменты из соответствующего менеджера
+        instruments = manager['instruments'] if manager else self.instruments
+        
         # Собрать все зоны инструментов для этого пресета
         all_zones = []
         for preset_zone in preset.zones:
-            if preset_zone.instrument_index < len(self.instruments):
-                instrument = self.instruments[preset_zone.instrument_index]
+            if preset_zone.instrument_index < len(instruments):
+                instrument = instruments[preset_zone.instrument_index]
                 all_zones.extend(instrument.zones)
         
         # Если зон нет, возвращаем параметры по умолчанию
@@ -1439,12 +1637,27 @@ class Sf2WavetableManager:
         
         preset = self.presets[preset_idx]
         
+        # Определяем, из какого менеджера взят этот пресет
+        manager = None
+        for mgr in self.sf2_managers:
+            for preset_in_mgr in mgr['presets']:
+                if (preset_in_mgr.name == preset.name and 
+                    preset_in_mgr.preset == preset.preset and 
+                    preset_in_mgr.bank == preset.bank):
+                    manager = mgr
+                    break
+            if manager:
+                break
+        
+        # Получаем инструменты из соответствующего менеджера
+        instruments = manager['instruments'] if manager else self.instruments
+        
         # Найти зоны, соответствующие этой ноте
         matching_zones = []
         for preset_zone in preset.zones:
             if preset_zone.lokey <= note <= preset_zone.hikey:
-                if preset_zone.instrument_index < len(self.instruments):
-                    instrument = self.instruments[preset_zone.instrument_index]
+                if preset_zone.instrument_index < len(instruments):
+                    instrument = instruments[preset_zone.instrument_index]
                     for zone in instrument.zones:
                         if zone.lokey <= note <= zone.hikey:
                             matching_zones.append(zone)
@@ -1517,12 +1730,28 @@ class Sf2WavetableManager:
         # Определяем, барабан ли это
         is_drum = (bank == 128)
         
-        # Найти пресет
+        # Найти пресет и его менеджер
         preset_idx = self._find_preset_index(program, bank)
         if preset_idx is None:
             return None
         
         preset = self.presets[preset_idx]
+        
+        # Определяем, из какого менеджера взят этот пресет
+        manager = None
+        for mgr in self.sf2_managers:
+            for preset_in_mgr in mgr['presets']:
+                if (preset_in_mgr.name == preset.name and 
+                    preset_in_mgr.preset == preset.preset and 
+                    preset_in_mgr.bank == preset.bank):
+                    manager = mgr
+                    break
+            if manager:
+                break
+        
+        # Получаем инструменты и заголовки сэмплов из соответствующего менеджера
+        instruments = manager['instruments'] if manager else self.instruments
+        sample_headers = manager['sample_headers'] if manager else self.sample_headers
         
         # Собрать все подходящие зоны
         matching_zones = []
@@ -1530,8 +1759,8 @@ class Sf2WavetableManager:
             if (preset_zone.lokey <= note <= preset_zone.hikey and
                 preset_zone.lovel <= velocity <= preset_zone.hivel):
                 
-                if preset_zone.instrument_index < len(self.instruments):
-                    instrument = self.instruments[preset_zone.instrument_index]
+                if preset_zone.instrument_index < len(instruments):
+                    instrument = instruments[preset_zone.instrument_index]
                     for zone in instrument.zones:
                         if (zone.lokey <= note <= zone.hikey and
                             zone.lovel <= velocity <= zone.hivel):
@@ -1545,13 +1774,13 @@ class Sf2WavetableManager:
         zone = matching_zones[partial_id]
         
         # Получаем сэмпл
-        if zone.sample_index >= len(self.sample_headers):
+        if zone.sample_index >= len(sample_headers):
             return None
         
-        sample_header = self.sample_headers[zone.sample_index]
+        sample_header = sample_headers[zone.sample_index]
         
         # Загружаем сэмпл (из кэша или из файла)
-        sample_data = self._load_sample_data(sample_header)
+        sample_data = self._load_sample_data(sample_header, manager)
         if sample_data is None:
             return None
         
@@ -1563,6 +1792,20 @@ class Sf2WavetableManager:
         if bank in self.bank_instruments and program in self.bank_instruments[bank]:
             return self.bank_instruments[bank][program]
         return None
+
+    def _find_preset_and_manager(self, program: int, bank: int) -> Tuple[Optional[SF2Preset], Optional[Dict[str, Any]]]:
+        """Поиск пресета и его менеджера по программе и банку"""
+        preset_idx = self._find_preset_index(program, bank)
+        if preset_idx is not None and preset_idx < len(self.presets):
+            preset = self.presets[preset_idx]
+            # Находим менеджер, которому принадлежит этот пресет
+            for manager in self.sf2_managers:
+                for manager_preset in manager['presets']:
+                    if (manager_preset.name == preset.name and 
+                        manager_preset.preset == preset.preset and 
+                        manager_preset.bank == preset.bank):
+                        return preset, manager
+        return None, None
     
     def _convert_zone_to_partial_params(self, zone: SF2InstrumentZone, 
                                        is_drum: bool = False) -> dict:
@@ -1721,12 +1964,13 @@ class Sf2WavetableManager:
             "key_follow": 0.5
         }
     
-    def _load_sample_data(self, sample_header: SF2SampleHeader) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
+    def _load_sample_data(self, sample_header: SF2SampleHeader, manager: Optional[Dict[str, Any]] = None) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
         """
         Загрузка данных сэмпла из файла или кэша.
         
         Args:
             sample_header: заголовок сэмпла
+            manager: менеджер SF2 файла (опционально, для многфайлового режима)
             
         Returns:
             Моно: список значений
@@ -1739,7 +1983,7 @@ class Sf2WavetableManager:
             return self.sample_cache[sample_header.name]
         
         # Загружаем сэмпл из файла
-        sample_data = self._read_sample_from_file(sample_header)
+        sample_data = self._read_sample_from_file(sample_header, manager)
         if sample_data is None:
             return None
         
@@ -1748,19 +1992,31 @@ class Sf2WavetableManager:
         
         return sample_data
     
-    def _read_sample_from_file(self, sample_header: SF2SampleHeader) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
+    def _read_sample_from_file(self, sample_header: SF2SampleHeader, manager: Optional[Dict[str, Any]] = None) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
         """
         Чтение сэмпла из файла.
         
         Args:
             sample_header: заголовок сэмпла
+            manager: менеджер SF2 файла (опционально, для многфайлового режима)
             
         Returns:
             Моно: список значений
             Стерео: список кортежей (левый, правый)
         """
+        # Определяем, какой файл использовать
+        if manager is not None:
+            sf2_file = manager['file']
+            smpl_data_offset = manager.get('smpl_data_offset')
+            smpl_data_size = manager.get('smpl_data_size')
+        else:
+            # Режим совместимости для одиночного файла
+            sf2_file = self.sf2_file if hasattr(self, 'sf2_file') else None
+            smpl_data_offset = getattr(self, 'smpl_data_offset', None)
+            smpl_data_size = getattr(self, 'smpl_data_size', None)
+        
         # Проверяем, есть ли данные о сэмпле
-        if not hasattr(self, 'smpl_data_offset') or not hasattr(self, 'smpl_data_size'):
+        if smpl_data_offset is None or smpl_data_size is None:
             return None
         
         # Определяем размер сэмпла в сэмплах (не в байтах)
@@ -1774,16 +2030,16 @@ class Sf2WavetableManager:
         is_left = (sample_header.type & 4) != 0
         
         # Вычисляем смещение в файле
-        sample_offset = self.smpl_data_offset + sample_header.start * 2  # Предполагаем 16-битные сэмплы
+        sample_offset = smpl_data_offset + sample_header.start * 2  # Предполагаем 16-битные сэмплы
         
         try:
             # Переходим к началу сэмпла
-            self.sf2_file.seek(sample_offset)
+            sf2_file.seek(sample_offset)
             
             # Читаем данные
             if is_stereo:
                 # Для стерео читаем пары значений
-                data = self.sf2_file.read(sample_length * 4)  # 2 канала * 2 байта
+                data = sf2_file.read(sample_length * 4)  # 2 канала * 2 байта
                 if len(data) < sample_length * 4:
                     return None
                 
@@ -1795,7 +2051,7 @@ class Sf2WavetableManager:
                     samples.append((left / 32768.0, right / 32768.0))
             else:
                 # Для моно читаем одиночные значения
-                data = self.sf2_file.read(sample_length * 2)
+                data = sf2_file.read(sample_length * 2)
                 if len(data) < sample_length * 2:
                     return None
                 
@@ -2068,6 +2324,42 @@ class Sf2WavetableManager:
             ]
         }
     
+    def set_bank_blacklist(self, sf2_path: str, bank_list: List[int]):
+        """
+        Устанавливает черный список банков для указанного SF2 файла.
+        
+        Args:
+            sf2_path: путь к SF2 файлу
+            bank_list: список номеров банков для исключения
+        """
+        self.bank_blacklists[sf2_path] = bank_list
+        # Перестраиваем глобальную карту пресетов
+        self._build_global_preset_map()
+
+    def set_preset_blacklist(self, sf2_path: str, preset_list: List[Tuple[int, int]]):
+        """
+        Устанавливает черный список пресетов для указанного SF2 файла.
+        
+        Args:
+            sf2_path: путь к SF2 файлу
+            preset_list: список кортежей (bank, program) для исключения
+        """
+        self.preset_blacklists[sf2_path] = preset_list
+        # Перестраиваем глобальную карту пресетов
+        self._build_global_preset_map()
+
+    def set_bank_mapping(self, sf2_path: str, bank_mapping: Dict[int, int]):
+        """
+        Устанавливает маппинг банков MIDI на банки SF2 для указанного файла.
+        
+        Args:
+            sf2_path: путь к SF2 файлу
+            bank_mapping: словарь маппинга midi_bank -> sf2_bank
+        """
+        self.bank_mappings[sf2_path] = bank_mapping
+        # Перестраиваем глобальную карту пресетов
+        self._build_global_preset_map()
+
     def get_available_presets(self) -> List[Tuple[int, int, str]]:
         """
         Возвращает список доступных пресетов.
@@ -2109,18 +2401,33 @@ class Sf2WavetableManager:
         Returns:
             Список маршрутов модуляции
         """
-        # Найти пресет по банку и программе
+        # Найти пресет и его менеджер по банку и программе
         preset_idx = self._find_preset_index(program, bank)
         if preset_idx is None:
             return []
         
         preset = self.presets[preset_idx]
         
+        # Определяем, из какого менеджера взят этот пресет
+        manager = None
+        for mgr in self.sf2_managers:
+            for preset_in_mgr in mgr['presets']:
+                if (preset_in_mgr.name == preset.name and 
+                    preset_in_mgr.preset == preset.preset and 
+                    preset_in_mgr.bank == preset.bank):
+                    manager = mgr
+                    break
+            if manager:
+                break
+        
+        # Получаем инструменты из соответствующего менеджера
+        instruments = manager['instruments'] if manager else self.instruments
+        
         # Собрать все зоны инструментов для этого пресета
         all_zones = []
         for preset_zone in preset.zones:
-            if preset_zone.instrument_index < len(self.instruments):
-                instrument = self.instruments[preset_zone.instrument_index]
+            if preset_zone.instrument_index < len(instruments):
+                instrument = instruments[preset_zone.instrument_index]
                 all_zones.extend(instrument.zones)
         
         # Создаем маршруты модуляции
