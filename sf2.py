@@ -493,10 +493,6 @@ class Sf2WavetableManager:
                 if 'sf2_file' in locals() and not sf2_file.closed:
                     sf2_file.close()
 
-    def _parse_structure(self):
-        """Парсинг структуры файла SoundFont (устаревший метод, оставлен для совместимости)"""
-        pass
-
     def _parse_chunks_for_manager(self, manager: Dict[str, Any], start_offset: int, end_offset: int):
         """Оптимизированный парсинг чанков SoundFont файла с поддержкой вложенных LIST-чанков"""
         sf2_file = manager['file']
@@ -512,9 +508,7 @@ class Sf2WavetableManager:
             chunk_size = struct.unpack('<I', chunk_header[4:8])[0]
             
             # Определение конца чанка с учетом выравнивания
-            chunk_end = sf2_file.tell() + chunk_size
-            if chunk_size % 2 != 0:
-                chunk_end += 1  # SF2 требует выравнивания по четным границам
+            chunk_end = sf2_file.tell() + chunk_size + (chunk_size % 2)
             
             # Обработка LIST-чанков (специальный контейнерный тип)
             if chunk_id == b'LIST':
@@ -533,98 +527,9 @@ class Sf2WavetableManager:
                     # Обработка метаинформации
                     # Пропускаем содержимое INFO чанка
                     pass
-                # Переход к следующему чанку
-                sf2_file.seek(chunk_end)
-                continue
-            else:
-                # Обработка обычных чанков
-                if chunk_id == b'ifil':
-                    self._parse_ifil_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'INAM':
-                    self._parse_inam_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'ibag':
-                    self._parse_ibag_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'igen':
-                    self._parse_igen_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'imod':
-                    self._parse_imod_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'inst':
-                    self._parse_inst_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'pbag':
-                    self._parse_pbag_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'pmod':
-                    self._parse_pmod_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'pgen':
-                    self._parse_pgen_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'phdr':
-                    self._parse_phdr_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'shdr':
-                    self._parse_shdr_chunk_for_manager(manager, chunk_size)
-                elif chunk_id == b'sdta':
-                    self._parse_sdta_chunk_for_manager(manager, chunk_size, chunk_end)
             
             # Переход к следующему чанку с учетом выравнивания
             sf2_file.seek(chunk_end)
-
-    def _parse_list_chunk_for_manager(self, manager: Dict[str, Any], list_type: bytes, start_offset: int, end_offset: int):
-        """Парсинг вложенных чанков внутри LIST-контейнера"""
-        sf2_file = manager['file']
-        sf2_file.seek(start_offset)
-        
-        # Определяем тип LIST-чанка для специализированной обработки
-        if list_type == b'sdta':
-            # Обработка аудиоданных
-            while sf2_file.tell() < end_offset - 8:
-                sub_chunk_header = sf2_file.read(8)
-                if len(sub_chunk_header) < 8:
-                    break
-                    
-                sub_chunk_id = sub_chunk_header[:4]
-                sub_chunk_size = struct.unpack('<I', sub_chunk_header[4:8])[0]
-                
-                if sub_chunk_id == b'smpl':
-                    # Чанк с семплами
-                    manager['sample_data_offset'] = sf2_file.tell()
-                    manager['sample_data_size'] = sub_chunk_size
-                    sf2_file.seek(sub_chunk_size, 1)
-                elif sub_chunk_id == b'sm24':
-                    # 24-битные семплы (опционально)
-                    manager['sample24_data_offset'] = sf2_file.tell()
-                    manager['sample24_data_size'] = sub_chunk_size
-                    sf2_file.seek(sub_chunk_size, 1)
-                else:
-                    # Пропускаем неизвестные чанки
-                    sf2_file.seek(sub_chunk_size, 1)
-                    
-        elif list_type == b'pdta':
-            # Обработка параметрических данных
-            self._parse_chunks_for_manager(manager, sf2_file.tell(), end_offset)
-            
-        elif list_type == b'INFO':
-            # Обработка метаинформации
-            while sf2_file.tell() < end_offset - 8:
-                sub_chunk_header = sf2_file.read(8)
-                if len(sub_chunk_header) < 8:
-                    break
-                    
-                sub_chunk_id = sub_chunk_header[:4]
-                sub_chunk_size = struct.unpack('<I', sub_chunk_header[4:8])[0]
-                
-                if sub_chunk_id == b'ifil':
-                    self._parse_ifil_chunk_for_manager(manager, sub_chunk_size)
-                elif sub_chunk_id == b'INAM':
-                    self._parse_inam_chunk_for_manager(manager, sub_chunk_size)
-                else:
-                    # Пропускаем неизвестные чанки
-                    sf2_file.seek(sub_chunk_size, 1)
-        else:
-            # Пропускаем неизвестные типы LIST-чанков
-            sf2_file.seek(end_offset - start_offset, 1)
-
-    def _parse_info_list_for_manager(self, manager: Dict[str, Any], list_size: int, start_offset: int):
-        """Парсинг LIST INFO чанка"""
-        # INFO чанк содержит метаданные, которые мы можем проигнорировать
-        pass
 
     def _parse_sdta_list_for_manager(self, manager: Dict[str, Any], list_size: int, start_offset: int):
         """Парсинг LIST sdta чанка"""
@@ -712,33 +617,6 @@ class Sf2WavetableManager:
         # Восстанавливаем позицию
         sf2_file.seek(current_pos)
     
-    # Все остальные методы парсинга остаются без изменений, только добавляем суффикс _for_manager
-    # и заменяем self.sf2_file на manager['file'], self.presets на manager['presets'], и т.д.
-    
-    def _parse_ifil_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
-        """Парсинг чанка ifil (версия SoundFont)"""
-        # Формат: major version (2 bytes), minor version (2 bytes)
-        sf2_file = manager['file']
-        data = sf2_file.read(chunk_size)
-        if len(data) >= 4:
-            major = struct.unpack('<H', data[0:2])[0]
-            minor = struct.unpack('<H', data[2:4])[0]
-            # Можно сохранить версию для справки
-            manager['sf2_version'] = (major, minor)
-
-    def _parse_ifil_chunk(self, chunk_size: int):
-        """Парсинг чанка ifil (версия SoundFont) - для совместимости"""
-        pass
-    
-    def _parse_inam_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
-        """Парсинг чанка INAM (имя SoundFont)"""
-        # В реальной реализации здесь обрабатывалось бы имя SoundFont
-        pass
-
-    def _parse_inam_chunk(self, chunk_size: int):
-        """Парсинг чанка INAM (имя SoundFont) - для совместимости"""
-        pass
-    
     def _parse_phdr_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка phdr (заголовки пресетов)"""
         sf2_file = manager['file']
@@ -773,10 +651,6 @@ class Sf2WavetableManager:
             sf2_preset.preset_bag_index = preset_bag_ndx
             presets.append(sf2_preset)
 
-    def _parse_phdr_chunk(self, chunk_size: int):
-        """Парсинг чанка phdr (заголовки пресетов) - для совместимости"""
-        pass
-    
     def _parse_pbag_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка pbag (заголовки зон пресетов)"""
         sf2_file = manager['file']
@@ -822,10 +696,6 @@ class Sf2WavetableManager:
                 
                 preset.zones.append(preset_zone)
 
-    def _parse_pbag_chunk(self, chunk_size: int):
-        """Парсинг чанка pbag (заголовки зон пресетов) - для совместимости"""
-        pass
-    
     def _parse_pgen_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка pgen (генераторы пресетов)"""
         sf2_file = manager['file']
@@ -928,10 +798,6 @@ class Sf2WavetableManager:
                     elif gen_type == 41:  # keynumToVolEnvDecay
                         zone.KeynumToVolEnvDecay = gen_amount
 
-    def _parse_pgen_chunk(self, chunk_size: int):
-        """Парсинг чанка pgen (генераторы пресетов) - для совместимости"""
-        pass
-    
     def _parse_pmod_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка pmod (модуляторы пресетов)"""
         sf2_file = manager['file']
@@ -1007,10 +873,6 @@ class Sf2WavetableManager:
                     # Обработка часто используемых модуляций
                     self._process_preset_modulator(zone, modulator)
 
-    def _parse_pmod_chunk(self, chunk_size: int):
-        """Парсинг чанка pmod (модуляторы пресетов) - для совместимости"""
-        pass
-    
     def _parse_inst_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка inst (заголовки инструментов)"""
         sf2_file = manager['file']
@@ -1036,10 +898,6 @@ class Sf2WavetableManager:
             sf2_instrument.instrument_bag_index = inst_bag_ndx
             instruments.append(sf2_instrument)
 
-    def _parse_inst_chunk(self, chunk_size: int):
-        """Парсинг чанка inst (заголовки инструментов) - для совместимости"""
-        pass
-    
     def _parse_ibag_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка ibag (заголовки зон инструментов)"""
         sf2_file = manager['file']
@@ -1083,10 +941,6 @@ class Sf2WavetableManager:
                 
                 instrument.zones.append(inst_zone)
 
-    def _parse_ibag_chunk(self, chunk_size: int):
-        """Парсинг чанка ibag (заголовки зон инструментов) - для совместимости"""
-        pass
-    
     def _parse_igen_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка igen (генераторы инструментов)"""
         sf2_file = manager['file']
@@ -1210,10 +1064,6 @@ class Sf2WavetableManager:
                     elif gen_type == 37:  # keynumToVolEnvDecay
                         zone.KeynumToVolEnvDecay = gen_amount
 
-    def _parse_igen_chunk(self, chunk_size: int):
-        """Парсинг чанка igen (генераторы инструментов) - для совместимости"""
-        pass
-    
     def _parse_imod_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка imod (модуляторы инструментов)"""
         sf2_file = manager['file']
@@ -1289,10 +1139,6 @@ class Sf2WavetableManager:
                     # Обработка часто используемых модуляций
                     self._process_instrument_modulator(zone, modulator)
 
-    def _parse_imod_chunk(self, chunk_size: int):
-        """Парсинг чанка imod (модуляторы инструментов) - для совместимости"""
-        pass
-    
     def _parse_shdr_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка shdr (заголовки сэмплов)"""
         sf2_file = manager['file']
@@ -1343,10 +1189,6 @@ class Sf2WavetableManager:
             sample_headers.append(sample_header)
         sf2_file.seek(46, 1)  # Пропускаем терминальный заголовок сэмпла
 
-    def _parse_shdr_chunk(self, chunk_size: int):
-        """Парсинг чанка shdr (заголовки сэмплов) - для совместимости"""
-        pass
-    
     def _parse_sdta_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int, chunk_end: int):
         """Парсинг чанка sdta (данные сэмплов)"""
         sf2_file = manager['file']
@@ -1374,10 +1216,6 @@ class Sf2WavetableManager:
             if subchunk_size % 2 != 0:
                 sf2_file.seek(1, 1)
 
-    def _parse_sdta_chunk(self, chunk_size: int, chunk_end: int):
-        """Парсинг чанка sdta (данные сэмплов) - для совместимости"""
-        pass
-    
     def _process_preset_modulator(self, zone: SF2PresetZone, modulator: SF2Modulator):
         """Обработка модулятора пресета для извлечения полезных параметров"""
         # Определяем источник модуляции
