@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Optimized SoundFont 2.0 parser with improved performance.
-This version properly handles LIST chunks in the RIFF structure and optimizes parsing speed.
+Fixed RIFF file parsing for SoundFont 2.0 files.
+This version properly handles LIST chunks in the RIFF structure.
 """
 
 import struct
@@ -9,7 +9,7 @@ import numpy as np
 import os
 import warnings
 from collections import OrderedDict
-from typing import Dict, List, Tuple, Optional, Union, Any, BinaryIO
+from typing import Dict, List, Tuple, Optional, Union, Any
 
 from tg import ModulationDestination, ModulationSource
 
@@ -261,7 +261,7 @@ class SF2Instrument:
 
 class Sf2WavetableManager:
     """
-    Оптимизированный менеджер wavetable сэмплов, основанный на SoundFont 2.0 файлах.
+    Менеджер wavetable сэмплов, основанный на SoundFont 2.0 файлах.
     Предоставляет интерфейс для XG Tone Generator с поддержкой нескольких слоев
     и барабанов. Реализует ленивую загрузку сэмплов и кэширование.
     Поддерживает загрузку нескольких SF2 файлов с приоритетами, черными списками
@@ -456,7 +456,7 @@ class Sf2WavetableManager:
         """Загрузка всех SF2 файлов с оптимизацией"""
         for i, sf2_path in enumerate(self.sf2_paths):
             try:
-                # Открываем файл для чтения с большим буфером
+                # Открываем файл для чтения с большим буфером для улучшения производительности
                 sf2_file = open(sf2_path, 'rb', buffering=1024*1024)  # 1MB buffer
                 
                 # Проверка заголовка RIFF
@@ -498,249 +498,383 @@ class Sf2WavetableManager:
         pass
 
     def _parse_chunks_for_manager(self, manager: Dict[str, Any], start_offset: int, end_offset: int):
-        """Оптимизированный парсинг чанков SoundFont файла"""
+        """Оптимизированный парсинг чанков SoundFont файла с поддержкой вложенных LIST-чанков"""
         sf2_file = manager['file']
         sf2_file.seek(start_offset)
         
-        # Предварительно читаем большой блок данных для уменьшения количества операций чтения
-        file_data = sf2_file.read(min(1024*1024, end_offset - start_offset))  # 1MB или до конца
-        data_offset = start_offset
-        pos = 0
-        
-        while pos < len(file_data) - 8:
-            # Чтение заголовка чанка из буфера
-            if pos + 8 > len(file_data):
+        while sf2_file.tell() < end_offset - 8:
+            # Чтение заголовка чанка
+            chunk_header = sf2_file.read(8)
+            if len(chunk_header) < 8:
                 break
                 
-            chunk_id = file_data[pos:pos+4]
-            chunk_size_bytes = file_data[pos+4:pos+8]
-            if len(chunk_size_bytes) < 4:
-                break
-            chunk_size = struct.unpack('<I', chunk_size_bytes)[0]
+            chunk_id = chunk_header[:4]
+            chunk_size = struct.unpack('<I', chunk_header[4:8])[0]
             
-            # Переход к данным чанка
-            pos += 8
-            chunk_end = pos + chunk_size
+            # Определение конца чанка с учетом выравнивания
+            chunk_end = sf2_file.tell() + chunk_size
+            if chunk_size % 2 != 0:
+                chunk_end += 1  # SF2 требует выравнивания по четным границам
             
-            # Обработка LIST-чанков
+            # Обработка LIST-чанков (специальный контейнерный тип)
             if chunk_id == b'LIST':
-                if pos + 4 > len(file_data):
+                list_type = sf2_file.read(4)
+                if len(list_type) < 4:
                     break
-                list_type = file_data[pos:pos+4]
-                pos += 4
-                
-                # Обработка вложенных чанков
-                if list_type == b'pdta':
-                    # Обработка параметрических данных
-                    self._parse_pdta_chunk_for_manager(manager, file_data, pos, chunk_end, data_offset)
-                elif list_type == b'sdta':
+                    
+                # Обработка вложенных чанков в зависимости от типа LIST
+                if list_type == b'sdta':
                     # Обработка аудиоданных
-                    self._parse_sdta_chunk_for_manager(manager, file_data, pos, chunk_end, data_offset)
-                # Для других LIST-чанков пропускаем содержимое
-                
-                pos = chunk_end
+                    self._parse_sdta_list_for_manager(manager, chunk_size - 4, sf2_file.tell())
+                elif list_type == b'pdta':
+                    # Обработка параметрических данных
+                    self._parse_pdta_list_for_manager(manager, chunk_size - 4, sf2_file.tell())
+                elif list_type == b'INFO':
+                    # Обработка метаинформации
+                    # Пропускаем содержимое INFO чанка
+                    pass
+                # Переход к следующему чанку
+                sf2_file.seek(chunk_end)
+                continue
             else:
                 # Обработка обычных чанков
-                chunk_data = file_data[pos:chunk_end] if chunk_end <= len(file_data) else None
-                
-                if chunk_id == b'phdr':
-                    self._parse_phdr_chunk_data(manager, chunk_data)
-                elif chunk_id == b'pbag':
-                    self._parse_pbag_chunk_data(manager, chunk_data)
-                elif chunk_id == b'pmod':
-                    self._parse_pmod_chunk_data(manager, chunk_data)
-                elif chunk_id == b'pgen':
-                    self._parse_pgen_chunk_data(manager, chunk_data)
-                elif chunk_id == b'inst':
-                    self._parse_inst_chunk_data(manager, chunk_data)
+                if chunk_id == b'ifil':
+                    self._parse_ifil_chunk_for_manager(manager, chunk_size)
+                elif chunk_id == b'INAM':
+                    self._parse_inam_chunk_for_manager(manager, chunk_size)
                 elif chunk_id == b'ibag':
-                    self._parse_ibag_chunk_data(manager, chunk_data)
-                elif chunk_id == b'imod':
-                    self._parse_imod_chunk_data(manager, chunk_data)
+                    self._parse_ibag_chunk_for_manager(manager, chunk_size)
                 elif chunk_id == b'igen':
-                    self._parse_igen_chunk_data(manager, chunk_data)
+                    self._parse_igen_chunk_for_manager(manager, chunk_size)
+                elif chunk_id == b'imod':
+                    self._parse_imod_chunk_for_manager(manager, chunk_size)
+                elif chunk_id == b'inst':
+                    self._parse_inst_chunk_for_manager(manager, chunk_size)
+                elif chunk_id == b'pbag':
+                    self._parse_pbag_chunk_for_manager(manager, chunk_size)
+                elif chunk_id == b'pmod':
+                    self._parse_pmod_chunk_for_manager(manager, chunk_size)
+                elif chunk_id == b'pgen':
+                    self._parse_pgen_chunk_for_manager(manager, chunk_size)
+                elif chunk_id == b'phdr':
+                    self._parse_phdr_chunk_for_manager(manager, chunk_size)
                 elif chunk_id == b'shdr':
-                    self._parse_shdr_chunk_data(manager, chunk_data)
+                    self._parse_shdr_chunk_for_manager(manager, chunk_size)
+                elif chunk_id == b'sdta':
+                    self._parse_sdta_chunk_for_manager(manager, chunk_size, chunk_end)
+            
+            # Переход к следующему чанку с учетом выравнивания
+            sf2_file.seek(chunk_end)
+
+    def _parse_list_chunk_for_manager(self, manager: Dict[str, Any], list_type: bytes, start_offset: int, end_offset: int):
+        """Парсинг вложенных чанков внутри LIST-контейнера"""
+        sf2_file = manager['file']
+        sf2_file.seek(start_offset)
+        
+        # Определяем тип LIST-чанка для специализированной обработки
+        if list_type == b'sdta':
+            # Обработка аудиоданных
+            while sf2_file.tell() < end_offset - 8:
+                sub_chunk_header = sf2_file.read(8)
+                if len(sub_chunk_header) < 8:
+                    break
+                    
+                sub_chunk_id = sub_chunk_header[:4]
+                sub_chunk_size = struct.unpack('<I', sub_chunk_header[4:8])[0]
                 
-                pos = chunk_end
+                if sub_chunk_id == b'smpl':
+                    # Чанк с семплами
+                    manager['sample_data_offset'] = sf2_file.tell()
+                    manager['sample_data_size'] = sub_chunk_size
+                    sf2_file.seek(sub_chunk_size, 1)
+                elif sub_chunk_id == b'sm24':
+                    # 24-битные семплы (опционально)
+                    manager['sample24_data_offset'] = sf2_file.tell()
+                    manager['sample24_data_size'] = sub_chunk_size
+                    sf2_file.seek(sub_chunk_size, 1)
+                else:
+                    # Пропускаем неизвестные чанки
+                    sf2_file.seek(sub_chunk_size, 1)
+                    
+        elif list_type == b'pdta':
+            # Обработка параметрических данных
+            self._parse_chunks_for_manager(manager, sf2_file.tell(), end_offset)
+            
+        elif list_type == b'INFO':
+            # Обработка метаинформации
+            while sf2_file.tell() < end_offset - 8:
+                sub_chunk_header = sf2_file.read(8)
+                if len(sub_chunk_header) < 8:
+                    break
+                    
+                sub_chunk_id = sub_chunk_header[:4]
+                sub_chunk_size = struct.unpack('<I', sub_chunk_header[4:8])[0]
+                
+                if sub_chunk_id == b'ifil':
+                    self._parse_ifil_chunk_for_manager(manager, sub_chunk_size)
+                elif sub_chunk_id == b'INAM':
+                    self._parse_inam_chunk_for_manager(manager, sub_chunk_size)
+                else:
+                    # Пропускаем неизвестные чанки
+                    sf2_file.seek(sub_chunk_size, 1)
+        else:
+            # Пропускаем неизвестные типы LIST-чанков
+            sf2_file.seek(end_offset - start_offset, 1)
+
+    def _parse_info_list_for_manager(self, manager: Dict[str, Any], list_size: int, start_offset: int):
+        """Парсинг LIST INFO чанка"""
+        # INFO чанк содержит метаданные, которые мы можем проигнорировать
+        pass
+
+    def _parse_sdta_list_for_manager(self, manager: Dict[str, Any], list_size: int, start_offset: int):
+        """Парсинг LIST sdta чанка"""
+        sf2_file = manager['file']
+        end_offset = start_offset + list_size
+        
+        # Сохраняем текущую позицию
+        current_pos = sf2_file.tell()
+        
+        # Парсим подчанки внутри sdta
+        sf2_file.seek(start_offset)
+        while sf2_file.tell() < end_offset - 8:
+            # Чтение заголовка подчанка
+            subchunk_header = sf2_file.read(8)
+            if len(subchunk_header) < 8:
+                break
+                
+            subchunk_id = subchunk_header[:4]
+            subchunk_size = struct.unpack('<I', subchunk_header[4:8])[0]
+            
+            # Определение конца подчанка
+            subchunk_end = sf2_file.tell() + subchunk_size
+            
+            # Проверка, является ли это подчанком smpl
+            if subchunk_id == b'smpl':
+                manager['smpl_data_offset'] = sf2_file.tell()
+                manager['smpl_data_size'] = subchunk_size
+                # Пропускаем данные, так как будем загружать их по требованию
+                sf2_file.seek(subchunk_size, 1)
+            else:
+                # Пропускаем неизвестные подчанки
+                sf2_file.seek(subchunk_size, 1)
             
             # Выравнивание до четного числа байт
-            if chunk_size % 2 != 0:
-                pos += 1
-
-    def _parse_pdta_chunk_for_manager(self, manager: Dict[str, Any], file_data: bytes, start_pos: int, end_pos: int, data_offset: int):
-        """Оптимизированный парсинг параметрических данных"""
-        pos = start_pos
+            if subchunk_size % 2 != 0:
+                sf2_file.seek(1, 1)
         
-        while pos < end_pos - 8:
-            if pos + 8 > len(file_data):
+        # Восстанавливаем позицию
+        sf2_file.seek(current_pos)
+
+    def _parse_pdta_list_for_manager(self, manager: Dict[str, Any], list_size: int, start_offset: int):
+        """Парсинг LIST pdta чанка (данные программы)"""
+        sf2_file = manager['file']
+        end_offset = start_offset + list_size
+        
+        # Сохраняем текущую позицию
+        current_pos = sf2_file.tell()
+        
+        # Парсим подчанки внутри pdta
+        sf2_file.seek(start_offset)
+        while sf2_file.tell() < end_offset - 8:
+            # Чтение заголовка подчанка
+            subchunk_header = sf2_file.read(8)
+            if len(subchunk_header) < 8:
                 break
                 
-            subchunk_id = file_data[pos:pos+4]
-            subchunk_size_bytes = file_data[pos+4:pos+8]
-            if len(subchunk_size_bytes) < 4:
-                break
-            subchunk_size = struct.unpack('<I', subchunk_size_bytes)[0]
+            subchunk_id = subchunk_header[:4]
+            subchunk_size = struct.unpack('<I', subchunk_header[4:8])[0]
             
-            pos += 8
-            subchunk_end = pos + subchunk_size
-            subchunk_data = file_data[pos:subchunk_end] if subchunk_end <= len(file_data) else None
+            # Определение конца подчанка
+            subchunk_end = sf2_file.tell() + subchunk_size
             
-            # Обработка подчанков
+            # Обработка различных типов подчанков
             if subchunk_id == b'phdr':
-                self._parse_phdr_chunk_data(manager, subchunk_data)
+                self._parse_phdr_chunk_for_manager(manager, subchunk_size)
             elif subchunk_id == b'pbag':
-                self._parse_pbag_chunk_data(manager, subchunk_data)
+                self._parse_pbag_chunk_for_manager(manager, subchunk_size)
             elif subchunk_id == b'pmod':
-                self._parse_pmod_chunk_data(manager, subchunk_data)
+                self._parse_pmod_chunk_for_manager(manager, subchunk_size)
             elif subchunk_id == b'pgen':
-                self._parse_pgen_chunk_data(manager, subchunk_data)
+                self._parse_pgen_chunk_for_manager(manager, subchunk_size)
             elif subchunk_id == b'inst':
-                self._parse_inst_chunk_data(manager, subchunk_data)
+                self._parse_inst_chunk_for_manager(manager, subchunk_size)
             elif subchunk_id == b'ibag':
-                self._parse_ibag_chunk_data(manager, subchunk_data)
+                self._parse_ibag_chunk_for_manager(manager, subchunk_size)
             elif subchunk_id == b'imod':
-                self._parse_imod_chunk_data(manager, subchunk_data)
+                self._parse_imod_chunk_for_manager(manager, subchunk_size)
             elif subchunk_id == b'igen':
-                self._parse_igen_chunk_data(manager, subchunk_data)
+                self._parse_igen_chunk_for_manager(manager, subchunk_size)
             elif subchunk_id == b'shdr':
-                self._parse_shdr_chunk_data(manager, subchunk_data)
-            
-            pos = subchunk_end
-            
-            # Выравнивание
-            if subchunk_size % 2 != 0:
-                pos += 1
+                self._parse_shdr_chunk_for_manager(manager, subchunk_size)
 
-    def _parse_sdta_chunk_for_manager(self, manager: Dict[str, Any], file_data: bytes, start_pos: int, end_pos: int, data_offset: int):
-        """Оптимизированный парсинг аудиоданных"""
-        pos = start_pos
+            sf2_file.seek(subchunk_end + (subchunk_size % 2))
         
-        while pos < end_pos - 8:
-            if pos + 8 > len(file_data):
-                break
-                
-            subchunk_id = file_data[pos:pos+4]
-            subchunk_size_bytes = file_data[pos+4:pos+8]
-            if len(subchunk_size_bytes) < 4:
-                break
-            subchunk_size = struct.unpack('<I', subchunk_size_bytes)[0]
-            
-            pos += 8
-            
-            # Обработка подчанков аудиоданных
-            if subchunk_id == b'smpl':
-                manager['smpl_data_offset'] = data_offset + pos
-                manager['smpl_data_size'] = subchunk_size
-                # Не читаем данные сейчас, будем читать по требованию
-                break  # Обычно только один smpl чанк
-            
-            pos += subchunk_size
-            
-            # Выравнивание
-            if subchunk_size % 2 != 0:
-                pos += 1
+        # Восстанавливаем позицию
+        sf2_file.seek(current_pos)
+    
+    # Все остальные методы парсинга остаются без изменений, только добавляем суффикс _for_manager
+    # и заменяем self.sf2_file на manager['file'], self.presets на manager['presets'], и т.д.
+    
+    def _parse_ifil_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка ifil (версия SoundFont)"""
+        # Формат: major version (2 bytes), minor version (2 bytes)
+        sf2_file = manager['file']
+        data = sf2_file.read(chunk_size)
+        if len(data) >= 4:
+            major = struct.unpack('<H', data[0:2])[0]
+            minor = struct.unpack('<H', data[2:4])[0]
+            # Можно сохранить версию для справки
+            manager['sf2_version'] = (major, minor)
 
-    # Оптимизированные методы парсинга данных
-    def _parse_phdr_chunk_data(self, manager: Dict[str, Any], chunk_data: Optional[bytes]):
-        """Оптимизированный парсинг заголовков пресетов"""
-        if chunk_data is None:
-            return
-            
+    def _parse_ifil_chunk(self, chunk_size: int):
+        """Парсинг чанка ifil (версия SoundFont) - для совместимости"""
+        pass
+    
+    def _parse_inam_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка INAM (имя SoundFont)"""
+        # В реальной реализации здесь обрабатывалось бы имя SoundFont
+        pass
+
+    def _parse_inam_chunk(self, chunk_size: int):
+        """Парсинг чанка INAM (имя SoundFont) - для совместимости"""
+        pass
+    
+    def _parse_phdr_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка phdr (заголовки пресетов)"""
+        sf2_file = manager['file']
         presets = manager['presets']
-        num_presets = len(chunk_data) // 38
+        
+        num_presets = chunk_size // 38  # Каждый заголовок пресета 38 байт
         
         for i in range(num_presets - 1):  # Последний пресет - терминальный
-            offset = i * 38
-            if offset + 38 > len(chunk_data):
+            # Формат заголовка пресета:
+            # char presetName[20]
+            # uint16 preset
+            # uint16 bank
+            # uint16 presetBagNdx
+            # uint32 library
+            # uint32 genre
+            # uint32 morphology
+            preset_data = sf2_file.read(38)
+            if len(preset_data) < 38:
                 break
                 
-            preset_data = chunk_data[offset:offset+38]
-            
-            # Извлечение данных одним вызовом unpack
-            name_bytes = preset_data[:20]
-            preset_vals = struct.unpack('<20sHHHLLL', preset_data[:38])
-            
-            # Извлечение имени
-            name = preset_vals[0].split(b'\x00')[0].decode('ascii', 'ignore')
+            # Извлечение данных
+            name = preset_data[:20].split(b'\x00')[0].decode('ascii', 'ignore')
+            preset = struct.unpack('<H', preset_data[20:22])[0]
+            bank = struct.unpack('<H', preset_data[22:24])[0]
+            preset_bag_ndx = struct.unpack('<H', preset_data[24:26])[0]
             
             # Создаем пресет
             sf2_preset = SF2Preset()
             sf2_preset.name = name
-            sf2_preset.preset = preset_vals[1]
-            sf2_preset.bank = preset_vals[2]
-            sf2_preset.preset_bag_index = preset_vals[3]
+            sf2_preset.preset = preset
+            sf2_preset.bank = bank
+            sf2_preset.preset_bag_index = preset_bag_ndx
             presets.append(sf2_preset)
 
-    def _parse_pbag_chunk_data(self, manager: Dict[str, Any], chunk_data: Optional[bytes]):
-        """Оптимизированный парсинг заголовков зон пресетов"""
-        if chunk_data is None or len(chunk_data) < 4:
-            return
-            
+    def _parse_phdr_chunk(self, chunk_size: int):
+        """Парсинг чанка phdr (заголовки пресетов) - для совместимости"""
+        pass
+    
+    def _parse_pbag_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка pbag (заголовки зон пресетов)"""
+        sf2_file = manager['file']
         presets = manager['presets']
-        num_zones = len(chunk_data) // 4
         
-        # Предварительно читаем все индексы
-        zone_indices = []
+        num_zones = chunk_size // 4  # Каждая зона пресета 4 байта
+        
+        # Сохраняем текущую позицию файла
+        start_pos = sf2_file.tell()
+        
+        # Собираем все индексы зон для каждого пресета
+        preset_zone_indices = []
         for i in range(num_zones - 1):  # Последняя зона - терминальная
-            offset = i * 4
-            if offset + 4 > len(chunk_data):
+            zone_data = sf2_file.read(4)
+            if len(zone_data) < 4:
                 break
-            gen_ndx, mod_ndx = struct.unpack('<HH', chunk_data[offset:offset+4])
-            zone_indices.append((gen_ndx, mod_ndx))
+                
+            # Индекс генератора
+            gen_ndx = struct.unpack('<H', zone_data[0:2])[0]
+            # Индекс модулятора
+            mod_ndx = struct.unpack('<H', zone_data[2:4])[0]
+            
+            preset_zone_indices.append((gen_ndx, mod_ndx))
         
         # Привязываем зоны к пресетам
         for i, preset in enumerate(presets):
+            # Находим начало и конец зон для этого пресета
             start_idx = preset.preset_bag_index
             end_idx = presets[i+1].preset_bag_index if i < len(presets) - 1 else num_zones - 1
             
-            for j in range(start_idx, min(end_idx, len(zone_indices))):
-                gen_ndx, mod_ndx = zone_indices[j]
+            # Добавляем зоны в пресет
+            for j in range(start_idx, end_idx):
+                gen_ndx, mod_ndx = preset_zone_indices[j]
                 
+                # Создаем зону пресета
                 preset_zone = SF2PresetZone()
                 preset_zone.preset = preset.preset
                 preset_zone.bank = preset.bank
-                preset_zone.instrument_index = 0
+                preset_zone.instrument_index = 0  # Будет обновлено позже
                 preset_zone.instrument_name = ""
                 preset_zone.gen_ndx = gen_ndx
                 preset_zone.mod_ndx = mod_ndx
+                
                 preset.zones.append(preset_zone)
 
-    def _parse_pgen_chunk_data(self, manager: Dict[str, Any], chunk_data: Optional[bytes]):
-        """Оптимизированный парсинг генераторов пресетов"""
-        if chunk_data is None or len(chunk_data) < 4:
-            return
-            
+    def _parse_pbag_chunk(self, chunk_size: int):
+        """Парсинг чанка pbag (заголовки зон пресетов) - для совместимости"""
+        pass
+    
+    def _parse_pgen_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка pgen (генераторы пресетов)"""
+        sf2_file = manager['file']
         presets = manager['presets']
         instruments = manager['instruments']
-        num_gens = len(chunk_data) // 4
         
-        # Предварительно читаем все генераторы
+        num_gens = chunk_size // 4  # Каждый генератор 4 байта
+        
+        # Сохраняем текущую позицию файла
+        start_pos = sf2_file.tell()
+        
+        # Собираем все генераторы
         generators = []
         for i in range(num_gens):
-            offset = i * 4
-            if offset + 4 > len(chunk_data):
+            gen_data = sf2_file.read(4)
+            if len(gen_data) < 4:
                 break
-            gen_type, gen_amount = struct.unpack('<Hh', chunk_data[offset:offset+4])
+                
+            # Тип генератора
+            gen_type = struct.unpack('<H', gen_data[0:2])[0]
+            # Значение генератора
+            gen_amount = struct.unpack('<h', gen_data[2:4])[0]  # signed short
+            
             generators.append((gen_type, gen_amount))
+        
+        # Возвращаемся к началу чанка
+        sf2_file.seek(start_pos)
         
         # Привязываем генераторы к зонам пресетов
         for preset in presets:
             for zone in preset.zones:
+                # Находим генераторы для этой зоны
                 start_idx = zone.gen_ndx
+                end_idx = zone.gen_ndx + 1  # Временно, пока не найдем терминальную зону
+                
                 # Ищем терминальную зону
-                end_idx = start_idx + 1
                 for i in range(start_idx + 1, len(generators)):
                     if generators[i][0] == 0:  # Терминальный генератор
                         end_idx = i
                         break
                 
                 # Обрабатываем генераторы
-                for j in range(start_idx, min(end_idx, len(generators))):
+                for j in range(start_idx, end_idx):
                     gen_type, gen_amount = generators[j]
                     
+                    # Обработка различных типов генераторов
                     if gen_type == 41:  # instrument
                         zone.instrument_index = gen_amount
+                        # Ищем имя инструмента
                         if zone.instrument_index < len(instruments):
                             zone.instrument_name = instruments[zone.instrument_index].name
                     elif gen_type == 42:  # keyRange
@@ -794,88 +928,107 @@ class Sf2WavetableManager:
                     elif gen_type == 41:  # keynumToVolEnvDecay
                         zone.KeynumToVolEnvDecay = gen_amount
 
-    def _parse_pmod_chunk_data(self, manager: Dict[str, Any], chunk_data: Optional[bytes]):
-        """Оптимизированный парсинг модуляторов пресетов"""
-        if chunk_data is None or len(chunk_data) < 10:
-            return
-            
+    def _parse_pgen_chunk(self, chunk_size: int):
+        """Парсинг чанка pgen (генераторы пресетов) - для совместимости"""
+        pass
+    
+    def _parse_pmod_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка pmod (модуляторы пресетов)"""
+        sf2_file = manager['file']
         presets = manager['presets']
-        num_modulators = len(chunk_data) // 10
         
-        # Предварительно читаем все модуляторы
+        num_modulators = chunk_size // 10  # Каждый модулятор 10 байт
+        
+        # Сохраняем текущую позицию файла
+        start_pos = sf2_file.tell()
+        
+        # Собираем все модуляторы
         modulators = []
         for i in range(num_modulators):
-            offset = i * 10
-            if offset + 10 > len(chunk_data):
+            mod_data = sf2_file.read(10)
+            if len(mod_data) < 10:
                 break
-            mod_data = chunk_data[offset:offset+10]
-            
-            # Распаковываем все поля одним вызовом
-            vals = struct.unpack('<HHHHhH', mod_data)
-            
+                
             modulator = SF2Modulator()
-            modulator.source_oper = vals[0] & 0x000F
-            modulator.source_polarity = (vals[0] & 0x0010) >> 4
-            modulator.source_type = (vals[0] & 0x0020) >> 5
-            modulator.source_direction = (vals[0] & 0x0040) >> 6
-            modulator.source_index = (vals[0] & 0xFF80) >> 7
             
-            modulator.control_oper = vals[1] & 0x000F
-            modulator.control_polarity = (vals[1] & 0x0010) >> 4
-            modulator.control_type = (vals[1] & 0x0020) >> 5
-            modulator.control_direction = (vals[1] & 0x0040) >> 6
-            modulator.control_index = (vals[1] & 0xFF80) >> 7
+            # Парсинг источника модуляции (2 байта)
+            source = struct.unpack('<H', mod_data[0:2])[0]
+            modulator.source_oper = source & 0x000F
+            modulator.source_polarity = (source & 0x0010) >> 4
+            modulator.source_type = (source & 0x0020) >> 5
+            modulator.source_direction = (source & 0x0040) >> 6
+            modulator.source_index = (source & 0xFF80) >> 7
             
-            modulator.destination = vals[2]
-            modulator.amount = vals[3]
+            # Парсинг управления модуляцией (2 байта)
+            control = struct.unpack('<H', mod_data[2:4])[0]
+            modulator.control_oper = control & 0x000F
+            modulator.control_polarity = (control & 0x0010) >> 4
+            modulator.control_type = (control & 0x0020) >> 5
+            modulator.control_direction = (control & 0x0040) >> 6
+            modulator.control_index = (control & 0xFF80) >> 7
             
-            modulator.amount_source_oper = vals[4] & 0x000F
-            modulator.amount_source_polarity = (vals[4] & 0x0010) >> 4
-            modulator.amount_source_type = (vals[4] & 0x0020) >> 5
-            modulator.amount_source_direction = (vals[4] & 0x0040) >> 6
-            modulator.amount_source_index = (vals[4] & 0xFF80) >> 7
+            # Парсинг цели модуляции (2 байта)
+            modulator.destination = struct.unpack('<H', mod_data[4:6])[0]
             
-            modulator.transform = vals[5]
+            # Парсинг глубины модуляции (2 байта)
+            modulator.amount = struct.unpack('<h', mod_data[6:8])[0]  # signed short
+            
+            # Парсинг источника глубины модуляции (2 байта)
+            amount_source = struct.unpack('<H', mod_data[8:10])[0]
+            modulator.amount_source_oper = amount_source & 0x000F
+            modulator.amount_source_polarity = (amount_source & 0x0010) >> 4
+            modulator.amount_source_type = (amount_source & 0x0020) >> 5
+            modulator.amount_source_direction = (amount_source & 0x0040) >> 6
+            modulator.amount_source_index = (amount_source & 0xFF80) >> 7
+            
             modulators.append(modulator)
+        
+        # Возвращаемся к началу чанка
+        sf2_file.seek(start_pos)
         
         # Привязываем модуляторы к зонам пресетов
         for preset in presets:
             for zone in preset.zones:
+                # Находим модуляторы для этой зоны
                 start_idx = zone.mod_ndx
+                end_idx = zone.mod_ndx + 1  # Временно, пока не найдем терминальную зону
+                
                 # Ищем терминальную зону
-                end_idx = start_idx + 1
                 for i in range(start_idx + 1, len(modulators)):
                     if modulators[i].source_oper == 0 and modulators[i].destination == 0:
                         end_idx = i
                         break
                 
                 # Обрабатываем модуляторы
-                for j in range(start_idx, min(end_idx, len(modulators))):
+                for j in range(start_idx, end_idx):
                     modulator = modulators[j]
                     zone.modulators.append(modulator)
+                    
+                    # Обработка часто используемых модуляций
                     self._process_preset_modulator(zone, modulator)
 
-    def _parse_inst_chunk_data(self, manager: Dict[str, Any], chunk_data: Optional[bytes]):
-        """Оптимизированный парсинг заголовков инструментов"""
-        if chunk_data is None:
-            return
-            
+    def _parse_pmod_chunk(self, chunk_size: int):
+        """Парсинг чанка pmod (модуляторы пресетов) - для совместимости"""
+        pass
+    
+    def _parse_inst_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка inst (заголовки инструментов)"""
+        sf2_file = manager['file']
         instruments = manager['instruments']
-        num_instruments = len(chunk_data) // 22
+        
+        num_instruments = chunk_size // 22  # Каждый заголовок инструмента 22 байта
         
         for i in range(num_instruments - 1):  # Последний инструмент - терминальный
-            offset = i * 22
-            if offset + 22 > len(chunk_data):
+            # Формат заголовка инструмента:
+            # char instName[20]
+            # uint16 instBagNdx
+            inst_data = sf2_file.read(22)
+            if len(inst_data) < 22:
                 break
                 
-            inst_data = chunk_data[offset:offset+22]
-            
             # Извлечение данных
-            name_bytes = inst_data[:20]
+            name = inst_data[:20].split(b'\x00')[0].decode('ascii', 'ignore')
             inst_bag_ndx = struct.unpack('<H', inst_data[20:22])[0]
-            
-            # Извлечение имени
-            name = name_bytes.split(b'\x00')[0].decode('ascii', 'ignore')
             
             # Создаем инструмент
             sf2_instrument = SF2Instrument()
@@ -883,70 +1036,104 @@ class Sf2WavetableManager:
             sf2_instrument.instrument_bag_index = inst_bag_ndx
             instruments.append(sf2_instrument)
 
-    def _parse_ibag_chunk_data(self, manager: Dict[str, Any], chunk_data: Optional[bytes]):
-        """Оптимизированный парсинг заголовков зон инструментов"""
-        if chunk_data is None or len(chunk_data) < 4:
-            return
-            
+    def _parse_inst_chunk(self, chunk_size: int):
+        """Парсинг чанка inst (заголовки инструментов) - для совместимости"""
+        pass
+    
+    def _parse_ibag_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка ibag (заголовки зон инструментов)"""
+        sf2_file = manager['file']
         instruments = manager['instruments']
-        num_zones = len(chunk_data) // 4
         
-        # Предварительно читаем все индексы
-        zone_indices = []
+        num_zones = chunk_size // 4  # Каждая зона инструмента 4 байта
+        
+        # Сохраняем текущую позицию файла
+        start_pos = sf2_file.tell()
+        
+        # Собираем все индексы зон для каждого инструмента
+        instrument_zone_indices = []
         for i in range(num_zones - 1):  # Последняя зона - терминальная
-            offset = i * 4
-            if offset + 4 > len(chunk_data):
+            zone_data = sf2_file.read(4)
+            if len(zone_data) < 4:
                 break
-            gen_ndx, mod_ndx = struct.unpack('<HH', chunk_data[offset:offset+4])
-            zone_indices.append((gen_ndx, mod_ndx))
+                
+            # Индекс генератора
+            gen_ndx = struct.unpack('<H', zone_data[0:2])[0]
+            # Индекс модулятора
+            mod_ndx = struct.unpack('<H', zone_data[2:4])[0]
+            
+            instrument_zone_indices.append((gen_ndx, mod_ndx))
+
         
         # Привязываем зоны к инструментам
         for i, instrument in enumerate(instruments):
+            # Находим начало и конец зон для этого инструмента
             start_idx = instrument.instrument_bag_index
             end_idx = instruments[i+1].instrument_bag_index if i < len(instruments) - 1 else num_zones - 1
             
-            for j in range(start_idx, min(end_idx, len(zone_indices))):
-                gen_ndx, mod_ndx = zone_indices[j]
+            # Добавляем зоны в инструмент
+            for j in range(start_idx, end_idx):
+                gen_ndx, mod_ndx = instrument_zone_indices[j]
                 
+                # Создаем зону инструмента
                 inst_zone = SF2InstrumentZone()
-                inst_zone.sample_index = 0
+                inst_zone.sample_index = 0  # Будет обновлено позже
                 inst_zone.gen_ndx = gen_ndx
                 inst_zone.mod_ndx = mod_ndx
+                
                 instrument.zones.append(inst_zone)
 
-    def _parse_igen_chunk_data(self, manager: Dict[str, Any], chunk_data: Optional[bytes]):
-        """Оптимизированный парсинг генераторов инструментов"""
-        if chunk_data is None or len(chunk_data) < 4:
-            return
-            
+    def _parse_ibag_chunk(self, chunk_size: int):
+        """Парсинг чанка ibag (заголовки зон инструментов) - для совместимости"""
+        pass
+    
+    def _parse_igen_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка igen (генераторы инструментов)"""
+        sf2_file = manager['file']
         instruments = manager['instruments']
-        num_gens = len(chunk_data) // 4
         
-        # Предварительно читаем все генераторы
+        num_gens = chunk_size // 4  # Каждый генератор 4 байта
+        
+        # Сохраняем текущую позицию файла
+        start_pos = sf2_file.tell()
+        
+        # Собираем все генераторы
         generators = []
         for i in range(num_gens):
-            offset = i * 4
-            if offset + 4 > len(chunk_data):
+            gen_data = sf2_file.read(4)
+            if len(gen_data) < 4:
                 break
-            gen_type, gen_amount = struct.unpack('<Hh', chunk_data[offset:offset+4])
+                
+            # Тип генератора
+            gen_type = struct.unpack('<H', gen_data[0:2])[0]
+            # Значение генератора
+            gen_amount = struct.unpack('<h', gen_data[2:4])[0]  # signed short
+            
             generators.append((gen_type, gen_amount))
+        
+        # Возвращаемся к началу чанка
+        sf2_file.seek(start_pos)
         
         # Привязываем генераторы к зонам инструментов
         for instrument in instruments:
             for zone in instrument.zones:
+                # Находим генераторы для этой зоны
                 start_idx = zone.gen_ndx
+                end_idx = zone.gen_ndx + 1  # Временно, пока не найдем терминальную зону
+                
                 # Ищем терминальную зону
-                end_idx = start_idx + 1
                 for i in range(start_idx + 1, len(generators)):
                     if generators[i][0] == 0:  # Терминальный генератор
                         end_idx = i
                         break
                 
                 # Обрабатываем генераторы
-                for j in range(start_idx, min(end_idx, len(generators))):
+                for j in range(start_idx, end_idx):
                     gen_type, gen_amount = generators[j]
                     
+                    # Обработка различных типов генераторов
                     if gen_type == 53:  # sampleModes
+                        # 0 = no loop, 1 = forward loop, 2 = backward loop, 3 = forward/backward loop
                         zone.sample_modes = gen_amount
                     elif gen_type == 54:  # exclusiveClass
                         zone.exclusive_class = gen_amount
@@ -1023,103 +1210,174 @@ class Sf2WavetableManager:
                     elif gen_type == 37:  # keynumToVolEnvDecay
                         zone.KeynumToVolEnvDecay = gen_amount
 
-    def _parse_imod_chunk_data(self, manager: Dict[str, Any], chunk_data: Optional[bytes]):
-        """Оптимизированный парсинг модуляторов инструментов"""
-        if chunk_data is None or len(chunk_data) < 10:
-            return
-            
+    def _parse_igen_chunk(self, chunk_size: int):
+        """Парсинг чанка igen (генераторы инструментов) - для совместимости"""
+        pass
+    
+    def _parse_imod_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка imod (модуляторы инструментов)"""
+        sf2_file = manager['file']
         instruments = manager['instruments']
-        num_modulators = len(chunk_data) // 10
         
-        # Предварительно читаем все модуляторы
+        num_modulators = chunk_size // 10  # Каждый модулятор 10 байт
+        
+        # Сохраняем текущую позицию файла
+        start_pos = sf2_file.tell()
+        
+        # Собираем все модуляторы
         modulators = []
         for i in range(num_modulators):
-            offset = i * 10
-            if offset + 10 > len(chunk_data):
+            mod_data = sf2_file.read(10)
+            if len(mod_data) < 10:
                 break
-            mod_data = chunk_data[offset:offset+10]
-            
-            # Распаковываем все поля одним вызовом
-            vals = struct.unpack('<HHHHhH', mod_data)
-            
+                
             modulator = SF2Modulator()
-            modulator.source_oper = vals[0] & 0x000F
-            modulator.source_polarity = (vals[0] & 0x0010) >> 4
-            modulator.source_type = (vals[0] & 0x0020) >> 5
-            modulator.source_direction = (vals[0] & 0x0040) >> 6
-            modulator.source_index = (vals[0] & 0xFF80) >> 7
             
-            modulator.control_oper = vals[1] & 0x000F
-            modulator.control_polarity = (vals[1] & 0x0010) >> 4
-            modulator.control_type = (vals[1] & 0x0020) >> 5
-            modulator.control_direction = (vals[1] & 0x0040) >> 6
-            modulator.control_index = (vals[1] & 0xFF80) >> 7
+            # Парсинг источника модуляции (2 байта)
+            source = struct.unpack('<H', mod_data[0:2])[0]
+            modulator.source_oper = source & 0x000F
+            modulator.source_polarity = (source & 0x0010) >> 4
+            modulator.source_type = (source & 0x0020) >> 5
+            modulator.source_direction = (source & 0x0040) >> 6
+            modulator.source_index = (source & 0xFF80) >> 7
             
-            modulator.destination = vals[2]
-            modulator.amount = vals[3]
+            # Парсинг управления модуляцией (2 байта)
+            control = struct.unpack('<H', mod_data[2:4])[0]
+            modulator.control_oper = control & 0x000F
+            modulator.control_polarity = (control & 0x0010) >> 4
+            modulator.control_type = (control & 0x0020) >> 5
+            modulator.control_direction = (control & 0x0040) >> 6
+            modulator.control_index = (control & 0xFF80) >> 7
             
-            modulator.amount_source_oper = vals[4] & 0x000F
-            modulator.amount_source_polarity = (vals[4] & 0x0010) >> 4
-            modulator.amount_source_type = (vals[4] & 0x0020) >> 5
-            modulator.amount_source_direction = (vals[4] & 0x0040) >> 6
-            modulator.amount_source_index = (vals[4] & 0xFF80) >> 7
+            # Парсинг цели модуляции (2 байта)
+            modulator.destination = struct.unpack('<H', mod_data[4:6])[0]
             
-            modulator.transform = vals[5]
+            # Парсинг глубины модуляции (2 байта)
+            modulator.amount = struct.unpack('<h', mod_data[6:8])[0]  # signed short
+            
+            # Парсинг источника глубины модуляции (2 байта)
+            amount_source = struct.unpack('<H', mod_data[8:10])[0]
+            modulator.amount_source_oper = amount_source & 0x000F
+            modulator.amount_source_polarity = (amount_source & 0x0010) >> 4
+            modulator.amount_source_type = (amount_source & 0x0020) >> 5
+            modulator.amount_source_direction = (amount_source & 0x0040) >> 6
+            modulator.amount_source_index = (amount_source & 0xFF80) >> 7
+            
             modulators.append(modulator)
+        
+        # Возвращаемся к началу чанка
+        sf2_file.seek(start_pos)
         
         # Привязываем модуляторы к зонам инструментов
         for instrument in instruments:
             for zone in instrument.zones:
+                # Находим модуляторы для этой зоны
                 start_idx = zone.mod_ndx
+                end_idx = zone.mod_ndx + 1  # Временно, пока не найдем терминальную зону
+                
                 # Ищем терминальную зону
-                end_idx = start_idx + 1
                 for i in range(start_idx + 1, len(modulators)):
                     if modulators[i].source_oper == 0 and modulators[i].destination == 0:
                         end_idx = i
                         break
                 
                 # Обрабатываем модуляторы
-                for j in range(start_idx, min(end_idx, len(modulators))):
+                for j in range(start_idx, end_idx):
                     modulator = modulators[j]
                     zone.modulators.append(modulator)
+                    
+                    # Обработка часто используемых модуляций
                     self._process_instrument_modulator(zone, modulator)
 
-    def _parse_shdr_chunk_data(self, manager: Dict[str, Any], chunk_data: Optional[bytes]):
-        """Оптимизированный парсинг заголовков сэмплов"""
-        if chunk_data is None:
-            return
-            
+    def _parse_imod_chunk(self, chunk_size: int):
+        """Парсинг чанка imod (модуляторы инструментов) - для совместимости"""
+        pass
+    
+    def _parse_shdr_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
+        """Парсинг чанка shdr (заголовки сэмплов)"""
+        sf2_file = manager['file']
         sample_headers = manager['sample_headers']
-        num_samples = len(chunk_data) // 46
+        
+        num_samples = chunk_size // 46  # Каждый заголовок сэмпла 46 байт
         
         for i in range(num_samples - 1):  # Последний сэмпл - терминальный
-            offset = i * 46
-            if offset + 46 > len(chunk_data):
+            # Формат заголовка сэмпла:
+            # char sampleName[20]
+            # uint32 start
+            # uint32 end
+            # uint32 startloop
+            # uint32 endloop
+            # uint32 sampleRate
+            # uint8 originalPitch
+            # int8 pitchCorrection
+            # uint16 sampleLink
+            # uint16 sampleType
+            sample_data = sf2_file.read(46)
+            if len(sample_data) < 46:
                 break
                 
-            sample_data = chunk_data[offset:offset+46]
-            
-            # Извлечение данных одним вызовом unpack
-            vals = struct.unpack('<20sIIIIIBbHH', sample_data)
-            
-            # Извлечение имени
-            name = vals[0].split(b'\x00')[0].decode('ascii', 'ignore')
+            # Извлечение данных
+            name = sample_data[:20].split(b'\x00')[0].decode('ascii', 'ignore')
+            start = struct.unpack('<I', sample_data[20:24])[0]
+            end = struct.unpack('<I', sample_data[24:28])[0]
+            start_loop = struct.unpack('<I', sample_data[28:32])[0]
+            end_loop = struct.unpack('<I', sample_data[32:36])[0]
+            sample_rate = struct.unpack('<I', sample_data[36:40])[0]
+            original_pitch = sample_data[40]
+            pitch_correction = struct.unpack('b', sample_data[41:42])[0]
+            sample_link = struct.unpack('<H', sample_data[42:44])[0]
+            sample_type = struct.unpack('<H', sample_data[44:46])[0]
             
             # Создаем заголовок сэмпла
             sample_header = SF2SampleHeader()
             sample_header.name = name
-            sample_header.start = vals[1]
-            sample_header.end = vals[2]
-            sample_header.start_loop = vals[3]
-            sample_header.end_loop = vals[4]
-            sample_header.sample_rate = vals[5]
-            sample_header.original_pitch = vals[6]
-            sample_header.pitch_correction = vals[7]
-            sample_header.link = vals[8]
-            sample_header.type = vals[9]
+            sample_header.start = start
+            sample_header.end = end
+            sample_header.start_loop = start_loop
+            sample_header.end_loop = end_loop
+            sample_header.sample_rate = sample_rate
+            sample_header.original_pitch = original_pitch
+            sample_header.pitch_correction = pitch_correction
+            sample_header.link = sample_link
+            sample_header.type = sample_type
             sample_headers.append(sample_header)
+        sf2_file.seek(46, 1)  # Пропускаем терминальный заголовок сэмпла
 
-    # Остальные методы остаются без изменений для совместимости
+    def _parse_shdr_chunk(self, chunk_size: int):
+        """Парсинг чанка shdr (заголовки сэмплов) - для совместимости"""
+        pass
+    
+    def _parse_sdta_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int, chunk_end: int):
+        """Парсинг чанка sdta (данные сэмплов)"""
+        sf2_file = manager['file']
+        # Нам нужно найти подчанк smpl
+        while sf2_file.tell() < chunk_end - 8:
+            # Чтение заголовка подчанка
+            subchunk_header = sf2_file.read(8)
+            if len(subchunk_header) < 8:
+                break
+                
+            subchunk_id = subchunk_header[:4]
+            subchunk_size = struct.unpack('<I', subchunk_header[4:8])[0]
+            
+            # Проверка, является ли это подчанком smpl
+            if subchunk_id == b'smpl':
+                manager['smpl_data_offset'] = sf2_file.tell()
+                manager['smpl_data_size'] = subchunk_size
+                # Пропускаем данные, так как будем загружать их по требованию
+                sf2_file.seek(subchunk_size, 1)
+                return
+            
+            # Переход к следующему подчанку
+            sf2_file.seek(subchunk_size, 1)
+            # Выравнивание до четного числа байт
+            if subchunk_size % 2 != 0:
+                sf2_file.seek(1, 1)
+
+    def _parse_sdta_chunk(self, chunk_size: int, chunk_end: int):
+        """Парсинг чанка sdta (данные сэмплов) - для совместимости"""
+        pass
+    
     def _process_preset_modulator(self, zone: SF2PresetZone, modulator: SF2Modulator):
         """Обработка модулятора пресета для извлечения полезных параметров"""
         # Определяем источник модуляции
@@ -1168,7 +1426,7 @@ class Sf2WavetableManager:
             pass
         elif destination == 84:  # cc_portamento_control
             zone.portamento_to_pitch = amount * polarity
-
+    
     def _process_instrument_modulator(self, zone: SF2InstrumentZone, modulator: SF2Modulator):
         """Обработка модулятора инструмента для извлечения полезных параметров"""
         # Определяем источник модуляции
@@ -1271,7 +1529,7 @@ class Sf2WavetableManager:
             pass
         elif destination == 84:  # cc_portamento_control
             zone.portamento_to_pitch = amount * polarity
-
+    
     def _get_modulator_source_name(self, modulator: SF2Modulator) -> str:
         """Получение имени источника модуляции"""
         # Сначала проверяем основной источник
@@ -1299,7 +1557,7 @@ class Sf2WavetableManager:
             return "channel_aftertouch"
         
         return "unknown_source"
-
+    
     def _normalize_modulator_amount(self, amount: int, destination: int) -> float:
         """
         Нормализация глубины модуляции в зависимости от цели.
@@ -1334,7 +1592,7 @@ class Sf2WavetableManager:
         # Для других целей
         else:
             return abs(amount) / 1000.0  # Общая нормализация
-
+    
     def _build_global_preset_map(self):
         """Собираем все пресеты из всех SF2 файлов в один глобальный список с приоритетами"""
         # Очищаем глобальные структуры
@@ -1395,7 +1653,13 @@ class Sf2WavetableManager:
                 self.presets.append(preset)
                 preset_index += 1
 
-    # Остальные методы остаются без изменений для функциональности
+    def _build_bank_instruments_map(self):
+        """Построение карты банк -> программа -> индекс пресета"""
+        for i, preset in enumerate(self.presets):
+            if preset.bank not in self.bank_instruments:
+                self.bank_instruments[preset.bank] = {}
+            self.bank_instruments[preset.bank][preset.preset] = i
+    
     def get_program_parameters(self, program: int, bank: int = 0) -> dict:
         """
         Получение параметров программы в формате, совместимом с XGToneGenerator.
@@ -1484,7 +1748,7 @@ class Sf2WavetableManager:
         }
         
         return params
-
+    
     def _convert_time_cents_to_seconds(self, time_cents: int) -> float:
         """
         Преобразование временных параметров из SoundFont в секунды.
@@ -1501,7 +1765,7 @@ class Sf2WavetableManager:
         
         # SoundFont использует формулу: time = 0.001 * 10^(value/1200)
         return 0.001 * (10 ** (time_cents / 1200.0))
-
+    
     def _convert_lfo_rate(self, lfo_value: int) -> float:
         """Преобразование значения LFO rate из SoundFont в Гц"""
         if lfo_value <= 0:
@@ -1509,7 +1773,7 @@ class Sf2WavetableManager:
         
         # SoundFont использует логарифмическую шкалу
         return (10 ** (lfo_value / 1200.0)) * 0.01
-
+    
     def _convert_lfo_delay(self, delay_value: int) -> float:
         """Преобразование значения LFO delay из SoundFont в секунды"""
         if delay_value <= 0:
@@ -1517,7 +1781,7 @@ class Sf2WavetableManager:
         
         # SoundFont использует логарифмическую шкалу
         return (10 ** (delay_value / 1200.0)) * self.TIME_CENTISECONDS_TO_SECONDS
-
+    
     def _calculate_modulation_params(self, zones: List[SF2InstrumentZone]) -> dict:
         """Рассчитывает параметры модуляции из зон"""
         # Начальные значения
@@ -1566,7 +1830,7 @@ class Sf2WavetableManager:
                     params[key] = max(0.0, min(1.0, params[key]))
         
         return params
-
+    
     def get_drum_parameters(self, note: int, program: int, bank: int = 128) -> dict:
         """
         Получение параметров барабана в формате, совместимом с XGToneGenerator.
@@ -1663,7 +1927,7 @@ class Sf2WavetableManager:
         }
         
         return params
-
+    
     def get_partial_table(self, note: int, program: int, partial_id: int, 
                          velocity: int, bank: int = 0) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
         """
@@ -1738,13 +2002,27 @@ class Sf2WavetableManager:
         
         # Возвращаем аудио данные
         return sample_data
-
+    
     def _find_preset_index(self, program: int, bank: int) -> Optional[int]:
         """Поиск индекса пресета по программе и банку"""
         if bank in self.bank_instruments and program in self.bank_instruments[bank]:
             return self.bank_instruments[bank][program]
         return None
 
+    def _find_preset_and_manager(self, program: int, bank: int) -> Tuple[Optional[SF2Preset], Optional[Dict[str, Any]]]:
+        """Поиск пресета и его менеджера по программе и банку"""
+        preset_idx = self._find_preset_index(program, bank)
+        if preset_idx is not None and preset_idx < len(self.presets):
+            preset = self.presets[preset_idx]
+            # Находим менеджер, которому принадлежит этот пресет
+            for manager in self.sf2_managers:
+                for manager_preset in manager['presets']:
+                    if (manager_preset.name == preset.name and 
+                        manager_preset.preset == preset.preset and 
+                        manager_preset.bank == preset.bank):
+                        return preset, manager
+        return None, None
+    
     def _convert_zone_to_partial_params(self, zone: SF2InstrumentZone, 
                                        is_drum: bool = False) -> dict:
         """Преобразование зоны SoundFont в параметры частичной структуры"""
@@ -1842,7 +2120,7 @@ class Sf2WavetableManager:
             partial_params["amp_envelope"]["sustain"] = 0.0
         
         return partial_params
-
+    
     def _calculate_average_envelope(self, envelopes: List[dict]) -> dict:
         """Рассчитывает средние значения огибающей из нескольких частичных структур"""
         if not envelopes:
@@ -1877,7 +2155,7 @@ class Sf2WavetableManager:
             "release": total["release"] / count,
             "key_scaling": total["key_scaling"] / count
         }
-
+    
     def _calculate_average_filter(self, filters: List[dict]) -> dict:
         """Рассчитывает средние значения фильтра из нескольких частичных структур"""
         if not filters:
@@ -1901,7 +2179,7 @@ class Sf2WavetableManager:
             "type": "lowpass",
             "key_follow": 0.5
         }
-
+    
     def _load_sample_data(self, sample_header: SF2SampleHeader, manager: Optional[Dict[str, Any]] = None) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
         """
         Загрузка данных сэмпла из файла или кэша.
@@ -1929,7 +2207,7 @@ class Sf2WavetableManager:
         self._add_to_cache(sample_header.name, sample_data)
         
         return sample_data
-
+    
     def _read_sample_from_file(self, sample_header: SF2SampleHeader, manager: Optional[Dict[str, Any]] = None) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
         """
         Чтение сэмпла из файла.
@@ -2003,7 +2281,7 @@ class Sf2WavetableManager:
         except Exception as e:
             warnings.warn(f"Ошибка при чтении сэмпла {sample_header.name}: {str(e)}")
             return None
-
+    
     def _add_to_cache(self, name: str, sample_data: Union[List[float], List[Tuple[float, float]]]):
         """Добавление сэмпла в кэш с учетом ограничения размера"""
         # Оцениваем размер данных
@@ -2023,7 +2301,7 @@ class Sf2WavetableManager:
         # Добавляем новый элемент
         self.sample_cache[name] = sample_data
         self.current_cache_size += size_estimate
-
+    
     def _get_default_parameters(self) -> dict:
         """Возвращает параметры по умолчанию для мелодического инструмента"""
         return {
@@ -2142,7 +2420,7 @@ class Sf2WavetableManager:
                 }
             ]
         }
-
+    
     def _get_default_drum_parameters(self, note: int) -> dict:
         """Возвращает параметры по умолчанию для барабана"""
         return {
@@ -2261,7 +2539,7 @@ class Sf2WavetableManager:
                 }
             ]
         }
-
+    
     def set_bank_blacklist(self, sf2_path: str, bank_list: List[int]):
         """
         Устанавливает черный список банков для указанного SF2 файла.
@@ -2309,7 +2587,7 @@ class Sf2WavetableManager:
         for preset in self.presets:
             presets_info.append((preset.bank, preset.preset, preset.name))
         return presets_info
-
+    
     def is_drum_bank(self, bank: int) -> bool:
         """
         Проверяет, является ли банк барабанным.
@@ -2322,12 +2600,12 @@ class Sf2WavetableManager:
         """
         # В SoundFont банк 128 обычно используется для барабанов
         return bank == 128
-
+    
     def clear_cache(self):
         """Очистка кэша сэмплов"""
         self.sample_cache.clear()
         self.current_cache_size = 0
-
+    
     def get_modulation_matrix(self, program: int, bank: int = 0) -> List[Dict[str, Any]]:
         """
         Получение матрицы модуляции для программы.

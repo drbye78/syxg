@@ -32,6 +32,13 @@ class ADSREnvelope:
         self.modulated_decay = decay
         self.modulated_sustain = sustain
         self.modulated_release = release
+
+        self.modulated_delay = 0.0
+        self.modulated_attack = 0.0
+        self.modulated_hold = 0.0
+        self.modulated_decay = 0.0
+        self.modulated_sustain = 0.0
+        self.modulated_release = 0.0
     
     def _recalculate_increments(self):
         """Пересчет инкрементов для текущих параметров"""
@@ -274,6 +281,10 @@ class LFO:
         self.mod_wheel = mod_wheel
         self.channel_aftertouch = channel_aftertouch
         self.key_aftertouch = key_aftertouch
+        self.brightness_mod = 0.0
+        self.harmonic_content_mod = 0.0
+        self.breath_controller = 0.0
+        self.foot_controller = 0.0
         self.brightness_mod = 0.0
         self.harmonic_content_mod = 0.0
         self.breath_controller = 0.0
