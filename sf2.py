@@ -72,7 +72,8 @@ class SF2InstrumentZone:
         'mod_wheel_to_filter', 'brightness_to_filter', 'portamento_to_pitch',
         'tremolo_depth', 'mod_env_to_pitch', 'mod_lfo_to_pitch', 'vib_lfo_to_pitch',
         'vibrato_depth', 'mod_lfo_to_filter', 'mod_env_to_filter', 'mod_lfo_to_volume',
-        'mod_ndx', 'gen_ndx'
+        'mod_ndx', 'gen_ndx', 'generators', 'sample_modes', 'exclusive_class',
+        'start', 'end', 'start_loop', 'end_loop'
     ]
     
     def __init__(self):
@@ -148,8 +149,19 @@ class SF2InstrumentZone:
         self.mute = False
         self.keynum_to_volume = 0  # Key Number to Volume Envelope Delay
         
+        # Sample parameters
+        self.sample_modes = 0
+        self.exclusive_class = 0
+        self.start = 0
+        self.end = 0
+        self.start_loop = 0
+        self.end_loop = 0
+        
         # Модуляторы
         self.modulators = []
+        
+        # Генераторы (для хранения параметров)
+        self.generators = {}
         
         # Распространенные модуляции (для упрощенного доступа)
         self.lfo_to_pitch = 0.0
@@ -181,14 +193,20 @@ class SF2PresetZone:
         'lfo_to_filter', 'velocity_to_pitch', 'velocity_to_filter',
         'aftertouch_to_pitch', 'aftertouch_to_filter', 'mod_wheel_to_pitch',
         'mod_wheel_to_filter', 'brightness_to_filter', 'portamento_to_pitch',
-        'tremolo_depth', 'vibrato_depth', 'gen_ndx', 'mod_ndx'
+        'tremolo_depth', 'vibrato_depth', 'gen_ndx', 'mod_ndx',
+        # Generator parameters that might be set by preset generators
+        'initialFilterFc', 'initial_filterQ', 'Pan', 'DelayLFO1', 'LFO1Freq',
+        'DelayLFO2', 'DelayFilEnv', 'AttackFilEnv', 'HoldFilEnv', 'DecayFilEnv',
+        'SustainFilEnv', 'ReleaseFilEnv', 'KeynumToModEnvHold', 'KeynumToModEnvDecay',
+        'DelayVolEnv', 'AttackVolEnv', 'HoldVolEnv', 'DecayVolEnv', 'SustainVolEnv',
+        'ReleaseVolEnv', 'KeynumToVolEnvHold', 'KeynumToVolEnvDecay', 'CoarseTune', 'FineTune'
     ]
     
     def __init__(self):
         self.preset = 0
         self.bank = 0
-        self.generators = {}
-        self.modulators = []
+        self.generators = {}  # Dictionary to store generator parameters
+        self.modulators = []  # List of modulators for this preset zone
         self.instrument_index = 0
         self.instrument_name = ""
         
@@ -197,6 +215,32 @@ class SF2PresetZone:
         self.hikey = 127
         self.lovel = 0
         self.hivel = 127
+        
+        # Generator parameters that might be set by preset generators
+        self.initialFilterFc = 13500
+        self.initial_filterQ = 0
+        self.Pan = 50
+        self.DelayLFO1 = 0
+        self.LFO1Freq = 500
+        self.DelayLFO2 = 0
+        self.DelayFilEnv = 0
+        self.AttackFilEnv = 19200
+        self.HoldFilEnv = 0
+        self.DecayFilEnv = 19200
+        self.SustainFilEnv = 0
+        self.ReleaseFilEnv = 24000
+        self.KeynumToModEnvHold = 0
+        self.KeynumToModEnvDecay = 0
+        self.DelayVolEnv = 0
+        self.AttackVolEnv = 9600
+        self.HoldVolEnv = 0
+        self.DecayVolEnv = 19200
+        self.SustainVolEnv = 0
+        self.ReleaseVolEnv = 24000
+        self.KeynumToVolEnvHold = 0
+        self.KeynumToVolEnvDecay = 0
+        self.CoarseTune = 0
+        self.FineTune = 0
         
         # Распространенные модуляции (для упрощенного доступа)
         self.lfo_to_pitch = 0.0
@@ -741,7 +785,10 @@ class Sf2WavetableManager:
                 for j in range(start_idx, end_idx):
                     gen_type, gen_amount = generators[j]
                     
-                    # Обработка различных типов генераторов
+                    # Сохраняем генератор в словаре зоны пресета
+                    zone.generators[gen_type] = gen_amount
+                    
+                    # Обработка специфических генераторов
                     if gen_type == 41:  # instrument
                         zone.instrument_index = gen_amount
                         # Ищем имя инструмента
@@ -753,9 +800,9 @@ class Sf2WavetableManager:
                     elif gen_type == 43:  # velRange
                         zone.lovel = gen_amount & 0xFF
                         zone.hivel = (gen_amount >> 8) & 0xFF
-                    elif gen_type == 12:  # initialFilterFc
+                    elif gen_type == 8:  # initialFilterFc
                         zone.initialFilterFc = gen_amount
-                    elif gen_type == 13:  # initialFilterQ
+                    elif gen_type == 9:  # initialFilterQ
                         zone.initial_filterQ = gen_amount
                     elif gen_type == 21:  # pan
                         zone.Pan = gen_amount
@@ -765,17 +812,17 @@ class Sf2WavetableManager:
                         zone.LFO1Freq = gen_amount
                     elif gen_type == 24:  # delayVibLFO
                         zone.DelayLFO2 = gen_amount
-                    elif gen_type == 26:  # delayModEnv
+                    elif gen_type == 25:  # delayModEnv
                         zone.DelayFilEnv = gen_amount
-                    elif gen_type == 27:  # attackModEnv
+                    elif gen_type == 26:  # attackModEnv
                         zone.AttackFilEnv = gen_amount
-                    elif gen_type == 28:  # holdModEnv
+                    elif gen_type == 27:  # holdModEnv
                         zone.HoldFilEnv = gen_amount
-                    elif gen_type == 29:  # decayModEnv
+                    elif gen_type == 28:  # decayModEnv
                         zone.DecayFilEnv = gen_amount
-                    elif gen_type == 30:  # sustainModEnv
+                    elif gen_type == 29:  # sustainModEnv
                         zone.SustainFilEnv = gen_amount
-                    elif gen_type == 31:  # releaseModEnv
+                    elif gen_type == 30:  # releaseModEnv
                         zone.ReleaseFilEnv = gen_amount
                     elif gen_type == 32:  # keynumToModEnvHold
                         zone.KeynumToModEnvHold = gen_amount
@@ -795,8 +842,12 @@ class Sf2WavetableManager:
                         zone.ReleaseVolEnv = gen_amount
                     elif gen_type == 40:  # keynumToVolEnvHold
                         zone.KeynumToVolEnvHold = gen_amount
-                    elif gen_type == 41:  # keynumToVolEnvDecay
+                    elif gen_type == 44:  # keynumToVolEnvDecay
                         zone.KeynumToVolEnvDecay = gen_amount
+                    elif gen_type == 50:  # coarseTune
+                        zone.CoarseTune = gen_amount
+                    elif gen_type == 51:  # fineTune
+                        zone.FineTune = gen_amount
 
     def _parse_pmod_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
         """Парсинг чанка pmod (модуляторы пресетов)"""
@@ -984,6 +1035,11 @@ class Sf2WavetableManager:
                 # Обрабатываем генераторы
                 for j in range(start_idx, end_idx):
                     gen_type, gen_amount = generators[j]
+                    
+                    # Сохраняем генератор в зоне инструмента
+                    if not hasattr(zone, 'generators'):
+                        zone.generators = {}
+                    zone.generators[gen_type] = gen_amount
                     
                     # Обработка различных типов генераторов
                     if gen_type == 53:  # sampleModes
@@ -1368,6 +1424,116 @@ class Sf2WavetableManager:
         elif destination == 84:  # cc_portamento_control
             zone.portamento_to_pitch = amount * polarity
     
+    def _merge_preset_and_instrument_params(self, preset_zone: SF2PresetZone, instrument_zone: SF2InstrumentZone) -> SF2InstrumentZone:
+        """
+        Объединяет параметры из зоны пресета и зоны инструмента.
+        Параметры из пресета используются как значения по умолчанию, 
+        которые могут быть переопределены параметрами из инструмента.
+        
+        Args:
+            preset_zone: зона пресета
+            instrument_zone: зона инструмента
+            
+        Returns:
+            Объединенная зона инструмента с параметрами
+        """
+        # Создаем копию зоны инструмента для модификации
+        merged_zone = SF2InstrumentZone()
+        
+        # Копируем все атрибуты из зоны инструмента
+        for attr in instrument_zone.__slots__:
+            setattr(merged_zone, attr, getattr(instrument_zone, attr))
+        
+        # Применяем параметры из пресета как значения по умолчанию
+        # Только если в инструменте значение не установлено (равно 0 или стандартному значению)
+        
+        # Обработка генераторов из пресета
+        for gen_type, gen_amount in preset_zone.generators.items():
+            # Для каждого типа генератора применяем значение из пресета как значение по умолчанию
+            if gen_type == 8:  # initialFilterFc
+                if merged_zone.initialFilterFc == 13500:  # Значение по умолчанию
+                    merged_zone.initialFilterFc = gen_amount
+            elif gen_type == 9:  # initialFilterQ
+                if merged_zone.initial_filterQ == 0:  # Значение по умолчанию
+                    merged_zone.initial_filterQ = gen_amount
+            elif gen_type == 12:  # delayVolEnv
+                if merged_zone.DelayVolEnv == 0:  # Значение по умолчанию
+                    merged_zone.DelayVolEnv = gen_amount
+            elif gen_type == 13:  # attackVolEnv
+                if merged_zone.AttackVolEnv == 9600:  # Значение по умолчанию
+                    merged_zone.AttackVolEnv = gen_amount
+            elif gen_type == 14:  # holdVolEnv
+                if merged_zone.HoldVolEnv == 0:  # Значение по умолчанию
+                    merged_zone.HoldVolEnv = gen_amount
+            elif gen_type == 15:  # decayVolEnv
+                if merged_zone.DecayVolEnv == 19200:  # Значение по умолчанию
+                    merged_zone.DecayVolEnv = gen_amount
+            elif gen_type == 16:  # sustainVolEnv
+                if merged_zone.SustainVolEnv == 0:  # Значение по умолчанию
+                    merged_zone.SustainVolEnv = gen_amount
+            elif gen_type == 17:  # releaseVolEnv
+                if merged_zone.ReleaseVolEnv == 24000:  # Значение по умолчанию
+                    merged_zone.ReleaseVolEnv = gen_amount
+            elif gen_type == 21:  # pan
+                if merged_zone.Pan == 50:  # Значение по умолчанию
+                    merged_zone.Pan = gen_amount
+            elif gen_type == 22:  # delayModLFO
+                if merged_zone.DelayLFO1 == 0:  # Значение по умолчанию
+                    merged_zone.DelayLFO1 = gen_amount
+            elif gen_type == 23:  # freqModLFO
+                if merged_zone.LFO1Freq == 500:  # Значение по умолчанию
+                    merged_zone.LFO1Freq = gen_amount
+            elif gen_type == 24:  # delayVibLFO
+                if merged_zone.DelayLFO2 == 0:  # Значение по умолчанию
+                    merged_zone.DelayLFO2 = gen_amount
+            elif gen_type == 25:  # delayModEnv
+                if merged_zone.DelayFilEnv == 0:  # Значение по умолчанию
+                    merged_zone.DelayFilEnv = gen_amount
+            elif gen_type == 26:  # attackModEnv
+                if merged_zone.AttackFilEnv == 19200:  # Значение по умолчанию
+                    merged_zone.AttackFilEnv = gen_amount
+            elif gen_type == 27:  # holdModEnv
+                if merged_zone.HoldFilEnv == 0:  # Значение по умолчанию
+                    merged_zone.HoldFilEnv = gen_amount
+            elif gen_type == 28:  # decayModEnv
+                if merged_zone.DecayFilEnv == 19200:  # Значение по умолчанию
+                    merged_zone.DecayFilEnv = gen_amount
+            elif gen_type == 29:  # sustainModEnv
+                if merged_zone.SustainFilEnv == 0:  # Значение по умолчанию
+                    merged_zone.SustainFilEnv = gen_amount
+            elif gen_type == 30:  # releaseModEnv
+                if merged_zone.ReleaseFilEnv == 24000:  # Значение по умолчанию
+                    merged_zone.ReleaseFilEnv = gen_amount
+            elif gen_type == 33:  # keynumToModEnvDecay
+                if merged_zone.KeynumToModEnvDecay == 0:  # Значение по умолчанию
+                    merged_zone.KeynumToModEnvDecay = gen_amount
+            elif gen_type == 34:  # keynumToVolEnvHold
+                if merged_zone.KeynumToVolEnvHold == 0:  # Значение по умолчанию
+                    merged_zone.KeynumToVolEnvHold = gen_amount
+            elif gen_type == 35:  # keynumToVolEnvDecay
+                if merged_zone.KeynumToVolEnvDecay == 0:  # Значение по умолчанию
+                    merged_zone.KeynumToVolEnvDecay = gen_amount
+            elif gen_type == 36:  # keynumToModEnvHold
+                if merged_zone.KeynumToModEnvHold == 0:  # Значение по умолчанию
+                    merged_zone.KeynumToModEnvHold = gen_amount
+            elif gen_type == 50:  # coarseTune
+                if merged_zone.CoarseTune == 0:  # Значение по умолчанию
+                    merged_zone.CoarseTune = gen_amount
+            elif gen_type == 51:  # fineTune
+                if merged_zone.FineTune == 0:  # Значение по умолчанию
+                    merged_zone.FineTune = gen_amount
+        
+        # Объединяем модуляторы из пресета и инструмента
+        # Модуляторы из пресета добавляются первыми, затем модуляторы из инструмента
+        merged_modulators = preset_zone.modulators + instrument_zone.modulators
+        merged_zone.modulators = merged_modulators
+        
+        # Пересчитываем параметры модуляций после объединения
+        for modulator in merged_zone.modulators:
+            self._process_instrument_modulator(merged_zone, modulator)
+        
+        return merged_zone
+    
     def _get_modulator_source_name(self, modulator: SF2Modulator) -> str:
         """Получение имени источника модуляции"""
         # Сначала проверяем основной источник
@@ -1532,20 +1698,23 @@ class Sf2WavetableManager:
         # Получаем инструменты из соответствующего менеджера
         instruments = manager['instruments'] if manager else self.instruments
         
-        # Собрать все зоны инструментов для этого пресета
-        all_zones = []
+        # Собрать все объединенные зоны для этого пресета
+        all_merged_zones = []
         for preset_zone in preset.zones:
             if preset_zone.instrument_index < len(instruments):
                 instrument = instruments[preset_zone.instrument_index]
-                all_zones.extend(instrument.zones)
+                # Объединяем параметры пресета и инструмента для каждой зоны
+                for instrument_zone in instrument.zones:
+                    merged_zone = self._merge_preset_and_instrument_params(preset_zone, instrument_zone)
+                    all_merged_zones.append(merged_zone)
         
         # Если зон нет, возвращаем параметры по умолчанию
-        if not all_zones:
+        if not all_merged_zones:
             return self._get_default_parameters()
         
         # Преобразуем зоны в параметры частичных структур
         partials_params = []
-        for zone in all_zones:
+        for zone in all_merged_zones:
             partial_params = self._convert_zone_to_partial_params(zone)
             partials_params.append(partial_params)
         
@@ -1565,15 +1734,15 @@ class Sf2WavetableManager:
             ),
             "lfo1": {
                 "waveform": "sine",
-                "rate": self._convert_lfo_rate(all_zones[0].LFO1Freq),
+                "rate": self._convert_lfo_rate(all_merged_zones[0].LFO1Freq),
                 "depth": 0.5,
-                "delay": self._convert_time_cents_to_seconds(all_zones[0].DelayLFO1)
+                "delay": self._convert_time_cents_to_seconds(all_merged_zones[0].DelayLFO1)
             },
             "lfo2": {
                 "waveform": "triangle",
-                "rate": self._convert_lfo_rate(all_zones[0].LFO2Freq),
+                "rate": self._convert_lfo_rate(all_merged_zones[0].LFO2Freq),
                 "depth": 0.3,
-                "delay": self._convert_time_cents_to_seconds(all_zones[0].DelayLFO2)
+                "delay": self._convert_time_cents_to_seconds(all_merged_zones[0].DelayLFO2)
             },
             "lfo3": {
                 "waveform": "sawtooth",
@@ -1581,7 +1750,7 @@ class Sf2WavetableManager:
                 "depth": 0.1,
                 "delay": 0.5
             },
-            "modulation": self._calculate_modulation_params(all_zones),
+            "modulation": self._calculate_modulation_params(all_merged_zones),
             "partials": partials_params
         }
         
@@ -1706,23 +1875,25 @@ class Sf2WavetableManager:
         # Получаем инструменты из соответствующего менеджера
         instruments = manager['instruments'] if manager else self.instruments
         
-        # Найти зоны, соответствующие этой ноте
-        matching_zones = []
+        # Найти зоны, соответствующие этой ноте, и объединить параметры
+        matching_merged_zones = []
         for preset_zone in preset.zones:
             if preset_zone.lokey <= note <= preset_zone.hikey:
                 if preset_zone.instrument_index < len(instruments):
                     instrument = instruments[preset_zone.instrument_index]
-                    for zone in instrument.zones:
-                        if zone.lokey <= note <= zone.hikey:
-                            matching_zones.append(zone)
+                    for instrument_zone in instrument.zones:
+                        if instrument_zone.lokey <= note <= instrument_zone.hikey:
+                            # Объединяем параметры пресета и инструмента
+                            merged_zone = self._merge_preset_and_instrument_params(preset_zone, instrument_zone)
+                            matching_merged_zones.append(merged_zone)
         
         # Если не найдено подходящих зон, возвращаем параметры по умолчанию
-        if not matching_zones:
+        if not matching_merged_zones:
             return self._get_default_drum_parameters(note)
         
         # Преобразуем зоны в параметры частичных структур
         partials_params = []
-        for zone in matching_zones:
+        for zone in matching_merged_zones:
             partial_params = self._convert_zone_to_partial_params(zone, is_drum=True)
             partial_params["key_range_low"] = note
             partial_params["key_range_high"] = note
@@ -1760,7 +1931,7 @@ class Sf2WavetableManager:
                 "depth": 0.0,
                 "delay": 0.0
             },
-            "modulation": self._calculate_modulation_params(matching_zones),
+            "modulation": self._calculate_modulation_params(matching_merged_zones),
             "partials": partials_params
         }
         
@@ -1807,25 +1978,27 @@ class Sf2WavetableManager:
         instruments = manager['instruments'] if manager else self.instruments
         sample_headers = manager['sample_headers'] if manager else self.sample_headers
         
-        # Собрать все подходящие зоны
-        matching_zones = []
+        # Собрать все подходящие зоны и объединить параметры
+        matching_merged_zones = []
         for preset_zone in preset.zones:
             if (preset_zone.lokey <= note <= preset_zone.hikey and
                 preset_zone.lovel <= velocity <= preset_zone.hivel):
                 
                 if preset_zone.instrument_index < len(instruments):
                     instrument = instruments[preset_zone.instrument_index]
-                    for zone in instrument.zones:
-                        if (zone.lokey <= note <= zone.hikey and
-                            zone.lovel <= velocity <= zone.hivel):
-                            matching_zones.append(zone)
+                    for instrument_zone in instrument.zones:
+                        if (instrument_zone.lokey <= note <= instrument_zone.hikey and
+                            instrument_zone.lovel <= velocity <= instrument_zone.hivel):
+                            # Объединяем параметры пресета и инструмента
+                            merged_zone = self._merge_preset_and_instrument_params(preset_zone, instrument_zone)
+                            matching_merged_zones.append(merged_zone)
         
         # Если нет подходящих зон или запрошенная частичная структура отсутствует, возвращаем None
-        if not matching_zones or partial_id >= len(matching_zones):
+        if not matching_merged_zones or partial_id >= len(matching_merged_zones):
             return None
         
         # Получаем нужную зону
-        zone = matching_zones[partial_id]
+        zone = matching_merged_zones[partial_id]
         
         # Получаем сэмпл
         if zone.sample_index >= len(sample_headers):
