@@ -154,6 +154,11 @@ class XGSynthesizer:
             self.rpn_states[channel] = {"msb": 127, "lsb": 127}
             self.nrpn_states[channel] = {"msb": 127, "lsb": 127}
             self.data_entry_states[channel] = {"msb": 0, "lsb": 0}
+            
+            # Инициализация параметров эффектов в effect manager
+            self.effect_manager.set_current_nrpn_channel(channel)
+            self.effect_manager.set_channel_effect_parameter(channel, 0, 160, 40)  # Reverb send
+            self.effect_manager.set_channel_effect_parameter(channel, 0, 161, 0)   # Chorus send
         
         # Сброс эффектов в стандартное состояние XG
         self.effect_manager.reset_effects()
@@ -357,8 +362,12 @@ class XGSynthesizer:
             self.channel_states[channel]["portamento"] = (value >= 64)
         elif controller == 91:  # Reverb Send
             self.channel_states[channel]["reverb_send"] = value
+            # Передаем значение в эффект менеджер
+            self.effect_manager.set_channel_effect_parameter(channel, 0, 160, value)
         elif controller == 93:  # Chorus Send
             self.channel_states[channel]["chorus_send"] = value
+            # Передаем значение в эффект менеджер
+            self.effect_manager.set_channel_effect_parameter(channel, 0, 161, value)
         elif controller == 120:  # All Sound Off
             self._handle_all_sound_off(channel)
         elif controller == 121:  # Reset All Controllers
@@ -447,7 +456,11 @@ class XGSynthesizer:
     
     def _handle_nrpn(self, channel: int, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int):
         """Обработка Non-Registered Parameter Number"""
-        # Передаем сообщение активным тон-генераторам
+        # Проверяем, является ли это NRPN параметром эффекта
+        # Передаем в effect manager для обработки параметров эффектов
+        self.effect_manager.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb, channel)
+        
+        # Также передаем сообщение активным тон-генераторам
         for generator in self.tone_generators:
             if generator.channel == channel:
                 generator.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb)
@@ -457,13 +470,20 @@ class XGSynthesizer:
         if len(data) < 6:
             return
         
-        mid = data[1]
-        # Передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
-            generator.handle_sysex(mid, data)
+        # Извлекаем параметры SysEx сообщения
+        device_id = data[1] if len(data) > 1 else 0
+        sub_status = data[2] if len(data) > 2 else 0
+        command = data[3] if len(data) > 3 else 0
         
         # Передаем сообщение менеджеру эффектов
-        self.effect_manager.handle_sysex(mid, data)
+        self.effect_manager.handle_sysex(0x43, data[1:])  # 0x43 - Yamaha manufacturer ID
+        
+        # Передаем сообщение активным тон-генераторам
+        for generator in self.tone_generators:
+            try:
+                generator.handle_sysex(0x43, data[1:])  # 0x43 - Yamaha manufacturer ID
+            except Exception as e:
+                print(f"Ошибка при обработке SysEx в тон-генераторе: {e}")
 
     
     def _handle_all_sound_off(self, channel: int):
@@ -482,6 +502,16 @@ class XGSynthesizer:
         """Обработка Reset All Controllers контроллера"""
         # Сбрасываем состояние контроллеров канала
         self.channel_states[channel] = self._create_channel_state()
+        
+        # Сбрасываем RPN/NRPN состояния
+        self.rpn_states[channel] = {"msb": 127, "lsb": 127}
+        self.nrpn_states[channel] = {"msb": 127, "lsb": 127}
+        self.data_entry_states[channel] = {"msb": 0, "lsb": 0}
+        
+        # Сбрасываем параметры эффектов в effect manager
+        self.effect_manager.set_current_nrpn_channel(channel)
+        self.effect_manager.set_channel_effect_parameter(channel, 0, 160, 40)  # Reverb send
+        self.effect_manager.set_channel_effect_parameter(channel, 0, 161, 0)   # Chorus send
         
         # Передаем сообщение активным тон-генераторам
         for generator in self.tone_generators:
@@ -550,10 +580,6 @@ class XGSynthesizer:
         if block_size is None:
             block_size = self.block_size
         
-        # Создаем буферы для аудио данных
-        left_buffer = np.zeros(block_size, dtype=np.float32)
-        right_buffer = np.zeros(block_size, dtype=np.float32)
-        
         with self.lock:
             # Генерируем аудио для каждого активного тон-генератора
             active_generators = []
@@ -564,40 +590,72 @@ class XGSynthesizer:
             # Обновляем список тон-генераторов
             self.tone_generators = active_generators
             
-            # Генерируем аудио
-            for i in range(block_size):
-                left_sample = 0.0
-                right_sample = 0.0
-                
-                # Суммируем выходы всех активных генераторов
-                for generator in active_generators:
+            # Создаем буферы для каждого MIDI канала (16 каналов)
+            channel_buffers = [[(0.0, 0.0) for _ in range(block_size)] for _ in range(16)]
+            
+            # Генерируем аудио для каждого активного генератора и распределяем по каналам
+            for generator in active_generators:
+                channel = generator.channel
+                if 0 <= channel < 16:  # Проверяем корректность номера канала
                     try:
-                        l, r = generator.generate_sample()
-                        left_sample += l
-                        right_sample += r
+                        # Генерируем блок аудио для этого генератора
+                        for i in range(block_size):
+                            l, r = generator.generate_sample()
+                            # Добавляем к существующему аудио на этом канале
+                            existing_l, existing_r = channel_buffers[channel][i]
+                            channel_buffers[channel][i] = (existing_l + l, existing_r + r)
                     except Exception as e:
                         print(f"Ошибка при генерации сэмпла: {e}")
                         # Отключаем проблемный генератор
                         generator.active = False
+            
+            # Применяем мастер-громкость и ограничение к каждому каналу
+            for channel in range(16):
+                channel_state = self.channel_states[channel]
+                volume = channel_state["volume"] / 127.0
+                expression = channel_state["expression"] / 127.0
+                channel_volume = volume * expression * self.master_volume
                 
-                # Применяем мастер-громкость
-                left_sample *= self.master_volume
-                right_sample *= self.master_volume
-                
-                # Ограничиваем значения
-                left_buffer[i] = max(-1.0, min(1.0, left_sample))
-                right_buffer[i] = max(-1.0, min(1.0, right_sample))
+                for i in range(block_size):
+                    l, r = channel_buffers[channel][i]
+                    l *= channel_volume
+                    r *= channel_volume
+                    # Ограничиваем значения
+                    l = max(-1.0, min(1.0, l))
+                    r = max(-1.0, min(1.0, r))
+                    channel_buffers[channel][i] = (l, r)
             
             # Применяем эффекты
             try:
-                effected_samples = self.effect_manager.process_audio(
-                    [(left_buffer[i], right_buffer[i]) for i in range(block_size)],
+                effected_channels = self.effect_manager.process_audio(
+                    channel_buffers,
                     block_size
                 )
-                left_buffer = np.array([s[0] for s in effected_samples], dtype=np.float32)
-                right_buffer = np.array([s[1] for s in effected_samples], dtype=np.float32)
+                
+                # Смешиваем все каналы в один стерео выход
+                left_buffer = np.zeros(block_size, dtype=np.float32)
+                right_buffer = np.zeros(block_size, dtype=np.float32)
+                
+                for channel in range(16):
+                    for i in range(block_size):
+                        left_buffer[i] += effected_channels[channel][i][0]
+                        right_buffer[i] += effected_channels[channel][i][1]
+                
+                # Ограничиваем конечный микс
+                for i in range(block_size):
+                    left_buffer[i] = max(-1.0, min(1.0, left_buffer[i]))
+                    right_buffer[i] = max(-1.0, min(1.0, right_buffer[i]))
+                    
             except Exception as e:
                 print(f"Ошибка при обработке эффектов: {e}")
+                # Если эффекты не работают, возвращаем необработанный микс
+                left_buffer = np.zeros(block_size, dtype=np.float32)
+                right_buffer = np.zeros(block_size, dtype=np.float32)
+                
+                for channel in range(16):
+                    for i in range(block_size):
+                        left_buffer[i] += channel_buffers[channel][i][0]
+                        right_buffer[i] += channel_buffers[channel][i][1]
         
         return left_buffer, right_buffer
     
