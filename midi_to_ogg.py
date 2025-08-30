@@ -75,15 +75,16 @@ class MIDIToOGGConverter:
         self.block_size = block_size
 
     def convert_midi_to_ogg(
-        self, midi_file: str, output_file: str, tempo_ratio: float = 1.0
+        self, midi_file: str, output_file: str, tempo_ratio: float = 1.0, output_format: str = "ogg"
     ) -> bool:
         """
-        Convert a MIDI file to OGG
+        Convert a MIDI file to OGG or WAV
 
         Args:
             midi_file: Path to the input MIDI file
-            output_file: Path to the output OGG file
+            output_file: Path to the output audio file
             tempo_ratio: Tempo adjustment ratio (1.0 = original tempo)
+            output_format: Output format ("ogg" or "wav")
 
         Returns:
             True if successful, False otherwise
@@ -126,8 +127,11 @@ class MIDIToOGGConverter:
                 print(f"Converting {midi_file} to {output_file}")
                 print(f"Estimated duration: {estimated_duration:.2f} seconds")
 
-            # Process the MIDI file and generate audio directly to OGG
-            self._process_midi_to_ogg(midi, output_file, tempo_ratio)
+            # Process the MIDI file and generate audio in the specified format
+            if output_format.lower() == "wav":
+                self._process_midi_to_wav(midi, output_file, tempo_ratio)
+            else:
+                self._process_midi_to_ogg(midi, output_file, tempo_ratio)
 
             if not self.silent:
                 print(f"Conversion completed successfully!")
@@ -292,6 +296,77 @@ class MIDIToOGGConverter:
         elif msg.type == "aftertouch":
             self.synth.send_midi_message(0xD0 + msg.channel, msg.value)
 
+    def _process_midi_to_wav(self, midi: mido.MidiFile, output_file: str, tempo_ratio: float = 1.0):
+        """
+        Process MIDI messages and generate WAV audio directly
+
+        Args:
+            midi: Loaded MIDI file
+            output_file: Output WAV file path
+            tempo_ratio: Tempo adjustment ratio
+        """
+        import wave
+
+        # Initialize tempo and timing
+        tempo = 500000  # Microseconds per beat
+        tick_rate = midi.ticks_per_beat
+
+        # Process all tracks
+        for track in midi.tracks:
+            abs_time = 0  # Absolute time in ticks
+            for msg in track:
+                abs_time += msg.time
+
+                # Handle tempo changes
+                if msg.type == "set_tempo":
+                    tempo = msg.tempo
+
+                # Send message to synthesizer
+                if not msg.is_meta:
+                    self._send_midi_message_to_synth(msg)
+
+        # Open WAV file for writing
+        with wave.open(output_file, 'wb') as wav_file:
+            wav_file.setnchannels(2)  # Stereo
+            wav_file.setsampwidth(2)  # 16-bit
+            wav_file.setframerate(self.sample_rate)
+
+            total_samples = 0
+            silence_samples = 0  # Count consecutive silent samples
+
+            while True:
+                # Check if there are active voices
+                active_voices = self.synth.get_active_voice_count()
+
+                # Generate audio block
+                left_channel, right_channel = self.synth.generate_audio_block(self.block_size)
+
+                # Convert to 16-bit PCM
+                left_int16 = np.clip(left_channel, -1.0, 1.0) * 32767
+                right_int16 = np.clip(right_channel, -1.0, 1.0) * 32767
+
+                # Interleave channels (LRLRLR...)
+                interleaved = np.empty((left_int16.size + right_int16.size,), dtype=np.int16)
+                interleaved[0::2] = left_int16.astype(np.int16)
+                interleaved[1::2] = right_int16.astype(np.int16)
+
+                # Write to WAV file
+                wav_file.writeframes(interleaved.tobytes())
+                total_samples += self.block_size
+
+                # Check for silence (all samples close to zero)
+                if np.max(np.abs(interleaved)) < 0.001:  # Threshold for silence
+                    silence_samples += self.block_size
+                else:
+                    silence_samples = 0  # Reset counter if we hear sound
+
+                # Stop if we've had 1 second of silence and some audio has been generated
+                if silence_samples > self.sample_rate and total_samples > self.sample_rate * 2:
+                    break
+
+                # Progress indicator
+                if not self.silent and total_samples % (self.sample_rate * 10) == 0:  # Every 10 seconds
+                    print(f"Generated {total_samples // self.sample_rate} seconds of audio...")
 
 def load_config(config_file: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -399,6 +474,14 @@ Examples:
         help="Suppress console output during conversion",
     )
 
+    parser.add_argument(
+    "--format",
+    choices=["wav", "ogg"],
+    default="ogg",
+    help="Output audio format (default: ogg)"
+)
+
+
     return parser.parse_args()
 
 
@@ -455,7 +538,7 @@ def main():
             output_file = args.output
 
         # Convert file
-        if converter.convert_midi_to_ogg(input_file, output_file, args.tempo):
+        if converter.convert_midi_to_ogg(input_file, output_file, args.tempo, args.format):
             success_count += 1
         else:
             if not args.silent:
