@@ -1530,6 +1530,33 @@ class XGToneGenerator:
         self.drum_mute = False  # Mute режим барабана
         self.drum_note_map = DrumNoteMap()  # Карта барабанов
         
+        # Расширенные параметры барабанов
+        self.drum_parameters = {
+            "tune": 0.0,              # Настройка высоты барабана (-64..+63 полутона)
+            "level": 1.0,             # Уровень барабана (0.0-1.0)
+            "pan": 0.5,               # Панорамирование барабана (0.0-1.0)
+            "solo": False,            # Solo режим барабана
+            "mute": False,            # Mute режим барабана
+            "reverb_send": 0.3,       # Посылка реверберации (0.0-1.0)
+            "chorus_send": 0.0,       # Посылка хора (0.0-1.0)
+            "variation_send": 0.0,    # Посылка вариаций (0.0-1.0)
+            "filter_cutoff": 1000.0,  # Частота среза фильтра
+            "filter_resonance": 0.7,  # Резонанс фильтра
+            "eg_attack": 0.01,         # Атака огибающей
+            "eg_decay": 0.3,          # Спад огибающей
+            "eg_release": 0.5,        # Релиз огибающей
+            "pitch_coarse": 0.0,      # Грубая настройка питча
+            "pitch_fine": 0.0,        # Точная настройка питча
+            "level_hold": False,      # Удержание уровня
+            "variation_effect": 0,    # Вариационный эффект
+            "variation_params": [0.5] * 10,  # Параметры вариационного эффекта (10 параметров)
+            "key_assign": 0,          # Назначение клавиш
+            "velocity_zones": [(0, 127)],  # Зоны скорости
+            "key_groups": [(0, 127)],     # Группы клавиш
+            "layered": False,              # Режим наложения
+            "layers": []                   # Слои
+        }
+        
         # Параметры vibrato
         self.vibrato_rate = 5.0
         self.vibrato_depth = 50.0  # в центах
@@ -2332,6 +2359,60 @@ class XGToneGenerator:
             self.drum_solo = value
         elif param == "mute":
             self.drum_mute = value
+        elif param == "reverb_send":
+            self.drum_parameters["reverb_send"] = value
+        elif param == "chorus_send":
+            self.drum_parameters["chorus_send"] = value
+        elif param == "variation_send":
+            self.drum_parameters["variation_send"] = value
+        elif param == "filter_cutoff":
+            self.drum_parameters["filter_cutoff"] = value
+        elif param == "filter_resonance":
+            self.drum_parameters["filter_resonance"] = value
+        elif param == "eg_attack":
+            self.drum_parameters["eg_attack"] = value
+        elif param == "eg_decay":
+            self.drum_parameters["eg_decay"] = value
+        elif param == "eg_release":
+            self.drum_parameters["eg_release"] = value
+        elif param == "pitch_coarse":
+            self.drum_parameters["pitch_coarse"] = value
+        elif param == "pitch_fine":
+            self.drum_parameters["pitch_fine"] = value
+        elif param == "level_hold":
+            self.drum_parameters["level_hold"] = value
+        elif param == "variation_effect":
+            self.drum_parameters["variation_effect"] = value
+        elif param == "variation_param1":
+            if len(self.drum_parameters["variation_params"]) > 0:
+                self.drum_parameters["variation_params"][0] = value
+        elif param == "variation_param2":
+            if len(self.drum_parameters["variation_params"]) > 1:
+                self.drum_parameters["variation_params"][1] = value
+        elif param == "variation_param3":
+            if len(self.drum_parameters["variation_params"]) > 2:
+                self.drum_parameters["variation_params"][2] = value
+        elif param == "variation_param4":
+            if len(self.drum_parameters["variation_params"]) > 3:
+                self.drum_parameters["variation_params"][3] = value
+        elif param == "variation_param5":
+            if len(self.drum_parameters["variation_params"]) > 4:
+                self.drum_parameters["variation_params"][4] = value
+        elif param == "variation_param6":
+            if len(self.drum_parameters["variation_params"]) > 5:
+                self.drum_parameters["variation_params"][5] = value
+        elif param == "variation_param7":
+            if len(self.drum_parameters["variation_params"]) > 6:
+                self.drum_parameters["variation_params"][6] = value
+        elif param == "variation_param8":
+            if len(self.drum_parameters["variation_params"]) > 7:
+                self.drum_parameters["variation_params"][7] = value
+        elif param == "variation_param9":
+            if len(self.drum_parameters["variation_params"]) > 8:
+                self.drum_parameters["variation_params"][8] = value
+        elif param == "variation_param10":
+            if len(self.drum_parameters["variation_params"]) > 9:
+                self.drum_parameters["variation_params"][9] = value
         elif param == "note_map":
             # В реальной реализации здесь менялась бы карта барабанов
             pass
@@ -2805,6 +2886,94 @@ class XGToneGenerator:
             self.drum_solo = (value > 8192)
         elif parameter == 4:  # Mute
             self.drum_mute = (value > 8192)
+        elif parameter == 5:  # Reverb Send
+            self.drum_parameters["reverb_send"] = value / 16383.0
+        elif parameter == 6:  # Chorus Send
+            self.drum_parameters["chorus_send"] = value / 16383.0
+        elif parameter == 7:  # Variation Send
+            self.drum_parameters["variation_send"] = value / 16383.0
+        elif parameter == 8:  # Filter Cutoff
+            self.drum_parameters["filter_cutoff"] = 20 + value * 150
+        elif parameter == 9:  # Filter Resonance
+            self.drum_parameters["filter_resonance"] = value / 64.0
+        elif parameter == 10:  # EG Attack
+            self.drum_parameters["eg_attack"] = value * 0.05
+        elif parameter == 11:  # EG Decay
+            self.drum_parameters["eg_decay"] = value * 0.05
+        elif parameter == 12:  # EG Release
+            self.drum_parameters["eg_release"] = value * 0.05
+        elif parameter == 13:  # Pitch Coarse
+            self.drum_parameters["pitch_coarse"] = (value - 8192) / 100.0
+        elif parameter == 14:  # Pitch Fine
+            self.drum_parameters["pitch_fine"] = (value - 8192) * 0.5
+        elif parameter == 15:  # Level Hold
+            self.drum_parameters["level_hold"] = (value > 8192)
+        elif parameter == 16:  # Variation Effect
+            self.drum_parameters["variation_effect"] = value
+        elif parameter == 17:  # Variation Parameter 1
+            self.drum_parameters["variation_params"][0] = value / 16383.0
+        elif parameter == 18:  # Variation Parameter 2
+            self.drum_parameters["variation_params"][1] = value / 16383.0
+        elif parameter == 19:  # Variation Parameter 3
+            self.drum_parameters["variation_params"][2] = value / 16383.0
+        elif parameter == 20:  # Variation Parameter 4
+            self.drum_parameters["variation_params"][3] = value / 16383.0
+        elif parameter == 21:  # Variation Parameter 5
+            self.drum_parameters["variation_params"][4] = value / 16383.0
+        elif parameter == 22:  # Variation Parameter 6
+            self.drum_parameters["variation_params"][5] = value / 16383.0
+        elif parameter == 23:  # Variation Parameter 7
+            self.drum_parameters["variation_params"][6] = value / 16383.0
+        elif parameter == 24:  # Variation Parameter 8
+            self.drum_parameters["variation_params"][7] = value / 16383.0
+        elif parameter == 25:  # Variation Parameter 9
+            self.drum_parameters["variation_params"][8] = value / 16383.0
+        elif parameter == 26:  # Variation Parameter 10
+            self.drum_parameters["variation_params"][9] = value / 16383.0
+    
+    def set_drum_instrument_parameters(self, note, parameters):
+        """
+        Установка параметров барабанного инструмента.
+        
+        Args:
+            note: MIDI нота барабанного инструмента
+            parameters: словарь параметров барабанного инструмента
+        """
+        # Обновляем параметры барабана
+        for param, value in parameters.items():
+            if param in self.drum_parameters:
+                self.drum_parameters[param] = value
+            elif param == "variation_params" and isinstance(value, list):
+                # Обновляем параметры вариационного эффекта
+                for i, val in enumerate(value[:10]):  # Ограничиваем 10 параметрами
+                    if i < len(self.drum_parameters["variation_params"]):
+                        self.drum_parameters["variation_params"][i] = val
+    
+    def get_drum_instrument_parameters(self, note):
+        """
+        Получение параметров барабанного инструмента.
+        
+        Args:
+            note: MIDI нота барабанного инструмента
+            
+        Returns:
+            словарь параметров барабанного инструмента
+        """
+        return self.drum_parameters.copy()
+    
+    def get_drum_instrument_name(self, note):
+        """
+        Получение имени барабанного инструмента по ноте.
+        
+        Args:
+            note: MIDI нота барабанного инструмента
+            
+        Returns:
+            имя барабанного инструмента или None
+        """
+        if self.is_drum and self.drum_note_map:
+            return self.drum_note_map.get_instrument_name(note)
+        return None
     
     def _handle_bulk_system(self, data):
         """Обработка bulk данных для системных параметров"""

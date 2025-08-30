@@ -8,7 +8,7 @@ master_volume: 1.0
 
 # SoundFont files
 sf2_files:
-  - "C:/Tools/Soundfonts/Timbres Of Heaven GM_GS_XG_SFX V 3.4 Final.sf2" 
+  - "tests/Timbres Of Heaven GM_GS_XG_SFX V 3.4 Final.sf2" 
 
 # # Bank blacklists (exclude specific banks from SF2 files)
 # bank_blacklists:

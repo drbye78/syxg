@@ -13,6 +13,7 @@ import os
 import sys
 import mido
 import numpy as np
+import wave  # Using Python's built-in wave module
 from typing import List, Dict, Any, Optional
 from pydub import AudioSegment
 
@@ -74,7 +75,7 @@ class MIDIToMP3Converter:
         self.block_size = block_size
         
     def convert_midi_to_mp3(self, midi_file: str, output_file: str, 
-                           tempo_ratio: float = 1.0) -> bool:
+                            tempo_ratio: float = 1.0) -> bool:
         """
         Convert a MIDI file to MP3
         
@@ -87,6 +88,20 @@ class MIDIToMP3Converter:
             True if successful, False otherwise
         """
         try:
+            # Convert to absolute paths
+            midi_file = os.path.abspath(midi_file)
+            output_file = os.path.abspath(output_file)
+            
+            # Verify input file exists
+            if not os.path.exists(midi_file):
+                print(f"Error: Input file '{midi_file}' not found")
+                return False
+                
+            # Create output directory if it doesn't exist
+            output_dir = os.path.dirname(output_file)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+            
             # Load the MIDI file
             midi = mido.MidiFile(midi_file)
             
@@ -108,6 +123,7 @@ class MIDIToMP3Converter:
             
             # Create a temporary WAV file for the output
             temp_wav = output_file.replace('.mp3', '.wav') if output_file.endswith('.mp3') else output_file + '.wav'
+            temp_wav = os.path.abspath(temp_wav)
             
             # Process the MIDI file and generate audio
             self._process_midi_messages(midi, temp_wav, tempo_ratio)
@@ -116,7 +132,8 @@ class MIDIToMP3Converter:
             if output_file.endswith('.mp3'):
                 self._convert_wav_to_mp3(temp_wav, output_file)
                 # Remove temporary WAV file
-                os.remove(temp_wav)
+                if os.path.exists(temp_wav):
+                    os.remove(temp_wav)
             
             print(f"Conversion completed successfully!")
             return True
@@ -135,10 +152,12 @@ class MIDIToMP3Converter:
             output_file: Output WAV file path
             tempo_ratio: Tempo adjustment ratio
         """
-        # Open output file for writing
-        with open(output_file, 'wb') as f:
-            # Write WAV header
-            self._write_wav_header(f)
+        # Open WAV file for writing
+        with wave.open(output_file, 'wb') as wav_file:
+            # Set WAV file parameters
+            wav_file.setnchannels(2)  # Stereo
+            wav_file.setsampwidth(2)  # 16-bit = 2 bytes
+            wav_file.setframerate(self.sample_rate)
             
             # Initialize tempo and timing
             tempo = 500000  # Microseconds per beat
@@ -146,9 +165,6 @@ class MIDIToMP3Converter:
             
             # Process all tracks
             for track in midi.tracks:
-                # Reset synthesizer for each track
-                # self.synth.reset()  # Don't reset to allow multi-track mixing
-                
                 # Process messages
                 abs_time = 0  # Absolute time in ticks
                 for msg in track:
@@ -164,14 +180,11 @@ class MIDIToMP3Converter:
             
             # Generate audio in blocks
             total_samples = 0
+            silence_samples = 0  # Count consecutive silent samples
+            
             while True:
                 # Check if there are active voices
                 active_voices = self.synth.get_active_voice_count()
-                if active_voices == 0:
-                    # Check if we've generated enough audio
-                    # (approximately 1 second of silence at the end)
-                    if total_samples > self.sample_rate:
-                        break
                 
                 # Generate audio block
                 left_channel, right_channel = self.synth.generate_audio_block(self.block_size)
@@ -185,16 +198,23 @@ class MIDIToMP3Converter:
                 interleaved[0::2] = left_int16
                 interleaved[1::2] = right_int16
                 
-                # Write to file
-                f.write(interleaved.tobytes())
+                # Write to WAV file
+                wav_file.writeframes(interleaved.tobytes())
                 total_samples += self.block_size
+                
+                # Check for silence (all samples close to zero)
+                if np.max(np.abs(interleaved)) < 100:  # Threshold for silence
+                    silence_samples += self.block_size
+                else:
+                    silence_samples = 0  # Reset counter if we hear sound
+                
+                # Stop if we've had 1 second of silence and some audio has been generated
+                if silence_samples > self.sample_rate and total_samples > self.sample_rate * 2:
+                    break
                 
                 # Progress indicator
                 if total_samples % (self.sample_rate * 10) == 0:  # Every 10 seconds
                     print(f"Generated {total_samples // self.sample_rate} seconds of audio...")
-            
-            # Update WAV header with correct file size
-            self._update_wav_header(f)
     
     def _send_midi_message_to_synth(self, msg: mido.Message):
         """
@@ -221,42 +241,6 @@ class MIDIToMP3Converter:
             self.synth.send_midi_message(0xA0 + msg.channel, msg.note, msg.value)
         elif msg.type == 'aftertouch':
             self.synth.send_midi_message(0xD0 + msg.channel, msg.value)
-    
-    def _write_wav_header(self, f):
-        """
-        Write initial WAV header (will be updated later)
-        """
-        # WAV header format
-        f.write(b'RIFF')  # Chunk ID
-        f.write(b'\\x00\\x00\\x00\\x00')  # Chunk Size (will update later)
-        f.write(b'WAVE')  # Format
-        f.write(b'fmt ')  # Subchunk1 ID
-        f.write(b'\\x10\\x00\\x00\\x00')  # Subchunk1 Size (16 for PCM)
-        f.write(b'\\x01\\x00')  # Audio Format (1 = PCM)
-        f.write(b'\\x02\\x00')  # Number of Channels (2 = stereo)
-        f.write((self.sample_rate).to_bytes(4, byteorder='little'))  # Sample Rate
-        f.write((self.sample_rate * 2 * 2).to_bytes(4, byteorder='little'))  # Byte Rate
-        f.write(b'\\x04\\x00')  # Block Align
-        f.write(b'\\x10\\x00')  # Bits Per Sample (16)
-        f.write(b'data')  # Subchunk2 ID
-        f.write(b'\\x00\\x00\\x00\\x00')  # Subchunk2 Size (will update later)
-    
-    def _update_wav_header(self, f):
-        """
-        Update WAV header with correct file sizes
-        """
-        # Get file size
-        f.seek(0, 2)  # Seek to end
-        file_size = f.tell()
-        data_size = file_size - 44  # Subtract header size
-        
-        # Update RIFF chunk size
-        f.seek(4)
-        f.write((file_size - 8).to_bytes(4, byteorder='little'))
-        
-        # Update data chunk size
-        f.seek(40)
-        f.write((data_size).to_bytes(4, byteorder='little'))
     
     def _convert_wav_to_mp3(self, wav_file: str, mp3_file: str):
         """

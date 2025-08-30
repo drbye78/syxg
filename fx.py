@@ -484,6 +484,7 @@ class XGEffectManager:
             "soloed": False,  # Канал в режиме solo
             "pan": 0.5,  # Панорамирование (0.0-1.0)
             "volume": 1.0,  # Громкость (0.0-1.0)
+            "expression": 1.0,  # Выражение (0.0-1.0)
             "insertion_effect": self._create_insertion_effect_params()
         }
     
@@ -525,6 +526,7 @@ class XGEffectManager:
                     "soloed": source["channel_params"][i]["soloed"],
                     "pan": source["channel_params"][i]["pan"],
                     "volume": source["channel_params"][i]["volume"],
+                    "expression": source["channel_params"][i]["expression"],
                     "insertion_effect": source["channel_params"][i]["insertion_effect"].copy()
                 }
     
@@ -1032,26 +1034,31 @@ class XGEffectManager:
                 self._temp_state["channel_params"][i]["insertion_effect"] = self._create_insertion_effect_params()
             self.state_update_pending = True
     
-    def process_audio(self, input_samples: List[Tuple[float, float]], 
-                     num_samples: int) -> List[Tuple[float, float]]:
+    def process_audio(self, input_samples: List[List[Tuple[float, float]]], 
+                     num_samples: int) -> List[List[Tuple[float, float]]]:
         """
         Обработка аудио с применением эффектов для всех каналов.
         
         Args:
-            input_samples: список стерео сэмплов для каждого канала [(left, right), ...]
+            input_samples: список каналов, каждый содержит список стерео сэмплов [(left, right), ...]
             num_samples: количество обрабатываемых сэмплов (для автоматизации)
             
         Returns:
-            список обработанных стерео сэмплов [(left, right), ...]
+            список каналов, каждый содержит список обработанных стерео сэмплов [(left, right), ...]
         """
         if len(input_samples) != self.NUM_CHANNELS:
             raise ValueError(f"Ожидалось {self.NUM_CHANNELS} каналов, получено {len(input_samples)}")
+        
+        # Проверяем, что каждый канал содержит правильное количество сэмплов
+        for i, channel_samples in enumerate(input_samples):
+            if len(channel_samples) != num_samples:
+                raise ValueError(f"Канал {i}: ожидалось {num_samples} сэмплов, получено {len(channel_samples)}")
         
         # Потокобезопасное получение состояния
         state = self._get_current_state()
         
         # Инициализация выходных данных
-        output_samples = [(0.0, 0.0)] * self.NUM_CHANNELS
+        output_channels = [[(0.0, 0.0) for _ in range(num_samples)] for _ in range(self.NUM_CHANNELS)]
         system_input_left = 0.0
         system_input_right = 0.0
         
@@ -1059,39 +1066,45 @@ class XGEffectManager:
         active_channels = self._get_active_channels(state)
         
         # Обработка Insertion Effects для каждого канала
-        insertion_outputs = []
+        insertion_outputs = [[] for _ in range(self.NUM_CHANNELS)]
         for i in range(self.NUM_CHANNELS):
             if i not in active_channels:
-                insertion_outputs.append((0.0, 0.0))
+                # Для неактивных каналов возвращаем нулевые сэмплы
+                insertion_outputs[i] = [(0.0, 0.0) for _ in range(num_samples)]
                 continue
                 
-            left_in, right_in = input_samples[i]
+            channel_samples = input_samples[i]
             ch_params = state["channel_params"][i]
             
-            # Применение Insertion Effect
-            insertion_effect = ch_params["insertion_effect"]
-            insertion_send = ch_params["insertion_send"]
-            
-            if insertion_effect["enabled"] and insertion_send > 0 and not insertion_effect["bypass"]:
-                # Обработка через Insertion Effect
-                insertion_left, insertion_right = self._process_insertion_effect(
-                    left_in, right_in, 
-                    insertion_effect,
-                    self.channel_effect_states[i],
-                    state
-                )
-                insertion_left *= insertion_send
-                insertion_right *= insertion_send
-            else:
-                insertion_left, insertion_right = 0.0, 0.0
-            
-            # Сохраняем для дальнейшей обработки
-            insertion_outputs.append((insertion_left, insertion_right))
-            
-            # Формируем сигнал для системных эффектов
-            reverb_send = ch_params["reverb_send"]
-            system_input_left += left_in * (1 - insertion_send) * reverb_send
-            system_input_right += right_in * (1 - insertion_send) * reverb_send
+            # Обработка каждого сэмпла в канале
+            channel_output = []
+            for j in range(num_samples):
+                left_in, right_in = channel_samples[j]
+                
+                # Применение Insertion Effect
+                insertion_effect = ch_params["insertion_effect"]
+                insertion_send = ch_params["insertion_send"]
+                
+                if insertion_effect["enabled"] and insertion_send > 0 and not insertion_effect["bypass"]:
+                    # Обработка через Insertion Effect
+                    insertion_left, insertion_right = self._process_insertion_effect(
+                        left_in, right_in, 
+                        insertion_effect,
+                        self.channel_effect_states[i],
+                        state
+                    )
+                    insertion_left *= insertion_send
+                    insertion_right *= insertion_send
+                else:
+                    insertion_left, insertion_right = 0.0, 0.0
+                
+                # Сохраняем для дальнейшей обработки
+                insertion_outputs[i].append((insertion_left, insertion_right))
+                
+                # Формируем сигнал для системных эффектов
+                reverb_send = ch_params["reverb_send"]
+                system_input_left += left_in * (1 - insertion_send) * reverb_send
+                system_input_right += right_in * (1 - insertion_send) * reverb_send
         
         # Обработка системных эффектов
         system_output = (0.0, 0.0)
@@ -1101,40 +1114,53 @@ class XGEffectManager:
                 system_input_left, system_input_right, state
             )
         
-        # Смешивание результатов
+        # Смешивание результатов для каждого канала
         for i in range(self.NUM_CHANNELS):
             if i not in active_channels:
-                output_samples[i] = (0.0, 0.0)
+                # Неактивные каналы остаются нулевыми
+                output_channels[i] = [(0.0, 0.0) for _ in range(num_samples)]
                 continue
                 
-            # Получаем Insertion Effect output
-            insertion_left, insertion_right = insertion_outputs[i]
+            # Получаем Insertion Effect output для этого канала
+            channel_insertion_output = insertion_outputs[i]
             ch_params = state["channel_params"][i]
             
             # Получаем вклад системных эффектов
             reverb_send = ch_params["reverb_send"]
-            system_contrib_left = system_output[0] * reverb_send
-            system_contrib_right = system_output[1] * reverb_send
             
             # Смешиваем оригинальный сигнал, Insertion Effect и системные эффекты
             volume = ch_params["volume"]
+            expression = ch_params["expression"]
+            channel_volume = volume * expression # * self.master_volume
+            
             pan = ch_params["pan"]
             
             # Панорамирование
-            left_volume = volume * (1.0 - pan)
-            right_volume = volume * pan
+            left_volume = channel_volume * (1.0 - pan)
+            right_volume = channel_volume * pan
             
-            output_samples[i] = (
-                (insertion_left + system_contrib_left) * left_volume,
-                (insertion_right + system_contrib_right) * right_volume
-            )
+            for j in range(num_samples):
+                insertion_left, insertion_right = channel_insertion_output[j]
+                system_contrib_left = system_output[0] * reverb_send
+                system_contrib_right = system_output[1] * reverb_send
+                
+                # Применяем уровни к каждому сэмплу
+                left_out = (insertion_left + system_contrib_left) * left_volume
+                right_out = (insertion_right + system_contrib_right) * right_volume
+                
+                # Ограничиваем значения
+                left_out = max(-1.0, min(1.0, left_out))
+                right_out = max(-1.0, min(1.0, right_out))
+                
+                output_channels[i][j] = (left_out, right_out)
         
         # Применение общего уровня
         master_level = state["global_effect_params"].get("master_level", 0.8)
-        output_samples = [
-            (left * master_level, right * master_level) 
-            for left, right in output_samples
-        ]
+        if master_level != 1.0:
+            for i in range(self.NUM_CHANNELS):
+                for j in range(num_samples):
+                    left_out, right_out = output_channels[i][j]
+                    output_channels[i][j] = (left_out * master_level, right_out * master_level)
         
         # Проверка необходимости обновления состояния
         if self.state_update_pending:
@@ -1143,7 +1169,7 @@ class XGEffectManager:
                     self._copy_state(self._temp_state, self._current_state)
                     self.state_update_pending = False
         
-        return output_samples
+        return output_channels
     
     def _get_active_channels(self, state: Dict[str, Any]) -> List[int]:
         """Определение активных каналов с учетом mute/solo"""
@@ -1177,7 +1203,7 @@ class XGEffectManager:
                     left_in * reverb_amount, 
                     right_in * reverb_amount,
                     reverb_params,
-                    state
+                    reverb_params #state
                 )
                 left_out += reverb_left * reverb_params.get("level", 0.6)
                 right_out += reverb_right * reverb_params.get("level", 0.6)
@@ -1199,7 +1225,7 @@ class XGEffectManager:
                     left_in * chorus_amount, 
                     right_in * chorus_amount,
                     chorus_params,
-                    state
+                    chorus_params #state
                 )
                 left_out += chorus_left * chorus_params.get("level", 0.4)
                 right_out += chorus_right * chorus_params.get("level", 0.4)
@@ -5500,9 +5526,17 @@ class XGEffectManager:
                 "hf_damping": 0.5,  # 0.0-1.0
                 "density": 0.8,  # 0.0-1.0
                 "early_level": 0.7,  # 0.0-1.0
-                "tail_level": 0.9  # 0.0-1.0
+                "tail_level": 0.9,  # 0.0-1.0
+                "allpass_buffers": [np.zeros(441) for _ in range(4)],
+                "allpass_indices": [0] * 4,
+                "comb_buffers": [np.zeros(441 * i) for i in range(1, 5)],
+                "comb_indices": [0] * 4,
+                "early_reflection_buffer": np.zeros(441),
+                "early_reflection_index": 0,
+                "late_reflection_buffer": np.zeros(441 * 10),
+                "late_reflection_index": 0
             }
-            
+
             # Параметры хоруса
             self._temp_state["chorus_params"] = {
                 "type": 0,  # Chorus 1
@@ -5512,7 +5546,13 @@ class XGEffectManager:
                 "level": 0.4,  # 0.0-1.0
                 "delay": 0.0,  # миллисекунды
                 "output": 0.8,  # 0.0-1.0
-                "cross_feedback": 0.2  # 0.0-1.0
+                "cross_feedback": 0.2,  # 0.0-1.0
+                "delay_lines": [np.zeros(4410) for _ in range(2)],  # 100ms задержки
+                "lfo_phases": [0.0, 0.0],
+                "lfo_rates": [1.0, 0.5],
+                "lfo_depths": [0.5, 0.3],
+                "write_indices": [0, 0],
+                "feedback_buffers": [0.0, 0.0]
             }
             
             # Параметры вариационного эффекта
@@ -5585,6 +5625,8 @@ class XGEffectManager:
                     "muted": False,  # Канал замьючен
                     "soloed": False,  # Канал в режиме solo
                     "pan": 0.5,  # Панорамирование (0.0-1.0)
+                    "expression": 1.0,  # Выражение (0.0-1.0)
+                    "volume": 1.0,  # Громкость (0.0-1.0)
                     "volume": 1.0,  # Громкость (0.0-1.0)
                     "insertion_effect": {
                         "enabled": True,

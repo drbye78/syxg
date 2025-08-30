@@ -4,7 +4,7 @@ from collections import OrderedDict
 import threading
 
 from sf2 import Sf2WavetableManager
-from tg import XGToneGenerator, ADSREnvelope, LFO, ModulationMatrix
+from tg import XGToneGenerator, ADSREnvelope, LFO, ModulationMatrix, DrumNoteMap
 from fx import XGEffectManager
 
 
@@ -20,6 +20,7 @@ class XGSynthesizer:
     - Обработку эффектов
     - Управление SF2-файлами с черными списками и маппингом банков
     - Инициализацию в соответствии со стандартом MIDI XG
+    - Полную поддержку барабанных параметров XG
     """
     
     # Константы по умолчанию
@@ -57,6 +58,43 @@ class XGSynthesizer:
     DATA_ENTRY_MSB = 6
     DATA_ENTRY_LSB = 38
     
+    # XG Drum Setup Parameters (NRPN)
+    # Channel 16 (drum channel) is used for drum setup parameters
+    DRUM_NOTE_NUMBER = 250
+    DRUM_NOTE_TUNE = 251
+    DRUM_NOTE_LEVEL = 252
+    DRUM_NOTE_PAN = 253
+    DRUM_NOTE_REVERB = 254
+    DRUM_NOTE_CHORUS = 255
+    DRUM_NOTE_VARIATION = 256
+    DRUM_NOTE_KEY_ASSIGN = 257
+    DRUM_NOTE_FILTER_CUTOFF = 258
+    DRUM_NOTE_FILTER_RESONANCE = 259
+    DRUM_NOTE_EG_ATTACK = 260
+    DRUM_NOTE_EG_DECAY = 261
+    DRUM_NOTE_EG_RELEASE = 262
+    DRUM_NOTE_PITCH_COARSE = 263
+    DRUM_NOTE_PITCH_FINE = 264
+    DRUM_NOTE_LEVEL_HOLD = 265
+    DRUM_NOTE_VARIATION_EFFECT = 266
+    DRUM_NOTE_VARIATION_PARAMETER1 = 267
+    DRUM_NOTE_VARIATION_PARAMETER2 = 268
+    DRUM_NOTE_VARIATION_PARAMETER3 = 269
+    DRUM_NOTE_VARIATION_PARAMETER4 = 270
+    DRUM_NOTE_VARIATION_PARAMETER5 = 271
+    DRUM_NOTE_VARIATION_PARAMETER6 = 272
+    DRUM_NOTE_VARIATION_PARAMETER7 = 273
+    DRUM_NOTE_VARIATION_PARAMETER8 = 274
+    DRUM_NOTE_VARIATION_PARAMETER9 = 275
+    DRUM_NOTE_VARIATION_PARAMETER10 = 276
+    
+    # Drum Kit Selection
+    DRUM_KIT_SELECT_MSB = 277
+    DRUM_KIT_SELECT_LSB = 278
+    
+    # Drum Setup Channel (Channel 16)
+    DRUM_SETUP_CHANNEL = 15
+    
     def __init__(self, sample_rate: int = DEFAULT_SAMPLE_RATE, 
                  block_size: int = DEFAULT_BLOCK_SIZE,
                  max_polyphony: int = DEFAULT_MAX_POLYPHONY):
@@ -93,6 +131,9 @@ class XGSynthesizer:
         self.nrpn_states: List[Dict[str, int]] = [{"msb": 127, "lsb": 127} for _ in range(16)]
         self.data_entry_states: List[Dict[str, int]] = [{"msb": 0, "lsb": 0} for _ in range(16)]
         
+        # Барабанные параметры для каждого канала
+        self.drum_parameters: List[Dict[int, Dict[str, Any]]] = [{} for _ in range(16)]
+        
         # Эффекты
         self.effect_manager = XGEffectManager(sample_rate)
         
@@ -124,7 +165,9 @@ class XGSynthesizer:
             "rpn_msb": 127,
             "rpn_lsb": 127,
             "nrpn_msb": 127,
-            "nrpn_lsb": 127
+            "nrpn_lsb": 127,
+            "drum_kit": 0,  # Текущий барабанный набор
+            "drum_bank": 128  # Банк барабанов по умолчанию
         }
     
     def _initialize_xg(self):
@@ -159,6 +202,9 @@ class XGSynthesizer:
             self.effect_manager.set_current_nrpn_channel(channel)
             self.effect_manager.set_channel_effect_parameter(channel, 0, 160, 40)  # Reverb send
             self.effect_manager.set_channel_effect_parameter(channel, 0, 161, 0)   # Chorus send
+            
+            # Инициализация барабанных параметров
+            self.drum_parameters[channel] = {}
         
         # Сброс эффектов в стандартное состояние XG
         self.effect_manager.reset_effects()
@@ -172,6 +218,8 @@ class XGSynthesizer:
             else:
                 # Для канала 9 (drum channel) устанавливаем стандартную программу барабанов
                 self._handle_program_change(channel, 0)
+                # Устанавливаем банк барабанов
+                self.channel_states[channel]["bank"] = 128
     
     def set_sf2_files(self, sf2_paths: List[str]):
         """
@@ -404,6 +452,10 @@ class XGSynthesizer:
         """Обработка Program Change сообщения"""
         self.channel_states[channel]["program"] = program
         
+        # Для канала барабанов (9) устанавливаем банк барабанов
+        if channel == 9:
+            self.channel_states[channel]["bank"] = 128
+        
         # Передаем сообщение активным тон-генераторам
         for generator in self.tone_generators:
             if generator.channel == channel:
@@ -460,10 +512,238 @@ class XGSynthesizer:
         # Передаем в effect manager для обработки параметров эффектов
         self.effect_manager.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb, channel)
         
+        # Проверяем, является ли это барабанным параметром
+        if channel == self.DRUM_SETUP_CHANNEL:
+            self._handle_drum_setup_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb)
+        
         # Также передаем сообщение активным тон-генераторам
         for generator in self.tone_generators:
             if generator.channel == channel:
                 generator.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb)
+    
+    def _handle_drum_setup_nrpn(self, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int):
+        """Обработка NRPN параметров барабанов через канал настройки (16)"""
+        # 14-битное значение данных
+        data = (data_msb << 7) | data_lsb
+        
+        # Получаем номер ноты барабана из текущего состояния канала настройки
+        drum_note = self.channel_states[self.DRUM_SETUP_CHANNEL].get("current_drum_note", 36)
+        
+        # Обработка различных параметров барабана
+        if nrpn_lsb == self.DRUM_NOTE_TUNE:
+            # Настройка высоты барабана (-64..+63 полутона)
+            tune = (data - 8192) / 100.0  # Преобразуем в полутона
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["tune"] = tune
+        elif nrpn_lsb == self.DRUM_NOTE_LEVEL:
+            # Уровень барабана (0..127)
+            level = data / 127.0
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["level"] = level
+        elif nrpn_lsb == self.DRUM_NOTE_PAN:
+            # Панорамирование барабана (-64..+63)
+            pan = (data - 8192) / 8192.0
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["pan"] = pan
+        elif nrpn_lsb == self.DRUM_NOTE_REVERB:
+            # Посылка реверберации барабана (0..127)
+            reverb = data / 127.0
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["reverb_send"] = reverb
+        elif nrpn_lsb == self.DRUM_NOTE_CHORUS:
+            # Посылка хора барабана (0..127)
+            chorus = data / 127.0
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["chorus_send"] = chorus
+        elif nrpn_lsb == self.DRUM_NOTE_VARIATION:
+            # Посылка вариаций барабана (0..127)
+            variation = data / 127.0
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["variation_send"] = variation
+        elif nrpn_lsb == self.DRUM_NOTE_KEY_ASSIGN:
+            # Назначение клавиш барабана (0..127)
+            key_assign = data
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["key_assign"] = key_assign
+        elif nrpn_lsb == self.DRUM_NOTE_FILTER_CUTOFF:
+            # Частота среза фильтра барабана (0..127)
+            cutoff = 20 + data * 150  # 20Hz to 19020Hz
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["filter_cutoff"] = cutoff
+        elif nrpn_lsb == self.DRUM_NOTE_FILTER_RESONANCE:
+            # Резонанс фильтра барабана (0..127)
+            resonance = data / 64.0
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["filter_resonance"] = resonance
+        elif nrpn_lsb == self.DRUM_NOTE_EG_ATTACK:
+            # Атака огибающей барабана (0..127)
+            attack = data * 0.05  # 0 to 6.35 seconds
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["eg_attack"] = attack
+        elif nrpn_lsb == self.DRUM_NOTE_EG_DECAY:
+            # Спад огибающей барабана (0..127)
+            decay = data * 0.05  # 0 to 6.35 seconds
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["eg_decay"] = decay
+        elif nrpn_lsb == self.DRUM_NOTE_EG_RELEASE:
+            # Релиз огибающей барабана (0..127)
+            release = data * 0.05  # 0 to 6.35 seconds
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["eg_release"] = release
+        elif nrpn_lsb == self.DRUM_NOTE_PITCH_COARSE:
+            # Грубая настройка питча барабана (-64..+63 полутона)
+            pitch_coarse = (data - 8192) / 100.0
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["pitch_coarse"] = pitch_coarse
+        elif nrpn_lsb == self.DRUM_NOTE_PITCH_FINE:
+            # Точная настройка питча барабана (-64..+63 цента)
+            pitch_fine = (data - 8192) * 0.5
+            # Применяем параметр ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    if drum_note not in self.drum_parameters[ch]:
+                        self.drum_parameters[ch][drum_note] = {}
+                    self.drum_parameters[ch][drum_note]["pitch_fine"] = pitch_fine
+        elif nrpn_lsb == self.DRUM_KIT_SELECT_LSB:
+            # Выбор барабанного набора
+            kit = data
+            # Применяем ко всем каналам барабанов
+            for ch in range(16):
+                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                    self.channel_states[ch]["drum_kit"] = kit
+    
+    def get_drum_instrument_name(self, channel: int, note: int) -> Optional[str]:
+        """
+        Получение имени барабанного инструмента.
+        
+        Args:
+            channel: MIDI канал
+            note: MIDI нота
+            
+        Returns:
+            Имя барабанного инструмента или None
+        """
+        if self.sf2_manager:
+            # Для барабанного канала создаем временный тон-генератор для получения карты
+            is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
+            if is_drum:
+                drum_map = DrumNoteMap()
+                return drum_map.get_instrument_name(note)
+        return None
+    
+    def set_drum_parameter(self, channel: int, note: int, parameter: str, value: float):
+        """
+        Установка параметра барабанного инструмента.
+        
+        Args:
+            channel: MIDI канал
+            note: MIDI нота барабана
+            parameter: имя параметра ("tune", "level", "pan", etc.)
+            value: значение параметра
+        """
+        if channel not in range(16):
+            return
+            
+        is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
+        if not is_drum:
+            return
+            
+        if note not in self.drum_parameters[channel]:
+            self.drum_parameters[channel][note] = {}
+            
+        self.drum_parameters[channel][note][parameter] = value
+        
+        # Обновляем параметры активных тон-генераторов
+        for generator in self.tone_generators:
+            if generator.channel == channel and generator.note == note and generator.is_drum:
+                # Передаем параметры в тон-генератор
+                generator.set_drum_instrument_parameters(note, self.drum_parameters[channel][note])
+    
+    def get_drum_parameter(self, channel: int, note: int, parameter: str) -> Optional[float]:
+        """
+        Получение параметра барабанного инструмента.
+        
+        Args:
+            channel: MIDI канал
+            note: MIDI нота барабана
+            parameter: имя параметра
+            
+        Returns:
+            Значение параметра или None
+        """
+        if channel not in range(16):
+            return None
+            
+        is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
+        if not is_drum:
+            return None
+            
+        if note in self.drum_parameters[channel]:
+            return self.drum_parameters[channel][note].get(parameter, None)
+        return None
+    
+    def set_current_drum_note(self, channel: int, note: int):
+        """
+        Установка текущей ноты барабана для настройки параметров.
+        
+        Args:
+            channel: MIDI канал (должен быть каналом настройки барабанов - 16)
+            note: MIDI нота барабана
+        """
+        if channel == self.DRUM_SETUP_CHANNEL:
+            self.channel_states[channel]["current_drum_note"] = note
     
     def _handle_yamaha_sysex(self, data: List[int]):
         """Обработка Yamaha SYSEX сообщений"""
@@ -513,6 +793,9 @@ class XGSynthesizer:
         self.effect_manager.set_channel_effect_parameter(channel, 0, 160, 40)  # Reverb send
         self.effect_manager.set_channel_effect_parameter(channel, 0, 161, 0)   # Chorus send
         
+        # Сбрасываем барабанные параметры
+        self.drum_parameters[channel] = {}
+        
         # Передаем сообщение активным тон-генераторам
         for generator in self.tone_generators:
             if generator.channel == channel:
@@ -561,6 +844,16 @@ class XGSynthesizer:
             # Устанавливаем уникальный ID
             generator.id = self.generator_id_counter
             self.generator_id_counter += 1
+            
+            # Если это барабан, применяем барабанные параметры
+            if is_drum and note in self.drum_parameters[channel]:
+                drum_params = self.drum_parameters[channel][note]
+                if "tune" in drum_params:
+                    generator.drum_tune = drum_params["tune"]
+                if "level" in drum_params:
+                    generator.drum_level = drum_params["level"]
+                if "pan" in drum_params:
+                    generator.drum_pan = (drum_params["pan"] + 1) / 2  # Преобразуем из -1..1 в 0..1
             
             return generator
         except Exception as e:
@@ -627,8 +920,18 @@ class XGSynthesizer:
             
             # Применяем эффекты
             try:
+                # Подготавливаем многоканальные входные данные для эффектов
+                # Создаем 16 каналов, каждый с block_size сэмплами
+                input_channels = []
+                for channel in range(16):
+                    channel_samples = []
+                    for i in range(block_size):
+                        channel_samples.append(channel_buffers[channel][i])
+                    input_channels.append(channel_samples)
+                
+                # Обрабатываем эффекты для всех 16 каналов
                 effected_channels = self.effect_manager.process_audio(
-                    channel_buffers,
+                    input_channels,
                     block_size
                 )
                 
@@ -676,6 +979,57 @@ class XGSynthesizer:
                 return self.sf2_manager.get_available_presets()
         return []
     
+    def get_drum_instrument_name(self, channel: int, note: int) -> Optional[str]:
+        """
+        Получение имени барабанного инструмента.
+        
+        Args:
+            channel: MIDI канал
+            note: MIDI нота
+            
+        Returns:
+            Имя барабанного инструмента или None
+        """
+        if self.sf2_manager:
+            # Для барабанного канала создаем временный тон-генератор для получения карты
+            is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
+            if is_drum:
+                drum_map = DrumNoteMap()
+                return drum_map.get_instrument_name(note)
+        return None
+    
+    def set_drum_parameter(self, channel: int, note: int, parameter: str, value: float):
+        """
+        Установка параметра барабанного инструмента.
+        
+        Args:
+            channel: MIDI канал
+            note: MIDI нота барабана
+            parameter: имя параметра ("tune", "level", "pan")
+            value: значение параметра
+        """
+        if channel not in range(16):
+            return
+            
+        is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
+        if not is_drum:
+            return
+            
+        if note not in self.drum_parameters[channel]:
+            self.drum_parameters[channel][note] = {}
+            
+        self.drum_parameters[channel][note][parameter] = value
+        
+        # Обновляем параметры активных тон-генераторов
+        for generator in self.tone_generators:
+            if generator.channel == channel and generator.note == note and generator.is_drum:
+                if parameter == "tune":
+                    generator.drum_tune = value
+                elif parameter == "level":
+                    generator.drum_level = value
+                elif parameter == "pan":
+                    generator.drum_pan = (value + 1) / 2  # Преобразуем из -1..1 в 0..1
+    
     def reset(self):
         """Полный сброс синтезатора"""
         with self.lock:
@@ -697,6 +1051,9 @@ class XGSynthesizer:
             self.rpn_states = [{"msb": 127, "lsb": 127} for _ in range(16)]
             self.nrpn_states = [{"msb": 127, "lsb": 127} for _ in range(16)]
             self.data_entry_states = [{"msb": 0, "lsb": 0} for _ in range(16)]
+            
+            # Сбрасываем барабанные параметры
+            self.drum_parameters = [{} for _ in range(16)]
             
             # Сбрасываем эффекты
             self.effect_manager.reset_effects()

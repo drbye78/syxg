@@ -310,9 +310,6 @@ class Sf2WavetableManager:
     и барабанов. Реализует ленивую загрузку сэмплов и кэширование.
     Поддерживает загрузку нескольких SF2 файлов с приоритетами, черными списками
     и настраиваемым маппингом банков.
-    
-    Этот рефакторинг реализует стратегию отложенной загрузки, при которой
-    структуры SF2 парсятся только при фактическом запросе пресета.
     """
     
     # Константы для преобразования параметров
@@ -355,18 +352,6 @@ class Sf2WavetableManager:
         77: "cc_tremolo_depth",
         78: "cc_tremolo_rate",
         84: "cc_portamento_control"
-    }
-    
-    # Процессоры модуляторов для быстрого сопоставления
-    MODULATOR_PROCESSORS = {
-        5: lambda zone, source_name, amount, polarity: setattr(zone, 'lfo_to_pitch', amount * polarity) or setattr(zone, 'mod_lfo_to_pitch', amount * polarity),
-        6: lambda zone, source_name, amount, polarity: setattr(zone, 'lfo_to_pitch', amount * polarity) or setattr(zone, 'vib_lfo_to_pitch', amount * polarity) or setattr(zone, 'vibrato_depth', amount * polarity),
-        7: lambda zone, source_name, amount, polarity: setattr(zone, 'velocity_to_pitch', amount * polarity) or setattr(zone, 'mod_env_to_pitch', amount * polarity),
-        10: lambda zone, source_name, amount, polarity: setattr(zone, 'lfo_to_filter', amount * polarity) or setattr(zone, 'mod_lfo_to_filter', amount * polarity),
-        11: lambda zone, source_name, amount, polarity: setattr(zone, 'velocity_to_filter', amount * polarity) or setattr(zone, 'mod_env_to_filter', amount * polarity),
-        13: lambda zone, source_name, amount, polarity: setattr(zone, 'tremolo_depth', amount * polarity) or setattr(zone, 'mod_lfo_to_volume', amount * polarity),
-        77: lambda zone, source_name, amount, polarity: setattr(zone, 'tremolo_depth', amount * polarity),
-        84: lambda zone, source_name, amount, polarity: setattr(zone, 'portamento_to_pitch', amount * polarity)
     }
     
     # Константы SoundFont для целей модуляции
@@ -538,12 +523,8 @@ class Sf2WavetableManager:
         self.current_cache_size = 0
         self.max_cache_size = cache_size if cache_size is not None else self.MAX_CACHE_SIZE
         
-        # Инициализация кэшей для оптимизации
-        self._source_name_cache = {}
-        self._normalize_cache = {}
-        
-        # Отложенная загрузка - только читаем заголовки файлов
-        self._initialize_sf2_file_headers()
+        # Загружаем все SF2 файлы
+        self._load_all_sf2_files()
         
         # Собираем все пресеты в один глобальный список с приоритетами
         self._build_global_preset_map()
@@ -555,7 +536,7 @@ class Sf2WavetableManager:
                 manager['file'].close()
     
     def _load_all_sf2_files(self):
-        """Загрузка всех SF2 файлов с отложенным парсингом"""
+        """Загрузка всех SF2 файлов с оптимизацией"""
         for i, sf2_path in enumerate(self.sf2_paths):
             try:
                 # Открываем файл для чтения с большим буфером для улучшения производительности
@@ -570,23 +551,23 @@ class Sf2WavetableManager:
                 # Определение размера файла
                 file_size = struct.unpack('<I', header[4:8])[0] + 8
                 
-                # Создаем менеджер для этого файла с минимальной информацией
+                # Создаем менеджер для этого файла
                 manager = {
                     'path': sf2_path,
                     'file': sf2_file,
                     'priority': i,  # Приоритет по порядку загрузки
-                    'file_size': file_size,
-                    'parsed': False,  # Флаг, показывающий, был ли файл полностью распарсен
-                    'chunk_positions': {},  # Позиции чанков для быстрого доступа
                     'presets': [],
                     'instruments': [],
                     'sample_headers': [],
-                    'bank_instruments': {},
-                    'deferred_parsing': True  # Включаем отложенную загрузку
+                    'bank_instruments': {}
                 }
                 
-                # Находим позиции ключевых чанков без полного парсинга
-                self._locate_sf2_chunks(manager)
+                # Парсинг чанков
+                self._parse_chunks_for_manager(manager, 12, file_size)
+                
+                # Проверяем, что файл корректен
+                if not manager['presets'] or not manager['instruments'] or not manager['sample_headers']:
+                    raise ValueError(f"Некорректный файл SoundFont: отсутствуют необходимые данные в {sf2_path}")
                 
                 self.sf2_managers.append(manager)
                 
@@ -594,365 +575,6 @@ class Sf2WavetableManager:
                 print(f"Ошибка при загрузке SF2 файла {sf2_path}: {str(e)}")
                 if 'sf2_file' in locals() and not sf2_file.closed:
                     sf2_file.close()
-
-    def _locate_sf2_chunks(self, manager: Dict[str, Any]):
-        """Находит позиции ключевых чанков SF2 без полного парсинга"""
-        sf2_file = manager['file']
-        sf2_file.seek(12)  # Пропускаем заголовок RIFF
-        
-        while sf2_file.tell() < manager['file_size'] - 8:
-            # Чтение заголовка чанка
-            chunk_header = sf2_file.read(8)
-            if len(chunk_header) < 8:
-                break
-                
-            chunk_id = chunk_header[:4]
-            chunk_size = struct.unpack('<I', chunk_header[4:8])[0]
-            
-            # Сохраняем позиции ключевых чанков
-            if chunk_id == b'LIST':
-                # Получаем тип LIST чанка
-                list_type = sf2_file.read(4)
-                if len(list_type) < 4:
-                    break
-                    
-                # Сохраняем позицию для последующего парсинга
-                manager['chunk_positions'][list_type.decode('ascii')] = sf2_file.tell() - 4
-                
-                # Пропускаем содержимое чанка
-                sf2_file.seek(chunk_size - 4, 1)
-            else:
-                # Пропускаем не-LIST чанки
-                sf2_file.seek(chunk_size, 1)
-            
-            # Выравнивание до четного числа байт
-            if chunk_size % 2 != 0:
-                sf2_file.seek(1, 1)
-
-    def _ensure_manager_parsed(self, manager: Dict[str, Any]):
-        """Гарантирует, что менеджер SF2 файла полностью распарсен"""
-        if manager.get('parsed', False):
-            return
-            
-        try:
-            # Парсим только необходимые чанки
-            self._parse_required_chunks(manager)
-            manager['parsed'] = True
-        except Exception as e:
-            print(f"Ошибка при парсинге SF2 файла {manager['path']}: {str(e)}")
-            # Помечаем как распаршенный даже в случае ошибки, чтобы не повторять попытку
-            manager['parsed'] = True
-
-    def _parse_required_chunks(self, manager: Dict[str, Any]):
-        """Парсит только необходимые чанки для работы с пресетами"""
-        # Парсим чанки pdta (program data) - содержит всю информацию о пресетах
-        if 'pdta' in manager['chunk_positions']:
-            sf2_file = manager['file']
-            pdta_pos = manager['chunk_positions']['pdta']
-            sf2_file.seek(pdta_pos)
-            
-            # Читаем заголовок LIST pdta
-            list_header = sf2_file.read(8)
-            if len(list_header) >= 8:
-                list_size = struct.unpack('<I', list_header[4:8])[0]
-                self._parse_pdta_list_for_manager(manager, list_size, sf2_file.tell())
-        
-        # Парсим чанки sdta (sample data) только если необходимо
-        # (для загрузки самих сэмплов, а не их метаданных)
-        # Это будет сделано по запросу при загрузке сэмпла
-
-    def _parse_chunks_for_manager(self, manager: Dict[str, Any], start_offset: int, end_offset: int):
-        """Оптимизированный парсинг чанков SoundFont файла с поддержкой вложенных LIST-чанков"""
-        sf2_file = manager['file']
-        sf2_file.seek(start_offset)
-        
-        while sf2_file.tell() < end_offset - 8:
-            # Чтение заголовка чанка
-            chunk_header = sf2_file.read(8)
-            if len(chunk_header) < 8:
-                break
-                
-            chunk_id = chunk_header[:4]
-            chunk_size = struct.unpack('<I', chunk_header[4:8])[0]
-            
-            # Определение конца чанка с учетом выравнивания
-            chunk_end = sf2_file.tell() + chunk_size + (chunk_size % 2)
-            
-            # Обработка LIST-чанков (специальный контейнерный тип)
-            if chunk_id == b'LIST':
-                list_type = sf2_file.read(4)
-                if len(list_type) < 4:
-                    break
-                    
-                # Обработка вложенных чанков в зависимости от типа LIST
-                if list_type == b'sdta':
-                    # Обработка аудиоданных
-                    self._parse_sdta_list_for_manager(manager, chunk_size - 4, sf2_file.tell())
-                elif list_type == b'pdta':
-                    # Обработка параметрических данных
-                    self._parse_pdta_list_for_manager(manager, chunk_size - 4, sf2_file.tell())
-                elif list_type == b'INFO':
-                    # Обработка метаинформации
-                    # Пропускаем содержимое INFO чанка
-                    pass
-            
-            # Переход к следующему чанку с учетом выравнивания
-            sf2_file.seek(chunk_end)
-
-    def _locate_sf2_chunks(self, manager: Dict[str, Any]):
-        """Находит позиции ключевых чанков SF2 без полного парсинга"""
-        sf2_file = manager['file']
-        sf2_file.seek(12)  # Пропускаем заголовок RIFF
-        
-        while sf2_file.tell() < manager['file_size'] - 8:
-            # Чтение заголовка чанка
-            chunk_header = sf2_file.read(8)
-            if len(chunk_header) < 8:
-                break
-                
-            chunk_id = chunk_header[:4]
-            chunk_size = struct.unpack('<I', chunk_header[4:8])[0]
-            
-            # Сохраняем позиции ключевых чанков
-            if chunk_id == b'LIST':
-                # Получаем тип LIST чанка
-                list_type = sf2_file.read(4)
-                if len(list_type) < 4:
-                    break
-                    
-                # Сохраняем позицию для последующего парсинга
-                manager['chunk_positions'][list_type.decode('ascii')] = sf2_file.tell() - 4
-                
-                # Пропускаем содержимое чанка
-                sf2_file.seek(chunk_size - 4, 1)
-            else:
-                # Пропускаем не-LIST чанки
-                sf2_file.seek(chunk_size, 1)
-            
-            # Выравнивание до четного числа байт
-            if chunk_size % 2 != 0:
-                sf2_file.seek(1, 1)
-
-    def _ensure_manager_parsed(self, manager: Dict[str, Any]):
-        """Гарантирует, что менеджер SF2 файла полностью распарсен"""
-        if manager['parsed']:
-            return
-            
-        try:
-            # Парсим только необходимые чанки
-            self._parse_required_chunks(manager)
-            manager['parsed'] = True
-        except Exception as e:
-            print(f"Ошибка при парсинге SF2 файла {manager['path']}: {str(e)}")
-            # Помечаем как распаршенный даже в случае ошибки, чтобы не повторять попытку
-            manager['parsed'] = True
-
-    def _parse_required_chunks(self, manager: Dict[str, Any]):
-        """Парсит только необходимые чанки для работы с пресетами"""
-        # Парсим чанки pdta (program data) - содержит всю информацию о пресетах
-        if 'pdta' in manager['chunk_positions']:
-            sf2_file = manager['file']
-            pdta_pos = manager['chunk_positions']['pdta']
-            sf2_file.seek(pdta_pos)
-            
-            # Читаем заголовок LIST pdta
-            list_header = sf2_file.read(8)
-            if len(list_header) >= 8:
-                list_size = struct.unpack('<I', list_header[4:8])[0]
-                self._parse_pdta_list_for_manager(manager, list_size, sf2_file.tell())
-        
-        # Парсим чанки sdta (sample data) только если необходимо
-        # (для загрузки самих сэмплов, а не их метаданных)
-        # Это будет сделано по запросу при загрузке сэмпла
-
-    def _parse_chunks_for_manager(self, manager: Dict[str, Any], start_offset: int, end_offset: int):
-        """Оптимизированный парсинг чанков SoundFont файла с поддержкой вложенных LIST-чанков"""
-        sf2_file = manager['file']
-        sf2_file.seek(start_offset)
-        
-        while sf2_file.tell() < end_offset - 8:
-            # Чтение заголовка чанка
-            chunk_header = sf2_file.read(8)
-            if len(chunk_header) < 8:
-                break
-                
-            chunk_id = chunk_header[:4]
-            chunk_size = struct.unpack('<I', chunk_header[4:8])[0]
-            
-            # Определение конца чанка с учетом выравнивания
-            chunk_end = sf2_file.tell() + chunk_size + (chunk_size % 2)
-            
-            # Обработка LIST-чанков (специальный контейнерный тип)
-            if chunk_id == b'LIST':
-                list_type = sf2_file.read(4)
-                if len(list_type) < 4:
-                    break
-                    
-                # Обработка вложенных чанков в зависимости от типа LIST
-                if list_type == b'sdta':
-                    # Обработка аудиоданных
-                    self._parse_sdta_list_for_manager(manager, chunk_size - 4, sf2_file.tell())
-                elif list_type == b'pdta':
-                    # Обработка параметрических данных
-                    self._parse_pdta_list_for_manager(manager, chunk_size - 4, sf2_file.tell())
-                elif list_type == b'INFO':
-                    # Обработка метаинформации
-                    # Пропускаем содержимое INFO чанка
-                    pass
-            
-            # Переход к следующему чанку с учетом выравнивания
-            sf2_file.seek(chunk_end)
-
-    def _parse_sdta_list_for_manager(self, manager: Dict[str, Any], list_size: int, start_offset: int):
-        """Парсинг LIST sdta чанка"""
-        sf2_file = manager['file']
-        end_offset = start_offset + list_size
-        
-        # Сохраняем текущую позицию
-        current_pos = sf2_file.tell()
-        
-        # Парсим подчанки внутри sdta
-        sf2_file.seek(start_offset)
-        while sf2_file.tell() < end_offset - 8:
-            # Чтение заголовка подчанка
-            subchunk_header = sf2_file.read(8)
-            if len(subchunk_header) < 8:
-                break
-                
-            subchunk_id = subchunk_header[:4]
-            subchunk_size = struct.unpack('<I', subchunk_header[4:8])[0]
-            
-            # Определение конца подчанка
-            subchunk_end = sf2_file.tell() + subchunk_size
-            
-            # Проверка, является ли это подчанком smpl
-            if subchunk_id == b'smpl':
-                manager['smpl_data_offset'] = sf2_file.tell()
-                manager['smpl_data_size'] = subchunk_size
-                # Пропускаем данные, так как будем загружать их по требованию
-                sf2_file.seek(subchunk_size, 1)
-            else:
-                # Пропускаем неизвестные подчанки
-                sf2_file.seek(subchunk_size, 1)
-            
-            # Выравнивание до четного числа байт
-            if subchunk_size % 2 != 0:
-                sf2_file.seek(1, 1)
-        
-        # Восстанавливаем позицию
-        sf2_file.seek(current_pos)
-
-    def _parse_pdta_list_for_manager(self, manager: Dict[str, Any], list_size: int, start_offset: int):
-        """Парсинг LIST pdta чанка (данные программы)"""
-        sf2_file = manager['file']
-        end_offset = start_offset + list_size
-        
-        # Сохраняем текущую позицию
-        current_pos = sf2_file.tell()
-        
-        # Парсим подчанки внутри pdta
-        sf2_file.seek(start_offset)
-        while sf2_file.tell() < end_offset - 8:
-            # Чтение заголовка подчанка
-            subchunk_header = sf2_file.read(8)
-            if len(subchunk_header) < 8:
-                break
-                
-            subchunk_id = subchunk_header[:4]
-            subchunk_size = struct.unpack('<I', subchunk_header[4:8])[0]
-            
-            # Определение конца подчанка
-            subchunk_end = sf2_file.tell() + subchunk_size
-            
-            # Обработка различных типов подчанков
-            if subchunk_id == b'phdr':
-                self._parse_phdr_chunk_for_manager(manager, subchunk_size)
-            elif subchunk_id == b'pbag':
-                self._parse_pbag_chunk_for_manager(manager, subchunk_size)
-            elif subchunk_id == b'pmod':
-                self._parse_pmod_chunk_for_manager(manager, subchunk_size)
-            elif subchunk_id == b'pgen':
-                self._parse_pgen_chunk_for_manager(manager, subchunk_size)
-            elif subchunk_id == b'inst':
-                self._parse_inst_chunk_for_manager(manager, subchunk_size)
-            elif subchunk_id == b'ibag':
-                self._parse_ibag_chunk_for_manager(manager, subchunk_size)
-            elif subchunk_id == b'imod':
-                self._parse_imod_chunk_for_manager(manager, subchunk_size)
-            elif subchunk_id == b'igen':
-                self._parse_igen_chunk_for_manager(manager, subchunk_size)
-            elif subchunk_id == b'shdr':
-                self._parse_shdr_chunk_for_manager(manager, subchunk_size)
-
-            sf2_file.seek(subchunk_end + (subchunk_size % 2))
-        
-        # Восстанавливаем позицию
-        sf2_file.seek(current_pos)
-    
-    def _parse_phdr_chunk_for_manager(self, manager: Dict[str, Any], chunk_size: int):
-        """Оптимизированный парсинг чанка phdr (заголовки пресетов) с batch processing"""
-        sf2_file = manager['file']
-        presets = manager['presets']
-        
-        num_presets = chunk_size // 38  # Каждый заголовок пресета 38 байт
-        
-        # Читаем все заголовки пресетов за один раз для лучшей производительности
-        raw_data = sf2_file.read(chunk_size - 38)  # Исключаем терминальный пресет
-        if len(raw_data) < chunk_size - 38:
-            return
-            
-        # Распаковываем все заголовки пресетов одной операцией с использованием numpy
-        try:
-            import numpy as np
-            # Создаем структурированный тип данных для заголовка пресета
-            phdr_dtype = np.dtype([
-                ('name', 'S20'),  # 20 байт для имени
-                ('preset', '<u2'),  # uint16
-                ('bank', '<u2'),  # uint16
-                ('preset_bag_ndx', '<u2'),  # uint16
-                ('library', '<u4'),  # uint32
-                ('genre', '<u4'),  # uint32
-                ('morphology', '<u4')  # uint32
-            ])
-            
-            # Преобразуем байты в массив структурированных данных
-            phdr_array = np.frombuffer(raw_data[:len(raw_data)//38*38], dtype=phdr_dtype)
-            
-            # Создаем пресеты из структурированных данных
-            for phdr_record in phdr_array:
-                # Извлечение данных
-                name = phdr_record['name'].split(b'\x00')[0].decode('ascii', 'ignore')
-                preset = int(phdr_record['preset'])
-                bank = int(phdr_record['bank'])
-                preset_bag_ndx = int(phdr_record['preset_bag_ndx'])
-                
-                # Создаем пресет
-                sf2_preset = SF2Preset()
-                sf2_preset.name = name
-                sf2_preset.preset = preset
-                sf2_preset.bank = bank
-                sf2_preset.preset_bag_index = preset_bag_ndx
-                presets.append(sf2_preset)
-                
-        except ImportError:
-            # Резервный вариант без numpy
-            for i in range(0, len(raw_data), 38):
-                if i + 38 <= len(raw_data):
-                    preset_data = raw_data[i:i+38]
-                    
-                    # Извлечение данных
-                    name = preset_data[:20].split(b'\x00')[0].decode('ascii', 'ignore')
-                    preset = struct.unpack('<H', preset_data[20:22])[0]
-                    bank = struct.unpack('<H', preset_data[22:24])[0]
-                    preset_bag_ndx = struct.unpack('<H', preset_data[24:26])[0]
-                    
-                    # Создаем пресет
-                    sf2_preset = SF2Preset()
-                    sf2_preset.name = name
-                    sf2_preset.preset = preset
-                    sf2_preset.bank = bank
-                    sf2_preset.preset_bag_index = preset_bag_ndx
-                    presets.append(sf2_preset)
 
     def _parse_chunks_for_manager(self, manager: Dict[str, Any], start_offset: int, end_offset: int):
         """Оптимизированный парсинг чанков SoundFont файла с поддержкой вложенных LIST-чанков"""
@@ -1820,11 +1442,17 @@ class Sf2WavetableManager:
         # Определяем полярность
         polarity = 1.0 if modulator.source_polarity == 0 else -1.0
         
-        # Используем словарь для быстрого сопоставления целей и действий
-        if destination in self.MODULATOR_PROCESSORS:
-            processor = self.MODULATOR_PROCESSORS[destination]
-            processor(zone, source_name, amount, polarity)
-        # Обработка специфических целей вне словаря
+        # Обработка часто используемых модуляций
+        if destination == 7:  # modEnvToPitch
+            zone.velocity_to_pitch = amount * polarity
+            zone.mod_env_to_pitch = amount * polarity  # Добавляем специфический параметр
+        elif destination == 5:  # modLfoToPitch
+            zone.lfo_to_pitch = amount * polarity
+            zone.mod_lfo_to_pitch = amount * polarity  # Добавляем специфический параметр
+        elif destination == 6:  # vibLfoToPitch
+            zone.lfo_to_pitch = amount * polarity
+            zone.vib_lfo_to_pitch = amount * polarity  # Добавляем специфический параметр
+            zone.vibrato_depth = amount * polarity  # Добавляем специфический параметр для вибрато
         elif destination == 8:  # initialFilterFc
             if source_name == "note_on_velocity":
                 zone.velocity_to_filter = amount * polarity
@@ -1834,6 +1462,16 @@ class Sf2WavetableManager:
                 zone.mod_wheel_to_filter = amount * polarity
             elif source_name == "cc_brightness":
                 zone.brightness_to_filter = amount * polarity
+        elif destination == 10:  # modLfoToFilterFc
+            zone.lfo_to_filter = amount * polarity
+            zone.mod_lfo_to_filter = amount * polarity  # Добавляем специфический параметр
+        elif destination == 11:  # modEnvToFilterFc
+            if source_name == "note_on_velocity":
+                zone.velocity_to_filter = amount * polarity
+            zone.mod_env_to_filter = amount * polarity  # Добавляем специфический параметр
+        elif destination == 13:  # modLfoToVolume
+            zone.tremolo_depth = amount * polarity
+            zone.mod_lfo_to_volume = amount * polarity  # Добавляем специфический параметр
         elif destination == 17:  # pan
             # Обработка модуляции панорамирования
             pass
@@ -1885,9 +1523,13 @@ class Sf2WavetableManager:
         elif destination == 37:  # keynumToVolEnvDecay
             # Обработка keynum to vol env decay
             pass
+        elif destination == 77:  # cc_tremolo_depth
+            zone.tremolo_depth = amount * polarity
         elif destination == 78:  # cc_tremolo_rate
             # Обработка скорости трепета
             pass
+        elif destination == 84:  # cc_portamento_control
+            zone.portamento_to_pitch = amount * polarity
     
     def _merge_preset_and_instrument_params(self, preset_zone: SF2PresetZone, instrument_zone: SF2InstrumentZone) -> SF2InstrumentZone:
         """
@@ -1912,43 +1554,81 @@ class Sf2WavetableManager:
         # Применяем параметры из пресета как значения по умолчанию
         # Только если в инструменте значение не установлено (равно 0 или стандартному значению)
         
-        # Используем словарь для быстрого сопоставления типов генераторов и значений по умолчанию
-        generator_defaults = {
-            8: (13500, "initialFilterFc"),  # initialFilterFc
-            9: (0, "initial_filterQ"),  # initialFilterQ
-            12: (0, "DelayVolEnv"),  # delayVolEnv
-            13: (9600, "AttackVolEnv"),  # attackVolEnv
-            14: (0, "HoldVolEnv"),  # holdVolEnv
-            15: (19200, "DecayVolEnv"),  # decayVolEnv
-            16: (0, "SustainVolEnv"),  # sustainVolEnv
-            17: (24000, "ReleaseVolEnv"),  # releaseVolEnv
-            21: (50, "Pan"),  # pan
-            22: (0, "DelayLFO1"),  # delayModLFO
-            23: (500, "LFO1Freq"),  # freqModLFO
-            24: (0, "DelayLFO2"),  # delayVibLFO
-            25: (0, "DelayFilEnv"),  # delayModEnv
-            26: (19200, "AttackFilEnv"),  # attackModEnv
-            27: (0, "HoldFilEnv"),  # holdModEnv
-            28: (19200, "DecayFilEnv"),  # decayModEnv
-            29: (0, "SustainFilEnv"),  # sustainModEnv
-            30: (24000, "ReleaseFilEnv"),  # releaseModEnv
-            33: (0, "KeynumToModEnvDecay"),  # keynumToModEnvDecay
-            34: (0, "KeynumToVolEnvHold"),  # keynumToVolEnvHold
-            35: (0, "KeynumToVolEnvDecay"),  # keynumToVolEnvDecay
-            36: (0, "KeynumToModEnvHold"),  # keynumToModEnvHold
-            50: (0, "CoarseTune"),  # coarseTune
-            51: (0, "FineTune")  # fineTune
-        }
-        
         # Обработка генераторов из пресета
         for gen_type, gen_amount in preset_zone.generators.items():
             # Для каждого типа генератора применяем значение из пресета как значение по умолчанию
-            if gen_type in generator_defaults:
-                default_value, attr_name = generator_defaults[gen_type]
-                current_value = getattr(merged_zone, attr_name)
-                # Применяем значение из пресета только если в инструменте значение по умолчанию
-                if current_value == default_value:
-                    setattr(merged_zone, attr_name, gen_amount)
+            if gen_type == 8:  # initialFilterFc
+                if merged_zone.initialFilterFc == 13500:  # Значение по умолчанию
+                    merged_zone.initialFilterFc = gen_amount
+            elif gen_type == 9:  # initialFilterQ
+                if merged_zone.initial_filterQ == 0:  # Значение по умолчанию
+                    merged_zone.initial_filterQ = gen_amount
+            elif gen_type == 12:  # delayVolEnv
+                if merged_zone.DelayVolEnv == 0:  # Значение по умолчанию
+                    merged_zone.DelayVolEnv = gen_amount
+            elif gen_type == 13:  # attackVolEnv
+                if merged_zone.AttackVolEnv == 9600:  # Значение по умолчанию
+                    merged_zone.AttackVolEnv = gen_amount
+            elif gen_type == 14:  # holdVolEnv
+                if merged_zone.HoldVolEnv == 0:  # Значение по умолчанию
+                    merged_zone.HoldVolEnv = gen_amount
+            elif gen_type == 15:  # decayVolEnv
+                if merged_zone.DecayVolEnv == 19200:  # Значение по умолчанию
+                    merged_zone.DecayVolEnv = gen_amount
+            elif gen_type == 16:  # sustainVolEnv
+                if merged_zone.SustainVolEnv == 0:  # Значение по умолчанию
+                    merged_zone.SustainVolEnv = gen_amount
+            elif gen_type == 17:  # releaseVolEnv
+                if merged_zone.ReleaseVolEnv == 24000:  # Значение по умолчанию
+                    merged_zone.ReleaseVolEnv = gen_amount
+            elif gen_type == 21:  # pan
+                if merged_zone.Pan == 50:  # Значение по умолчанию
+                    merged_zone.Pan = gen_amount
+            elif gen_type == 22:  # delayModLFO
+                if merged_zone.DelayLFO1 == 0:  # Значение по умолчанию
+                    merged_zone.DelayLFO1 = gen_amount
+            elif gen_type == 23:  # freqModLFO
+                if merged_zone.LFO1Freq == 500:  # Значение по умолчанию
+                    merged_zone.LFO1Freq = gen_amount
+            elif gen_type == 24:  # delayVibLFO
+                if merged_zone.DelayLFO2 == 0:  # Значение по умолчанию
+                    merged_zone.DelayLFO2 = gen_amount
+            elif gen_type == 25:  # delayModEnv
+                if merged_zone.DelayFilEnv == 0:  # Значение по умолчанию
+                    merged_zone.DelayFilEnv = gen_amount
+            elif gen_type == 26:  # attackModEnv
+                if merged_zone.AttackFilEnv == 19200:  # Значение по умолчанию
+                    merged_zone.AttackFilEnv = gen_amount
+            elif gen_type == 27:  # holdModEnv
+                if merged_zone.HoldFilEnv == 0:  # Значение по умолчанию
+                    merged_zone.HoldFilEnv = gen_amount
+            elif gen_type == 28:  # decayModEnv
+                if merged_zone.DecayFilEnv == 19200:  # Значение по умолчанию
+                    merged_zone.DecayFilEnv = gen_amount
+            elif gen_type == 29:  # sustainModEnv
+                if merged_zone.SustainFilEnv == 0:  # Значение по умолчанию
+                    merged_zone.SustainFilEnv = gen_amount
+            elif gen_type == 30:  # releaseModEnv
+                if merged_zone.ReleaseFilEnv == 24000:  # Значение по умолчанию
+                    merged_zone.ReleaseFilEnv = gen_amount
+            elif gen_type == 33:  # keynumToModEnvDecay
+                if merged_zone.KeynumToModEnvDecay == 0:  # Значение по умолчанию
+                    merged_zone.KeynumToModEnvDecay = gen_amount
+            elif gen_type == 34:  # keynumToVolEnvHold
+                if merged_zone.KeynumToVolEnvHold == 0:  # Значение по умолчанию
+                    merged_zone.KeynumToVolEnvHold = gen_amount
+            elif gen_type == 35:  # keynumToVolEnvDecay
+                if merged_zone.KeynumToVolEnvDecay == 0:  # Значение по умолчанию
+                    merged_zone.KeynumToVolEnvDecay = gen_amount
+            elif gen_type == 36:  # keynumToModEnvHold
+                if merged_zone.KeynumToModEnvHold == 0:  # Значение по умолчанию
+                    merged_zone.KeynumToModEnvHold = gen_amount
+            elif gen_type == 50:  # coarseTune
+                if merged_zone.CoarseTune == 0:  # Значение по умолчанию
+                    merged_zone.CoarseTune = gen_amount
+            elif gen_type == 51:  # fineTune
+                if merged_zone.FineTune == 0:  # Значение по умолчанию
+                    merged_zone.FineTune = gen_amount
         
         # Объединяем модуляторы из пресета и инструмента
         # Модуляторы из пресета добавляются первыми, затем модуляторы из инструмента
@@ -1962,21 +1642,7 @@ class Sf2WavetableManager:
         return merged_zone
     
     def _get_modulator_source_name(self, modulator: SF2Modulator) -> str:
-        """Получение имени источника модуляции с кэшированием"""
-        # Создаем кэш если он еще не существует
-        if not hasattr(self, '_source_name_cache'):
-            self._source_name_cache = {}
-        
-        # Генерируем ключ для кэширования
-        cache_key = (modulator.source_oper, modulator.source_index)
-        
-        # Проверяем кэш
-        if cache_key in self._source_name_cache:
-            return self._source_name_cache[cache_key]
-        
-        # Вычисляем имя источника
-        source_name = "unknown_source"  # Значение по умолчанию
-        
+        """Получение имени источника модуляции"""
         # Сначала проверяем основной источник
         if modulator.source_oper in self.SF2_SOURCE_OPERATORS:
             source_name = self.SF2_SOURCE_OPERATORS[modulator.source_oper]
@@ -1984,25 +1650,28 @@ class Sf2WavetableManager:
             # Для CC контроллеров добавляем индекс
             if source_name.startswith("cc_"):
                 if modulator.source_index > 0:
-                    source_name = f"{source_name}_{modulator.source_index}"
-        # Для LFO
-        elif modulator.source_oper == 5:
-            source_name = "modLFO"
-        elif modulator.source_oper == 6:
-            source_name = "vibLFO"
-        # Для огибающих
-        elif modulator.source_oper == 7:
-            source_name = "modEnv"
-        elif modulator.source_oper == 13:
-            source_name = "channel_aftertouch"
+                    return f"{source_name}_{modulator.source_index}"
+                return source_name
+            
+            return source_name
         
-        # Сохраняем в кэш
-        self._source_name_cache[cache_key] = source_name
-        return source_name
+        # Для LFO
+        if modulator.source_oper == 5:
+            return "modLFO"
+        elif modulator.source_oper == 6:
+            return "vibLFO"
+        
+        # Для огибающих
+        if modulator.source_oper == 7:
+            return "modEnv"
+        elif modulator.source_oper == 13:
+            return "channel_aftertouch"
+        
+        return "unknown_source"
     
     def _normalize_modulator_amount(self, amount: int, destination: int) -> float:
         """
-        Нормализация глубины модуляции в зависимости от цели с кэшированием.
+        Нормализация глубины модуляции в зависимости от цели.
         
         Args:
             amount: исходное значение глубины модуляции
@@ -2011,42 +1680,29 @@ class Sf2WavetableManager:
         Returns:
             нормализованное значение глубины модуляции
         """
-        # Создаем кэш если он еще не существует
-        if not hasattr(self, '_normalize_cache'):
-            self._normalize_cache = {}
-        
-        # Генерируем ключ для кэширования
-        cache_key = (amount, destination)
-        
-        # Проверяем кэш
-        if cache_key in self._normalize_cache:
-            return self._normalize_cache[cache_key]
-        
-        # Вычисляем нормализованное значение
-        abs_amount = abs(amount)
-        
         # Для pitch модуляции (в центах)
         if destination in [5, 6, 7]:
-            result = abs_amount / 100.0  # 100 = 1 цент
+            return abs(amount) / 100.0  # 100 = 1 цент
+        
         # Для cutoff фильтра
         elif destination in [8, 10, 11]:
-            result = abs_amount / 1000.0  # Нормализуем к 0-1
+            return abs(amount) / 1000.0  # Нормализуем к 0-1
+        
         # Для амплитуды
         elif destination in [13, 31, 33, 34, 35]:
-            result = abs_amount / 1000.0  # Нормализуем к 0-1
+            return abs(amount) / 1000.0  # Нормализуем к 0-1
+        
         # Для панорамирования
         elif destination == 17:
-            result = abs_amount / 100.0  # 0-100 в SoundFont -> 0-1
+            return abs(amount) / 100.0  # 0-100 в SoundFont -> 0-1
+        
         # Для трепета (tremolo)
         elif destination in [77, 78]:
-            result = abs_amount / 1000.0  # Нормализуем к 0-1
+            return abs(amount) / 1000.0  # Нормализуем к 0-1
+        
         # Для других целей
         else:
-            result = abs_amount / 1000.0  # Общая нормализация
-        
-        # Сохраняем в кэш
-        self._normalize_cache[cache_key] = result
-        return result
+            return abs(amount) / 1000.0  # Общая нормализация
     
     def _build_global_preset_map(self):
         """Собираем все пресеты из всех SF2 файлов в один глобальный список с приоритетами"""
@@ -2061,156 +1717,52 @@ class Sf2WavetableManager:
         
         for manager in self.sf2_managers:
             sf2_path = manager['path']
+            presets = manager['presets']
             
             # Получаем настройки для этого SF2 файла
             bank_blacklist = self.bank_blacklists.get(sf2_path, [])
             preset_blacklist = self.preset_blacklists.get(sf2_path, [])
             bank_mapping = self.bank_mappings.get(sf2_path, {})
             
-            # Для отложенной загрузки мы не парсим все пресеты сразу,
-            # а помечаем, что они будут загружены по запросу
-            manager['deferred_presets_loaded'] = False
+            for i, preset in enumerate(presets):
+                # Применяем черный список банков
+                if preset.bank in bank_blacklist:
+                    continue
+                
+                # Применяем черный список пресетов
+                if (preset.bank, preset.preset) in preset_blacklist:
+                    continue
+                
+                # Применяем маппинг банков
+                mapped_bank = bank_mapping.get(preset.bank, preset.bank)
+                
+                # Добавляем информацию о приоритете и источнике
+                all_presets.append({
+                    'preset': preset,
+                    'manager': manager,
+                    'original_bank': preset.bank,
+                    'mapped_bank': mapped_bank,
+                    'priority': manager['priority']
+                })
+        
+        # Сортируем по приоритету (меньше значение = выше приоритет)
+        all_presets.sort(key=lambda x: x['priority'])
+        
+        # Строим финальную карту с учетом приоритетов
+        preset_index = 0
+        for preset_info in all_presets:
+            preset = preset_info['preset']
+            mapped_bank = preset_info['mapped_bank']
             
-            # Добавляем информацию о файле в глобальную карту
-            # Реальные пресеты будут загружены при первом обращении
-            self.bank_instruments[sf2_path] = {
-                'manager': manager,
-                'bank_mapping': bank_mapping,
-                'bank_blacklist': bank_blacklist,
-                'preset_blacklist': preset_blacklist
-            }
-    
-    def _load_presets_for_manager(self, manager: Dict[str, Any]):
-        """Загружает пресеты для конкретного менеджера при необходимости"""
-        if manager.get('deferred_presets_loaded', False):
-            return
+            # Проверяем, есть ли уже пресет с таким банком и программой
+            if mapped_bank not in self.bank_instruments:
+                self.bank_instruments[mapped_bank] = {}
             
-        try:
-            # Гарантируем, что менеджер полностью распарсен
-            self._ensure_manager_parsed(manager)
-            manager['deferred_presets_loaded'] = True
-        except Exception as e:
-            print(f"Ошибка при загрузке пресетов для {manager['path']}: {str(e)}")
-            manager['deferred_presets_loaded'] = True  # Помечаем как загруженный даже в случае ошибки
-
-    def _find_preset_index(self, program: int, bank: int) -> Optional[int]:
-        """
-        Находит индекс пресета по программе и банку с отложенной загрузкой.
-        
-        Args:
-            program: номер программы (0-127)
-            bank: номер банка (0-16383)
-            
-        Returns:
-            индекс пресета или None
-        """
-        # Проверяем каждый менеджер на наличие нужного пресета
-        for manager in self.sf2_managers:
-            # Загружаем пресеты для менеджера, если они еще не загружены
-            self._load_presets_for_manager(manager)
-            
-            # Ищем пресет в загруженных данных
-            for i, preset in enumerate(manager['presets']):
-                if preset.preset == program and preset.bank == bank:
-                    return i
-                    
-        return None
-    
-    def get_program_parameters(self, program: int, bank: int = 0) -> dict:
-        """
-        Получение параметров программы в формате, совместимом с XGToneGenerator.
-        Реализует отложенную загрузку - структуры SF2 парсятся только при фактическом запросе.
-        
-        Args:
-            program: номер программы (0-127)
-            bank: номер банка (0-16383)
-            
-        Returns:
-            словарь с параметрами программы
-        """
-        # Найти пресет и его менеджер по банку и программе
-        preset_manager = None
-        preset_obj = None
-        
-        # Ищем пресет во всех менеджерах
-        for manager in self.sf2_managers:
-            # Загружаем пресеты для менеджера при необходимости
-            self._load_presets_for_manager(manager)
-            
-            # Ищем нужный пресет
-            for preset in manager['presets']:
-                if preset.preset == program and preset.bank == bank:
-                    preset_manager = manager
-                    preset_obj = preset
-                    break
-            
-            if preset_manager:
-                break
-        
-        # Если пресет не найден, возвращаем параметры по умолчанию
-        if not preset_manager or not preset_obj:
-            return self._get_default_parameters()
-        
-        # Загружаем инструменты из соответствующего менеджера
-        instruments = preset_manager['instruments']
-        
-        # Собрать все объединенные зоны для этого пресета
-        all_merged_zones = []
-        for preset_zone in preset_obj.zones:
-            if preset_zone.instrument_index < len(instruments):
-                instrument = instruments[preset_zone.instrument_index]
-                # Объединяем параметры пресета и инструмента для каждой зоны
-                for instrument_zone in instrument.zones:
-                    merged_zone = self._merge_preset_and_instrument_params(preset_zone, instrument_zone)
-                    all_merged_zones.append(merged_zone)
-        
-        # Если зон нет, возвращаем параметры по умолчанию
-        if not all_merged_zones:
-            return self._get_default_parameters()
-        
-        # Преобразуем зоны в параметры частичных структур
-        partials_params = []
-        for zone in all_merged_zones:
-            partial_params = self._convert_zone_to_partial_params(zone)
-            partials_params.append(partial_params)
-        
-        # Базовые параметры
-        params = {
-            "amp_envelope": self._calculate_average_envelope(
-                [p["amp_envelope"] for p in partials_params]
-            ),
-            "filter_envelope": self._calculate_average_envelope(
-                [p["filter_envelope"] for p in partials_params]
-            ),
-            "pitch_envelope": self._calculate_average_envelope(
-                [p["pitch_envelope"] for p in partials_params]
-            ),
-            "filter": self._calculate_average_filter(
-                [p["filter"] for p in partials_params]
-            ),
-            "lfo1": {
-                "waveform": "sine",
-                "rate": self._convert_lfo_rate(all_merged_zones[0].LFO1Freq),
-                "depth": 0.5,
-                "delay": self._convert_time_cents_to_seconds(all_merged_zones[0].DelayLFO1)
-            },
-            "lfo2": {
-                "waveform": "triangle",
-                "rate": self._convert_lfo_rate(all_merged_zones[0].LFO2Freq),
-                "depth": 0.3,
-                "delay": self._convert_time_cents_to_seconds(all_merged_zones[0].DelayLFO2)
-            },
-            "lfo3": {
-                "waveform": "sawtooth",
-                "rate": 0.5,
-                "depth": 0.1,
-                "delay": 0.5
-            },
-            "modulation": self._calculate_modulation_params(all_merged_zones),
-            "partials": partials_params
-        }
-        
-        return params
+            # Если пресет еще не добавлен, добавляем его
+            if preset.preset not in self.bank_instruments[mapped_bank]:
+                self.bank_instruments[mapped_bank][preset.preset] = preset_index
+                self.presets.append(preset)
+                preset_index += 1
 
     def _build_bank_instruments_map(self):
         """Построение карты банк -> программа -> индекс пресета"""
@@ -3163,10 +2715,8 @@ class Sf2WavetableManager:
         # В SoundFont банк 128 обычно используется для барабанов
         return bank == 128
     
-    def clear_caches(self):
-        """Очистка кэшей для освобождения памяти"""
-        self._source_name_cache.clear()
-        self._normalize_cache.clear()
+    def clear_cache(self):
+        """Очистка кэша сэмплов"""
         self.sample_cache.clear()
         self.current_cache_size = 0
     

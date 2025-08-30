@@ -44,3 +44,22 @@ This project is a complete MIDI to MP3 converter with a built-in XG-compatible s
 *   **Modularity**: Components are designed to be relatively independent. The `XGSynthesizer` orchestrates `Sf2WavetableManager`, `XGToneGenerator`s, and `XGEffectManager`.
 *   **Performance**: Uses NumPy for audio processing and implements caching (`Sf2WavetableManager`) to handle large SoundFonts efficiently.
 *   **SoundFont Standard Compliance**: The `Sf2WavetableManager` now correctly implements the SoundFont 2.0 standard for handling preset-level generators and modulators, allowing presets to define default values that instruments can override.
+
+## Current Implementation Status
+
+The project currently implements:
+- Full MIDI XG synthesizer with Tone Generators and Effects Manager
+- Support for SoundFont 2.0 files with proper handling of generators and modulators
+- Multiple LFOs, modulation matrix, and Partial Structure concepts
+- System and Insertion Effects with NRPN/SysEx control
+- Drum note mapping and parameter control
+
+## Planned Enhancements
+
+We're currently working on implementing full MIDI XG part mode selection and control, including:
+- Part-specific effects processing
+- Part EQ controls
+- Enhanced NRPN parameter handling for part-specific settings
+- Improved SysEx message processing for XG parameters
+
+These enhancements will allow for more detailed control over individual MIDI parts/channels, enabling users to set unique effects and EQ settings for each part of their composition.
