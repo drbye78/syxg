@@ -647,13 +647,13 @@ class Sf2WavetableManager:
         if 'pdta' in manager['chunk_positions']:
             sf2_file = manager['file']
             pdta_pos = manager['chunk_positions']['pdta']
-            sf2_file.seek(pdta_pos)
+            sf2_file.seek(pdta_pos - 8)
             
             # Читаем заголовок LIST pdta
             list_header = sf2_file.read(8)
             if len(list_header) >= 8:
                 list_size = struct.unpack('<I', list_header[4:8])[0]
-                self._parse_pdta_list_for_manager(manager, list_size, sf2_file.tell())
+                self._parse_pdta_list_for_manager(manager, list_size, pdta_pos + 4)
         
         # Парсим чанки sdta (sample data) только если необходимо
         # (для загрузки самих сэмплов, а не их метаданных)
@@ -818,7 +818,7 @@ class Sf2WavetableManager:
                 name = phdr_record['name'].split(b'\x00')[0].decode('ascii', 'ignore')
                 preset = int(phdr_record['preset'])
                 bank = int(phdr_record['bank'])
-                preset_bag_ndx = int(phdr_record['preset_bag_index'])
+                preset_bag_ndx = int(phdr_record['preset_bag_ndx'])
                 
                 # Создаем пресет
                 sf2_preset = SF2Preset()

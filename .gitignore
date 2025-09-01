@@ -138,5 +138,8 @@ Thumbs.db
 *.wav
 *.mid
 *.?
-test*.py
+*test*.py
+*demo*.py
+*.*backup*
+*debug*.py
 tests/

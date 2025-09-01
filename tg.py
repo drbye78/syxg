@@ -1454,7 +1454,7 @@ class XGToneGenerator:
         матрицы модуляции, Partial Structure и барабанов.
         
         Args:
-            wavetable: объект, предоставляющий доступ к wavetable сэмплам
+            wavetable: объект, предоставляющий доступ к wavetable сэмплам (может быть None)
             note: MIDI нота (0-127)
             velocity: громкость ноты (0-127)
             program: номер программы (патча)
@@ -1469,7 +1469,7 @@ class XGToneGenerator:
             modulation_matrix: матрица модуляции для инициализации
             bank: номер банка (0-16383)
         """
-        self.wavetable = wavetable
+        self.wavetable = wavetable  # Может быть None для базового генератора
         self.note = note
         self.velocity = velocity
         self.program = program
@@ -1588,7 +1588,7 @@ class XGToneGenerator:
             self.current_freq = self._note_to_freq(note)
             self.portamento_active = False
         
-        # Получение параметров из wavetable
+        # Получение параметров из wavetable или использование параметров по умолчанию
         self.params = self._get_parameters(program)
         
         # Инициализация множественных LFO (до 3)
@@ -1623,7 +1623,12 @@ class XGToneGenerator:
         self.partials = []
         self._setup_partials(wavetable)
         
-        # Если нет активных частичных структур, генератор неактивен
+        # Если нет активных частичных структур и wavetable доступен, создаем базовый генератор
+        if not any(partial.is_active() for partial in self.partials) and wavetable is None:
+            # Создаем базовый генератор с синусоидальной волной
+            self._setup_basic_generator()
+        
+        # Если все еще нет активных частичных структур, генератор неактивен
         if not any(partial.is_active() for partial in self.partials):
             self.active = False
     
