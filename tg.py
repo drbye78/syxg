@@ -1936,6 +1936,8 @@ class XGToneGenerator:
         """Настройка частичных структур на основе параметров"""
         partials_params = self.params.get("partials", [])
         
+        print(f'numPartials={len(partials_params)}')
+        
         # Создаем частичные генераторы для каждой частичной структуры
         for i, partial_params in enumerate(partials_params):
             # Применение key scaling к параметрам огибающих

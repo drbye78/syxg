@@ -4,299 +4,275 @@ import os
 import warnings
 from collections import OrderedDict
 from typing import Dict, List, Tuple, Optional, Union, Any, Callable
+from dataclasses import dataclass
 
 # Import classes from tg.py that we need for our implementation
 from tg import ModulationDestination, ModulationSource
 
+# Import our new SoundFont class
+from sf2_soundfont import Sf2SoundFont
+
+@dataclass
 class SF2Modulator:
     """Представляет модулятор в SoundFont 2.0"""
-    __slots__ = [
-        'source_oper', 'source_polarity', 'source_type', 'source_direction', 'source_index',
-        'control_oper', 'control_polarity', 'control_type', 'control_direction', 'control_index',
-        'destination', 'amount', 'amount_source_oper', 'amount_source_polarity',
-        'amount_source_type', 'amount_source_direction', 'amount_source_index', 'transform'
-    ]
+    # Источник модуляции
+    source_oper: int = 0  # Source Operator
+    source_polarity: int = 0  # 0 = unipolar, 1 = bipolar
+    source_type: int = 0  # 0 = linear, 1 = concave
+    source_direction: int = 0  # 0 = max -> min, 1 = min -> max
+    source_index: int = 0  # Индекс источника (для CC)
     
-    def __init__(self):
-        # Источник модуляции
-        self.source_oper = 0  # Source Operator
-        self.source_polarity = 0  # 0 = unipolar, 1 = bipolar
-        self.source_type = 0  # 0 = linear, 1 = concave
-        self.source_direction = 0  # 0 = max -> min, 1 = min -> max
-        self.source_index = 0  # Индекс источника (для CC)
-        
-        # Управление модуляцией
-        self.control_oper = 0  # Control Operator
-        self.control_polarity = 0
-        self.control_type = 0
-        self.control_direction = 0
-        self.control_index = 0
-        
-        # Цель модуляции
-        self.destination = 0  # Destination Generator
-        
-        # Глубина модуляции
-        self.amount = 0  # Значение глубины
-        
-        # Источник глубины модуляции
-        self.amount_source_oper = 0
-        self.amount_source_polarity = 0
-        self.amount_source_type = 0
-        self.amount_source_direction = 0
-        self.amount_source_index = 0
-        
-        # Преобразование
-        self.transform = 0  # Transform Operator
+    # Управление модуляцией
+    control_oper: int = 0  # Control Operator
+    control_polarity: int = 0
+    control_type: int = 0
+    control_direction: int = 0
+    control_index: int = 0
+    
+    # Цель модуляции
+    destination: int = 0  # Destination Generator
+    
+    # Глубина модуляции
+    amount: int = 0  # Значение глубины
+    
+    # Источник глубины модуляции
+    amount_source_oper: int = 0
+    amount_source_polarity: int = 0
+    amount_source_type: int = 0
+    amount_source_direction: int = 0
+    amount_source_index: int = 0
+    
+    # Преобразование
+    transform: int = 0  # Transform Operator
 
+@dataclass
 class SF2InstrumentZone:
     """Представляет зону инструмента в SoundFont 2.0"""
-    __slots__ = [
-        'lokey', 'hikey', 'lovel', 'hivel', 'initial_filterQ', 'initialFilterFc',
-        'peakConcave', 'voiceConcave', 'AttackVolEnv', 'DecayVolEnv', 'SustainVolEnv',
-        'ReleaseVolEnv', 'DelayVolEnv', 'HoldVolEnv', 'AttackFilEnv', 'DecayFilEnv',
-        'SustainFilEnv', 'ReleaseFilEnv', 'DelayFilEnv', 'HoldFilEnv', 'AttackPitchEnv',
-        'DecayPitchEnv', 'SustainPitchEnv', 'ReleasePitchEnv', 'DelayPitchEnv',
-        'HoldPitchEnv', 'DelayLFO1', 'DelayLFO2', 'LFO1Freq', 'LFO2Freq',
-        'LFO1VolumeToPitch', 'LFO1VolumeToFilter', 'LFO1VolumeToVolume',
-        'InitialAttenuation', 'Pan', 'VelocityAttenuation', 'VelocityPitch',
-        'OverridingRootKey', 'KeynumToVolEnvHold', 'KeynumToVolEnvDecay',
-        'KeynumToModEnvHold', 'KeynumToModEnvDecay', 'CoarseTune', 'FineTune',
-        'sample_index', 'sample_name', 'mute', 'keynum_to_volume', 'modulators',
-        'lfo_to_pitch', 'lfo_to_filter', 'velocity_to_pitch', 'velocity_to_filter',
-        'aftertouch_to_pitch', 'aftertouch_to_filter', 'mod_wheel_to_pitch',
-        'mod_wheel_to_filter', 'brightness_to_filter', 'portamento_to_pitch',
-        'tremolo_depth', 'mod_env_to_pitch', 'mod_lfo_to_pitch', 'vib_lfo_to_pitch',
-        'vibrato_depth', 'mod_lfo_to_filter', 'mod_env_to_filter', 'mod_lfo_to_volume',
-        'mod_ndx', 'gen_ndx', 'generators', 'sample_modes', 'exclusive_class',
-        'start', 'end', 'start_loop', 'end_loop'
-    ]
+    # Диапазоны нот и velocity
+    lokey: int = 0
+    hikey: int = 127
+    lovel: int = 0
+    hivel: int = 127
     
-    def __init__(self):
-        # Диапазоны нот и velocity
-        self.lokey = 0
-        self.hikey = 127
-        self.lovel = 0
-        self.hivel = 127
-        
-        # Основные параметры
-        self.initial_filterQ = 0
-        self.initialFilterFc = 13500
-        self.peakConcave = 0
-        self.voiceConcave = 0
-        
-        # Параметры амплитудной огибающей
-        self.AttackVolEnv = 9600  # в time cents
-        self.DecayVolEnv = 19200
-        self.SustainVolEnv = 0  # 0-127 (0 = -inf dB)
-        self.ReleaseVolEnv = 24000
-        self.DelayVolEnv = 0  # Задержка амплитудной огибающей
-        self.HoldVolEnv = 0  # Hold амплитудной огибающей
-        
-        # Параметры фильтровой огибающей
-        self.AttackFilEnv = 19200
-        self.DecayFilEnv = 19200
-        self.SustainFilEnv = 0
-        self.ReleaseFilEnv = 24000
-        self.DelayFilEnv = 0  # Задержка фильтровой огибающей
-        self.HoldFilEnv = 0  # Hold фильтровой огибающей
-        
-        # Параметры pitch огибающей
-        self.AttackPitchEnv = 0
-        self.DecayPitchEnv = 0
-        self.SustainPitchEnv = 0
-        self.ReleasePitchEnv = 0
-        self.DelayPitchEnv = 0  # Задержка pitch огибающей
-        self.HoldPitchEnv = 0  # Hold pitch огибающей
-        
-        # LFO параметры
-        self.DelayLFO1 = 0
-        self.DelayLFO2 = 0
-        self.LFO1Freq = 500  # 0.01 Гц * значение
-        self.LFO2Freq = 0
-        self.LFO1VolumeToPitch = 0
-        self.LFO1VolumeToFilter = 0
-        self.LFO1VolumeToVolume = 0
-        
-        # Панорамирование
-        self.InitialAttenuation = 0  # 0-1440 (0 = 1.0, 960 = -6dB, 1440 = -9dB)
-        self.Pan = 50  # 0-100 (0 = left, 50 = center, 100 = right)
-        
-        # Скорость и высота
-        self.VelocityAttenuation = 0
-        self.VelocityPitch = 0
-        self.OverridingRootKey = -1  # -1 = использовать ноту, иначе переназначить root key
-        
-        # Key scaling для огибающих
-        self.KeynumToVolEnvHold = 0  # Keynum to Volume Envelope Hold
-        self.KeynumToVolEnvDecay = 0  # Keynum to Volume Envelope Decay
-        self.KeynumToModEnvHold = 0  # Keynum to Modulation Envelope Hold
-        self.KeynumToModEnvDecay = 0  # Keynum to Modulation Envelope Decay
-        
-        # Настройка высоты
-        self.CoarseTune = 0  # Грубая настройка (октавы)
-        self.FineTune = 0  # Точная настройка (центы)
-        
-        # Ссылка на сэмпл
-        self.sample_index = 0
-        self.sample_name = "Default"
-        
-        # Дополнительные флаги
-        self.mute = False
-        self.keynum_to_volume = 0  # Key Number to Volume Envelope Delay
-        
-        # Sample parameters
-        self.sample_modes = 0
-        self.exclusive_class = 0
-        self.start = 0
-        self.end = 0
-        self.start_loop = 0
-        self.end_loop = 0
-        
-        # Модуляторы
-        self.modulators = []
-        
-        # Генераторы (для хранения параметров)
-        self.generators = {}
-        
-        # Распространенные модуляции (для упрощенного доступа)
-        self.lfo_to_pitch = 0.0
-        self.lfo_to_filter = 0.0
-        self.velocity_to_pitch = 0.0
-        self.velocity_to_filter = 0.0
-        self.aftertouch_to_pitch = 0.0
-        self.aftertouch_to_filter = 0.0
-        self.mod_wheel_to_pitch = 0.0
-        self.mod_wheel_to_filter = 0.0
-        self.brightness_to_filter = 0.0
-        self.portamento_to_pitch = 0.0
-        self.tremolo_depth = 0.0
-        self.mod_env_to_pitch = 0.0
-        self.mod_lfo_to_pitch = 0.0
-        self.vib_lfo_to_pitch = 0.0
-        self.vibrato_depth = 0.0
-        self.mod_lfo_to_filter = 0.0
-        self.mod_env_to_filter = 0.0
-        self.mod_lfo_to_volume = 0.0
-        self.mod_ndx = 0
-        self.gen_ndx = 0
+    # Основные параметры
+    initial_filterQ: int = 0
+    initialFilterFc: int = 13500
+    peakConcave: int = 0
+    voiceConcave: int = 0
+    
+    # Параметры амплитудной огибающей
+    AttackVolEnv: int = 9600  # в time cents
+    DecayVolEnv: int = 19200
+    SustainVolEnv: int = 0  # 0-127 (0 = -inf dB)
+    ReleaseVolEnv: int = 24000
+    DelayVolEnv: int = 0  # Задержка амплитудной огибающей
+    HoldVolEnv: int = 0  # Hold амплитудной огибающей
+    
+    # Параметры фильтровой огибающей
+    AttackFilEnv: int = 19200
+    DecayFilEnv: int = 19200
+    SustainFilEnv: int = 0
+    ReleaseFilEnv: int = 24000
+    DelayFilEnv: int = 0  # Задержка фильтровой огибающей
+    HoldFilEnv: int = 0  # Hold фильтровой огибающей
+    
+    # Параметры pitch огибающей
+    AttackPitchEnv: int = 0
+    DecayPitchEnv: int = 0
+    SustainPitchEnv: int = 0
+    ReleasePitchEnv: int = 0
+    DelayPitchEnv: int = 0  # Задержка pitch огибающей
+    HoldPitchEnv: int = 0  # Hold pitch огибающей
+    
+    # LFO параметры
+    DelayLFO1: int = 0
+    DelayLFO2: int = 0
+    LFO1Freq: int = 500  # 0.01 Гц * значение
+    LFO2Freq: int = 0
+    LFO1VolumeToPitch: int = 0
+    LFO1VolumeToFilter: int = 0
+    LFO1VolumeToVolume: int = 0
+    
+    # Панорамирование
+    InitialAttenuation: int = 0  # 0-1440 (0 = 1.0, 960 = -6dB, 1440 = -9dB)
+    Pan: int = 50  # 0-100 (0 = left, 50 = center, 100 = right)
+    
+    # Скорость и высота
+    VelocityAttenuation: int = 0
+    VelocityPitch: int = 0
+    OverridingRootKey: int = -1  # -1 = использовать ноту, иначе переназначить root key
+    
+    # Key scaling для огибающих
+    KeynumToVolEnvHold: int = 0  # Keynum to Volume Envelope Hold
+    KeynumToVolEnvDecay: int = 0  # Keynum to Volume Envelope Decay
+    KeynumToModEnvHold: int = 0  # Keynum to Modulation Envelope Hold
+    KeynumToModEnvDecay: int = 0  # Keynum to Modulation Envelope Decay
+    
+    # Настройка высоты
+    CoarseTune: int = 0  # Грубая настройка (октавы)
+    FineTune: int = 0  # Точная настройка (центы)
+    
+    # Ссылка на сэмпл
+    sample_index: int = 0
+    sample_name: str = "Default"
+    
+    # Дополнительные флаги
+    mute: bool = False
+    keynum_to_volume: int = 0  # Key Number to Volume Envelope Delay
+    
+    # Sample parameters
+    sample_modes: int = 0
+    exclusive_class: int = 0
+    start: int = 0
+    end: int = 0
+    start_loop: int = 0
+    end_loop: int = 0
+    
+    # Модуляторы
+    modulators: List['SF2Modulator'] = None
+    
+    # Генераторы (для хранения параметров)
+    generators: Dict[int, int] = None
+    
+    # Распространенные модуляции (для упрощенного доступа)
+    lfo_to_pitch: float = 0.0
+    lfo_to_filter: float = 0.0
+    velocity_to_pitch: float = 0.0
+    velocity_to_filter: float = 0.0
+    aftertouch_to_pitch: float = 0.0
+    aftertouch_to_filter: float = 0.0
+    mod_wheel_to_pitch: float = 0.0
+    mod_wheel_to_filter: float = 0.0
+    brightness_to_filter: float = 0.0
+    portamento_to_pitch: float = 0.0
+    tremolo_depth: float = 0.0
+    mod_env_to_pitch: float = 0.0
+    mod_lfo_to_pitch: float = 0.0
+    vib_lfo_to_pitch: float = 0.0
+    vibrato_depth: float = 0.0
+    mod_lfo_to_filter: float = 0.0
+    mod_env_to_filter: float = 0.0
+    mod_lfo_to_volume: float = 0.0
+    mod_ndx: int = 0
+    gen_ndx: int = 0
+    
+    def __post_init__(self):
+        if self.modulators is None:
+            self.modulators = []
+        if self.generators is None:
+            self.generators = {}
 
+@dataclass
 class SF2PresetZone:
     """Представляет зону пресета в SoundFont 2.0"""
-    __slots__ = [
-        'preset', 'bank', 'generators', 'modulators', 'instrument_index',
-        'instrument_name', 'lokey', 'hikey', 'lovel', 'hivel', 'lfo_to_pitch',
-        'lfo_to_filter', 'velocity_to_pitch', 'velocity_to_filter',
-        'aftertouch_to_pitch', 'aftertouch_to_filter', 'mod_wheel_to_pitch',
-        'mod_wheel_to_filter', 'brightness_to_filter', 'portamento_to_pitch',
-        'tremolo_depth', 'vibrato_depth', 'gen_ndx', 'mod_ndx',
-        # Generator parameters that might be set by preset generators
-        'initialFilterFc', 'initial_filterQ', 'Pan', 'DelayLFO1', 'LFO1Freq',
-        'DelayLFO2', 'DelayFilEnv', 'AttackFilEnv', 'HoldFilEnv', 'DecayFilEnv',
-        'SustainFilEnv', 'ReleaseFilEnv', 'KeynumToModEnvHold', 'KeynumToModEnvDecay',
-        'DelayVolEnv', 'AttackVolEnv', 'HoldVolEnv', 'DecayVolEnv', 'SustainVolEnv',
-        'ReleaseVolEnv', 'KeynumToVolEnvHold', 'KeynumToVolEnvDecay', 'CoarseTune', 'FineTune'
-    ]
+    preset: int = 0
+    bank: int = 0
+    generators: Dict[int, int] = None  # Dictionary to store generator parameters
+    modulators: List['SF2Modulator'] = None  # List of modulators for this preset zone
+    instrument_index: int = 0
+    instrument_name: str = ""
     
-    def __init__(self):
-        self.preset = 0
-        self.bank = 0
-        self.generators = {}  # Dictionary to store generator parameters
-        self.modulators = []  # List of modulators for this preset zone
-        self.instrument_index = 0
-        self.instrument_name = ""
-        
-        # Диапазоны нот и velocity
-        self.lokey = 0
-        self.hikey = 127
-        self.lovel = 0
-        self.hivel = 127
-        
-        # Generator parameters that might be set by preset generators
-        self.initialFilterFc = 13500
-        self.initial_filterQ = 0
-        self.Pan = 50
-        self.DelayLFO1 = 0
-        self.LFO1Freq = 500
-        self.DelayLFO2 = 0
-        self.DelayFilEnv = 0
-        self.AttackFilEnv = 19200
-        self.HoldFilEnv = 0
-        self.DecayFilEnv = 19200
-        self.SustainFilEnv = 0
-        self.ReleaseFilEnv = 24000
-        self.KeynumToModEnvHold = 0
-        self.KeynumToModEnvDecay = 0
-        self.DelayVolEnv = 0
-        self.AttackVolEnv = 9600
-        self.HoldVolEnv = 0
-        self.DecayVolEnv = 19200
-        self.SustainVolEnv = 0
-        self.ReleaseVolEnv = 24000
-        self.KeynumToVolEnvHold = 0
-        self.KeynumToVolEnvDecay = 0
-        self.CoarseTune = 0
-        self.FineTune = 0
-        
-        # Распространенные модуляции (для упрощенного доступа)
-        self.lfo_to_pitch = 0.0
-        self.lfo_to_filter = 0.0
-        self.velocity_to_pitch = 0.0
-        self.velocity_to_filter = 0.0
-        self.aftertouch_to_pitch = 0.0
-        self.aftertouch_to_filter = 0.0
-        self.mod_wheel_to_pitch = 0.0
-        self.mod_wheel_to_filter = 0.0
-        self.brightness_to_filter = 0.0
-        self.portamento_to_pitch = 0.0
-        self.tremolo_depth = 0.0
-        self.vibrato_depth = 0.0
-        self.gen_ndx = 0
-        self.mod_ndx = 0
+    # Диапазоны нот и velocity
+    lokey: int = 0
+    hikey: int = 127
+    lovel: int = 0
+    hivel: int = 127
+    
+    # Generator parameters that might be set by preset generators
+    initialFilterFc: int = 13500
+    initial_filterQ: int = 0
+    Pan: int = 50
+    DelayLFO1: int = 0
+    LFO1Freq: int = 500
+    DelayLFO2: int = 0
+    DelayFilEnv: int = 0
+    AttackFilEnv: int = 19200
+    HoldFilEnv: int = 0
+    DecayFilEnv: int = 19200
+    SustainFilEnv: int = 0
+    ReleaseFilEnv: int = 24000
+    KeynumToModEnvHold: int = 0
+    KeynumToModEnvDecay: int = 0
+    DelayVolEnv: int = 0
+    AttackVolEnv: int = 9600
+    HoldVolEnv: int = 0
+    DecayVolEnv: int = 19200
+    SustainVolEnv: int = 0
+    ReleaseVolEnv: int = 24000
+    KeynumToVolEnvHold: int = 0
+    KeynumToVolEnvDecay: int = 0
+    CoarseTune: int = 0
+    FineTune: int = 0
+    
+    # Распространенные модуляции (для упрощенного доступа)
+    lfo_to_pitch: float = 0.0
+    lfo_to_filter: float = 0.0
+    velocity_to_pitch: float = 0.0
+    velocity_to_filter: float = 0.0
+    aftertouch_to_pitch: float = 0.0
+    aftertouch_to_filter: float = 0.0
+    mod_wheel_to_pitch: float = 0.0
+    mod_wheel_to_filter: float = 0.0
+    brightness_to_filter: float = 0.0
+    portamento_to_pitch: float = 0.0
+    tremolo_depth: float = 0.0
+    vibrato_depth: float = 0.0
+    mod_env_to_pitch: float = 0.0
+    mod_lfo_to_pitch: float = 0.0
+    vib_lfo_to_pitch: float = 0.0
+    mod_lfo_to_filter: float = 0.0
+    mod_env_to_filter: float = 0.0
+    mod_lfo_to_volume: float = 0.0
 
+    gen_ndx: int = 0
+    mod_ndx: int = 0
+    
+    def __post_init__(self):
+        if self.generators is None:
+            self.generators = {}
+        if self.modulators is None:
+            self.modulators = []
+
+@dataclass
 class SF2SampleHeader:
     """Представляет заголовок сэмпла в SoundFont 2.0"""
-    __slots__ = [
-        'name', 'start', 'end', 'start_loop', 'end_loop', 'sample_rate',
-        'original_pitch', 'pitch_correction', 'link', 'type'
-    ]
-    
-    def __init__(self):
-        self.name = "Default"
-        self.start = 0
-        self.end = 0
-        self.start_loop = 0
-        self.end_loop = 0
-        self.sample_rate = 44100
-        self.original_pitch = 60  # MIDI note number
-        self.pitch_correction = 0  # в центах
-        self.link = 0
-        self.type = 1  # 1 = mono, 2 = right, 4 = left, 8 = linked
+    name: str = "Default"
+    start: int = 0
+    end: int = 0
+    start_loop: int = 0
+    end_loop: int = 0
+    sample_rate: int = 44100
+    original_pitch: int = 60  # MIDI note number
+    pitch_correction: int = 0  # в центах
+    link: int = 0
+    type: int = 1  # 1 = mono, 2 = right, 4 = left, 8 = linked
 
+@dataclass
 class SF2Preset:
     """Представляет пресет (инструмент) в SoundFont 2.0"""
-    __slots__ = [
-        'name', 'preset', 'bank', 'preset_bag_index', 'library', 'genre',
-        'morphology', 'zones'
-    ]
+    name: str = "Default"
+    preset: int = 0
+    bank: int = 0
+    preset_bag_index: int = 0
+    library: int = 0
+    genre: int = 0
+    morphology: int = 0
+    zones: List['SF2PresetZone'] = None  # Список SF2PresetZone
     
-    def __init__(self):
-        self.name = "Default"
-        self.preset = 0
-        self.bank = 0
-        self.preset_bag_index = 0
-        self.library = 0
-        self.genre = 0
-        self.morphology = 0
-        self.zones = []  # Список SF2PresetZone
+    def __post_init__(self):
+        if self.zones is None:
+            self.zones = []
 
+@dataclass
 class SF2Instrument:
     """Представляет инструмент в SoundFont 2.0"""
-    __slots__ = ['name', 'instrument_bag_index', 'zones']
+    name: str = "Default"
+    instrument_bag_index: int = 0
+    zones: List['SF2InstrumentZone'] = None  # Список SF2InstrumentZone
     
-    def __init__(self):
-        self.name = "Default"
-        self.instrument_bag_index = 0
-        self.zones = []  # Список SF2InstrumentZone
+    def __post_init__(self):
+        if self.zones is None:
+            self.zones = []
 
 class Sf2WavetableManager:
     """
@@ -503,7 +479,7 @@ class Sf2WavetableManager:
         37: ("KeynumToVolEnvDecay",),  # keynumToVolEnvDecay
     }
 
-    def __init__(self, sf2_paths: Union[str, List[str]], cache_size: int = None):
+    def __init__(self, sf2_paths: Union[str, List[str]], cache_size: Optional[int] = None):
         """
         Инициализация менеджера SoundFont.
         
@@ -521,7 +497,7 @@ class Sf2WavetableManager:
         self.presets: List[SF2Preset] = []
         self.instruments: List[SF2Instrument] = []
         self.sample_headers: List[SF2SampleHeader] = []
-        self.bank_instruments: Dict[int, Dict[int, int]] = {}  # bank -> program -> preset index
+        self.bank_instruments: Dict[str, Dict[str, Any]] = {}  # bank -> program -> preset index
         
         # Настройки для каждого SF2 файла
         self.bank_blacklists: Dict[str, List[int]] = {}  # sf2_path -> список банков для исключения
@@ -587,8 +563,8 @@ class Sf2WavetableManager:
                 
             except Exception as e:
                 print(f"Ошибка при инициализации SF2 файла {sf2_path}: {str(e)}")
-                if 'sf2_file' in locals() and not sf2_file.closed:
-                    sf2_file.close()
+                if 'sf2_file' in locals() and not sf2_file.closed: # type: ignore
+                    sf2_file.close() # type: ignore
 
     def _locate_sf2_chunks(self, manager: Dict[str, Any]):
         """Находит позиции ключевых чанков SF2 без полного парсинга"""
@@ -2677,3 +2653,242 @@ class Sf2WavetableManager:
         # Добавляем новый элемент
         self.sample_cache[name] = sample_data
         self.current_cache_size += size_estimate
+
+    def _convert_zone_to_partial_params(self, zone: SF2InstrumentZone, 
+                                       is_drum: bool = False) -> dict:
+        """Преобразование зоны SoundFont в параметры частичной структуры"""
+        # Преобразование времени (в time cents) в секунды
+        def time_cents_to_seconds(time_cents):
+            if time_cents <= 0:
+                return 0.001  # минимальное значение для избежания деления на ноль
+            # SoundFont использует логарифмическую шкалу для времени
+            return 0.001 * (10 ** (time_cents / 1200.0))
+        
+        # Преобразование cutoff фильтра
+        cutoff = max(20.0, min(20000.0, zone.initialFilterFc * self.FILTER_CUTOFF_SCALE))
+        
+        # Преобразование резонанса
+        resonance = max(0.0, min(2.0, zone.initial_filterQ * self.FILTER_RESONANCE_SCALE))
+        
+        # Преобразование панорамирования
+        pan = max(0.0, min(1.0, zone.Pan * self.PAN_SCALE))
+        
+        # Преобразование velocity sensitivity
+        velocity_sense = max(0.0, min(2.0, 1.0 + zone.VelocityAttenuation * self.VELOCITY_SENSE_SCALE))
+        
+        # Преобразование pitch смещения
+        pitch_shift = zone.VelocityPitch * self.PITCH_SCALE
+        
+        # Базовые параметры
+        partial_params = {
+            "level": 1.0,
+            "pan": pan,
+            "key_range_low": zone.lokey,
+            "key_range_high": zone.hikey,
+            "velocity_range_low": zone.lovel,
+            "velocity_range_high": zone.hivel,
+            "key_scaling": 0.0,
+            "velocity_sense": velocity_sense,
+            "crossfade_velocity": True,
+            "crossfade_note": True,
+            "use_filter_env": True,
+            "use_pitch_env": True,
+            "pitch_shift": pitch_shift,
+            "note_crossfade": 0.0,
+            "velocity_crossfade": 0.0,
+            
+            # Амплитудная огибающая
+            "amp_envelope": {
+                "delay": time_cents_to_seconds(zone.DelayVolEnv),
+                "attack": time_cents_to_seconds(zone.AttackVolEnv),
+                "hold": time_cents_to_seconds(zone.HoldVolEnv),
+                "decay": time_cents_to_seconds(zone.DecayVolEnv),
+                "sustain": max(0.0, min(1.0, 1.0 - zone.SustainVolEnv / 1000.0)),
+                "release": time_cents_to_seconds(zone.ReleaseVolEnv),
+                "key_scaling": zone.KeynumToVolEnvDecay / 1200.0
+            },
+            
+            # Фильтровая огибающая
+            "filter_envelope": {
+                "delay": time_cents_to_seconds(zone.DelayFilEnv),
+                "attack": time_cents_to_seconds(zone.AttackFilEnv),
+                "hold": time_cents_to_seconds(zone.HoldFilEnv),
+                "decay": time_cents_to_seconds(zone.DecayFilEnv),
+                "sustain": max(0.0, min(1.0, 1.0 - zone.SustainFilEnv / 1000.0)),
+                "release": time_cents_to_seconds(zone.ReleaseFilEnv),
+                "key_scaling": zone.KeynumToModEnvDecay / 1200.0
+            },
+            
+            # Pitch огибающая
+            "pitch_envelope": {
+                "delay": time_cents_to_seconds(zone.DelayPitchEnv),
+                "attack": time_cents_to_seconds(zone.AttackPitchEnv),
+                "hold": time_cents_to_seconds(zone.HoldPitchEnv),
+                "decay": time_cents_to_seconds(zone.DecayPitchEnv),
+                "sustain": max(0.0, min(1.0, 1.0 - zone.SustainPitchEnv / 1000.0)),
+                "release": time_cents_to_seconds(zone.ReleasePitchEnv)
+            },
+            
+            # Фильтр
+            "filter": {
+                "cutoff": cutoff,
+                "resonance": resonance,
+                "type": "lowpass",
+                "key_follow": 0.5
+            },
+            
+            # Настройка высоты
+            "coarse_tune": zone.CoarseTune,
+            "fine_tune": zone.FineTune
+        }
+        
+        # Для барабанов упрощаем параметры
+        if is_drum:
+            partial_params["use_filter_env"] = False
+            partial_params["use_pitch_env"] = False
+            partial_params["amp_envelope"]["attack"] = max(0.001, partial_params["amp_envelope"]["attack"] * 0.1)
+            partial_params["amp_envelope"]["decay"] = max(0.01, partial_params["amp_envelope"]["decay"] * 0.5)
+            partial_params["amp_envelope"]["sustain"] = 0.0
+        
+        return partial_params
+    
+    def _calculate_average_envelope(self, envelopes: List[dict]) -> dict:
+        """Рассчитывает средние значения огибающей из нескольких частичных структур"""
+        if not envelopes:
+            return {
+                "delay": 0.0,
+                "attack": 0.01,
+                "hold": 0.0,
+                "decay": 0.3,
+                "sustain": 0.7,
+                "release": 0.5,
+                "key_scaling": 0.0
+            }
+        
+        total = {"delay": 0.0, "attack": 0.0, "hold": 0.0, "decay": 0.0, "sustain": 0.0, "release": 0.0, "key_scaling": 0.0}
+        count = len(envelopes)
+        
+        for env in envelopes:
+            total["delay"] += env["delay"]
+            total["attack"] += env["attack"]
+            total["hold"] += env["hold"]
+            total["decay"] += env["decay"]
+            total["sustain"] += env["sustain"]
+            total["release"] += env["release"]
+            total["key_scaling"] += env.get("key_scaling", 0.0)
+        
+        return {
+            "delay": total["delay"] / count,
+            "attack": total["attack"] / count,
+            "hold": total["hold"] / count,
+            "decay": total["decay"] / count,
+            "sustain": total["sustain"] / count,
+            "release": total["release"] / count,
+            "key_scaling": total["key_scaling"] / count
+        }
+    
+    def _calculate_average_filter(self, filters: List[dict]) -> dict:
+        """Рассчитывает средние значения фильтра из нескольких частичных структур"""
+        if not filters:
+            return {
+                "cutoff": 1000.0,
+                "resonance": 0.7,
+                "type": "lowpass",
+                "key_follow": 0.5
+            }
+        
+        total = {"cutoff": 0.0, "resonance": 0.0}
+        count = len(filters)
+        
+        for f in filters:
+            total["cutoff"] += f["cutoff"]
+            total["resonance"] += f["resonance"]
+        
+        return {
+            "cutoff": total["cutoff"] / count,
+            "resonance": total["resonance"] / count,
+            "type": "lowpass",
+            "key_follow": 0.5
+        }
+
+    def _convert_time_cents_to_seconds(self, time_cents: int) -> float:
+        """
+        Преобразование временных параметров из SoundFont в секунды.
+        Использует правильную логарифмическую шкалу SoundFont 2.0.
+        
+        Args:
+            time_cents: значение в time cents
+            
+        Returns:
+            время в секундах
+        """
+        if time_cents <= 0:
+            return 0.001  # минимальное значение
+        
+        # SoundFont использует формулу: time = 0.001 * 10^(value/1200)
+        return 0.001 * (10 ** (time_cents / 1200.0))
+    
+    def _convert_lfo_rate(self, lfo_value: int) -> float:
+        """Преобразование значения LFO rate из SoundFont в Гц"""
+        if lfo_value <= 0:
+            return 0.1  # минимальная скорость
+        
+        # SoundFont использует логарифмическую шкалу
+        return (10 ** (lfo_value / 1200.0)) * 0.01
+    
+    def _convert_lfo_delay(self, delay_value: int) -> float:
+        """Преобразование значения LFO delay из SoundFont в секунды"""
+        if delay_value <= 0:
+            return 0.0
+        
+        # SoundFont использует логарифмическую шкалу
+        return (10 ** (delay_value / 1200.0)) * self.TIME_CENTISECONDS_TO_SECONDS
+
+    def _calculate_modulation_params(self, zones: List[SF2InstrumentZone]) -> dict:
+        """Рассчитывает параметры модуляции из зон"""
+        # Начальные значения
+        params = {
+            "lfo1_to_pitch": 0.0,
+            "lfo2_to_pitch": 0.0,
+            "lfo3_to_pitch": 0.0,
+            "env_to_pitch": 0.0,
+            "aftertouch_to_pitch": 0.0,
+            "lfo_to_filter": 0.0,
+            "env_to_filter": 0.0,
+            "aftertouch_to_filter": 0.0,
+            "tremolo_depth": 0.0,
+            "vibrato_depth": 0.0,
+            "vibrato_rate": 5.0,
+            "vibrato_delay": 0.0
+        }
+        
+        # Собираем данные из всех зон
+        for zone in zones:
+            params["lfo1_to_pitch"] += zone.lfo_to_pitch
+            params["env_to_pitch"] += zone.velocity_to_pitch
+            params["aftertouch_to_pitch"] += zone.aftertouch_to_pitch
+            params["lfo_to_filter"] += zone.lfo_to_filter
+            params["env_to_filter"] += zone.velocity_to_filter
+            params["aftertouch_to_filter"] += zone.aftertouch_to_filter
+            params["tremolo_depth"] += zone.tremolo_depth
+            params["vibrato_depth"] += zone.vibrato_depth
+            
+            # Дополнительные параметры для вибрато
+            if hasattr(zone, 'vib_lfo_to_pitch'):
+                params["vibrato_depth"] += zone.vib_lfo_to_pitch
+            if hasattr(zone, 'LFO2Freq'):
+                params["vibrato_rate"] = self._convert_lfo_rate(zone.LFO2Freq)
+            if hasattr(zone, 'DelayLFO2'):
+                params["vibrato_delay"] = self._convert_time_cents_to_seconds(zone.DelayLFO2)
+        
+        # Нормализуем по количеству зон
+        num_zones = len(zones)
+        if num_zones > 0:
+            for key in params:
+                if key not in ["vibrato_rate", "vibrato_delay"]:  # Эти параметры не нормализуем
+                    params[key] /= num_zones
+                # Ограничиваем разумными значениями
+                if key not in ["vibrato_rate", "vibrato_delay"]:
+                    params[key] = max(0.0, min(1.0, params[key]))
+        
+        return params
