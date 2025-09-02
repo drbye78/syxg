@@ -106,7 +106,7 @@ class XGEffectManager:
     FILTER_RESONANCE_SCALE = 0.01
     
     # Количество MIDI-каналов в мультитимбральном режиме
-    NUM_CHANNELS = 16
+    NUM_CHANNELS = 64
     
     # Сопоставление NRPN параметров XG для эффектов
     XG_EFFECT_NRPN_PARAMS = {
@@ -5615,7 +5615,7 @@ class XGEffectManager:
                 "feedback_buffers": [0.0, 0.0]
             }
             
-            # Параметры для каждого MIDI-канала (16 каналов)
+            # Параметры для каждого MIDI-канала (64 канала)
             for i in range(self.NUM_CHANNELS):
                 self._temp_state["channel_params"][i] = {
                     "reverb_send": 0.5,  # Уровень отправки на реверберацию

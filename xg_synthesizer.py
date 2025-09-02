@@ -8,42 +8,45 @@ import os
 
 # Import classes from other modules
 from sf2 import Sf2WavetableManager
-from tg import XGToneGenerator, ADSREnvelope, LFO, ModulationMatrix, DrumNoteMap
+from tg import XGChannelRenderer  # Use the refactored channel renderer
 from fx import XGEffectManager
+
+# Import required classes from the original tg.py for drum instrument name lookup
+from tg import DrumNoteMap
 
 
 class XGSynthesizer:
     """
-    Полностью совместимый с MIDI XG программный синтезатор.
+    Fully MIDI XG compatible software synthesizer.
     
-    Поддерживает:
-    - Все MIDI сообщения включая SYSEX и Bulk SYSEX
-    - Генерацию аудио блоками произвольного размера
-    - Настройку максимальной полифонии
-    - Полный контроль над тон-генерацией
-    - Обработку эффектов
-    - Управление SF2-файлами с черными списками и маппингом банков
-    - Инициализацию в соответствии со стандартом MIDI XG
-    - Полную поддержку барабанных параметров XG
-    - Работу в обоих режимах: немедленном и буферизованном
+    Supports:
+    - All MIDI messages including SYSEX and Bulk SYSEX
+    - Audio generation in blocks of arbitrary size
+    - Maximum polyphony configuration
+    - Full tone generation control
+    - Effect processing
+    - SF2 file management with blacklists and bank mapping
+    - Initialization according to MIDI XG standard
+    - Full XG drum parameter support
+    - Both immediate and buffered operation modes
     
-    Режимы работы:
-    1. Немедленный режим: сообщения обрабатываются сразу при получении
-    2. Буферизованный режим: сообщения обрабатываются с точной синхронизацией по сэмплам
+    Operating modes:
+    1. Immediate mode: Messages are processed immediately upon receipt
+    2. Buffered mode: Messages are processed with sample-accurate timing synchronization
     
-    Особенности буферизованного режима:
-    - Поддержка истинной покадровой (sample-accurate) обработки MIDI сообщений
-    - Возможность обработки сообщений в середине аудио блока с точностью до одного сэмпла
-    - Сохранение временных меток сообщений для точной синхронизации
+    Buffered mode features:
+    - True frame-by-frame (sample-accurate) MIDI message processing
+    - Ability to process messages in the middle of audio blocks with single-sample accuracy
+    - Storage of message timestamps for precise synchronization
     """
     
-    # Константы по умолчанию
+    # Default constants
     DEFAULT_SAMPLE_RATE = 44100
     DEFAULT_BLOCK_SIZE = 512
     DEFAULT_MAX_POLYPHONY = 64
     DEFAULT_MASTER_VOLUME = 1.0
     
-    # Системные статусы MIDI
+    # MIDI system statuses
     NOTE_OFF = 0x80
     NOTE_ON = 0x90
     POLY_PRESSURE = 0xA0
@@ -64,7 +67,7 @@ class XGSynthesizer:
     ACTIVE_SENSING = 0xFE
     SYSTEM_RESET = 0xFF
     
-    # Регистрация системных сообщений
+    # Registration system messages
     RPN_MSB = 101
     RPN_LSB = 100
     NRPN_MSB = 99
@@ -113,70 +116,69 @@ class XGSynthesizer:
                  block_size: int = DEFAULT_BLOCK_SIZE,
                  max_polyphony: int = DEFAULT_MAX_POLYPHONY):
         """
-        Инициализация XG синтезатора.
+        Initialize XG synthesizer.
         
         Args:
-            sample_rate: частота дискретизации (по умолчанию 48000 Гц)
-            block_size: размер аудио блока в сэмплах (по умолчанию 960)
-            max_polyphony: максимальная полифония (по умолчанию 64 голоса)
+            sample_rate: Sampling rate (default 48000 Hz)
+            block_size: Audio block size in samples (default 960)
+            max_polyphony: Maximum polyphony (default 64 voices)
         """
-        # Основные параметры
+        # Basic parameters
         self.sample_rate = sample_rate
         self.block_size = block_size
         self.max_polyphony = max_polyphony
         self.master_volume = self.DEFAULT_MASTER_VOLUME
         
-        # Блокировка для потокобезопасности
+        # Thread safety lock
         self.lock = threading.RLock()
         
-        # Управление SF2 файлами
+        # SF2 file management
         self.sf2_manager: Optional[Sf2WavetableManager] = None
         self.sf2_paths: List[str] = []
         
-        # Тон-генераторы (голоса)
-        self.tone_generators: List[XGToneGenerator] = []
-        self.active_notes: Dict[Tuple[int, int], XGToneGenerator] = {}  # (channel, note) -> generator
+        # Per-channel renderers (one per MIDI channel)
+        self.channel_renderers: List[XGChannelRenderer] = []
+        for channel in range(16):
+            renderer = XGChannelRenderer(channel=channel, sample_rate=sample_rate)
+            self.channel_renderers.append(renderer)
         
-        # Состояние MIDI каналов
+        # Channel states
         self.channel_states: List[Dict[str, Any]] = [self._create_channel_state() for _ in range(16)]
         
-        # Состояние RPN/NRPN
+        # RPN/NRPN states
         self.rpn_states: List[Dict[str, int]] = [{"msb": 127, "lsb": 127} for _ in range(16)]
         self.nrpn_states: List[Dict[str, int]] = [{"msb": 127, "lsb": 127} for _ in range(16)]
         self.data_entry_states: List[Dict[str, int]] = [{"msb": 0, "lsb": 0} for _ in range(16)]
         
-        # Барабанные параметры для каждого канала
+        # Drum parameters for each channel
         self.drum_parameters: List[Dict[int, Dict[str, Any]]] = [{} for _ in range(16)]
         
-        # Эффекты
+        # Effects
         self.effect_manager = XGEffectManager(sample_rate)
         
-        # Счетчики для уникальной идентификации
+        # Counters for unique identification
         self.generator_id_counter = 0
         
-        # Структуры для покадровой (sample-accurate) обработки
+        # Structures for frame-by-frame (sample-accurate) processing
         self._message_heap: List[Tuple[float, int, int, int, int]] = []  # (time, priority, status, data1, data2)
         self._sysex_heap: List[Tuple[float, int, List[int]]] = []  # (time, priority, data)
-        self._current_time: float = 0.0  # Текущее время в секундах для буферизованного режима
-        self._block_start_time: float = 0.0  # Время начала текущего аудио блока
-        self._sample_times: List[float] = []  # Временные метки для каждого сэмпла в блоке
-        self._message_priority_counter: int = 0  # Счетчик для уникальной идентификации сообщений
+        self._current_time: float = 0.0  # Current time in seconds for buffered mode
+        self._block_start_time: float = 0.0  # Start time of current audio block
+        self._sample_times: List[float] = []  # Timestamps for each sample in block
+        self._message_priority_counter: int = 0  # Counter for unique message identification
         self._message_buffer = []
         self._sysex_buffer = []
+        self.sf2_manager = None
         
-        # Создаем тестовый SF2 менеджер по умолчанию, если не предоставлен настоящий
-        try:
-            from test_sf2_manager import TestSf2WavetableManager
-            self.sf2_manager = TestSf2WavetableManager()
-        except ImportError:
-            # Если тестовый менеджер недоступен, создаем базовый менеджер
-            self.sf2_manager = None
-        
-        # Инициализация XG
+        # Set wavetable manager for all channel renderers
+        for renderer in self.channel_renderers:
+            renderer.wavetable = self.sf2_manager
+            
+        # Initialize XG
         self._initialize_xg()
-    
+        
     def _create_channel_state(self) -> Dict[str, Any]:
-        """Создание начального состояния MIDI канала"""
+        """Create initial MIDI channel state"""
         return {
             "program": 0,
             "bank": 0,
@@ -198,272 +200,266 @@ class XGSynthesizer:
             "rpn_lsb": 127,
             "nrpn_msb": 127,
             "nrpn_lsb": 127,
-            "drum_kit": 0,  # Текущий барабанный набор
-            "drum_bank": 128  # Банк барабанов по умолчанию
+            "drum_kit": 0,  # Current drum kit
+            "drum_bank": 128  # Default drum bank
         }
-    
+        
     def _initialize_xg(self):
-        """Инициализация XG синтезатора в соответствии со стандартом"""
-        # Инициализация XG без отправки SYSEX сообщения
-        # Сброс всех каналов в состояние по умолчанию
+        """Initialize XG synthesizer according to standard"""
+        # Initialize XG without sending SYSEX message
+        # Reset all channels to default state
         for channel in range(16):
-            # Сброс всех контроллеров
+            # Reset all controllers
             self._handle_reset_all_controllers(channel)
             
-            # Установка стандартных значений XG
-            self.channel_states[channel]["pitch_bend_range"] = 2  # Стандартный диапазон питчбенд
-            self.channel_states[channel]["reverb_send"] = 40     # Стандартная посылка реверберации
-            self.channel_states[channel]["chorus_send"] = 0      # Нет посылки хора по умолчанию
-            self.channel_states[channel]["variation_send"] = 0   # Нет посылки вариаций по умолчанию
+            # Set standard XG values
+            self.channel_states[channel]["pitch_bend_range"] = 2  # Standard pitch bend range
+            self.channel_states[channel]["reverb_send"] = 40     # Standard reverb send
+            self.channel_states[channel]["chorus_send"] = 0      # No chorus send by default
+            self.channel_states[channel]["variation_send"] = 0   # No variation send by default
             
-            # Инициализация стандартных значений для всех контроллеров
+            # Initialize standard values for all controllers
             for i in range(128):
                 self.channel_states[channel]["controllers"][i] = 0
             self.channel_states[channel]["controllers"][7] = 100   # Volume = 100
-            self.channel_states[channel]["controllers"][10] = 64   # Pan = 64 (центр)
+            self.channel_states[channel]["controllers"][10] = 64   # Pan = 64 (center)
             self.channel_states[channel]["controllers"][11] = 127  # Expression = 127
             self.channel_states[channel]["controllers"][91] = 40   # Reverb Send = 40
             self.channel_states[channel]["controllers"][93] = 0    # Chorus Send = 0
             
-            # Сброс RPN/NRPN состояний
+            # Reset RPN/NRPN states
             self.rpn_states[channel] = {"msb": 127, "lsb": 127}
             self.nrpn_states[channel] = {"msb": 127, "lsb": 127}
             self.data_entry_states[channel] = {"msb": 0, "lsb": 0}
             
-            # Инициализация параметров эффектов в effect manager
+            # Initialize effect parameters in effect manager
             self.effect_manager.set_current_nrpn_channel(channel)
             self.effect_manager.set_channel_effect_parameter(channel, 0, 160, 40)  # Reverb send
             self.effect_manager.set_channel_effect_parameter(channel, 0, 161, 0)   # Chorus send
             
-            # Инициализация барабанных параметров
+            # Initialize drum parameters
             self.drum_parameters[channel] = {}
-        
-        # Сброс эффектов в стандартное состояние XG
+            
+        # Reset effects to standard XG state
         self.effect_manager.reset_effects()
         
-        # Дополнительная инициализация для соответствия стандарту XG
-        # Установка стандартных параметров для всех каналов
+        # Additional initialization to match XG standard
+        # Set standard parameters for all channels
         for channel in range(16):
-            # Program Change на пианино (программа 0) для всех каналов, кроме 9 (drum channel)
+            # Program Change to piano (program 0) for all channels except 9 (drum channel)
             if channel != 9:
                 self._handle_program_change(channel, 0)
             else:
-                # Для канала 9 (drum channel) устанавливаем стандартную программу барабанов
+                # For channel 9 (drum channel), set standard drum program
                 self._handle_program_change(channel, 0)
-                # Устанавливаем банк барабанов
+                # Set drum bank
                 self.channel_states[channel]["bank"] = 128
-    
+                
     def set_sf2_files(self, sf2_paths: List[str]):
         """
-        Установка списка SF2 файлов для использования синтезатором.
+        Set list of SF2 files to use with synthesizer.
         
         Args:
-            sf2_paths: список путей к SF2 файлам
+            sf2_paths: List of paths to SF2 files
         """
         with self.lock:
             self.sf2_paths = sf2_paths.copy()
             
-            # Если предоставлены реальные пути к SF2 файлам, создаем настоящий менеджер
+            # If real SF2 file paths are provided, create real manager
             if sf2_paths and any(os.path.exists(path) for path in sf2_paths):
                 try:
                     self.sf2_manager = Sf2WavetableManager(sf2_paths)
                 except Exception as e:
-                    print(f"Ошибка при создании SF2 менеджера: {e}")
-                    # Используем тестовый менеджер вместо реального
-                    try:
-                        from test_sf2_manager import TestSf2WavetableManager
-                        self.sf2_manager = TestSf2WavetableManager()
-                    except ImportError:
-                        self.sf2_manager = None
-            else:
-                # Если нет реальных путей, используем тестовый менеджер
-                try:
-                    from test_sf2_manager import TestSf2WavetableManager
-                    self.sf2_manager = TestSf2WavetableManager()
-                except ImportError:
+                    print(f"Error creating SF2 manager: {e}")
                     self.sf2_manager = None
-    
+            else:
+                self.sf2_manager = None
+                    
+            # Update wavetable manager for all channel renderers
+            for renderer in self.channel_renderers:
+                renderer.wavetable = self.sf2_manager
+                
     def set_bank_blacklist(self, sf2_path: str, bank_list: List[int]):
         """
-        Установка черного списка банков для указанного SF2 файла.
+        Set bank blacklist for specified SF2 file.
         
         Args:
-            sf2_path: путь к SF2 файлу
-            bank_list: список номеров банков для исключения
+            sf2_path: Path to SF2 file
+            bank_list: List of bank numbers to exclude
         """
         if self.sf2_manager:
             with self.lock:
                 self.sf2_manager.set_bank_blacklist(sf2_path, bank_list)
-    
+                
     def set_preset_blacklist(self, sf2_path: str, preset_list: List[Tuple[int, int]]):
         """
-        Установка черного списка пресетов для указанного SF2 файла.
+        Set preset blacklist for specified SF2 file.
         
         Args:
-            sf2_path: путь к SF2 файлу
-            preset_list: список кортежей (bank, program) для исключения
+            sf2_path: Path to SF2 file
+            preset_list: List of (bank, program) tuples to exclude
         """
         if self.sf2_manager:
             with self.lock:
                 self.sf2_manager.set_preset_blacklist(sf2_path, preset_list)
-    
+                
     def set_bank_mapping(self, sf2_path: str, bank_mapping: Dict[int, int]):
         """
-        Установка маппинга банков MIDI на банки SF2 для указанного файла.
+        Set MIDI bank to SF2 bank mapping for specified file.
         
         Args:
-            sf2_path: путь к SF2 файлу
-            bank_mapping: словарь маппинга midi_bank -> sf2_bank
+            sf2_path: Path to SF2 file
+            bank_mapping: Dictionary mapping midi_bank -> sf2_bank
         """
         if self.sf2_manager:
             with self.lock:
                 self.sf2_manager.set_bank_mapping(sf2_path, bank_mapping)
-    
+                
     def set_max_polyphony(self, max_polyphony: int):
         """
-        Установка максимальной полифонии.
+        Set maximum polyphony.
         
         Args:
-            max_polyphony: максимальное количество одновременных голосов
+            max_polyphony: Maximum number of simultaneous voices
         """
         with self.lock:
             self.max_polyphony = max_polyphony
-    
+            
     def set_master_volume(self, volume: float):
         """
-        Установка мастер-громкости.
+        Set master volume.
         
         Args:
-            volume: громкость (0.0 - 1.0)
+            volume: Volume (0.0 - 1.0)
         """
         with self.lock:
             self.master_volume = max(0.0, min(1.0, volume))
-    
+            
     def send_midi_message_block(self, messages: List[Tuple[float, int, int, int]], 
                               sysex_messages: Optional[List[Tuple[float, List[int]]]] = None):
         """
-        Отправка блока временных MIDI сообщений в синтезатор.
-        Сообщения буферизуются и обрабатываются при генерации аудио с покадровой точностью.
+        Send block of timestamped MIDI messages to synthesizer.
+        Messages are buffered and processed during audio generation with frame-by-frame accuracy.
         
         Args:
-            messages: список кортежей (время_в_секундах, статус, data1, data2)
-            sysex_messages: список кортежей (время_в_секундах, данные_SYSEX) (опционально)
+            messages: List of tuples (time_in_seconds, status, data1, data2)
+            sysex_messages: List of tuples (time_in_seconds, SYSEX_data) (optional)
         """
         with self.lock:
-            # Добавляем регулярные MIDI сообщения в кучу
+            # Add regular MIDI messages to heap
             for time, status, data1, data2 in messages:
                 priority = self._message_priority_counter
                 self._message_priority_counter += 1
                 heapq.heappush(self._message_heap, (time, priority, status, data1, data2))
-            
-            # Добавляем SYSEX сообщения в кучу, если они предоставлены
+                
+            # Add SYSEX messages to heap if provided
             if sysex_messages:
                 for time, data in sysex_messages:
                     priority = self._message_priority_counter
                     self._message_priority_counter += 1
                     heapq.heappush(self._sysex_heap, (time, priority, data))
-    
+                    
     def set_buffered_mode_time(self, time: float):
         """
-        Установка текущего времени для буферизованного режима.
-        Все сообщения с временем <= текущему времени будут обработаны.
+        Set current time for buffered mode.
+        All messages with time <= current time will be processed.
         
         Args:
-            time: текущее время в секундах
+            time: Current time in seconds
         """
         with self.lock:
             self._current_time = time
-    
+            
     def get_buffered_mode_time(self) -> float:
         """
-        Получение текущего времени для буферизованного режима.
+        Get current time for buffered mode.
         
         Returns:
-            текущее время в секундах
+            Current time in seconds
         """
         with self.lock:
             return self._current_time
-    
+            
     def clear_message_buffers(self):
         """
-        Очистка буферов сообщений.
+        Clear message buffers.
         """
         with self.lock:
             self._message_buffer.clear()
             self._sysex_buffer.clear()
-    
+            
     def _prepare_sample_times(self, block_size: int):
         """
-        Подготовка временных меток для каждого сэмпла в блоке.
-        Используется для точной синхронизации MIDI сообщений по сэмплам.
+        Prepare timestamps for each sample in block.
+        Used for precise MIDI message synchronization by sample.
         
         Args:
-            block_size: размер блока в сэмплах
+            block_size: Block size in samples
         """
-        # Вычисляем время для каждого сэмпла в блоке
+        # Calculate time for each sample in block
         self._sample_times = []
         sample_duration = 1.0 / self.sample_rate
         
         for i in range(block_size):
             sample_time = self._block_start_time + (i * sample_duration)
             self._sample_times.append(sample_time)
-    
+            
     def _process_sample_accurate_messages(self, sample_index: int):
         """
-        Обработка MIDI сообщений с точной синхронизацией по сэмплам.
+        Process MIDI messages with sample-accurate synchronization.
         
         Args:
-            sample_index: индекс сэмпла в текущем блоке (0 - block_size-1)
+            sample_index: Sample index in current block (0 - block_size-1)
         """
         if not self._sample_times or sample_index >= len(self._sample_times):
             return
             
-        # Получаем время для текущего сэмпла
+        # Get time for current sample
         current_sample_time = self._sample_times[sample_index]
         
-        # Обрабатываем регулярные MIDI сообщения, время которых наступило
+        # Process regular MIDI messages whose time has arrived
         processed_messages = []
         for i, (msg_time, status, data1, data2) in enumerate(self._message_buffer):
             if msg_time <= current_sample_time:
-                # Обрабатываем сообщение немедленно
+                # Process message immediately
                 self.send_midi_message(status, data1, data2)
                 processed_messages.append(i)
             else:
                 break
-        
-        # Удаляем обработанные сообщения (в обратном порядке, чтобы не нарушить индексы)
+                
+        # Remove processed messages (in reverse order to not disrupt indices)
         for i in reversed(processed_messages):
             del self._message_buffer[i]
-        
-        # Обрабатываем SYSEX сообщения, время которых наступило
+            
+        # Process SYSEX messages whose time has arrived
         processed_sysex = []
         for i, (msg_time, data) in enumerate(self._sysex_buffer):
             if msg_time <= current_sample_time:
-                # Обрабатываем SYSEX сообщение немедленно
+                # Process SYSEX message immediately
                 self.send_sysex(data)
                 processed_sysex.append(i)
             else:
                 break
-        
-        # Удаляем обработанные SYSEX сообщения (в обратном порядке, чтобы не нарушить индексы)
+                
+        # Remove processed SYSEX messages (in reverse order to not disrupt indices)
         for i in reversed(processed_sysex):
             del self._sysex_buffer[i]
-    
+            
     def send_midi_message(self, status: int, data1: int, data2: int = 0):
         """
-        Отправка MIDI сообщения в синтезатор.
+        Send MIDI message to synthesizer.
         
         Args:
-            status: статус байт (включая номер канала)
-            data1: первый байт данных
-            data2: второй байт данных (для сообщений с двумя байтами данных)
+            status: Status byte (including channel number)
+            data1: First data byte
+            data2: Second data byte (for messages with two data bytes)
         """
         with self.lock:
-            # Определяем номер канала
+            # Determine channel number
             channel = status & 0x0F
             command = status & 0xF0
             
-            # Обрабатываем команды
+            # Process commands
             if command == self.NOTE_OFF:
                 self._handle_note_off(channel, data1, data2)
             elif command == self.NOTE_ON:
@@ -478,153 +474,117 @@ class XGSynthesizer:
                 self._handle_channel_pressure(channel, data1)
             elif command == self.PITCH_BEND:
                 self._handle_pitch_bend(channel, data1, data2)
-    
+                
     def send_midi_message_at_time(self, status: int, data1: int, data2: int, time: float):
         """
-        Отправка MIDI сообщения в синтезатор с указанием времени.
-        Сообщения буферизуются и обрабатываются при генерации аудио с покадровой точностью.
+        Send MIDI message to synthesizer with specified time.
+        Messages are buffered and processed during audio generation with frame-by-frame accuracy.
         
         Args:
-            status: статус байт (включая номер канала)
-            data1: первый байт данных
-            data2: второй байт данных (для сообщений с двумя байтами данных)
-            time: время в секундах для обработки сообщения
+            status: Status byte (including channel number)
+            data1: First data byte
+            data2: Second data byte (for messages with two data bytes)
+            time: Time in seconds to process message
         """
         with self.lock:
-            # Добавляем сообщение в кучу с уникальным приоритетом для стабильной сортировки
+            # Add message to heap with unique priority for stable sorting
             priority = self._message_priority_counter
             self._message_priority_counter += 1
             
             heapq.heappush(self._message_heap, (time, priority, status, data1, data2))
-    
+            
     def process_buffered_messages(self, current_time: float):
         """
-        Обработка буферизованных MIDI сообщений до указанного времени.
-        Использует кучу для эффективной обработки сообщений в порядке времени.
+        Process buffered MIDI messages up to specified time.
+        Uses heap for efficient message processing in time order.
         
         Args:
-            current_time: текущее время в секундах
+            current_time: Current time in seconds
         """
         with self.lock:
-            # Обрабатываем все сообщения, время которых наступило
+            # Process all messages whose time has arrived
             while self._message_heap and self._message_heap[0][0] <= current_time:
                 _, _, status, data1, data2 = heapq.heappop(self._message_heap)
                 self.send_midi_message(status, data1, data2)
-    
+                
     def send_sysex(self, data: List[int]):
         """
-        Отправка системного эксклюзивного сообщения.
+        Send system exclusive message.
         
         Args:
-            data: данные SYSEX сообщения (включая F0 и F7)
+            data: SYSEX message data (including F0 and F7)
         """
         with self.lock:
-            # Проверка, что это действительно SYSEX сообщение
+            # Check if this is really a SYSEX message
             if len(data) < 3 or data[0] != self.SYSTEM_EXCLUSIVE or data[-1] != self.END_OF_EXCLUSIVE:
                 return
-            
-            # Определяем производителя
+                
+            # Determine manufacturer
             if len(data) >= 2 and data[1] == 0x43:  # Yamaha
                 self._handle_yamaha_sysex(data)
             else:
-                # Обработка других производителей
+                # Process other manufacturers
                 pass
-    
+                
     def send_sysex_at_time(self, data: List[int], time: float):
         """
-        Отправка системного эксклюзивного сообщения с указанием времени.
-        Сообщения буферизуются и обрабатываются при генерации аудио с покадровой точностью.
+        Send system exclusive message with specified time.
+        Messages are buffered and processed during audio generation with frame-by-frame accuracy.
         
         Args:
-            data: данные SYSEX сообщения (включая F0 и F7)
-            time: время в секундах для обработки сообщения
+            data: SYSEX message data (including F0 and F7)
+            time: Time in seconds to process message
         """
         with self.lock:
-            # Добавляем сообщение в кучу с уникальным приоритетом для стабильной сортировки
+            # Add message to heap with unique priority for stable sorting
             priority = self._message_priority_counter
             self._message_priority_counter += 1
             
             heapq.heappush(self._sysex_heap, (time, priority, data))
-    
+            
     def process_buffered_sysex(self, current_time: float):
         """
-        Обработка буферизованных SYSEX сообщений до указанного времени.
-        Использует кучу для эффективной обработки сообщений в порядке времени.
+        Process buffered SYSEX messages up to specified time.
+        Uses heap for efficient message processing in time order.
         
         Args:
-            current_time: текущее время в секундах
+            current_time: Current time in seconds
         """
         with self.lock:
-            # Обрабатываем все сообщения, время которых наступило
+            # Process all messages whose time has arrived
             while self._sysex_heap and self._sysex_heap[0][0] <= current_time:
                 _, _, data = heapq.heappop(self._sysex_heap)
                 self.send_sysex(data)
-    
+                
     def _handle_note_off(self, channel: int, note: int, velocity: int):
-        """Обработка Note Off сообщения"""
-        # Проверяем, есть ли активная нота на этом канале
-        key = (channel, note)
-        if key in self.active_notes:
-            generator = self.active_notes[key]
-            generator.note_off()
-            # Удаляем из активных нот
-            del self.active_notes[key]
-    
+        """Handle Note Off message"""
+        # Forward to channel renderer
+        self.channel_renderers[channel].note_off(note, velocity)
+        
     def _handle_note_on(self, channel: int, note: int, velocity: int):
-        """Обработка Note On сообщения"""
-        # Если velocity = 0, это Note Off
+        """Handle Note On message"""
+        # If velocity = 0, this is Note Off
         if velocity == 0:
             self._handle_note_off(channel, note, velocity)
             return
-        
+            
         print(f"DEBUG: Handling Note On - channel={channel}, note={note}, velocity={velocity}")
         
-        # Проверяем максимальную полифонию
-        if len(self.active_notes) >= self.max_polyphony:
-            # Удаляем самый старый голос
-            oldest_key = next(iter(self.active_notes))
-            oldest_generator = self.active_notes[oldest_key]
-            oldest_generator.note_off()
-            del self.active_notes[oldest_key]
+        # Forward to channel renderer
+        self.channel_renderers[channel].note_on(note, velocity)
         
-        # Получаем состояние канала
-        channel_state = self.channel_states[channel]
-        print(f"DEBUG: Channel state - program={channel_state['program']}, bank={channel_state['bank']}")
-        
-        # Создаем новый тон-генератор
-        generator = self._create_tone_generator(
-            note=note,
-            velocity=velocity,
-            program=channel_state["program"],
-            channel=channel,
-            bank=channel_state["bank"]
-        )
-        
-        if generator:
-            print(f"DEBUG: Successfully created tone generator for note {note}")
-            # Сохраняем генератор
-            key = (channel, note)
-            self.active_notes[key] = generator
-            self.tone_generators.append(generator)
-        else:
-            print(f"DEBUG: Failed to create tone generator for note {note}")
-    
     def _handle_poly_pressure(self, channel: int, note: int, pressure: int):
-        """Обработка Poly Pressure (Key Aftertouch) сообщения"""
-        key = (channel, note)
-        if key in self.active_notes:
-            generator = self.active_notes[key]
-            generator.handle_key_aftertouch(note, pressure)
-        
-        # Обновляем состояние канала
+        """Handle Poly Pressure (Key Aftertouch) message"""
+        # Store in channel state
         self.channel_states[channel]["key_pressure"][note] = pressure
-    
+        # Note: Key pressure is handled per-note in the channel renderer if needed
+        
     def _handle_control_change(self, channel: int, controller: int, value: int):
-        """Обработка Control Change сообщения"""
-        # Обновляем состояние контроллера
+        """Handle Control Change message"""
+        # Update controller state
         self.channel_states[channel]["controllers"][controller] = value
         
-        # Обработка специфических контроллеров
+        # Handle specific controllers
         if controller == 1:  # Modulation Wheel
             self.channel_states[channel]["mod_wheel"] = value
         elif controller == 7:  # Volume
@@ -639,11 +599,11 @@ class XGSynthesizer:
             self.channel_states[channel]["portamento"] = (value >= 64)
         elif controller == 91:  # Reverb Send
             self.channel_states[channel]["reverb_send"] = value
-            # Передаем значение в эффект менеджер
+            # Pass value to effect manager
             self.effect_manager.set_channel_effect_parameter(channel, 0, 160, value)
         elif controller == 93:  # Chorus Send
             self.channel_states[channel]["chorus_send"] = value
-            # Передаем значение в эффект менеджер
+            # Pass value to effect manager
             self.effect_manager.set_channel_effect_parameter(channel, 0, 161, value)
         elif controller == 120:  # All Sound Off
             self._handle_all_sound_off(channel)
@@ -651,68 +611,60 @@ class XGSynthesizer:
             self._handle_reset_all_controllers(channel)
         elif controller == 123:  # All Notes Off
             self._handle_all_notes_off(channel)
-        
-        # Обработка RPN/NRPN
+            
+        # Handle RPN/NRPN
         if controller == self.RPN_MSB:
             self.rpn_states[channel]["msb"] = value
-            self.nrpn_states[channel]["msb"] = 127  # Сбрасываем NRPN
+            self.nrpn_states[channel]["msb"] = 127  # Reset NRPN
         elif controller == self.RPN_LSB:
             self.rpn_states[channel]["lsb"] = value
-            self.nrpn_states[channel]["lsb"] = 127  # Сбрасываем NRPN
+            self.nrpn_states[channel]["lsb"] = 127  # Reset NRPN
         elif controller == self.NRPN_MSB:
             self.nrpn_states[channel]["msb"] = value
-            self.rpn_states[channel]["msb"] = 127  # Сбрасываем RPN
+            self.rpn_states[channel]["msb"] = 127  # Reset RPN
         elif controller == self.NRPN_LSB:
             self.nrpn_states[channel]["lsb"] = value
-            self.rpn_states[channel]["lsb"] = 127  # Сбрасываем RPN
+            self.rpn_states[channel]["lsb"] = 127  # Reset RPN
         elif controller == self.DATA_ENTRY_MSB:
             self.data_entry_states[channel]["msb"] = value
             self._handle_data_entry(channel)
         elif controller == self.DATA_ENTRY_LSB:
             self.data_entry_states[channel]["lsb"] = value
             self._handle_data_entry(channel)
+            
+        # Forward to channel renderer
+        self.channel_renderers[channel].control_change(controller, value)
         
-        # Передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
-            if generator.channel == channel:
-                generator.handle_controller_change(controller, value)
-    
     def _handle_program_change(self, channel: int, program: int):
-        """Обработка Program Change сообщения"""
+        """Handle Program Change message"""
         self.channel_states[channel]["program"] = program
         
-        # Для канала барабанов (9) устанавливаем банк барабанов
+        # For drum channel (9), set drum bank
         if channel == 9:
             self.channel_states[channel]["bank"] = 128
+            
+        # Forward to channel renderer
+        self.channel_renderers[channel].program_change(program)
         
-        # Передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
-            if generator.channel == channel:
-                generator.handle_program_change(program)
-    
     def _handle_channel_pressure(self, channel: int, pressure: int):
-        """Обработка Channel Pressure (Aftertouch) сообщения"""
+        """Handle Channel Pressure (Aftertouch) message"""
         self.channel_states[channel]["channel_pressure"] = pressure
         
-        # Передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
-            if generator.channel == channel:
-                generator.handle_aftertouch(pressure)
-    
+        # Forward to channel renderer
+        self.channel_renderers[channel].channel_pressure(pressure)
+        
     def _handle_pitch_bend(self, channel: int, lsb: int, msb: int):
-        """Обработка Pitch Bend сообщения"""
-        # 14-битное значение pitch bend
+        """Handle Pitch Bend message"""
+        # 14-bit pitch bend value
         value = (msb << 7) | lsb
         self.channel_states[channel]["pitch_bend"] = value
         
-        # Передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
-            if generator.channel == channel:
-                generator.handle_pitch_bend(value)
-    
+        # Forward to channel renderer
+        self.channel_renderers[channel].pitch_bend(lsb, msb)
+        
     def _handle_data_entry(self, channel: int):
-        """Обработка Data Entry для RPN/NRPN"""
-        # Получаем текущие состояния
+        """Handle Data Entry for RPN/NRPN"""
+        # Get current states
         rpn_msb = self.rpn_states[channel]["msb"]
         rpn_lsb = self.rpn_states[channel]["lsb"]
         nrpn_msb = self.nrpn_states[channel]["msb"]
@@ -720,207 +672,206 @@ class XGSynthesizer:
         data_msb = self.data_entry_states[channel]["msb"]
         data_lsb = self.data_entry_states[channel]["lsb"]
         
-        # Проверяем, что RPN или NRPN установлены
+        # Check if RPN or NRPN is set
         if rpn_msb != 127 and rpn_lsb != 127:
-            # Обрабатываем RPN
+            # Process RPN
             self._handle_rpn(channel, rpn_msb, rpn_lsb, data_msb, data_lsb)
         elif nrpn_msb != 127 and nrpn_lsb != 127:
-            # Обрабатываем NRPN
+            # Process NRPN
             self._handle_nrpn(channel, nrpn_msb, nrpn_lsb, data_msb, data_lsb)
-    
+            
     def _handle_rpn(self, channel: int, rpn_msb: int, rpn_lsb: int, data_msb: int, data_lsb: int):
-        """Обработка Registered Parameter Number"""
-        # Передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
-            if generator.channel == channel:
-                generator.handle_rpn(rpn_msb, rpn_lsb, data_msb, data_lsb)
-    
+        """Handle Registered Parameter Number"""
+        # Forward to channel renderer
+        # Note: RPN handling is done in the channel renderer
+        pass
+        
     def _handle_nrpn(self, channel: int, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int):
-        """Обработка Non-Registered Parameter Number"""
-        # Проверяем, является ли это NRPN параметром эффекта
-        # Передаем в effect manager для обработки параметров эффектов
+        """Handle Non-Registered Parameter Number"""
+        # Check if this is an effect parameter NRPN
+        # Forward to effect manager for effect parameter processing
         self.effect_manager.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb, channel)
         
-        # Проверяем, является ли это барабанным параметром
+        # Check if this is a drum parameter
         if channel == self.DRUM_SETUP_CHANNEL:
             self._handle_drum_setup_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb)
+            
+        # Also forward to channel renderer
+        # Note: NRPN handling is done in the channel renderer
+        pass
         
-        # Также передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
-            if generator.channel == channel:
-                generator.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb)
-    
     def _handle_drum_setup_nrpn(self, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int):
-        """Обработка NRPN параметров барабанов через канал настройки (16)"""
-        # 14-битное значение данных
+        """Handle NRPN drum parameters through setup channel (16)"""
+        # 14-bit data value
         data = (data_msb << 7) | data_lsb
         
-        # Получаем номер ноты барабана из текущего состояния канала настройки
+        # Get drum note from current setup channel state
         drum_note = self.channel_states[self.DRUM_SETUP_CHANNEL].get("current_drum_note", 36)
         
-        # Обработка различных параметров барабана
+        # Process various drum parameters
         if nrpn_lsb == self.DRUM_NOTE_TUNE:
-            # Настройка высоты барабана (-64..+63 полутона)
-            tune = (data - 8192) / 100.0  # Преобразуем в полутона
-            # Применяем параметр ко всем каналам барабанов
+            # Drum pitch tuning (-64..+63 semitones)
+            tune = (data - 8192) / 100.0  # Convert to semitones
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["tune"] = tune
         elif nrpn_lsb == self.DRUM_NOTE_LEVEL:
-            # Уровень барабана (0..127)
+            # Drum level (0..127)
             level = data / 127.0
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["level"] = level
         elif nrpn_lsb == self.DRUM_NOTE_PAN:
-            # Панорамирование барабана (-64..+63)
+            # Drum panning (-64..+63)
             pan = (data - 8192) / 8192.0
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["pan"] = pan
         elif nrpn_lsb == self.DRUM_NOTE_REVERB:
-            # Посылка реверберации барабана (0..127)
+            # Drum reverb send (0..127)
             reverb = data / 127.0
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["reverb_send"] = reverb
         elif nrpn_lsb == self.DRUM_NOTE_CHORUS:
-            # Посылка хора барабана (0..127)
+            # Drum chorus send (0..127)
             chorus = data / 127.0
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["chorus_send"] = chorus
         elif nrpn_lsb == self.DRUM_NOTE_VARIATION:
-            # Посылка вариаций барабана (0..127)
+            # Drum variation send (0..127)
             variation = data / 127.0
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["variation_send"] = variation
         elif nrpn_lsb == self.DRUM_NOTE_KEY_ASSIGN:
-            # Назначение клавиш барабана (0..127)
+            # Drum key assignment (0..127)
             key_assign = data
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["key_assign"] = key_assign
         elif nrpn_lsb == self.DRUM_NOTE_FILTER_CUTOFF:
-            # Частота среза фильтра барабана (0..127)
+            # Drum filter cutoff frequency (0..127)
             cutoff = 20 + data * 150  # 20Hz to 19020Hz
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["filter_cutoff"] = cutoff
         elif nrpn_lsb == self.DRUM_NOTE_FILTER_RESONANCE:
-            # Резонанс фильтра барабана (0..127)
+            # Drum filter resonance (0..127)
             resonance = data / 64.0
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["filter_resonance"] = resonance
         elif nrpn_lsb == self.DRUM_NOTE_EG_ATTACK:
-            # Атака огибающей барабана (0..127)
+            # Drum envelope attack (0..127)
             attack = data * 0.05  # 0 to 6.35 seconds
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["eg_attack"] = attack
         elif nrpn_lsb == self.DRUM_NOTE_EG_DECAY:
-            # Спад огибающей барабана (0..127)
+            # Drum envelope decay (0..127)
             decay = data * 0.05  # 0 to 6.35 seconds
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["eg_decay"] = decay
         elif nrpn_lsb == self.DRUM_NOTE_EG_RELEASE:
-            # Релиз огибающей барабана (0..127)
+            # Drum envelope release (0..127)
             release = data * 0.05  # 0 to 6.35 seconds
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["eg_release"] = release
         elif nrpn_lsb == self.DRUM_NOTE_PITCH_COARSE:
-            # Грубая настройка питча барабана (-64..+63 полутона)
+            # Drum pitch coarse tuning (-64..+63 semitones)
             pitch_coarse = (data - 8192) / 100.0
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["pitch_coarse"] = pitch_coarse
         elif nrpn_lsb == self.DRUM_NOTE_PITCH_FINE:
-            # Точная настройка питча барабана (-64..+63 цента)
+            # Drum pitch fine tuning (-64..+63 cents)
             pitch_fine = (data - 8192) * 0.5
-            # Применяем параметр ко всем каналам барабанов
+            # Apply parameter to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["pitch_fine"] = pitch_fine
         elif nrpn_lsb == self.DRUM_KIT_SELECT_LSB:
-            # Выбор барабанного набора
+            # Drum kit selection
             kit = data
-            # Применяем ко всем каналам барабанов
+            # Apply to all drum channels
             for ch in range(16):
                 if ch == 9 or self.channel_states[ch].get("bank") == 128:
                     self.channel_states[ch]["drum_kit"] = kit
-    
+                    
     def get_drum_instrument_name(self, channel: int, note: int) -> Optional[str]:
         """
-        Получение имени барабанного инструмента.
+        Get drum instrument name.
         
         Args:
-            channel: MIDI канал
-            note: MIDI нота
+            channel: MIDI channel
+            note: MIDI note
             
         Returns:
-            Имя барабанного инструмента или None
+            Drum instrument name or None
         """
         if self.sf2_manager:
-            # Для барабанного канала создаем временный тон-генератор для получения карты
+            # For drum channel, create temporary tone generator to get map
             is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
             if is_drum:
+                from tg import DrumNoteMap  # Import from original tg module
                 drum_map = DrumNoteMap()
                 return drum_map.get_instrument_name(note)
         return None
-    
+        
     def set_drum_parameter(self, channel: int, note: int, parameter: str, value: float):
         """
-        Установка параметра барабанного инструмента.
+        Set drum instrument parameter.
         
         Args:
-            channel: MIDI канал
-            note: MIDI нота барабана
-            parameter: имя параметра ("tune", "level", "pan", etc.)
-            value: значение параметра
+            channel: MIDI channel
+            note: Drum note
+            parameter: Parameter name ("tune", "level", "pan", etc.)
+            value: Parameter value
         """
         if channel not in range(16):
             return
@@ -934,23 +885,21 @@ class XGSynthesizer:
             
         self.drum_parameters[channel][note][parameter] = value
         
-        # Обновляем параметры активных тон-генераторов
-        for generator in self.tone_generators:
-            if generator.channel == channel and generator.note == note and generator.is_drum:
-                # Передаем параметры в тон-генератор
-                generator.set_drum_instrument_parameters(note, self.drum_parameters[channel][note])
-    
+        # Update channel renderer parameters
+        self.channel_renderers[channel].set_drum_instrument_parameters(note, 
+                                                                     self.drum_parameters[channel][note])
+                                                                     
     def get_drum_parameter(self, channel: int, note: int, parameter: str) -> Optional[float]:
         """
-        Получение параметра барабанного инструмента.
+        Get drum instrument parameter.
         
         Args:
-            channel: MIDI канал
-            note: MIDI нота барабана
-            parameter: имя параметра
+            channel: MIDI channel
+            note: Drum note
+            parameter: Parameter name
             
         Returns:
-            Значение параметра или None
+            Parameter value or None
         """
         if channel not in range(16):
             return None
@@ -962,186 +911,111 @@ class XGSynthesizer:
         if note in self.drum_parameters[channel]:
             return self.drum_parameters[channel][note].get(parameter, None)
         return None
-    
+        
     def set_current_drum_note(self, channel: int, note: int):
         """
-        Установка текущей ноты барабана для настройки параметров.
+        Set current drum note for parameter setup.
         
         Args:
-            channel: MIDI канал (должен быть каналом настройки барабанов - 16)
-            note: MIDI нота барабана
+            channel: MIDI channel (should be drum setup channel - 16)
+            note: Drum note
         """
         if channel == self.DRUM_SETUP_CHANNEL:
             self.channel_states[channel]["current_drum_note"] = note
-    
+            # Also set in channel renderer
+            self.channel_renderers[channel].set_current_drum_note(note)
+            
     def _handle_yamaha_sysex(self, data: List[int]):
-        """Обработка Yamaha SYSEX сообщений"""
+        """Handle Yamaha SYSEX messages"""
         if len(data) < 6:
             return
-        
-        # Извлекаем параметры SysEx сообщения
+            
+        # Extract SysEx message parameters
         device_id = data[1] if len(data) > 1 else 0
         sub_status = data[2] if len(data) > 2 else 0
         command = data[3] if len(data) > 3 else 0
         
-        # Передаем сообщение менеджеру эффектов
+        # Forward message to effect manager
         self.effect_manager.handle_sysex(0x43, data[1:])  # 0x43 - Yamaha manufacturer ID
         
-        # Передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
+        # Forward message to all channel renderers
+        for renderer in self.channel_renderers:
             try:
-                generator.handle_sysex(0x43, data[1:])  # 0x43 - Yamaha manufacturer ID
+                renderer.sysex([0x43], data[1:])  # 0x43 - Yamaha manufacturer ID
             except Exception as e:
-                print(f"Ошибка при обработке SysEx в тон-генераторе: {e}")
-
-    
+                print(f"Error processing SysEx in channel renderer: {e}")
+                
     def _handle_all_sound_off(self, channel: int):
-        """Обработка All Sound Off контроллера"""
-        # Останавливаем все активные ноты на канале
-        keys_to_remove = []
-        for key, generator in self.active_notes.items():
-            if key[0] == channel:
-                generator.note_off()
-                keys_to_remove.append(key)
+        """Handle All Sound Off controller"""
+        # Stop all active notes on channel
+        self.channel_renderers[channel].all_sound_off()
         
-        for key in keys_to_remove:
-            del self.active_notes[key]
-    
     def _handle_reset_all_controllers(self, channel: int):
-        """Обработка Reset All Controllers контроллера"""
-        # Сбрасываем состояние контроллеров канала
+        """Handle Reset All Controllers controller"""
+        # Reset channel state
         self.channel_states[channel] = self._create_channel_state()
         
-        # Сбрасываем RPN/NRPN состояния
+        # Reset RPN/NRPN states
         self.rpn_states[channel] = {"msb": 127, "lsb": 127}
         self.nrpn_states[channel] = {"msb": 127, "lsb": 127}
         self.data_entry_states[channel] = {"msb": 0, "lsb": 0}
         
-        # Сбрасываем параметры эффектов в effect manager
+        # Reset effect parameters in effect manager
         self.effect_manager.set_current_nrpn_channel(channel)
         self.effect_manager.set_channel_effect_parameter(channel, 0, 160, 40)  # Reverb send
         self.effect_manager.set_channel_effect_parameter(channel, 0, 161, 0)   # Chorus send
         
-        # Сбрасываем барабанные параметры
+        # Reset drum parameters
         self.drum_parameters[channel] = {}
         
-        # Передаем сообщение активным тон-генераторам
-        for generator in self.tone_generators:
-            if generator.channel == channel:
-                # Сбрасываем контроллеры в тон-генераторе
-                pass  # Реализация зависит от внутренней структуры тон-генератора
-    
+        # Forward to channel renderer
+        # Note: Controller reset is handled in the channel renderer
+        
     def _handle_all_notes_off(self, channel: int):
-        """Обработка All Notes Off контроллера"""
-        # Останавливаем все активные ноты на канале
-        keys_to_remove = []
-        for key, generator in self.active_notes.items():
-            if key[0] == channel:
-                generator.note_off()
-                keys_to_remove.append(key)
+        """Handle All Notes Off controller"""
+        # Stop all active notes on channel
+        self.channel_renderers[channel].all_notes_off()
         
-        for key in keys_to_remove:
-            del self.active_notes[key]
-    
-    def _create_tone_generator(self, note: int, velocity: int, program: int, channel: int, bank: int) -> Optional[XGToneGenerator]:
-        """Создание нового тон-генератора"""
-        # Определяем, барабан ли это (канал 9 или специальный банк)
-        is_drum = (channel == 9) or (bank == 128)
-        
-        # Получаем матрицу модуляции из SoundFont (если доступна)
-        modulation_matrix = []
-        if self.sf2_manager and hasattr(self.sf2_manager, 'get_modulation_matrix'):
-            try:
-                modulation_matrix = self.sf2_manager.get_modulation_matrix(program, bank)
-            except Exception as e:
-                print(f"Warning: Failed to get modulation matrix: {e}")
-                modulation_matrix = []
-        
-        # Создаем тон-генератор
-        try:
-            generator = XGToneGenerator(
-                wavetable=self.sf2_manager,  # Может быть None
-                note=note,
-                velocity=velocity,
-                program=program,
-                channel=channel,
-                sample_rate=self.sample_rate,
-                is_drum=is_drum,
-                modulation_matrix=modulation_matrix,
-                bank=bank
-            )
-            
-            # Устанавливаем уникальный ID
-            generator.id = self.generator_id_counter
-            self.generator_id_counter += 1
-            
-            # Если это барабан, применяем барабанные параметры
-            if is_drum and note in self.drum_parameters[channel]:
-                drum_params = self.drum_parameters[channel][note]
-                if "tune" in drum_params:
-                    generator.drum_tune = drum_params["tune"]
-                if "level" in drum_params:
-                    generator.drum_level = drum_params["level"]
-                if "pan" in drum_params:
-                    generator.drum_pan = (drum_params["pan"] + 1) / 2  # Преобразуем из -1..1 в 0..1
-            
-            print(f"DEBUG: Created tone generator for note {note}, channel {channel}, program {program}, bank {bank}")
-            return generator
-        except Exception as e:
-            print(f"ERROR: Failed to create tone generator for note {note}: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-    
     def generate_audio_block(self, block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Генерация аудио блока в немедленном режиме или с обработкой сообщений на границе блока.
-        Для истинной покадровой точности используйте generate_audio_block_buffered().
+        Generate audio block in immediate mode or with message processing at block boundary.
+        For true frame-by-frame accuracy, use generate_audio_block_buffered().
         
         Args:
-            block_size: размер блока в сэмплах (если None, используется значение по умолчанию)
+            block_size: Block size in samples (if None, uses default value)
             
         Returns:
-            кортеж (left_channel, right_channel) с аудио данными
+            Tuple (left_channel, right_channel) with audio data
         """
         if block_size is None:
             block_size = self.block_size
-        
+            
         with self.lock:
-            # Обрабатываем все буферизованные сообщения до текущего времени
-            # Это обеспечивает совместимость с предыдущим поведением
+            # Process all buffered messages up to current time
+            # This ensures compatibility with previous behavior
             self.process_buffered_messages(self._current_time)
             self.process_buffered_sysex(self._current_time)
             
-            # Генерируем аудио для каждого активного тон-генератора
-            active_generators = []
-            for generator in self.tone_generators:
-                if generator.is_active():
-                    active_generators.append(generator)
-            
-            # Обновляем список тон-генераторов
-            self.tone_generators = active_generators
-            
-            # Создаем буферы для каждого MIDI канала (16 каналов)
+            # Create buffers for each MIDI channel (16 channels)
             channel_buffers = [[(0.0, 0.0) for _ in range(block_size)] for _ in range(16)]
             
-            # Генерируем аудио для каждого активного генератора и распределяем по каналам
-            for generator in active_generators:
-                channel = generator.channel
-                if 0 <= channel < 16:  # Проверяем корректность номера канала
+            # Generate audio for each channel renderer
+            for channel in range(16):
+                renderer = self.channel_renderers[channel]
+                if renderer.is_active():
                     try:
-                        # Генерируем блок аудио для этого генератора
+                        # Generate block audio for this renderer
                         for i in range(block_size):
-                            l, r = generator.generate_sample()
-                            # Добавляем к существующему аудио на этом канале
+                            l, r = renderer.generate_sample()
+                            # Add to existing audio on this channel
                             existing_l, existing_r = channel_buffers[channel][i]
                             channel_buffers[channel][i] = (existing_l + l, existing_r + r)
                     except Exception as e:
-                        print(f"Ошибка при генерации сэмпла: {e}")
-                        # Отключаем проблемный генератор
-                        generator.active = False
-            
-            # Применяем мастер-громкость и ограничение к каждому каналу
+                        print(f"Error generating sample: {e}")
+                        # Disable problematic renderer
+                        renderer.active = False
+                        
+            # Apply master volume and limiting to each channel
             for channel in range(16):
                 channel_state = self.channel_states[channel]
                 volume = channel_state["volume"] / 127.0
@@ -1152,29 +1026,29 @@ class XGSynthesizer:
                     l, r = channel_buffers[channel][i]
                     l *= channel_volume
                     r *= channel_volume
-                    # Ограничиваем значения
+                    # Limit values
                     l = max(-1.0, min(1.0, l))
                     r = max(-1.0, min(1.0, r))
                     channel_buffers[channel][i] = (l, r)
-            
-            # Применяем эффекты
+                    
+            # Apply effects
             try:
-                # Подготавливаем многоканальные входные данные для эффектов
-                # Создаем 16 каналов, каждый с block_size сэмплами
+                # Prepare multichannel input data for effects
+                # Create 16 channels, each with block_size samples
                 input_channels = []
                 for channel in range(16):
                     channel_samples = []
                     for i in range(block_size):
                         channel_samples.append(channel_buffers[channel][i])
                     input_channels.append(channel_samples)
-                
-                # Обрабатываем эффекты для всех 16 каналов
+                    
+                # Process effects for all 16 channels
                 effected_channels = self.effect_manager.process_audio(
                     input_channels,
                     block_size
                 )
                 
-                # Смешиваем все каналы в один стерео выход
+                # Mix all channels into single stereo output
                 left_buffer = np.zeros(block_size, dtype=np.float32)
                 right_buffer = np.zeros(block_size, dtype=np.float32)
                 
@@ -1182,15 +1056,15 @@ class XGSynthesizer:
                     for i in range(block_size):
                         left_buffer[i] += effected_channels[channel][i][0]
                         right_buffer[i] += effected_channels[channel][i][1]
-                
-                # Ограничиваем конечный микс
+                        
+                # Limit final mix
                 for i in range(block_size):
                     left_buffer[i] = max(-1.0, min(1.0, left_buffer[i]))
                     right_buffer[i] = max(-1.0, min(1.0, right_buffer[i]))
                     
             except Exception as e:
-                print(f"Ошибка при обработке эффектов: {e}")
-                # Если эффекты не работают, возвращаем необработанный микс
+                print(f"Error processing effects: {e}")
+                # If effects don't work, return unprocessed mix
                 left_buffer = np.zeros(block_size, dtype=np.float32)
                 right_buffer = np.zeros(block_size, dtype=np.float32)
                 
@@ -1198,87 +1072,87 @@ class XGSynthesizer:
                     for i in range(block_size):
                         left_buffer[i] += channel_buffers[channel][i][0]
                         right_buffer[i] += channel_buffers[channel][i][1]
-        
+                        
         return left_buffer, right_buffer
-    
+        
     def generate_audio_block_at_time(self, block_size: Optional[int] = None, current_time: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Генерация аудио блока с обработкой буферизованных сообщений.
+        Generate audio block with buffered message processing.
         
         Args:
-            block_size: размер блока в сэмплах (если None, используется значение по умолчанию)
-            current_time: текущее время в секундах для обработки буферизованных сообщений
+            block_size: Block size in samples (if None, uses default value)
+            current_time: Current time in seconds for buffered message processing
             
         Returns:
-            кортеж (left_channel, right_channel) с аудио данными
+            Tuple (left_channel, right_channel) with audio data
         """
-        # Обрабатываем буферизованные MIDI сообщения
+        # Process buffered MIDI messages
         self.process_buffered_messages(current_time)
         
-        # Обрабатываем буферизованные SYSEX сообщения
+        # Process buffered SYSEX messages
         self.process_buffered_sysex(current_time)
         
-        # Генерируем аудио блок
+        # Generate audio block
         return self.generate_audio_block(block_size)
-    
+        
     def generate_audio_block_sample_accurate(self, block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Генерация аудио блока с покадровой (sample-accurate) обработкой MIDI сообщений.
-        Каждый сэмпл аудио обрабатывается отдельно с проверкой наличия MIDI сообщений в этот момент.
+        Generate audio block with frame-by-frame (sample-accurate) MIDI message processing.
+        Each audio sample is processed separately with checking for MIDI messages at that moment.
         
         Args:
-            block_size: размер блока в сэмплах (если None, используется значение по умолчанию)
+            block_size: Block size in samples (if None, uses default value)
             
         Returns:
-            кортеж (left_channel, right_channel) с аудио данными
+            Tuple (left_channel, right_channel) with audio data
         """
         if block_size is None:
             block_size = self.block_size
-        
+            
         with self.lock:
-            # Устанавливаем время начала блока
+            # Set block start time
             self._block_start_time = self._current_time
             
-            # Создаем буферы для каждого сэмпла в блоке
+            # Create buffers for each sample in block
             left_buffer = np.zeros(block_size, dtype=np.float32)
             right_buffer = np.zeros(block_size, dtype=np.float32)
             
-            # Обрабатываем каждый сэмпл отдельно
+            # Process each sample separately
             for i in range(block_size):
-                # Вычисляем время для текущего сэмпла
+                # Calculate time for current sample
                 sample_time = self._block_start_time + (i / self.sample_rate)
                 
-                # Обрабатываем все MIDI сообщения, время которых наступило для этого сэмпла
+                # Process all MIDI messages whose time has arrived for this sample
                 self._process_message_at_time(sample_time)
                 
-                # Генерируем аудио для этого сэмпла
+                # Generate audio for this sample
                 left_sample, right_sample = self._generate_single_sample()
                 
-                # Сохраняем сэмпл в буфер
+                # Save sample to buffer
                 left_buffer[i] = left_sample
                 right_buffer[i] = right_sample
-            
-            # Обновляем текущее время
+                
+            # Update current time
             self._current_time = self._block_start_time + (block_size / self.sample_rate)
             
-            # Применяем эффекты ко всему блоку
+            # Apply effects to entire block
             try:
-                # Подготавливаем многоканальные входные данные для эффектов
-                # Создаем 16 каналов, каждый с block_size сэмплами
+                # Prepare multichannel input data for effects
+                # Create 16 channels, each with block_size samples
                 input_channels = []
                 for channel in range(16):
                     channel_samples = []
                     for i in range(block_size):
                         channel_samples.append((left_buffer[i], right_buffer[i]))
                     input_channels.append(channel_samples)
-                
-                # Обрабатываем эффекты для всех 16 каналов
+                    
+                # Process effects for all 16 channels
                 effected_channels = self.effect_manager.process_audio(
                     input_channels,
                     block_size
                 )
                 
-                # Смешиваем все каналы в один стерео выход
+                # Mix all channels into single stereo output
                 left_result = np.zeros(block_size, dtype=np.float32)
                 right_result = np.zeros(block_size, dtype=np.float32)
                 
@@ -1286,8 +1160,8 @@ class XGSynthesizer:
                     for i in range(block_size):
                         left_result[i] += effected_channels[channel][i][0]
                         right_result[i] += effected_channels[channel][i][1]
-                
-                # Ограничиваем конечный микс
+                        
+                # Limit final mix
                 for i in range(block_size):
                     left_result[i] = max(-1.0, min(1.0, left_result[i]))
                     right_result[i] = max(-1.0, min(1.0, right_result[i]))
@@ -1295,140 +1169,135 @@ class XGSynthesizer:
                 return left_result, right_result
                 
             except Exception as e:
-                print(f"Ошибка при обработке эффектов: {e}")
-                # Если эффекты не работают, возвращаем необработанный микс
+                print(f"Error processing effects: {e}")
+                # If effects don't work, return unprocessed mix
                 return left_buffer, right_buffer
-    
+                
     def _generate_audio_block_sample_accurate(self, block_size: int) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Генерация аудио блока с покадровой (sample-accurate) обработкой MIDI сообщений.
-        Каждый сэмпл аудио обрабатывается отдельно с проверкой наличия MIDI сообщений в этот момент.
+        Generate audio block with frame-by-frame (sample-accurate) MIDI message processing.
+        Each audio sample is processed separately with checking for MIDI messages at that moment.
         
         Args:
-            block_size: размер блока в сэмплах
+            block_size: Block size in samples
             
         Returns:
-            кортеж (left_channel, right_channel) с аудио данными
+            Tuple (left_channel, right_channel) with audio data
         """
-        # Создаем временные метки для каждого сэмпла в блоке
+        # Create timestamps for each sample in block
         self._sample_times = [self._block_start_time + (i / self.sample_rate) 
                              for i in range(block_size)]
         
-        # Буферы для левого и правого каналов
+        # Buffers for left and right channels
         left_buffer = np.zeros(block_size, dtype=np.float32)
         right_buffer = np.zeros(block_size, dtype=np.float32)
         
-        # Обрабатываем каждый сэмпл отдельно
+        # Process each sample separately
         for sample_index in range(block_size):
             sample_time = self._sample_times[sample_index]
             
-            # Обрабатываем все MIDI сообщения, время которых наступило для этого сэмпла
-            self._process_messages_at_time(sample_time)
+            # Process all MIDI messages whose time has arrived for this sample
+            self._process_message_at_time(sample_time)
             
-            # Генерируем аудио для этого сэмпла
+            # Generate audio for this sample
             left_sample, right_sample = self._generate_single_sample()
             
-            # Сохраняем сэмпл в буфер
+            # Save sample to buffer
             left_buffer[sample_index] = left_sample
             right_buffer[sample_index] = right_sample
-        
-        # Применяем эффекты ко всему блоку
+            
+        # Apply effects to entire block
         left_buffer, right_buffer = self._apply_effects_to_block(left_buffer, right_buffer, block_size)
         
         return left_buffer, right_buffer
-    
+        
     def _process_message_at_time(self, sample_time: float):
         """
-        Обработка всех MIDI сообщений, время которых наступило к указанному времени.
+        Process all MIDI messages whose time has arrived by specified time.
         
         Args:
-            sample_time: время в секундах для обработки сообщений
+            sample_time: Time in seconds to process messages
         """
-        # Обрабатываем регулярные MIDI сообщения
+        # Process regular MIDI messages
         while self._message_heap and self._message_heap[0][0] <= sample_time:
             _, _, status, data1, data2 = heapq.heappop(self._message_heap)
             self.send_midi_message(status, data1, data2)
-        
-        # Обрабатываем SYSEX сообщения
+            
+        # Process SYSEX messages
         while self._sysex_heap and self._sysex_heap[0][0] <= sample_time:
             _, _, data = heapq.heappop(self._sysex_heap)
             self.send_sysex(data)
-    
+            
     def _generate_single_sample(self) -> Tuple[float, float]:
         """
-        Генерация одного аудио сэмпла со всех активных тон-генераторов.
+        Generate one audio sample from all active channel renderers.
         
         Returns:
-            кортеж (left_sample, right_sample) с аудио данными
+            Tuple (left_sample, right_sample) with audio data
         """
-        # Генерируем аудио для каждого активного тон-генератора
-        active_generators = []
+        # Generate audio from each active channel renderer
         left_sum = 0.0
         right_sum = 0.0
         
-        for generator in self.tone_generators:
-            if generator.is_active():
-                active_generators.append(generator)
+        for renderer in self.channel_renderers:
+            if renderer.is_active():
                 try:
-                    l, r = generator.generate_sample()
+                    l, r = renderer.generate_sample()
                     left_sum += l
                     right_sum += r
                 except Exception as e:
-                    print(f"Ошибка при генерации сэмпла: {e}")
-                    # Отключаем проблемный генератор
-                    generator.active = False
-        
-        # Обновляем список тон-генераторов
-        self.tone_generators = active_generators
-        
-        # Применяем мастер-громкость
+                    print(f"Error generating sample: {e}")
+                    # Disable problematic renderer
+                    renderer.active = False
+                    
+        # Apply master volume
         left_sum *= self.master_volume
         right_sum *= self.master_volume
         
-        # Ограничиваем значения
+        # Limit values
         left_sum = max(-1.0, min(1.0, left_sum))
         right_sum = max(-1.0, min(1.0, right_sum))
         
         return left_sum, right_sum
-    
+        
     def _apply_effects_to_block(self, left_buffer: np.ndarray, right_buffer: np.ndarray, 
                               block_size: int) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Применение эффектов к аудио блоку.
+        Apply effects to audio block.
         
         Args:
-            left_buffer: буфер левого канала
-            right_buffer: буфер правого канала
-            block_size: размер блока в сэмплах
+            left_buffer: Left channel buffer
+            right_buffer: Right channel buffer
+            block_size: Block size in samples
             
         Returns:
-            кортеж (left_channel, right_channel) с обработанными аудио данными
+            Tuple (left_channel, right_channel) with processed audio data
         """
         try:
-            # Создаем многоканальные входные данные для эффектов
-            # Для простоты используем только первые 2 канала (стерео микс)
+            # Create multichannel input data for effects
+            # For simplicity, use only first 2 channels (stereo mix)
             input_channels = []
             
-            # Создаем 16 каналов (для каждого MIDI канала)
+            # Create 16 channels (for each MIDI channel)
             for channel in range(16):
                 channel_samples = []
-                # Для каждого сэмпла создаем кортеж (левый, правый)
-                # В реальной реализации здесь должна быть более сложная логика разделения каналов
+                # For each sample, create tuple (left, right)
+                # In real implementation, there should be more complex channel separation logic
                 for i in range(block_size):
-                    # Пока что смешиваем все в один канал, потом можно разделить по MIDI каналам
-                    if channel == 0:  # Основной стерео канал
+                    # For now, mix everything into channel 0, leave others empty
+                    if channel == 0:  # Main stereo channel
                         channel_samples.append((left_buffer[i], right_buffer[i]))
                     else:
-                        channel_samples.append((0.0, 0.0))  # Пустые каналы
+                        channel_samples.append((0.0, 0.0))  # Empty channels
                 input_channels.append(channel_samples)
-            
-            # Обрабатываем эффекты для всех 16 каналов
+                
+            # Process effects for all 16 channels
             effected_channels = self.effect_manager.process_audio(
                 input_channels,
                 block_size
             )
             
-            # Смешиваем все каналы в один стерео выход
+            # Mix all channels into single stereo output
             left_result = np.zeros(block_size, dtype=np.float32)
             right_result = np.zeros(block_size, dtype=np.float32)
             
@@ -1436,8 +1305,8 @@ class XGSynthesizer:
                 for i in range(block_size):
                     left_result[i] += effected_channels[channel][i][0]
                     right_result[i] += effected_channels[channel][i][1]
-            
-            # Ограничиваем конечный микс
+                    
+            # Limit final mix
             for i in range(block_size):
                 left_result[i] = max(-1.0, min(1.0, left_result[i]))
                 right_result[i] = max(-1.0, min(1.0, right_result[i]))
@@ -1445,180 +1314,129 @@ class XGSynthesizer:
             return left_result, right_result
             
         except Exception as e:
-            print(f"Ошибка при обработке эффектов: {e}")
-            # Если эффекты не работают, возвращаем необработанный микс
+            print(f"Error processing effects: {e}")
+            # If effects don't work, return unprocessed mix
             return left_buffer, right_buffer
-    
+            
     def get_active_voice_count(self) -> int:
-        """Получение количества активных голосов"""
+        """Get number of active voices"""
         with self.lock:
-            return len([g for g in self.tone_generators if g.is_active()])
-    
+            count = 0
+            for renderer in self.channel_renderers:
+                if renderer.is_active():
+                    count += 1
+            return count
+            
     def get_available_programs(self) -> List[Tuple[int, int, str]]:
         """
-        Получение списка доступных программ (пресетов).
+        Get list of available programs (presets).
         
         Returns:
-            Список кортежей (bank, program, name)
+            List of tuples (bank, program, name)
         """
         if self.sf2_manager:
             with self.lock:
                 return self.sf2_manager.get_available_presets()
         return []
-    
-    def get_drum_instrument_name(self, channel: int, note: int) -> Optional[str]:
-        """
-        Получение имени барабанного инструмента.
         
-        Args:
-            channel: MIDI канал
-            note: MIDI нота
-            
-        Returns:
-            Имя барабанного инструмента или None
-        """
-        if self.sf2_manager:
-            # Для барабанного канала создаем временный тон-генератор для получения карты
-            is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
-            if is_drum:
-                drum_map = DrumNoteMap()
-                return drum_map.get_instrument_name(note)
-        return None
-    
-    def set_drum_parameter(self, channel: int, note: int, parameter: str, value: float):
-        """
-        Установка параметра барабанного инструмента.
-        
-        Args:
-            channel: MIDI канал
-            note: MIDI нота барабана
-            parameter: имя параметра ("tune", "level", "pan")
-            value: значение параметра
-        """
-        if channel not in range(16):
-            return
-            
-        is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
-        if not is_drum:
-            return
-            
-        if note not in self.drum_parameters[channel]:
-            self.drum_parameters[channel][note] = {}
-            
-        self.drum_parameters[channel][note][parameter] = value
-        
-        # Обновляем параметры активных тон-генераторов
-        for generator in self.tone_generators:
-            if generator.channel == channel and generator.note == note and generator.is_drum:
-                if parameter == "tune":
-                    generator.drum_tune = value
-                elif parameter == "level":
-                    generator.drum_level = value
-                elif parameter == "pan":
-                    generator.drum_pan = (value + 1) / 2  # Преобразуем из -1..1 в 0..1
-    
     def reset(self):
-        """Полный сброс синтезатора"""
+        """Full synthesizer reset"""
         with self.lock:
-            # Останавливаем все активные ноты
-            for generator in self.tone_generators:
+            # Stop all active notes
+            for renderer in self.channel_renderers:
                 try:
-                    generator.note_off()
+                    renderer.all_sound_off()
                 except:
                     pass
-            
-            # Очищаем все структуры
-            self.tone_generators.clear()
-            self.active_notes.clear()
-            
-            # Сбрасываем состояния каналов
+                    
+            # Reset channel states
             self.channel_states = [self._create_channel_state() for _ in range(16)]
             
-            # Сбрасываем RPN/NRPN состояния
+            # Reset RPN/NRPN states
             self.rpn_states = [{"msb": 127, "lsb": 127} for _ in range(16)]
             self.nrpn_states = [{"msb": 127, "lsb": 127} for _ in range(16)]
             self.data_entry_states = [{"msb": 0, "lsb": 0} for _ in range(16)]
             
-            # Сбрасываем барабанные параметры
+            # Reset drum parameters
             self.drum_parameters = [{} for _ in range(16)]
             
-            # Сбрасываем эффекты
+            # Reset effects
             self.effect_manager.reset_effects()
             
-            # Сбрасываем буферы сообщений
+            # Clear message buffers
             self._message_heap.clear()
             self._sysex_heap.clear()
             
-            # Сбрасываем счетчики
+            # Reset counters
             self._message_priority_counter = 0
             self._current_time = 0.0
             self._block_start_time = 0.0
             self._sample_times.clear()
             
-            # Переинициализируем XG
+            # Reinitialize XG
             self._initialize_xg()
-    
+            
     def send_midi_message_at_sample(self, status: int, data1: int, data2: int, sample: int):
         """
-        Отправка MIDI сообщения в синтезатор с указанием сэмпла.
-        Сообщения буферизуются и обрабатываются при генерации аудио с покадровой точностью.
+        Send MIDI message to synthesizer with specified sample.
+        Messages are buffered and processed during audio generation with frame-by-frame accuracy.
         
         Args:
-            status: статус байт (включая номер канала)
-            data1: первый байт данных
-            data2: второй байт данных (для сообщений с двумя байтами данных)
-            sample: номер сэмпла для обработки сообщения (относительно начала текущего аудио блока)
+            status: Status byte (including channel number)
+            data1: First data byte
+            data2: Second data byte (for messages with two data bytes)
+            sample: Sample number to process message (relative to start of current audio block)
         """
         with self.lock:
-            # Преобразуем номер сэмпла в абсолютное время
+            # Convert sample number to absolute time
             message_time = self._block_start_time + (sample / self.sample_rate)
             
-            # Добавляем сообщение в кучу с уникальным приоритетом для стабильной сортировки
+            # Add message to heap with unique priority for stable sorting
             priority = self._message_priority_counter
             self._message_priority_counter += 1
             
             heapq.heappush(self._message_heap, (message_time, priority, status, data1, data2))
-    
+            
     def send_sysex_at_sample(self, data: List[int], sample: int):
         """
-        Отправка системного эксклюзивного сообщения с указанием сэмпла.
-        Сообщения буферизуются и обрабатываются при генерации аудио с покадровой точностью.
+        Send system exclusive message with specified sample.
+        Messages are buffered and processed during audio generation with frame-by-frame accuracy.
         
         Args:
-            data: данные SYSEX сообщения (включая F0 и F7)
-            sample: номер сэмпла для обработки сообщения (относительно начала текущего аудио блока)
+            data: SYSEX message data (including F0 and F7)
+            sample: Sample number to process message (relative to start of current audio block)
         """
         with self.lock:
-            # Преобразуем номер сэмпла в абсолютное время
+            # Convert sample number to absolute time
             message_time = self._block_start_time + (sample / self.sample_rate)
             
-            # Добавляем сообщение в кучу с уникальным приоритетом для стабильной сортировки
+            # Add message to heap with unique priority for stable sorting
             priority = self._message_priority_counter
             self._message_priority_counter += 1
             
             heapq.heappush(self._sysex_heap, (message_time, priority, data))
 
 
-# Пример использования:
+# Usage example:
 #
-# # Создание синтезатора
+# # Create synthesizer
 # synth = XGSynthesizer(sample_rate=48000, block_size=960)  # 20ms blocks at 48kHz
 #
-# # Установка SF2 файлов
+# # Set SF2 files
 # synth.set_sf2_files(["path/to/soundfont1.sf2", "path/to/soundfont2.sf2"])
 #
-# # Настройка черных списков и маппинга банков
+# # Set blacklists and bank mapping
 # synth.set_bank_blacklist("path/to/soundfont1.sf2", [120, 121, 122])
 # synth.set_preset_blacklist("path/to/soundfont1.sf2", [(0, 30), (0, 31)])
 # synth.set_bank_mapping("path/to/soundfont1.sf2", {1: 0, 2: 1})
 #
-# # Отправка MIDI сообщений с покадровой точностью
+# # Send MIDI messages with frame-by-frame accuracy
 # synth.send_midi_message_at_sample(0x90, 60, 100, 100)  # Note On: C4, velocity 100 at sample 100
 # synth.send_midi_message_at_sample(0x80, 60, 64, 200)   # Note Off: C4 at sample 200
 #
-# # Генерация аудио блока с покадровой обработкой
+# # Generate audio block with frame-by-frame processing
 # left_channel, right_channel = synth.generate_audio_block_sample_accurate(960)
 #
-# # Получение информации
+# # Get information
 # voice_count = synth.get_active_voice_count()
 # programs = synth.get_available_programs()
