@@ -937,11 +937,19 @@ class PartialGenerator:
         # Проверка, попадает ли нота в диапазон частичной структуры
         if not (self.key_range_low <= note <= self.key_range_high):
             self.active = False
+            self.amp_envelope = None
+            self.filter_envelope = None
+            self.pitch_envelope = None 
+            self.filter = None
             return
             
         # Проверка, попадает ли velocity в диапазон частичной структуры
         if not (self.velocity_range_low <= velocity <= self.velocity_range_high):
             self.active = False
+            self.amp_envelope = None
+            self.filter_envelope = None
+            self.pitch_envelope = None 
+            self.filter = None
             return
         
         # Инициализация фазы
@@ -1555,11 +1563,12 @@ class ChannelNote:
     def _initialize_envelopes(self):
         """Initialize envelopes for all partials"""
         for partial in self.partials:
-            partial.amp_envelope.note_on(self.velocity, self.note)
-            if partial.filter_envelope:
-                partial.filter_envelope.note_on(self.velocity, self.note)
-            if partial.pitch_envelope:
-                partial.pitch_envelope.note_on(self.velocity, self.note)
+            if partial.active:
+                partial.amp_envelope.note_on(self.velocity, self.note)
+                if partial.filter_envelope:
+                    partial.filter_envelope.note_on(self.velocity, self.note)
+                if partial.pitch_envelope:
+                    partial.pitch_envelope.note_on(self.velocity, self.note)
                 
     def note_off(self):
         """Handle note off for this note"""
@@ -1599,7 +1608,7 @@ class ChannelNote:
             ModulationSource.LFO1: self.lfos[0].step(),
             ModulationSource.LFO2: self.lfos[1].step(),
             ModulationSource.LFO3: self.lfos[2].step(),
-            ModulationSource.AMP_ENV: self.partials[0].amp_envelope.process() if self.partials else 0.0,
+            ModulationSource.AMP_ENV: self.partials[0].amp_envelope.process() if self.partials and self.partials[0].amp_envelope else 0.0,
             ModulationSource.FILTER_ENV: self.partials[0].filter_envelope.process() if self.partials and self.partials[0].filter_envelope else 0.0,
             ModulationSource.PITCH_ENV: self.partials[0].pitch_envelope.process() if self.partials and self.partials[0].pitch_envelope else 0.0,
             ModulationSource.KEY_PRESSURE: key_pressure / 127.0,
@@ -2029,6 +2038,7 @@ class XGChannelRenderer:
         self.volume = 100
         self.expression = 127
         self.pan = 64
+        self.balance = 64
         self.reverb_send = 40
         self.chorus_send = 0
         self.variation_send = 0
@@ -2054,6 +2064,8 @@ class XGChannelRenderer:
         self.portamento_mode = 0    # Off by default
         self.stereo_width = 0.5     # Center
         self.chorus_level = 0.0     # No chorus by default
+        self.mono_mode = False
+        self.poly_mode = True
         
         # Drum parameters
         self.drum_parameters: Dict[int, Dict[str, Any]] = {}  # note -> parameters
@@ -2112,7 +2124,7 @@ class XGChannelRenderer:
             "key_pressure": self.key_pressure_values.copy(),
             "pitch_bend_value": self.pitch_bend_value,
             "pitch_bend_range": self.pitch_bend_range,
-            "portamento_acrive": self.portamento_active,
+            "portamento_active": self.portamento_active,
         }
         
     def note_on(self, note: int, velocity: int):

@@ -286,7 +286,7 @@ class SF2Preset:
         self.library = 0
         self.genre = 0
         self.morphology = 0
-        self.zones = []  # Список SF2PresetZone
+        self.zones: List[SF2PresetZone] = []  # Список SF2PresetZone
 
 class SF2Instrument:
     """Представляет инструмент в SoundFont 2.0"""
@@ -295,4 +295,4 @@ class SF2Instrument:
     def __init__(self):
         self.name = "Default"
         self.instrument_bag_index = 0
-        self.zones = []  # Список SF2InstrumentZone
+        self.zones: List[SF2InstrumentZone] = []  # Список SF2InstrumentZone

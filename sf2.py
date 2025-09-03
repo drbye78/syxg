@@ -1094,11 +1094,11 @@ class Sf2WavetableManager:
             return None
         
         # Проверяем, есть ли данные о сэмпле в SoundFont
-        if 'sdta' not in soundfont.chunk_positions:
+        if 'sdta' not in soundfont.chunk_info:
             return None
         
         # Получаем позицию данных сэмпла
-        smpl_data_offset = soundfont.chunk_positions['sdta']
+        smpl_data_offset, _ = soundfont.chunk_info['sdta']
         
         # Определяем размер сэмпла в сэмплах (не в байтах)
         sample_length = sample_header.end - sample_header.start
@@ -1554,10 +1554,6 @@ class Sf2WavetableManager:
         
         # Preload the preset data if not already parsed
         try:
-            # Ensure preset data is parsed
-            with self.lock:
-                soundfont_obj._ensure_preset_parsed(preset_obj.preset_bag_index)
-            
             # Preload instrument data for all zones in the preset
             instruments = soundfont_obj.instruments
             for preset_zone in preset_obj.zones:

@@ -106,7 +106,7 @@ class XGEffectManager:
     FILTER_RESONANCE_SCALE = 0.01
     
     # Количество MIDI-каналов в мультитимбральном режиме
-    NUM_CHANNELS = 64
+    NUM_CHANNELS = 16
     
     # Сопоставление NRPN параметров XG для эффектов
     XG_EFFECT_NRPN_PARAMS = {
