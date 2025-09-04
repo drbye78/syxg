@@ -246,6 +246,10 @@ class MIDIToOGGConverter:
                     elif msg.type == "aftertouch":
                         midi_messages.append((seconds, 0xD0 + msg.channel, msg.value, 0))
 
+        # Sort both message lists by their timestamps to ensure proper chronological order
+        midi_messages.sort(key=lambda x: x[0])  # Sort by timestamp (first element)
+        sysex_messages.sort(key=lambda x: x[0])  # Sort by timestamp (first element)
+
         return midi_messages, sysex_messages
 
     def _process_audio_blocks(self, midi: mido.MidiFile, tempo_ratio: float = 1.0):
@@ -264,6 +268,10 @@ class MIDIToOGGConverter:
 
         # Send all messages to synthesizer in blocks using sample-accurate processing
         self.synth.send_midi_message_block(midi_messages, sysex_messages)
+        for m in midi_messages:
+            if 0x90 <= m[1] < 0xa0:
+                self.synth.set_buffered_mode_time(m[0])
+                break
 
         # Generate audio with proper timing using sample-accurate mode
         block_duration = self.block_size / self.sample_rate

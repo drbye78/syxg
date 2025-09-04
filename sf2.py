@@ -2,6 +2,7 @@ import struct
 import threading
 import numpy as np
 import os
+import math
 import warnings
 from collections import OrderedDict
 from typing import Dict, List, Tuple, Optional, Union, Any, Callable
@@ -101,38 +102,41 @@ class Sf2WavetableManager:
         15: "chorusEffectsSend",
         16: "reverbEffectsSend",
         17: "pan",
-        18: "delayModLFO",
-        19: "freqModLFO",
-        20: "delayVibLFO",
-        21: "freqVibLFO",
-        22: "delayModEnv",
-        23: "attackModEnv",
-        24: "holdModEnv",
-        25: "decayModEnv",
-        26: "sustainModEnv",
-        27: "releaseModEnv",
-        28: "keynumToModEnvHold",
-        29: "keynumToModEnvDecay",
-        30: "delayVolEnv",
-        31: "attackVolEnv",
-        32: "holdVolEnv",
-        33: "decayVolEnv",
-        34: "sustainVolEnv",
-        35: "releaseVolEnv",
-        36: "keynumToVolEnvHold",
-        37: "keynumToVolEnvDecay",
-        38: "instrument",
-        40: "keyRange",
-        41: "velRange",
-        42: "startloopAddrsCoarseOffset",
-        43: "keynumToVolEnvDecay",
-        44: "fixedMidivel",
-        50: "coarseTune",
-        51: "fineTune",
-        53: "sampleModes",
-        54: "exclusiveClass",
-        55: "overridingRootKey",
-        56: "endOper"
+        21: "delayModLFO",
+        22: "freqModLFO",
+        23: "delayVibLFO",
+        24: "freqVibLFO",
+        25: "delayModEnv",
+        26: "attackModEnv",
+        27: "holdModEnv",
+        28: "decayModEnv",
+        29: "sustainModEnv",
+        30: "releaseModEnv",
+        31: "keynumToModEnvHold",
+        32: "keynumToModEnvDecay",
+        33: "delayVolEnv",
+        34: "attackVolEnv",
+        35: "holdVolEnv",
+        36: "decayVolEnv",
+        37: "sustainVolEnv",
+        38: "releaseVolEnv",
+        39: "keynumToVolEnvHold",
+        40: "keynumToVolEnvDecay",
+        41: "instrument",
+        43: "keyRange",
+        44: "velRange",
+        45: "startloopAddrsCoarseOffset",
+        46: "keynum",
+        47: "velocity",
+        48: "initialAttenuation",
+        50: "endloopAddrsCoarseOffset",
+        51: "coarseTune",
+        52: "fineTune",
+        54: "sampleModes",
+        56: "scaleTuning",
+        57: "exclusiveClass",
+        58: "overridingRootKey",
+        59: "endOper"
     }
     
     # Сопоставление целей SoundFont с целями XG
@@ -145,24 +149,24 @@ class Sf2WavetableManager:
         11: ModulationDestination.FILTER_CUTOFF,  # modEnvToFilterFc
         13: ModulationDestination.AMP,  # modLfoToVolume
         17: ModulationDestination.PAN,  # pan
-        22: ModulationDestination.AMP_ATTACK,  # delayVolEnv
-        23: ModulationDestination.FILTER_ATTACK,  # attackModEnv
-        24: ModulationDestination.FILTER_HOLD,  # holdModEnv
-        25: ModulationDestination.FILTER_DECAY,  # decayModEnv
-        26: ModulationDestination.FILTER_SUSTAIN,  # sustainModEnv
-        27: ModulationDestination.FILTER_RELEASE,  # releaseModEnv
-        28: ModulationDestination.FILTER_HOLD,  # keynumToModEnvHold
-        29: ModulationDestination.FILTER_DECAY,  # keynumToModEnvDecay
-        30: ModulationDestination.AMP_ATTACK,  # delayVolEnv
-        31: ModulationDestination.AMP_ATTACK,  # attackVolEnv
-        32: ModulationDestination.AMP_HOLD,  # holdVolEnv
-        33: ModulationDestination.AMP_DECAY,  # decayVolEnv
-        34: ModulationDestination.AMP_SUSTAIN,  # sustainVolEnv
-        35: ModulationDestination.AMP_RELEASE,  # releaseVolEnv
-        36: ModulationDestination.AMP_HOLD,  # keynumToVolEnvHold
-        37: ModulationDestination.AMP_DECAY,  # keynumToVolEnvDecay
-        50: "coarseTune",  # coarseTune
-        51: "fineTune",  # fineTune
+        25: ModulationDestination.AMP_ATTACK,  # delayVolEnv
+        26: ModulationDestination.FILTER_ATTACK,  # attackModEnv
+        27: ModulationDestination.FILTER_HOLD,  # holdModEnv
+        28: ModulationDestination.FILTER_DECAY,  # decayModEnv
+        29: ModulationDestination.FILTER_SUSTAIN,  # sustainModEnv
+        30: ModulationDestination.FILTER_RELEASE,  # releaseModEnv
+        31: ModulationDestination.FILTER_HOLD,  # keynumToModEnvHold
+        32: ModulationDestination.FILTER_DECAY,  # keynumToModEnvDecay
+        33: ModulationDestination.AMP_ATTACK,  # delayVolEnv
+        34: ModulationDestination.AMP_ATTACK,  # attackVolEnv
+        35: ModulationDestination.AMP_HOLD,  # holdVolEnv
+        36: ModulationDestination.AMP_DECAY,  # decayVolEnv
+        37: ModulationDestination.AMP_SUSTAIN,  # sustainVolEnv
+        38: ModulationDestination.AMP_RELEASE,  # releaseVolEnv
+        39: ModulationDestination.AMP_HOLD,  # keynumToVolEnvHold
+        40: ModulationDestination.AMP_DECAY,  # keynumToVolEnvDecay
+        51: ModulationDestination.COARSE_TUNE,  # coarseTune
+        52: ModulationDestination.FINE_TUNE,  # fineTune
         77: ModulationDestination.TREMOLO_DEPTH,  # cc_tremolo_depth
         78: ModulationDestination.TREMOLO_RATE  # cc_tremolo_rate
     }
@@ -184,41 +188,50 @@ class Sf2WavetableManager:
     
     # Сопоставление генераторов инструментов с обработчиками для оптимизации
     INST_GEN_HANDLERS = {
-        53: ("sample_modes",),  # sampleModes
-        54: ("exclusive_class",),  # exclusiveClass
-        55: ("OverridingRootKey",),  # overridingRootKey
-        56: ("sample_index",),  # sampleID
         0: ("start",),  # startAddrs
         1: ("end",),  # endAddrs
         2: ("start_loop",),  # startloopAddrs
         3: ("end_loop",),  # endloopAddrs
-        12: ("initialFilterFc",),  # initialFilterFc
-        13: ("initial_filterQ",),  # initialFilterQ
-        21: ("Pan",),  # pan
-        26: ("DelayFilEnv",),  # delayModEnv
-        27: ("AttackFilEnv",),  # attackModEnv
-        28: ("HoldFilEnv",),  # holdModEnv
-        29: ("DecayFilEnv",),  # decayModEnv
-        30: ("SustainFilEnv",),  # sustainModEnv
-        31: ("ReleaseFilEnv",),  # releaseModEnv
-        32: ("KeynumToModEnvHold",),  # keynumToModEnvHold
-        33: ("KeynumToModEnvDecay",),  # keynumToModEnvDecay
-        34: ("DelayVolEnv",),  # delayVolEnv
-        35: ("AttackVolEnv",),  # attackVolEnv
-        36: ("HoldVolEnv",),  # holdVolEnv
-        37: ("DecayVolEnv",),  # decayVolEnv
-        38: ("SustainVolEnv",),  # sustainVolEnv
-        39: ("ReleaseVolEnv",),  # releaseVolEnv
-        50: ("CoarseTune",),  # coarseTune
-        51: ("FineTune",),  # fineTune
+        4: ("start_coarse",),  # startAddrsCoarseOffset
         5: ("mod_lfo_to_pitch",),  # modLfoToPitch
         6: ("vib_lfo_to_pitch",),  # vibLfoToPitch
         7: ("mod_env_to_pitch",),  # modEnvToPitch
+        8: ("initialFilterFc",),  # initialFilterFc
+        9: ("initial_filterQ",),  # initialFilterQ
         10: ("mod_lfo_to_filter",),  # modLfoToFilterFc
         11: ("mod_env_to_filter",),  # modEnvToFilterFc
+        12: ("end_coarse",),  # endAddrsCoarseOffset
         13: ("mod_lfo_to_volume",),  # modLfoToVolume
-        36: ("KeynumToVolEnvHold",),  # keynumToVolEnvHold
-        37: ("KeynumToVolEnvDecay",),  # keynumToVolEnvDecay
+        15: ("chorus_send",),  # chorusEffectsSend
+        16: ("reverb_send",),  # reverbEffectsSend
+        17: ("Pan",),  # pan
+        24: ("LFO2Freq",),  # freqVibLFO
+        25: ("DelayFilEnv",),  # delayModEnv
+        26: ("AttackFilEnv",),  # attackModEnv
+        27: ("HoldFilEnv",),  # holdModEnv
+        28: ("DecayFilEnv",),  # decayModEnv
+        29: ("SustainFilEnv",),  # sustainModEnv
+        30: ("ReleaseFilEnv",),  # releaseModEnv
+        31: ("KeynumToModEnvHold",),  # keynumToModEnvHold
+        32: ("KeynumToModEnvDecay",),  # keynumToModEnvDecay
+        33: ("DelayVolEnv",),  # delayVolEnv
+        34: ("AttackVolEnv",),  # attackVolEnv
+        35: ("HoldVolEnv",),  # holdVolEnv
+        36: ("DecayVolEnv",),  # decayVolEnv
+        37: ("SustainVolEnv",),  # sustainVolEnv
+        38: ("ReleaseVolEnv",),  # releaseVolEnv
+        39: ("KeynumToVolEnvHold",),  # keynumToVolEnvHold
+        40: ("KeynumToVolEnvDecay",),  # keynumToVolEnvDecay
+        45: ("start_loop_coarse",),  # startloopAddrsCoarseOffset
+        48: ("InitialAttenuation",),  # initialAttenuation
+        50: ("end_loop_coarse",),  # endloopAddrsCoarseOffset
+        51: ("CoarseTune",),  # coarseTune
+        52: ("FineTune",),  # fineTune
+        53: ("sample_index",),  # sampleID
+        54: ("sample_modes",),  # sampleModes
+        56: ("scale_tuning",),  # scaleTuning
+        57: ("exclusive_class",),  # exclusiveClass
+        58: ("OverridingRootKey",),  # overridingRootKey
     }
 
     def __init__(self, sf2_paths: Union[str, List[str]], cache_size: Optional[int] = None):
@@ -560,34 +573,46 @@ class Sf2WavetableManager:
         
         # Используем словарь для быстрого сопоставления типов генераторов
         generator_defaults = {
-            8: (13500, "initialFilterFc"),  # initialFilterFc
-            9: (0, "initial_filterQ"),  # initialFilterQ
-            12: (0, "DelayVolEnv"),  # delayVolEnv
-            13: (9600, "AttackVolEnv"),  # attackVolEnv
-            14: (0, "HoldVolEnv"),  # holdVolEnv
-            15: (19200, "DecayVolEnv"),  # decayVolEnv
-            16: (0, "SustainVolEnv"),  # sustainVolEnv
-            17: (24000, "ReleaseVolEnv"),  # releaseVolEnv
-            21: (50, "Pan"),  # pan
-            22: (0, "DelayLFO1"),  # delayModLFO
-            23: (500, "LFO1Freq"),  # freqModLFO
-            24: (0, "DelayLFO2"),  # delayVibLFO
-            25: (0, "DelayFilEnv"),  # delayModEnv
-            26: (19200, "AttackFilEnv"),  # attackModEnv
-            27: (0, "HoldFilEnv"),  # holdModEnv
-            28: (19200, "DecayFilEnv"),  # decayModEnv
-            29: (0, "SustainFilEnv"),  # sustainModEnv
-            30: (24000, "ReleaseFilEnv"),  # releaseModEnv
-            32: (0, "KeynumToModEnvHold"),  # keynumToModEnvHold
-            33: (0, "KeynumToModEnvDecay"),  # keynumToModEnvDecay
-            34: (0, "DelayVolEnv"),  # delayVolEnv
-            35: (9600, "AttackVolEnv"),  # attackVolEnv
-            36: (0, "HoldVolEnv"),  # holdVolEnv
-            37: (19200, "DecayVolEnv"),  # decayVolEnv
-            38: (0, "SustainVolEnv"),  # sustainVolEnv
-            39: (24000, "ReleaseVolEnv"),  # releaseVolEnv
-            50: (0, "CoarseTune"),  # coarseTune
-            51: (0, "FineTune")  # fineTune
+            5: (0, "ModLfoToPitch"), # modLfoToPitch
+            6: (0, "VibLfoToPitch"), # vibLfoToPitch
+            7: (0, "ModEnvToPitch"), # modEnvToPitch
+            8: (13500, "initialFilterFc"), # initialFilterFc
+            9: (0, "initial_filterQ"), # initialFilterQ
+            10: (0, "ModLfoToFilterFc"), # modLfoToFilterFc
+            11: (0, "ModEnvToFilterFc"), # modEnvToFilterFc
+            13: (0, "ModLfoToVolume"), # modLfoToVolume
+            15: (0, "chorus_send"), # chorusEffectsSend
+            16: (0, "reverb_send"), # reverbEffectsSend
+            17: (0, "Pan"), # pan
+            21: (-12000, "DelayModLFO"), # delayModLFO
+            22: (0, "FreqModLFO"), # freqModLFO
+            23: (-12000, "DelayVibLFO"), # delayVibLFO
+            24: (0, "FreqVibLFO"), # freqVibLFO
+            25: (-12000, "DelayModEnv"), # delayModEnv
+            26: (-12000, "AttackModEnv"), # attackModEnv
+            27: (-12000, "HoldModEnv"), # holdModEnv
+            28: (-12000, "DecayModEnv"), # decayModEnv
+            29: (0, "SustainModEnv"), # sustainModEnv
+            30: (-12000, "ReleaseModEnv"), # releaseModEnv
+            31: (0, "KeynumToModEnvHold"), # keynumToModEnvHold
+            32: (0, "KeynumToModEnvDecay"), # keynumToModEnvDecay
+            33: (-12000, "DelayVolEnv"), # delayVolEnv
+            34: (-12000, "AttackVolEnv"), # attackVolEnv
+            35: (-12000, "HoldVolEnv"), # holdVolEnv
+            36: (-12000, "DecayVolEnv"), # decayVolEnv
+            37: (0, "SustainVolEnv"), # sustainVolEnv
+            38: (-12000, "ReleaseVolEnv"), # releaseVolEnv
+            39: (0, "KeynumToVolEnvHold"), # keynumToVolEnvHold
+            40: (0, "KeynumToVolEnvDecay"), # keynumToVolEnvDecay
+            46: (-1, "Keynum"), # keynum+
+            47: (-1, "Velocity"), # velocity
+            48: (0, "InitialAttenuation"), # initialAttenuation
+            51: (0, "CoarseTune"), # coarseTune
+            52: (0, "FineTune"), # fineTune
+            54: (0, "SampleModes"), # sampleModes
+            56: (100, "ScaleTuning"), # scaleTuning
+            57: (0, "ExclusiveClass"), # exclusiveClass
+            58: (-1, "OverridingRootKey"), # overridingRootKey
         }
         
         # Обработка генераторов из пресета
@@ -1062,116 +1087,51 @@ class Sf2WavetableManager:
             Стерео: список кортежей (левый, правый)
         """
         # Проверяем, есть ли сэмпл в кэше
-        if sample_header.name in self.sample_cache:
-            # Обновляем порядок использования для LRU кэша
-            self.sample_cache.move_to_end(sample_header.name)
-            return self.sample_cache[sample_header.name]
+        sample_key = soundfont.path + "." + sample_header.name
+        if sample_header.data and sample_key in self.sample_cache:
+            self.sample_cache.move_to_end(sample_key)
+            return sample_header.data
         
-        # Загружаем сэмпл из файла
-        sample_data = self._read_sample_from_file(sample_header, soundfont)
+        sample_data = soundfont.read_sample_data(sample_header)
         if sample_data is None:
             return None
-        
+
         # Добавляем в кэш
-        self._add_to_cache(sample_header.name, sample_data)
+        self._add_to_cache(sample_key, sample_header)
         
         return sample_data
     
-    def _read_sample_from_file(self, sample_header: SF2SampleHeader, soundfont: Sf2SoundFont) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
-        """
-        Оптимизированное чтение сэмпла из файла с уменьшением количества операций.
-        
-        Args:
-            sample_header: заголовок сэмпла
-            soundfont: объект Sf2SoundFont
-            
-        Returns:
-            Моно: список значений
-            Стерео: список кортежей (левый, правый)
-        """
-        # Проверяем, есть ли файл
-        if not soundfont.file or soundfont.file.closed:
-            return None
-        
-        # Проверяем, есть ли данные о сэмпле в SoundFont
-        if 'sdta' not in soundfont.chunk_info:
-            return None
-        
-        # Получаем позицию данных сэмпла
-        smpl_data_offset, _ = soundfont.chunk_info['sdta']
-        
-        # Определяем размер сэмпла в сэмплах (не в байтах)
-        sample_length = sample_header.end - sample_header.start
-        if sample_length <= 0:
-            return None
-        
-        # Определяем тип сэмпла (моно или стерео)
-        is_stereo = (sample_header.type & 1) == 0 and (sample_header.type & 2) != 0
-        
-        # Вычисляем смещение в файле
-        sample_offset = smpl_data_offset + sample_header.start * 2  # Предполагаем 16-битные сэмплы
-        
-        try:
-            # Переходим к началу сэмпла
-            soundfont.file.seek(sample_offset)
-            
-            # Читаем данные за один раз для лучшей производительности
-            if is_stereo:
-                # Для стерео читаем пары значений
-                bytes_to_read = sample_length * 4  # 2 канала * 2 байта
-                data = soundfont.file.read(bytes_to_read)
-                if len(data) < bytes_to_read:
-                    return None
-                
-                # Преобразуем в список кортежей (левый, правый) одной операцией
-                unpacked_data = struct.unpack(f'<{sample_length*2}h', data)  # h = signed short
-                samples = [(unpacked_data[i] / 32768.0, unpacked_data[i+1] / 32768.0) 
-                          for i in range(0, len(unpacked_data), 2)]
-            else:
-                # Для моно читаем одиночные значения
-                bytes_to_read = sample_length * 2
-                data = soundfont.file.read(bytes_to_read)
-                if len(data) < bytes_to_read:
-                    return None
-                
-                # Преобразуем в список значений одной операцией
-                unpacked_data = struct.unpack(f'<{sample_length}h', data)  # h = signed short
-                samples = [value / 32768.0 for value in unpacked_data]
-            
-            return samples
-        except Exception as e:
-            warnings.warn(f"Ошибка при чтении сэмпла {sample_header.name}: {str(e)}")
-            return None
-    
-    def _add_to_cache(self, name: str, sample_data: Union[List[float], List[Tuple[float, float]]]):
+    def _add_to_cache(self, key: str, sample: SF2SampleHeader):
         """Добавление сэмпла в кэш с учетом ограничения размера"""
-        # Оцениваем размер данных
-        size_estimate = len(sample_data)
-        if isinstance(sample_data[0], tuple):
-            size_estimate *= 2  # Стерео занимает в 2 раза больше
+
+        if not sample.data:
+            return
         
+        size_estimate = sample.size_estimate()
+
         # Если кэш переполнен, удаляем наименее используемые элементы
         while self.current_cache_size + size_estimate > self.max_cache_size and len(self.sample_cache) > 0:
             # Удаляем наименее используемый элемент (первый в OrderedDict)
-            removed_name, removed_data = self.sample_cache.popitem(last=False)
-            removed_size = len(removed_data)
-            if isinstance(removed_data[0], tuple):
-                removed_size *= 2
+            _, popped = self.sample_cache.popitem(last=False)
+            removed_size = popped.size_estimate()
             self.current_cache_size -= removed_size
         
         # Добавляем новый элемент
-        self.sample_cache[name] = sample_data
+        self.sample_cache[key] = sample
         self.current_cache_size += size_estimate
 
     def _convert_zone_to_partial_params(self, zone: SF2InstrumentZone, 
                                        is_drum: bool = False) -> dict:
         """Преобразование зоны SoundFont в параметры частичной структуры"""
         # Преобразование времени (в time cents) в секунды
-        def time_cents_to_seconds(time_cents):
-            if time_cents <= 0:
-                return 0.001  # минимальное значение для избежания деления на ноль
-            # SoundFont использует логарифмическую шкалу для времени
-            return 0.001 * (10 ** (time_cents / 1200.0))
+        def time_cents_to_seconds(timecents):
+            if timecents <= -32768:
+                return 0.0
+            return math.pow(2.0, timecents / 1200.0)
+        
+        def cents_to_amplitude(bells):
+            amp = math.pow(10.0, bells / -200.0)
+            return min(1.0, amp)
         
         # Преобразование cutoff фильтра
         cutoff = max(20.0, min(20000.0, zone.initialFilterFc * self.FILTER_CUTOFF_SCALE))
@@ -1206,13 +1166,19 @@ class Sf2WavetableManager:
             "note_crossfade": 0.0,
             "velocity_crossfade": 0.0,
             
+            # Sample address offsets
+            "start_coarse": zone.start_coarse,
+            "end_coarse": zone.end_coarse,
+            "start_loop_coarse": zone.start_loop_coarse,
+            "end_loop_coarse": zone.end_loop_coarse,
+            
             # Амплитудная огибающая
             "amp_envelope": {
                 "delay": time_cents_to_seconds(zone.DelayVolEnv),
                 "attack": time_cents_to_seconds(zone.AttackVolEnv),
                 "hold": time_cents_to_seconds(zone.HoldVolEnv),
                 "decay": time_cents_to_seconds(zone.DecayVolEnv),
-                "sustain": max(0.0, min(1.0, 1.0 - zone.SustainVolEnv / 1000.0)),
+                "sustain": cents_to_amplitude(zone.SustainVolEnv),
                 "release": time_cents_to_seconds(zone.ReleaseVolEnv),
                 "key_scaling": zone.KeynumToVolEnvDecay / 1200.0
             },
@@ -1223,7 +1189,7 @@ class Sf2WavetableManager:
                 "attack": time_cents_to_seconds(zone.AttackFilEnv),
                 "hold": time_cents_to_seconds(zone.HoldFilEnv),
                 "decay": time_cents_to_seconds(zone.DecayFilEnv),
-                "sustain": max(0.0, min(1.0, 1.0 - zone.SustainFilEnv / 1000.0)),
+                "sustain": cents_to_amplitude(zone.SustainFilEnv),
                 "release": time_cents_to_seconds(zone.ReleaseFilEnv),
                 "key_scaling": zone.KeynumToModEnvDecay / 1200.0
             },
@@ -1234,7 +1200,7 @@ class Sf2WavetableManager:
                 "attack": time_cents_to_seconds(zone.AttackPitchEnv),
                 "hold": time_cents_to_seconds(zone.HoldPitchEnv),
                 "decay": time_cents_to_seconds(zone.DecayPitchEnv),
-                "sustain": max(0.0, min(1.0, 1.0 - zone.SustainPitchEnv / 1000.0)),
+                "sustain": cents_to_amplitude(zone.SustainPitchEnv),
                 "release": time_cents_to_seconds(zone.ReleasePitchEnv)
             },
             
@@ -1252,12 +1218,12 @@ class Sf2WavetableManager:
         }
         
         # Для барабанов упрощаем параметры
-        if is_drum:
-            partial_params["use_filter_env"] = False
-            partial_params["use_pitch_env"] = False
-            partial_params["amp_envelope"]["attack"] = max(0.001, partial_params["amp_envelope"]["attack"] * 0.1)
-            partial_params["amp_envelope"]["decay"] = max(0.01, partial_params["amp_envelope"]["decay"] * 0.5)
-            partial_params["amp_envelope"]["sustain"] = 0.0
+        # if is_drum:
+        #     partial_params["use_filter_env"] = False
+        #     partial_params["use_pitch_env"] = False
+        #     partial_params["amp_envelope"]["attack"] = max(0.001, partial_params["amp_envelope"]["attack"] * 0.1)
+        #     partial_params["amp_envelope"]["decay"] = max(0.01, partial_params["amp_envelope"]["decay"] * 0.5)
+        #     partial_params["amp_envelope"]["sustain"] = 0.0
         
         return partial_params
     
@@ -1352,6 +1318,23 @@ class Sf2WavetableManager:
         
         # SoundFont использует логарифмическую шкалу
         return (10 ** (delay_value / 1200.0)) * self.TIME_CENTISECONDS_TO_SECONDS
+
+    def _detect_sample_bit_depth(self, soundfont: Sf2SoundFont) -> int:
+        """
+        Определяет битовую глубину сэмплов в SoundFont файле.
+        
+        Args:
+            soundfont: объект Sf2SoundFont
+            
+        Returns:
+            битовая глубина (16 или 24)
+        """
+        # Проверяем наличие sm24 чанка, который указывает на 24-битные сэмплы
+        if 'sm24' in soundfont.chunk_info:
+            return 24
+        else:
+            # По умолчанию 16 бит для совместимости
+            return 16
 
     def _calculate_modulation_params(self, zones: List[SF2InstrumentZone]) -> dict:
         """Рассчитывает параметры модуляции из зон"""

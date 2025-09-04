@@ -67,7 +67,8 @@ class SF2InstrumentZone:
         'tremolo_depth', 'mod_env_to_pitch', 'mod_lfo_to_pitch', 'vib_lfo_to_pitch',
         'vibrato_depth', 'mod_lfo_to_filter', 'mod_env_to_filter', 'mod_lfo_to_volume',
         'mod_ndx', 'gen_ndx', 'generators', 'sample_modes', 'exclusive_class',
-        'start', 'end', 'start_loop', 'end_loop'
+        'start', 'end', 'start_loop', 'end_loop', 'reverb_send', 'chorus_send',
+        'scale_tuning', 'start_coarse', 'end_coarse', 'start_loop_coarse', 'end_loop_coarse'
     ]
     
     def __init__(self):
@@ -84,20 +85,20 @@ class SF2InstrumentZone:
         self.voiceConcave = 0
         
         # Параметры амплитудной огибающей
-        self.AttackVolEnv = 9600  # в time cents
-        self.DecayVolEnv = 19200
+        self.AttackVolEnv = -12000  # в time cents
+        self.DecayVolEnv = -12000
         self.SustainVolEnv = 0  # 0-127 (0 = -inf dB)
-        self.ReleaseVolEnv = 24000
-        self.DelayVolEnv = 0  # Задержка амплитудной огибающей
-        self.HoldVolEnv = 0  # Hold амплитудной огибающей
+        self.ReleaseVolEnv = -12000
+        self.DelayVolEnv = -12000  # Задержка амплитудной огибающей
+        self.HoldVolEnv = -12000  # Hold амплитудной огибающей
         
         # Параметры фильтровой огибающей
-        self.AttackFilEnv = 19200
-        self.DecayFilEnv = 19200
+        self.AttackFilEnv = -12000
+        self.DecayFilEnv = -12000
         self.SustainFilEnv = 0
-        self.ReleaseFilEnv = 24000
-        self.DelayFilEnv = 0  # Задержка фильтровой огибающей
-        self.HoldFilEnv = 0  # Hold фильтровой огибающей
+        self.ReleaseFilEnv = -12000
+        self.DelayFilEnv = -12000  # Задержка фильтровой огибающей
+        self.HoldFilEnv = -12000  # Hold фильтровой огибающей
         
         # Параметры pitch огибающей
         self.AttackPitchEnv = 0
@@ -134,6 +135,7 @@ class SF2InstrumentZone:
         # Настройка высоты
         self.CoarseTune = 0  # Грубая настройка (октавы)
         self.FineTune = 0  # Точная настройка (центы)
+        self.scale_tuning = 100  # Scale tuning (100 cents = 1 semitone)
         
         # Ссылка на сэмпл
         self.sample_index = 0
@@ -150,6 +152,14 @@ class SF2InstrumentZone:
         self.end = 0
         self.start_loop = 0
         self.end_loop = 0
+        self.start_coarse = 0
+        self.end_coarse = 0
+        self.start_loop_coarse = 0
+        self.end_loop_coarse = 0
+        
+        # Effects send parameters
+        self.reverb_send = 0  # 0-127
+        self.chorus_send = 0  # 0-127
         
         # Модуляторы
         self.modulators = []
@@ -193,7 +203,10 @@ class SF2PresetZone:
         'DelayLFO2', 'DelayFilEnv', 'AttackFilEnv', 'HoldFilEnv', 'DecayFilEnv',
         'SustainFilEnv', 'ReleaseFilEnv', 'KeynumToModEnvHold', 'KeynumToModEnvDecay',
         'DelayVolEnv', 'AttackVolEnv', 'HoldVolEnv', 'DecayVolEnv', 'SustainVolEnv',
-        'ReleaseVolEnv', 'KeynumToVolEnvHold', 'KeynumToVolEnvDecay', 'CoarseTune', 'FineTune'
+        'ReleaseVolEnv', 'KeynumToVolEnvHold', 'KeynumToVolEnvDecay', 'CoarseTune', 'FineTune',
+        'reverb_send', 'chorus_send', 'InitialAttenuation', 'scale_tuning', 'OverridingRootKey',
+        'start_coarse', 'end_coarse', 'start_loop_coarse', 'end_loop_coarse',
+        "LFO2Freq"
     ]
     
     def __init__(self):
@@ -217,24 +230,35 @@ class SF2PresetZone:
         self.DelayLFO1 = 0
         self.LFO1Freq = 500
         self.DelayLFO2 = 0
-        self.DelayFilEnv = 0
-        self.AttackFilEnv = 19200
-        self.HoldFilEnv = 0
-        self.DecayFilEnv = 19200
+        self.DelayFilEnv = -12000
+        self.AttackFilEnv = -12000
+        self.HoldFilEnv = -12000
+        self.DecayFilEnv = -12000
         self.SustainFilEnv = 0
-        self.ReleaseFilEnv = 24000
+        self.ReleaseFilEnv = -12000
         self.KeynumToModEnvHold = 0
         self.KeynumToModEnvDecay = 0
-        self.DelayVolEnv = 0
-        self.AttackVolEnv = 9600
-        self.HoldVolEnv = 0
-        self.DecayVolEnv = 19200
+        self.DelayVolEnv = -12000
+        self.AttackVolEnv = -12000
+        self.HoldVolEnv = -12000
+        self.DecayVolEnv = -12000
         self.SustainVolEnv = 0
-        self.ReleaseVolEnv = 24000
+        self.ReleaseVolEnv = -12000
         self.KeynumToVolEnvHold = 0
         self.KeynumToVolEnvDecay = 0
         self.CoarseTune = 0
         self.FineTune = 0
+        self.InitialAttenuation = 0  # 0-1440 (0 = 1.0, 960 = -6dB, 1440 = -9dB)
+        self.scale_tuning = 100  # Scale tuning (100 cents = 1 semitone)
+        self.OverridingRootKey = -1  # -1 = использовать ноту, иначе переназначить root key
+        self.start_coarse = 0
+        self.end_coarse = 0
+        self.start_loop_coarse = 0
+        self.end_loop_coarse = 0
+        
+        # Effects send parameters
+        self.reverb_send = 0  # 0-127
+        self.chorus_send = 0  # 0-127
         
         # Распространенные модуляции (для упрощенного доступа)
         self.lfo_to_pitch = 0.0
@@ -251,12 +275,14 @@ class SF2PresetZone:
         self.vibrato_depth = 0.0
         self.gen_ndx = 0
         self.mod_ndx = 0
+        self.LFO2Freq = 0
 
 class SF2SampleHeader:
     """Представляет заголовок сэмпла в SoundFont 2.0"""
     __slots__ = [
         'name', 'start', 'end', 'start_loop', 'end_loop', 'sample_rate',
-        'original_pitch', 'pitch_correction', 'link', 'type'
+        'original_pitch', 'pitch_correction', 'link', 'type', 'stereo',
+        'data'
     ]
     
     def __init__(self):
@@ -270,6 +296,15 @@ class SF2SampleHeader:
         self.pitch_correction = 0  # в центах
         self.link = 0
         self.type = 1  # 1 = mono, 2 = right, 4 = left, 8 = linked
+
+        self.stereo = False
+        self.data : Optional[Union[List[float], List[Tuple[float, float]]]] = None
+
+    def size_estimate(self):
+        if self.data:
+            return len(self.data) * 8 if self.stereo else 4
+        else:
+            return 0
 
 class SF2Preset:
     """Представляет пресет (инструмент) в SoundFont 2.0"""

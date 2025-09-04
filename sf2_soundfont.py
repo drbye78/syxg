@@ -120,10 +120,17 @@ class Sf2SoundFont:
                 if len(list_type) < 4:
                     break
                     
+                list_type_str = list_type.decode('ascii')
+                
                 # Сохраняем позицию и размер как кортеж
                 list_position = self.file.tell() - 4
-                self.chunk_info[list_type.decode('ascii')] = (list_position, chunk_size)
-                self._locate_subchunks(list_position, chunk_size)
+                self.chunk_info[list_type_str] = (list_position, chunk_size)
+                
+                # Для sdta LIST чанка также ищем внутренние чанки smpl и sm24
+                if list_type_str == 'sdta':
+                    self._locate_sdta_subchunks(list_position, chunk_size)
+                else:
+                    self._locate_subchunks(list_position, chunk_size)
 
             self.file.seek(chunk_end)
     
@@ -153,6 +160,32 @@ class Sf2SoundFont:
             subchunk_end = self.file.tell() + subchunk_size
             # Переходим к следующему подчанку
             self.file.seek(subchunk_end + (subchunk_size % 2))
+    
+    def _locate_sdta_subchunks(self, sdta_position: int, sdta_size: int):
+        """Находит позиции подчанков smpl и sm24 внутри sdta для правильной работы с 24-битными сэмплами"""
+        if not self.file:
+            return
+            
+        # Переходим к началу sdta
+        self.file.seek(sdta_position + 4)  # +4 чтобы пропустить заголовок LIST
+        sdta_end = sdta_position + sdta_size - 4
+
+        # Парсим подчанки внутри sdta
+        while self.file.tell() < sdta_end - 8:
+            # Чтение заголовка подчанка
+            subchunk_header = self.file.read(8)
+            if len(subchunk_header) < 8:
+                break
+                
+            subchunk_id = subchunk_header[:4]
+            subchunk_size = struct.unpack('<I', subchunk_header[4:8])[0]
+            subchunk_name = subchunk_id.decode('ascii')
+            
+            # Сохраняем позицию и размер как кортеж
+            self.chunk_info[subchunk_name] = (self.file.tell(), subchunk_size)
+            
+            # Переходим к следующему подчанку
+            self.file.seek(self.file.tell() + subchunk_size + (subchunk_size % 2))
     
     def _parse_headers(self):
         """Парсит только заголовки пресетов (bank, program, name) для быстрой инициализации"""
@@ -575,61 +608,83 @@ class Sf2SoundFont:
                 # Ищем имя инструмента
                 if 0 <= gen_amount < len(self.instrument_names):
                     zone.instrument_name = self.instrument_names[gen_amount]
-            elif gen_type == 42:  # keyRange
+            elif gen_type == 43:  # keyRange
                 zone.lokey = gen_amount & 0xFF
                 zone.hikey = (gen_amount >> 8) & 0xFF
-            elif gen_type == 43:  # velRange
+            elif gen_type == 44:  # velRange
                 zone.lovel = gen_amount & 0xFF
                 zone.hivel = (gen_amount >> 8) & 0xFF
             elif gen_type == 8:  # initialFilterFc
                 zone.initialFilterFc = gen_amount
             elif gen_type == 9:  # initialFilterQ
                 zone.initial_filterQ = gen_amount
-            elif gen_type == 21:  # pan
+            elif gen_type == 17:  # pan
                 zone.Pan = gen_amount
-            elif gen_type == 22:  # delayModLFO
+            elif gen_type == 21:  # delayModLFO
                 zone.DelayLFO1 = gen_amount
-            elif gen_type == 23:  # freqModLFO
+            elif gen_type == 22:  # freqModLFO
                 zone.LFO1Freq = gen_amount
-            elif gen_type == 24:  # delayVibLFO
+            elif gen_type == 23:  # delayVibLFO
                 zone.DelayLFO2 = gen_amount
-            elif gen_type == 25:  # delayModEnv
+            elif gen_type == 24:  # freqVibLFO
+                zone.LFO1Freq = gen_amount
+            elif gen_type == 25:  # delayModEnv - Fixed: was incorrectly mapped
                 zone.DelayFilEnv = gen_amount
-            elif gen_type == 26:  # attackModEnv
+            elif gen_type == 26:  # attackModEnv - Fixed: was incorrectly mapped
                 zone.AttackFilEnv = gen_amount
-            elif gen_type == 27:  # holdModEnv
+            elif gen_type == 27:  # holdModEnv - Fixed: was incorrectly mapped
                 zone.HoldFilEnv = gen_amount
-            elif gen_type == 28:  # decayModEnv
+            elif gen_type == 28:  # decayModEnv - Fixed: was incorrectly mapped
                 zone.DecayFilEnv = gen_amount
-            elif gen_type == 29:  # sustainModEnv
+            elif gen_type == 29:  # sustainModEnv - Fixed: was incorrectly mapped
                 zone.SustainFilEnv = gen_amount
-            elif gen_type == 30:  # releaseModEnv
+            elif gen_type == 30:  # releaseModEnv - Fixed: was incorrectly mapped
                 zone.ReleaseFilEnv = gen_amount
-            elif gen_type == 32:  # keynumToModEnvHold
+            elif gen_type == 31:  # keynumToModEnvHold - Fixed: was incorrectly mapped
                 zone.KeynumToModEnvHold = gen_amount
-            elif gen_type == 33:  # keynumToModEnvDecay
+            elif gen_type == 32:  # keynumToModEnvDecay - Fixed: was incorrectly mapped
                 zone.KeynumToModEnvDecay = gen_amount
-            elif gen_type == 34:  # delayVolEnv
+            elif gen_type == 33:  # delayVolEnv - Fixed: was incorrectly mapped
                 zone.DelayVolEnv = gen_amount
-            elif gen_type == 35:  # attackVolEnv
+            elif gen_type == 34:  # attackVolEnv - Fixed: was incorrectly mapped
                 zone.AttackVolEnv = gen_amount
-            elif gen_type == 36:  # holdVolEnv
+            elif gen_type == 35:  # holdVolEnv - Fixed: was incorrectly mapped
                 zone.HoldVolEnv = gen_amount
-            elif gen_type == 37:  # decayVolEnv
+            elif gen_type == 36:  # decayVolEnv - Fixed: was incorrectly mapped
                 zone.DecayVolEnv = gen_amount
-            elif gen_type == 38:  # sustainVolEnv
+            elif gen_type == 37:  # sustainVolEnv - Fixed: was incorrectly mapped
                 zone.SustainVolEnv = gen_amount
-            elif gen_type == 39:  # releaseVolEnv
+            elif gen_type == 38:  # releaseVolEnv - Fixed: was incorrectly mapped
                 zone.ReleaseVolEnv = gen_amount
-            elif gen_type == 40:  # keynumToVolEnvHold
+            elif gen_type == 39:  # keynumToVolEnvHold - Fixed: was incorrectly mapped
                 zone.KeynumToVolEnvHold = gen_amount
-            elif gen_type == 44:  # keynumToVolEnvDecay
+            elif gen_type == 40:  # keynumToVolEnvDecay - Fixed: was incorrectly mapped
                 zone.KeynumToVolEnvDecay = gen_amount
-            elif gen_type == 50:  # coarseTune
+            elif gen_type == 51:  # coarseTune
                 zone.CoarseTune = gen_amount
-            elif gen_type == 51:  # fineTune
+            elif gen_type == 52:  # fineTune
                 zone.FineTune = gen_amount
-    
+            elif gen_type == 16:  # reverbEffectsSend - Added support for reverb send
+                # Store reverb send value for XG partials (0-1000 -> 0-127)
+                zone.reverb_send = max(0, min(127, gen_amount // 10)) if gen_amount >= 0 else 0
+            elif gen_type == 15:  # chorusEffectsSend - Added support for chorus send
+                # Store chorus send value for XG partials (0-1000 -> 0-127)
+                zone.chorus_send = max(0, min(127, gen_amount // 10)) if gen_amount >= 0 else 0
+            elif gen_type == 48:  # initialAttenuation - Added support for initial attenuation
+                zone.InitialAttenuation = gen_amount
+            elif gen_type == 56:  # scaleTuning - Added support for scale tuning
+                zone.scale_tuning = gen_amount
+            elif gen_type == 58:  # overridingRootKey - Added support for overriding root key
+                zone.OverridingRootKey = gen_amount
+            elif gen_type == 4:  # startAddrsCoarseOffset - Added support for coarse start address offset
+                zone.start_coarse = gen_amount
+            elif gen_type == 12:  # endAddrsCoarseOffset - Added support for coarse end address offset
+                zone.end_coarse = gen_amount
+            elif gen_type == 42:  # startloopAddrsCoarseOffset - Added support for coarse loop start address offset
+                zone.start_loop_coarse = gen_amount
+            elif gen_type == 45:  # endloopAddrsCoarseOffset - Added support for coarse loop end address offset
+                zone.end_loop_coarse = gen_amount
+
     def _parse_preset_generators(self, pgen_data):
         """Парсит генераторы для всех зон пресетов"""
         # Создаем словарь для быстрого поиска терминальных генераторов
@@ -716,59 +771,61 @@ class Sf2SoundFont:
             zone.generators[gen_type] = gen_amount
             
             # Быстрая обработка специфических генераторов без множественных условий
-            if gen_type == 53:  # sampleModes
+            if gen_type == 54:  # sampleModes
                 zone.sample_modes = gen_amount
-            elif gen_type == 54:  # exclusiveClass
+            elif gen_type == 57:  # exclusiveClass
                 zone.exclusive_class = gen_amount
-            elif gen_type == 55:  # overridingRootKey
-                zone.OverridingRootKey = gen_amount
-            elif gen_type == 56:  # sampleID
+            elif gen_type == 53:  # sampleID
                 zone.sample_index = gen_amount
-            elif gen_type == 0:  # startAddrs
+            elif gen_type == 0:  # startAddrsOffset
                 zone.start = gen_amount
-            elif gen_type == 1:  # endAddrs
+            elif gen_type == 1:  # endAddrsOffset
                 zone.end = gen_amount
-            elif gen_type == 2:  # startloopAddrs
+            elif gen_type == 2:  # startloopAddrsOffset
                 zone.start_loop = gen_amount
-            elif gen_type == 3:  # endloopAddrs
+            elif gen_type == 3:  # endloopAddrsOffset
                 zone.end_loop = gen_amount
-            elif gen_type == 12:  # initialFilterFc
+            elif gen_type == 8:  # initialFilterFc - Fixed: was incorrectly mapped
                 zone.initialFilterFc = gen_amount
-            elif gen_type == 13:  # initialFilterQ
+            elif gen_type == 9:  # initialFilterQ - Fixed: was incorrectly mapped
                 zone.initial_filterQ = gen_amount
-            elif gen_type == 21:  # pan
+            elif gen_type == 17:  # pan - Fixed: was incorrectly mapped
                 zone.Pan = gen_amount
-            elif gen_type == 26:  # delayModEnv
+            elif gen_type == 25:  # delayModEnv - Fixed: was incorrectly mapped
                 zone.DelayFilEnv = gen_amount
-            elif gen_type == 27:  # attackModEnv
+            elif gen_type == 26:  # attackModEnv - Fixed: was incorrectly mapped
                 zone.AttackFilEnv = gen_amount
-            elif gen_type == 28:  # holdModEnv
+            elif gen_type == 27:  # holdModEnv - Fixed: was incorrectly mapped
                 zone.HoldFilEnv = gen_amount
-            elif gen_type == 29:  # decayModEnv
+            elif gen_type == 28:  # decayModEnv - Fixed: was incorrectly mapped
                 zone.DecayFilEnv = gen_amount
-            elif gen_type == 30:  # sustainModEnv
+            elif gen_type == 29:  # sustainModEnv - Fixed: was incorrectly mapped
                 zone.SustainFilEnv = gen_amount
-            elif gen_type == 31:  # releaseModEnv
+            elif gen_type == 30:  # releaseModEnv - Fixed: was incorrectly mapped
                 zone.ReleaseFilEnv = gen_amount
-            elif gen_type == 32:  # keynumToModEnvHold
+            elif gen_type == 31:  # keynumToModEnvHold - Fixed: was incorrectly mapped
                 zone.KeynumToModEnvHold = gen_amount
-            elif gen_type == 33:  # keynumToModEnvDecay
+            elif gen_type == 32:  # keynumToModEnvDecay - Fixed: was incorrectly mapped
                 zone.KeynumToModEnvDecay = gen_amount
-            elif gen_type == 34:  # delayVolEnv
+            elif gen_type == 33:  # delayVolEnv - Fixed: was incorrectly mapped
                 zone.DelayVolEnv = gen_amount
-            elif gen_type == 35:  # attackVolEnv
+            elif gen_type == 34:  # attackVolEnv - Fixed: was incorrectly mapped
                 zone.AttackVolEnv = gen_amount
-            elif gen_type == 36:  # holdVolEnv
+            elif gen_type == 35:  # holdVolEnv - Fixed: was incorrectly mapped
                 zone.HoldVolEnv = gen_amount
-            elif gen_type == 37:  # decayVolEnv
+            elif gen_type == 36:  # decayVolEnv - Fixed: was incorrectly mapped
                 zone.DecayVolEnv = gen_amount
-            elif gen_type == 38:  # sustainVolEnv
+            elif gen_type == 37:  # sustainVolEnv - Fixed: was incorrectly mapped
                 zone.SustainVolEnv = gen_amount
-            elif gen_type == 39:  # releaseVolEnv
+            elif gen_type == 38:  # releaseVolEnv - Fixed: was incorrectly mapped
                 zone.ReleaseVolEnv = gen_amount
-            elif gen_type == 50:  # coarseTune
+            elif gen_type == 39:  # keynumToVolEnvHold - Fixed: was incorrectly mapped
+                zone.KeynumToVolEnvHold = gen_amount
+            elif gen_type == 40:  # keynumToVolEnvDecay - Fixed: was incorrectly mapped
+                zone.KeynumToVolEnvDecay = gen_amount
+            elif gen_type == 51:  # coarseTune
                 zone.CoarseTune = gen_amount
-            elif gen_type == 51:  # fineTune
+            elif gen_type == 52:  # fineTune
                 zone.FineTune = gen_amount
             elif gen_type == 5:  # modLfoToPitch
                 zone.mod_lfo_to_pitch = gen_amount
@@ -780,15 +837,45 @@ class Sf2SoundFont:
                 zone.mod_lfo_to_filter = gen_amount
             elif gen_type == 11:  # modEnvToFilterFc
                 zone.mod_env_to_filter = gen_amount
-            elif gen_type == 13:  # modLfoToVolume
+            elif gen_type == 12:  # endAddrsCoarseOffset - Added support for coarse end address offset
+                zone.end_coarse = gen_amount
+            elif gen_type == 13:  # modLfoToVolume - Fixed: was incorrectly mapped
                 zone.mod_lfo_to_volume = gen_amount
-            elif gen_type == 42:  # keyRange
+            elif gen_type == 43:  # keyRange - Fixed: was incorrectly mapped
                 zone.lokey = gen_amount & 0xFF
                 zone.hikey = (gen_amount >> 8) & 0xFF
-            elif gen_type == 43:  # velRange
+            elif gen_type == 44:  # velRange - Fixed: was incorrectly mapped
                 zone.lovel = gen_amount & 0xFF
                 zone.hivel = (gen_amount >> 8) & 0xFF
-    
+            elif gen_type == 16:  # reverbEffectsSend - Added support for reverb send
+                # Store reverb send value for XG partials (0-1000 -> 0-127)
+                zone.reverb_send = max(0, min(127, gen_amount // 10)) if gen_amount >= 0 else 0
+            elif gen_type == 15:  # chorusEffectsSend - Added support for chorus send
+                # Store chorus send value for XG partials (0-1000 -> 0-127)
+                zone.chorus_send = max(0, min(127, gen_amount // 10)) if gen_amount >= 0 else 0
+            elif gen_type == 48:  # initialAttenuation - Added support for initial attenuation
+                zone.InitialAttenuation = gen_amount
+            elif gen_type == 56:  # scaleTuning - Added support for scale tuning
+                zone.scale_tuning = gen_amount
+            elif gen_type == 58:  # overridingRootKey - Added support for overriding root key
+                zone.OverridingRootKey = gen_amount
+            elif gen_type == 4:  # startAddrsCoarseOffset - Added support for coarse start address offset
+                zone.start_coarse = gen_amount
+            elif gen_type == 12:  # endAddrsCoarseOffset - Added support for coarse end address offset
+                zone.end_coarse = gen_amount
+            elif gen_type == 42:  # startloopAddrsCoarseOffset - Added support for coarse loop start address offset
+                zone.start_loop_coarse = gen_amount
+            elif gen_type == 45:  # endloopAddrsCoarseOffset - Added support for coarse loop end address offset
+                zone.end_loop_coarse = gen_amount
+            elif gen_type == 21:  # delayModLFO
+                zone.DelayLFO1 = gen_amount
+            elif gen_type == 22:  # freqModLFO
+                zone.LFO1Freq = gen_amount
+            elif gen_type == 23:  # delayVibLFO
+                zone.DelayLFO2 = gen_amount
+            elif gen_type == 24:  # freqVibLFO
+                zone.LFO1Freq = gen_amount
+
     def _parse_instrument_generators(self, igen_data):
         """Парсит генераторы для всех зон инструментов"""
         # Создаем словарь для быстрого поиска терминальных генераторов
@@ -929,6 +1016,7 @@ class Sf2SoundFont:
             sample_header.pitch_correction = pitch_correction
             sample_header.link = sample_link
             sample_header.type = sample_type
+            sample_header.stereo = (sample_type & 3) == 2
             self.sample_headers.append(sample_header)
         
         self.samples_parsed = True
@@ -1012,3 +1100,45 @@ class Sf2SoundFont:
             return None
             
         return self.sample_headers[index]
+    
+    def read_sample_data(self, sample_header: SF2SampleHeader) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
+        """
+        Оптимизированное чтение сэмпла из файла с уменьшением количества операций.
+        
+        Args:
+            sample_header: заголовок сэмпла
+            
+        Returns:
+            Моно: список значений
+            Стерео: список кортежей (левый, правый)
+        """
+        sample_length = sample_header.end - sample_header.start
+        if self.file is None or 'smpl' not in self.chunk_info or sample_length:
+            return None
+        
+        if sample_header.data is not None:
+            return sample_header.data
+
+        smpl_pos, _ = self.chunk_info['smpl']
+        num_samples = sample_length * 2 if sample_header.stereo else sample_length
+        sample_size = num_samples * 2
+        self.file.seek(smpl_pos + sample_header.start * 2)
+        raw_data = self.file.read(sample_size)
+        raw_samples = struct.unpack(f'<{num_samples}h', raw_data)
+
+        is_24bit = 'sm24' in self.chunk_info
+        if is_24bit:
+            sm24_pos, _ = self.chunk_info['sm24']
+            self.file.seek(sm24_pos + sample_header.start)
+            aux_data = self.file.read(num_samples)
+            maxx = 2.0 ** -23
+            sample_data = [(raw_samples[i] << 8 | aux_data[i]) * maxx for i in range(num_samples)]
+        else:
+            sample_data = [raw_samples[i] / 32768.0 for i in range(num_samples)]
+
+        if sample_header.stereo:
+            sample_header.data = [(sample_data[i], sample_data[i + 1]) for i in range(0, len(sample_data), 2)]
+        else:
+            sample_header.data = sample_data
+
+        return sample_header.data

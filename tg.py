@@ -471,8 +471,8 @@ class ModulationSource:
 
 class ModulationDestination:
     """Класс для представления цели модуляции"""
-    PITCH = "pitch"
     FILTER_CUTOFF = "filter_cutoff"
+    PITCH = "pitch"
     FILTER_RESONANCE = "filter_resonance"
     AMP = "amp"
     PAN = "pan"
@@ -933,6 +933,13 @@ class PartialGenerator:
         self.velocity_sense = partial_params.get("velocity_sense", 1.0)
         self.crossfade_velocity = partial_params.get("crossfade_velocity", False)
         self.crossfade_note = partial_params.get("crossfade_note", False)
+        self.initial_attenuation = partial_params.get("initial_attenuation", 0.0)  # in dB
+        self.scale_tuning = partial_params.get("scale_tuning", 100)  # in cents
+        self.overriding_root_key = partial_params.get("overriding_root_key", -1)
+        self.start_coarse = partial_params.get("start_coarse", 0)
+        self.end_coarse = partial_params.get("end_coarse", 0)
+        self.start_loop_coarse = partial_params.get("start_loop_coarse", 0)
+        self.end_loop_coarse = partial_params.get("end_loop_coarse", 0)
         
         # Проверка, попадает ли нота в диапазон частичной структуры
         if not (self.key_range_low <= note <= self.key_range_high):
@@ -1027,8 +1034,15 @@ class PartialGenerator:
             self.active = False
             return
             
-        # Базовая частота для текущей ноты
-        base_freq = 440.0 * (2 ** ((self.note - 69) / 12.0))
+        # Determine the root key to use
+        root_key = self.overriding_root_key if self.overriding_root_key >= 0 else self.note
+            
+        # Базовая частота для текущей ноты с учетом scale tuning
+        base_freq = 440.0 * (2 ** ((root_key - 69) / 12.0))
+        
+        # Apply scale tuning (convert cents to frequency multiplier)
+        tuning_multiplier = 2 ** (self.scale_tuning / 1200.0)
+        base_freq *= tuning_multiplier
         
         # Учет key scaling (зависимость pitch от высоты ноты)
         pitch_factor = 2 ** ((self.note - 60) * self.key_scaling / 1200.0)
@@ -1039,12 +1053,13 @@ class PartialGenerator:
     
     def is_active(self):
         """Проверка, активен ли частичный генератор"""
-        return self.active and self.amp_envelope.state != "idle"
+        return self.active and self.amp_envelope and self.amp_envelope.state != "idle"
     
     def note_off(self):
         """Обработка события Note Off"""
         if self.is_active():
-            self.amp_envelope.note_off()
+            if self.amp_envelope:
+                self.amp_envelope.note_off()
             if self.filter_envelope:
                 self.filter_envelope.note_off()
             if self.pitch_envelope:
@@ -1078,9 +1093,9 @@ class PartialGenerator:
         }
         
         # Обработка амплитудной огибающей
-        amp_env = self.amp_envelope.process()
+        amp_env = self.amp_envelope.process() if self.amp_envelope else 0.0
         if amp_env <= 0:
-            self.active = False
+            # self.active = False
             return (0.0, 0.0)
             
         # Обработка фильтровой огибающей
@@ -1109,7 +1124,7 @@ class PartialGenerator:
         # Обновление phase_step для текущего сэмпла
         table = self.wavetable.get_partial_table(self.note, self.program, self.partial_id, self.velocity)
         if not table or len(table) == 0:
-            self.active = False
+            # self.active = False
             return (0.0, 0.0)
             
         table_length = len(table)
@@ -1139,20 +1154,26 @@ class PartialGenerator:
             sample = sample_val
         
         # Общая модуляция cutoff: огибающая + LFO
-        filter_cutoff_mod = 0.0
-        if self.filter_envelope:
-            filter_cutoff_mod = filter_env * 0.5 + lfo_values["lfo1"] * 0.3
-        
-        # Ограничение cutoff в допустимом диапазоне
-        base_cutoff = self.filter.apply_note_pitch(self.note)
-        cutoff = max(20, min(20000, base_cutoff * (0.5 + filter_cutoff_mod * 0.5)))
-        self.filter.set_parameters(cutoff=cutoff)
-        
-        # Применение фильтра
-        if is_stereo:
-            filtered_sample = self.filter.process(sample, is_stereo=True)
+        if self.filter:
+            filter_cutoff_mod = 0.0
+            if self.filter_envelope:
+                filter_cutoff_mod = filter_env * 0.5 + lfo_values["lfo1"] * 0.3
+            
+            # Ограничение cutoff в допустимом диапазоне
+            base_cutoff = self.filter.apply_note_pitch(self.note)
+            cutoff = max(20, min(20000, base_cutoff * (0.5 + filter_cutoff_mod * 0.5)))
+            self.filter.set_parameters(cutoff=cutoff)
+            
+            # Применение фильтра
+            if is_stereo:
+                filtered_sample = self.filter.process(sample, is_stereo=True)
+            else:
+                filtered_sample = self.filter.process(sample, is_stereo=False)
         else:
-            filtered_sample = self.filter.process(sample, is_stereo=False)
+            filtered_sample = sample
+
+        # Применение огибающей амплитуды
+        amp_env = self.amp_envelope.process() if self.amp_envelope else 0.0
         
         # Применение уровня частичной структуры с учетом кросс-фейда
         effective_level = self.level
@@ -1164,12 +1185,16 @@ class PartialGenerator:
         # Учет кросс-фейда по ноте
         if self.crossfade_note:
             effective_level *= (1.0 - self.note_crossfade)
+            
+        # Apply initial attenuation (convert dB to linear scale)
+        attenuation_factor = 10 ** (-self.initial_attenuation / 20.0)
+        effective_level *= attenuation_factor
         
         if is_stereo:
             left_out = filtered_sample[0] * amp_env * effective_level
             right_out = filtered_sample[1] * amp_env * effective_level
         else:
-            mono_sample = filtered_sample * amp_env * effective_level # type: ignore
+            mono_sample = (filtered_sample[0] + filtered_sample[1]) * 0.5  * amp_env * effective_level # type: ignore
             # Применение панорамирования для этой частичной структуры
             panner = StereoPanner(pan_position=self.pan, sample_rate=self.sample_rate)
             left_out, right_out = panner.process(mono_sample)
@@ -1447,7 +1472,10 @@ class ChannelNote:
                         "type": "lowpass"
                     },
                     "coarse_tune": 0,
-                    "fine_tune": 0
+                    "fine_tune": 0,
+                    "initial_attenuation": 0,  # in dB
+                    "scale_tuning": 100,       # in cents
+                    "overriding_root_key": -1
                 }
             ]
         }
