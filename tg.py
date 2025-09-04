@@ -1992,7 +1992,7 @@ class XGChannelRenderer:
         # Channel state
         self.program = 0
         self.bank = 0
-        self.is_drum = (channel == 9)  # Channel 10 (0-indexed) is drum channel
+        self.is_drum = False  # Default to melodic mode, can be changed via RPN 0,120
         
         # Active notes on this channel
         self.active_notes: Dict[int, ChannelNote] = OrderedDict()  # note -> ChannelNote

@@ -246,12 +246,12 @@ class XGSynthesizer:
         # Additional initialization to match XG standard
         # Set standard parameters for all channels
         for channel in range(16):
-            # Program Change to piano (program 0) for all channels except 9 (drum channel)
-            if channel != 9:
-                self._handle_program_change(channel, 0)
-            else:
-                # For channel 9 (drum channel), set standard drum program
-                self._handle_program_change(channel, 0)
+            # Program Change to piano (program 0) for all channels
+            self._handle_program_change(channel, 0)
+            # For channel 9, set drum mode by default for XG compatibility
+            if channel == 9:
+                # Set drum mode via RPN
+                self.channel_renderers[channel]._handle_rpn(0, 120, 1, 0)  # Set drum mode on
                 # Set drum bank
                 self.channel_states[channel]["bank"] = 128
                 
@@ -639,8 +639,8 @@ class XGSynthesizer:
         """Handle Program Change message"""
         self.channel_states[channel]["program"] = program
         
-        # For drum channel (9), set drum bank
-        if channel == 9:
+        # For drum channels (channels in drum mode), set drum bank
+        if self.channel_renderers[channel].is_drum:
             self.channel_states[channel]["bank"] = 128
             
         # Forward to channel renderer
@@ -714,7 +714,7 @@ class XGSynthesizer:
             tune = (data - 8192) / 100.0  # Convert to semitones
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["tune"] = tune
@@ -723,7 +723,7 @@ class XGSynthesizer:
             level = data / 127.0
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["level"] = level
@@ -732,7 +732,7 @@ class XGSynthesizer:
             pan = (data - 8192) / 8192.0
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["pan"] = pan
@@ -741,7 +741,7 @@ class XGSynthesizer:
             reverb = data / 127.0
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["reverb_send"] = reverb
@@ -750,7 +750,7 @@ class XGSynthesizer:
             chorus = data / 127.0
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["chorus_send"] = chorus
@@ -759,7 +759,7 @@ class XGSynthesizer:
             variation = data / 127.0
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["variation_send"] = variation
@@ -768,7 +768,7 @@ class XGSynthesizer:
             key_assign = data
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["key_assign"] = key_assign
@@ -777,7 +777,7 @@ class XGSynthesizer:
             cutoff = 20 + data * 150  # 20Hz to 19020Hz
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["filter_cutoff"] = cutoff
@@ -786,7 +786,7 @@ class XGSynthesizer:
             resonance = data / 64.0
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["filter_resonance"] = resonance
@@ -795,7 +795,7 @@ class XGSynthesizer:
             attack = data * 0.05  # 0 to 6.35 seconds
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["eg_attack"] = attack
@@ -804,7 +804,7 @@ class XGSynthesizer:
             decay = data * 0.05  # 0 to 6.35 seconds
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["eg_decay"] = decay
@@ -813,7 +813,7 @@ class XGSynthesizer:
             release = data * 0.05  # 0 to 6.35 seconds
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["eg_release"] = release
@@ -822,7 +822,7 @@ class XGSynthesizer:
             pitch_coarse = (data - 8192) / 100.0
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["pitch_coarse"] = pitch_coarse
@@ -831,7 +831,7 @@ class XGSynthesizer:
             pitch_fine = (data - 8192) * 0.5
             # Apply parameter to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     if drum_note not in self.drum_parameters[ch]:
                         self.drum_parameters[ch][drum_note] = {}
                     self.drum_parameters[ch][drum_note]["pitch_fine"] = pitch_fine
@@ -840,7 +840,7 @@ class XGSynthesizer:
             kit = data
             # Apply to all drum channels
             for ch in range(16):
-                if ch == 9 or self.channel_states[ch].get("bank") == 128:
+                if self.channel_renderers[ch].is_drum or self.channel_states[ch].get("bank") == 128:
                     self.channel_states[ch]["drum_kit"] = kit
                     
     def get_drum_instrument_name(self, channel: int, note: int) -> Optional[str]:
@@ -856,7 +856,7 @@ class XGSynthesizer:
         """
         if self.sf2_manager:
             # For drum channel, create temporary tone generator to get map
-            is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
+            is_drum = self.channel_renderers[channel].is_drum or (self.channel_states[channel].get("bank") == 128)
             if is_drum:
                 from tg import DrumNoteMap  # Import from original tg module
                 drum_map = DrumNoteMap()
@@ -876,7 +876,7 @@ class XGSynthesizer:
         if channel not in range(16):
             return
             
-        is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
+        is_drum = self.channel_renderers[channel].is_drum or (self.channel_states[channel].get("bank") == 128)
         if not is_drum:
             return
             
@@ -904,7 +904,7 @@ class XGSynthesizer:
         if channel not in range(16):
             return None
             
-        is_drum = (channel == 9) or (self.channel_states[channel].get("bank") == 128)
+        is_drum = self.channel_renderers[channel].is_drum or (self.channel_states[channel].get("bank") == 128)
         if not is_drum:
             return None
             
