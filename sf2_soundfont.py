@@ -1113,7 +1113,7 @@ class Sf2SoundFont:
             Стерео: список кортежей (левый, правый)
         """
         sample_length = sample_header.end - sample_header.start
-        if self.file is None or 'smpl' not in self.chunk_info or sample_length:
+        if self.file is None or 'smpl' not in self.chunk_info or not sample_length:
             return None
         
         if sample_header.data is not None:
