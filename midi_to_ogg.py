@@ -20,7 +20,7 @@ import opuslib
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from xg_synthesizer import XGSynthesizer
+from synth.core.synthesizer import XGSynthesizer
 
 
 class MIDIToOGGConverter:
@@ -267,10 +267,10 @@ class MIDIToOGGConverter:
         midi_messages, sysex_messages = self._collect_midi_messages(midi)
 
         # Send all messages to synthesizer in blocks using sample-accurate processing
-        self.synth.send_midi_message_block(midi_messages, sysex_messages)
+        self.synth.buffered_processor.send_midi_message_block(midi_messages, sysex_messages)
         for m in midi_messages:
             if 0x90 <= m[1] < 0xa0:
-                self.synth.set_buffered_mode_time(m[0])
+                self.synth.buffered_processor.set_buffered_mode_time(m[0])
                 break
 
         # Generate audio with proper timing using sample-accurate mode
