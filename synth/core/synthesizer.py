@@ -51,7 +51,8 @@ class XGSynthesizer:
 
     def __init__(self, sample_rate: int = DEFAULT_CONFIG["SAMPLE_RATE"],
                  block_size: int = DEFAULT_CONFIG["BLOCK_SIZE"],
-                 max_polyphony: int = DEFAULT_CONFIG["MAX_POLYPHONY"]):
+                 max_polyphony: int = DEFAULT_CONFIG["MAX_POLYPHONY"],
+                 param_cache=None):
         """
         Initialize XG synthesizer.
 
@@ -59,6 +60,7 @@ class XGSynthesizer:
             sample_rate: Sampling rate (default 44100 Hz)
             block_size: Audio block size in samples (default 512)
             max_polyphony: Maximum polyphony (default 64 voices)
+            param_cache: Optional parameter cache for performance optimization
         """
         # Basic parameters
         self.sample_rate = sample_rate
@@ -70,7 +72,7 @@ class XGSynthesizer:
         self.lock = threading.RLock()
 
         # SF2 file management
-        self.sf2_manager = SF2Manager()
+        self.sf2_manager = SF2Manager(param_cache=param_cache)
 
         # State management
         self.state_manager = StateManager()

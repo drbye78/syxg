@@ -72,15 +72,19 @@ class ChannelNote:
 
     def _get_parameters(self, program: int, bank: int, wavetable, note: int, velocity: int, is_drum: bool):
         """Get parameters for this note"""
-        try:
-            if is_drum:
-                params = wavetable.get_drum_parameters(note, program, bank)
-            else:
-                params = wavetable.get_program_parameters(program, bank, note, velocity)
-            if params:
-                return params
-        except Exception as e:
-            print(f"Warning: Failed to get parameters from wavetable: {e}")
+        # If no wavetable is available, use default parameters
+        if wavetable is None:
+            pass  # Fall through to default parameters
+        else:
+            try:
+                if is_drum:
+                    params = wavetable.get_drum_parameters(note, program, bank)
+                else:
+                    params = wavetable.get_program_parameters(program, bank, note, velocity)
+                if params:
+                    return params
+            except Exception as e:
+                print(f"Warning: Failed to get parameters from wavetable: {e}")
 
         # Default parameters (XG specification)
         return {
@@ -334,51 +338,67 @@ class ChannelNote:
         """Check if this note is still active"""
         return self.active and any(partial.is_active() for partial in self.partials)
 
-    def generate_sample(self, channel_state: Dict[str, Any], global_pitch_mod: float = 0.0):
-        """Generate a sample for this note"""
+    def generate_sample(self, mod_wheel: int, breath_controller: int, foot_controller: int,
+                       brightness: int, harmonic_content: int, channel_pressure_value: int,
+                       key_pressure: int, volume: float, expression: float,
+                       global_pitch_mod: float = 0.0):
+        """Generate a sample for this note with precomputed controller values"""
         if not self.is_active():
             return (0.0, 0.0)
 
-        # Get key pressure for this specific note
-        key_pressure = channel_state.get("key_pressure", {}).get(self.note, 0)
-
-        # Update LFOs with channel state
+        # Update LFOs with cached values
         for lfo in self.lfos:
-            lfo.set_mod_wheel(channel_state["controllers"].get(1, 0))
-            lfo.set_breath_controller(channel_state["controllers"].get(2, 0))
-            lfo.set_foot_controller(channel_state["controllers"].get(4, 0))
-            lfo.set_brightness(channel_state["controllers"].get(74, 64))
-            lfo.set_harmonic_content(channel_state["controllers"].get(71, 64))
-            lfo.set_channel_aftertouch(channel_state.get("channel_pressure_value", 0))
+            lfo.set_mod_wheel(mod_wheel)
+            lfo.set_breath_controller(breath_controller)
+            lfo.set_foot_controller(foot_controller)
+            lfo.set_brightness(brightness)
+            lfo.set_harmonic_content(harmonic_content)
+            lfo.set_channel_aftertouch(channel_pressure_value)
             lfo.set_key_aftertouch(key_pressure)
 
-        # Collect modulation sources
+        # Pre-calculate LFO values
+        lfo1_val = self.lfos[0].step()
+        lfo2_val = self.lfos[1].step()
+        lfo3_val = self.lfos[2].step()
+
+        # Get envelope values for first active partial (if any)
+        amp_env_val = filter_env_val = pitch_env_val = 0.0
         sources = {
             "velocity": self.velocity / 127.0,
-            "after_touch": channel_state.get("channel_pressure_value", 0) / 127.0,
-            "mod_wheel": channel_state["controllers"].get(1, 0) / 127.0,
-            "breath_controller": channel_state["controllers"].get(2, 0) / 127.0,
-            "foot_controller": channel_state["controllers"].get(4, 0) / 127.0,
-            "data_entry": channel_state["controllers"].get(6, 100) / 127.0,
-            "lfo1": self.lfos[0].step(),
-            "lfo2": self.lfos[1].step(),
-            "lfo3": self.lfos[2].step(),
-            "amp_env": self.partials[0].amp_envelope.process() if self.partials and self.partials[0].amp_envelope else 0.0,
-            "filter_env": self.partials[0].filter_envelope.process() if self.partials and self.partials[0].filter_envelope else 0.0,
-            "pitch_env": self.partials[0].pitch_envelope.process() if self.partials and self.partials[0].pitch_envelope else 0.0,
+            "after_touch": channel_pressure_value / 127.0,
+            "mod_wheel": mod_wheel / 127.0,
+            "breath_controller": breath_controller / 127.0,
+            "foot_controller": foot_controller / 127.0,
+            "data_entry": 100 / 127.0,  # Default data entry value
+            "lfo1": lfo1_val,
+            "lfo2": lfo2_val,
+            "lfo3": lfo3_val,
+            "amp_env": amp_env_val,
+            "filter_env": filter_env_val,
+            "pitch_env": pitch_env_val,
             "key_pressure": key_pressure / 127.0,
-            "brightness": channel_state["controllers"].get(74, 64) / 127.0,
-            "harmonic_content": channel_state["controllers"].get(71, 64) / 127.0,
-            "portamento": 1.0 if channel_state["portamento_active"] else 0.0,
-            "vibrato": 50.0 / 100.0,
+            "brightness": brightness / 127.0,
+            "harmonic_content": harmonic_content / 127.0,
+            "portamento": 1.0,  # Default portamento is active
+            "vibrato": 0.5,  # Default vibrato
             "tremolo": 0.0,
-            "tremolo_depth": 0.0,
+            "tremolo_depth": 0.3,
             "tremolo_rate": 4.0,
             "note_number": self.note / 127.0,
-            "volume_cc": channel_state["controllers"].get(7, 100) / 127.0,
-            "balance": (channel_state["controllers"].get(8, 64) - 64) / 64.0,
-            "portamento_time_cc": channel_state["controllers"].get(5, 0) / 127.0
+            "volume_cc": volume / 127.0,  # Use passed volume parameter
+            "balance": 0.0,  # Default balance
+            "portamento_time_cc": 0.0  # Default portamento time
         }
+
+        for partial in self.partials:
+            if partial.is_active():
+                if partial.amp_envelope:
+                    amp_env_val = partial.amp_envelope.process()
+                if partial.filter_envelope:
+                    filter_env_val = partial.filter_envelope.process()
+                if partial.pitch_envelope:
+                    pitch_env_val = partial.pitch_envelope.process()
+                break
 
         # Process modulation matrix
         modulation_values = self.mod_matrix.process(sources, self.velocity, self.note)
@@ -411,11 +431,10 @@ class ChannelNote:
         if active_partials > 0:
             left_sum /= active_partials
             right_sum /= active_partials
-
-        # Apply channel volume and expression
-        volume = (channel_state["volume"] / 127.0) * (channel_state["expression"] / 127.0)
-        left_out = left_sum * volume
-        right_out = right_sum * volume
+        # Apply channel volume and expression using precomputed values
+        volume_factor = (volume / 127.0) * (expression / 127.0)
+        left_out = left_sum * volume_factor
+        right_out = right_sum * volume_factor
 
         return (left_out, right_out)
 

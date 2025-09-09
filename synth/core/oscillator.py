@@ -47,33 +47,70 @@ class LFO:
         self.modulated_rate = rate
         self.modulated_depth = depth
 
+        # Phase 2 optimization: Cache phase step to reduce update frequency
+        self.phase_step_cache = 0.0
+        self.phase_step_dirty = True
         self._update_phase_step()
 
     def set_parameters(self, waveform=None, rate=None, depth=None, delay=None,
                        modulated_rate=None, modulated_depth=None):
         """Динамическое обновление параметров LFO"""
+        changed = False
         if waveform is not None:
             self.waveform = waveform
         if rate is not None:
-            self.rate = max(0.1, min(20.0, rate))
+            # Optimized clamping
+            if rate < 0.1:
+                self.rate = 0.1
+            elif rate > 20.0:
+                self.rate = 20.0
+            else:
+                self.rate = rate
+            changed = True
         if depth is not None:
-            self.depth = max(0.0, min(1.0, depth))
+            # Optimized clamping
+            if depth < 0.0:
+                self.depth = 0.0
+            elif depth > 1.0:
+                self.depth = 1.0
+            else:
+                self.depth = depth
         if delay is not None:
-            self.delay = max(0.0, min(5.0, delay))
+            # Optimized clamping
+            if delay < 0.0:
+                self.delay = 0.0
+            elif delay > 5.0:
+                self.delay = 5.0
+            else:
+                self.delay = delay
             self.delay_samples = int(self.delay * self.sample_rate)
 
         # Обновление модулированных параметров
         if modulated_rate is not None:
-            self.modulated_rate = max(0.1, min(20.0, modulated_rate))
+            # Optimized clamping
+            if modulated_rate < 0.1:
+                self.modulated_rate = 0.1
+            elif modulated_rate > 20.0:
+                self.modulated_rate = 20.0
+            else:
+                self.modulated_rate = modulated_rate
+            changed = True
         if modulated_depth is not None:
-            self.modulated_depth = max(0.0, min(1.0, modulated_depth))
+            # Optimized clamping
+            if modulated_depth < 0.0:
+                self.modulated_depth = 0.0
+            elif modulated_depth > 1.0:
+                self.modulated_depth = 1.0
+            else:
+                self.modulated_depth = modulated_depth
 
-        self._update_phase_step()
+        if changed:
+            self.phase_step_dirty = True
 
     def set_mod_wheel(self, value):
         """Установка значения модуляционного колеса (0-127)"""
         self.mod_wheel = value / 127.0
-        self._update_phase_step()
+        self.phase_step_dirty = True
 
     def set_breath_controller(self, value):
         """
@@ -83,7 +120,7 @@ class LFO:
             value: значение контроллера дыхания (0-127)
         """
         self.breath_controller = value / 127.0
-        self._update_phase_step()
+        self.phase_step_dirty = True
 
     def set_foot_controller(self, value):
         """
@@ -93,36 +130,37 @@ class LFO:
             value: значение контроллера педали (0-127)
         """
         self.foot_controller = value / 127.0
-        self._update_phase_step()
+        self.phase_step_dirty = True
 
     def set_channel_aftertouch(self, value):
         """Установка значения channel aftertouch (0-127)"""
         self.channel_aftertouch = value / 127.0
-        self._update_phase_step()
+        self.phase_step_dirty = True
 
     def set_key_aftertouch(self, value):
         """Установка значения key aftertouch (0-127)"""
         self.key_aftertouch = value / 127.0
-        self._update_phase_step()
+        self.phase_step_dirty = True
 
     def set_brightness(self, value):
         """Установка значения brightness (0-127)"""
         self.brightness_mod = value / 127.0
-        self._update_phase_step()
+        self.phase_step_dirty = True
 
     def set_harmonic_content(self, value):
         """Установка значения harmonic content (0-127)"""
         self.harmonic_content_mod = value / 127.0
-        self._update_phase_step()
+        self.phase_step_dirty = True
 
     def _update_phase_step(self):
         """Обновление скорости изменения фазы с учетом модуляции"""
+        # Cache calculations to reduce max() calls and improve performance
         # Базовая скорость
         base_rate = self.rate
 
-        # Модуляция скорости от различных источников
+        # Модуляция скорости от различных источников (pre-calculated)
         rate_multiplier = (
-            1 + self.mod_wheel * 0.5 +
+            1.0 + self.mod_wheel * 0.5 +
             self.channel_aftertouch * 0.3 +
             self.key_aftertouch * 0.3 +
             self.brightness_mod * 0.2 +
@@ -131,11 +169,14 @@ class LFO:
             self.foot_controller * 0.3
         )
 
-        # Расчет эффективной скорости
-        effective_rate = max(0.1, base_rate * rate_multiplier)
+        # Расчет эффективной скорости (optimized clamping)
+        if base_rate * rate_multiplier < 0.1:
+            effective_rate = 0.1
+        else:
+            effective_rate = base_rate * rate_multiplier
 
-        # Расчет шага фазы
-        self.phase_step = effective_rate * 2 * math.pi / self.sample_rate
+        # Расчет шага фазы (pre-calculate constants)
+        self.phase_step = effective_rate * 6.283185307179586 / self.sample_rate  # 2 * π
 
     def step(self):
         """Генерация следующего значения LFO с учетом задержки и модуляции"""
@@ -143,6 +184,11 @@ class LFO:
         if self.delay_counter < self.delay_samples:
             self.delay_counter += 1
             return 0.0
+
+        # Phase 2 optimization: Only update phase step when dirty
+        if self.phase_step_dirty:
+            self._update_phase_step()
+            self.phase_step_dirty = False
 
         # Обновление фазы
         self.phase = (self.phase + self.phase_step) % (2 * math.pi)

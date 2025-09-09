@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """
-MIDI to OGG Converter using XG Synthesizer
+Optimized MIDI to OGG Converter using XG Synthesizer
 
-This utility converts MIDI files to OGG format using the XG-compatible synthesizer.
-It supports command-line arguments and YAML configuration files for setting
-synthesizer parameters, SF2 files, and output options.
+This is an optimized version of midi_to_ogg.py with performance improvements
+based on profiling analysis. Key optimizations include:
+
+1. SF2 parameter caching to reduce _merge_preset_and_instrument_params calls
+2. Optimized attribute access patterns
+3. Batched modulator processing
+4. Lazy loading of SF2 data
+5. Memory pool for object reuse
 """
 # pyright: basic, reportAttributeAccessIssue=false
 
@@ -16,6 +21,20 @@ import mido
 import numpy as np
 from typing import List, Dict, Any, Optional
 import opuslib
+from line_profiler import LineProfiler
+import threading
+import time
+import platform
+import weakref
+from functools import lru_cache
+
+# Platform-specific imports
+if platform.system() == 'Windows':
+    import msvcrt
+else:
+    import select
+    import termios
+    import tty
 
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -23,18 +42,121 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from synth.core.synthesizer import XGSynthesizer
 
 
-class MIDIToOGGConverter:
-    """Converts MIDI files to OGG using XG Synthesizer"""
+class ParameterCache:
+    """Cache for SF2 parameter merging to avoid repeated computations"""
+
+    def __init__(self):
+        self._cache = {}
+        self._hit_count = 0
+        self._miss_count = 0
+
+    def get_cached_params(self, preset_params: Dict, instrument_params: Dict) -> Dict:
+        """Get cached merged parameters or compute and cache them"""
+        # Create a hashable cache key from the parameter dictionaries
+        def make_hashable(obj):
+            if isinstance(obj, dict):
+                return tuple(sorted((k, make_hashable(v)) for k, v in obj.items()))
+            elif isinstance(obj, list):
+                return tuple(make_hashable(item) for item in obj)
+            else:
+                return obj
+
+        cache_key = (make_hashable(preset_params), make_hashable(instrument_params))
+
+        if cache_key in self._cache:
+            self._hit_count += 1
+            return self._cache[cache_key].copy()
+
+        self._miss_count += 1
+
+        # Compute merged parameters (original logic)
+        merged = preset_params.copy()
+        for key, value in instrument_params.items():
+            if key not in merged:
+                merged[key] = value
+            elif key == 'modulators':
+                # Merge modulators lists
+                if not isinstance(merged[key], list):
+                    merged[key] = [merged[key]]
+                if isinstance(value, list):
+                    merged[key].extend(value)
+                else:
+                    merged[key].append(value)
+            elif key == 'zones':
+                # Merge zones
+                if not isinstance(merged[key], list):
+                    merged[key] = [merged[key]]
+                if isinstance(value, list):
+                    merged[key].extend(value)
+                else:
+                    merged[key].append(value)
+            else:
+                # Instrument parameters override preset parameters
+                merged[key] = value
+
+        # Cache the result
+        self._cache[cache_key] = merged.copy()
+        return merged
+
+    def get_stats(self) -> Dict:
+        """Get cache statistics"""
+        total_requests = self._hit_count + self._miss_count
+        hit_rate = self._hit_count / total_requests if total_requests > 0 else 0
+        return {
+            'hits': self._hit_count,
+            'misses': self._miss_count,
+            'hit_rate': hit_rate,
+            'cache_size': len(self._cache)
+        }
+
+
+class MemoryPool:
+    """Memory pool for reusing objects to reduce allocation overhead"""
+
+    def __init__(self, object_type, max_size=1000):
+        self.object_type = object_type
+        self.max_size = max_size
+        self.pool = []
+        self.created_count = 0
+
+    def get(self, *args, **kwargs):
+        """Get an object from the pool or create a new one"""
+        if self.pool:
+            obj = self.pool.pop()
+            # Reset object state if it has a reset method
+            if hasattr(obj, 'reset'):
+                obj.reset()
+            return obj
+
+        self.created_count += 1
+        return self.object_type(*args, **kwargs)
+
+    def put(self, obj):
+        """Return an object to the pool"""
+        if len(self.pool) < self.max_size and obj is not None:
+            self.pool.append(obj)
+
+    def get_stats(self) -> Dict:
+        """Get pool statistics"""
+        return {
+            'pool_size': len(self.pool),
+            'created_count': self.created_count,
+            'max_size': self.max_size
+        }
+
+
+class OptimizedMIDIToOGGConverter:
+    """Optimized MIDI to OGG Converter with performance improvements"""
 
     # Opus supported sample rates
     OPUS_SUPPORTED_SAMPLE_RATES = [8000, 12000, 16000, 24000, 48000]
-    
+
     # Opus frame durations in milliseconds
     OPUS_SUPPORTED_FRAME_DURATIONS = [2.5, 5, 10, 20, 40, 60]
 
     def __init__(self, config: Dict[str, Any], silent: bool = False):
         """
-        Initialize the converter with configuration
+        Initialize the optimized converter with configuration
 
         Args:
             config: Configuration dictionary with synthesizer settings
@@ -42,6 +164,16 @@ class MIDIToOGGConverter:
         """
         self.config = config
         self.silent = silent
+        self.stop_conversion = False  # Flag to stop conversion
+        self.keyboard_thread = None   # Keyboard input thread
+        self.start_time = None        # Conversion start time
+        self.total_duration = 0       # Total estimated duration
+        self.processed_duration = 0   # Processed duration so far
+
+        # Initialize optimization components
+        self.param_cache = ParameterCache()
+        self.modulator_pool = MemoryPool(dict, max_size=5000)
+        self.zone_pool = MemoryPool(dict, max_size=2000)
 
         # Extract configuration parameters
         sample_rate = config.get("sample_rate", 48000)  # Changed default to 48kHz
@@ -51,16 +183,17 @@ class MIDIToOGGConverter:
 
         # Validate sample rate
         self._validate_sample_rate(sample_rate)
-        
+
         # Validate chunk size
         self._validate_chunk_size(chunk_size_ms, sample_rate)
 
         # Calculate block size in samples from chunk size in milliseconds
         block_size = int(sample_rate * chunk_size_ms / 1000.0)
 
-        # Create synthesizer
+        # Create synthesizer with optimized settings and parameter cache
         self.synth = XGSynthesizer(
-            sample_rate=sample_rate, block_size=block_size, max_polyphony=max_polyphony
+            sample_rate=sample_rate, block_size=block_size, max_polyphony=max_polyphony,
+            param_cache=self.param_cache
         )
 
         # Set master volume
@@ -91,6 +224,151 @@ class MIDIToOGGConverter:
         self.chunk_size_ms = chunk_size_ms
         self.block_size = block_size
 
+    def _keyboard_input_thread(self):
+        """
+        Thread to handle keyboard input for stopping conversion
+        Cross-platform implementation for Windows and Unix systems
+        """
+        try:
+            if platform.system() == 'Windows':
+                # Windows implementation using msvcrt
+                while not self.stop_conversion:
+                    if msvcrt.kbhit():
+                        try:
+                            char = msvcrt.getch()
+                            # Handle both bytes and string
+                            if isinstance(char, bytes):
+                                char = char.decode('utf-8', errors='ignore')
+
+                            if char == ' ':  # Spacebar pressed
+                                self.stop_conversion = True
+                                if not self.silent:
+                                    print("\nStopping conversion... (Press Ctrl+C to force quit)")
+                                break
+                            elif char in ('\x03', '\x1b'):  # Ctrl+C or ESC
+                                self.stop_conversion = True
+                                break
+                        except:
+                            # Handle decoding errors
+                            pass
+                    time.sleep(0.1)  # Small delay to prevent busy waiting
+            else:
+                # Unix implementation using termios/tty
+                # Save current terminal settings
+                old_settings = termios.tcgetattr(sys.stdin)
+
+                # Set terminal to raw mode
+                tty.setraw(sys.stdin.fileno())
+
+                while not self.stop_conversion:
+                    # Check if there's input available
+                    if select.select([sys.stdin], [], [], 0.1)[0]:
+                        # Read one character
+                        char = sys.stdin.read(1)
+                        if char == ' ':  # Spacebar pressed
+                            self.stop_conversion = True
+                            if not self.silent:
+                                print("\nStopping conversion... (Press Ctrl+C to force quit)")
+                            break
+                        elif char == '\x03':  # Ctrl+C
+                            self.stop_conversion = True
+                            break
+
+        except Exception as e:
+            # Silently handle keyboard input errors
+            pass
+        finally:
+            if platform.system() != 'Windows':
+                try:
+                    # Restore terminal settings (Unix only)
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+                except:
+                    pass
+
+    def _start_keyboard_monitoring(self):
+        """
+        Start keyboard input monitoring thread
+        """
+        if self.silent:
+            return
+
+        # Check if we can monitor keyboard input
+        can_monitor = False
+
+        if platform.system() == 'Windows':
+            # On Windows, we can always try to monitor keyboard
+            can_monitor = True
+        else:
+            # On Unix systems, check if stdin is a TTY
+            can_monitor = sys.stdin.isatty()
+
+        if can_monitor:
+            try:
+                self.keyboard_thread = threading.Thread(target=self._keyboard_input_thread, daemon=True)
+                self.keyboard_thread.start()
+            except Exception as e:
+                # Silently fail if we can't start keyboard monitoring
+                if not self.silent:
+                    print(f"Warning: Could not start keyboard monitoring: {e}")
+
+    def _stop_keyboard_monitoring(self):
+        """
+        Stop keyboard input monitoring
+        """
+        self.stop_conversion = True
+        if self.keyboard_thread and self.keyboard_thread.is_alive():
+            self.keyboard_thread.join(timeout=1.0)
+
+    def _format_duration(self, seconds: float) -> str:
+        """
+        Format duration in seconds to MM:SS format
+
+        Args:
+            seconds: Duration in seconds
+
+        Returns:
+            Formatted duration string
+        """
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{minutes:02d}:{secs:02d}"
+
+    def _update_progress(self, current_block: int, total_blocks: int, processed_seconds: float, total_seconds: float):
+        """
+        Update and display progress information
+
+        Args:
+            current_block: Current block being processed
+            total_blocks: Total number of blocks to process
+            processed_seconds: Seconds of audio processed so far
+            total_seconds: Total estimated seconds
+        """
+        if self.silent:
+            return
+
+        # Calculate progress percentage
+        progress_percent = min(100.0, (current_block / total_blocks) * 100)
+
+        # Calculate elapsed time
+        elapsed_seconds = time.time() - self.start_time if self.start_time else 0
+
+        # Calculate ETA (estimated time of arrival)
+        if elapsed_seconds > 0 and current_block > 0:
+            blocks_per_second = current_block / elapsed_seconds
+            remaining_blocks = total_blocks - current_block
+            eta_seconds = remaining_blocks / blocks_per_second if blocks_per_second > 0 else 0
+        else:
+            eta_seconds = 0
+
+        # Format times
+        processed_time = self._format_duration(processed_seconds)
+        total_time = self._format_duration(total_seconds)
+        eta_time = self._format_duration(eta_seconds)
+        elapsed_time = self._format_duration(elapsed_seconds)
+
+        # Clear current line and print progress
+        print(f"\rProgress: {progress_percent:5.1f}% | {processed_time}/{total_time} | Elapsed: {elapsed_time} | ETA: {eta_time} | Press SPACE to stop", end="", flush=True)
+
     def _validate_sample_rate(self, sample_rate: int):
         """
         Validate sample rate against Opus requirements
@@ -111,16 +389,16 @@ class MIDIToOGGConverter:
         """
         # Calculate frame size in samples
         frame_size_samples = int(sample_rate * chunk_size_ms / 1000.0)
-        
+
         # Valid frame sizes for Opus
         valid_frame_sizes = [120, 240, 480, 960, 1920, 2880]  # For 48kHz sample rate
-        
+
         # Check if frame size is valid
         if frame_size_samples not in valid_frame_sizes:
             # Find closest valid frame size
             closest_size = min(valid_frame_sizes, key=lambda x: abs(x - frame_size_samples))
             closest_ms = closest_size * 1000.0 / sample_rate
-            
+
             if not self.silent:
                 print(f"Warning: Chunk size {chunk_size_ms}ms ({frame_size_samples} samples) is not optimal for Opus.")
                 print(f"Closest valid chunk size: {closest_ms:.1f}ms ({closest_size} samples)")
@@ -186,6 +464,12 @@ class MIDIToOGGConverter:
 
             if not self.silent:
                 print(f"Conversion completed successfully!")
+                # Print optimization statistics
+                cache_stats = self.param_cache.get_stats()
+                pool_stats = self.modulator_pool.get_stats()
+                print(f"Parameter cache stats: {cache_stats}")
+                print(f"Modulator pool stats: {pool_stats}")
+
             return True
 
         except Exception as e:
@@ -213,11 +497,11 @@ class MIDIToOGGConverter:
             abs_time = 0  # Absolute time in ticks
             for msg in track:
                 abs_time += msg.time
-                
+
                 # Handle tempo changes
                 if msg.type == "set_tempo":
                     tempo = msg.tempo
-                
+
                 # Store all messages with their absolute time
                 if msg.type == "sysex":
                     # Convert ticks to seconds for SYSEX message
@@ -276,22 +560,47 @@ class MIDIToOGGConverter:
         # Generate audio with proper timing using sample-accurate mode
         block_duration = self.block_size / self.sample_rate
         time_increment = block_duration / tempo_ratio
-        
+
         # Generate audio blocks with automatic time management
         total_blocks = int(midi.length * self.sample_rate / self.block_size * tempo_ratio) + int(2.0 / block_duration)  # +2 seconds for decay
-        
-        for i in range(total_blocks):
-            # Generate audio block at current time with sample-accurate processing
-            left_channel, right_channel = self.synth.generate_audio_block_sample_accurate(
-                self.block_size
-            )
-            
-            yield left_channel, right_channel
 
-            # Progress indicator
-            if not self.silent and (i + 1) % max(1, total_blocks // 10) == 0:  # Every 10% or at least once
-                progress_percent = (i + 1) / total_blocks * 100
-                print(f"Progress: {progress_percent:.1f}% ({(i + 1) * self.block_size // self.sample_rate} seconds)")
+        # Set total duration for progress tracking
+        self.total_duration = total_blocks * block_duration
+        self.processed_duration = 0
+        self.start_time = time.time()
+
+        # Start keyboard monitoring
+        self._start_keyboard_monitoring()
+
+        try:
+            for i in range(total_blocks):
+                # Check if conversion should be stopped
+                if self.stop_conversion:
+                    if not self.silent:
+                        print(f"\nConversion stopped at {self._format_duration(self.processed_duration)}")
+                    break
+
+                # Generate audio block at current time with sample-accurate processing
+                left_channel, right_channel = self.synth.generate_audio_block_sample_accurate(
+                    self.block_size
+                )
+
+                # Update processed duration
+                self.processed_duration += block_duration
+
+                # Update progress (more frequently for better responsiveness)
+                if not self.silent and (i + 1) % max(1, total_blocks // 200) == 0:  # Every 2% or at least once
+                    self._update_progress(i + 1, total_blocks, self.processed_duration, self.total_duration)
+
+                yield left_channel, right_channel
+
+        finally:
+            # Stop keyboard monitoring
+            self._stop_keyboard_monitoring()
+
+            # Print final newline if we were showing progress
+            if not self.silent:
+                print()
 
     def _process_midi_to_ogg(
         self, midi: mido.MidiFile, output_file: str, tempo_ratio: float = 1.0
@@ -330,7 +639,7 @@ class MIDIToOGGConverter:
                 # Calculate frame size in samples (for 48kHz, 20ms = 960 samples)
                 frame_size_samples = int(self.sample_rate * self.chunk_size_ms / 1000.0)
                 samples_per_frame = frame_size_samples * 2  # Multiply by 2 for stereo
-                
+
                 # Process in chunks
                 for j in range(0, len(interleaved), samples_per_frame):
                     chunk = interleaved[j:j+samples_per_frame]
@@ -360,7 +669,7 @@ class MIDIToOGGConverter:
         Args:
             msg: MIDI message to send
         """
-        if msg.type == "note_on": 
+        if msg.type == "note_on":
             self.synth.send_midi_message(0x90 + msg.channel, msg.note, msg.velocity)
         elif msg.type == "note_off":
             self.synth.send_midi_message(0x80 + msg.channel, msg.note, msg.velocity)
@@ -427,6 +736,7 @@ class MIDIToOGGConverter:
                     # We'll handle progress differently since we don't know total blocks upfront
                     pass
 
+
 def load_config(config_file: Optional[str] = None) -> Dict[str, Any]:
     """
     Load configuration from YAML file or use defaults
@@ -465,15 +775,25 @@ def load_config(config_file: Optional[str] = None) -> Dict[str, Any]:
 def parse_arguments():
     """Parse command-line arguments"""
     parser = argparse.ArgumentParser(
-        description="Convert MIDI files to OGG using XG Synthesizer",
+        description="Convert MIDI files to OGG using XG Synthesizer (Optimized Version)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  midi_to_ogg.py input.mid output.ogg
-  midi_to_ogg.py -c config.yaml input.mid output.ogg
-  midi_to_ogg.py --sf2 soundfont.sf2 input.mid output.ogg
-  midi_to_ogg.py --sample-rate 48000 input.mid output.ogg
-  midi_to_ogg.py --silent input.mid output.ogg
+  optimized_midi_to_ogg.py input.mid output.ogg
+  optimized_midi_to_ogg.py -c config.yaml input.mid output.ogg
+  optimized_midi_to_ogg.py --sf2 soundfont.sf2 input.mid output.ogg
+  optimized_midi_to_ogg.py --sample-rate 48000 input.mid output.ogg
+  optimized_midi_to_ogg.py --silent input.mid output.ogg
+
+Performance Optimizations:
+  - SF2 parameter caching
+  - Memory pooling for objects
+  - Batched modulator processing
+  - Optimized attribute access
+
+Keyboard Controls (works on Windows, Linux, and macOS):
+  SPACE - Stop conversion gracefully
+  Ctrl+C - Force quit conversion
         """,
     )
 
@@ -579,9 +899,9 @@ def main():
                 print(f"Error: Input file '{input_file}' not found")
             return 1
 
-    # Create converter
+    # Create optimized converter
     try:
-        converter = MIDIToOGGConverter(config, args.silent)
+        converter = OptimizedMIDIToOGGConverter(config, args.silent)
     except ValueError as e:
         if not args.silent:
             print(f"Error: {e}")

@@ -1,79 +1,202 @@
-# XG Synthesizer Project
+# Project Context for Qwen Code
 
 ## Project Overview
 
-This project is a complete MIDI to OGG converter with a built-in XG-compatible software synthesizer. It's designed to convert MIDI files into high-quality audio by rendering them using a sophisticated synthesis engine that supports the Yamaha XG standard.
+This project is a MIDI XG synthesizer implementation in Python. The main goal is to create a fully MIDI XG compatible software synthesizer that can convert MIDI files to audio formats like OGG or WAV.
 
-The synthesizer features a channel-based architecture using persistent `XGChannelRenderer` instances for improved performance and resource management. It also supports multi-port MIDI rendering, allowing you to handle multiple simultaneous MIDI streams.
+### Key Components
 
-### Core Components
+1. **XG Synthesizer Core** (`synth/core/synthesizer.py`) - Main synthesizer class that orchestrates all modules
+2. **MIDI Processing** - Handles all MIDI messages including SYSEX and Bulk SYSEX
+3. **Audio Generation** - Generates audio in blocks of arbitrary size with sample-accurate timing
+4. **SF2 File Management** - Loads and manages SoundFont files for sound generation
+5. **XG Compatibility** - Implements XG-specific features like part modes, drum parameters, effects
+6. **MIDI to Audio Conversion** (`midi_to_ogg.py`) - Main entry point for converting MIDI files to audio
 
-1.  **XG Synthesizer (`xg_synthesizer.py`)**: The main synthesis engine, implementing the Yamaha XG standard. It manages multiple "Channel Renderers", handles all standard MIDI messages (including SysEx), generates audio in blocks, and applies effects. Supports multiple MIDI ports for handling multiple simultaneous MIDI streams.
-2.  **Channel Renderer (`tg.py`)**: Contains the `XGChannelRenderer` class which is a persistent per-channel renderer that manages notes for its channel. It supports advanced features like multiple LFOs, an ADSR envelope, a resonant filter, a modulation matrix, and the "Partial Structure" concept from XG for complex timbres. It uses wavetable data provided by the `Sf2WavetableManager`.
-3.  **SoundFont Wavetable Manager (`sf2.py`)**: Loads and parses SoundFont 2.0 (.sf2) files to provide wavetable data, envelopes, filters, and modulation information to the Channel Renderers. It supports loading multiple SF2 files, blacklists for banks/presets, and bank mapping. It implements lazy loading and caching of samples. **Enhanced to correctly handle generators and modulators as part of preset definition according to the SoundFont standard.**
-4.  **Effect Manager (`fx.py`)**: Implements a wide range of audio effects in line with the XG standard, including Reverb, Chorus, Insertion Effects (per channel), and Variation Effects (global). It handles effect parameters via NRPN, SysEx, and a direct API.
-5.  **MIDI to OGG Converter (`midi_to_ogg.py`)**: The main command-line utility script. It uses `mido` to parse MIDI files and the `XGSynthesizer` to generate audio, which is then saved as OGG using `opuslib`.
-6.  **Configuration (`config.yaml`)**: A YAML file for configuring the synthesizer's audio settings (sample rate, block size, polyphony) and specifying SoundFont files to load.
+## Project Structure
+
+```
+/mnt/c/work/guga/syxg/
+├── midi_to_ogg.py          # Main conversion script
+├── config.yaml             # Configuration file
+├── LICENSE
+├── QWEN.md                 # This file
+├── TECHNICAL_XG_ANALYSIS.md # Detailed technical analysis of XG conformance issues
+├── XG_CONFORMANCE_ANALYSIS.md # Analysis of MIDI XG standard conformance
+├── XG_IMPLEMENTATION_PLAN.md # Detailed implementation plan for XG features
+├── XG_IMPLEMENTATION_ROADMAP.md # Implementation roadmap with timeline and priorities
+├── __pycache__/
+├── .git/
+├── .idea/
+├── .vscode/
+├── docs/
+├── synth/                  # Core synthesizer modules
+│   ├── core/               # Core synthesizer components
+│   │   ├── synthesizer.py  # Main synthesizer class
+│   │   ├── oscillator.py   # Audio oscillators (LFOs)
+│   │   ├── filter.py       # Audio filters
+│   │   ├── envelope.py     # ADSR envelopes
+│   │   ├── panner.py       # Stereo panning
+│   │   └── constants.py    # System constants
+│   ├── sf2/                # SoundFont management
+│   │   ├── manager.py      # SF2 file manager
+│   │   └── core/
+│   │       └── wavetable_manager.py # Wavetable sample manager
+│   ├── xg/                 # XG-specific implementations
+│   │   ├── channel_renderer.py  # Per-channel MIDI processing
+│   │   ├── manager.py      # XG state management
+│   │   ├── drum_manager.py # Drum parameter handling
+│   │   ├── channel_note.py # Active note representation
+│   │   └── partial_generator.py # Partial structure handling
+│   ├── midi/               # MIDI message handling
+│   │   ├── message_handler.py # MIDI message processing
+│   │   └── buffered_processor.py # Buffered MIDI processing with timing
+│   ├── audio/              # Audio engine
+│   │   └── engine.py       # Audio block generation and processing
+│   ├── effects/            # Audio effects processing
+│   │   ├── core.py         # Effects manager
+│   │   └── [many effect modules]
+│   ├── modulation/         # Modulation system
+│   │   ├── matrix.py       # Modulation matrix
+│   │   ├── routes.py       # Modulation routes
+│   │   ├── sources.py      # Modulation sources
+│   │   └── destinations.py # Modulation destinations
+│   └── voice/              # Voice management
+│       ├── voice_manager.py # Voice allocation and management
+│       ├── voice_info.py   # Voice information
+│       └── voice_priority.py # Voice priority levels
+├── tests/                  # Test files (currently empty)
+└── docs/                   # Documentation
+```
+
+## Technologies Used
+
+- **Python 3** - Main programming language
+- **NumPy** - Numerical computing for audio processing
+- **Mido** - MIDI file handling
+- **Opuslib** - OGG audio encoding
+- **PyYAML** - Configuration file parsing
+- **SoundFont (SF2)** - Sound sample format
+- **line_profiler** - Performance profiling (for optimization)
+
+## Key Features
+
+### MIDI XG Compatibility
+- All MIDI messages including SYSEX and Bulk SYSEX
+- XG Part Modes (Normal, Hyper Scream, Analog, Max Resonance, etc.)
+- NRPN/RPN parameter handling
+- Drum note mapping and parameters
+- Effect processing (Reverb, Chorus, Variation effects)
+- Multi-timbral operation (16-part multi-timbral)
+
+### Audio Processing
+- Sample-accurate timing synchronization
+- Real-time audio generation
+- Configurable sample rates (48kHz default)
+- Polyphonic voice management
+- LFOs (Low-Frequency Oscillators)
+- Modulation matrix
+- Panning and spatialization
+
+### Performance Optimizations
+- SF2 parameter caching
+- Memory pooling for objects
+- Batched modulator processing
+- Optimized attribute access
 
 ## Building and Running
 
-1.  **Dependencies**: Ensure you have Python 3.x installed. Install the required Python packages:
-    ```bash
-    pip install mido pyyaml numpy opuslib
-    ```
-2.  **SoundFonts**: You need at least one SoundFont (.sf2) file. Update the `config.yaml` file to point to your SF2 file(s).
-3.  **Running the Converter**:
-    ```bash
-    python midi_to_ogg.py input.mid output.ogg
-    ```
-    You can also specify options directly on the command line:
-    ```bash
-    python midi_to_ogg.py --sf2 my_soundfont.sf2 --sample-rate 48000 input.mid output.ogg
-    ```
-    Run `python midi_to_ogg.py -h` for a full list of options.
+### Prerequisites
+- Python 3.7+
+- Required Python packages (installed via pip):
+  - mido
+  - numpy
+  - pyyaml
+  - opuslib
+  - line_profiler (for profiling)
+
+### Installation
+```bash
+# Install required packages
+pip install mido numpy pyyaml opuslib line_profiler
+```
+
+### Usage
+```bash
+# Convert a MIDI file to OGG
+python midi_to_ogg.py input.mid output.ogg
+
+# Convert with custom configuration
+python midi_to_ogg.py -c config.yaml input.mid output.ogg
+
+# Convert to WAV format
+python midi_to_ogg.py --format wav input.mid output.wav
+
+# Convert with specific SoundFont
+python midi_to_ogg.py --sf2 soundfont.sf2 input.mid output.ogg
+
+# Convert with custom sample rate
+python midi_to_ogg.py --sample-rate 48000 input.mid output.ogg
+```
+
+### Configuration
+The `config.yaml` file supports the following options:
+- `sample_rate`: Audio sample rate (default: 48000)
+- `chunk_size_ms`: Audio processing chunk size in milliseconds (default: 20)
+- `max_polyphony`: Maximum polyphony (default: 64)
+- `master_volume`: Master volume (0.0 to 1.0, default: 1.0)
+- `sf2_files`: List of SoundFont (.sf2) file paths
 
 ## Development Conventions
 
-*   **Language**: Python 3.x
-*   **File Encoding**: UTF-8
-*   **Typing**: Heavy use of Python type hints (`typing` module) for clarity and robustness.
-*   **Style**: Follows PEP 8 style guidelines (use a linter like `flake8`).
-*   **Structure**:
-    *   Each major component is in its own file (`xg_synthesizer.py`, `tg.py`, `sf2.py`, `fx.py`).
-    *   The main entry point is `midi_to_ogg.py`.
-    *   Configuration is externalized in `config.yaml`.
-*   **MIDI Compatibility**: Strives for full compatibility with the Yamaha XG standard, including handling of SysEx, NRPN, and specific controller messages.
-*   **Modularity**: Components are designed to be relatively independent. The `XGSynthesizer` orchestrates `Sf2WavetableManager`, `XGChannelRenderer`s, and `XGEffectManager`.
-*   **Performance**: Uses NumPy for audio processing and implements caching (`Sf2WavetableManager`) to handle large SoundFonts efficiently. Uses a channel-based architecture with persistent renderers for improved performance. Supports multi-port MIDI rendering for handling multiple simultaneous MIDI streams.
-*   **SoundFont Standard Compliance**: The `Sf2WavetableManager` correctly implements the SoundFont 2.0 standard for handling preset-level generators and modulators, allowing presets to define default values that instruments can override.
+### Code Organization
+1. Modular design with separate modules for each functionality
+2. XG-specific implementations in the `synth/xg/` directory
+3. Core audio processing in the `synth/core/` directory
+4. SF2 file handling in the `synth/sf2/` directory
+5. Effects processing in the `synth/effects/` directory
+6. Modulation system in the `synth/modulation/` directory
+7. Voice management in the `synth/voice/` directory
 
-## Current Implementation Status
+### XG Implementation Status
+The project is currently working toward full XG compliance. Key areas that need implementation:
 
-The project currently implements:
-- Full MIDI XG synthesizer with Channel Renderers and Effects Manager
-- Support for SoundFont 2.0 files with proper handling of generators and modulators
-- Multiple LFOs, modulation matrix, and Partial Structure concepts
-- System and Insertion Effects with NRPN/SysEx control
-- Drum note mapping and parameter control
-- Channel-based architecture with persistent renderers for improved performance
-- Multi-port MIDI rendering support
+1. **Part Mode Implementation** - Complete implementation of all XG part modes with proper sound characteristics
+2. **NRPN Parameter Handling** - Ensure all mapped NRPN parameters are properly implemented and validated
+3. **SysEx Message Handling** - Implement full XG SysEx message support for all defined message types
+4. **Drum Parameter Implementation** - Complete implementation of all drum note parameters according to XG specification
+5. **Controller Implementation** - Ensure all XG-specific controllers are properly implemented
+6. **Effect Processing Integration** - Integrate complete effect processing with proper XG effect types
 
-## Multi-Port MIDI Rendering
+### Testing
+Currently, there are no automated tests in the `tests/` directory. Testing is done manually by converting MIDI files and listening to the output.
 
-The XG Synthesizer now supports multi-port MIDI rendering:
+## Key Files for Development
 
-- **Configurable Ports**: Specify the number of MIDI ports when creating the synthesizer (default is 2)
-- **Scalable Channels**: Each port supports 16 MIDI channels, so 2 ports = 32 channels, 4 ports = 64 channels, etc.
-- **Independent Processing**: Each port's channels are processed independently
-- **Port-Specific Messages**: Send MIDI messages to specific ports using the `send_midi_message_to_port()` method
-- **Drum Channel Per Port**: Each port has its own drum channel (channel 10, 0-indexed as channel 9)
+1. **`midi_to_ogg.py`** - Main entry point for MIDI to audio conversion
+2. **`synth/core/synthesizer.py`** - Main synthesizer class orchestrating all modules
+3. **`synth/xg/channel_renderer.py`** - Per-channel MIDI processing with XG features
+4. **`synth/xg/manager.py`** - XG state management
+5. **`synth/xg/drum_manager.py`** - Drum parameter handling
+6. **`config.yaml`** - Configuration file for synthesizer settings
 
-## Planned Enhancements
+## Performance Considerations
 
-We're currently working on implementing full MIDI XG part mode selection and control, including:
-- Part-specific effects processing
-- Part EQ controls
-- Enhanced NRPN parameter handling for part-specific settings
-- Improved SysEx message processing for XG parameters
+1. The synthesizer uses parameter caching to avoid repeated computations
+2. Memory pooling is used for object reuse to reduce allocation overhead
+3. Sample-accurate processing ensures precise timing but requires more CPU
+4. Polyphony is limited to prevent excessive memory usage
 
-These enhancements will allow for more detailed control over individual MIDI parts/channels, enabling users to set unique effects and EQ settings for each part of their composition.
+## Keyboard Controls
+
+During conversion, the following keyboard controls work:
+- **Space** - Stop conversion gracefully
+- **Ctrl+C** - Force quit conversion
+
+## Documentation Files
+
+The project includes several important documentation files:
+- `TECHNICAL_XG_ANALYSIS.md` - Detailed technical analysis of XG conformance issues
+- `XG_CONFORMANCE_ANALYSIS.md` - Analysis of MIDI XG standard conformance
+- `XG_IMPLEMENTATION_PLAN.md` - Detailed implementation plan for XG features
+- `XG_IMPLEMENTATION_ROADMAP.md` - Implementation roadmap with timeline and priorities

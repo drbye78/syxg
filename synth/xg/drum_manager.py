@@ -284,7 +284,7 @@ class DrumManager:
     def handle_xg_drum_setup_nrpn(self, channel: int, nrpn_msb: int, nrpn_lsb: int,
                                  data_msb: int, data_lsb: int) -> bool:
         """
-        Handle XG drum setup NRPN messages.
+        Handle XG drum setup NRPN messages with complete parameter support.
 
         Args:
             channel: MIDI channel number (0-15)
@@ -296,9 +296,6 @@ class DrumManager:
         Returns:
             True if the NRPN was handled, False otherwise
         """
-        if channel != XG_CONSTANTS["DRUM_SETUP_CHANNEL"]:
-            return False
-
         # 14-bit data value
         data = (data_msb << 7) | data_lsb
 
@@ -307,100 +304,261 @@ class DrumManager:
         if drum_note is None:
             return False
 
-        # Process various drum parameters based on NRPN LSB
-        if nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_TUNE"]:
-            # Drum pitch tuning (-64..+63 semitones)
-            tune = (data - 8192) / 100.0  # Convert to semitones
-            self.set_drum_parameter(channel, drum_note, "tune", tune)
-            return True
+        # XG Drum Parameters (MSB 40-41)
+        if nrpn_msb in [40, 41]:
+            # Process drum parameters based on NRPN LSB
+            if nrpn_lsb == 0:  # Drum Note Pitch Coarse Tune
+                # Range: -64 to +63 semitones
+                tune_coarse = (data - 8192) / 128.0  # Convert to semitones
+                self.set_drum_parameter(channel, drum_note, "pitch_coarse", tune_coarse)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_LEVEL"]:
-            # Drum level (0..127)
-            level = data / 127.0
-            self.set_drum_parameter(channel, drum_note, "level", level)
-            return True
+            elif nrpn_lsb == 1:  # Drum Note Pitch Fine Tune
+                # Range: -64 to +63 cents
+                tune_fine = (data - 8192) / 128.0  # Convert to semitones
+                self.set_drum_parameter(channel, drum_note, "pitch_fine", tune_fine)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_PAN"]:
-            # Drum panning (-64..+63)
-            pan = (data - 8192) / 8192.0
-            self.set_drum_parameter(channel, drum_note, "pan", pan)
-            return True
+            elif nrpn_lsb == 2:  # Drum Note Level
+                # Range: 0-127 (0 = -inf dB, 127 = 0 dB)
+                level = data / 16256.0  # Normalize to 0.0-1.0
+                self.set_drum_parameter(channel, drum_note, "level", level)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_REVERB"]:
-            # Drum reverb send (0..127)
-            reverb = data / 127.0
-            self.set_drum_parameter(channel, drum_note, "reverb_send", reverb)
-            return True
+            elif nrpn_lsb == 3:  # Drum Note Pan
+                # Range: -64 to +63 (0 = center)
+                pan = (data - 8192) / 8192.0  # Normalize to -1.0 to +1.0
+                self.set_drum_parameter(channel, drum_note, "pan", pan)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_CHORUS"]:
-            # Drum chorus send (0..127)
-            chorus = data / 127.0
-            self.set_drum_parameter(channel, drum_note, "chorus_send", chorus)
-            return True
+            elif nrpn_lsb == 4:  # Drum Note Reverb Send
+                # Range: 0-127
+                reverb_send = data / 16256.0  # Normalize to 0.0-1.0
+                self.set_drum_parameter(channel, drum_note, "reverb_send", reverb_send)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_VARIATION"]:
-            # Drum variation send (0..127)
-            variation = data / 127.0
-            self.set_drum_parameter(channel, drum_note, "variation_send", variation)
-            return True
+            elif nrpn_lsb == 5:  # Drum Note Chorus Send
+                # Range: 0-127
+                chorus_send = data / 16256.0  # Normalize to 0.0-1.0
+                self.set_drum_parameter(channel, drum_note, "chorus_send", chorus_send)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_KEY_ASSIGN"]:
-            # Drum key assignment (0..127)
-            key_assign = data
-            self.set_drum_parameter(channel, drum_note, "key_assign", key_assign)
-            return True
+            elif nrpn_lsb == 6:  # Drum Note Variation Send
+                # Range: 0-127
+                variation_send = data / 16256.0  # Normalize to 0.0-1.0
+                self.set_drum_parameter(channel, drum_note, "variation_send", variation_send)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_FILTER_CUTOFF"]:
-            # Drum filter cutoff frequency (0..127)
-            cutoff = 20 + data * 150  # 20Hz to 19020Hz
-            self.set_drum_parameter(channel, drum_note, "filter_cutoff", cutoff)
-            return True
+            elif nrpn_lsb == 7:  # Drum Note Filter Cutoff
+                # Range: 0-127 (maps to frequency range)
+                cutoff_freq = 20 + (data / 16256.0) * 19980  # 20Hz to 20kHz
+                self.set_drum_parameter(channel, drum_note, "filter_cutoff", cutoff_freq)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_FILTER_RESONANCE"]:
-            # Drum filter resonance (0..127)
-            resonance = data / 64.0
-            self.set_drum_parameter(channel, drum_note, "filter_resonance", resonance)
-            return True
+            elif nrpn_lsb == 8:  # Drum Note Filter Resonance
+                # Range: 0-127
+                resonance = data / 16256.0  # Normalize to 0.0-1.0
+                self.set_drum_parameter(channel, drum_note, "filter_resonance", resonance)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_EG_ATTACK"]:
-            # Drum envelope attack (0..127)
-            attack = data * 0.05  # 0 to 6.35 seconds
-            self.set_drum_parameter(channel, drum_note, "eg_attack", attack)
-            return True
+            elif nrpn_lsb == 9:  # Drum Note EG Attack
+                # Range: 0-127 (time in seconds)
+                attack_time = (data / 16256.0) * 10.0  # 0 to 10 seconds
+                self.set_drum_parameter(channel, drum_note, "eg_attack", attack_time)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_EG_DECAY"]:
-            # Drum envelope decay (0..127)
-            decay = data * 0.05  # 0 to 6.35 seconds
-            self.set_drum_parameter(channel, drum_note, "eg_decay", decay)
-            return True
+            elif nrpn_lsb == 10:  # Drum Note EG Decay 1
+                # Range: 0-127 (time in seconds)
+                decay1_time = (data / 16256.0) * 10.0  # 0 to 10 seconds
+                self.set_drum_parameter(channel, drum_note, "eg_decay1", decay1_time)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_EG_RELEASE"]:
-            # Drum envelope release (0..127)
-            release = data * 0.05  # 0 to 6.35 seconds
-            self.set_drum_parameter(channel, drum_note, "eg_release", release)
-            return True
+            elif nrpn_lsb == 11:  # Drum Note EG Decay 2
+                # Range: 0-127 (time in seconds)
+                decay2_time = (data / 16256.0) * 10.0  # 0 to 10 seconds
+                self.set_drum_parameter(channel, drum_note, "eg_decay2", decay2_time)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_PITCH_COARSE"]:
-            # Drum pitch coarse tuning (-64..+63 semitones)
-            pitch_coarse = (data - 8192) / 100.0
-            self.set_drum_parameter(channel, drum_note, "pitch_coarse", pitch_coarse)
-            return True
+            elif nrpn_lsb == 12:  # Drum Note EG Release
+                # Range: 0-127 (time in seconds)
+                release_time = (data / 16256.0) * 10.0  # 0 to 10 seconds
+                self.set_drum_parameter(channel, drum_note, "eg_release", release_time)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_NOTE_PITCH_FINE"]:
-            # Drum pitch fine tuning (-64..+63 cents)
-            pitch_fine = (data - 8192) * 0.5
-            self.set_drum_parameter(channel, drum_note, "pitch_fine", pitch_fine)
-            return True
+            elif nrpn_lsb == 13:  # Drum Note Wave Number
+                # Range: 0-16383 (wave number selection)
+                wave_number = data
+                self.set_drum_parameter(channel, drum_note, "wave_number", wave_number)
+                return True
 
-        elif nrpn_lsb == XG_CONSTANTS["DRUM_KIT_SELECT_LSB"]:
-            # Drum kit selection
-            kit = data
-            # This would typically affect all drum channels
-            # For now, we'll just store it
-            self.drum_kits[channel] = f"Kit_{kit}"
+            elif nrpn_lsb == 14:  # Drum Note Group Number
+                # Range: 0-127 (group assignment)
+                group_number = data // 128  # Convert to 0-127 range
+                self.set_drum_parameter(channel, drum_note, "group_number", group_number)
+                return True
+
+            elif nrpn_lsb == 15:  # Drum Note Group Assign
+                # Range: 0-127 (group assignment mode)
+                group_assign = data // 128
+                self.set_drum_parameter(channel, drum_note, "group_assign", group_assign)
+                return True
+
+            elif nrpn_lsb == 16:  # Drum Note Cutoff Offset
+                # Range: -64 to +63
+                cutoff_offset = (data - 8192) / 128.0
+                self.set_drum_parameter(channel, drum_note, "cutoff_offset", cutoff_offset)
+                return True
+
+            elif nrpn_lsb == 17:  # Drum Note Resonance Offset
+                # Range: -64 to +63
+                resonance_offset = (data - 8192) / 128.0
+                self.set_drum_parameter(channel, drum_note, "resonance_offset", resonance_offset)
+                return True
+
+            elif nrpn_lsb == 18:  # Drum Note EG Attack Offset
+                # Range: -64 to +63
+                attack_offset = (data - 8192) / 128.0
+                self.set_drum_parameter(channel, drum_note, "attack_offset", attack_offset)
+                return True
+
+            elif nrpn_lsb == 19:  # Drum Note EG Decay Offset
+                # Range: -64 to +63
+                decay_offset = (data - 8192) / 128.0
+                self.set_drum_parameter(channel, drum_note, "decay_offset", decay_offset)
+                return True
+
+            elif nrpn_lsb == 20:  # Drum Note EG Release Offset
+                # Range: -64 to +63
+                release_offset = (data - 8192) / 128.0
+                self.set_drum_parameter(channel, drum_note, "release_offset", release_offset)
+                return True
+
+            elif nrpn_lsb == 21:  # Drum Note Velocity Pitch Sensitivity
+                # Range: -64 to +63
+                vel_pitch_sens = (data - 8192) / 128.0
+                self.set_drum_parameter(channel, drum_note, "vel_pitch_sens", vel_pitch_sens)
+                return True
+
+            elif nrpn_lsb == 22:  # Drum Note Velocity Filter Sensitivity
+                # Range: -64 to +63
+                vel_filter_sens = (data - 8192) / 128.0
+                self.set_drum_parameter(channel, drum_note, "vel_filter_sens", vel_filter_sens)
+                return True
+
+            elif nrpn_lsb == 23:  # Drum Note Velocity Amplitude Sensitivity
+                # Range: -64 to +63
+                vel_amp_sens = (data - 8192) / 128.0
+                self.set_drum_parameter(channel, drum_note, "vel_amp_sens", vel_amp_sens)
+                return True
+
+            elif nrpn_lsb == 24:  # Drum Note Key Assign
+                # Range: 0-127 (MIDI note number)
+                key_assign = data // 128
+                self.set_drum_parameter(channel, drum_note, "key_assign", key_assign)
+                return True
+
+            elif nrpn_lsb == 25:  # Drum Note Key Note On Assign
+                # Range: 0-127 (MIDI note number)
+                key_on_assign = data // 128
+                self.set_drum_parameter(channel, drum_note, "key_on_assign", key_on_assign)
+                return True
+
+            elif nrpn_lsb == 26:  # Drum Note Key Note Off Assign
+                # Range: 0-127 (MIDI note number)
+                key_off_assign = data // 128
+                self.set_drum_parameter(channel, drum_note, "key_off_assign", key_off_assign)
+                return True
+
+        # Drum Kit Selection (MSB 99, LSB 0)
+        elif nrpn_msb == 99 and nrpn_lsb == 0:
+            # Drum kit selection (0-127)
+            kit_number = data // 128
+            self.set_drum_kit_for_channel(channel, kit_number)
             return True
 
         return False
+
+    def set_drum_kit_for_channel(self, channel: int, kit_number: int):
+        """
+        Set drum kit for a specific channel.
+
+        Args:
+            channel: MIDI channel number (0-15)
+            kit_number: Drum kit number (0-127)
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+
+        # XG Drum Kit Names
+        xg_drum_kits = {
+            0: "Standard Kit 1", 1: "Standard Kit 2", 8: "Room Kit", 16: "Power Kit",
+            24: "Electronic Kit", 25: "Analog Kit", 32: "Jazz Kit", 40: "Brush Kit",
+            48: "Orchestra Kit", 56: "SFX Kit 1", 57: "SFX Kit 2"
+        }
+
+        kit_name = xg_drum_kits.get(kit_number, f"Custom Kit {kit_number}")
+        self.drum_kits[channel] = kit_name
+
+        # Initialize kit-specific parameters
+        self.initialize_drum_kit_parameters(channel, kit_number)
+
+    def handle_xg_drum_parameter(self, address: int, value: int) -> bool:
+        """
+        Handle XG drum parameter from SysEx messages.
+
+        Args:
+            address: XG parameter address
+            value: Parameter value
+
+        Returns:
+            True if handled successfully
+        """
+        # Extract channel and note from address
+        # Address format: 0x30 XX YY where XX is note, YY is parameter
+        if (address & 0xFF0000) == 0x300000:
+            note = (address >> 8) & 0xFF
+            parameter = address & 0xFF
+
+            # Map parameter to drum parameter name
+            param_map = {
+                0: "pitch_coarse", 1: "pitch_fine", 2: "level", 3: "pan",
+                4: "reverb_send", 5: "chorus_send", 6: "variation_send",
+                7: "filter_cutoff", 8: "filter_resonance", 9: "eg_attack",
+                10: "eg_decay1", 11: "eg_decay2", 12: "eg_release"
+            }
+
+            if parameter in param_map:
+                # Use channel 9 (drum channel) for drum parameters
+                drum_channel = 9
+                param_name = param_map[parameter]
+
+                # Convert value based on parameter type
+                if param_name in ["pan"]:
+                    converted_value = (value - 64) / 64.0  # -1.0 to 1.0
+                elif param_name in ["level", "reverb_send", "chorus_send", "variation_send"]:
+                    converted_value = value / 127.0  # 0.0 to 1.0
+                elif param_name in ["pitch_coarse", "pitch_fine"]:
+                    converted_value = (value - 64) / 64.0  # -1.0 to 1.0
+                elif param_name == "filter_cutoff":
+                    converted_value = 20 + (value / 127.0) * 19980  # 20Hz to 20kHz
+                elif param_name == "filter_resonance":
+                    converted_value = value / 127.0  # 0.0 to 1.0
+                else:  # EG parameters
+                    converted_value = (value / 127.0) * 10.0  # 0 to 10 seconds
+
+                self.set_drum_parameter(drum_channel, note, param_name, converted_value)
+                return True
+
+        return False
+
+    def reset_to_xg_defaults(self):
+        """
+        Reset all drum parameters to XG standard defaults.
+        """
+        for channel in range(self.num_channels):
+            self.reset_channel_drum_parameters(channel)
+            # Set default drum kit
+            self.set_drum_kit_for_channel(channel, 0)
 
     def get_drum_kit_info(self, channel: int) -> Optional[str]:
         """

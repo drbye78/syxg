@@ -145,6 +145,21 @@ class PartialGenerator:
 
     def _update_phase_step(self):
         """Обновление шага фазы для частичной структуры"""
+        # Check if wavetable is available
+        if self.wavetable is None:
+            # Use basic sine wave generation when no wavetable is available
+            self.active = True
+            # Calculate basic frequency for sine wave
+            root_key = self.overriding_root_key if self.overriding_root_key >= 0 else self.note
+            base_freq = 440.0 * (2 ** ((root_key - 69) / 12.0))
+            tuning_multiplier = 2 ** (self.scale_tuning / 1200.0)
+            base_freq *= tuning_multiplier
+            pitch_factor = 2 ** ((self.note - 60) * self.key_scaling / 1200.0)
+            final_freq = base_freq * pitch_factor
+            # For basic sine wave, we don't need a table, just set phase step
+            self.phase_step = final_freq / self.sample_rate * 2 * 3.14159  # 2π for sine wave
+            return
+
         # Получение сэмпла из wavetable для этой частичной структуры
         table = self.wavetable.get_partial_table(self.note, self.program, self.partial_id, self.velocity)
         if table is None or len(table) == 0:
@@ -238,37 +253,49 @@ class PartialGenerator:
         freq_multiplier = 2 ** (pitch_mod / 1200.0)  # в центах
         final_freq = base_freq * freq_multiplier
 
-        # Обновление phase_step для текущего сэмпла
-        table = self.wavetable.get_partial_table(self.note, self.program, self.partial_id, self.velocity)
-        if not table or len(table) == 0:
-            # self.active = False
-            return (0.0, 0.0)
+        # Handle wavetable vs basic generation
+        if self.wavetable is None:
+            # Basic sine wave generation
+            self.phase += self.phase_step
+            if self.phase >= 2 * 3.14159:  # Keep phase in 0-2π range
+                self.phase -= 2 * 3.14159
 
-        table_length = len(table)
-        self.phase_step = final_freq / self.sample_rate * table_length
-
-        # Проверка типа сэмплов (моно или стерео)
-        is_stereo = isinstance(table[0], tuple) or (isinstance(table[0], list) and len(table[0]) == 2)
-
-        # Генерация сэмпла из wavetable
-        self.phase += self.phase_step
-        if self.phase >= len(table):
-            self.phase -= len(table)
-
-        # Получение сэмпла с линейной интерполяцией
-        idx = int(self.phase)
-        frac = self.phase - idx
-        next_idx = (idx + 1) % len(table)
-
-        if is_stereo:
-            # Стерео сэмпл
-            left_sample = table[idx][0] + frac * (table[next_idx][0] - table[idx][0])
-            right_sample = table[idx][1] + frac * (table[next_idx][1] - table[idx][1])
-            sample = (left_sample, right_sample)
-        else:
-            # Моно сэмпл
-            sample_val = table[idx] + frac * (table[next_idx] - table[idx])
+            # Generate sine wave sample
+            sample_val = math.sin(self.phase)
             sample = sample_val
+            is_stereo = False
+        else:
+            # Обновление phase_step для текущего сэмпла
+            table = self.wavetable.get_partial_table(self.note, self.program, self.partial_id, self.velocity)
+            if not table or len(table) == 0:
+                # self.active = False
+                return (0.0, 0.0)
+
+            table_length = len(table)
+            self.phase_step = final_freq / self.sample_rate * table_length
+
+            # Проверка типа сэмплов (моно или стерео)
+            is_stereo = isinstance(table[0], tuple) or (isinstance(table[0], list) and len(table[0]) == 2)
+
+            # Генерация сэмпла из wavetable
+            self.phase += self.phase_step
+            if self.phase >= len(table):
+                self.phase -= len(table)
+
+            # Получение сэмпла с линейной интерполяцией
+            idx = int(self.phase)
+            frac = self.phase - idx
+            next_idx = (idx + 1) % len(table)
+
+            if is_stereo:
+                # Стерео сэмпл
+                left_sample = table[idx][0] + frac * (table[next_idx][0] - table[idx][0])
+                right_sample = table[idx][1] + frac * (table[next_idx][1] - table[idx][1])
+                sample = (left_sample, right_sample)
+            else:
+                # Моно сэмпл
+                sample_val = table[idx] + frac * (table[next_idx] - table[idx])
+                sample = sample_val
 
         # Общая модуляция cutoff: огибающая + LFO
         if self.filter:
@@ -311,7 +338,13 @@ class PartialGenerator:
             left_out = filtered_sample[0] * amp_env * effective_level
             right_out = filtered_sample[1] * amp_env * effective_level
         else:
-            mono_sample = (filtered_sample[0] + filtered_sample[1]) * 0.5  * amp_env * effective_level # type: ignore
+            # Handle both wavetable mono samples and basic sine wave generation
+            if isinstance(filtered_sample, (tuple, list)):
+                mono_sample = (filtered_sample[0] + filtered_sample[1]) * 0.5 * amp_env * effective_level
+            else:
+                # Basic sine wave case - filtered_sample is a float
+                mono_sample = filtered_sample * amp_env * effective_level
+
             # Применение панорамирования для этой частичной структуры
             panner = StereoPanner(pan_position=self.pan, sample_rate=self.sample_rate)
             left_out, right_out = panner.process(mono_sample)

@@ -21,13 +21,14 @@ class WavetableManager:
     # Maximum sample cache size (in samples, not bytes)
     MAX_CACHE_SIZE = 50000000  # ~200 MB for 16-bit samples
 
-    def __init__(self, sf2_paths: Union[str, List[str]], cache_size: Optional[int] = None):
+    def __init__(self, sf2_paths: Union[str, List[str]], cache_size: Optional[int] = None, param_cache=None):
         """
         Initialize SoundFont manager.
 
         Args:
             sf2_paths: path to SoundFont file (.sf2) or list of paths
             cache_size: maximum cache size in samples (default MAX_CACHE_SIZE)
+            param_cache: optional parameter cache for performance optimization
         """
         self.lock = threading.Lock()
 
@@ -41,6 +42,9 @@ class WavetableManager:
         self.bank_blacklists: Dict[str, List[int]] = {}
         self.preset_blacklists: Dict[str, List[Tuple[int, int]]] = {}
         self.bank_mappings: Dict[str, Dict[int, int]] = {}
+
+        # Performance optimization: parameter cache
+        self.param_cache = param_cache
 
         # Initialize converters
         self.parameter_converter = ParameterConverter()
@@ -261,7 +265,7 @@ class WavetableManager:
     def _merge_preset_and_instrument_params(self, preset_zone, instrument_zone) -> SF2InstrumentZone:
         """
         Merge parameters from preset zone and instrument zone.
-        Preset parameters are used as default values that can be overridden by instrument parameters.
+        Uses parameter cache for performance optimization when available.
 
         Args:
             preset_zone: preset zone
@@ -270,6 +274,29 @@ class WavetableManager:
         Returns:
             Merged instrument zone
         """
+        # Try to use parameter cache if available
+        if self.param_cache is not None:
+            # Create simplified parameter dictionaries for caching
+            preset_params = {
+                'generators': dict(preset_zone.generators),
+                'modulators': [dict(mod.__dict__) if hasattr(mod, '__dict__') else mod for mod in preset_zone.modulators]
+            }
+            instrument_params = {
+                'generators': dict(instrument_zone.generators),
+                'modulators': [dict(mod.__dict__) if hasattr(mod, '__dict__') else mod for mod in instrument_zone.modulators]
+            }
+
+            # Try to get cached result
+            cached_result = self.param_cache.get_cached_params(preset_params, instrument_params)
+            if cached_result is not None:
+                # Reconstruct SF2InstrumentZone from cached data
+                merged_zone = SF2InstrumentZone()
+                for key, value in cached_result.items():
+                    if hasattr(merged_zone, key):
+                        setattr(merged_zone, key, value)
+                return merged_zone
+
+        # Fallback to original implementation if no cache or cache miss
         # Create a copy of the instrument zone for modification
         merged_zone = SF2InstrumentZone()
 

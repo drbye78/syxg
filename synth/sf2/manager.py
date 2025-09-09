@@ -22,15 +22,19 @@ class SF2Manager:
     - Sample data access
     """
 
-    def __init__(self):
+    def __init__(self, param_cache=None):
         """
         Initialize SF2 manager.
+
+        Args:
+            param_cache: Optional parameter cache for performance optimization
         """
         self.sf2_manager: Optional[WavetableManager] = None
         self.sf2_paths: List[str] = []
         self.bank_blacklists: Dict[str, List[int]] = {}
         self.preset_blacklists: Dict[str, List[Tuple[int, int]]] = {}
         self.bank_mappings: Dict[str, Dict[int, int]] = {}
+        self.param_cache = param_cache
 
     def set_sf2_files(self, sf2_paths: List[str]) -> bool:
         """
@@ -47,7 +51,7 @@ class SF2Manager:
 
             # Create SF2 manager if we have valid paths
             if sf2_paths:
-                self.sf2_manager = WavetableManager(sf2_paths)
+                self.sf2_manager = WavetableManager(sf2_paths, param_cache=self.param_cache)
 
                 # Apply existing configurations
                 for sf2_path in sf2_paths:

@@ -23,6 +23,10 @@ class ResonantFilter:
         # Поддержка модуляции stereo width
         self.modulated_stereo_width = stereo_width
 
+        # Phase 2 optimization: Cache filter coefficients
+        self.coeffs_cache = {}
+        self.coeffs_dirty = True
+
         # Коэффициенты для левого и правого каналов
         self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = self._calculate_coefficients(0)
         self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = self._calculate_coefficients(1)
@@ -83,38 +87,80 @@ class ResonantFilter:
     def set_parameters(self, cutoff=None, resonance=None, filter_type=None, key_follow=None, stereo_width=None,
                       modulated_stereo_width=None):
         """Установка параметров фильтра"""
+        # Optimize parameter setting to reduce max/min calls
+        changed = False
+
         if cutoff is not None:
-            self.cutoff = max(20.0, min(20000.0, cutoff))
+            # Clamp cutoff between 20.0 and 20000.0
+            if cutoff < 20.0:
+                self.cutoff = 20.0
+            elif cutoff > 20000.0:
+                self.cutoff = 20000.0
+            else:
+                self.cutoff = cutoff
+            changed = True
+
         if resonance is not None:
-            self.resonance = max(0.0, min(2.0, resonance))
+            # Clamp resonance between 0.0 and 2.0
+            if resonance < 0.0:
+                self.resonance = 0.0
+            elif resonance > 2.0:
+                self.resonance = 2.0
+            else:
+                self.resonance = resonance
+            changed = True
+
         if filter_type is not None:
             self.filter_type = filter_type
+            changed = True
+
         if key_follow is not None:
-            self.key_follow = max(0.0, min(1.0, key_follow))
+            # Clamp key_follow between 0.0 and 1.0
+            if key_follow < 0.0:
+                self.key_follow = 0.0
+            elif key_follow > 1.0:
+                self.key_follow = 1.0
+            else:
+                self.key_follow = key_follow
+            changed = True
 
         # Обновление модулированной stereo width
         if modulated_stereo_width is not None:
-            self.modulated_stereo_width = max(0.0, min(1.0, modulated_stereo_width))
+            # Clamp modulated_stereo_width between 0.0 and 1.0
+            if modulated_stereo_width < 0.0:
+                self.modulated_stereo_width = 0.0
+            elif modulated_stereo_width > 1.0:
+                self.modulated_stereo_width = 1.0
+            else:
+                self.modulated_stereo_width = modulated_stereo_width
+            changed = True
 
         # Обновление stereo width
         if stereo_width is not None:
-            self.stereo_width = max(0.0, min(1.0, stereo_width))
+            # Clamp stereo_width between 0.0 and 1.0
+            if stereo_width < 0.0:
+                self.stereo_width = 0.0
+            elif stereo_width > 1.0:
+                self.stereo_width = 1.0
+            else:
+                self.stereo_width = stereo_width
             self.modulated_stereo_width = self.stereo_width
+            changed = True
 
-        self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = self._calculate_coefficients(0)
-        self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = self._calculate_coefficients(1)
+        # Only recalculate coefficients if something changed
+        if changed:
+            self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = self._calculate_coefficients(0)
+            self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = self._calculate_coefficients(1)
 
     def set_brightness(self, value):
         """Установка модуляции от brightness (0-127)"""
         self.brightness_mod = value / 127.0
-        self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = self._calculate_coefficients(0)
-        self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = self._calculate_coefficients(1)
+        self.coeffs_dirty = True
 
     def set_harmonic_content(self, value):
         """Установка модуляции от harmonic content (0-127)"""
         self.harmonic_content_mod = value / 127.0
-        self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = self._calculate_coefficients(0)
-        self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = self._calculate_coefficients(1)
+        self.coeffs_dirty = True
 
     def apply_note_pitch(self, note):
         """Применение влияния высоты ноты на cutoff через key follow"""
@@ -135,6 +181,12 @@ class ResonantFilter:
         Returns:
             кортеж (left_sample, right_sample)
         """
+        # Phase 2 optimization: Only recalculate coefficients when dirty
+        if self.coeffs_dirty:
+            self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = self._calculate_coefficients(0)
+            self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = self._calculate_coefficients(1)
+            self.coeffs_dirty = False
+
         if is_stereo:
             left_in, right_in = input_sample
         else:

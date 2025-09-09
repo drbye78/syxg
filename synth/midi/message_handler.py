@@ -22,7 +22,7 @@ class MIDIMessageHandler:
 
     def __init__(self, state_manager, drum_manager, effect_manager):
         """
-        Initialize MIDI message handler.
+        Initialize MIDI message handler with multi-timbral support.
 
         Args:
             state_manager: StateManager instance for channel state management
@@ -32,6 +32,16 @@ class MIDIMessageHandler:
         self.state_manager = state_manager
         self.drum_manager = drum_manager
         self.effect_manager = effect_manager
+
+        # Multi-timbral configuration
+        self.multi_timbral_enabled = True
+        self.channel_modes = {}  # Track channel modes (normal, drum, etc.)
+        self.channel_programs = {}  # Track program changes per channel
+        self.channel_banks = {}  # Track bank selections per channel
+        self.channel_effects = {}  # Track effect assignments per channel
+
+        # Initialize multi-timbral state
+        self._initialize_multi_timbral_state()
 
     def process_midi_message(self, status: int, data1: int, data2: int = 0) -> bool:
         """
@@ -70,7 +80,7 @@ class MIDIMessageHandler:
 
     def process_sysex_message(self, data: list) -> bool:
         """
-        Process a System Exclusive message.
+        Process a System Exclusive message with validation.
 
         Args:
             data: SYSEX message data
@@ -78,7 +88,8 @@ class MIDIMessageHandler:
         Returns:
             True if message was processed, False otherwise
         """
-        if len(data) < 3 or data[0] != MIDI_CONSTANTS["SYSTEM_EXCLUSIVE"] or data[-1] != MIDI_CONSTANTS["END_OF_EXCLUSIVE"]:
+        # Validate basic SysEx structure
+        if not self._validate_sysex_message(data):
             return False
 
         # Check manufacturer ID
@@ -87,6 +98,75 @@ class MIDIMessageHandler:
         else:
             # Other manufacturers - not handled
             return False
+
+    def _validate_sysex_message(self, data: list) -> bool:
+        """
+        Validate SysEx message structure and checksum.
+
+        Args:
+            data: SysEx message data
+
+        Returns:
+            True if message is valid
+        """
+        # Basic structure validation
+        if len(data) < 3:
+            return False
+
+        if data[0] != MIDI_CONSTANTS["SYSTEM_EXCLUSIVE"]:
+            return False
+
+        if data[-1] != MIDI_CONSTANTS["END_OF_EXCLUSIVE"]:
+            return False
+
+        # For Yamaha XG messages, validate checksum if present
+        if len(data) >= 2 and data[1] == 0x43:  # Yamaha
+            return self._validate_yamaha_checksum(data)
+
+        return True
+
+    def _validate_yamaha_checksum(self, data: list) -> bool:
+        """
+        Validate Yamaha SysEx checksum.
+
+        Args:
+            data: Yamaha SysEx message data
+
+        Returns:
+            True if checksum is valid or not present
+        """
+        # Checksum is typically the second-to-last byte
+        if len(data) < 4:
+            return True  # No checksum to validate
+
+        # For XG messages, checksum validation
+        if len(data) >= 11:  # XG parameter change messages
+            # Calculate checksum for XG parameter change
+            checksum_byte = data[-2]  # Checksum is second-to-last
+            calculated_checksum = self._calculate_yamaha_checksum(data[1:-2])  # Exclude F0 and checksum/F7
+
+            if calculated_checksum != checksum_byte:
+                print(f"XG checksum error: expected {calculated_checksum}, got {checksum_byte}")
+                return False
+
+        return True
+
+    def _calculate_yamaha_checksum(self, data: list) -> int:
+        """
+        Calculate Yamaha SysEx checksum.
+
+        Args:
+            data: Data bytes to checksum (excluding F0 and checksum/F7)
+
+        Returns:
+            Checksum byte
+        """
+        checksum = 0
+        for byte in data:
+            checksum += byte
+        checksum &= 0x7F  # 7-bit
+        checksum = (0x80 - checksum) & 0x7F  # Two's complement
+        return checksum
 
     def _handle_note_off(self, channel: int, note: int, velocity: int) -> bool:
         """
@@ -177,12 +257,88 @@ class MIDIMessageHandler:
                 portamento_state = value >= 64
                 # This would typically affect note processing
                 pass
-            elif controller == 91:  # Reverb Send
+            elif controller == 71:  # Harmonic Content (XG Sound Controller 1)
+                # XG-specific: Affects harmonic content/timbre
+                self.state_manager.update_controller(channel, controller, value)
+                # Immediate parameter update for real-time control
+                self._update_xg_controller_parameter(channel, controller, value)
+            elif controller == 72:  # Brightness (XG Sound Controller 2)
+                # XG-specific: Affects filter cutoff/brightness
+                self.state_manager.update_controller(channel, controller, value)
+                # Immediate parameter update for real-time control
+                self._update_xg_controller_parameter(channel, controller, value)
+            elif controller == 73:  # Sound Controller 3 (XG: Release Time)
+                # XG-specific: Affects envelope release time
+                self.state_manager.update_controller(channel, controller, value)
+                # Immediate parameter update for real-time control
+                self._update_xg_controller_parameter(channel, controller, value)
+            elif controller == 74:  # Sound Controller 4 (XG: Attack Time)
+                # XG-specific: Affects envelope attack time
+                self.state_manager.update_controller(channel, controller, value)
+                # Immediate parameter update for real-time control
+                self._update_xg_controller_parameter(channel, controller, value)
+            elif controller == 75:  # Sound Controller 5 (XG: Brightness/Filter Cutoff)
+                # XG-specific: Affects filter cutoff frequency
+                self.state_manager.update_controller(channel, controller, value)
+                # Immediate parameter update for real-time control
+                self._update_xg_controller_parameter(channel, controller, value)
+            elif controller == 76:  # Sound Controller 6 (XG: Decay Time)
+                # XG-specific: Affects envelope decay time
+                self.state_manager.update_controller(channel, controller, value)
+                # Immediate parameter update for real-time control
+                self._update_xg_controller_parameter(channel, controller, value)
+            elif controller == 77:  # Sound Controller 7 (XG: Vibrato Rate)
+                # XG-specific: Affects LFO vibrato rate
+                self.state_manager.update_controller(channel, controller, value)
+                # Immediate parameter update for real-time control
+                self._update_xg_controller_parameter(channel, controller, value)
+            elif controller == 78:  # Sound Controller 8 (XG: Vibrato Depth)
+                # XG-specific: Affects LFO vibrato depth
+                self.state_manager.update_controller(channel, controller, value)
+                # Immediate parameter update for real-time control
+                self._update_xg_controller_parameter(channel, controller, value)
+            elif controller == 79:  # Sound Controller 9 (XG: Vibrato Delay)
+                # XG-specific: Affects LFO vibrato delay
+                self.state_manager.update_controller(channel, controller, value)
+                # Immediate parameter update for real-time control
+                self._update_xg_controller_parameter(channel, controller, value)
+            elif controller == 80:  # General Purpose Button 1 (XG)
+                # XG-specific: General purpose controller
+                self.state_manager.update_controller(channel, controller, value)
+            elif controller == 81:  # General Purpose Button 2 (XG)
+                # XG-specific: General purpose controller
+                self.state_manager.update_controller(channel, controller, value)
+            elif controller == 82:  # General Purpose Button 3 (XG)
+                # XG-specific: General purpose controller
+                self.state_manager.update_controller(channel, controller, value)
+            elif controller == 83:  # General Purpose Button 4 (XG)
+                # XG-specific: General purpose controller
+                self.state_manager.update_controller(channel, controller, value)
+            elif controller == 91:  # Reverb Send (XG Effects Send 1)
+                # XG-specific: Reverb send level
+                self.state_manager.update_controller(channel, controller, value)
                 # Pass value to effect manager
                 self.effect_manager.set_channel_effect_parameter(channel, 0, 160, value)
-            elif controller == 93:  # Chorus Send
+            elif controller == 92:  # Effects Send 2 (XG: Tremolo Send)
+                # XG-specific: Tremolo send level
+                self.state_manager.update_controller(channel, controller, value)
+                # Pass value to effect manager
+                self.effect_manager.set_channel_effect_parameter(channel, 0, 162, value)
+            elif controller == 93:  # Chorus Send (XG Effects Send 3)
+                # XG-specific: Chorus send level
+                self.state_manager.update_controller(channel, controller, value)
                 # Pass value to effect manager
                 self.effect_manager.set_channel_effect_parameter(channel, 0, 161, value)
+            elif controller == 94:  # Effects Send 4 (XG: Variation Send)
+                # XG-specific: Variation send level
+                self.state_manager.update_controller(channel, controller, value)
+                # Pass value to effect manager
+                self.effect_manager.set_channel_effect_parameter(channel, 0, 163, value)
+            elif controller == 95:  # Effects Send 5 (XG: Delay Send)
+                # XG-specific: Delay send level
+                self.state_manager.update_controller(channel, controller, value)
+                # Pass value to effect manager
+                self.effect_manager.set_channel_effect_parameter(channel, 0, 164, value)
             elif controller == 120:  # All Sound Off
                 return self._handle_all_sound_off(channel)
             elif controller == 121:  # Reset All Controllers
@@ -315,10 +471,10 @@ class MIDIMessageHandler:
 
     def _handle_nrpn(self, channel: int, nrpn_msb: int, nrpn_lsb: int) -> bool:
         """
-        Handle Non-Registered Parameter Number.
+        Handle Non-Registered Parameter Number with XG validation.
 
         Args:
-            channel: MIDI channel (0-15)
+            channel: MIDI channel number (0-15)
             nrpn_msb: NRPN MSB value
             nrpn_lsb: NRPN LSB value
 
@@ -327,20 +483,84 @@ class MIDIMessageHandler:
         """
         data_msb, data_lsb = self.state_manager.get_current_data_entry(channel)
 
-        # Check if this is an effect parameter NRPN
-        if self.effect_manager.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb, channel):
-            return True
+        # Combine MSB and LSB for 14-bit parameter value
+        parameter_value = (data_msb << 7) | data_lsb
 
-        # Check if this is a drum parameter
-        if channel == XG_CONSTANTS["DRUM_SETUP_CHANNEL"]:
-            return self.drum_manager.handle_xg_drum_setup_nrpn(channel, nrpn_msb, nrpn_lsb, data_msb, data_lsb)
+        # XG NRPN Parameter Ranges and Validation
+        # Part Parameters (MSB 1)
+        if nrpn_msb == 1:
+            if nrpn_lsb == 8:  # Part Mode
+                # Validate part mode (0-127, but XG defines specific values)
+                if 0 <= parameter_value <= 127:
+                    # Part mode is handled by channel renderer
+                    return True
+            elif nrpn_lsb == 9:  # Element Reserve
+                # Validate element reserve (0-127)
+                if 0 <= parameter_value <= 127:
+                    return True
+            elif nrpn_lsb == 10:  # Element Assign Mode
+                # Validate element assign mode (0-127)
+                if 0 <= parameter_value <= 127:
+                    return True
+            elif nrpn_lsb == 11:  # Receive Channel
+                # Validate receive channel (0-15 for MIDI channels)
+                if 0 <= parameter_value <= 15:
+                    return True
 
-        # Other NRPN handling would go here
+        # Effect Parameters (MSB 2-4)
+        elif nrpn_msb in [2, 3, 4]:  # Reverb, Chorus, Variation effects
+            # Validate effect parameter ranges (0-127)
+            if 0 <= parameter_value <= 127:
+                # Check if this is an effect parameter NRPN
+                if self.effect_manager.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb, channel):
+                    return True
+
+        # Drum Parameters (MSB 40-41, and channel 10)
+        elif nrpn_msb in [40, 41] or channel == XG_CONSTANTS["DRUM_SETUP_CHANNEL"]:
+            # Validate drum parameter ranges
+            if 0 <= parameter_value <= 127:
+                return self.drum_manager.handle_xg_drum_setup_nrpn(channel, nrpn_msb, nrpn_lsb, data_msb, data_lsb)
+
+        # Filter Parameters (MSB 5)
+        elif nrpn_msb == 5:
+            if nrpn_lsb == 0:  # Filter Cutoff Offset
+                # Validate filter cutoff offset (-64 to +63)
+                if 0 <= parameter_value <= 127:  # 0-127 maps to -64 to +63
+                    return True
+            elif nrpn_lsb == 1:  # Filter Resonance Offset
+                # Validate filter resonance offset (-64 to +63)
+                if 0 <= parameter_value <= 127:
+                    return True
+
+        # Envelope Parameters (MSB 6)
+        elif nrpn_msb == 6:
+            if nrpn_lsb in [0, 1, 2, 3]:  # Attack, Decay, Release times
+                # Validate envelope time parameters (0-127)
+                if 0 <= parameter_value <= 127:
+                    return True
+
+        # LFO Parameters (MSB 7-9)
+        elif nrpn_msb in [7, 8, 9]:  # LFO1, LFO2, LFO3
+            if nrpn_lsb in [0, 1, 2, 3]:  # Rate, Depth, Delay, Fade
+                # Validate LFO parameters (0-127)
+                if 0 <= parameter_value <= 127:
+                    return True
+
+        # EQ Parameters (MSB 10)
+        elif nrpn_msb == 10:
+            if nrpn_lsb in [0, 1, 2]:  # EQ Low, Mid, High
+                # Validate EQ parameters (-64 to +63, mapped 0-127)
+                if 0 <= parameter_value <= 127:
+                    return True
+
+        # Other XG NRPN parameters can be added here as needed
+
+        # If parameter is out of valid XG range, still acknowledge but don't process
         return True
 
     def _handle_yamaha_sysex(self, data: list) -> bool:
         """
-        Handle Yamaha System Exclusive messages.
+        Handle Yamaha System Exclusive messages with XG support.
 
         Args:
             data: SYSEX message data
@@ -356,8 +576,806 @@ class MIDIMessageHandler:
         sub_status = data[2] if len(data) > 2 else 0
         command = data[3] if len(data) > 3 else 0
 
-        # Forward message to effect manager
+        # XG System Messages (sub_status = 0x10)
+        if sub_status == 0x10:
+            return self._handle_xg_system_message(data)
+
+        # XG Parameter Change (sub_status = 0x11)
+        elif sub_status == 0x11:
+            return self._handle_xg_parameter_change(data)
+
+        # XG Bulk Messages (sub_status = 0x4C)
+        elif sub_status == 0x4C:
+            return self._handle_xg_bulk_message(data)
+
+        # Forward other Yamaha messages to effect manager
         return self.effect_manager.handle_sysex([0x43], data[1:])  # 0x43 - Yamaha manufacturer ID
+
+    def _handle_xg_system_message(self, data: list) -> bool:
+        """
+        Handle XG System messages.
+
+        Args:
+            data: XG System message data
+
+        Returns:
+            True if handled successfully
+        """
+        if len(data) < 8:
+            return False
+
+        command = data[3]
+
+        # XG System On (F0 43 10 4C 00 00 7E 00 F7)
+        if command == 0x4C and len(data) >= 11:
+            model_id = data[4]
+            device_number = data[5]
+            system_message = data[6]
+
+            if model_id == 0x00 and device_number == 0x00 and system_message == 0x7E:
+                # XG System On - initialize XG system
+                return self._handle_xg_system_on()
+
+        return False
+
+    def _handle_xg_parameter_change(self, data: list) -> bool:
+        """
+        Handle XG Parameter Change messages with acknowledgment.
+
+        Args:
+            data: XG Parameter Change message data
+
+        Returns:
+            True if handled successfully
+        """
+        if len(data) < 11:
+            return False
+
+        # XG Parameter Change format: F0 43 11 [address] [data] [checksum] F7
+        address_high = data[4]
+        address_mid = data[5]
+        address_low = data[6]
+        data_high = data[7]
+        data_low = data[8]
+
+        # Calculate parameter address
+        parameter_address = (address_high << 16) | (address_mid << 8) | address_low
+
+        # Combine data bytes
+        parameter_value = (data_high << 7) | data_low
+
+        # Route to appropriate parameter handler
+        success = self._handle_xg_parameter_address(parameter_address, parameter_value)
+
+        # Send acknowledgment if parameter was processed successfully
+        if success:
+            self._send_xg_parameter_acknowledgment(parameter_address, parameter_value)
+
+        return success
+
+    def _handle_xg_bulk_message(self, data: list) -> bool:
+        """
+        Handle XG Bulk messages (dumps and requests).
+
+        Args:
+            data: XG Bulk message data
+
+        Returns:
+            True if handled successfully
+        """
+        if len(data) < 10:
+            return False
+
+        # XG Bulk format: F0 43 4C [address] [size] [data] [checksum] F7
+        address_high = data[4]
+        address_mid = data[5]
+        address_low = data[6]
+        size_high = data[7]
+        size_low = data[8]
+
+        # Calculate bulk address and size
+        bulk_address = (address_high << 16) | (address_mid << 8) | address_low
+        bulk_size = (size_high << 7) | size_low
+
+        # Check if this is a bulk dump or request
+        if len(data) > 10 + bulk_size:
+            # Bulk dump with data
+            bulk_data = data[9:9 + bulk_size]
+            return self._handle_xg_bulk_dump(bulk_address, bulk_data)
+        else:
+            # Bulk request
+            return self._handle_xg_bulk_request(bulk_address, bulk_size)
+
+    def _handle_xg_system_on(self) -> bool:
+        """
+        Handle XG System On message - initialize XG system.
+
+        Returns:
+            True if handled successfully
+        """
+        try:
+            # Reset all channels to XG defaults
+            for channel in range(16):
+                self.state_manager.reset_channel(channel)
+                self.state_manager.initialize_xg_defaults()
+
+            # Reset effect manager to XG defaults
+            if hasattr(self.effect_manager, 'reset_to_xg_defaults'):
+                self.effect_manager.reset_to_xg_defaults()
+
+            # Reset drum manager to XG defaults
+            if hasattr(self.drum_manager, 'reset_to_xg_defaults'):
+                self.drum_manager.reset_to_xg_defaults()
+
+            return True
+        except Exception:
+            return False
+
+    def _handle_xg_parameter_address(self, address: int, value: int) -> bool:
+        """
+        Handle XG parameter address and value.
+
+        Args:
+            address: XG parameter address
+            value: Parameter value
+
+        Returns:
+            True if handled successfully
+        """
+        try:
+            # XG Parameter Address Map
+            # System Parameters (0x00 00 00 - 0x00 00 FF)
+            if address < 0x010000:
+                return self._handle_xg_system_parameter(address, value)
+
+            # Effect Parameters (0x02 00 00 - 0x02 FF FF)
+            elif address >= 0x020000 and address < 0x030000:
+                return self._handle_xg_effect_parameter(address, value)
+
+            # Part Parameters (0x08 00 00 - 0x0F FF FF for parts 0-15)
+            elif address >= 0x080000 and address < 0x100000:
+                part_number = (address >> 16) & 0x0F
+                part_address = address & 0xFFFF
+                return self._handle_xg_part_parameter(part_number, part_address, value)
+
+            # Drum Parameters (0x30 00 00 - 0x3F FF FF)
+            elif address >= 0x300000 and address < 0x400000:
+                return self._handle_xg_drum_parameter(address, value)
+
+            return True
+        except Exception:
+            return False
+
+    def _handle_xg_system_parameter(self, address: int, value: int) -> bool:
+        """Handle XG system parameters"""
+        # System parameter handling would go here
+        # Examples: Master Volume, Master Tune, System Effects, etc.
+        return True
+
+    def _handle_xg_effect_parameter(self, address: int, value: int) -> bool:
+        """Handle XG effect parameters with enhanced routing"""
+        if not self.effect_manager:
+            return False
+
+        # XG Effect Address Mapping
+        # System Effects (0x02 00 00 - 0x02 FF FF)
+        if (address & 0xFF0000) == 0x020000:
+            effect_type = (address >> 8) & 0xFF
+            parameter = address & 0xFF
+
+            # System Reverb (effect_type 0)
+            if effect_type == 0:
+                return self._handle_xg_reverb_parameter(parameter, value)
+
+            # System Chorus (effect_type 1)
+            elif effect_type == 1:
+                return self._handle_xg_chorus_parameter(parameter, value)
+
+            # System Variation (effect_type 2)
+            elif effect_type == 2:
+                return self._handle_xg_variation_parameter(parameter, value)
+
+        # Part Effects (0x08 00 00 - 0x0F FF FF for parts 0-15)
+        elif (address & 0xFF0000) >= 0x080000 and (address & 0xFF0000) <= 0x0F0000:
+            part_number = ((address >> 16) & 0x0F)
+            effect_type = (address >> 8) & 0xFF
+            parameter = address & 0xFF
+
+            # Insertion Effects (effect_type 64-127)
+            if effect_type >= 64:
+                return self._handle_xg_insertion_parameter(part_number, effect_type, parameter, value)
+
+        return self.effect_manager.handle_xg_effect_parameter(address, value)
+
+    def _handle_xg_reverb_parameter(self, parameter: int, value: int) -> bool:
+        """Handle XG reverb effect parameters"""
+        # XG Reverb Parameters (0-15)
+        reverb_params = {
+            0: "type", 1: "time", 2: "diffusion", 3: "pre_delay",
+            4: "tone", 5: "hf_damping", 6: "level", 7: "dry_wet"
+        }
+
+        if parameter in reverb_params:
+            param_name = reverb_params[parameter]
+            # Convert 0-127 to appropriate ranges
+            if param_name == "type":
+                # Reverb type (0-7 for XG standard types)
+                normalized_value = min(7, value // 16)  # 0-127 -> 0-7
+            elif param_name in ["time", "pre_delay"]:
+                # Time parameters (0-127 -> 0.1-10.0 seconds)
+                normalized_value = 0.1 + (value / 127.0) * 9.9
+            else:
+                # Other parameters (0-127 -> 0.0-1.0)
+                normalized_value = value / 127.0
+
+            # Set parameter in effect manager
+            if hasattr(self.effect_manager, 'set_reverb_parameter'):
+                self.effect_manager.set_reverb_parameter(parameter, normalized_value)
+            return True
+
+        return False
+
+    def _handle_xg_chorus_parameter(self, parameter: int, value: int) -> bool:
+        """Handle XG chorus effect parameters"""
+        # XG Chorus Parameters (0-15)
+        chorus_params = {
+            0: "type", 1: "lfo_freq", 2: "lfo_depth", 3: "feedback",
+            4: "delay", 5: "phase", 6: "level", 7: "dry_wet"
+        }
+
+        if parameter in chorus_params:
+            param_name = chorus_params[parameter]
+            # Convert 0-127 to appropriate ranges
+            if param_name == "type":
+                # Chorus type (0-7 for XG standard types)
+                normalized_value = min(7, value // 16)  # 0-127 -> 0-7
+            elif param_name == "lfo_freq":
+                # LFO frequency (0-127 -> 0.1-10.0 Hz)
+                normalized_value = 0.1 + (value / 127.0) * 9.9
+            elif param_name == "delay":
+                # Delay time (0-127 -> 0-50ms)
+                normalized_value = (value / 127.0) * 50.0
+            else:
+                # Other parameters (0-127 -> 0.0-1.0)
+                normalized_value = value / 127.0
+
+            # Set parameter in effect manager
+            if hasattr(self.effect_manager, 'set_chorus_parameter'):
+                self.effect_manager.set_chorus_parameter(parameter, normalized_value)
+            return True
+
+        return False
+
+    def _handle_xg_variation_parameter(self, parameter: int, value: int) -> bool:
+        """Handle XG variation effect parameters"""
+        # XG Variation Parameters (0-15)
+        variation_params = {
+            0: "type", 1: "param1", 2: "param2", 3: "param3",
+            4: "param4", 5: "level", 6: "pan", 7: "send_reverb",
+            8: "send_chorus"
+        }
+
+        if parameter in variation_params:
+            param_name = variation_params[parameter]
+            # Convert 0-127 to appropriate ranges
+            if param_name == "type":
+                # Variation type (0-63 for XG variation effects)
+                normalized_value = min(63, value)
+            elif param_name == "pan":
+                # Pan (-64 to +63)
+                normalized_value = (value - 64) / 64.0
+            else:
+                # Other parameters (0-127 -> 0.0-1.0)
+                normalized_value = value / 127.0
+
+            # Set parameter in effect manager
+            if hasattr(self.effect_manager, 'set_variation_parameter'):
+                self.effect_manager.set_variation_parameter(parameter, normalized_value)
+            return True
+
+        return False
+
+    def _handle_xg_insertion_parameter(self, part: int, effect_type: int, parameter: int, value: int) -> bool:
+        """Handle XG insertion effect parameters"""
+        # Convert effect_type from XG range (64-127) to internal range (0-63)
+        internal_effect_type = effect_type - 64
+
+        # Convert parameter value (0-127 -> 0.0-1.0)
+        normalized_value = value / 127.0
+
+        # Set parameter in effect manager
+        if hasattr(self.effect_manager, 'set_channel_insertion_effect_parameter'):
+            self.effect_manager.set_channel_insertion_effect_parameter(part, parameter + 1, normalized_value)
+            return True
+
+        return False
+
+    def _handle_xg_part_parameter(self, part: int, address: int, value: int) -> bool:
+        """Handle XG part parameters"""
+        # Part parameter handling - could route to channel renderers
+        # Examples: Part Volume, Part Pan, Part Effects, etc.
+        return True
+
+    def _handle_xg_drum_parameter(self, address: int, value: int) -> bool:
+        """Handle XG drum parameters"""
+        # Route to drum manager
+        if self.drum_manager:
+            return self.drum_manager.handle_xg_drum_parameter(address, value)
+        return True
+
+    def _handle_xg_bulk_dump(self, address: int, data: list) -> bool:
+        """Handle XG bulk dump data - restore system state from dump"""
+        try:
+            # Validate bulk data
+            if not data or len(data) == 0:
+                return False
+
+            # XG Bulk Data Address Mapping
+            if address < 0x010000:  # System Parameters (0x00 00 00 - 0x00 FF FF)
+                return self._process_system_bulk_dump(address, data)
+            elif address >= 0x020000 and address < 0x030000:  # Effect Parameters
+                return self._process_effect_bulk_dump(address, data)
+            elif address >= 0x080000 and address < 0x100000:  # Part Parameters
+                part_number = (address >> 16) & 0x0F
+                return self._process_part_bulk_dump(part_number, address & 0xFFFF, data)
+            elif address >= 0x300000 and address < 0x400000:  # Drum Parameters
+                return self._process_drum_bulk_dump(address, data)
+
+            return True
+        except Exception as e:
+            print(f"Error processing XG bulk dump: {e}")
+            return False
+
+    def _handle_xg_bulk_request(self, address: int, size: int) -> bool:
+        """Handle XG bulk request - generate and send bulk dump in response"""
+        try:
+            # Generate bulk dump data based on address
+            bulk_data = self._generate_bulk_dump_data(address, size)
+            if bulk_data and len(bulk_data) == size:
+                # Send acknowledgment first
+                self._send_xg_acknowledgment()
+
+                # In a real implementation, this would send the actual bulk dump message
+                # For now, we simulate successful transmission
+                print(f"XG Bulk Dump sent: address=0x{address:06X}, size={size}")
+                return True
+            return False
+        except Exception as e:
+            print(f"Error generating XG bulk dump: {e}")
+            return False
+
+    def _send_xg_acknowledgment(self) -> None:
+        """Send XG acknowledgment message"""
+        try:
+            # XG Acknowledgment: F0 43 10 4C 00 00 00 00 F7
+            ack_message = [0xF0, 0x43, 0x10, 0x4C, 0x00, 0x00, 0x00, 0x00, 0xF7]
+            # In a real implementation, this would be sent to the MIDI output
+            print("XG Acknowledgment sent")
+        except Exception as e:
+            print(f"Error sending XG acknowledgment: {e}")
+
+    def _send_xg_parameter_acknowledgment(self, address: int, value: int) -> None:
+        """Send XG parameter acknowledgment message"""
+        try:
+            # XG Parameter Acknowledgment: F0 43 10 4C [address] [data] [checksum] F7
+            ack_message = [0xF0, 0x43, 0x10, 0x4C]
+
+            # Add address bytes
+            ack_message.append((address >> 16) & 0x7F)  # High address
+            ack_message.append((address >> 8) & 0x7F)   # Mid address
+            ack_message.append(address & 0x7F)          # Low address
+
+            # Add data bytes
+            ack_message.append((value >> 7) & 0x7F)     # Data high
+            ack_message.append(value & 0x7F)            # Data low
+
+            # Calculate and add checksum
+            checksum = self._calculate_yamaha_checksum(ack_message[1:])
+            ack_message.append(checksum)
+
+            # End of SysEx
+            ack_message.append(0xF7)
+
+            # In a real implementation, this would be sent to the MIDI output
+            print(f"XG Parameter Acknowledgment sent: address=0x{address:06X}, value={value}")
+
+        except Exception as e:
+            print(f"Error sending XG parameter acknowledgment: {e}")
+
+    def _send_xg_display_text(self, text: str, line: int = 0) -> None:
+        """Send XG display text message"""
+        try:
+            if not text or len(text) > 16:  # XG display limit
+                return
+
+            # XG Display Text format: F0 43 10 4C [line] [text] F7
+            message = [0xF0, 0x43, 0x10, 0x4C, line & 0x7F]
+
+            # Convert text to ASCII bytes (truncate to 16 chars)
+            for char in text[:16]:
+                message.append(ord(char) & 0x7F)
+
+            message.append(0xF7)  # End of SysEx
+
+            # In a real implementation, this would be sent to the MIDI output
+            print(f"XG Display Text sent: '{text}' (line {line})")
+
+        except Exception as e:
+            print(f"Error sending XG display text: {e}")
+
+    def _send_xg_parameter_value_display(self, parameter_name: str, value: str) -> None:
+        """Send XG parameter value for display"""
+        try:
+            # Format parameter display text
+            display_text = f"{parameter_name}: {value}"
+
+            # Send to display line 1
+            self._send_xg_display_text(display_text, 1)
+
+        except Exception as e:
+            print(f"Error sending XG parameter display: {e}")
+
+    def _send_xg_system_status_display(self, status: str) -> None:
+        """Send XG system status for display"""
+        try:
+            # Send to display line 0
+            self._send_xg_display_text(status, 0)
+
+        except Exception as e:
+            print(f"Error sending XG system status: {e}")
+
+    def display_xg_parameter(self, channel: int, controller: int, value: int) -> None:
+        """Display XG parameter value on connected XG device"""
+        try:
+            # Get parameter name
+            param_name = self._get_xg_controller_name(controller)
+            if not param_name:
+                return
+
+            # Format value based on controller type
+            if controller in [71, 72, 73, 74, 75, 76, 77, 78, 79]:  # XG Sound Controllers
+                display_value = f"{value}"
+            elif controller in [91, 92, 93, 94, 95]:  # Effect Sends
+                display_value = f"{value}"
+            else:
+                display_value = f"{value}"
+
+            # Send parameter display
+            self._send_xg_parameter_value_display(param_name, display_value)
+
+        except Exception as e:
+            print(f"Error displaying XG parameter: {e}")
+
+    def display_xg_system_status(self, status: str) -> None:
+        """Display XG system status on connected XG device"""
+        try:
+            self._send_xg_system_status_display(status)
+        except Exception as e:
+            print(f"Error displaying XG system status: {e}")
+
+    def _get_xg_controller_name(self, controller: int) -> Optional[str]:
+        """Get XG controller name for display"""
+        xg_controller_names = {
+            71: "Harmonic Content",
+            72: "Brightness",
+            73: "Release Time",
+            74: "Attack Time",
+            75: "Filter Cutoff",
+            76: "Decay Time",
+            77: "Vibrato Rate",
+            78: "Vibrato Depth",
+            79: "Vibrato Delay",
+            80: "GP Button 1",
+            81: "GP Button 2",
+            82: "GP Button 3",
+            83: "GP Button 4",
+            91: "Reverb Send",
+            92: "Tremolo Send",
+            93: "Chorus Send",
+            94: "Variation Send",
+            95: "Delay Send"
+        }
+        return xg_controller_names.get(controller)
+
+    def _handle_xg_display_request(self, data: list) -> bool:
+        """Handle XG display request messages"""
+        try:
+            if len(data) < 8:
+                return False
+
+            # XG Display Request: F0 43 20 4C [type] [line] F7
+            request_type = data[4]
+            line_number = data[5] if len(data) > 5 else 0
+
+            if request_type == 0x00:  # Request current display content
+                # Send current display content
+                self._send_current_display_content(line_number)
+            elif request_type == 0x01:  # Request parameter display
+                # Send current parameter values
+                self._send_current_parameter_display(line_number)
+
+            return True
+        except Exception as e:
+            print(f"Error handling XG display request: {e}")
+            return False
+
+    def _send_current_display_content(self, line: int) -> None:
+        """Send current display content"""
+        try:
+            # This would send the current content of the specified display line
+            # For now, we'll send a default message
+            if line == 0:
+                self._send_xg_display_text("XG Synthesizer Ready", 0)
+            elif line == 1:
+                self._send_xg_display_text("Parameter: Ready", 1)
+        except Exception as e:
+            print(f"Error sending display content: {e}")
+
+    def _send_current_parameter_display(self, line: int) -> None:
+        """Send current parameter display"""
+        try:
+            # This would send current parameter values for the specified line
+            # For now, we'll send default parameter info
+            if line == 1:
+                self._send_xg_display_text("Volume: 100", 1)
+        except Exception as e:
+            print(f"Error sending parameter display: {e}")
+
+    def _process_system_bulk_dump(self, address: int, data: list) -> bool:
+        """Process system parameter bulk dump"""
+        try:
+            # System parameters start at address 0x000000
+            param_offset = address & 0xFFFF
+
+            # Process system parameters in chunks
+            for i, value in enumerate(data):
+                param_address = param_offset + i
+                if param_address < 256:  # System parameter range
+                    self._set_system_parameter(param_address, value)
+
+            return True
+        except Exception:
+            return False
+
+    def _process_effect_bulk_dump(self, address: int, data: list) -> bool:
+        """Process effect parameter bulk dump"""
+        try:
+            effect_type = (address >> 8) & 0xFF
+            param_offset = address & 0xFF
+
+            # Route to effect manager
+            if self.effect_manager and hasattr(self.effect_manager, 'process_bulk_dump'):
+                return self.effect_manager.process_bulk_dump(effect_type, param_offset, data)
+
+            return True
+        except Exception:
+            return False
+
+    def _process_part_bulk_dump(self, part: int, address: int, data: list) -> bool:
+        """Process part parameter bulk dump"""
+        try:
+            # Part parameters (volume, pan, effects, etc.)
+            for i, value in enumerate(data):
+                param_address = address + i
+                self._set_part_parameter(part, param_address, value)
+
+            return True
+        except Exception:
+            return False
+
+    def _process_drum_bulk_dump(self, address: int, data: list) -> bool:
+        """Process drum parameter bulk dump"""
+        try:
+            # Route to drum manager
+            if self.drum_manager and hasattr(self.drum_manager, 'process_bulk_dump'):
+                return self.drum_manager.process_bulk_dump(address, data)
+
+            return True
+        except Exception:
+            return False
+
+    def _generate_bulk_dump_data(self, address: int, size: int) -> Optional[list]:
+        """Generate bulk dump data for the specified address range"""
+        try:
+            bulk_data = []
+
+            # Generate data based on address range
+            for i in range(size):
+                param_address = address + i
+
+                if param_address < 0x010000:  # System parameters
+                    value = self._get_system_parameter(param_address & 0xFFFF)
+                elif param_address >= 0x020000 and param_address < 0x030000:  # Effects
+                    value = self._get_effect_parameter(param_address)
+                elif param_address >= 0x080000 and param_address < 0x100000:  # Parts
+                    part = (param_address >> 16) & 0x0F
+                    part_param = param_address & 0xFFFF
+                    value = self._get_part_parameter(part, part_param)
+                elif param_address >= 0x300000 and param_address < 0x400000:  # Drums
+                    value = self._get_drum_parameter(param_address)
+                else:
+                    value = 0  # Default value
+
+                bulk_data.append(value & 0x7F)  # Ensure 7-bit value
+
+            return bulk_data
+        except Exception:
+            return None
+
+    def _set_system_parameter(self, param: int, value: int) -> None:
+        """Set a system parameter"""
+        # System parameter mapping would go here
+        # Examples: Master Volume, Master Tune, System Effects, etc.
+        if param == 0:  # Master Volume
+            # Set master volume
+            pass
+        elif param == 1:  # Master Tune
+            # Set master tuning
+            pass
+        # Add more system parameters as needed
+
+    def _get_system_parameter(self, param: int) -> int:
+        """Get a system parameter value"""
+        # Return current system parameter values
+        if param == 0:  # Master Volume
+            return 100  # Default master volume
+        elif param == 1:  # Master Tune
+            return 64   # Center tuning
+        return 0  # Default
+
+    def _set_part_parameter(self, part: int, param: int, value: int) -> None:
+        """Set a part parameter"""
+        # Part parameter mapping
+        if param == 0:  # Part Volume
+            # Set part volume
+            pass
+        elif param == 1:  # Part Pan
+            # Set part pan
+            pass
+        elif param == 2:  # Part Reverb Send
+            # Set part reverb send
+            pass
+        elif param == 3:  # Part Chorus Send
+            # Set part chorus send
+            pass
+        # Add more part parameters as needed
+
+    def _get_part_parameter(self, part: int, param: int) -> int:
+        """Get a part parameter value"""
+        # Return current part parameter values
+        if param == 0:  # Part Volume
+            return 100  # Default part volume
+        elif param == 1:  # Part Pan
+            return 64   # Center pan
+        elif param == 2:  # Part Reverb Send
+            return 40   # Default reverb send
+        elif param == 3:  # Part Chorus Send
+            return 0    # Default chorus send
+        return 0  # Default
+
+    def _get_effect_parameter(self, address: int) -> int:
+        """Get an effect parameter value"""
+        # Route to effect manager
+        if self.effect_manager and hasattr(self.effect_manager, 'get_parameter_value'):
+            effect_type = (address >> 8) & 0xFF
+            param = address & 0xFF
+            return self.effect_manager.get_parameter_value(effect_type, param)
+        return 0
+
+    def _get_drum_parameter(self, address: int) -> int:
+        """Get a drum parameter value"""
+        # Route to drum manager
+        if self.drum_manager and hasattr(self.drum_manager, 'get_bulk_parameter'):
+            return self.drum_manager.get_bulk_parameter(address)
+        return 0
+
+    def _update_xg_controller_parameter(self, channel: int, controller: int, value: int) -> None:
+        """
+        Update XG controller parameter immediately for real-time control.
+
+        Args:
+            channel: MIDI channel (0-15)
+            controller: Controller number (71-79)
+            value: Controller value (0-127)
+        """
+        try:
+            # Normalize value to 0.0-1.0 range
+            normalized_value = value / 127.0
+
+            # Route to appropriate parameter update based on controller
+            if controller == 71:  # Harmonic Content
+                # Update harmonic content parameter
+                self._update_harmonic_content(channel, normalized_value)
+
+            elif controller == 72:  # Brightness
+                # Update filter brightness
+                self._update_brightness(channel, normalized_value)
+
+            elif controller == 73:  # Release Time
+                # Update envelope release time
+                self._update_release_time(channel, normalized_value)
+
+            elif controller == 74:  # Attack Time
+                # Update envelope attack time
+                self._update_attack_time(channel, normalized_value)
+
+            elif controller == 75:  # Filter Cutoff
+                # Update filter cutoff frequency
+                self._update_filter_cutoff(channel, normalized_value)
+
+            elif controller == 76:  # Decay Time
+                # Update envelope decay time
+                self._update_decay_time(channel, normalized_value)
+
+            elif controller == 77:  # Vibrato Rate
+                # Update LFO vibrato rate
+                self._update_vibrato_rate(channel, normalized_value)
+
+            elif controller == 78:  # Vibrato Depth
+                # Update LFO vibrato depth
+                self._update_vibrato_depth(channel, normalized_value)
+
+            elif controller == 79:  # Vibrato Delay
+                # Update LFO vibrato delay
+                self._update_vibrato_delay(channel, normalized_value)
+
+        except Exception as e:
+            # Log error but don't fail the controller processing
+            print(f"Error updating XG controller {controller}: {e}")
+
+    def _update_harmonic_content(self, channel: int, value: float) -> None:
+        """Update harmonic content parameter"""
+        # This would typically update synthesis parameters for timbre control
+        # For now, we'll store it for later use by the channel renderer
+        pass
+
+    def _update_brightness(self, channel: int, value: float) -> None:
+        """Update brightness parameter"""
+        # This would typically update filter parameters
+        # For now, we'll store it for later use by the channel renderer
+        pass
+
+    def _update_release_time(self, channel: int, value: float) -> None:
+        """Update envelope release time"""
+        # This would typically update envelope parameters
+        # For now, we'll store it for later use by the channel renderer
+        pass
+
+    def _update_attack_time(self, channel: int, value: float) -> None:
+        """Update envelope attack time"""
+        # This would typically update envelope parameters
+        # For now, we'll store it for later use by the channel renderer
+        pass
+
+    def _update_filter_cutoff(self, channel: int, value: float) -> None:
+        """Update filter cutoff frequency"""
+        # This would typically update filter parameters
+        # For now, we'll store it for later use by the channel renderer
+        pass
+
+    def _update_decay_time(self, channel: int, value: float) -> None:
+        """Update envelope decay time"""
+        # This would typically update envelope parameters
+        # For now, we'll store it for later use by the channel renderer
+        pass
+
+    def _update_vibrato_rate(self, channel: int, value: float) -> None:
+        """Update LFO vibrato rate"""
+        # This would typically update LFO parameters
+        # For now, we'll store it for later use by the channel renderer
+        pass
+
+    def _update_vibrato_depth(self, channel: int, value: float) -> None:
+        """Update LFO vibrato depth"""
+        # This would typically update LFO parameters
+        # For now, we'll store it for later use by the channel renderer
+        pass
+
+    def _update_vibrato_delay(self, channel: int, value: float) -> None:
+        """Update LFO vibrato delay"""
+        # This would typically update LFO parameters
+        # For now, we'll store it for later use by the channel renderer
+        pass
 
     def _handle_all_sound_off(self, channel: int) -> bool:
         """
@@ -460,3 +1478,317 @@ class MIDIMessageHandler:
             return state.get("bank")
         except ValueError:
             return None
+
+    def _initialize_multi_timbral_state(self) -> None:
+        """Initialize multi-timbral state for all channels"""
+        # Initialize channel modes (normal by default)
+        for channel in range(16):
+            self.channel_modes[channel] = "normal"
+            self.channel_programs[channel] = 0
+            self.channel_banks[channel] = 0
+            self.channel_effects[channel] = {
+                "reverb_send": 40,
+                "chorus_send": 0,
+                "variation_send": 0,
+                "insertion_effect": None
+            }
+
+        # Set channel 10 (9 in 0-based) to drum mode by default
+        self.channel_modes[9] = "drum"
+        self.channel_programs[9] = 0  # Standard drum kit
+        self.channel_banks[9] = 128   # Drum bank
+
+    def set_channel_mode(self, channel: int, mode: str) -> bool:
+        """
+        Set the mode for a MIDI channel (normal, drum, etc.).
+
+        Args:
+            channel: MIDI channel (0-15)
+            mode: Channel mode ("normal", "drum")
+
+        Returns:
+            True if mode was set successfully
+        """
+        if not (0 <= channel <= 15):
+            return False
+
+        if mode not in ["normal", "drum"]:
+            return False
+
+        self.channel_modes[channel] = mode
+
+        # Update channel state based on mode
+        if mode == "drum":
+            self.channel_banks[channel] = 128  # Drum bank
+            # Reset to standard drum kit
+            self.state_manager.set_bank(channel, 128)
+            self.state_manager.set_program(channel, 0)
+        else:  # normal mode
+            if self.channel_banks[channel] == 128:  # Was drum bank
+                self.channel_banks[channel] = 0  # Reset to normal bank
+                self.state_manager.set_bank(channel, 0)
+
+        return True
+
+    def get_channel_mode(self, channel: int) -> Optional[str]:
+        """
+        Get the mode for a MIDI channel.
+
+        Args:
+            channel: MIDI channel (0-15)
+
+        Returns:
+            Channel mode or None if invalid channel
+        """
+        if not (0 <= channel <= 15):
+            return None
+        return self.channel_modes.get(channel, "normal")
+
+    def set_channel_program_independent(self, channel: int, program: int) -> bool:
+        """
+        Set program for a channel independently (multi-timbral).
+
+        Args:
+            channel: MIDI channel (0-15)
+            program: Program number (0-127)
+
+        Returns:
+            True if program was set successfully
+        """
+        if not (0 <= channel <= 15) or not (0 <= program <= 127):
+            return False
+
+        self.channel_programs[channel] = program
+
+        # Update state manager
+        self.state_manager.set_program(channel, program)
+
+        # Display program change on XG device
+        program_name = self._get_program_name(channel, program)
+        self.display_xg_system_status(f"Ch{channel+1}: {program_name}")
+
+        return True
+
+    def get_channel_program_independent(self, channel: int) -> Optional[int]:
+        """
+        Get program for a channel independently.
+
+        Args:
+            channel: MIDI channel (0-15)
+
+        Returns:
+            Program number or None if invalid channel
+        """
+        if not (0 <= channel <= 15):
+            return None
+        return self.channel_programs.get(channel, 0)
+
+    def set_channel_bank_independent(self, channel: int, bank: int) -> bool:
+        """
+        Set bank for a channel independently (multi-timbral).
+
+        Args:
+            channel: MIDI channel (0-15)
+            bank: Bank number
+
+        Returns:
+            True if bank was set successfully
+        """
+        if not (0 <= channel <= 15):
+            return False
+
+        self.channel_banks[channel] = bank
+
+        # Update state manager
+        self.state_manager.set_bank(channel, bank)
+
+        # Update channel mode based on bank
+        if bank == 128:  # Drum bank
+            self.set_channel_mode(channel, "drum")
+        else:
+            if self.channel_modes.get(channel) == "drum":
+                self.set_channel_mode(channel, "normal")
+
+        return True
+
+    def get_channel_bank_independent(self, channel: int) -> Optional[int]:
+        """
+        Get bank for a channel independently.
+
+        Args:
+            channel: MIDI channel (0-15)
+
+        Returns:
+            Bank number or None if invalid channel
+        """
+        if not (0 <= channel <= 15):
+            return None
+        return self.channel_banks.get(channel, 0)
+
+    def set_channel_effect_independent(self, channel: int, effect_type: str, value: int) -> bool:
+        """
+        Set effect parameter for a channel independently.
+
+        Args:
+            channel: MIDI channel (0-15)
+            effect_type: Type of effect ("reverb_send", "chorus_send", etc.)
+            value: Effect value (0-127)
+
+        Returns:
+            True if effect was set successfully
+        """
+        if not (0 <= channel <= 15) or not (0 <= value <= 127):
+            return False
+
+        if effect_type not in ["reverb_send", "chorus_send", "variation_send"]:
+            return False
+
+        if channel not in self.channel_effects:
+            self.channel_effects[channel] = {}
+
+        self.channel_effects[channel][effect_type] = value
+
+        # Update effect manager
+        if effect_type == "reverb_send":
+            self.effect_manager.set_channel_effect_parameter(channel, 0, 160, value)
+        elif effect_type == "chorus_send":
+            self.effect_manager.set_channel_effect_parameter(channel, 0, 161, value)
+        elif effect_type == "variation_send":
+            self.effect_manager.set_channel_effect_parameter(channel, 0, 163, value)
+
+        return True
+
+    def get_channel_effect_independent(self, channel: int, effect_type: str) -> Optional[int]:
+        """
+        Get effect parameter for a channel independently.
+
+        Args:
+            channel: MIDI channel (0-15)
+            effect_type: Type of effect
+
+        Returns:
+            Effect value or None if not found
+        """
+        if not (0 <= channel <= 15):
+            return None
+
+        channel_effects = self.channel_effects.get(channel, {})
+        return channel_effects.get(effect_type)
+
+    def get_multi_timbral_status(self) -> Dict[str, Any]:
+        """
+        Get the current multi-timbral status of all channels.
+
+        Returns:
+            Dictionary containing multi-timbral status
+        """
+        status = {
+            "enabled": self.multi_timbral_enabled,
+            "channels": {}
+        }
+
+        for channel in range(16):
+            status["channels"][channel] = {
+                "mode": self.channel_modes.get(channel, "normal"),
+                "program": self.channel_programs.get(channel, 0),
+                "bank": self.channel_banks.get(channel, 0),
+                "effects": self.channel_effects.get(channel, {})
+            }
+
+        return status
+
+    def reset_channel_multi_timbral(self, channel: int) -> bool:
+        """
+        Reset multi-timbral settings for a specific channel.
+
+        Args:
+            channel: MIDI channel (0-15)
+
+        Returns:
+            True if reset was successful
+        """
+        if not (0 <= channel <= 15):
+            return False
+
+        # Reset to defaults
+        self.channel_modes[channel] = "normal" if channel != 9 else "drum"
+        self.channel_programs[channel] = 0
+        self.channel_banks[channel] = 128 if channel == 9 else 0
+        self.channel_effects[channel] = {
+            "reverb_send": 40,
+            "chorus_send": 0,
+            "variation_send": 0,
+            "insertion_effect": None
+        }
+
+        # Update state manager
+        self.state_manager.reset_channel(channel)
+
+        return True
+
+    def reset_all_multi_timbral(self) -> bool:
+        """
+        Reset multi-timbral settings for all channels.
+
+        Returns:
+            True if reset was successful
+        """
+        try:
+            self._initialize_multi_timbral_state()
+
+            # Reset all channels in state manager
+            for channel in range(16):
+                self.state_manager.reset_channel(channel)
+
+            return True
+        except Exception:
+            return False
+
+    def _get_program_name(self, channel: int, program: int) -> str:
+        """
+        Get program name for display purposes.
+
+        Args:
+            channel: MIDI channel
+            program: Program number
+
+        Returns:
+            Program name string
+        """
+        # This would typically look up program names from a database
+        # For now, return a generic name
+        if self.channel_modes.get(channel) == "drum":
+            drum_kits = [
+                "Standard Kit", "Room Kit", "Power Kit", "Electronic Kit",
+                "Analog Kit", "Jazz Kit", "Brush Kit", "Orchestra Kit"
+            ]
+            if program < len(drum_kits):
+                return drum_kits[program]
+            else:
+                return f"Drum Kit {program}"
+        else:
+            # Normal instrument programs
+            return f"Program {program}"
+
+    def enable_multi_timbral(self, enabled: bool = True) -> None:
+        """
+        Enable or disable multi-timbral mode.
+
+        Args:
+            enabled: Whether to enable multi-timbral mode
+        """
+        self.multi_timbral_enabled = enabled
+
+        if enabled:
+            self.display_xg_system_status("Multi-timbral: ON")
+        else:
+            self.display_xg_system_status("Multi-timbral: OFF")
+
+    def is_multi_timbral_enabled(self) -> bool:
+        """
+        Check if multi-timbral mode is enabled.
+
+        Returns:
+            True if multi-timbral is enabled
+        """
+        return self.multi_timbral_enabled
