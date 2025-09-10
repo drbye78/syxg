@@ -42,15 +42,22 @@ class LFO:
         self.harmonic_content_mod = 0.0
         self.breath_controller = 0.0
         self.foot_controller = 0.0
+        self.depth_mod = 0.0
+        self.rate_mod = 0.0
 
         # Поддержка модуляции параметров
         self.modulated_rate = rate
         self.modulated_depth = depth
 
         # Phase 2 optimization: Cache phase step to reduce update frequency
-        self.phase_step_cache = 0.0
+        self.phase_step = 0.0  # Renamed from phase_step_cache
         self.phase_step_dirty = True
         self._update_phase_step()
+
+        # LFO value caching for performance optimization
+        self.cache_size = 32
+        self.value_cache = []
+        self.cache_pos = 0
 
     def set_parameters(self, waveform=None, rate=None, depth=None, delay=None,
                        modulated_rate=None, modulated_depth=None):
@@ -180,6 +187,23 @@ class LFO:
 
     def step(self):
         """Генерация следующего значения LFO с учетом задержки и модуляции"""
+        # LFO value caching implementation
+        if self.cache_pos >= len(self.value_cache):
+            self._fill_value_cache()
+            
+        # Return cached value and advance position
+        value = self.value_cache[self.cache_pos]
+        self.cache_pos += 1
+        return value
+        
+    def _fill_value_cache(self):
+        """Заполнение кэша LFO значениями для оптимизации производительности"""
+        self.value_cache = []
+        # Phase 2 optimization: Only update phase step when dirty
+        if self.phase_step_dirty:
+            self._update_phase_step()
+            self.phase_step_dirty = False
+
         # Обработка задержки
         if self.delay_counter < self.delay_samples:
             self.delay_counter += 1
@@ -207,4 +231,29 @@ class LFO:
             base_value = 0.0
 
         # Применение модулированной глубины
-        return base_value * self.modulated_depth
+        value = base_value * self.modulated_depth
+        self.value_cache.append(value)
+
+        for _ in range(1, self.cache_size):
+            # Обновление фазы
+            self.phase = (self.phase + self.phase_step) % (2 * math.pi)
+
+            # Генерация волны в зависимости от типа
+            if self.waveform == "sine":
+                base_value = math.sin(self.phase)
+            elif self.waveform == "triangle":
+                value = (self.phase / math.pi) % 2
+                base_value = 1.0 - abs(value - 1) * 2
+            elif self.waveform == "square":
+                base_value = 1.0 if self.phase < math.pi else -1.0
+            elif self.waveform == "sawtooth":
+                base_value = (self.phase / (2 * math.pi)) * 2 - 1
+            else:
+                base_value = 0.0
+
+            # Применение модулированной глубины
+            value = base_value * self.modulated_depth
+            self.value_cache.append(value)
+            
+        # Reset cache position
+        self.cache_pos = 0

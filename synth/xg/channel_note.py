@@ -9,6 +9,12 @@ from collections import OrderedDict
 from ..core.oscillator import LFO
 from ..modulation.matrix import ModulationMatrix
 from .partial_generator import PartialGenerator
+from ..core.object_pool import (
+    acquire_lfo, release_lfo,
+    acquire_adsr_envelope, release_adsr_envelope,
+    acquire_resonant_filter, release_resonant_filter,
+    acquire_modulation_matrix, release_modulation_matrix
+)
 
 
 class ChannelNote:
@@ -28,31 +34,40 @@ class ChannelNote:
         # Initialize parameters for this note
         self.params = self._get_parameters(program, bank, wavetable, note, velocity, is_drum)
 
-        # Initialize LFOs for this note
+        # Initialize LFOs for this note using object pool
         lfo1_params = self.params.get("lfo1", {"waveform": "sine", "rate": 5.0, "depth": 0.5, "delay": 0.0})
         lfo2_params = self.params.get("lfo2", {"waveform": "triangle", "rate": 2.0, "depth": 0.3, "delay": 0.0})
         lfo3_params = self.params.get("lfo3", {"waveform": "sawtooth", "rate": 0.5, "depth": 0.1, "delay": 0.5})
 
         self.lfos = [
-            LFO(id=0, waveform=lfo1_params["waveform"],
+            acquire_lfo(
+                id=0,
+                waveform=lfo1_params["waveform"],
                 rate=lfo1_params["rate"],
                 depth=lfo1_params["depth"],
                 delay=lfo1_params["delay"],
-                sample_rate=sample_rate),
-            LFO(id=1, waveform=lfo2_params["waveform"],
+                sample_rate=sample_rate
+            ),
+            acquire_lfo(
+                id=1,
+                waveform=lfo2_params["waveform"],
                 rate=lfo2_params["rate"],
                 depth=lfo2_params["depth"],
                 delay=lfo2_params["delay"],
-                sample_rate=sample_rate),
-            LFO(id=2, waveform=lfo3_params["waveform"],
+                sample_rate=sample_rate
+            ),
+            acquire_lfo(
+                id=2,
+                waveform=lfo3_params["waveform"],
                 rate=lfo3_params["rate"],
                 depth=lfo3_params["depth"],
                 delay=lfo3_params["delay"],
-                sample_rate=sample_rate)
+                sample_rate=sample_rate
+            )
         ]
 
-        # Initialize modulation matrix
-        self.mod_matrix = ModulationMatrix(num_routes=16)
+        # Initialize modulation matrix using object pool
+        self.mod_matrix = acquire_modulation_matrix(num_routes=16)
         self._setup_default_modulation_matrix()
 
         # Initialize partials
@@ -240,6 +255,9 @@ class ChannelNote:
 
     def _setup_default_modulation_matrix(self):
         """Setup default modulation matrix for this note"""
+        if not self.mod_matrix:
+            return
+
         # Clear existing routes
         for i in range(16):
             self.mod_matrix.clear_route(i)
@@ -338,6 +356,28 @@ class ChannelNote:
         """Check if this note is still active"""
         return self.active and any(partial.is_active() for partial in self.partials)
 
+    def release_resources(self):
+        """Release pooled objects back to their respective pools"""
+        # Release LFOs
+        for lfo in self.lfos:
+            release_lfo(lfo)
+
+        # Release modulation matrix
+        release_modulation_matrix(self.mod_matrix)
+
+        # Clear references
+        self.lfos.clear()
+        self.mod_matrix = None
+
+    def __del__(self):
+        """Destructor - ensure resources are released"""
+        try:
+            if hasattr(self, 'lfos') and self.lfos:
+                self.release_resources()
+        except:
+            # Silently handle destruction errors to avoid crashes
+            pass
+
     def generate_sample(self, mod_wheel: int, breath_controller: int, foot_controller: int,
                        brightness: int, harmonic_content: int, channel_pressure_value: int,
                        key_pressure: int, volume: float, expression: float,
@@ -400,12 +440,13 @@ class ChannelNote:
                     pitch_env_val = partial.pitch_envelope.process()
                 break
 
-        # Process modulation matrix
-        modulation_values = self.mod_matrix.process(sources, self.velocity, self.note)
+        # Process modulation matrix - ensuring safe handling of potential None
+        modulation_values = {}
+        if self.mod_matrix:
+            modulation_values = self.mod_matrix.process(sources, self.velocity, self.note) or {}
 
-        # Apply modulation to global pitch
-        if "pitch" in modulation_values:
-            global_pitch_mod += modulation_values["pitch"]
+        # Apply modulation to global pitch with safe access
+        global_pitch_mod += modulation_values.get("pitch", 0.0)
 
         # Generate sample from partials
         left_sum = 0.0
@@ -416,9 +457,16 @@ class ChannelNote:
             if not partial.is_active():
                 continue
 
+            # Safely create modulation parameters for partial
+            pitch_mod = global_pitch_mod
+            filter_cutoff_mod = modulation_values.get("filter_cutoff", 0.0)
+            amp_mod = modulation_values.get("amp", 0.0)
+            
             partial_samples = partial.generate_sample(
                 lfos=self.lfos,
-                global_pitch_mod=global_pitch_mod,
+                pitch_mod=pitch_mod,
+                filter_cutoff_mod=filter_cutoff_mod,
+                amp_mod=amp_mod,
                 velocity_crossfade=0.0,
                 note_crossfade=0.0
             )

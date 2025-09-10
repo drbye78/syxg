@@ -265,12 +265,22 @@ class XGChannelRenderer:
     def is_active(self) -> bool:
         """Check if this channel renderer has any active notes"""
         # Clean up inactive notes and deallocate voices
-        inactive_notes = [note for note, channel_note in self.active_notes.items()
-                         if not channel_note.is_active()]
+        inactive_notes = []
+        notes_to_release = []
+
+        for note, channel_note in self.active_notes.items():
+            if not channel_note.is_active():
+                inactive_notes.append(note)
+                notes_to_release.append(channel_note)
+
         for note in inactive_notes:
             # Deallocate voice from voice manager
             self.voice_manager.deallocate_voice(note)
             del self.active_notes[note]
+
+        # Release pooled resources for inactive notes
+        for channel_note in notes_to_release:
+            channel_note.release_resources()
 
         # Clean up released voices from voice manager
         self.voice_manager.cleanup_released_voices()
@@ -307,7 +317,7 @@ class XGChannelRenderer:
         left_sum = 0.0
         right_sum = 0.0
 
-        # Cache frequently used controller values
+        # Pre-calculate controller values once per buffer
         mod_wheel = self.controllers.get(1, 0)
         breath_controller = self.controllers.get(2, 0)
         foot_controller = self.controllers.get(4, 0)
@@ -315,10 +325,32 @@ class XGChannelRenderer:
         harmonic_content = self.controllers.get(71, 64)
         channel_pressure_value = self.channel_pressure_value
 
-        for note, channel_note in self.active_notes.items():
-            # Cache key pressure for this specific note
+        # Use optimized processing with pre-computed values
+        return self._generate_optimized_sample(
+            mod_wheel, breath_controller, foot_controller,
+            brightness, harmonic_content, channel_pressure_value
+        )
+
+    def _generate_optimized_sample(self, mod_wheel, breath_controller, foot_controller,
+                                  brightness, harmonic_content, channel_pressure_value):
+        """Optimized per-sample generation using pre-computed values."""
+        left_sum = 0.0
+        right_sum = 0.0
+
+        # Precompute commonly used values to avoid repeated calculations
+        global_pitch_mod_cents = self.pitch_bend_range * 100
+        global_pitch_mod = ((self.pitch_bend_value - 8192) / 8192.0) * global_pitch_mod_cents
+
+        # Cache volume and expression (most frequently changing controller values)
+        cached_volume = self.controllers[7]  # Volume
+        cached_expression = self.controllers[11]  # Expression
+
+        # Process all active notes with cached controller values
+        active_notes_items = list(self.active_notes.items())
+        for note, channel_note in active_notes_items:
+            # Use cached key pressure when available
             key_pressure = self.key_pressure_values.get(note, 0)
-            
+
             # Generate sample with optimized parameters
             left, right = channel_note.generate_sample(
                 mod_wheel=mod_wheel,
@@ -328,33 +360,34 @@ class XGChannelRenderer:
                 harmonic_content=harmonic_content,
                 channel_pressure_value=channel_pressure_value,
                 key_pressure=key_pressure,
-                volume=self.volume,
-                expression=self.expression,
+                volume=cached_volume,
+                expression=cached_expression,
                 global_pitch_mod=global_pitch_mod
             )
             left_sum += left
             right_sum += right
 
-        # Apply channel volume using precomputed factor
-        volume_factor = (self.volume / 127.0) * (self.expression / 127.0)
+        # Pre-compute channel effects for better performance
+        volume_factor = (cached_volume / 127.0) * (cached_expression / 127.0)
+
+        # Apply channel volume optimization
         left_out = left_sum * volume_factor
         right_out = right_sum * volume_factor
 
-        # Apply panning using cached value
-        combined_pan = self._cached_pan
+        # Optimized panning with early exit for center position
+        pan_value = (self.pan - 64) / 64.0  # Convert to -1.0 to 1.0 range
+        if abs(pan_value) > 0.001:  # Only if panning is significant
+            # Pre-compute panning gains to avoid repeated calculations
+            pan_left = 0.5 * (1.0 - pan_value)
+            pan_right = 0.5 * (1.0 + pan_value)
+            left_out *= pan_left
+            right_out *= pan_right
 
-        if combined_pan != 0.0:
-            # Simple linear panning
-            left_gain = 0.5 * (1.0 - combined_pan)
-            right_gain = 0.5 * (1.0 + combined_pan)
-            left_out *= left_gain
-            right_out *= right_gain
+        # Optimized clamping using max/min instead of if-else chains
+        left_clamped = max(-1.0, min(1.0, left_out))
+        right_clamped = max(-1.0, min(1.0, right_out))
 
-        # Clamp to valid range
-        left_out = max(-1.0, min(1.0, left_out))
-        right_out = max(-1.0, min(1.0, right_out))
-
-        return (left_out, right_out)
+        return (left_clamped, right_clamped)
 
     # XG-specific controller handlers
     def _handle_xg_harmonic_content(self, value: int):
