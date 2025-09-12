@@ -1,202 +1,227 @@
-# Project Context for Qwen Code
+# XG Synthesizer Project
 
 ## Project Overview
 
-This project is a MIDI XG synthesizer implementation in Python. The main goal is to create a fully MIDI XG compatible software synthesizer that can convert MIDI files to audio formats like OGG or WAV.
+This is a fully MIDI XG compatible software synthesizer implemented in Python. The synthesizer supports:
 
-### Key Components
-
-1. **XG Synthesizer Core** (`synth/core/synthesizer.py`) - Main synthesizer class that orchestrates all modules
-2. **MIDI Processing** - Handles all MIDI messages including SYSEX and Bulk SYSEX
-3. **Audio Generation** - Generates audio in blocks of arbitrary size with sample-accurate timing
-4. **SF2 File Management** - Loads and manages SoundFont files for sound generation
-5. **XG Compatibility** - Implements XG-specific features like part modes, drum parameters, effects
-6. **MIDI to Audio Conversion** (`midi_to_ogg.py`) - Main entry point for converting MIDI files to audio
-
-## Project Structure
-
-```
-/mnt/c/work/guga/syxg/
-├── midi_to_ogg.py          # Main conversion script
-├── config.yaml             # Configuration file
-├── LICENSE
-├── QWEN.md                 # This file
-├── TECHNICAL_XG_ANALYSIS.md # Detailed technical analysis of XG conformance issues
-├── XG_CONFORMANCE_ANALYSIS.md # Analysis of MIDI XG standard conformance
-├── XG_IMPLEMENTATION_PLAN.md # Detailed implementation plan for XG features
-├── XG_IMPLEMENTATION_ROADMAP.md # Implementation roadmap with timeline and priorities
-├── __pycache__/
-├── .git/
-├── .idea/
-├── .vscode/
-├── docs/
-├── synth/                  # Core synthesizer modules
-│   ├── core/               # Core synthesizer components
-│   │   ├── synthesizer.py  # Main synthesizer class
-│   │   ├── oscillator.py   # Audio oscillators (LFOs)
-│   │   ├── filter.py       # Audio filters
-│   │   ├── envelope.py     # ADSR envelopes
-│   │   ├── panner.py       # Stereo panning
-│   │   └── constants.py    # System constants
-│   ├── sf2/                # SoundFont management
-│   │   ├── manager.py      # SF2 file manager
-│   │   └── core/
-│   │       └── wavetable_manager.py # Wavetable sample manager
-│   ├── xg/                 # XG-specific implementations
-│   │   ├── channel_renderer.py  # Per-channel MIDI processing
-│   │   ├── manager.py      # XG state management
-│   │   ├── drum_manager.py # Drum parameter handling
-│   │   ├── channel_note.py # Active note representation
-│   │   └── partial_generator.py # Partial structure handling
-│   ├── midi/               # MIDI message handling
-│   │   ├── message_handler.py # MIDI message processing
-│   │   └── buffered_processor.py # Buffered MIDI processing with timing
-│   ├── audio/              # Audio engine
-│   │   └── engine.py       # Audio block generation and processing
-│   ├── effects/            # Audio effects processing
-│   │   ├── core.py         # Effects manager
-│   │   └── [many effect modules]
-│   ├── modulation/         # Modulation system
-│   │   ├── matrix.py       # Modulation matrix
-│   │   ├── routes.py       # Modulation routes
-│   │   ├── sources.py      # Modulation sources
-│   │   └── destinations.py # Modulation destinations
-│   └── voice/              # Voice management
-│       ├── voice_manager.py # Voice allocation and management
-│       ├── voice_info.py   # Voice information
-│       └── voice_priority.py # Voice priority levels
-├── tests/                  # Test files (currently empty)
-└── docs/                   # Documentation
-```
-
-## Technologies Used
-
-- **Python 3** - Main programming language
-- **NumPy** - Numerical computing for audio processing
-- **Mido** - MIDI file handling
-- **Opuslib** - OGG audio encoding
-- **PyYAML** - Configuration file parsing
-- **SoundFont (SF2)** - Sound sample format
-- **line_profiler** - Performance profiling (for optimization)
-
-## Key Features
-
-### MIDI XG Compatibility
 - All MIDI messages including SYSEX and Bulk SYSEX
-- XG Part Modes (Normal, Hyper Scream, Analog, Max Resonance, etc.)
-- NRPN/RPN parameter handling
-- Drum note mapping and parameters
-- Effect processing (Reverb, Chorus, Variation effects)
-- Multi-timbral operation (16-part multi-timbral)
+- Audio generation in blocks of arbitrary size
+- Configurable maximum polyphony
+- Full tone generation control
+- Effect processing (reverb, chorus)
+- SF2 file management with blacklists and bank mapping
+- Initialization according to MIDI XG standard
+- Full XG drum parameter support
+- Both immediate and buffered operation modes with sample-accurate timing synchronization
 
-### Audio Processing
-- Sample-accurate timing synchronization
-- Real-time audio generation
-- Configurable sample rates (48kHz default)
-- Polyphonic voice management
-- LFOs (Low-Frequency Oscillators)
-- Modulation matrix
-- Panning and spatialization
-
-### Performance Optimizations
-- SF2 parameter caching
-- Memory pooling for objects
-- Batched modulator processing
-- Optimized attribute access
+The synthesizer can convert MIDI files to OGG or WAV audio formats with high-quality sound rendering.
 
 ## Building and Running
 
 ### Prerequisites
-- Python 3.7+
-- Required Python packages (installed via pip):
+
+- Python 3.x
+- Required Python packages (install via pip):
   - mido
   - numpy
   - pyyaml
   - opuslib
-  - line_profiler (for profiling)
+  - line_profiler
 
 ### Installation
+
+1. Install the required Python packages:
+   ```bash
+   pip install mido numpy pyyaml opuslib line_profiler
+   ```
+
+### Running the Converter
+
+The main entry point is `midi_to_ogg.py`. It can be run from the command line:
+
 ```bash
-# Install required packages
-pip install mido numpy pyyaml opuslib line_profiler
+python midi_to_ogg.py [OPTIONS] INPUT_FILE OUTPUT_FILE
 ```
 
-### Usage
+#### Options:
+- `-c CONFIG_FILE`, `--config CONFIG_FILE`: Path to YAML configuration file (default: config.yaml)
+- `--sf2 SF2_FILE`: SoundFont (.sf2) file paths (can be used multiple times)
+- `--sample-rate SAMPLE_RATE`: Audio sample rate in Hz (default: 48000)
+- `--chunk-size-ms CHUNK_SIZE_MS`: Audio processing chunk size in milliseconds (default: 20)
+- `--polyphony MAX_POLYPHONY`: Maximum polyphony (default: 64)
+- `--volume MASTER_VOLUME`: Master volume (0.0 to 1.0, default: 1.0)
+- `--tempo TEMPO_RATIO`: Tempo ratio (default: 1.0 = original tempo)
+- `--silent`: Suppress console output during conversion
+- `--format {wav,ogg}`: Output audio format (default: ogg)
+
+#### Examples:
 ```bash
-# Convert a MIDI file to OGG
+# Basic conversion
 python midi_to_ogg.py input.mid output.ogg
 
-# Convert with custom configuration
+# Using a configuration file
 python midi_to_ogg.py -c config.yaml input.mid output.ogg
 
-# Convert to WAV format
-python midi_to_ogg.py --format wav input.mid output.wav
-
-# Convert with specific SoundFont
+# Using a specific SoundFont file
 python midi_to_ogg.py --sf2 soundfont.sf2 input.mid output.ogg
 
-# Convert with custom sample rate
+# Setting sample rate to 48kHz
 python midi_to_ogg.py --sample-rate 48000 input.mid output.ogg
+
+# Silent conversion
+python midi_to_ogg.py --silent input.mid output.ogg
 ```
 
 ### Configuration
-The `config.yaml` file supports the following options:
-- `sample_rate`: Audio sample rate (default: 48000)
+
+The synthesizer can be configured using a YAML configuration file (by default `config.yaml`). The configuration file supports the following parameters:
+
+- `sample_rate`: Audio sample rate in Hz (default: 48000)
 - `chunk_size_ms`: Audio processing chunk size in milliseconds (default: 20)
 - `max_polyphony`: Maximum polyphony (default: 64)
 - `master_volume`: Master volume (0.0 to 1.0, default: 1.0)
 - `sf2_files`: List of SoundFont (.sf2) file paths
+- `bank_blacklists`: Dictionary mapping SF2 file paths to lists of bank numbers to exclude
+- `preset_blacklists`: Dictionary mapping SF2 file paths to lists of (bank, program) tuples to exclude
+- `bank_mappings`: Dictionary mapping SF2 file paths to dictionaries that map MIDI banks to SF2 banks
 
-## Development Conventions
+## Testing
 
-### Code Organization
-1. Modular design with separate modules for each functionality
-2. XG-specific implementations in the `synth/xg/` directory
-3. Core audio processing in the `synth/core/` directory
-4. SF2 file handling in the `synth/sf2/` directory
-5. Effects processing in the `synth/effects/` directory
-6. Modulation system in the `synth/modulation/` directory
-7. Voice management in the `synth/voice/` directory
+For testing purposes, the `tests/` directory contains both MIDI files and SF2 soundfonts that can be used to verify the functionality of the synthesizer. You can use these files to test various aspects of the synthesizer:
 
-### XG Implementation Status
-The project is currently working toward full XG compliance. Key areas that need implementation:
+```bash
+# Test with a MIDI file and SF2 from the tests directory
+python midi_to_ogg.py tests/example.mid output.ogg --sf2 tests/Timbres\ Of\ Heaven\ GM_GS_XG_SFX\ V\ 3.4\ Final.sf2
+```
 
-1. **Part Mode Implementation** - Complete implementation of all XG part modes with proper sound characteristics
-2. **NRPN Parameter Handling** - Ensure all mapped NRPN parameters are properly implemented and validated
-3. **SysEx Message Handling** - Implement full XG SysEx message support for all defined message types
-4. **Drum Parameter Implementation** - Complete implementation of all drum note parameters according to XG specification
-5. **Controller Implementation** - Ensure all XG-specific controllers are properly implemented
-6. **Effect Processing Integration** - Integrate complete effect processing with proper XG effect types
+## Architecture Description
 
-### Testing
-Currently, there are no automated tests in the `tests/` directory. Testing is done manually by converting MIDI files and listening to the output.
+### Core Components
 
-## Key Files for Development
+1. **XGSynthesizer** (`synth/core/synthesizer.py`): 
+   - Main orchestrator class that manages all other components
+   - Handles initialization according to MIDI XG standard
+   - Coordinates between different modules (SF2 manager, state manager, etc.)
+   - Provides interface for sending MIDI messages and generating audio
 
-1. **`midi_to_ogg.py`** - Main entry point for MIDI to audio conversion
-2. **`synth/core/synthesizer.py`** - Main synthesizer class orchestrating all modules
-3. **`synth/xg/channel_renderer.py`** - Per-channel MIDI processing with XG features
-4. **`synth/xg/manager.py`** - XG state management
-5. **`synth/xg/drum_manager.py`** - Drum parameter handling
-6. **`config.yaml`** - Configuration file for synthesizer settings
+2. **StateManager** (`synth/xg/manager.py`):
+   - Manages state for all 16 MIDI channels
+   - Handles RPN/NRPN parameter processing
+   - Maintains controller values, program changes, pitch bend, etc.
+   - Stores voice allocation modes and drum parameters
+
+3. **SF2Manager** (`synth/sf2/manager.py`):
+   - Manages loading and processing of SoundFont files
+   - Handles preset blacklists and bank mappings
+   - Provides interface for accessing instrument samples and parameters
+   - Implements lazy loading and caching mechanisms for performance
+
+4. **AudioEngine** (`synth/audio/engine.py`):
+   - Generates audio blocks from active voices
+   - Mixes audio from different channels
+   - Applies master volume processing
+   - Handles audio buffering and sample rate conversion
+
+5. **BufferedProcessor** (`synth/midi/buffered_processor.py`):
+   - Implements sample-accurate MIDI message processing
+   - Buffers messages with timestamps for precise timing
+   - Processes messages at the correct sample time during audio generation
+   - Supports both immediate and buffered operation modes
+
+6. **XGChannelRenderer** (`synth/xg/channel_renderer.py`):
+   - Renders audio for individual MIDI channels
+   - Handles program changes and instrument selection
+   - Processes MIDI messages for specific channel parameters
+   - Manages drum channel enhancements for XG compatibility
+
+7. **XGEffectManager** (`synth/effects/core.py`):
+   - Manages audio effects processing (reverb, chorus)
+   - Handles effect parameter control via NRPN messages
+   - Processes SYSEX messages for effect configuration
+   - Applies effects to audio channels with proper send levels
+
+8. **Voice Management** (`synth/voice/`):
+   - Handles polyphony and voice allocation
+   - Manages individual voice rendering
+   - Implements voice stealing algorithms when needed
+   - Processes envelope generators and filters for each voice
+
+9. **Modulation System** (`synth/modulation/`):
+   - Processes modulator parameters from SF2 files
+   - Handles modulation sources and destinations
+   - Implements modulation transformations and scaling
+
+### Data Flow
+
+1. **Initialization**:
+   - XGSynthesizer initializes all components
+   - SF2Manager loads SoundFont files
+   - StateManager sets up default channel states
+   - EffectManager initializes default effect parameters
+
+2. **MIDI Message Processing**:
+   - Messages received via `send_midi_message()` or buffered via `send_midi_message_at_time()`
+   - BufferedProcessor handles timestamped messages for sample-accurate processing
+   - Messages are dispatched to appropriate channel renderers
+   - StateManager updates channel states accordingly
+
+3. **Audio Generation**:
+   - Audio blocks generated via `generate_audio_block()` or `generate_audio_block_sample_accurate()`
+   - Each channel renderer generates audio based on active voices
+   - AudioEngine mixes all channel outputs
+   - EffectManager processes audio with applied effects
+   - Final mixed audio is returned as numpy arrays
+
+### Module Interactions
+
+- **XGSynthesizer** acts as the central hub, coordinating all other components
+- **SF2Manager** provides wavetable data to **XGChannelRenderer** instances
+- **StateManager** maintains state that is accessed by both **XGSynthesizer** and **XGChannelRenderer**
+- **BufferedProcessor** feeds timestamped MIDI messages back to **XGSynthesizer** during sample-accurate processing
+- **XGEffectManager** receives NRPN/SYSEX messages from **XGSynthesizer** and processes audio from **AudioEngine**
 
 ## Performance Considerations
 
-1. The synthesizer uses parameter caching to avoid repeated computations
-2. Memory pooling is used for object reuse to reduce allocation overhead
-3. Sample-accurate processing ensures precise timing but requires more CPU
-4. Polyphony is limited to prevent excessive memory usage
+The synthesizer includes several key performance optimizations:
 
-## Keyboard Controls
+### 1. SF2 Parameter Caching
+- Implements `ParameterCache` in `midi_to_ogg.py` to avoid repeated computations of merged preset and instrument parameters
+- Reduces calls to `_merge_preset_and_instrument_params` by caching results based on hashable parameter keys
+- Significantly improves performance when the same instrument parameters are used multiple times
 
-During conversion, the following keyboard controls work:
-- **Space** - Stop conversion gracefully
-- **Ctrl+C** - Force quit conversion
+### 2. Memory Pooling
+- Uses `MemoryPool` class to reuse objects like modulator and zone dictionaries
+- Reduces allocation overhead by reusing objects instead of creating new ones
+- Implemented for both modulator and zone objects with configurable pool sizes
 
-## Documentation Files
+### 3. Optimized Attribute Access
+- Batched modulator processing to reduce per-sample overhead
+- Direct attribute access patterns instead of method calls where possible
+- Reduced number of function calls in critical audio generation paths
 
-The project includes several important documentation files:
-- `TECHNICAL_XG_ANALYSIS.md` - Detailed technical analysis of XG conformance issues
-- `XG_CONFORMANCE_ANALYSIS.md` - Analysis of MIDI XG standard conformance
-- `XG_IMPLEMENTATION_PLAN.md` - Detailed implementation plan for XG features
-- `XG_IMPLEMENTATION_ROADMAP.md` - Implementation roadmap with timeline and priorities
+### 4. Lazy Loading
+- SF2 data is loaded on-demand rather than all at initialization
+- Reduces memory footprint and startup time
+- Only loads instrument data when actually needed for sound generation
+
+### 5. Sample-Accurate Processing
+- Implements frame-by-frame MIDI message processing for precise timing
+- Each audio sample is processed separately with checking for MIDI messages at that moment
+- Uses efficient heap-based buffering for timestamped messages
+
+### 6. Efficient Data Structures
+- Uses numpy arrays for audio processing to leverage optimized C implementations
+- Implements efficient sorting and searching for MIDI messages
+- Uses threading locks only where necessary to minimize contention
+
+### 7. Optimized Configuration
+- Default sample rate set to 48kHz (higher quality than standard 44.1kHz)
+- Block size optimized for performance (512 samples by default)
+- Chunk size configurable in milliseconds for Opus encoding optimization
+
+### 8. Profiling-Driven Optimizations
+- Includes line profiler integration for performance analysis
+- Identifies and optimizes bottlenecks in critical code paths
+- Regular performance monitoring and optimization
+
+These optimizations work together to provide real-time or faster-than-real-time MIDI to audio conversion while maintaining high audio quality and full XG compatibility.
