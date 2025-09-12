@@ -99,7 +99,7 @@ class XGSynthesizer:
         self.effect_manager = XGEffectManager(sample_rate)
 
         # MIDI message handling
-        self.message_handler = MIDIMessageHandler(self.state_manager, self.drum_manager, self.effect_manager)
+        self.message_handler = MIDIMessageHandler(self.state_manager, self.drum_manager, self.effect_manager, self)
 
         # Set wavetable manager for all channel renderers
         for renderer in self.channel_renderers:
@@ -366,6 +366,113 @@ class XGSynthesizer:
                 print(f"Error processing effects: {e}")
                 # If effects don't work, return unprocessed mix
                 return left_buffer, right_buffer
+
+    def generate_audio_block_vectorized(self, block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        VECTORIZED BLOCK PROCESSING OPTIMIZATION - PHASE 4 PERFORMANCE
+        Generate audio block using vectorized processing for improved performance.
+
+        This method replaces per-sample processing with block-based vector operations
+        to eliminate the identified per-sample processing bottleneck.
+
+        Args:
+            block_size: Block size in samples (if None, uses default value)
+
+        Returns:
+            Tuple (left_channel, right_channel) with audio data
+        """
+        if block_size is None:
+            block_size = self.block_size
+
+        with self.lock:
+            try:
+                # VECTORIZED PROCESSING: Generate block data for all active channels simultaneously
+                # Initialize block buffers for all channels
+                block_left = np.zeros(block_size, dtype=np.float32)
+                block_right = np.zeros(block_size, dtype=np.float32)
+
+                # Cache volume factors for performance
+                master_volume_factor = np.float32(self.master_volume)
+
+                # Process all active channel renderers with optimized loop processing
+                active_renderers = []
+                for renderer in self.channel_renderers:
+                    if renderer.is_active():
+                        active_renderers.append(renderer)
+
+                # Batch process all active voices with optimized accumulation
+                if active_renderers:
+                    # Initialize block-level audio accumulation
+                    block_left.fill(0.0)
+                    block_right.fill(0.0)
+
+                    # OPTIMIZED BLOCK PROCESSING: Use vectorized accumulation where possible
+                    for renderer in active_renderers:
+                        try:
+                            # Try vectorized block generation first (if available)
+                            renderer_left, renderer_right = renderer.generate_sample_block(block_size)
+                            block_left = np.add(block_left, renderer_left, out=block_left)
+                            block_right = np.add(block_right, renderer_right, out=block_right)
+
+                        except (AttributeError, TypeError):
+                            # Fallback: Vectorize per-sample generation where possible
+                            try:
+                                # Pre-allocate sample arrays for vectorized processing
+                                temp_left = np.zeros(block_size, dtype=np.float32)
+                                temp_right = np.zeros(block_size, dtype=np.float32)
+
+                                # Generate samples in a loop (still inefficient but better than single accumulation)
+                                for idx in range(block_size):
+                                    l, r = renderer.generate_sample()
+                                    temp_left[idx] = l
+                                    temp_right[idx] = r
+
+                                # Vectorized addition to accumulator
+                                block_left = np.add(block_left, temp_left, out=block_left)
+                                block_right = np.add(block_right, temp_right, out=block_right)
+
+                            except Exception as e:
+                                print(f"Error generating samples from renderer: {e}")
+                                continue
+
+                    # Apply master volume with vectorized multiplication
+                    block_left *= master_volume_factor
+                    block_right *= master_volume_factor
+
+                    # Vectorized final clipping
+                    np.clip(block_left, -1.0, 1.0, out=block_left)
+                    np.clip(block_right, -1.0, 1.0, out=block_right)
+
+                # Apply effects to entire vectors (highly optimized)
+                if hasattr(self.effect_manager, 'process_multi_channel_vectorized'):
+                    try:
+                        # Prepare vectorized input for effects processing
+                        effect_input = np.column_stack((block_left, block_right))
+
+                        # Process effects with vectorized operations
+                        effect_output = self.effect_manager.process_multi_channel_vectorized(
+                            effect_input, self.effect_manager
+                        )
+
+                        # Separate stereo channels
+                        block_left = effect_output[:, 0]
+                        block_right = effect_output[:, 1]
+
+                        # Vectorized final clipping
+                        block_left = np.clip(block_left, -1.0, 1.0)
+                        block_right = np.clip(block_right, -1.0, 1.0)
+
+                    except Exception as e:
+                        print(f"Error in vectorized effects: {e}")
+                        # Fallback to unprocessed audio
+                        pass
+
+                return block_left, block_right
+
+            except Exception as e:
+                print(f"Error in vectorized block generation: {e}")
+                # Fallback to original method if vectorization fails
+                return self.generate_audio_block(block_size)
 
     def _generate_single_sample(self) -> Tuple[float, float]:
         """

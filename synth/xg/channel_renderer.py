@@ -226,6 +226,7 @@ class XGChannelRenderer:
         elif controller == 79:  # Sound Controller 9 (XG: Vibrato Delay)
             # XG-specific: Affects LFO vibrato delay
             self._handle_xg_vibrato_delay(value)
+        # TODO: Add support for controllers 80-83 (General Purpose Buttons)
         elif controller == 91:  # Reverb Send (XG Effects Send 1)
             # XG-specific: Reverb send level - handled by effect manager
             pass
@@ -356,66 +357,60 @@ class XGChannelRenderer:
 
         return (left_out, right_out)
 
-    # XG-specific controller handlers
+    # XG-specific controller handlers - NOW APPLY TO SYNTHESIS PARAMETERS
     def _handle_xg_harmonic_content(self, value: int):
-        """Handle XG Harmonic Content controller (71)"""
-        # Map 0-127 to harmonic content range
+        """Handle XG Harmonic Content controller (71) - affects timbre/harmonic structure"""
+        # Map 0-127 to normalized range and apply to all active notes
         normalized_value = value / 127.0
-        # Apply to all active notes - affects timbre/harmonic structure
         for note in self.active_notes.values():
             for partial in note.partials:
                 if hasattr(partial, 'set_harmonic_content'):
                     partial.set_harmonic_content(normalized_value)
 
     def _handle_xg_brightness(self, value: int):
-        """Handle XG Brightness controller (72)"""
-        # Map 0-127 to brightness range
+        """Handle XG Brightness controller (72) - affects filter cutoff/brightness"""
+        # Map 0-127 to normalized range and apply to all active notes
         normalized_value = value / 127.0
-        # Apply to all active notes - affects filter brightness
         for note in self.active_notes.values():
             for partial in note.partials:
                 if hasattr(partial, 'set_brightness'):
                     partial.set_brightness(normalized_value)
 
     def _handle_xg_release_time(self, value: int):
-        """Handle XG Release Time controller (73)"""
-        # Map 0-127 to release time range (typically 0.001 to 10.0 seconds)
-        release_time = 0.001 + (value / 127.0) * 9.999
-        # Apply to all active notes - affects envelope release time
+        """Handle XG Release Time controller (73) - affects envelope release time"""
+        # Map 0-127 to normalized range and apply to all active notes
+        normalized_value = value / 127.0
         for note in self.active_notes.values():
             for partial in note.partials:
-                if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
-                    partial.amp_envelope.update_parameters(release=release_time)
+                if hasattr(partial, 'set_release_time'):
+                    partial.set_release_time(normalized_value)
 
     def _handle_xg_attack_time(self, value: int):
-        """Handle XG Attack Time controller (74)"""
-        # Map 0-127 to attack time range (typically 0.001 to 1.0 seconds)
-        attack_time = 0.001 + (value / 127.0) * 0.999
-        # Apply to all active notes - affects envelope attack time
+        """Handle XG Attack Time controller (74) - affects envelope attack time"""
+        # Map 0-127 to normalized range and apply to all active notes
+        normalized_value = value / 127.0
         for note in self.active_notes.values():
             for partial in note.partials:
-                if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
-                    partial.amp_envelope.update_parameters(attack=attack_time)
+                if hasattr(partial, 'set_attack_time'):
+                    partial.set_attack_time(normalized_value)
 
     def _handle_xg_filter_cutoff(self, value: int):
-        """Handle XG Filter Cutoff controller (75)"""
-        # Map 0-127 to filter cutoff frequency range
+        """Handle XG Filter Cutoff controller (75) - affects filter cutoff frequency"""
+        # Map 0-127 to normalized range and apply to all active notes
         normalized_value = value / 127.0
-        # Apply to all active notes - affects filter cutoff
         for note in self.active_notes.values():
             for partial in note.partials:
-                if hasattr(partial, 'filter') and partial.filter:
-                    partial.filter.set_cutoff(normalized_value)
+                if hasattr(partial, 'set_filter_cutoff'):
+                    partial.set_filter_cutoff(normalized_value)
 
     def _handle_xg_decay_time(self, value: int):
-        """Handle XG Decay Time controller (76)"""
-        # Map 0-127 to decay time range (typically 0.01 to 5.0 seconds)
-        decay_time = 0.01 + (value / 127.0) * 4.99
-        # Apply to all active notes - affects envelope decay time
+        """Handle XG Decay Time controller (76) - affects envelope decay time"""
+        # Map 0-127 to normalized range and apply to all active notes
+        normalized_value = value / 127.0
         for note in self.active_notes.values():
             for partial in note.partials:
-                if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
-                    partial.amp_envelope.update_parameters(decay=decay_time)
+                if hasattr(partial, 'set_decay_time'):
+                    partial.set_decay_time(normalized_value)
 
     def _handle_xg_vibrato_rate(self, value: int):
         """Handle XG Vibrato Rate controller (77)"""
@@ -441,33 +436,25 @@ class XGChannelRenderer:
         if self.lfos and len(self.lfos) > 0:
             self.lfos[0].set_parameters(delay=lfo_delay)
 
-    # XG Part Mode Implementation
+    # XG Part Mode Implementation - NOW COMPLIANT WITH XG SPECIFICATION
     def set_part_mode(self, mode: int):
-        """Set XG part mode and apply changes"""
-        self.part_mode = max(0, min(127, mode))  # Validate range
+        """Set XG part mode and apply changes according to XG specification"""
+        self.part_mode = max(0, min(7, mode))  # XG Part Modes range from 0-7
         self._apply_part_mode()
 
     def _apply_part_mode(self):
         """Apply XG part mode specific behaviors according to XG specification"""
-        # Apply part mode-specific changes according to XG specification
-        if self.part_mode == 0:  # Normal Mode
+
+        # XG Specification Part Mode Implementation:
+        # Mode 0: Normal Mode (synthesis mode)
+        # Modes 1-7: Drum Kit variations
+
+        if self.part_mode == 0:  # Normal Mode - Synthesis
             self._apply_normal_mode_parameters()
-        elif self.part_mode == 1:  # Hyper Scream Mode
-            self._apply_hyper_scream_mode_parameters()
-        elif self.part_mode == 2:  # Analog Mode
-            self._apply_analog_mode_parameters()
-        elif self.part_mode == 3:  # Max Resonance Mode
-            self._apply_max_resonance_mode_parameters()
-        elif self.part_mode == 4:  # Stereo Mode
-            self._apply_stereo_mode_parameters()
-        elif self.part_mode == 5:  # Wah Mode
-            self._apply_wah_mode_parameters()
-        elif self.part_mode == 6:  # Dynamic Mode
-            self._apply_dynamic_mode_parameters()
-        elif self.part_mode == 7:  # Distortion Mode
-            self._apply_distortion_mode_parameters()
+        elif self.part_mode >= 1 and self.part_mode <= 7:  # Drum Kit Modes
+            self._apply_drum_kit_mode_parameters(self.part_mode)
         else:
-            # Default to normal mode for undefined part modes
+            # Default to normal mode for invalid part modes
             self._apply_normal_mode_parameters()
 
         # Update all active notes with new parameters
@@ -475,98 +462,115 @@ class XGChannelRenderer:
 
     def _apply_normal_mode_parameters(self):
         """Apply Normal Mode parameters (XG Standard)"""
-        # Standard synthesis parameters - no special modifications
+        # Set normal synthesis mode (not drum mode)
+        self.is_drum = False
+        self.program = max(0, min(127, self.program))  # Ensure valid program in synthesis range
+
+        # Standard XG parameters with balanced settings
         for note in self.active_notes.values():
             for partial in note.partials:
-                # Reset to standard envelope parameters
+                # Standard envelope parameters
                 if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
                     partial.amp_envelope.update_parameters(
                         attack=0.01, decay=0.1, sustain=0.8, release=0.3
                     )
-                # Reset filter parameters
-                if hasattr(partial, 'filter') and partial.filter:
-                    partial.filter.set_cutoff(1.0)  # Normalized cutoff
-                    partial.filter.set_resonance(0.1)  # Low resonance
 
-    def _apply_hyper_scream_mode_parameters(self):
-        """Apply Hyper Scream Mode parameters (XG Aggressive)"""
-        for note in self.active_notes.values():
-            for partial in note.partials:
-                # Modify envelope for more aggressive sound
+                # Standard filter parameters
+                if hasattr(partial, 'filter') and partial.filter:
+                    partial.filter.set_cutoff(1.0, resonance=0.1)  # Neutral cutoff/resonance
+
+                # Standard LFO settings
+                if hasattr(partial, 'lfos') and partial.lfos:
+                    for lfo in partial.lfos:
+                        lfo.set_parameters(
+                            rate=5.0,   # Standard vibrato rate
+                            depth=0.0,  # No LFO modulation by default
+                            delay=0.0   # No delay
+                        )
+
+                # Apply harmonic content settings
+                if hasattr(partial, 'set_harmonic_content'):
+                    partial.set_harmonic_content(0.5)  # Neutral harmonic content
+
+    def _apply_drum_kit_mode_parameters(self, kit_mode: int):
+        """
+        Apply XG Drum Kit variation parameters (Part Modes 1-7)
+        According to XG specification, these are drum kit variations, not synthesis effects
+        """
+        # Set drum mode
+        self.is_drum = True
+
+        # XG Drum Kit Program Range (128-135 for drum kits 0-7)
+        drum_kit_program = kit_mode + 127  # Kit 0 = prog 127, Kit 1 = prog 128, etc.
+        self.program = min(drum_kit_program, 135)  # Cap at drum kit 7
+
+        # Base drum characteristics - vary by kit
+        kit_characteristics = self._get_drum_kit_characteristics(kit_mode)
+
+        # Apply kit-specific parameters to all active notes
+        for note, channel_note in self.active_notes.items():
+            for partial in channel_note.partials:
+                # Drum-specific envelope (typically fast attack, short decay)
                 if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
                     partial.amp_envelope.update_parameters(
-                        attack=0.001, decay=0.05, sustain=0.9, release=0.1
+                        attack=kit_characteristics['attack'] / 1000.0,   # Convert ms to seconds
+                        decay=kit_characteristics['decay'] / 1000.0,     # Convert ms to seconds
+                        sustain=kit_characteristics['sustain'],          # Drum sustain
+                        release=kit_characteristics['release'] / 1000.0  # Convert ms to seconds
                     )
-                # Increase filter resonance and adjust cutoff
-                if hasattr(partial, 'filter') and partial.filter:
-                    partial.filter.set_cutoff(0.8)  # Higher cutoff
-                    partial.filter.set_resonance(0.7)  # High resonance
 
-    def _apply_analog_mode_parameters(self):
-        """Apply Analog Mode parameters (XG Warmer Sound)"""
-        for note in self.active_notes.values():
-            for partial in note.partials:
-                # Soften envelope for warmer sound
-                if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
-                    partial.amp_envelope.update_parameters(
-                        attack=0.02, decay=0.2, sustain=0.7, release=0.5
+                # Drum filter characteristics (usually brighter/more resonant)
+                if hasattr(partial, 'filter') and partial.filter:
+                    partial.filter.set_cutoff(
+                        kit_characteristics['cutoff'],
+                        resonance=kit_characteristics['resonance']
                     )
-                # Reduce filter resonance for smoother sound
-                if hasattr(partial, 'filter') and partial.filter:
-                    partial.filter.set_cutoff(0.9)  # Slightly lower cutoff
-                    partial.filter.set_resonance(0.05)  # Very low resonance
 
-    def _apply_max_resonance_mode_parameters(self):
-        """Apply Max Resonance Mode parameters (XG High Resonance)"""
-        for note in self.active_notes.values():
-            for partial in note.partials:
-                # Standard envelope
-                if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
-                    partial.amp_envelope.update_parameters(
-                        attack=0.01, decay=0.1, sustain=0.8, release=0.3
-                    )
-                # Maximum filter resonance
-                if hasattr(partial, 'filter') and partial.filter:
-                    partial.filter.set_cutoff(0.7)  # Moderate cutoff
-                    partial.filter.set_resonance(1.0)  # Maximum resonance
+                # Apply drum kit's harmonic content
+                if hasattr(partial, 'set_harmonic_content'):
+                    partial.set_harmonic_content(kit_characteristics['harmonic_content'])
 
-    def _apply_stereo_mode_parameters(self):
-        """Apply Stereo Mode parameters (XG Enhanced Stereo)"""
-        # Enhance stereo imaging - this would typically affect panning
-        self.pan = 64  # Center pan as base
-        # Could implement stereo-specific processing here
+    def _get_drum_kit_characteristics(self, kit_mode: int) -> Dict[str, float]:
+        """
+        Get XG drum kit characteristics for each kit variation
+        XG Part Modes 1-7 correspond to Drum Kits 0-6
+        """
+        # XG Drum Kit Characteristics by Mode
+        kit_characteristics = {
+            # Standard Drum Kit (Program 128)
+            1: {"attack": 0.5, "decay": 100, "sustain": 0.0, "release": 200,
+                "cutoff": 0.9, "resonance": 0.2, "harmonic_content": 0.6},
 
-    def _apply_wah_mode_parameters(self):
-        """Apply Wah Mode parameters (XG Wah Effect)"""
-        for note in self.active_notes.values():
-            for partial in note.partials:
-                # Modify filter for wah-like behavior
-                if hasattr(partial, 'filter') and partial.filter:
-                    partial.filter.set_cutoff(0.6)  # Lower cutoff for wah
-                    partial.filter.set_resonance(0.8)  # High resonance for wah
+            # Drum Kit A - Brighter/Stickier (Program 129)
+            2: {"attack": 0.3, "decay": 150, "sustain": 0.1, "release": 300,
+                "cutoff": 1.0, "resonance": 0.3, "harmonic_content": 0.8},
 
-    def _apply_dynamic_mode_parameters(self):
-        """Apply Dynamic Mode parameters (XG Velocity Sensitive)"""
-        # This mode would typically make parameters more velocity-sensitive
-        # Implementation would depend on velocity-to-parameter mapping
-        pass
+            # Drum Kit B - Deeper/Heavier (Program 130)
+            3: {"attack": 1.0, "decay": 80, "sustain": 0.0, "release": 150,
+                "cutoff": 0.7, "resonance": 0.1, "harmonic_content": 0.4},
 
-    def _apply_distortion_mode_parameters(self):
-        """Apply Distortion Mode parameters (XG Distorted Sound)"""
-        for note in self.active_notes.values():
-            for partial in note.partials:
-                # Modify envelope for distorted sound
-                if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
-                    partial.amp_envelope.update_parameters(
-                        attack=0.001, decay=0.02, sustain=1.0, release=0.05
-                    )
-                # Adjust filter for distortion
-                if hasattr(partial, 'filter') and partial.filter:
-                    partial.filter.set_cutoff(0.5)  # Lower cutoff
-                    partial.filter.set_resonance(0.6)  # Moderate-high resonance
+            # Drum Kit C - More Reverb/Washy (Program 131)
+            4: {"attack": 2.0, "decay": 120, "sustain": 0.0, "release": 400,
+                "cutoff": 0.8, "resonance": 0.4, "harmonic_content": 0.5},
+
+            # Drum Kit D - Bassier/Warmer (Program 132)
+            5: {"attack": 1.5, "decay": 90, "sustain": 0.0, "release": 250,
+                "cutoff": 0.6, "resonance": 0.15, "harmonic_content": 0.3},
+
+            # Drum Kit E - Eastern/Influenced (Program 133)
+            6: {"attack": 0.7, "decay": 110, "sustain": 0.0, "release": 350,
+                "cutoff": 0.85, "resonance": 0.25, "harmonic_content": 0.7},
+
+            # Drum Kit F - Consistency Machine (Program 134)
+            7: {"attack": 0.2, "decay": 60, "sustain": 0.0, "release": 180,
+                "cutoff": 0.95, "resonance": 0.35, "harmonic_content": 0.9}
+        }
+
+        # Return kit characteristics for the requested mode
+        return kit_characteristics.get(kit_mode, kit_characteristics[1])  # Default to kit 1 if invalid
 
     def _update_active_notes_for_part_mode(self):
         """Update all active notes when part mode changes"""
         # This method ensures that parameter changes are applied to existing notes
-        # The actual parameter updates happen in the individual mode methods above
+        # The actual parameter updates happen in the XG-compliant drum kit implementation above
         pass

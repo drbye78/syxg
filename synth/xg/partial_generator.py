@@ -335,18 +335,93 @@ class PartialGenerator:
         effective_level *= attenuation_factor
 
         if is_stereo:
-            left_out = filtered_sample[0] * amp_env * effective_level
-            right_out = filtered_sample[1] * amp_env * effective_level
+            if isinstance(filtered_sample, (tuple, list)) and len(filtered_sample) >= 2:
+                left_out = filtered_sample[0] * amp_env * effective_level
+                right_out = filtered_sample[1] * amp_env * effective_level
+            else:
+                # Handle stereo format mismatch
+                mono_sample = (filtered_sample if isinstance(filtered_sample, (int, float)) else 0.0) * amp_env * effective_level
+                left_out = mono_sample
+                right_out = mono_sample
         else:
             # Handle both wavetable mono samples and basic sine wave generation
-            if isinstance(filtered_sample, (tuple, list)):
+            if isinstance(filtered_sample, (tuple, list)) and len(filtered_sample) >= 2:
                 mono_sample = (filtered_sample[0] + filtered_sample[1]) * 0.5 * amp_env * effective_level
             else:
                 # Basic sine wave case - filtered_sample is a float
-                mono_sample = filtered_sample * amp_env * effective_level
+                mono_sample = (filtered_sample if isinstance(filtered_sample, (int, float)) else 0.0) * amp_env * effective_level
 
-            # Применение панорамирования для этой частичной структуры
-            panner = StereoPanner(pan_position=self.pan, sample_rate=self.sample_rate)
-            left_out, right_out = panner.process(mono_sample)
+        # Применение панорамирования для этой частичной структуры
+        panner = StereoPanner(pan_position=self.pan, sample_rate=self.sample_rate)
+        left_out, right_out = panner.process(mono_sample)
 
         return (left_out, right_out)
+
+    # XG Synthesis Parameter Control Methods
+    def set_harmonic_content(self, value: float):
+        """Set harmonic content parameter (XG Sound Controller 71) - affects timbre/harmonic structure"""
+        if self.filter and hasattr(self.filter, 'set_harmonic_content'):
+            # Scale 0.0-1.0 to appropriate filter parameter range
+            normalized_value = max(0.0, min(1.0, value))
+            self.filter.set_harmonic_content(normalized_value)
+
+    def set_brightness(self, value: float):
+        """Set brightness parameter (XG Sound Controller 72) - affects filter cutoff/brightness"""
+        if self.filter and hasattr(self.filter, 'set_brightness'):
+            # Scale 0.0-1.0 to 0-127 MIDI range
+            midi_value = int(value * 127.0)
+            midi_value = max(0, min(127, midi_value))
+            self.filter.set_brightness(midi_value)
+
+    def set_release_time(self, value: float):
+        """Set release time parameter (XG Sound Controller 73) - affects envelope release"""
+        if self.amp_envelope:
+            # Scale 0.0-1.0 to release time range (0.001-2.0 seconds)
+            release_time = 0.001 + (value * 1.999)
+            self.amp_envelope.update_parameters(release=release_time)
+        if self.filter_envelope:
+            self.filter_envelope.update_parameters(release=max(0.001, value * 2.0))
+
+    def set_attack_time(self, value: float):
+        """Set attack time parameter (XG Sound Controller 74) - affects envelope attack"""
+        if self.amp_envelope:
+            # Scale 0.0-1.0 to attack time range (0.001-1.0 seconds)
+            attack_time = 0.001 + (value * 0.999)
+            self.amp_envelope.update_parameters(attack=attack_time)
+        if self.filter_envelope:
+            self.filter_envelope.update_parameters(attack=max(0.001, value * 1.0))
+
+    def set_decay_time(self, value: float):
+        """Set decay time parameter (XG Sound Controller 76) - affects envelope decay"""
+        if self.amp_envelope:
+            # Scale 0.0-1.0 to decay time range (0.001-5.0 seconds)
+            decay_time = 0.001 + (value * 4.999)
+            self.amp_envelope.update_parameters(decay=decay_time)
+        if self.filter_envelope:
+            self.filter_envelope.update_parameters(decay=max(0.001, value * 5.0))
+
+    def set_filter_cutoff(self, value: float):
+        """Set filter cutoff frequency (XG Sound Controller 75) - affects filter cutoff"""
+        if self.filter:
+            # Scale 0.0-1.0 to cutoff frequency range (20Hz-20kHz)
+            cutoff_freq = 20.0 + (value ** 2) * (20000.0 - 20.0)  # Exponential scaling
+            self.filter.set_parameters(cutoff=cutoff_freq)
+
+    def set_filter_resonance(self, value: float):
+        """Set filter resonance (additional XG parameter) - affects filter Q factor"""
+        if self.filter:
+            # Scale 0.0-1.0 to resonance range (0.0-2.0)
+            resonance = value * 2.0
+            self.filter.set_parameters(resonance=resonance)
+
+    def update_attack_rate(self, rate: float):
+        """Update attack rate continuously for real-time control"""
+        self.set_attack_time(rate)
+
+    def update_decay_rate(self, rate: float):
+        """Update decay rate continuously for real-time control"""
+        self.set_decay_time(rate)
+
+    def update_release_rate(self, rate: float):
+        """Update release rate continuously for real-time control"""
+        self.set_release_time(rate)

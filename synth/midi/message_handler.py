@@ -20,7 +20,7 @@ class MIDIMessageHandler:
     - Channel pressure and key pressure handling
     """
 
-    def __init__(self, state_manager, drum_manager, effect_manager):
+    def __init__(self, state_manager, drum_manager, effect_manager, synthesizer=None):
         """
         Initialize MIDI message handler with multi-timbral support.
 
@@ -28,10 +28,12 @@ class MIDIMessageHandler:
             state_manager: StateManager instance for channel state management
             drum_manager: DrumManager instance for drum parameter handling
             effect_manager: Effect manager for effect parameter processing
+            synthesizer: Reference to XG synthesizer for channel renderer access
         """
         self.state_manager = state_manager
         self.drum_manager = drum_manager
         self.effect_manager = effect_manager
+        self.synthesizer = synthesizer  # Reference to synthesizer for channel renderer access
 
         # Multi-timbral configuration
         self.multi_timbral_enabled = True
@@ -471,7 +473,7 @@ class MIDIMessageHandler:
 
     def _handle_nrpn(self, channel: int, nrpn_msb: int, nrpn_lsb: int) -> bool:
         """
-        Handle Non-Registered Parameter Number with XG validation.
+        Handle Non-Registered Parameter Number with XG validation and parameter application.
 
         Args:
             channel: MIDI channel number (0-15)
@@ -483,37 +485,47 @@ class MIDIMessageHandler:
         """
         data_msb, data_lsb = self.state_manager.get_current_data_entry(channel)
 
-        # Combine MSB and LSB for 14-bit parameter value
+        # Combine MSB and LSB for 14-bit parameter value (0-16383)
         parameter_value = (data_msb << 7) | data_lsb
 
-        # XG NRPN Parameter Ranges and Validation
+        # Get synthesizer and channel renderer for real-time parameter application
+        channel_renderer = None
+        if hasattr(self, 'synthesizer') and self.synthesizer:
+            channel_renderer = getattr(self.synthesizer, 'channel_renderers', [None]*16)[channel]
+
+        # XG NRPN Parameter Ranges and Validation - NOW WITH SYNTHESIS APPLICATION
         # Part Parameters (MSB 1)
         if nrpn_msb == 1:
             if nrpn_lsb == 8:  # Part Mode
                 # Validate part mode (0-127, but XG defines specific values)
                 if 0 <= parameter_value <= 127:
-                    # Part mode is handled by channel renderer
+                    if channel_renderer:
+                        channel_renderer.set_part_mode(parameter_value)
                     return True
             elif nrpn_lsb == 9:  # Element Reserve
                 # Validate element reserve (0-127)
                 if 0 <= parameter_value <= 127:
+                    # Element reserve affects polyphony management
                     return True
             elif nrpn_lsb == 10:  # Element Assign Mode
                 # Validate element assign mode (0-127)
                 if 0 <= parameter_value <= 127:
+                    # Element assign mode affects voice allocation
                     return True
             elif nrpn_lsb == 11:  # Receive Channel
                 # Validate receive channel (0-15 for MIDI channels)
                 if 0 <= parameter_value <= 15:
+                    # Receive channel assignment
                     return True
 
-        # Effect Parameters (MSB 2-4)
+        # Effect Parameters (MSB 2-4) - these are handled by effect manager
         elif nrpn_msb in [2, 3, 4]:  # Reverb, Chorus, Variation effects
             # Validate effect parameter ranges (0-127)
             if 0 <= parameter_value <= 127:
                 # Check if this is an effect parameter NRPN
                 if self.effect_manager.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb, channel):
                     return True
+            return True
 
         # Drum Parameters (MSB 40-41, and channel 10)
         elif nrpn_msb in [40, 41] or channel == XG_CONSTANTS["DRUM_SETUP_CHANNEL"]:
@@ -521,39 +533,83 @@ class MIDIMessageHandler:
             if 0 <= parameter_value <= 127:
                 return self.drum_manager.handle_xg_drum_setup_nrpn(channel, nrpn_msb, nrpn_lsb, data_msb, data_lsb)
 
-        # Filter Parameters (MSB 5)
+        # Filter Parameters (MSB 5) - APPLY TO SYNTHESIS
         elif nrpn_msb == 5:
             if nrpn_lsb == 0:  # Filter Cutoff Offset
-                # Validate filter cutoff offset (-64 to +63)
-                if 0 <= parameter_value <= 127:  # 0-127 maps to -64 to +63
+                # Validate filter cutoff offset (-64 to +63) - value 8192 = 0 offset
+                if 0 <= parameter_value <= 16383:  # Full 14-bit range
+                    # Convert to offset value (-64 to +63)
+                    cutoff_offset = ((parameter_value - 8192) / 128.0)  # 8192 = center, 128 = 1 semitone
+                    if channel_renderer:
+                        self._apply_filter_cutoff_offset(channel_renderer, cutoff_offset)
                     return True
             elif nrpn_lsb == 1:  # Filter Resonance Offset
                 # Validate filter resonance offset (-64 to +63)
-                if 0 <= parameter_value <= 127:
+                if 0 <= parameter_value <= 16383:
+                    resonance_offset = ((parameter_value - 8192) / 128.0)
+                    if channel_renderer:
+                        self._apply_filter_resonance_offset(channel_renderer, resonance_offset)
                     return True
 
-        # Envelope Parameters (MSB 6)
+        # Envelope Parameters (MSB 6) - APPLY TO SYNTHESIS
         elif nrpn_msb == 6:
-            if nrpn_lsb in [0, 1, 2, 3]:  # Attack, Decay, Release times
-                # Validate envelope time parameters (0-127)
-                if 0 <= parameter_value <= 127:
-                    return True
+            # Envelope time parameters (0-127 maps to time ranges)
+            if 0 <= parameter_value <= 127:
+                # Convert NRPN value to envelope time parameter (0.0-1.0)
+                time_value = parameter_value / 127.0
 
-        # LFO Parameters (MSB 7-9)
+                if nrpn_lsb == 0:  # Attack Time
+                    if channel_renderer:
+                        self._apply_envelope_attack_time(channel_renderer, time_value)
+                elif nrpn_lsb == 1:  # Decay Time
+                    if channel_renderer:
+                        self._apply_envelope_decay_time(channel_renderer, time_value)
+                elif nrpn_lsb == 3:  # Release Time
+                    if channel_renderer:
+                        self._apply_envelope_release_time(channel_renderer, time_value)
+                return True
+
+        # LFO Parameters (MSB 7-9) - APPLY TO SYNTHESIS
         elif nrpn_msb in [7, 8, 9]:  # LFO1, LFO2, LFO3
-            if nrpn_lsb in [0, 1, 2, 3]:  # Rate, Depth, Delay, Fade
-                # Validate LFO parameters (0-127)
+            lfo_index = nrpn_msb - 7  # Convert to 0, 1, 2
+
+            if nrpn_lsb == 0:  # LFO Rate
                 if 0 <= parameter_value <= 127:
+                    lfo_rate = 0.1 + (parameter_value / 127.0) * 9.9  # 0.1 to 10.0 Hz
+                    if channel_renderer:
+                        self._apply_lfo_rate(channel_renderer, lfo_index, lfo_rate)
+                    return True
+            elif nrpn_lsb == 1:  # LFO Depth
+                if 0 <= parameter_value <= 127:
+                    lfo_depth = parameter_value / 127.0  # 0.0 to 1.0
+                    if channel_renderer:
+                        self._apply_lfo_depth(channel_renderer, lfo_index, lfo_depth)
+                    return True
+            elif nrpn_lsb == 2:  # LFO Delay
+                if 0 <= parameter_value <= 127:
+                    lfo_delay = (parameter_value / 127.0) * 5.0  # 0.0 to 5.0 seconds
+                    if channel_renderer:
+                        self._apply_lfo_delay(channel_renderer, lfo_index, lfo_delay)
                     return True
 
-        # EQ Parameters (MSB 10)
+        # EQ Parameters (MSB 10) - APPLY TO SYNTHESIS
         elif nrpn_msb == 10:
             if nrpn_lsb in [0, 1, 2]:  # EQ Low, Mid, High
-                # Validate EQ parameters (-64 to +63, mapped 0-127)
-                if 0 <= parameter_value <= 127:
-                    return True
+                # Validate EQ parameters (-64 to +63, mapped to full 14-bit range)
+                if 0 <= parameter_value <= 16383:
+                    # Convert to EQ parameter (-64 to +63)
+                    eq_value = ((parameter_value - 8192) / 128.0)
 
-        # Other XG NRPN parameters can be added here as needed
+                    if nrpn_lsb == 0:  # EQ Low
+                        if channel_renderer:
+                            self._apply_eq_low(channel_renderer, eq_value)
+                    elif nrpn_lsb == 1:  # EQ Mid
+                        if channel_renderer:
+                            self._apply_eq_mid(channel_renderer, eq_value)
+                    elif nrpn_lsb == 2:  # EQ High
+                        if channel_renderer:
+                            self._apply_eq_high(channel_renderer, eq_value)
+                    return True
 
         # If parameter is out of valid XG range, still acknowledge but don't process
         return True
@@ -1282,46 +1338,128 @@ class MIDIMessageHandler:
             # Normalize value to 0.0-1.0 range
             normalized_value = value / 127.0
 
-            # Route to appropriate parameter update based on controller
-            if controller == 71:  # Harmonic Content
-                # Update harmonic content parameter
-                self._update_harmonic_content(channel, normalized_value)
+            # Get the synthesizer's channel renderer to apply changes to active notes
+            if hasattr(self, 'state_manager') and hasattr(self.state_manager, 'channel_renderers'):
+                channel_renderer = getattr(self.state_manager, 'channel_renderers', [None]*16)[channel]
+                if channel_renderer is None:
+                    return
 
-            elif controller == 72:  # Brightness
-                # Update filter brightness
-                self._update_brightness(channel, normalized_value)
+                # Apply the parameter changes to active notes in real-time
+                for note in channel_renderer.active_notes.values():
+                    for partial in note.partials:
+                        if partial.is_active():
+                            # Route to appropriate synthesis parameter update based on controller
+                            if controller == 71:  # Harmonic Content
+                                partial.set_harmonic_content(normalized_value)
+                            elif controller == 72:  # Brightness
+                                partial.set_brightness(normalized_value)
+                            elif controller == 73:  # Release Time
+                                partial.set_release_time(normalized_value)
+                            elif controller == 74:  # Attack Time
+                                partial.set_attack_time(normalized_value)
+                            elif controller == 75:  # Filter Cutoff
+                                partial.set_filter_cutoff(normalized_value)
+                            elif controller == 76:  # Decay Time
+                                partial.set_decay_time(normalized_value)
 
-            elif controller == 73:  # Release Time
-                # Update envelope release time
-                self._update_release_time(channel, normalized_value)
+                # Handle LFO controllers for the channel (these affect future notes)
+                if controller == 77:  # Vibrato Rate
+                    # Update LFO vibrato rate for the channel
+                    if hasattr(channel_renderer, 'lfos') and channel_renderer.lfos:
+                        lfo_rate = 0.1 + (normalized_value * 9.9)  # 0.1 to 10.0 Hz
+                        channel_renderer.lfos[0].set_parameters(rate=lfo_rate)
 
-            elif controller == 74:  # Attack Time
-                # Update envelope attack time
-                self._update_attack_time(channel, normalized_value)
+                elif controller == 78:  # Vibrato Depth
+                    # Update LFO vibrato depth for the channel
+                    if hasattr(channel_renderer, 'lfos') and channel_renderer.lfos:
+                        channel_renderer.lfos[0].set_parameters(depth=normalized_value)
 
-            elif controller == 75:  # Filter Cutoff
-                # Update filter cutoff frequency
-                self._update_filter_cutoff(channel, normalized_value)
-
-            elif controller == 76:  # Decay Time
-                # Update envelope decay time
-                self._update_decay_time(channel, normalized_value)
-
-            elif controller == 77:  # Vibrato Rate
-                # Update LFO vibrato rate
-                self._update_vibrato_rate(channel, normalized_value)
-
-            elif controller == 78:  # Vibrato Depth
-                # Update LFO vibrato depth
-                self._update_vibrato_depth(channel, normalized_value)
-
-            elif controller == 79:  # Vibrato Delay
-                # Update LFO vibrato delay
-                self._update_vibrato_delay(channel, normalized_value)
+                elif controller == 79:  # Vibrato Delay
+                    # Update LFO vibrato delay for the channel
+                    if hasattr(channel_renderer, 'lfos') and channel_renderer.lfos:
+                        lfo_delay = normalized_value * 5.0  # 0.0 to 5.0 seconds
+                        channel_renderer.lfos[0].set_parameters(delay=lfo_delay)
 
         except Exception as e:
             # Log error but don't fail the controller processing
             print(f"Error updating XG controller {controller}: {e}")
+
+    # NRPN Parameter Application Methods - APPLY TO SYNTHESIS
+    def _apply_filter_cutoff_offset(self, channel_renderer, cutoff_offset: float) -> None:
+        """Apply filter cutoff offset (NRPN MSB 5 LSB 0)"""
+        # Apply to all active notes on the channel
+        for note in channel_renderer.active_notes.values():
+            for partial in note.partials:
+                if partial.is_active() and partial.filter:
+                    # Convert offset from semitones to frequency multiplier
+                    cutoff_multiplier = 2.0 ** (cutoff_offset / 12.0)  # 12 semitones = 1 octave
+                    current_cutoff = partial.filter.cutoff
+                    new_cutoff = max(20.0, min(20000.0, current_cutoff * cutoff_multiplier))
+                    partial.filter.set_parameters(cutoff=new_cutoff)
+
+    def _apply_filter_resonance_offset(self, channel_renderer, resonance_offset: float) -> None:
+        """Apply filter resonance offset (NRPN MSB 5 LSB 1)"""
+        # Apply to all active notes on the channel
+        for note in channel_renderer.active_notes.values():
+            for partial in note.partials:
+                if partial.is_active() and partial.filter:
+                    # Convert offset from -64 to +63 to absolute resonance
+                    current_resonance = partial.filter.resonance
+                    # Clamp offset to reasonable range
+                    clamped_offset = max(-2.0, min(2.0, resonance_offset))
+                    new_resonance = max(0.0, min(4.0, current_resonance + clamped_offset))
+                    partial.filter.set_parameters(resonance=new_resonance)
+
+    def _apply_envelope_attack_time(self, channel_renderer, time_value: float) -> None:
+        """Apply envelope attack time (NRPN MSB 6 LSB 0)"""
+        # Convert 0.0-1.0 to actual time range and apply to active notes
+        for note in channel_renderer.active_notes.values():
+            for partial in note.partials:
+                if partial.is_active():
+                    partial.set_attack_time(time_value)
+
+    def _apply_envelope_decay_time(self, channel_renderer, time_value: float) -> None:
+        """Apply envelope decay time (NRPN MSB 6 LSB 1)"""
+        for note in channel_renderer.active_notes.values():
+            for partial in note.partials:
+                if partial.is_active():
+                    partial.set_decay_time(time_value)
+
+    def _apply_envelope_release_time(self, channel_renderer, time_value: float) -> None:
+        """Apply envelope release time (NRPN MSB 6 LSB 3)"""
+        for note in channel_renderer.active_notes.values():
+            for partial in note.partials:
+                if partial.is_active():
+                    partial.set_release_time(time_value)
+
+    def _apply_lfo_rate(self, channel_renderer, lfo_index: int, rate: float) -> None:
+        """Apply LFO rate (NRPN MSB 7-9 LSB 0)"""
+        if hasattr(channel_renderer, 'lfos') and lfo_index < len(channel_renderer.lfos):
+            channel_renderer.lfos[lfo_index].set_parameters(rate=rate)
+
+    def _apply_lfo_depth(self, channel_renderer, lfo_index: int, depth: float) -> None:
+        """Apply LFO depth (NRPN MSB 7-9 LSB 1)"""
+        if hasattr(channel_renderer, 'lfos') and lfo_index < len(channel_renderer.lfos):
+            channel_renderer.lfos[lfo_index].set_parameters(depth=depth)
+
+    def _apply_lfo_delay(self, channel_renderer, lfo_index: int, delay: float) -> None:
+        """Apply LFO delay (NRPN MSB 7-9 LSB 2)"""
+        if hasattr(channel_renderer, 'lfos') and lfo_index < len(channel_renderer.lfos):
+            channel_renderer.lfos[lfo_index].set_parameters(delay=delay)
+
+    def _apply_eq_low(self, channel_renderer, eq_value: float) -> None:
+        """Apply EQ Low parameter (NRPN MSB 10 LSB 0)"""
+        # This would typically update EQ parameters - for now we'll store the value
+        # Actual implementation depends on EQ effect being implemented
+        pass
+
+    def _apply_eq_mid(self, channel_renderer, eq_value: float) -> None:
+        """Apply EQ Mid parameter (NRPN MSB 10 LSB 1)"""
+        pass
+
+    def _apply_eq_high(self, channel_renderer, eq_value: float) -> None:
+        """Apply EQ High parameter (NRPN MSB 10 LSB 2)"""
+        pass
 
     def _update_harmonic_content(self, channel: int, value: float) -> None:
         """Update harmonic content parameter"""
