@@ -93,7 +93,7 @@ class VoiceManager:
 
         # Find oldest voice
         oldest_time = min(v.start_time for v in self.active_voices.values())
-        current_time = time.time() if 'time' in globals() else 0
+        current_time = time.time()
         if current_time - oldest_time > 1.0:  # Voices older than 1 second
             return True
 
@@ -224,9 +224,8 @@ class VoiceManager:
         if note in self.active_voices:
             voice_info = self.active_voices[note]
             voice_info.start_release()
-            # In a real implementation, we'd wait for the release to complete
-            # For now, we'll remove it immediately for simplicity
-            del self.active_voices[note]
+            # Wait for the release to complete by checking if the note is still active
+            # The voice will be cleaned up by cleanup_released_voices when envelopes complete
 
     def start_voice_release(self, note: int):
         """Start release phase for a voice"""
@@ -243,14 +242,18 @@ class VoiceManager:
 
     def cleanup_released_voices(self):
         """Clean up voices that have finished their release phase"""
-        # In a real implementation, this would check if envelopes have completed
-        # For now, we'll clean up voices that have been in release for too long
-        current_time = time.time() if 'time' in globals() else 0
+        # Check if envelopes have completed for each released voice
+        current_time = time.time()
         to_remove = []
 
         for note, voice_info in self.active_voices.items():
-            if voice_info.is_releasing and voice_info.release_time:
-                if current_time - voice_info.release_time > 2.0:  # 2 second release timeout
+            if voice_info.is_releasing:
+                # Check if the associated channel note is still active
+                # If the note is no longer active, it means envelopes have completed
+                if not voice_info.channel_note.is_active():
+                    to_remove.append(note)
+                # Also clean up voices that have been in release for too long (timeout)
+                elif voice_info.release_time and (current_time - voice_info.release_time > 2.0):
                     to_remove.append(note)
 
         for note in to_remove:

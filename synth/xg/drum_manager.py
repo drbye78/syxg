@@ -551,6 +551,100 @@ class DrumManager:
 
         return False
 
+    def process_bulk_dump(self, address: int, data: list) -> bool:
+        """
+        Process bulk dump data for drum parameters.
+        
+        Args:
+            address: Starting XG parameter address
+            data: List of 7-bit parameter values
+            
+        Returns:
+            True if processed successfully
+        """
+        try:
+            # Process bulk dump data according to XG specification
+            # Address format: 0x30 XX YY where XX is note, YY is parameter
+            
+            # For drum parameters, address is the base address
+            base_address = address
+            
+            # Process each data value
+            for i, value in enumerate(data):
+                # Calculate actual address for this parameter
+                param_address = base_address + i
+                
+                # Handle the parameter
+                self.handle_xg_drum_parameter(param_address, value)
+                
+            return True
+        except Exception as e:
+            print(f"Error processing drum bulk dump: {e}")
+            return False
+
+    def get_bulk_parameter(self, address: int) -> int:
+        """
+        Get a drum parameter value by XG address for bulk dump generation.
+        
+        Args:
+            address: XG parameter address
+            
+        Returns:
+            7-bit parameter value
+        """
+        try:
+            # Extract note and parameter from address
+            # Address format: 0x30 XX YY where XX is note, YY is parameter
+            if (address & 0xFF0000) == 0x300000:
+                note = (address >> 8) & 0xFF
+                parameter = address & 0xFF
+
+                # Map parameter to drum parameter name
+                param_map = {
+                    0: "pitch_coarse", 1: "pitch_fine", 2: "level", 3: "pan",
+                    4: "reverb_send", 5: "chorus_send", 6: "variation_send",
+                    7: "filter_cutoff", 8: "filter_resonance", 9: "eg_attack",
+                    10: "eg_decay1", 11: "eg_decay2", 12: "eg_release"
+                }
+
+                if parameter in param_map:
+                    # Use channel 9 (drum channel) for drum parameters
+                    drum_channel = 9
+                    param_name = param_map[parameter]
+                    
+                    # Get current parameter value
+                    current_value = self.get_drum_parameter(drum_channel, note, param_name)
+                    
+                    if current_value is not None:
+                        # Convert value back to 7-bit MIDI value based on parameter type
+                        if param_name in ["pan"]:
+                            # -1.0 to 1.0 -> 0 to 127
+                            midi_value = int((current_value + 1.0) * 64)
+                        elif param_name in ["level", "reverb_send", "chorus_send", "variation_send"]:
+                            # 0.0 to 1.0 -> 0 to 127
+                            midi_value = int(current_value * 127)
+                        elif param_name in ["pitch_coarse", "pitch_fine"]:
+                            # -1.0 to 1.0 -> 0 to 127
+                            midi_value = int((current_value + 1.0) * 64)
+                        elif param_name == "filter_cutoff":
+                            # 20Hz to 20kHz -> 0 to 127
+                            midi_value = int(((current_value - 20) / 19980) * 127)
+                        elif param_name == "filter_resonance":
+                            # 0.0 to 1.0 -> 0 to 127
+                            midi_value = int(current_value * 127)
+                        else:  # EG parameters
+                            # 0 to 10 seconds -> 0 to 127
+                            midi_value = int((current_value / 10.0) * 127)
+                        
+                        # Ensure value is in valid 7-bit range
+                        return max(0, min(127, midi_value))
+            
+            # Return default value if parameter not found
+            return 0
+        except Exception as e:
+            print(f"Error getting drum bulk parameter: {e}")
+            return 0
+
     def reset_to_xg_defaults(self):
         """
         Reset all drum parameters to XG standard defaults.

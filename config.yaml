@@ -1,8 +1,8 @@
 # MIDI to MP3 Converter Configuration File
 
 # Audio settings
-№ sample_rate: 48000
-№ block_size: 960
+sample_rate: 48000
+block_size: 960
 max_polyphony: 512
 master_volume: 1.0
 

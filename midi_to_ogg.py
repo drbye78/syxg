@@ -39,8 +39,7 @@ else:
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from synth.core.synthesizer import XGSynthesizer
-
+from synth.core.optimized_xg_synthesizer import OptimizedXGSynthesizer
 
 class ParameterCache:
     """Cache for SF2 parameter merging to avoid repeated computations"""
@@ -110,41 +109,6 @@ class ParameterCache:
         }
 
 
-class MemoryPool:
-    """Memory pool for reusing objects to reduce allocation overhead"""
-
-    def __init__(self, object_type, max_size=1000):
-        self.object_type = object_type
-        self.max_size = max_size
-        self.pool = []
-        self.created_count = 0
-
-    def get(self, *args, **kwargs):
-        """Get an object from the pool or create a new one"""
-        if self.pool:
-            obj = self.pool.pop()
-            # Reset object state if it has a reset method
-            if hasattr(obj, 'reset'):
-                obj.reset()
-            return obj
-
-        self.created_count += 1
-        return self.object_type(*args, **kwargs)
-
-    def put(self, obj):
-        """Return an object to the pool"""
-        if len(self.pool) < self.max_size and obj is not None:
-            self.pool.append(obj)
-
-    def get_stats(self) -> Dict:
-        """Get pool statistics"""
-        return {
-            'pool_size': len(self.pool),
-            'created_count': self.created_count,
-            'max_size': self.max_size
-        }
-
-
 class OptimizedMIDIToOGGConverter:
     """Optimized MIDI to OGG Converter with performance improvements"""
 
@@ -172,8 +136,6 @@ class OptimizedMIDIToOGGConverter:
 
         # Initialize optimization components
         self.param_cache = ParameterCache()
-        self.modulator_pool = MemoryPool(dict, max_size=5000)
-        self.zone_pool = MemoryPool(dict, max_size=2000)
 
         # Extract configuration parameters
         sample_rate = config.get("sample_rate", 48000)  # Changed default to 48kHz
@@ -191,7 +153,7 @@ class OptimizedMIDIToOGGConverter:
         block_size = int(sample_rate * chunk_size_ms / 1000.0)
 
         # Create synthesizer with optimized settings and parameter cache
-        self.synth = XGSynthesizer(
+        self.synth = OptimizedXGSynthesizer(
             sample_rate=sample_rate, block_size=block_size, max_polyphony=max_polyphony,
             param_cache=self.param_cache
         )
@@ -466,9 +428,7 @@ class OptimizedMIDIToOGGConverter:
                 print(f"Conversion completed successfully!")
                 # Print optimization statistics
                 cache_stats = self.param_cache.get_stats()
-                pool_stats = self.modulator_pool.get_stats()
                 print(f"Parameter cache stats: {cache_stats}")
-                print(f"Modulator pool stats: {pool_stats}")
 
             return True
 
@@ -568,6 +528,9 @@ class OptimizedMIDIToOGGConverter:
         self.total_duration = total_blocks * block_duration
         self.processed_duration = 0
         self.start_time = time.time()
+        
+        # Track rendering start time for timeout
+        rendering_start_time = time.time()
 
         # Start keyboard monitoring
         self._start_keyboard_monitoring()
@@ -578,6 +541,13 @@ class OptimizedMIDIToOGGConverter:
                 if self.stop_conversion:
                     if not self.silent:
                         print(f"\nConversion stopped at {self._format_duration(self.processed_duration)}")
+                    break
+                    
+                # Check if we've exceeded 90 seconds of rendering time
+                elapsed_rendering_time = time.time() - rendering_start_time
+                if elapsed_rendering_time > 90.0:
+                    if not self.silent:
+                        print(f"\nRendering stopped after 90 seconds timeout (elapsed: {elapsed_rendering_time:.1f}s)")
                     break
 
                 # Generate audio block at current time with sample-accurate processing

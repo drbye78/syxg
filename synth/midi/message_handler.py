@@ -307,15 +307,23 @@ class MIDIMessageHandler:
             elif controller == 80:  # General Purpose Button 1 (XG)
                 # XG-specific: General purpose controller
                 self.state_manager.update_controller(channel, controller, value)
+                # Handle GP button functionality
+                self._handle_xg_gp_button(channel, 1, value)
             elif controller == 81:  # General Purpose Button 2 (XG)
                 # XG-specific: General purpose controller
                 self.state_manager.update_controller(channel, controller, value)
+                # Handle GP button functionality
+                self._handle_xg_gp_button(channel, 2, value)
             elif controller == 82:  # General Purpose Button 3 (XG)
                 # XG-specific: General purpose controller
                 self.state_manager.update_controller(channel, controller, value)
+                # Handle GP button functionality
+                self._handle_xg_gp_button(channel, 3, value)
             elif controller == 83:  # General Purpose Button 4 (XG)
                 # XG-specific: General purpose controller
                 self.state_manager.update_controller(channel, controller, value)
+                # Handle GP button functionality
+                self._handle_xg_gp_button(channel, 4, value)
             elif controller == 91:  # Reverb Send (XG Effects Send 1)
                 # XG-specific: Reverb send level
                 self.state_manager.update_controller(channel, controller, value)
@@ -467,9 +475,68 @@ class MIDIMessageHandler:
         Returns:
             True if handled successfully
         """
-        # RPN handling is typically done in channel renderers
-        # For now, just acknowledge
-        return True
+        try:
+            # Get current data entry values
+            data_msb, data_lsb = self.state_manager.get_current_data_entry(channel)
+            
+            # 14-bit data value
+            data_value = (data_msb << 7) | data_lsb
+            
+            # Handle standard XG RPN parameters
+            if rpn_msb == 0:  # Standard RPN parameters
+                if rpn_lsb == 0:  # Pitch Bend Sensitivity
+                    # Range: 0-24 semitones (MSB) + 0-127 cents (LSB)
+                    semitones = data_msb
+                    cents = data_lsb
+                    # Convert to total cents
+                    total_cents = semitones * 100 + cents
+                    # Store in channel state
+                    self.state_manager.set_pitch_bend_range(channel, total_cents / 100.0)
+                    return True
+                    
+                elif rpn_lsb == 1:  # Fine Tuning
+                    # Range: -8192 to +8191 cents (-100 to +100 cents)
+                    fine_tuning_cents = data_value - 8192
+                    # Scale to -1.0 to +1.0 (representing -100 to +100 cents)
+                    fine_tuning = fine_tuning_cents / 8192.0
+                    # Store in channel state
+                    self.state_manager.set_fine_tuning(channel, fine_tuning)
+                    return True
+                    
+                elif rpn_lsb == 2:  # Coarse Tuning
+                    # Range: -64 to +63 semitones (0-127, where 64 = center)
+                    coarse_tuning_semitones = data_msb - 64
+                    # Store in channel state
+                    self.state_manager.set_coarse_tuning(channel, coarse_tuning_semitones)
+                    return True
+                    
+                elif rpn_lsb == 3:  # Tuning Program Select
+                    # Range: 0-127
+                    tuning_program = data_msb
+                    # Store in channel state
+                    self.state_manager.set_tuning_program(channel, tuning_program)
+                    return True
+                    
+                elif rpn_lsb == 4:  # Tuning Bank Select
+                    # Range: 0-127
+                    tuning_bank = data_msb
+                    # Store in channel state
+                    self.state_manager.set_tuning_bank(channel, tuning_bank)
+                    return True
+                    
+                elif rpn_lsb == 5:  # Modulation Depth Range
+                    # Range: 0-127 (0-127 cents)
+                    modulation_depth_cents = data_msb
+                    # Store in channel state
+                    self.state_manager.set_modulation_depth(channel, modulation_depth_cents)
+                    return True
+                    
+            # If we reach here, the RPN wasn't handled
+            return False
+            
+        except Exception as e:
+            print(f"Error handling RPN ({rpn_msb}, {rpn_lsb}): {e}")
+            return False
 
     def _handle_nrpn(self, channel: int, nrpn_msb: int, nrpn_lsb: int) -> bool:
         """
@@ -506,16 +573,19 @@ class MIDIMessageHandler:
                 # Validate element reserve (0-127)
                 if 0 <= parameter_value <= 127:
                     # Element reserve affects polyphony management
+                    self.state_manager.set_element_reserve(channel, parameter_value)
                     return True
             elif nrpn_lsb == 10:  # Element Assign Mode
                 # Validate element assign mode (0-127)
                 if 0 <= parameter_value <= 127:
                     # Element assign mode affects voice allocation
+                    self.state_manager.set_element_assign_mode(channel, parameter_value)
                     return True
             elif nrpn_lsb == 11:  # Receive Channel
                 # Validate receive channel (0-15 for MIDI channels)
                 if 0 <= parameter_value <= 15:
                     # Receive channel assignment
+                    self.state_manager.set_receive_channel(channel, parameter_value)
                     return True
 
         # Effect Parameters (MSB 2-4) - these are handled by effect manager
@@ -1260,54 +1330,147 @@ class MIDIMessageHandler:
 
     def _set_system_parameter(self, param: int, value: int) -> None:
         """Set a system parameter"""
-        # System parameter mapping would go here
-        # Examples: Master Volume, Master Tune, System Effects, etc.
-        if param == 0:  # Master Volume
-            # Set master volume
-            pass
-        elif param == 1:  # Master Tune
-            # Set master tuning
-            pass
-        # Add more system parameters as needed
+        try:
+            # System parameter mapping according to XG specification
+            if param == 0:  # Master Volume
+                # Set master volume (0-127 maps to 0.0-1.0)
+                normalized_volume = value / 127.0
+                if hasattr(self, 'synthesizer') and self.synthesizer:
+                    self.synthesizer.set_master_volume(normalized_volume)
+            elif param == 1:  # Master Tune
+                # Set master tuning (0-127 maps to -100 to +100 cents)
+                tune_cents = (value - 64) * (100 / 64.0)
+                # Store tuning parameter - would be used in audio processing
+                if hasattr(self, 'synthesizer') and self.synthesizer:
+                    # This would affect global pitch processing
+                    pass
+            elif param == 2:  # Master Transpose
+                # Set master transpose (-24 to +24 semitones)
+                transpose_semitones = (value - 64) * (24 / 64.0)
+                # Store transpose parameter
+                if hasattr(self, 'synthesizer') and self.synthesizer:
+                    # Store in synthesizer for use in audio processing
+                    self.synthesizer.master_transpose = transpose_semitones
+            elif param == 3:  # Master Fine Tune
+                # Set master fine tune (-50 to +50 cents)
+                fine_tune_cents = (value - 64) * (50 / 64.0)
+                # Store fine tune parameter
+                if hasattr(self, 'synthesizer') and self.synthesizer:
+                    # Store in synthesizer for use in audio processing
+                    self.synthesizer.master_fine_tune = fine_tune_cents
+            # Add more system parameters as needed
+        except Exception as e:
+            print(f"Error setting system parameter {param}: {e}")
 
     def _get_system_parameter(self, param: int) -> int:
         """Get a system parameter value"""
-        # Return current system parameter values
-        if param == 0:  # Master Volume
-            return 100  # Default master volume
-        elif param == 1:  # Master Tune
-            return 64   # Center tuning
-        return 0  # Default
+        try:
+            # Return current system parameter values according to XG specification
+            if param == 0:  # Master Volume
+                # Return master volume (0-127)
+                if hasattr(self, 'synthesizer') and self.synthesizer:
+                    master_volume = getattr(self.synthesizer, 'master_volume', 0.787)  # ~100/127
+                    return max(0, min(127, int(master_volume * 127)))
+                return 100  # Default master volume
+            elif param == 1:  # Master Tune
+                return 64   # Center tuning (no offset)
+            elif param == 2:  # Master Transpose
+                return 64   # No transpose (0 semitones)
+            elif param == 3:  # Master Fine Tune
+                return 64   # No fine tune (0 cents)
+            return 0  # Default
+        except Exception as e:
+            print(f"Error getting system parameter {param}: {e}")
+            return 0
 
     def _set_part_parameter(self, part: int, param: int, value: int) -> None:
         """Set a part parameter"""
-        # Part parameter mapping
-        if param == 0:  # Part Volume
-            # Set part volume
-            pass
-        elif param == 1:  # Part Pan
-            # Set part pan
-            pass
-        elif param == 2:  # Part Reverb Send
-            # Set part reverb send
-            pass
-        elif param == 3:  # Part Chorus Send
-            # Set part chorus send
-            pass
-        # Add more part parameters as needed
+        try:
+            # Validate part number
+            if not (0 <= part <= 15):
+                return
+                
+            # Part parameter mapping according to XG specification
+            if param == 0:  # Part Volume
+                # Set part volume (0-127 maps to 0.0-1.0)
+                normalized_volume = value / 127.0
+                if hasattr(self, 'synthesizer') and self.synthesizer:
+                    channel_renderer = self.synthesizer.channel_renderers[part]
+                    if channel_renderer:
+                        channel_renderer.set_volume(int(normalized_volume * 127))
+            elif param == 1:  # Part Pan
+                # Set part pan (-64 to +63 maps to -1.0 to +1.0)
+                normalized_pan = (value - 64) / 64.0
+                if hasattr(self, 'synthesizer') and self.synthesizer:
+                    channel_renderer = self.synthesizer.channel_renderers[part]
+                    if channel_renderer:
+                        channel_renderer.set_pan(normalized_pan)
+            elif param == 2:  # Part Reverb Send
+                # Set part reverb send (0-127 maps to 0.0-1.0)
+                normalized_send = value / 127.0
+                if hasattr(self, 'effect_manager') and self.effect_manager:
+                    self.effect_manager.set_channel_effect_parameter(part, 0, 160, value)
+            elif param == 3:  # Part Chorus Send
+                # Set part chorus send (0-127 maps to 0.0-1.0)
+                normalized_send = value / 127.0
+                if hasattr(self, 'effect_manager') and self.effect_manager:
+                    self.effect_manager.set_channel_effect_parameter(part, 0, 161, value)
+            elif param == 4:  # Part Variation Send
+                # Set part variation send (0-127 maps to 0.0-1.0)
+                normalized_send = value / 127.0
+                if hasattr(self, 'effect_manager') and self.effect_manager:
+                    self.effect_manager.set_channel_effect_parameter(part, 0, 163, value)
+            elif param == 5:  # Part Insertion Send
+                # Set part insertion send (0-127 maps to 0.0-1.0)
+                normalized_send = value / 127.0
+                if hasattr(self, 'effect_manager') and self.effect_manager:
+                    self.effect_manager.set_channel_effect_parameter(part, 0, 164, value)
+            # Add more part parameters as needed
+        except Exception as e:
+            print(f"Error setting part parameter {param} for part {part}: {e}")
 
     def _get_part_parameter(self, part: int, param: int) -> int:
         """Get a part parameter value"""
-        # Return current part parameter values
-        if param == 0:  # Part Volume
-            return 100  # Default part volume
-        elif param == 1:  # Part Pan
-            return 64   # Center pan
-        elif param == 2:  # Part Reverb Send
-            return 40   # Default reverb send
-        elif param == 3:  # Part Chorus Send
-            return 0    # Default chorus send
-        return 0  # Default
+        try:
+            # Validate part number
+            if not (0 <= part <= 15):
+                return 0
+                
+            # Return current part parameter values from actual state
+            if param == 0:  # Part Volume
+                if hasattr(self, 'synthesizer') and self.synthesizer:
+                    channel_renderer = self.synthesizer.channel_renderers[part]
+                    if channel_renderer:
+                        return max(0, min(127, channel_renderer.volume))
+                return 100  # Default part volume
+            elif param == 1:  # Part Pan
+                if hasattr(self, 'synthesizer') and self.synthesizer:
+                    channel_renderer = self.synthesizer.channel_renderers[part]
+                    if channel_renderer:
+                        # Convert -1.0 to 1.0 pan to 0-127 value
+                        pan_value = int((channel_renderer.pan + 1.0) * 64)
+                        return max(0, min(127, pan_value))
+                return 64   # Center pan
+            elif param == 2:  # Part Reverb Send
+                if hasattr(self, 'effect_manager') and self.effect_manager:
+                    # Get current reverb send value from effect manager
+                    # This would typically retrieve the actual send value from the effect manager
+                    pass
+                return 40   # Default reverb send
+            elif param == 3:  # Part Chorus Send
+                if hasattr(self, 'effect_manager') and self.effect_manager:
+                    # Get current chorus send value from effect manager
+                    # This would typically retrieve the actual send value from the effect manager
+                    pass
+                return 0    # Default chorus send
+            elif param == 4:  # Part Variation Send
+                return 0    # Default variation send
+            elif param == 5:  # Part Insertion Send
+                return 0    # Default insertion send
+            return 0  # Default
+        except Exception as e:
+            print(f"Error getting part parameter {param} for part {part}: {e}")
+            return 0
 
     def _get_effect_parameter(self, address: int) -> int:
         """Get an effect parameter value"""
@@ -1449,71 +1612,262 @@ class MIDIMessageHandler:
 
     def _apply_eq_low(self, channel_renderer, eq_value: float) -> None:
         """Apply EQ Low parameter (NRPN MSB 10 LSB 0)"""
-        # This would typically update EQ parameters - for now we'll store the value
-        # Actual implementation depends on EQ effect being implemented
-        pass
+        try:
+            # EQ value is -64 to +63 mapped to -12dB to +12dB
+            # eq_value is already converted from -64 to +63 range to -12.0 to +12.0 dB
+            db_value = eq_value * (12.0 / 64.0)  # Scale to -12dB to +12dB range
+            
+            # Update equalizer parameters in effect manager
+            if hasattr(self, 'effect_manager') and self.effect_manager:
+                # For channel-specific EQ, we would update channel parameters
+                # For global EQ (which is what XG typically uses), update global parameters
+                self.effect_manager.state_manager.update_temp_state(
+                    "equalizer", "low_gain", db_value
+                )
+                
+        except Exception as e:
+            print(f"Error applying EQ low parameter: {e}")
 
     def _apply_eq_mid(self, channel_renderer, eq_value: float) -> None:
         """Apply EQ Mid parameter (NRPN MSB 10 LSB 1)"""
-        pass
+        try:
+            # EQ value is -64 to +63 mapped to -12dB to +12dB
+            # eq_value is already converted from -64 to +63 range to -12.0 to +12.0 dB
+            db_value = eq_value * (12.0 / 64.0)  # Scale to -12dB to +12dB range
+            
+            # Update equalizer parameters in effect manager
+            if hasattr(self, 'effect_manager') and self.effect_manager:
+                self.effect_manager.state_manager.update_temp_state(
+                    "equalizer", "mid_gain", db_value
+                )
+                
+        except Exception as e:
+            print(f"Error applying EQ mid parameter: {e}")
 
     def _apply_eq_high(self, channel_renderer, eq_value: float) -> None:
         """Apply EQ High parameter (NRPN MSB 10 LSB 2)"""
-        pass
+        try:
+            # EQ value is -64 to +63 mapped to -12dB to +12dB
+            # eq_value is already converted from -64 to +63 range to -12.0 to +12.0 dB
+            db_value = eq_value * (12.0 / 64.0)  # Scale to -12dB to +12dB range
+            
+            # Update equalizer parameters in effect manager
+            if hasattr(self, 'effect_manager') and self.effect_manager:
+                self.effect_manager.state_manager.update_temp_state(
+                    "equalizer", "high_gain", db_value
+                )
+                
+        except Exception as e:
+            print(f"Error applying EQ high parameter: {e}")
 
     def _update_harmonic_content(self, channel: int, value: float) -> None:
         """Update harmonic content parameter"""
-        # This would typically update synthesis parameters for timbre control
-        # For now, we'll store it for later use by the channel renderer
-        pass
+        try:
+            # Validate input parameters
+            if not (0 <= channel < 16):
+                return
+            
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer is None:
+                    return
+                
+                # Apply the parameter changes to active notes in real-time
+                for note in channel_renderer.active_notes.values():
+                    for partial in note.partials:
+                        if partial.is_active():
+                            # Apply harmonic content parameter (0.0-1.0 range)
+                            partial.set_harmonic_content(value)
+                            
+        except Exception as e:
+            # Log error but don't fail the parameter update
+            print(f"Error updating harmonic content for channel {channel}: {e}")
 
     def _update_brightness(self, channel: int, value: float) -> None:
         """Update brightness parameter"""
-        # This would typically update filter parameters
-        # For now, we'll store it for later use by the channel renderer
-        pass
+        try:
+            # Validate input parameters
+            if not (0 <= channel < 16):
+                return
+            
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer is None:
+                    return
+                
+                # Apply the parameter changes to active notes in real-time
+                for note in channel_renderer.active_notes.values():
+                    for partial in note.partials:
+                        if partial.is_active():
+                            # Apply brightness parameter (0.0-1.0 range)
+                            partial.set_brightness(value)
+                            
+        except Exception as e:
+            # Log error but don't fail the parameter update
+            print(f"Error updating brightness for channel {channel}: {e}")
 
     def _update_release_time(self, channel: int, value: float) -> None:
         """Update envelope release time"""
-        # This would typically update envelope parameters
-        # For now, we'll store it for later use by the channel renderer
-        pass
+        try:
+            # Validate input parameters
+            if not (0 <= channel < 16):
+                return
+            
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer is None:
+                    return
+                
+                # Apply the parameter changes to active notes in real-time
+                for note in channel_renderer.active_notes.values():
+                    for partial in note.partials:
+                        if partial.is_active():
+                            # Apply release time parameter (0.0-1.0 range maps to 0.001-2.0 seconds)
+                            partial.set_release_time(value)
+                            
+        except Exception as e:
+            # Log error but don't fail the parameter update
+            print(f"Error updating release time for channel {channel}: {e}")
 
     def _update_attack_time(self, channel: int, value: float) -> None:
         """Update envelope attack time"""
-        # This would typically update envelope parameters
-        # For now, we'll store it for later use by the channel renderer
-        pass
+        try:
+            # Validate input parameters
+            if not (0 <= channel < 16):
+                return
+            
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer is None:
+                    return
+                
+                # Apply the parameter changes to active notes in real-time
+                for note in channel_renderer.active_notes.values():
+                    for partial in note.partials:
+                        if partial.is_active():
+                            # Apply attack time parameter (0.0-1.0 range maps to 0.001-1.0 seconds)
+                            partial.set_attack_time(value)
+                            
+        except Exception as e:
+            # Log error but don't fail the parameter update
+            print(f"Error updating attack time for channel {channel}: {e}")
 
     def _update_filter_cutoff(self, channel: int, value: float) -> None:
         """Update filter cutoff frequency"""
-        # This would typically update filter parameters
-        # For now, we'll store it for later use by the channel renderer
-        pass
+        try:
+            # Validate input parameters
+            if not (0 <= channel < 16):
+                return
+            
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer is None:
+                    return
+                
+                # Apply the parameter changes to active notes in real-time
+                for note in channel_renderer.active_notes.values():
+                    for partial in note.partials:
+                        if partial.is_active():
+                            # Apply filter cutoff parameter (0.0-1.0 range maps to 20Hz-20kHz)
+                            partial.set_filter_cutoff(value)
+                            
+        except Exception as e:
+            # Log error but don't fail the parameter update
+            print(f"Error updating filter cutoff for channel {channel}: {e}")
 
     def _update_decay_time(self, channel: int, value: float) -> None:
         """Update envelope decay time"""
-        # This would typically update envelope parameters
-        # For now, we'll store it for later use by the channel renderer
-        pass
+        try:
+            # Validate input parameters
+            if not (0 <= channel < 16):
+                return
+            
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer is None:
+                    return
+                
+                # Apply the parameter changes to active notes in real-time
+                for note in channel_renderer.active_notes.values():
+                    for partial in note.partials:
+                        if partial.is_active():
+                            # Apply decay time parameter (0.0-1.0 range maps to 0.001-5.0 seconds)
+                            partial.set_decay_time(value)
+                            
+        except Exception as e:
+            # Log error but don't fail the parameter update
+            print(f"Error updating decay time for channel {channel}: {e}")
 
     def _update_vibrato_rate(self, channel: int, value: float) -> None:
         """Update LFO vibrato rate"""
-        # This would typically update LFO parameters
-        # For now, we'll store it for later use by the channel renderer
-        pass
+        try:
+            # Validate input parameters
+            if not (0 <= channel < 16):
+                return
+            
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer is None:
+                    return
+                
+                # Update LFO vibrato rate for the channel (0.0-1.0 maps to 0.1-10.0 Hz)
+                if hasattr(channel_renderer, 'lfos') and channel_renderer.lfos:
+                    lfo_rate = 0.1 + (value * 9.9)  # 0.1 to 10.0 Hz
+                    channel_renderer.lfos[0].set_parameters(rate=lfo_rate)
+                    
+        except Exception as e:
+            # Log error but don't fail the parameter update
+            print(f"Error updating vibrato rate for channel {channel}: {e}")
 
     def _update_vibrato_depth(self, channel: int, value: float) -> None:
         """Update LFO vibrato depth"""
-        # This would typically update LFO parameters
-        # For now, we'll store it for later use by the channel renderer
-        pass
+        try:
+            # Validate input parameters
+            if not (0 <= channel < 16):
+                return
+            
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer is None:
+                    return
+                
+                # Update LFO vibrato depth for the channel (0.0-1.0 range)
+                if hasattr(channel_renderer, 'lfos') and channel_renderer.lfos:
+                    channel_renderer.lfos[0].set_parameters(depth=value)
+                    
+        except Exception as e:
+            # Log error but don't fail the parameter update
+            print(f"Error updating vibrato depth for channel {channel}: {e}")
 
     def _update_vibrato_delay(self, channel: int, value: float) -> None:
         """Update LFO vibrato delay"""
-        # This would typically update LFO parameters
-        # For now, we'll store it for later use by the channel renderer
-        pass
+        try:
+            # Validate input parameters
+            if not (0 <= channel < 16):
+                return
+            
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer is None:
+                    return
+                
+                # Update LFO vibrato delay for the channel (0.0-1.0 maps to 0.0-5.0 seconds)
+                if hasattr(channel_renderer, 'lfos') and channel_renderer.lfos:
+                    lfo_delay = value * 5.0  # 0.0 to 5.0 seconds
+                    channel_renderer.lfos[0].set_parameters(delay=lfo_delay)
+                    
+        except Exception as e:
+            # Log error but don't fail the parameter update
+            print(f"Error updating vibrato delay for channel {channel}: {e}")
 
     def _handle_all_sound_off(self, channel: int) -> bool:
         """
@@ -1555,12 +1909,31 @@ class MIDIMessageHandler:
         except ValueError:
             return False
 
+    def _handle_xg_gp_button(self, channel: int, button_number: int, value: int):
+        """
+        Handle XG General Purpose Button controller.
+        
+        Args:
+            channel: MIDI channel
+            button_number: Button number (1-4)
+            value: Controller value (0-127)
+        """
+        try:
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer:
+                    # Forward to channel renderer
+                    channel_renderer._handle_xg_gp_button(button_number, value)
+        except Exception as e:
+            print(f"Error handling XG GP button {button_number} on channel {channel}: {e}")
+
     def _handle_all_notes_off(self, channel: int) -> bool:
         """
         Handle All Notes Off controller.
 
         Args:
-            channel: MIDI channel (0-15)
+            channel: MIDI channel number (0-15)
 
         Returns:
             True if handled successfully
@@ -1930,3 +2303,22 @@ class MIDIMessageHandler:
             True if multi-timbral is enabled
         """
         return self.multi_timbral_enabled
+
+    def _handle_xg_gp_button(self, channel: int, button_number: int, value: int):
+        """
+        Handle XG General Purpose Button controller.
+        
+        Args:
+            channel: MIDI channel
+            button_number: Button number (1-4)
+            value: Controller value (0-127)
+        """
+        try:
+            # Get channel renderer
+            if hasattr(self, 'synthesizer') and self.synthesizer:
+                channel_renderer = self.synthesizer.channel_renderers[channel]
+                if channel_renderer:
+                    # Forward to channel renderer
+                    channel_renderer._handle_xg_gp_button(button_number, value)
+        except Exception as e:
+            print(f"Error handling XG GP button {button_number} on channel {channel}: {e}")

@@ -72,7 +72,7 @@ class XGSynthesizer:
         self.lock = threading.RLock()
 
         # SF2 file management
-        self.sf2_manager = SF2Manager(param_cache=param_cache)
+        self.sf2_manager = SF2Manager(param_cache=param_cache, drum_manager=self.drum_manager)
 
         # State management
         self.state_manager = StateManager()

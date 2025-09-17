@@ -22,19 +22,20 @@ class SF2Manager:
     - Sample data access
     """
 
-    def __init__(self, param_cache=None):
+    def __init__(self, param_cache=None, drum_manager=None):
         """
         Initialize SF2 manager.
 
         Args:
             param_cache: Optional parameter cache for performance optimization
+            drum_manager: Optional XG drum manager for parameter integration
         """
-        self.sf2_manager: Optional[WavetableManager] = None
-        self.sf2_paths: List[str] = []
-        self.bank_blacklists: Dict[str, List[int]] = {}
-        self.preset_blacklists: Dict[str, List[Tuple[int, int]]] = {}
-        self.bank_mappings: Dict[str, Dict[int, int]] = {}
         self.param_cache = param_cache
+        self.drum_manager = drum_manager  # Reference to XG drum manager
+        self.sf2_manager = None
+        self.bank_blacklists = {}
+        self.preset_blacklists = {}
+        self.bank_mappings = {}
 
     def set_sf2_files(self, sf2_paths: List[str]) -> bool:
         """
@@ -153,7 +154,68 @@ class SF2Manager:
             return None
 
         try:
-            return self.sf2_manager.get_drum_parameters(note, program, bank)
+            # Get base SF2 parameters
+            sf2_params = self.sf2_manager.get_drum_parameters(note, program, bank)
+            if sf2_params is None:
+                return None
+
+            # If we have a drum manager, integrate XG drum parameters
+            if self.drum_manager is not None:
+                # Get XG drum parameters for this note (using channel 9 as default drum channel)
+                xg_params = self.drum_manager.get_drum_parameters_for_note(9, note)
+                
+                # Merge XG parameters with SF2 parameters
+                if xg_params:
+                    # Apply level parameter
+                    if "level" in xg_params:
+                        # Adjust amplitude envelope sustain level or overall level
+                        if "amp_envelope" in sf2_params:
+                            # Scale sustain level by XG level parameter (0.0-1.0)
+                            xg_level = xg_params["level"]
+                            # Preserve original sustain but scale by XG level
+                            orig_sustain = sf2_params["amp_envelope"].get("sustain", 0.7)
+                            sf2_params["amp_envelope"]["sustain"] = max(0.0, min(1.0, orig_sustain * xg_level))
+                    
+                    # Apply pan parameter
+                    if "pan" in xg_params and "partials" in sf2_params:
+                        # Adjust partial panning
+                        xg_pan = xg_params["pan"]  # -1.0 to +1.0
+                        for partial in sf2_params["partials"]:
+                            # Replace existing pan with XG pan (more direct control)
+                            partial["pan"] = max(-1.0, min(1.0, xg_pan))
+                    
+                    # Apply filter parameters
+                    if "filter_cutoff" in xg_params and "filter" in sf2_params:
+                        # Adjust filter cutoff frequency
+                        xg_cutoff = xg_params["filter_cutoff"]  # Hz
+                        sf2_params["filter"]["cutoff"] = max(20.0, min(20000.0, xg_cutoff))
+                    
+                    if "filter_resonance" in xg_params and "filter" in sf2_params:
+                        # Adjust filter resonance
+                        xg_resonance = xg_params["filter_resonance"]  # 0.0-1.0
+                        sf2_params["filter"]["resonance"] = max(0.0, min(1.0, xg_resonance))
+                    
+                    # Apply envelope parameters
+                    if "eg_attack" in xg_params and "amp_envelope" in sf2_params:
+                        # Adjust envelope attack time
+                        xg_attack = xg_params["eg_attack"]  # seconds
+                        sf2_params["amp_envelope"]["attack"] = max(0.001, min(10.0, xg_attack))
+                    
+                    if "eg_decay1" in xg_params and "amp_envelope" in sf2_params:
+                        # Adjust envelope decay time
+                        xg_decay = xg_params["eg_decay1"]  # seconds
+                        sf2_params["amp_envelope"]["decay"] = max(0.001, min(10.0, xg_decay))
+                    
+                    if "eg_release" in xg_params and "amp_envelope" in sf2_params:
+                        # Adjust envelope release time
+                        xg_release = xg_params["eg_release"]  # seconds
+                        sf2_params["amp_envelope"]["release"] = max(0.001, min(10.0, xg_release))
+                    
+                    # Apply pitch parameters (tune coarse/fine would be applied in audio generation)
+                    # These affect the playback pitch but are handled in the audio engine
+
+            return sf2_params
+            
         except Exception as e:
             print(f"Error getting drum parameters: {e}")
             return None

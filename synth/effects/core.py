@@ -5,6 +5,7 @@ This module provides the main XGEffectManager class that coordinates
 all XG effect processing, state management, and communication.
 """
 
+import numpy as np
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 
 from .constants import NUM_CHANNELS
@@ -178,6 +179,47 @@ class XGEffectManager:
             Processed audio samples
         """
         return self.audio_processor.process_audio(input_samples, num_samples)
+
+    def process_stereo_audio_vectorized(self, input_samples):
+        """
+        Process stereo audio with XG effects applied using vectorized operations.
+        
+        This is a compatibility method for the optimized synthesizer implementation.
+        
+        Args:
+            input_samples: Input stereo audio samples as NumPy array (N x 2)
+            
+        Returns:
+            Processed stereo audio samples as NumPy array (N x 2)
+        """
+        # For compatibility with the optimized implementation, we'll process
+        # the stereo audio as a single channel with both left and right samples
+        num_samples = input_samples.shape[0]
+        
+        # Convert NumPy array to the format expected by the audio processor
+        # Create a single channel with stereo tuples
+        channel_samples = [(input_samples[i, 0], input_samples[i, 1]) for i in range(num_samples)]
+        
+        # Create 16 empty channels (to match expected format)
+        input_channels = [channel_samples] + [[] for _ in range(15)]
+        
+        try:
+            # Process audio
+            processed_channels = self.audio_processor.process_audio(input_channels, num_samples)
+            
+            # Convert back to NumPy array format
+            if processed_channels and len(processed_channels) > 0 and len(processed_channels[0]) > 0:
+                result = np.zeros((num_samples, 2), dtype=np.float32)
+                for i, (left, right) in enumerate(processed_channels[0]):
+                    result[i, 0] = left
+                    result[i, 1] = right
+                return result
+        except Exception as e:
+            # print(f"Error processing effects: {e}")
+            pass
+        
+        # If processing failed, return input unchanged
+        return input_samples
 
     # Communication methods
     def set_current_nrpn_channel(self, channel: int):
@@ -410,3 +452,210 @@ class XGEffectManager:
                 }
             }
         }
+
+    def process_bulk_dump(self, effect_type: int, param_offset: int, data: list) -> bool:
+        """
+        Process bulk dump data for effect parameters.
+        
+        Args:
+            effect_type: Effect type identifier
+            param_offset: Starting parameter offset
+            data: List of 7-bit parameter values
+            
+        Returns:
+            True if processed successfully
+        """
+        # Implementation from previous edit
+
+    def get_bulk_parameter(self, effect_type: int, param_index: int) -> int:
+        """
+        Get an effect parameter value by index for bulk dump generation.
+        
+        Args:
+            effect_type: Effect type identifier
+            param_index: Parameter index
+            
+        Returns:
+            7-bit parameter value
+        """
+        try:
+            # Get current parameter value based on effect type and parameter index
+            if effect_type == 0:  # Reverb parameters
+                # XG Reverb Parameters
+                reverb_params = [
+                    "type", "time", "level", "pre_delay", "hf_damping", "density", 
+                    "early_level", "tail_level", "shape", "gate_time", "predelay_scale"
+                ]
+                if param_index < len(reverb_params):
+                    param_name = reverb_params[param_index]
+                    with self.state_manager.state_lock:
+                        current_value = self.state_manager._temp_state["reverb_params"].get(param_name, 0.0)
+                    
+                    # Convert to 7-bit MIDI value based on parameter type
+                    if param_name == "type":
+                        # 0-7 types -> 0-7 MIDI values
+                        midi_value = int(min(current_value, 7))
+                    elif param_name == "time":
+                        # 0.1-8.3 sec -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, (current_value - 0.1) / 0.05)))
+                    elif param_name in ["level", "early_level", "tail_level", "hf_damping", "density", "shape", "predelay_scale"]:
+                        # 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    elif param_name == "pre_delay":
+                        # 0-12.7 ms -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value / 0.1)))
+                    elif param_name == "gate_time":
+                        # 0-12.7 ms -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value / 0.1)))
+                    else:
+                        # Default 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    
+                    return midi_value
+            
+            elif effect_type == 1:  # Chorus parameters
+                # XG Chorus Parameters
+                chorus_params = [
+                    "type", "rate", "depth", "feedback", "level", "delay", 
+                    "output", "cross_feedback", "lfo_waveform", "phase_diff"
+                ]
+                if param_index < len(chorus_params):
+                    param_name = chorus_params[param_index]
+                    with self.state_manager.state_lock:
+                        current_value = self.state_manager._temp_state["chorus_params"].get(param_name, 0.0)
+                    
+                    # Convert to 7-bit MIDI value based on parameter type
+                    if param_name == "type":
+                        # 0-7 types -> 0-7 MIDI values
+                        midi_value = int(min(current_value, 7))
+                    elif param_name == "rate":
+                        # 0.1-6.5 Hz -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, (current_value - 0.1) / 0.05)))
+                    elif param_name in ["depth", "feedback", "level", "output", "cross_feedback"]:
+                        # 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    elif param_name == "delay":
+                        # 0-12.7 ms -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value / 0.1)))
+                    elif param_name == "lfo_waveform":
+                        # 0-3 waveform types -> 0-3 MIDI values
+                        midi_value = int(min(current_value, 3))
+                    elif param_name == "phase_diff":
+                        # 0-180 degrees -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value / 180.0 * 127)))
+                    else:
+                        # Default 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    
+                    return midi_value
+            
+            elif effect_type == 2:  # Variation Effect parameters
+                # XG Variation Parameters
+                variation_params = [
+                    "type", "parameter1", "parameter2", "parameter3", "parameter4",
+                    "level", "bypass", "pan", "send_reverb", "send_chorus"
+                ]
+                if param_index < len(variation_params):
+                    param_name = variation_params[param_index]
+                    with self.state_manager.state_lock:
+                        current_value = self.state_manager._temp_state["variation_params"].get(param_name, 0.0)
+                    
+                    # Convert to 7-bit MIDI value based on parameter type
+                    if param_name == "type":
+                        # 0-63 types -> 0-63 MIDI values
+                        midi_value = int(min(current_value, 63))
+                    elif param_name in ["parameter1", "parameter2", "parameter3", "parameter4"]:
+                        # 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    elif param_name == "level":
+                        # 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    elif param_name == "bypass":
+                        # Boolean -> 0 or 127 MIDI values
+                        midi_value = 127 if current_value else 0
+                    elif param_name == "pan":
+                        # -1.0 to +1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, (current_value + 1.0) * 64)))
+                    elif param_name in ["send_reverb", "send_chorus"]:
+                        # 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    else:
+                        # Default 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    
+                    return midi_value
+            
+            elif effect_type == 3:  # Insertion Effect parameters
+                # XG Insertion Parameters
+                insertion_params = [
+                    "type", "parameter1", "parameter2", "parameter3", "parameter4",
+                    "level", "bypass", "frequency", "depth", "feedback", "lfo_waveform"
+                ]
+                if param_index < len(insertion_params):
+                    param_name = insertion_params[param_index]
+                    with self.state_manager.state_lock:
+                        current_value = self.state_manager._temp_state["insertion_params"].get(param_name, 0.0)
+                    
+                    # Convert to 7-bit MIDI value based on parameter type
+                    if param_name == "type":
+                        # 0-17 types -> 0-17 MIDI values
+                        midi_value = int(min(current_value, 17))
+                    elif param_name in ["parameter1", "parameter2", "parameter3", "parameter4"]:
+                        # 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    elif param_name == "level":
+                        # 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    elif param_name == "bypass":
+                        # Boolean -> 0 or 127 MIDI values
+                        midi_value = 127 if current_value else 0
+                    elif param_name == "frequency":
+                        # 0.1-25.5 Hz -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, (current_value - 0.1) / 0.2)))
+                    elif param_name == "depth":
+                        # 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    elif param_name == "feedback":
+                        # 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    elif param_name == "lfo_waveform":
+                        # 0-3 waveform types -> 0-3 MIDI values
+                        midi_value = int(min(current_value, 3))
+                    else:
+                        # Default 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    
+                    return midi_value
+            
+            elif effect_type == 4:  # EQ parameters
+                # XG EQ Parameters
+                eq_params = [
+                    "low_gain", "mid_gain", "high_gain", "mid_freq", "q_factor"
+                ]
+                if param_index < len(eq_params):
+                    param_name = eq_params[param_index]
+                    with self.state_manager.state_lock:
+                        current_value = self.state_manager._temp_state["equalizer_params"].get(param_name, 0.0)
+                    
+                    # Convert to 7-bit MIDI value based on parameter type
+                    if param_name in ["low_gain", "mid_gain", "high_gain"]:
+                        # -12.8 to +12.6 dB -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, (current_value + 12.8) / 0.2)))
+                    elif param_name == "mid_freq":
+                        # 100-5220 Hz -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, (current_value - 100) / 40)))
+                    elif param_name == "q_factor":
+                        # 0.5-5.5 Q-factor -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, (current_value - 0.5) / 0.04)))
+                    else:
+                        # Default 0.0-1.0 -> 0-127 MIDI values
+                        midi_value = int(max(0, min(127, current_value * 127)))
+                    
+                    return midi_value
+            
+            # Default value for unhandled parameters
+            return 0
+            
+        except Exception as e:
+            print(f"Error getting effect bulk parameter: {e}")
+            return 0

@@ -72,6 +72,16 @@ class StateManager:
             "drum_kit": 0,  # Current drum kit
             "drum_bank": 128,  # Default drum bank
             "channel_pressure": 0,  # Channel aftertouch
+            # XG Part Parameters
+            "element_reserve": 0,  # Element reserve (0-127)
+            "element_assign_mode": 0,  # Element assign mode (0-127)
+            "receive_channel": 0,  # Receive channel (0-15) - will be set per channel
+            # XG RPN Parameters
+            "fine_tuning": 0.0,  # Fine tuning (-1.0 to +1.0 representing -100 to +100 cents)
+            "coarse_tuning": 0,  # Coarse tuning (-64 to +63 semitones)
+            "tuning_program": 0,  # Tuning program (0-127)
+            "tuning_bank": 0,  # Tuning bank (0-127)
+            "modulation_depth": 64,  # Modulation depth (0-127 cents)
         }
 
     def get_channel_state(self, channel: int) -> Dict[str, Any]:
@@ -205,6 +215,114 @@ class StateManager:
 
         self.channel_states[channel]["pitch_bend"] = value
 
+    def get_pitch_bend_range(self, channel: int) -> float:
+        """
+        Get pitch bend range for a channel (RPN 0,0).
+
+        Args:
+            channel: MIDI channel number (0-15)
+
+        Returns:
+            Pitch bend range in semitones (0.0-24.0)
+
+        Raises:
+            ValueError: If channel is out of range
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+
+        return self.channel_states[channel].get("pitch_bend_range", DEFAULT_CONFIG["DEFAULT_PITCH_BEND_RANGE"])
+
+    def get_fine_tuning(self, channel: int) -> float:
+        """
+        Get fine tuning for a channel (RPN 0,1).
+
+        Args:
+            channel: MIDI channel number (0-15)
+
+        Returns:
+            Fine tuning in normalized cents (-1.0 to +1.0 representing -100 to +100 cents)
+
+        Raises:
+            ValueError: If channel is out of range
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+
+        return self.channel_states[channel].get("fine_tuning", 0.0)
+
+    def get_coarse_tuning(self, channel: int) -> int:
+        """
+        Get coarse tuning for a channel (RPN 0,2).
+
+        Args:
+            channel: MIDI channel number (0-15)
+
+        Returns:
+            Coarse tuning in semitones (-64 to +63)
+
+        Raises:
+            ValueError: If channel is out of range
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+
+        return self.channel_states[channel].get("coarse_tuning", 0)
+
+    def get_tuning_program(self, channel: int) -> int:
+        """
+        Get tuning program for a channel (RPN 0,3).
+
+        Args:
+            channel: MIDI channel number (0-15)
+
+        Returns:
+            Tuning program (0-127)
+
+        Raises:
+            ValueError: If channel is out of range
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+
+        return self.channel_states[channel].get("tuning_program", 0)
+
+    def get_tuning_bank(self, channel: int) -> int:
+        """
+        Get tuning bank for a channel (RPN 0,4).
+
+        Args:
+            channel: MIDI channel number (0-15)
+
+        Returns:
+            Tuning bank (0-127)
+
+        Raises:
+            ValueError: If channel is out of range
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+
+        return self.channel_states[channel].get("tuning_bank", 0)
+
+    def get_modulation_depth(self, channel: int) -> int:
+        """
+        Get modulation depth for a channel (RPN 0,5).
+
+        Args:
+            channel: MIDI channel number (0-15)
+
+        Returns:
+            Modulation depth in cents (0-127)
+
+        Raises:
+            ValueError: If channel is out of range
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+
+        return self.channel_states[channel].get("modulation_depth", 64)
+
     def set_channel_pressure(self, channel: int, pressure: int):
         """
         Set channel pressure (aftertouch) for a channel.
@@ -222,6 +340,60 @@ class StateManager:
             raise ValueError(f"Pressure {pressure} is out of range (0-127)")
 
         self.channel_states[channel]["channel_pressure"] = pressure
+
+    def set_element_reserve(self, channel: int, reserve: int):
+        """
+        Set element reserve for a channel (XG Part Parameter).
+
+        Args:
+            channel: MIDI channel number (0-15)
+            reserve: Element reserve value (0-127)
+
+        Raises:
+            ValueError: If channel or reserve is out of range
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+        if not (0 <= reserve < 128):
+            raise ValueError(f"Element reserve {reserve} is out of range (0-127)")
+
+        self.channel_states[channel]["element_reserve"] = reserve
+
+    def set_element_assign_mode(self, channel: int, mode: int):
+        """
+        Set element assign mode for a channel (XG Part Parameter).
+
+        Args:
+            channel: MIDI channel number (0-15)
+            mode: Element assign mode value (0-127)
+
+        Raises:
+            ValueError: If channel or mode is out of range
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+        if not (0 <= mode < 128):
+            raise ValueError(f"Element assign mode {mode} is out of range (0-127)")
+
+        self.channel_states[channel]["element_assign_mode"] = mode
+
+    def set_receive_channel(self, channel: int, receive_channel: int):
+        """
+        Set receive channel for a channel (XG Part Parameter).
+
+        Args:
+            channel: MIDI channel number (0-15)
+            receive_channel: Receive channel value (0-15)
+
+        Raises:
+            ValueError: If channels are out of range
+        """
+        if not (0 <= channel < self.num_channels):
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+        if not (0 <= receive_channel < 16):
+            raise ValueError(f"Receive channel {receive_channel} is out of range (0-15)")
+
+        self.channel_states[channel]["receive_channel"] = receive_channel
 
     def set_key_pressure(self, channel: int, note: int, pressure: int):
         """

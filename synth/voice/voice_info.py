@@ -16,7 +16,7 @@ class VoiceInfo:
         self.velocity = velocity
         self.channel_note = channel_note
         self.priority = priority
-        self.start_time = time.time() if 'time' in globals() else 0
+        self.start_time = time.time()
         self.release_time = None
         self.is_releasing = False
 
@@ -29,7 +29,7 @@ class VoiceInfo:
         priority_score = self.priority / VoicePriority.HIGHEST
 
         # More recent notes get slightly higher priority
-        age_penalty = 0.1 * (time.time() - self.start_time) if 'time' in globals() else 0
+        age_penalty = 0.1 * (time.time() - self.start_time)
 
         # Notes in release phase get lower priority
         release_penalty = 0.5 if self.is_releasing else 0.0
@@ -39,4 +39,4 @@ class VoiceInfo:
     def start_release(self):
         """Mark voice as starting release phase"""
         self.is_releasing = True
-        self.release_time = time.time() if 'time' in globals() else 0
+        self.release_time = time.time()
