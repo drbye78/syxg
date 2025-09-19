@@ -16,6 +16,8 @@ from .communication import XGCommunicationHandler
 from .processing import XGAudioProcessor
 
 
+
+
 class VectorizedEffectManager:
     """
     VECTORIZED EFFECT MANAGER - PHASE 2 PERFORMANCE
@@ -52,6 +54,7 @@ class VectorizedEffectManager:
         self.comm_handler = XGCommunicationHandler(self.state_manager)
 
         # Audio processor for effect algorithms with optimized audio processing
+        # Uses the production-grade XGAudioProcessor for full XG effect processing
         self.audio_processor = XGAudioProcessor(self.state_manager, sample_rate)
 
         # Set up communication handler references with optimized reference handling
@@ -210,6 +213,57 @@ class VectorizedEffectManager:
             self.state_manager.state_update_pending = True
 
     # Audio processing with vectorized operations
+    def process_audio(self, input_samples: List[List[Tuple[float, float]]],
+                     num_samples: int) -> List[List[Tuple[float, float]]]:
+        """
+        Process audio with XG effects applied - legacy compatibility method.
+        
+        This method converts the input format to what VectorizedEffectManager expects
+        and then calls the vectorized processing methods.
+        
+        Args:
+            input_samples: List of channels with stereo sample tuples
+            num_samples: Number of samples to process
+            
+        Returns:
+            Processed audio samples
+        """
+        with self.lock:
+            # Convert input format to what we expect (list of numpy arrays)
+            input_channels = []
+            for channel_samples in input_samples:
+                # Convert list of tuples to numpy array
+                if channel_samples:
+                    # Extract left and right channels
+                    left_samples = np.array([sample[0] for sample in channel_samples[:num_samples]], dtype=np.float32)
+                    right_samples = np.array([sample[1] for sample in channel_samples[:num_samples]], dtype=np.float32)
+                    # Stack as stereo array
+                    stereo_channel = np.column_stack((left_samples, right_samples))
+                    input_channels.append(stereo_channel)
+                else:
+                    # Empty channel
+                    input_channels.append(np.zeros((num_samples, 2), dtype=np.float32))
+            
+            # Process using our vectorized multi-channel method
+            processed_channels = self.process_multi_channel_vectorized(input_channels, num_samples)
+            
+            # Convert back to the expected format (list of lists of tuples)
+            result = []
+            for channel_array in processed_channels:
+                channel_samples = []
+                for i in range(min(num_samples, len(channel_array))):
+                    channel_samples.append((float(channel_array[i, 0]), float(channel_array[i, 1])))
+                # Pad with zeros if needed
+                while len(channel_samples) < num_samples:
+                    channel_samples.append((0.0, 0.0))
+                result.append(channel_samples)
+            
+            # Ensure we have the right number of channels (16 for MIDI)
+            while len(result) < 16:
+                result.append([(0.0, 0.0)] * num_samples)
+            
+            return result[:16]  # Limit to 16 channels
+
     def process_audio_vectorized(self, input_samples: np.ndarray,
                               num_samples: int) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -300,6 +354,49 @@ class VectorizedEffectManager:
 
     def process_stereo_audio_vectorized(self, input_samples: np.ndarray) -> np.ndarray:
         """
+        FIXED ARCHITECTURAL ISSUE - Phase 2: Proper XG Effects Processing
+
+        This method now correctly handles stereo audio input while maintaining the
+        performance benefits of the vectorized approach. The fundamental issue was
+        that XGAudioProcessor's process_audio() method expects 16 separate channels
+        for proper XG routing (insertion effects per channel -> system effects on mix).
+        However, for performance, we need to handle the current mixed stereo input.
+
+        SOLUTION: Use XGAudioProcessor's stereo method directly, which handles
+        system effects properly while maintaining channel-based processing internally.
+        """
+        num_samples = input_samples.shape[0]
+
+        with self.lock:
+            # ENSURE BUFFERS ARE CORRECT SIZE - DYNAMIC BUFFER RESIZING
+            if num_samples > self.max_block_size:
+                # Resize buffers to accommodate larger block size
+                new_size = max(num_samples, self.max_block_size * 2)  # Double size to reduce future resizes
+                self.left_buffer = np.resize(self.left_buffer, new_size)
+                self.right_buffer = np.resize(self.right_buffer, new_size)
+                self.temp_left = np.resize(self.temp_left, new_size)
+                self.temp_right = np.resize(self.temp_right, new_size)
+                self.effect_input = np.resize(self.effect_input, (new_size, 2))
+                self.effect_output = np.resize(self.effect_output, (new_size, 2))
+                self.stereo_buffer = np.resize(self.stereo_buffer, (new_size, 2))
+                self.max_block_size = new_size
+
+            # COPY INPUT DATA TO PROCESSING BUFFERS - OPTIMIZED DATA COPYING
+            # Copy input data to processing buffers using vectorized operations
+            np.copyto(self.effect_input[:num_samples], input_samples[:num_samples])
+
+            # FIXED: USE XGAudioProcessor's process_stereo_audio_vectorized METHOD
+            # This method handles system effects properly and avoids the "Expected 16 channels" error
+            self.effect_output[:num_samples] = self.audio_processor.process_stereo_audio_vectorized(
+                self.effect_input[:num_samples]
+            )
+
+            # APPLY FINAL LIMITING WITH VECTORIZED OPERATIONS - OPTIMIZED CLIPPING
+            np.clip(self.effect_output[:num_samples], -1.0, 1.0,
+                   out=self.effect_output[:num_samples])
+
+            return self.effect_output[:num_samples]
+        """
         VECTORIZED STEREO AUDIO PROCESSING - PHASE 2 PERFORMANCE
         
         Process stereo audio with XG effects applied using vectorized NumPy operations.
@@ -344,141 +441,97 @@ class VectorizedEffectManager:
             
             # PROCESS EFFECTS WITH VECTORIZED OPERATIONS ON MIXED STEREO OUTPUT - HIGHLY OPTIMIZED
             # This is much more efficient than processing effects for all 16 channels separately
-            try:
-                self.effect_output[:num_samples] = self.audio_processor.process_stereo_audio_vectorized(
-                    self.effect_input[:num_samples]
-                )
-                
-                # APPLY FINAL LIMITING WITH VECTORIZED OPERATIONS - OPTIMIZED CLIPPING
-                np.clip(self.effect_output[:num_samples], -1.0, 1.0, 
-                       out=self.effect_output[:num_samples])
-                
-                return self.effect_output[:num_samples]
-
-            except Exception as e:
-                print(f"Error in vectorized effects: {e}")
-                # If effects don't work, return unprocessed input with optimized fallback
-                # Apply final limiting with vectorized operations
-                np.clip(input_samples[:num_samples], -1.0, 1.0, 
-                       out=input_samples[:num_samples])
-                return input_samples[:num_samples]
+            self.effect_output[:num_samples] = self.audio_processor.process_stereo_audio_vectorized(
+                self.effect_input[:num_samples]
+            )
+            
+            # APPLY FINAL LIMITING WITH VECTORIZED OPERATIONS - OPTIMIZED CLIPPING
+            np.clip(self.effect_output[:num_samples], -1.0, 1.0, 
+                    out=self.effect_output[:num_samples])
+            
+            return self.effect_output[:num_samples]
 
     def process_multi_channel_vectorized(self, input_channels: List[np.ndarray],
                                       num_samples: int) -> List[np.ndarray]:
         """
-        VECTORIZED MULTI-CHANNEL AUDIO PROCESSING - PHASE 2 PERFORMANCE
-        
-        Process multi-channel audio with XG effects applied using vectorized NumPy operations.
-        
-        Performance optimizations:
-        1. VECTORIZED OPERATIONS - Uses NumPy for efficient mathematical operations
-        2. BATCH PROCESSING - Processes entire audio blocks rather than per-sample
-        3. PRE-ALLOCATED BUFFERS - Uses pre-allocated buffers to reduce allocation overhead
-        4. STREAMLINED EFFECTS PROCESSING - Processes effects on final mixed output rather than per-channel
-        5. ZERO-CLEARING OPTIMIZATION - Clears buffers efficiently using vectorized operations
-        
+        CORRECT XG MULTI-CHANNEL EFFECTS PROCESSING - AUDIO QUALITY PRIORITY
+
+        Process multi-channel audio with proper XG effects routing:
+        1. Insertion effects applied per-channel
+        2. Channels mixed together
+        3. System effects (reverb/chorus/variation) applied to final mix
+
+        This implements the CORRECT XG effects architecture where insertion effects
+        can be applied to individual channels, maintaining audio quality.
+
         Args:
             input_channels: List of input channel audio samples as NumPy arrays
             num_samples: Number of samples to process
-            
+
         Returns:
             List of processed channel audio samples as NumPy arrays
         """
-        num_channels = len(input_channels)
-        
         with self.lock:
             # ENSURE BUFFERS ARE CORRECT SIZE - DYNAMIC BUFFER RESIZING
-            # Only resize buffers when necessary to avoid allocation overhead
             if num_samples > self.max_block_size:
-                # Resize buffers to accommodate larger block size
-                new_size = max(num_samples, self.max_block_size * 2)  # Double size to reduce future resizes
-                self.left_buffer = np.resize(self.left_buffer, new_size)
-                self.right_buffer = np.resize(self.right_buffer, new_size)
-                self.temp_left = np.resize(self.temp_left, new_size)
-                self.temp_right = np.resize(self.temp_right, new_size)
-                self.effect_input = np.resize(self.effect_input, (new_size, 2))
-                self.effect_output = np.resize(self.effect_output, (new_size, 2))
-                self.stereo_buffer = np.resize(self.stereo_buffer, (new_size, 2))
+                new_size = max(num_samples, self.max_block_size * 2)
                 self.max_block_size = new_size
 
-            # UPDATE CURRENT BLOCK SIZE - TRACK PROCESSING STATE
-            self.current_block_size = num_samples
-            self.buffer_dirty = True
+            # CONVERT INPUT FORMAT FOR XGAudioProcessor
+            # XGAudioProcessor.process_audio expects: List[List[Tuple[float, float]]]
+            # Where: channel_samples[0] = [(left1, right1), (left2, right2), ...]
 
-            # MIX ALL CHANNELS INTO SINGLE STEREO OUTPUT - OPTIMIZED MIXING
-            # Instead of processing effects for all channels separately (inefficient),
-            # mix all channels into single stereo output and process effects once (much more efficient)
-            
-            # Initialize stereo mix buffers with zeros using vectorized operations
-            self.left_buffer[:num_samples].fill(0.0)
-            self.right_buffer[:num_samples].fill(0.0)
-            
-            # BATCH MIXING WITH VECTORIZED OPERATIONS - OPTIMIZED CHANNEL MIXING
-            # Process all channels simultaneously using vectorized operations for maximum performance
-            for channel_idx, channel_samples in enumerate(input_channels):
-                if channel_idx >= 16:  # Limit to 16 channels
+            channels_for_processor = []
+            for channel_idx, channel_array in enumerate(input_channels):
+                if channel_idx >= 16:  # Limit to 16 channels as per XG spec
                     break
-                    
-                try:
-                    if len(channel_samples.shape) == 2 and channel_samples.shape[1] == 2:
-                        # Stereo channel - add both channels using vectorized operations
-                        np.add(self.left_buffer[:num_samples], channel_samples[:num_samples, 0], 
-                              out=self.left_buffer[:num_samples])
-                        np.add(self.right_buffer[:num_samples], channel_samples[:num_samples, 1], 
-                              out=self.right_buffer[:num_samples])
-                    elif len(channel_samples.shape) == 1:
-                        # Mono channel - duplicate to both channels using vectorized operations
-                        np.add(self.left_buffer[:num_samples], channel_samples[:num_samples], 
-                              out=self.left_buffer[:num_samples])
-                        np.add(self.right_buffer[:num_samples], channel_samples[:num_samples], 
-                              out=self.right_buffer[:num_samples])
-                        
-                except Exception as e:
-                    print(f"Error mixing channel {channel_idx}: {e}")
-                    continue
 
-            # APPLY EFFECTS TO MIXED STEREO OUTPUT - STREAMLINED EFFECTS PROCESSING
-            # Instead of processing effects for all 16 channels separately (inefficient),
-            # process effects on the final mixed stereo output (much more efficient)
-            
-            try:
-                # PREPARE VECTORIZED INPUT FOR EFFECTS PROCESSING - OPTIMIZED INPUT PREPARATION
-                # Stack left and right channels as columns in pre-allocated buffer using vectorized operations
-                np.stack((self.left_buffer[:num_samples], self.right_buffer[:num_samples]), 
-                        axis=1, out=self.effect_input[:num_samples])
-                
-                # PROCESS EFFECTS WITH VECTORIZED OPERATIONS ON MIXED STEREO OUTPUT - HIGHLY OPTIMIZED
-                # This is much more efficient than processing effects for all 16 channels separately
-                self.effect_output[:num_samples] = self.audio_processor.process_stereo_audio_vectorized(
-                    self.effect_input[:num_samples]
-                )
-                
-                # SEPARATE STEREO CHANNELS FROM PROCESSED OUTPUT - OPTIMIZED CHANNEL SEPARATION
-                left_result = self.effect_output[:num_samples, 0]
-                right_result = self.effect_output[:num_samples, 1]
-                
-                # APPLY FINAL LIMITING WITH VECTORIZED OPERATIONS - OPTIMIZED CLIPPING
-                np.clip(left_result, -1.0, 1.0, out=left_result)
-                np.clip(right_result, -1.0, 1.0, out=right_result)
-                
-                # RETURN MIXED STEREO OUTPUT AS LIST OF CHANNELS - OPTIMIZED OUTPUT FORMATTING
-                # Return mixed stereo output as list of channels for compatibility
-                return [np.column_stack((left_result, right_result))] + \
-                       [np.zeros((num_samples, 2), dtype=np.float32) for _ in range(num_channels - 1)]
+                # Convert NumPy array to list of tuples format expected by XGAudioProcessor
+                if len(channel_array.shape) == 2 and channel_array.shape[1] == 2:
+                    # Stereo channel - [(left1, right1), (left2, right2), ...]
+                    channel_tuples = [
+                        (float(channel_array[i, 0]), float(channel_array[i, 1]))
+                        for i in range(min(num_samples, len(channel_array)))
+                    ]
+                else:
+                    # Handle single channel or other formats
+                    channel_tuples = [(0.0, 0.0)] * num_samples
 
-            except Exception as e:
-                print(f"Error processing multi-channel effects: {e}")
-                # If effects don't work, return unprocessed mix with optimized fallback
-                # Apply final limiting with vectorized operations
-                np.clip(self.left_buffer[:num_samples], -1.0, 1.0, out=self.left_buffer[:num_samples])
-                np.clip(self.right_buffer[:num_samples], -1.0, 1.0, out=self.right_buffer[:num_samples])
-                
-                # RETURN UNPROCESSED MIX AS LIST OF CHANNELS - OPTIMIZED OUTPUT FORMATTING
-                # Return unprocessed mix as list of channels for compatibility
-                unprocessed_mix = np.column_stack((self.left_buffer[:num_samples], 
-                                                 self.right_buffer[:num_samples]))
-                return [unprocessed_mix] + \
-                       [np.zeros((num_samples, 2), dtype=np.float32) for _ in range(num_channels - 1)]
+                channels_for_processor.append(channel_tuples)
+
+            # ENSURE WE HAVE EXACTLY 16 CHANNELS (XG standard)
+            while len(channels_for_processor) < 16:
+                channels_for_processor.append([(0.0, 0.0)] * num_samples)
+
+            # PROCESS EFFECTS THROUGH XGAudioProcessor WITH CORRECT ARCHITECTURE
+            # This now processes insertion effects per-channel + system effects correctly
+            processed_channels = self.audio_processor.process_audio(
+                channels_for_processor, num_samples
+            )
+
+            # CONVERT OUTPUT BACK TO NUMPY FORMAT
+            result_channels = []
+            for channel_tuples in processed_channels:
+                if len(channel_tuples) >= num_samples:
+                    # Extract left and right channels from tuples
+                    left_samples = np.array([sample[0] for sample in channel_tuples[:num_samples]], dtype=np.float32)
+                    right_samples = np.array([sample[1] for sample in channel_tuples[:num_samples]], dtype=np.float32)
+
+                    # Stack as stereo array
+                    stereo_channel = np.column_stack((left_samples, right_samples))
+                    result_channels.append(stereo_channel)
+
+                else:
+                    # Fallback for invalid channel
+                    result_channels.append(np.zeros((num_samples, 2), dtype=np.float32))
+
+            # RETURN PROCESSED CHANNELS - PRIMARY OUTPUT IS THE MIXED CHANNEL 0
+            # All other channels are left as is or silent, as per XG specification
+            if result_channels:
+                return result_channels[:len(input_channels)]
+            else:
+                # Fallback: return original channels unmodified
+                return input_channels
 
     # Communication methods with optimized parameter handling
     def set_current_nrpn_channel(self, channel: int):
@@ -552,6 +605,536 @@ class VectorizedEffectManager:
         """
         with self.lock:
             return self.comm_handler.get_bulk_dump(channel_specific)
+
+    def process_bulk_dump(self, effect_type: int, param_offset: int, data: list) -> bool:
+        """
+        Process bulk dump data for effect parameters.
+
+        Args:
+            effect_type: Effect type (0-4: reverb, chorus, variation, insertion, EQ)
+            param_offset: Starting parameter offset for this bulk dump chunk
+            data: List of 7-bit parameter values to set
+
+        Returns:
+            True if processed successfully, False otherwise
+        """
+        try:
+            with self.lock:
+                return self._process_bulk_dump_internal(effect_type, param_offset, data)
+        except Exception as e:
+            print(f"Error processing bulk dump data: {e}")
+            return False
+
+    def _process_bulk_dump_internal(self, effect_type: int, param_offset: int, data: list) -> bool:
+        """Internal method for processing bulk dump parameter values"""
+        if effect_type == 0:  # Reverb parameters
+            # XG Reverb Parameters
+            reverb_params = [
+                "type", "time", "level", "pre_delay", "hf_damping", "density",
+                "early_level", "tail_level", "shape", "gate_time", "predelay_scale"
+            ]
+            for i, value in enumerate(data):
+                param_index = param_offset + i
+                if param_index < len(reverb_params):
+                    param_name = reverb_params[param_index]
+                    # Convert 7-bit MIDI value to parameter value
+                    if param_name == "type":
+                        # 0-7 types -> direct mapping
+                        current_value = min(max(value, 0), 7)
+                    elif param_name == "time":
+                        # 0-127 -> 0.1-8.3 sec
+                        current_value = (value / 127.0) * 8.2 + 0.1
+                    elif param_name in ["level", "early_level", "tail_level", "hf_damping", "density", "shape", "predelay_scale"]:
+                        # 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+                    elif param_name == "pre_delay":
+                        # 0-127 -> 0-12.7 ms
+                        current_value = (value / 127.0) * 12.7
+                    elif param_name == "gate_time":
+                        # 0-127 -> 0-12.7 ms
+                        current_value = (value / 127.0) * 12.7
+                    else:
+                        # Default 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+
+                    # Update state manager
+                    self.state_manager._temp_state["reverb_params"][param_name] = current_value
+                    self.state_manager.state_update_pending = True
+
+            return True
+
+        elif effect_type == 1:  # Chorus parameters
+            # XG Chorus Parameters
+            chorus_params = [
+                "type", "rate", "depth", "feedback", "level", "delay",
+                "output", "cross_feedback", "lfo_waveform", "phase_diff"
+            ]
+            for i, value in enumerate(data):
+                param_index = param_offset + i
+                if param_index < len(chorus_params):
+                    param_name = chorus_params[param_index]
+                    # Convert 7-bit MIDI value to parameter value
+                    if param_name == "type":
+                        # 0-7 types -> direct mapping
+                        current_value = min(max(value, 0), 7)
+                    elif param_name == "rate":
+                        # 0-127 -> 0.1-6.5 Hz
+                        current_value = (value / 127.0) * 6.4 + 0.1
+                    elif param_name in ["depth", "feedback", "level", "output", "cross_feedback"]:
+                        # 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+                    elif param_name == "delay":
+                        # 0-127 -> 0-12.7 ms
+                        current_value = (value / 127.0) * 12.7
+                    elif param_name == "lfo_waveform":
+                        # 0-3 waveform types -> direct mapping
+                        current_value = min(max(value, 0), 3)
+                    elif param_name == "phase_diff":
+                        # 0-127 -> 0-180 degrees
+                        current_value = (value / 127.0) * 180.0
+                    else:
+                        # Default 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+
+                    # Update state manager
+                    self.state_manager._temp_state["chorus_params"][param_name] = current_value
+                    self.state_manager.state_update_pending = True
+
+            return True
+
+        elif effect_type == 2:  # Variation Effect parameters
+            # XG Variation Parameters
+            variation_params = [
+                "type", "parameter1", "parameter2", "parameter3", "parameter4",
+                "level", "bypass", "pan", "send_reverb", "send_chorus"
+            ]
+            for i, value in enumerate(data):
+                param_index = param_offset + i
+                if param_index < len(variation_params):
+                    param_name = variation_params[param_index]
+                    # Convert 7-bit MIDI value to parameter value
+                    if param_name == "type":
+                        # 0-63 types -> direct mapping
+                        current_value = min(max(value, 0), 63)
+                    elif param_name in ["parameter1", "parameter2", "parameter3", "parameter4"]:
+                        # 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+                    elif param_name == "level":
+                        # 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+                    elif param_name == "bypass":
+                        # 0 or 127 -> Boolean
+                        current_value = True if value >= 64 else False
+                    elif param_name == "pan":
+                        # 0-127 -> -1.0 to +1.0
+                        current_value = (value - 64) / 64.0
+                    elif param_name in ["send_reverb", "send_chorus"]:
+                        # 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+                    else:
+                        # Default 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+
+                    # Update state manager
+                    self.state_manager._temp_state["variation_params"][param_name] = current_value
+                    self.state_manager.state_update_pending = True
+
+            return True
+
+        elif effect_type == 3:  # Insertion Effect parameters
+            # XG Insertion Parameters
+            insertion_params = [
+                "type", "parameter1", "parameter2", "parameter3", "parameter4",
+                "level", "bypass", "frequency", "depth", "feedback", "lfo_waveform"
+            ]
+            for i, value in enumerate(data):
+                param_index = param_offset + i
+                if param_index < len(insertion_params):
+                    param_name = insertion_params[param_index]
+                    # Convert 7-bit MIDI value to parameter value
+                    if param_name == "type":
+                        # 0-17 types -> direct mapping
+                        current_value = min(max(value, 0), 17)
+                    elif param_name in ["parameter1", "parameter2", "parameter3", "parameter4"]:
+                        # 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+                    elif param_name == "level":
+                        # 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+                    elif param_name == "bypass":
+                        # 0 or 127 -> Boolean
+                        current_value = True if value >= 64 else False
+                    elif param_name == "frequency":
+                        # 0-127 -> 0.1-25.5 Hz
+                        current_value = (value / 127.0) * 25.4 + 0.1
+                    elif param_name == "depth":
+                        # 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+                    elif param_name == "feedback":
+                        # 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+                    elif param_name == "lfo_waveform":
+                        # 0-3 waveform types -> direct mapping
+                        current_value = min(max(value, 0), 3)
+                    else:
+                        # Default 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+
+                    # Update state manager
+                    self.state_manager._temp_state["insertion_params"][param_name] = current_value
+                    self.state_manager.state_update_pending = True
+
+            return True
+
+        elif effect_type == 4:  # EQ parameters
+            # XG EQ Parameters
+            eq_params = [
+                "low_gain", "mid_gain", "high_gain", "mid_freq", "q_factor"
+            ]
+            for i, value in enumerate(data):
+                param_index = param_offset + i
+                if param_index < len(eq_params):
+                    param_name = eq_params[param_index]
+                    # Convert 7-bit MIDI value to parameter value
+                    if param_name in ["low_gain", "mid_gain", "high_gain"]:
+                        # 0-127 -> -12.8 to +12.6 dB
+                        current_value = ((value - 64) / 64.0) * 12.8
+                    elif param_name == "mid_freq":
+                        # 0-127 -> 100-5220 Hz
+                        current_value = (value / 127.0) * 5120 + 100
+                    elif param_name == "q_factor":
+                        # 0-127 -> 0.5-5.5
+                        current_value = (value / 127.0) * 5.0 + 0.5
+                    else:
+                        # Default 0-127 -> 0.0-1.0
+                        current_value = value / 127.0
+
+                    # Update state manager
+                    self.state_manager._temp_state["equalizer_params"][param_name] = current_value
+                    self.state_manager.state_update_pending = True
+
+            return True
+
+        # Unsupported effect type
+        return False
+
+    def reset_to_xg_defaults(self):
+        """
+        Reset all effects to XG defaults with optimized reset.
+        """
+        with self.lock:
+            self.reset_effects()
+
+    def handle_xg_effect_parameter(self, address: int, value: int) -> bool:
+        """
+        Handle XG effect parameter - compatibility stub.
+        
+        Args:
+            address: Parameter address
+            value: Parameter value
+            
+        Returns:
+            True if parameter was handled, False otherwise
+        """
+        # This is a stub implementation - in a full implementation this would
+        # handle XG-specific effect parameters
+        return False
+
+    def get_bulk_parameter(self, effect_type: int, param_index: int) -> int:
+        """
+        Get an effect parameter value by index for bulk dump generation.
+
+        Args:
+            effect_type: Effect type identifier (0-4: reverb, chorus, variation, insertion, EQ)
+            param_index: Parameter index
+
+        Returns:
+            7-bit parameter value
+        """
+        try:
+            with self.lock:  # Thread-safe access
+                return self._get_bulk_parameter_internal(effect_type, param_index)
+        except Exception as e:
+            print(f"Error getting effect bulk parameter: {e}")
+            return 0
+
+    def _get_bulk_parameter_internal(self, effect_type: int, param_index: int) -> int:
+        """Internal method for getting bulk parameter values"""
+        # Get current parameter value based on effect type and parameter index
+        if effect_type == 0:  # Reverb parameters
+            # XG Reverb Parameters
+            reverb_params = [
+                "type", "time", "level", "pre_delay", "hf_damping", "density",
+                "early_level", "tail_level", "shape", "gate_time", "predelay_scale"
+            ]
+            if param_index < len(reverb_params):
+                param_name = reverb_params[param_index]
+                current_value = self.state_manager._temp_state.get("reverb_params", {}).get(param_name, 0.0)
+
+                # Convert to 7-bit MIDI value based on parameter type
+                if param_name == "type":
+                    # 0-7 types -> 0-7 MIDI values
+                    midi_value = int(min(current_value, 7))
+                elif param_name == "time":
+                    # 0.1-8.3 sec -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, (current_value - 0.1) / 0.05)))
+                elif param_name in ["level", "early_level", "tail_level", "hf_damping", "density", "shape", "predelay_scale"]:
+                    # 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+                elif param_name == "pre_delay":
+                    # 0-12.7 ms -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value / 0.1)))
+                elif param_name == "gate_time":
+                    # 0-12.7 ms -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value / 0.1)))
+                else:
+                    # Default 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+
+                return midi_value
+
+        elif effect_type == 1:  # Chorus parameters
+            # XG Chorus Parameters
+            chorus_params = [
+                "type", "rate", "depth", "feedback", "level", "delay",
+                "output", "cross_feedback", "lfo_waveform", "phase_diff"
+            ]
+            if param_index < len(chorus_params):
+                param_name = chorus_params[param_index]
+                current_value = self.state_manager._temp_state.get("chorus_params", {}).get(param_name, 0.0)
+
+                # Convert to 7-bit MIDI value based on parameter type
+                if param_name == "type":
+                    # 0-7 types -> 0-7 MIDI values
+                    midi_value = int(min(current_value, 7))
+                elif param_name == "rate":
+                    # 0.1-6.5 Hz -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, (current_value - 0.1) / 0.05)))
+                elif param_name in ["depth", "feedback", "level", "output", "cross_feedback"]:
+                    # 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+                elif param_name == "delay":
+                    # 0-12.7 ms -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value / 0.1)))
+                elif param_name == "lfo_waveform":
+                    # 0-3 waveform types -> 0-3 MIDI values
+                    midi_value = int(min(current_value, 3))
+                elif param_name == "phase_diff":
+                    # 0-180 degrees -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value / 180.0 * 127)))
+                else:
+                    # Default 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+
+                return midi_value
+
+        elif effect_type == 2:  # Variation Effect parameters
+            # XG Variation Parameters (global)
+            variation_params = [
+                "type", "parameter1", "parameter2", "parameter3", "parameter4",
+                "level", "bypass", "pan", "send_reverb", "send_chorus"
+            ]
+            if param_index < len(variation_params):
+                param_name = variation_params[param_index]
+                current_value = self.state_manager._temp_state.get("variation_params", {}).get(param_name, 0.0)
+
+                # Convert to 7-bit MIDI value based on parameter type
+                if param_name == "type":
+                    # 0-63 types -> 0-63 MIDI values
+                    midi_value = int(min(current_value, 63))
+                elif param_name in ["parameter1", "parameter2", "parameter3", "parameter4"]:
+                    # 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+                elif param_name == "level":
+                    # 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+                elif param_name == "bypass":
+                    # Boolean -> 0 or 127 MIDI values
+                    midi_value = 127 if current_value else 0
+                elif param_name == "pan":
+                    # -1.0 to +1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, (current_value + 1.0) * 64)))
+                elif param_name in ["send_reverb", "send_chorus"]:
+                    # 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+                else:
+                    # Default 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+
+                return midi_value
+
+        elif effect_type == 3:  # Insertion Effect parameters (global)
+            # XG Insertion Parameters (global view)
+            insertion_params = [
+                "type", "parameter1", "parameter2", "parameter3", "parameter4",
+                "level", "bypass", "frequency", "depth", "feedback", "lfo_waveform"
+            ]
+            if param_index < len(insertion_params):
+                param_name = insertion_params[param_index]
+                current_value = self.state_manager._temp_state.get("insertion_params", {}).get(param_name, 0.0)
+
+                # Convert to 7-bit MIDI value based on parameter type
+                if param_name == "type":
+                    # 0-17 types -> 0-17 MIDI values
+                    midi_value = int(min(current_value, 17))
+                elif param_name in ["parameter1", "parameter2", "parameter3", "parameter4"]:
+                    # 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+                elif param_name == "level":
+                    # 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+                elif param_name == "bypass":
+                    # Boolean -> 0 or 127 MIDI values
+                    midi_value = 127 if current_value else 0
+                elif param_name == "frequency":
+                    # 0.1-25.5 Hz -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, (current_value - 0.1) / 0.2)))
+                elif param_name == "depth":
+                    # 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+                elif param_name == "feedback":
+                    # 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+                elif param_name == "lfo_waveform":
+                    # 0-3 waveform types -> 0-3 MIDI values
+                    midi_value = int(min(current_value, 3))
+                else:
+                    # Default 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+
+                return midi_value
+
+        elif effect_type == 4:  # EQ parameters
+            # XG EQ Parameters
+            eq_params = [
+                "low_gain", "mid_gain", "high_gain", "mid_freq", "q_factor"
+            ]
+            if param_index < len(eq_params):
+                param_name = eq_params[param_index]
+                current_value = self.state_manager._temp_state.get("equalizer_params", {}).get(param_name, 0.0)
+
+                # Convert to 7-bit MIDI value based on parameter type
+                if param_name in ["low_gain", "mid_gain", "high_gain"]:
+                    # -12.8 to +12.6 dB -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, (current_value + 12.8) / 0.2)))
+                elif param_name == "mid_freq":
+                    # 100-5220 Hz -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, (current_value - 100) / 40)))
+                elif param_name == "q_factor":
+                    # 0.5-5.5 Q-factor -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, (current_value - 0.5) / 0.04)))
+                else:
+                    # Default 0.0-1.0 -> 0-127 MIDI values
+                    midi_value = int(max(0, min(127, current_value * 127)))
+
+                return midi_value
+
+        # Default value for unhandled parameters
+        return 0
+
+    def get_parameter_value(self, effect_type: int, param: int) -> int:
+        """
+        Get parameter value for bulk dump generation.
+
+        Args:
+            effect_type: Effect type (0-4: reverb, chorus, variation, insertion, EQ)
+            param: Parameter index
+
+        Returns:
+            Parameter value (0-127)
+        """
+        return self.get_bulk_parameter(effect_type, param)
+
+    def set_reverb_parameter(self, parameter: int, value: float):
+        """
+        Set reverb parameter - compatibility stub.
+        
+        Args:
+            parameter: Parameter index
+            value: Normalized parameter value (0.0-1.0)
+        """
+        # This is a stub implementation - in a full implementation this would
+        # set a reverb parameter
+        pass
+
+    def set_chorus_parameter(self, parameter: int, value: float):
+        """
+        Set chorus parameter - compatibility stub.
+        
+        Args:
+            parameter: Parameter index
+            value: Normalized parameter value (0.0-1.0)
+        """
+        # This is a stub implementation - in a full implementation this would
+        # set a chorus parameter
+        pass
+
+    def set_variation_parameter(self, parameter: int, value: float):
+        """
+        Set variation parameter - compatibility stub.
+        
+        Args:
+            parameter: Parameter index
+            value: Normalized parameter value (0.0-1.0)
+        """
+        # This is a stub implementation - in a full implementation this would
+        # set a variation parameter
+        pass
+
+    def process_stereo_audio_vectorized_tuple(self, input_samples: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Process stereo audio returning separate left/right channels (tuple format).
+
+        This method provides compatibility with calling code that expects tuple unpacking:
+        left_effected, right_effected = effect_manager.process_stereo_audio_vectorized(input)
+
+        Args:
+            input_samples: Input stereo audio samples as NumPy array (N x 2)
+
+        Returns:
+            Tuple of (left_channel, right_channel) processed audio buffers
+        """
+        num_samples = input_samples.shape[0]
+
+        with self.lock:
+            # ENSURE BUFFERS ARE CORRECT SIZE - DYNAMIC BUFFER RESIZING
+            if num_samples > self.max_block_size:
+                # Resize buffers to accommodate larger block size
+                new_size = max(num_samples, self.max_block_size * 2)
+                self.left_buffer = np.resize(self.left_buffer, new_size)
+                self.right_buffer = np.resize(self.right_buffer, new_size)
+                self.temp_left = np.resize(self.temp_left, new_size)
+                self.temp_right = np.resize(self.temp_right, new_size)
+                self.effect_input = np.resize(self.effect_input, (new_size, 2))
+                self.effect_output = np.resize(self.effect_output, (new_size, 2))
+                self.stereo_buffer = np.resize(self.stereo_buffer, (new_size, 2))
+                self.max_block_size = new_size
+
+            # COPY INPUT DATA TO PROCESSING BUFFERS
+            np.copyto(self.effect_input[:num_samples], input_samples[:num_samples])
+
+            # PROCESS EFFECTS WITH VECTORIZED OPERATIONS
+            try:
+                self.effect_output[:num_samples] = self.audio_processor.process_stereo_audio_vectorized(
+                    self.effect_input[:num_samples]
+                )
+
+                # RETURN SEPARATE CHANNELS FOR CALLERS EXPECTING TUPLE
+                left_result = self.effect_output[:num_samples, 0].copy()
+                right_result = self.effect_output[:num_samples, 1].copy()
+
+                # Apply final limiting
+                np.clip(left_result, -1.0, 1.0, out=left_result)
+                np.clip(right_result, -1.0, 1.0, out=right_result)
+
+                return left_result, right_result
+
+            except Exception as e:
+                print(f"Error in tuple-style vectorized effects: {e}")
+                # Return input unchanged on error
+                left_result = input_samples[:num_samples, 0].copy()
+                right_result = input_samples[:num_samples, 1].copy()
+                return left_result, right_result
 
     # Variation effect methods with optimized parameter updates
     def set_variation_effect_type(self, channel: int, effect_type: int):

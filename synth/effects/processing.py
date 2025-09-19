@@ -191,6 +191,39 @@ class XGAudioProcessor:
 
         return output_channels
 
+    def process_stereo_audio_vectorized(self, input_samples: np.ndarray) -> np.ndarray:
+        """
+        Wrapper method to provide vectorized interface for VectorizedEffectManager.
+
+        Args:
+            input_samples: Input stereo audio samples as NumPy array (N x 2)
+
+        Returns:
+            Processed stereo audio samples as NumPy array (N x 2)
+        """
+        num_samples = input_samples.shape[0]
+
+        # Convert numpy array to the expected list format for process_audio
+        channels_input = [
+            [(float(input_samples[i, 0]), float(input_samples[i, 1])) for i in range(num_samples)]
+        ]
+
+        # Call the main processing method
+        processed_channels = self.process_audio(channels_input, num_samples)
+
+        # Convert back to numpy array format
+        if len(processed_channels) > 0 and len(processed_channels[0]) == num_samples:
+            # Extract the first channel (the processed one)
+            processed = processed_channels[0]
+            # Convert list of tuples to numpy array
+            left_channel = np.array([sample[0] for sample in processed], dtype=np.float32)
+            right_channel = np.array([sample[1] for sample in processed], dtype=np.float32)
+            result = np.column_stack((left_channel, right_channel))
+            return result
+        else:
+            # Return input unchanged if processing failed
+            return input_samples
+
     def _process_effect_routing(self, left_in: float, right_in: float,
                                state: Dict[str, Any]) -> Tuple[float, float]:
         """
@@ -3157,6 +3190,47 @@ class XGAudioProcessor:
 
         output = input_sample * gate_state["gain"]
         return (output, output)
+
+    def _process_step_rotary_speaker_effect(self, left: float, right: float,
+                                         params: Dict[str, float],
+                                         state: Dict[str, Any]) -> Tuple[float, float]:
+        """Process Step Rotary Speaker effect"""
+        speed = params.get("parameter1", 0.5) * 5.0
+        balance = params.get("parameter2", 0.5)
+        steps = int(params.get("parameter3", 0.5) * 8) + 1
+        level = params.get("parameter4", 0.5)
+
+        if "step_rotary_speaker" not in state:
+            state["step_rotary_speaker"] = {
+                "horn_phase": 0.0,
+                "drum_phase": 0.0,
+                "horn_speed": 0.0,
+                "drum_speed": 0.0,
+                "step": 0
+            }
+
+        step = state["step_rotary_speaker"]["step"]
+        step = (step + 1) % steps
+        state["step_rotary_speaker"]["step"] = step
+
+        target_speed = speed * (step + 1) / steps
+        state["step_rotary_speaker"]["horn_speed"] += (target_speed - state["step_rotary_speaker"]["horn_speed"]) * 0.1
+        state["step_rotary_speaker"]["drum_speed"] += (target_speed * 0.5 - state["step_rotary_speaker"]["drum_speed"]) * 0.1
+
+        state["step_rotary_speaker"]["horn_phase"] += 2 * math.pi * state["step_rotary_speaker"]["horn_speed"] / self.sample_rate
+        state["step_rotary_speaker"]["drum_phase"] += 2 * math.pi * state["step_rotary_speaker"]["drum_speed"] / self.sample_rate
+
+        horn_pos = math.sin(state["step_rotary_speaker"]["horn_phase"]) * 0.5 + 0.5
+        drum_pos = math.sin(state["step_rotary_speaker"]["drum_phase"] * 2) * 0.5 + 0.5
+
+        input_sample = (left + right) / 2.0
+        left_out = input_sample * (1 - horn_pos) * (1 - drum_pos) + input_sample * horn_pos * drum_pos
+        right_out = input_sample * horn_pos * (1 - drum_pos) + input_sample * (1 - horn_pos) * drum_pos
+
+        left_out = left_out * (1 - balance) * level
+        right_out = right_out * balance * level
+
+        return (left_out, right_out)
 
     def _process_step_expander_effect(self, left: float, right: float,
                                      params: Dict[str, float],

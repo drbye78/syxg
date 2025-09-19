@@ -234,7 +234,8 @@ class ChannelNote:
                 partial_id=i,
                 partial_params=partial_params,
                 is_drum=self.is_drum,
-                sample_rate=self.sample_rate
+                sample_rate=self.sample_rate,
+                bank=self.bank
             )
             self.partials.append(partial)
 

@@ -16,7 +16,7 @@ class PartialGenerator:
     Каждый PartialGenerator отвечает за одну частичную структуру в общем тоне.
     """
     def __init__(self, wavetable, note, velocity, program, partial_id,
-                 partial_params, is_drum=False, sample_rate=44100):
+                 partial_params, is_drum=False, sample_rate=44100, bank=0):
         """
         Инициализация частичного генератора.
 
@@ -33,6 +33,7 @@ class PartialGenerator:
         self.wavetable = wavetable  # Теперь сохраняем ссылку на wavetable
         self.partial_id = partial_id
         self.note = note
+        self.bank = bank
         self.velocity = velocity
         self.program = program
         self.is_drum = is_drum
@@ -161,7 +162,7 @@ class PartialGenerator:
             return
 
         # Получение сэмпла из wavetable для этой частичной структуры
-        table = self.wavetable.get_partial_table(self.note, self.program, self.partial_id, self.velocity)
+        table = self.wavetable.get_partial_table(self.note, self.program, self.partial_id, self.velocity, self.bank)
         if table is None or len(table) == 0:
             self.active = False
             return
@@ -266,7 +267,7 @@ class PartialGenerator:
             is_stereo = False
         else:
             # Обновление phase_step для текущего сэмпла
-            table = self.wavetable.get_partial_table(self.note, self.program, self.partial_id, self.velocity)
+            table = self.wavetable.get_partial_table(self.note, self.program, self.partial_id, self.velocity, self.bank)
             if not table or len(table) == 0:
                 # self.active = False
                 return (0.0, 0.0)

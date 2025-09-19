@@ -20,7 +20,7 @@ from ..midi.message_handler import MIDIMessageHandler
 from ..midi.buffered_processor import BufferedProcessor
 from ..audio.vectorized_engine import VectorizedAudioEngine
 from ..xg.channel_renderer import XGChannelRenderer
-from ..effects.core import XGEffectManager
+from ..effects.vectorized_core import VectorizedEffectManager
 
 
 class OptimizedXGSynthesizer:
@@ -82,7 +82,7 @@ class OptimizedXGSynthesizer:
             self.channel_renderers.append(renderer)
         
         # Effects
-        self.effect_manager = XGEffectManager(sample_rate)
+        self.effect_manager = VectorizedEffectManager(sample_rate)
         
         # MIDI message handling
         self.message_handler = MIDIMessageHandler(self.state_manager, self.drum_manager, self.effect_manager)

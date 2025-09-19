@@ -183,15 +183,10 @@ class SoundFontManager:
         if self.structure_cache.is_instrument_parsed(self.path, index):
             return self.structure_cache.get_instrument(self.path, index)
 
-        # Parse instruments if not done
-        if self.instrument_parser and not self.instruments_parsed:
-            self.instruments = self.instrument_parser.parse_instrument_zones(self.instruments)
-            self.instruments_parsed = True
-
-        # Cache and return
-        if index < len(self.instruments):
-            self.structure_cache.put_instrument(self.path, index, self.instruments[index])
-            return self.instruments[index]
+        inst = self.instrument_parser.parse_instrument_zones(index) # type: ignore
+        if inst:
+            self.structure_cache.put_instrument(self.path, index, inst)
+            return inst
 
         return None
 

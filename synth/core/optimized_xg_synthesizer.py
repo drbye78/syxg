@@ -35,7 +35,7 @@ from ..midi.message_handler import MIDIMessageHandler
 from ..midi.optimized_buffered_processor import OptimizedBufferedProcessor
 from ..audio.vectorized_engine import VectorizedAudioEngine
 from ..xg.channel_renderer import XGChannelRenderer
-from ..effects.core import XGEffectManager
+from ..effects.vectorized_core import VectorizedEffectManager
 
 
 class OptimizedXGSynthesizer:
@@ -99,7 +99,7 @@ class OptimizedXGSynthesizer:
             self.channel_renderers.append(renderer)
         
         # Effects
-        self.effect_manager = XGEffectManager(sample_rate)
+        self.effect_manager = VectorizedEffectManager(sample_rate)
         
         # MIDI message handling
         self.message_handler = MIDIMessageHandler(self.state_manager, self.drum_manager, self.effect_manager)
@@ -355,48 +355,107 @@ class OptimizedXGSynthesizer:
             for msg_time, data in sysex_messages:
                 self.send_sysex(data)
             
-            # OPTIMIZATION: Generate entire audio block at once rather than per-sample
-            # Create buffers for the entire block
-            left_buffer = np.zeros(block_size, dtype=np.float32)
-            right_buffer = np.zeros(block_size, dtype=np.float32)
-            
-            # Generate audio for the entire block efficiently
-            # Use vectorized operations where possible
-            left_block, right_block = self._generate_audio_block_vectorized_optimized(block_size)
-            
-            # Copy block data to output buffers
-            left_buffer[:len(left_block)] = left_block
-            right_buffer[:len(right_block)] = right_block
+            # CORRECT XG EFFECTS ARCHITECTURE - Audio Quality Priority
+            # Step 1: Generate per-channel audio (for insertion effects processing)
+
+            # Generate per-channel audio buffers before mixing
+            # This allows insertion effects to be applied to individual channels
+            channel_audio_samples = self._generate_channel_audio_vectorized(block_size)
+
+            # Step 2: Process effects correctly through VectorizedEffectManager
+            # This handles insertion effects per channel + system effects on final mix
+            processed_channels = self.effect_manager.process_audio(
+                channel_audio_samples, block_size
+            )
+
+            # Extract the processed stereo output from the first processed channel
+            # (VectorizedEffectManager returns processed output for all 16 channels)
+            if processed_channels and len(processed_channels[0]) >= block_size:
+                left_result = np.array([processed_channels[0][i][0] for i in range(block_size)], dtype=np.float32)
+                right_result = np.array([processed_channels[0][i][1] for i in range(block_size)], dtype=np.float32)
+            else:
+                # Fallback if effects processing fails
+                print("XG Effects: Fallback to simplified processing")
+                left_buffer = np.zeros(block_size, dtype=np.float32)
+                right_buffer = np.zeros(block_size, dtype=np.float32)
+                left_result, right_result = left_buffer, right_buffer
 
             # Update current time in buffered processor
             self.buffered_processor.current_time = block_end_time
 
-            # OPTIMIZATION: Streamlined effects processing
-            # Apply effects on the final mixed stereo output rather than per-channel
-            try:
-                # Process effects efficiently on the mixed stereo output
-                # This eliminates the unnecessary duplication of audio data for all 16 channels
-                left_effected, right_effected = self.effect_manager.process_stereo_audio_vectorized(
-                    np.column_stack((left_buffer, right_buffer))
-                )
-                
-                # Separate the stereo channels
-                left_result = left_effected[:, 0]
-                right_result = left_effected[:, 1]
+            # Apply final limiting with vectorized operations
+            np.clip(left_result, -1.0, 1.0, out=left_result)
+            np.clip(right_result, -1.0, 1.0, out=right_result)
 
-                # Apply final limiting with vectorized operations
-                np.clip(left_result, -1.0, 1.0, out=left_result)
-                np.clip(right_result, -1.0, 1.0, out=right_result)
+            return left_result, right_result
 
-                return left_result, right_result
+    def _generate_channel_audio_vectorized(self, block_size: int) -> List[List[Tuple[float, float]]]:
+        """
+        CORRECT XG INSERTION EFFECTS IMPLEMENTATION - Audio Quality Priority
 
-            except Exception as e:
-                # print(f"Error processing effects: {e}")
-                # If effects don't work, return unprocessed mix
-                # Apply final limiting
-                np.clip(left_buffer, -1.0, 1.0, out=left_buffer)
-                np.clip(right_buffer, -1.0, 1.0, out=right_buffer)
-                return left_buffer, right_buffer
+        Generate audio for each individual MIDI channel separately.
+        This is required for proper XG insertion effects processing where
+        each channel needs to have insertion effects applied individually
+        before mixing channels together.
+
+        Args:
+            block_size: Block size in samples
+
+        Returns:
+            List of channels, each containing list of (left, right) stereo tuples
+        """
+        # Prepare containers for all 16 MIDI channels
+        channel_audio_list = []
+
+        # Process each MIDI channel individually for insertion effects
+        for channel_idx in range(DEFAULT_CONFIG["NUM_MIDI_CHANNELS"]):
+            channel_renderer = self.channel_renderers[channel_idx]
+
+            if channel_renderer.is_active():
+                try:
+                    # Generate audio block for this specific channel
+                    renderer_left, renderer_right = channel_renderer.generate_sample_block_vectorized(block_size)
+
+                    # Apply channel-specific volume, expression, and pan
+                    ch_params = self.state_manager.get_channel_state(channel_idx)
+                    volume = ch_params["volume"]
+                    expression = ch_params["expression"]
+                    channel_volume = volume * expression
+                    pan = ch_params["pan"]
+
+                    # Apply volume and pan
+                    master_volume_factor = np.float32(self.master_volume * channel_volume)
+                    np.multiply(renderer_left, master_volume_factor, out=renderer_left)
+                    np.multiply(renderer_right, master_volume_factor, out=renderer_right)
+
+                    # Apply pan (stereo width adjustment)
+                    left_level = channel_volume * (1.0 - pan) * self.master_volume
+                    right_level = channel_volume * pan * self.master_volume
+
+                    np.multiply(renderer_left, left_level, out=renderer_left)
+                    np.multiply(renderer_right, right_level, out=renderer_right)
+
+                    # Apply clipping
+                    np.clip(renderer_left, -1.0, 1.0, out=renderer_left)
+                    np.clip(renderer_right, -1.0, 1.0, out=renderer_right)
+
+                    # Convert to list of tuples format expected by XGAudioProcessor
+                    channel_samples = [
+                        (float(renderer_left[i]), float(renderer_right[i]))
+                        for i in range(block_size)
+                    ]
+
+                except Exception as e:
+                    print(f"Error generating channel {channel_idx}: {e}")
+                    # Silent channel on error
+                    channel_samples = [(0.0, 0.0)] * block_size
+            else:
+                # Inactive channel - silence
+                channel_samples = [(0.0, 0.0)] * block_size
+
+            channel_audio_list.append(channel_samples)
+
+        return channel_audio_list
 
     def _generate_audio_block_vectorized_optimized(self, block_size: int) -> Tuple[np.ndarray, np.ndarray]:
         """

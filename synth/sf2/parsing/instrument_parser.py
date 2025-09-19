@@ -24,6 +24,11 @@ class InstrumentParser:
         """
         self.file = file
         self.chunk_info = chunk_info
+        self._bags = None
+        self._gens = None
+        self._mods = None
+        self._all = None
+        self._names = None
 
     def parse_instrument_headers(self) -> Tuple[List[SF2Instrument], List[str]]:
         """
@@ -32,39 +37,40 @@ class InstrumentParser:
         Returns:
             Tuple of (instruments list, instrument names list)
         """
-        instruments = []
-        instrument_names = []
+        if self._all is None or self._names is None:
+            instruments = []
+            instrument_names = []
 
-        if 'inst' not in self.chunk_info:
-            return instruments, instrument_names
+            if 'inst' in self.chunk_info:
+                pos, size = self.chunk_info['inst']
+                self.file.seek(pos)
 
-        pos, size = self.chunk_info['inst']
-        self.file.seek(pos)
+                # Each instrument header is 22 bytes
+                num_instruments = size // 22
 
-        # Each instrument header is 22 bytes
-        num_instruments = size // 22
+                for i in range(num_instruments - 1):  # Exclude terminal instrument
+                    # Read instrument header data
+                    header_data = self.file.read(22)
+                    if len(header_data) < 22:
+                        break
 
-        for i in range(num_instruments - 1):  # Exclude terminal instrument
-            # Read instrument header data
-            header_data = self.file.read(22)
-            if len(header_data) < 22:
-                break
+                    # Parse instrument header
+                    name = header_data[:20].split(b'\x00')[0].decode('ascii', 'ignore')
+                    inst_bag_ndx = struct.unpack('<H', header_data[20:22])[0]
 
-            # Parse instrument header
-            name = header_data[:20].split(b'\x00')[0].decode('ascii', 'ignore')
-            inst_bag_ndx = struct.unpack('<H', header_data[20:22])[0]
+                    # Create instrument object
+                    instrument = SF2Instrument()
+                    instrument.name = name
+                    instrument.instrument_bag_index = inst_bag_ndx
 
-            # Create instrument object
-            instrument = SF2Instrument()
-            instrument.name = name
-            instrument.instrument_bag_index = inst_bag_ndx
+                    instruments.append(instrument)
+                    instrument_names.append(name)
+            self._all = instruments
+            self._names = instrument_names
 
-            instruments.append(instrument)
-            instrument_names.append(name)
+        return self._all, self._names
 
-        return instruments, instrument_names
-
-    def parse_instrument_zones(self, instruments: List[SF2Instrument]) -> List[SF2Instrument]:
+    def parse_instrument_zones(self, instrument_index: int) -> SF2Instrument:
         """
         Parse instrument zones and associate them with instruments.
 
@@ -74,44 +80,44 @@ class InstrumentParser:
         Returns:
             Updated list of instruments with zones
         """
-        if 'ibag' not in self.chunk_info or 'igen' not in self.chunk_info or 'imod' not in self.chunk_info:
-            return instruments
+        if not self._all:
+            self.parse_instrument_headers()
 
         # Parse bag data
-        bag_data = self._parse_bag_data('ibag')
+        self._bags = self._parse_bag_data('ibag')
 
         # Parse generator data
-        gen_data = self._parse_generator_data('igen')
+        self._gens = self._parse_generator_data('igen')
 
         # Parse modulator data
-        mod_data = self._parse_modulator_data('imod')
+        self._mods = self._parse_modulator_data('imod')
 
-        # Associate zones with instruments
-        for i, instrument in enumerate(instruments):
-            start_bag = instrument.instrument_bag_index
-            end_bag = instruments[i + 1].instrument_bag_index if i < len(instruments) - 1 else len(bag_data)
+        # Associate zones with instrument
+        instrument = self._all[instrument_index] # type: ignore
+        start_bag = instrument.instrument_bag_index
+        end_bag = self._all[instrument_index + 1].instrument_bag_index if instrument_index < len(self._all) - 1 else len(self._bags) # type: ignore
 
-            # Create zones for this instrument
-            for bag_idx in range(start_bag, end_bag):
-                if bag_idx >= len(bag_data):
-                    break
+        # Create zones for this instrument
+        for bag_idx in range(start_bag, end_bag):
+            if bag_idx >= len(self._bags):
+                break
 
-                gen_ndx, mod_ndx = bag_data[bag_idx]
+            gen_ndx, mod_ndx = self._bags[bag_idx]
 
-                # Create instrument zone
-                zone = SF2InstrumentZone()
-                zone.gen_ndx = gen_ndx
-                zone.mod_ndx = mod_ndx
+            # Create instrument zone
+            zone = SF2InstrumentZone()
+            zone.gen_ndx = gen_ndx
+            zone.mod_ndx = mod_ndx
 
-                # Parse generators for this zone
-                self._parse_zone_generators(zone, gen_data, gen_ndx)
+            # Parse generators for this zone
+            self._parse_zone_generators(zone, self._gens, gen_ndx)
 
-                # Parse modulators for this zone
-                self._parse_zone_modulators(zone, mod_data, mod_ndx)
+            # Parse modulators for this zone
+            self._parse_zone_modulators(zone, self._mods, mod_ndx)
 
-                instrument.zones.append(zone)
+            instrument.zones.append(zone)
 
-        return instruments
+        return instrument
 
     def _parse_bag_data(self, chunk_name: str) -> List[Tuple[int, int]]:
         """

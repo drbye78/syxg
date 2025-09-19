@@ -50,6 +50,7 @@ class WavetableManager:
         self.parameter_converter = ParameterConverter()
         self.envelope_converter = EnvelopeConverter()
         self.modulation_converter = ModulationConverter()
+        self.partial_map = {}
 
         # Initialize SoundFont files
         self._initialize_soundfonts()
@@ -389,57 +390,60 @@ class WavetableManager:
         Returns:
             Sample data or None if not found
         """
-        # Find the preset and its SoundFont by bank and program
-        soundfont_obj = None
-        preset_obj = None
+        cache_key = f'{bank}-{program}-{note}-{velocity}-{partial_id}'
+        header, soundfont_obj, valid = self.partial_map.get(cache_key, (None, None, False))
+        if not valid:
+            # Find the preset and its SoundFont by bank and program
+            preset_obj = None
 
-        # Search for preset in all SoundFont files
-        for soundfont in self.soundfonts:
-            preset = soundfont.get_preset(program, bank)
-            if preset is not None:
-                soundfont_obj = soundfont
-                preset_obj = preset
-                break
+            # Search for preset in all SoundFont files
+            for soundfont in self.soundfonts:
+                preset = soundfont.get_preset(program, bank)
+                if preset is not None:
+                    soundfont_obj = soundfont
+                    preset_obj = preset
+                    break
 
-        # If preset not found, return None
-        if not soundfont_obj or not preset_obj:
-            return None
+            # If preset not found, return None
+            if not soundfont_obj or not preset_obj:
+                self.partial_map[cache_key] = (None, None, True)
+                return None
 
-        # Get instruments from the corresponding SoundFont
-        instruments = soundfont_obj.instruments
+            # Get instruments from the corresponding SoundFont
+            instruments = soundfont_obj.instruments
 
-        # Find matching zones
-        matching_merged_zones = []
-        for preset_zone in preset_obj.zones:
-            # Check note and velocity ranges
-            if (preset_zone.lokey <= note <= preset_zone.hikey and
-                preset_zone.lovel <= velocity <= preset_zone.hivel):
+            # Find matching zones
+            matching_merged_zones = []
+            for preset_zone in preset_obj.zones:
+                # Check note and velocity ranges
+                if (preset_zone.lokey <= note <= preset_zone.hikey and
+                    preset_zone.lovel <= velocity <= preset_zone.hivel):
 
-                if preset_zone.instrument_index < len(instruments):
-                    instrument = soundfont_obj.get_instrument(preset_zone.instrument_index)
-                    if instrument is not None:
-                        # Check instrument zones
-                        for instrument_zone in instrument.zones:
-                            if (instrument_zone.lokey <= note <= instrument_zone.hikey and
-                                instrument_zone.lovel <= velocity <= instrument_zone.hivel):
-                                # Merge parameters
-                                merged_zone = self._merge_preset_and_instrument_params(preset_zone, instrument_zone)
-                                matching_merged_zones.append(merged_zone)
+                    if preset_zone.instrument_index < len(instruments):
+                        instrument = soundfont_obj.get_instrument(preset_zone.instrument_index)
+                        if instrument is not None:
+                            # Check instrument zones
+                            for instrument_zone in instrument.zones:
+                                if (instrument_zone.lokey <= note <= instrument_zone.hikey and
+                                    instrument_zone.lovel <= velocity <= instrument_zone.hivel):
+                                    # Merge parameters
+                                    merged_zone = self._merge_preset_and_instrument_params(preset_zone, instrument_zone)
+                                    matching_merged_zones.append(merged_zone)
 
-        # Check if requested partial exists
-        if partial_id >= len(matching_merged_zones):
-            return None
+            # Check if requested partial exists
+            if partial_id < len(matching_merged_zones):
+                # Get the requested zone
+                zone = matching_merged_zones[partial_id]
 
-        # Get the requested zone
-        zone = matching_merged_zones[partial_id]
+                # Get sample header
+                header = soundfont_obj.get_sample_header(zone.sample_index)
 
-        # Get sample header
-        sample_header = soundfont_obj.get_sample_header(zone.sample_index)
-        if sample_header is None:
+        self.partial_map[cache_key] = (header, soundfont_obj, True)
+        if header is None:
             return None
 
         # Read sample data
-        return soundfont_obj.read_sample_data(sample_header)
+        return soundfont_obj.read_sample_data(header)
 
     def clear_cache(self):
         """Clear all sample caches."""
