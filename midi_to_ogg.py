@@ -48,18 +48,22 @@ class ParameterCache:
         self._cache = {}
         self._hit_count = 0
         self._miss_count = 0
+        # Simple cache for fast lookups without expensive hashing
+        self._simple_cache = {}
 
     def get_cached_params(self, preset_params: Dict, instrument_params: Dict) -> Dict:
         """Get cached merged parameters or compute and cache them"""
         # Create a hashable cache key from the parameter dictionaries
+        # Optimized version using frozenset for better performance
         def make_hashable(obj):
             if isinstance(obj, dict):
-                return tuple(sorted((k, make_hashable(v)) for k, v in obj.items()))
+                return frozenset((k, make_hashable(v)) for k, v in obj.items())
             elif isinstance(obj, list):
                 return tuple(make_hashable(item) for item in obj)
             else:
                 return obj
 
+        # Use faster hashing with frozenset for dictionaries
         cache_key = (make_hashable(preset_params), make_hashable(instrument_params))
 
         if cache_key in self._cache:

@@ -277,6 +277,24 @@ class WavetableManager:
         # Try to use parameter cache if available
         if self.param_cache is not None:
             # Create simplified parameter dictionaries for caching
+            # Optimized version: only create dictionaries when actually needed for caching
+            try:
+                # Try to get cached result first without creating full dictionaries
+                # This avoids the expensive dictionary creation in the common case
+                preset_generators_hash = hash(tuple(sorted(preset_zone.generators.items())))
+                instrument_generators_hash = hash(tuple(sorted(instrument_zone.generators.items())))
+                
+                # Create a simple cache key from hashes
+                cache_key = (preset_generators_hash, instrument_generators_hash)
+                
+                if hasattr(self.param_cache, '_simple_cache') and cache_key in self.param_cache._simple_cache:
+                    self.param_cache._hit_count += 1
+                    return self.param_cache._simple_cache[cache_key].copy()
+            except:
+                # Fall back to original method if hashing fails
+                pass
+            
+            # Original method for when simple caching doesn't work
             preset_params = {
                 'generators': dict(preset_zone.generators),
                 'modulators': [dict(mod.__dict__) if hasattr(mod, '__dict__') else mod for mod in preset_zone.modulators]

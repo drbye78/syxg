@@ -64,6 +64,24 @@ class VectorizedADSREnvelope:
         self.soft_pedals = np.zeros(1, dtype=bool)
         self.hold_notes_flags = np.zeros(1, dtype=bool)
         
+        # For backward compatibility with single-envelope interface
+        self._single_state = "idle"
+        
+    @property
+    def state(self):
+        """Get the state of the first envelope for backward compatibility"""
+        if len(self.states) > 0:
+            return self.states[0]
+        return self._single_state
+
+    @state.setter
+    def state(self, value):
+        """Set the state of the first envelope for backward compatibility"""
+        if len(self.states) > 0:
+            self.states[0] = value
+        else:
+            self._single_state = value
+        
     def _recalculate_increments(self):
         """Пересчет инкрементов для текущих параметров"""
         # Attack - логарифмический рост
@@ -154,6 +172,14 @@ class VectorizedADSREnvelope:
             sustain_mask = (self.states == "sustain")
             self.levels[sustain_mask] = self.sustain
     
+    def note_on(self, velocity, note=60, soft_pedal=False):
+        """Handle Note On event with compatibility interface."""
+        # For single envelope, create arrays and call vectorized version
+        velocities = np.array([velocity], dtype=np.float32)
+        notes = np.array([note], dtype=np.float32)
+        soft_pedals = np.array([soft_pedal], dtype=bool)
+        self.note_on_vectorized(velocities, notes, soft_pedals)
+
     def note_on_vectorized(self, velocities: np.ndarray, notes: np.ndarray = None, 
                           soft_pedals: np.ndarray = None):
         """
@@ -212,6 +238,15 @@ class VectorizedADSREnvelope:
         # Переход в состояние release
         self.states[should_release] = "release"
     
+    def process(self):
+        """Process one sample of envelope generation with compatibility interface."""
+        # For single envelope, process block of size 1 and return first element
+        if len(self.states) == 0:
+            return 0.0
+        # Process one sample and return the level
+        self.process_block_vectorized(1)
+        return self.levels[0]
+
     def process_block_vectorized(self, block_size: int) -> np.ndarray:
         """
         Обработка блока огибающих в векторизованном виде

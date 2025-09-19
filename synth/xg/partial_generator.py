@@ -5,7 +5,7 @@ Handles individual partial structures within a tone.
 
 import math
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
-from ..core.envelope import ADSREnvelope
+from ..core.vectorized_envelope import VectorizedADSREnvelope
 from ..core.filter import ResonantFilter
 from ..core.panner import StereoPanner
 
@@ -81,7 +81,7 @@ class PartialGenerator:
         self._update_phase_step()
 
         # Инициализация огибающих
-        self.amp_envelope = ADSREnvelope(
+        self.amp_envelope = VectorizedADSREnvelope(
             delay=partial_params["amp_envelope"]["delay"],
             attack=partial_params["amp_envelope"]["attack"],
             hold=partial_params["amp_envelope"]["hold"],
@@ -95,7 +95,7 @@ class PartialGenerator:
 
         # Для барабанов фильтровая огибающая может быть отключена
         if not is_drum or partial_params.get("use_filter_env", True):
-            self.filter_envelope = ADSREnvelope(
+            self.filter_envelope = VectorizedADSREnvelope(
                 delay=partial_params["filter_envelope"]["delay"],
                 attack=partial_params["filter_envelope"]["attack"],
                 hold=partial_params["filter_envelope"]["hold"],
@@ -110,7 +110,7 @@ class PartialGenerator:
 
         # Для барабанов pitch огибающая может быть отключена
         if not is_drum or partial_params.get("use_pitch_env", True):
-            self.pitch_envelope = ADSREnvelope(
+            self.pitch_envelope = VectorizedADSREnvelope(
                 delay=partial_params["pitch_envelope"]["delay"],
                 attack=partial_params["pitch_envelope"]["attack"],
                 hold=partial_params["pitch_envelope"]["hold"],

@@ -239,6 +239,31 @@ class VectorizedAudioEngine:
             else:
                 return self._mix_channels_without_effects(block_size)
 
+    def generate_audio_block(self, channel_renderers: List, effect_manager,
+                           block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        VECTORIZED AUDIO BLOCK GENERATION - PHASE 2 PERFORMANCE
+        
+        Generate audio block from all active channel renderers with vectorized NumPy operations.
+        This is the standard interface method for compatibility with other AudioEngine implementations.
+        
+        Performance optimizations:
+        1. NUMPY-BASED OPERATIONS - Replaces Python loops with vectorized NumPy operations
+        2. BATCH PROCESSING - Processes multiple samples simultaneously rather than individually
+        3. ZERO-CLEARING OPTIMIZATION - Clears buffers efficiently using vectorized operations
+        4. PRE-ALLOCATED BUFFERS - Eliminates allocation overhead for audio buffers
+        5. ZERO-COPY BUFFER PASSING - Eliminates unnecessary buffer copying
+        
+        Args:
+            channel_renderers: List of channel renderer objects
+            effect_manager: Effect manager for processing
+            block_size: Block size in samples (optional)
+            
+        Returns:
+            Tuple of (left_channel, right_channel) audio buffers
+        """
+        return self.generate_audio_block_vectorized(channel_renderers, effect_manager, block_size)
+
     def _generate_channel_audio_vectorized(self, active_renderers: List, 
                                          block_size: int) -> Tuple[np.ndarray, np.ndarray]:
         """

@@ -372,10 +372,10 @@ class OptimizedMemoryManager:
                 # Create new envelope object
                 try:
                     # Import envelope class locally to avoid circular imports
-                    from ..core.envelope import ADSREnvelope
+                    from ..core.vectorized_envelope import VectorizedADSREnvelope
                     
                     # Create new envelope with optimized initialization
-                    envelope = ADSREnvelope()
+                    envelope = VectorizedADSREnvelope()
                     
                     return envelope
                 except Exception as e:

@@ -18,7 +18,7 @@ from ..xg.manager import StateManager
 from ..xg.drum_manager import DrumManager
 from ..midi.message_handler import MIDIMessageHandler
 from ..midi.buffered_processor import BufferedProcessor
-from ..audio.engine import AudioEngine
+from ..audio.vectorized_engine import VectorizedAudioEngine
 from ..xg.channel_renderer import XGChannelRenderer
 from ..effects.core import XGEffectManager
 
@@ -73,7 +73,7 @@ class OptimizedXGSynthesizer:
         self.buffered_processor = BufferedProcessor(sample_rate)
         
         # Audio engine
-        self.audio_engine = AudioEngine(sample_rate, block_size, DEFAULT_CONFIG["NUM_MIDI_CHANNELS"])
+        self.audio_engine = VectorizedAudioEngine(sample_rate, block_size, DEFAULT_CONFIG["NUM_MIDI_CHANNELS"])
         
         # Per-channel renderers (one per MIDI channel)
         self.channel_renderers: List[XGChannelRenderer] = []

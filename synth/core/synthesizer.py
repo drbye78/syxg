@@ -19,7 +19,7 @@ from ..xg.manager import StateManager
 from ..xg.drum_manager import DrumManager
 from ..midi.message_handler import MIDIMessageHandler
 from ..midi.buffered_processor import BufferedProcessor
-from ..audio.engine import AudioEngine
+from ..audio.vectorized_engine import VectorizedAudioEngine
 from ..xg.channel_renderer import XGChannelRenderer
 from ..effects.core import XGEffectManager
 
@@ -71,20 +71,20 @@ class XGSynthesizer:
         # Thread safety lock
         self.lock = threading.RLock()
 
-        # SF2 file management
-        self.sf2_manager = SF2Manager(param_cache=param_cache, drum_manager=self.drum_manager)
-
         # State management
         self.state_manager = StateManager()
 
         # Drum management
         self.drum_manager = DrumManager()
 
+        # SF2 file management
+        self.sf2_manager = SF2Manager(param_cache=param_cache, drum_manager=self.drum_manager)
+
         # Buffered message processing
         self.buffered_processor = BufferedProcessor(sample_rate)
 
         # Audio engine
-        self.audio_engine = AudioEngine(sample_rate, block_size, DEFAULT_CONFIG["NUM_MIDI_CHANNELS"])
+        self.audio_engine = VectorizedAudioEngine(sample_rate, block_size, DEFAULT_CONFIG["NUM_MIDI_CHANNELS"])
 
         # Per-channel renderers (one per MIDI channel)
         self.channel_renderers: List[XGChannelRenderer] = []

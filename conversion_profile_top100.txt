@@ -1,0 +1,108 @@
+         181553967 function calls (161947951 primitive calls) in 91.997 seconds
+
+   Ordered by: cumulative time
+   List reduced from 329 to 100 due to restriction <100>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000   91.997   91.997 /mnt/c/Work/guga/syxg/midi_to_ogg.py:368(convert_midi_to_ogg)
+        1    0.002    0.002   91.716   91.716 /mnt/c/Work/guga/syxg/midi_to_ogg.py:575(_process_midi_to_ogg)
+      104    0.000    0.000   91.695    0.882 /mnt/c/Work/guga/syxg/midi_to_ogg.py:499(_process_audio_blocks)
+      103    0.004    0.000   91.457    0.888 /mnt/c/Work/guga/syxg/synth/core/optimized_xg_synthesizer.py:289(generate_audio_block_sample_accurate)
+      103    0.001    0.000   64.515    0.626 /mnt/c/Work/guga/syxg/synth/core/optimized_xg_synthesizer.py:401(_generate_audio_block_vectorized_optimized)
+       51    0.002    0.000   64.509    1.265 /mnt/c/Work/guga/syxg/synth/xg/vectorized_channel_renderer.py:396(generate_sample_block_vectorized)
+       51    0.227    0.004   64.494    1.265 /mnt/c/Work/guga/syxg/synth/xg/vectorized_channel_renderer.py:501(_process_notes_vectorized_batch)
+    87360    1.545    0.000   64.267    0.001 /mnt/c/Work/guga/syxg/synth/xg/channel_note.py:341(generate_sample)
+   165199    3.397    0.000   52.198    0.000 /mnt/c/Work/guga/syxg/synth/xg/partial_generator.py:200(generate_sample)
+   876412    1.787    0.000   29.738    0.000 /mnt/c/Work/guga/syxg/synth/core/vectorized_envelope.py:330(process)
+   316226    0.358    0.000   27.150    0.000 /mnt/c/Work/guga/syxg/synth/sf2/core/soundfont_manager.py:169(get_instrument)
+       32    0.000    0.000   26.902    0.841 /mnt/c/Work/guga/syxg/synth/core/optimized_xg_synthesizer.py:230(send_midi_message)
+       17    0.000    0.000   26.901    1.582 /mnt/c/Work/guga/syxg/synth/xg/vectorized_channel_renderer.py:179(note_on)
+       17    0.000    0.000   26.901    1.582 /mnt/c/Work/guga/syxg/synth/xg/channel_note.py:16(__init__)
+       17    0.000    0.000   26.880    1.581 /mnt/c/Work/guga/syxg/synth/xg/channel_note.py:73(_get_parameters)
+        3    0.000    0.000   26.877    8.959 /mnt/c/Work/guga/syxg/synth/sf2/core/wavetable_manager.py:160(get_drum_parameters)
+   876412    9.830    0.000   26.556    0.000 /mnt/c/Work/guga/syxg/synth/core/vectorized_envelope.py:250(process_block_vectorized)
+        1    0.029    0.029   26.194   26.194 /mnt/c/Work/guga/syxg/synth/sf2/parsing/instrument_parser.py:67(parse_instrument_zones)
+   158096    1.498    0.000   23.375    0.000 /mnt/c/Work/guga/syxg/synth/sf2/core/wavetable_manager.py:359(get_partial_table)
+     5546   19.806    0.004   22.365    0.004 /mnt/c/Work/guga/syxg/synth/sf2/parsing/instrument_parser.py:228(_parse_zone_generators)
+   316226    1.588    0.000   15.367    0.000 /mnt/c/Work/guga/syxg/synth/sf2/core/wavetable_manager.py:265(_merge_preset_and_instrument_params)
+  4382060    2.447    0.000   15.132    0.000 /home/roger/python/lib/python3.11/site-packages/numpy/_core/fromnumeric.py:2477(any)
+  4382060    4.542    0.000   12.686    0.000 /home/roger/python/lib/python3.11/site-packages/numpy/_core/fromnumeric.py:89(_wrapreduction_any_all)
+   316226    0.949    0.000   12.239    0.000 /mnt/c/Work/guga/syxg/midi_to_ogg.py:52(get_cached_params)
+10751684/632452    4.481    0.000   11.238    0.000 /mnt/c/Work/guga/syxg/midi_to_ogg.py:55(make_hashable)
+1264904/632452    2.000    0.000   10.480    0.000 {built-in method builtins.sorted}
+10751684/1897356    2.971    0.000    9.992    0.000 /mnt/c/Work/guga/syxg/midi_to_ogg.py:57(<genexpr>)
+  4382060    6.162    0.000    6.162    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+   158113    4.439    0.000    5.574    0.000 /mnt/c/Work/guga/syxg/synth/sf2/core/soundfont_manager.py:118(get_preset)
+     5546    2.748    0.000    3.698    0.001 /mnt/c/Work/guga/syxg/synth/sf2/parsing/instrument_parser.py:262(_parse_zone_modulators)
+ 72438481    3.471    0.000    3.471    0.000 {built-in method builtins.len}
+  6134884    1.891    0.000    1.891    0.000 {method 'copy' of 'numpy.ndarray' objects}
+  4382060    1.600    0.000    1.600    0.000 /home/roger/python/lib/python3.11/site-packages/numpy/_core/fromnumeric.py:91(<dictcomp>)
+ 20746017    1.390    0.000    1.429    0.000 {built-in method builtins.isinstance}
+   158062    0.327    0.000    1.406    0.000 /mnt/c/Work/guga/syxg/synth/core/filter.py:87(set_parameters)
+   316260    0.856    0.000    1.079    0.000 /mnt/c/Work/guga/syxg/synth/core/filter.py:43(_calculate_coefficients)
+   743418    0.833    0.000    1.064    0.000 /mnt/c/Work/guga/syxg/synth/core/oscillator.py:181(step)
+   321772    1.032    0.000    1.032    0.000 /mnt/c/Work/guga/syxg/synth/sf2/types/dataclasses.py:74(__init__)
+   505330    0.344    0.000    0.866    0.000 /mnt/c/Work/guga/syxg/synth/xg/partial_generator.py:186(is_active)
+    82607    0.508    0.000    0.849    0.000 /mnt/c/Work/guga/syxg/synth/modulation/matrix.py:41(process)
+        1    0.005    0.005    0.681    0.681 /mnt/c/Work/guga/syxg/synth/sf2/parsing/preset_parser.py:70(parse_preset_zones)
+     1287    0.584    0.000    0.661    0.001 /mnt/c/Work/guga/syxg/synth/sf2/parsing/preset_parser.py:233(_parse_zone_generators)
+  1264904    0.348    0.000    0.621    0.000 /mnt/c/Work/guga/syxg/midi_to_ogg.py:59(<genexpr>)
+  9311270    0.586    0.000    0.586    0.000 {method 'append' of 'list' objects}
+  4382060    0.573    0.000    0.573    0.000 /home/roger/python/lib/python3.11/site-packages/numpy/_core/fromnumeric.py:2472(_any_dispatcher)
+  5966674    0.524    0.000    0.524    0.000 {method 'items' of 'dict' objects}
+   505330    0.473    0.000    0.522    0.000 /mnt/c/Work/guga/syxg/synth/core/vectorized_envelope.py:70(state)
+   158062    0.488    0.000    0.488    0.000 /mnt/c/Work/guga/syxg/synth/core/filter.py:173(process)
+   158062    0.120    0.000    0.477    0.000 /mnt/c/Work/guga/syxg/synth/core/panner.py:12(__init__)
+   158096    0.200    0.000    0.467    0.000 /mnt/c/Work/guga/syxg/synth/sf2/core/soundfont_manager.py:213(read_sample_data)
+    87483    0.144    0.000    0.437    0.000 /mnt/c/Work/guga/syxg/synth/xg/channel_note.py:337(is_active)
+   876592    0.362    0.000    0.427    0.000 /mnt/c/Work/guga/syxg/synth/core/vectorized_envelope.py:105(set_block_size)
+   158062    0.224    0.000    0.357    0.000 /mnt/c/Work/guga/syxg/synth/core/panner.py:26(_update_gains)
+   743463    0.307    0.000    0.340    0.000 /mnt/c/Work/guga/syxg/synth/modulation/routes.py:31(get_modulation_value)
+   316225    0.231    0.000    0.301    0.000 /mnt/c/Work/guga/syxg/synth/sf2/caching/structure_cache.py:66(get_instrument)
+        1    0.000    0.000    0.277    0.277 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/midifiles.py:292(__init__)
+        1    0.000    0.000    0.276    0.276 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/midifiles.py:350(_load)
+       10    0.023    0.002    0.276    0.028 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/midifiles.py:170(read_track)
+   316226    0.232    0.000    0.273    0.000 /mnt/c/Work/guga/syxg/synth/sf2/caching/structure_cache.py:114(is_instrument_parsed)
+    87517    0.033    0.000    0.267    0.000 {built-in method builtins.any}
+   179739    0.066    0.000    0.260    0.000 /mnt/c/Work/guga/syxg/synth/xg/channel_note.py:339(<genexpr>)
+   158096    0.199    0.000    0.258    0.000 /mnt/c/Work/guga/syxg/synth/sf2/caching/sample_cache.py:30(get)
+   158113    0.210    0.000    0.248    0.000 /mnt/c/Work/guga/syxg/synth/sf2/caching/structure_cache.py:99(is_preset_parsed)
+   316226    0.171    0.000    0.220    0.000 /mnt/c/Work/guga/syxg/synth/sf2/core/wavetable_manager.py:282(<listcomp>)
+       11    0.002    0.000    0.217    0.020 {built-in method builtins.sum}
+        1    0.000    0.000    0.215    0.215 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/midifiles.py:376(length)
+    16508    0.004    0.000    0.213    0.000 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/midifiles.py:387(<genexpr>)
+    16480    0.021    0.000    0.210    0.000 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/midifiles.py:116(read_message)
+    16508    0.010    0.000    0.209    0.000 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/midifiles.py:389(__iter__)
+   632887    0.199    0.000    0.199    0.000 {built-in method builtins.min}
+   158112    0.130    0.000    0.174    0.000 /mnt/c/Work/guga/syxg/synth/sf2/caching/structure_cache.py:33(get_preset)
+    49440    0.059    0.000    0.169    0.000 /home/roger/python/lib/python3.11/site-packages/mido/messages/messages.py:124(copy)
+   158062    0.160    0.000    0.160    0.000 /mnt/c/Work/guga/syxg/synth/core/filter.py:165(apply_note_pitch)
+   176192    0.159    0.000    0.159    0.000 /mnt/c/Work/guga/syxg/synth/core/oscillator.py:155(_update_phase_step)
+   715865    0.155    0.000    0.155    0.000 {built-in method builtins.max}
+    16480    0.015    0.000    0.151    0.000 /home/roger/python/lib/python3.11/site-packages/mido/messages/messages.py:154(from_bytes)
+  1106775    0.151    0.000    0.151    0.000 {method '__exit__' of '_thread.lock' objects}
+        1    0.001    0.001    0.151    0.151 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/midifiles.py:322(merged_track)
+        1    0.001    0.001    0.149    0.149 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/tracks.py:106(merge_tracks)
+  1265008    0.141    0.000    0.141    0.000 {built-in method builtins.hasattr}
+   316226    0.108    0.000    0.133    0.000 /mnt/c/Work/guga/syxg/synth/sf2/core/wavetable_manager.py:286(<listcomp>)
+    16480    0.022    0.000    0.125    0.000 /home/roger/python/lib/python3.11/site-packages/mido/messages/decode.py:66(decode_message)
+   733654    0.123    0.000    0.123    0.000 {built-in method math.sin}
+   158096    0.087    0.000    0.101    0.000 /mnt/c/Work/guga/syxg/synth/sf2/core/soundfont_manager.py:198(get_sample_header)
+   634723    0.096    0.000    0.096    0.000 {method 'get' of 'dict' objects}
+    49440    0.025    0.000    0.094    0.000 /home/roger/python/lib/python3.11/site-packages/mido/messages/messages.py:114(__init__)
+   632452    0.089    0.000    0.089    0.000 {built-in method builtins.setattr}
+    16508    0.004    0.000    0.081    0.000 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/tracks.py:84(fix_end_of_track)
+    16517    0.008    0.000    0.076    0.000 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/tracks.py:75(_to_reltime)
+   474322    0.072    0.000    0.072    0.000 {built-in method math.cos}
+   158062    0.069    0.000    0.069    0.000 /mnt/c/Work/guga/syxg/synth/core/panner.py:57(process)
+    16480    0.009    0.000    0.067    0.000 /home/roger/python/lib/python3.11/site-packages/mido/messages/checks.py:44(check_data)
+       11    0.001    0.000    0.064    0.006 {method 'extend' of 'list' objects}
+    16526    0.008    0.000    0.063    0.000 /home/roger/python/lib/python3.11/site-packages/mido/midifiles/tracks.py:67(_to_abstime)
+   247821    0.061    0.000    0.061    0.000 /mnt/c/Work/guga/syxg/synth/core/oscillator.py:110(set_mod_wheel)
+        1    0.041    0.041    0.059    0.059 /mnt/c/Work/guga/syxg/synth/sf2/parsing/instrument_parser.py:149(_parse_generator_data)
+    32943    0.010    0.000    0.059    0.000 /home/roger/python/lib/python3.11/site-packages/mido/messages/checks.py:63(check_data_byte)
+   365766    0.057    0.000    0.057    0.000 {method 'copy' of 'dict' objects}
+   247821    0.051    0.000    0.051    0.000 /mnt/c/Work/guga/syxg/synth/core/oscillator.py:115(set_breath_controller)
+    49440    0.042    0.000    0.048    0.000 /home/roger/python/lib/python3.11/site-packages/mido/messages/specs.py:114(make_msgdict)
+
+

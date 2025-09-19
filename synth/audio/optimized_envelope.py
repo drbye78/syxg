@@ -251,6 +251,10 @@ class OptimizedADSREnvelope:
         if self.state == "sustain" and sustain is not None:
             self.level = self.sustain
 
+    def note_on(self, velocity, note=60, soft_pedal=False):
+        """Handle Note On event with compatibility interface."""
+        self.note_on_optimized(velocity, note, soft_pedal)
+
     def note_on_optimized(self, velocity, note=60, soft_pedal=False):
         """
         OPTIMIZED NOTE ON HANDLING - PHASE 3 PERFORMANCE
@@ -514,6 +518,10 @@ class OptimizedADSREnvelope:
         # TRANSITION TO RELEASE WITH OPTIMIZED TRANSITION - FAST STATE TRANSITION
         # Use optimized state transition for release
         self.state = "release"
+
+    def process(self):
+        """Process one sample of envelope generation with compatibility interface."""
+        return self.process_optimized()
 
     def process_optimized(self):
         """
