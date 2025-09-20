@@ -22,6 +22,7 @@ from typing import List, Tuple, Optional, Dict, Any
 import heapq
 import time
 
+from synth.xg.channel_renderer import XGChannelRenderer
 from synth.xg.vectorized_channel_renderer import VectorizedChannelRenderer
 
 # Add the project directory to the path
@@ -371,8 +372,21 @@ class OptimizedXGSynthesizer:
             # Extract the processed stereo output from the first processed channel
             # (VectorizedEffectManager returns processed output for all 16 channels)
             if processed_channels and len(processed_channels[0]) >= block_size:
-                left_result = np.array([processed_channels[0][i][0] for i in range(block_size)], dtype=np.float32)
-                right_result = np.array([processed_channels[0][i][1] for i in range(block_size)], dtype=np.float32)
+                # Ensure we create proper 1D arrays with correct shape
+                left_result = np.array([float(processed_channels[0][i][0]) for i in range(block_size)], dtype=np.float32)
+                right_result = np.array([float(processed_channels[0][i][1]) for i in range(block_size)], dtype=np.float32)
+                
+                # Ensure arrays are 1D with shape (block_size,)
+                if left_result.ndim != 1:
+                    left_result = left_result.flatten()
+                if right_result.ndim != 1:
+                    right_result = right_result.flatten()
+                    
+                # Ensure correct length
+                if len(left_result) != block_size:
+                    left_result = np.resize(left_result, block_size)
+                if len(right_result) != block_size:
+                    right_result = np.resize(right_result, block_size)
             else:
                 # Fallback if effects processing fails
                 print("XG Effects: Fallback to simplified processing")

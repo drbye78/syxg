@@ -13,7 +13,7 @@ import math
 from ..core.constants import DEFAULT_CONFIG
 from ..core.oscillator import LFO
 from ..modulation.vectorized_matrix import VectorizedModulationMatrix
-from .vectorized_partial_generator import VectorizedPartialGenerator
+from .partial_generator import PartialGenerator
 from ..voice.voice_manager import VoiceManager
 from ..voice.voice_priority import VoicePriority
 from .channel_note import ChannelNote
@@ -815,4 +815,3 @@ class VectorizedChannelRenderer:
         # Implementation would modify envelope/filter parameters for distortion
         # Implementation will log that this mode was activated
         print(f"Channel {self.channel}: Distortion Mode activated")
-
