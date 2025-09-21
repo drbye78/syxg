@@ -144,7 +144,7 @@ XG_INSERTION_TYPES: List[str] = [
     "Off", "Distortion", "Overdrive", "Compressor", "Gate", "Envelope Filter",
     "Guitar Amp Sim", "Rotary Speaker", "Leslie", "Enhancer", "Slicer",
     "Vocoder", "Talk Wah", "Harmonizer", "Octave", "Detune",
-    "Phaser", "Flanger"  # New effects
+    "Phaser", "Flanger", "Wah Wah"  # Added Wah Wah effect
 ]
 
 # Parameter mappings for each effect type
@@ -165,7 +165,8 @@ INSERTION_EFFECT_PARAMS: Dict[int, List[str]] = {
     14: ["parameter1", "parameter2", "parameter3", "parameter4"],
     15: ["parameter1", "parameter2", "parameter3", "parameter4"],
     16: ["frequency", "depth", "feedback", "lfo_waveform"],
-    17: ["frequency", "depth", "feedback", "lfo_waveform"]
+    17: ["frequency", "depth", "feedback", "lfo_waveform"],
+    18: ["manual_position", "lfo_rate", "lfo_depth", "resonance"]  # Wah Wah parameters
 }
 
 VARIATION_EFFECT_PARAMS: Dict[int, List[str]] = {
@@ -233,3 +234,58 @@ VARIATION_EFFECT_PARAMS: Dict[int, List[str]] = {
     61: ["threshold", "ratio", "steps", "release"],
     62: ["speed", "balance", "steps", "level"]
 }
+
+# XG Extended Effect Types - Additional effects for enhanced XG compliance
+# These extend beyond the current implementation for future expansion
+
+# XG Reverb Types (Extended)
+XG_REVERB_TYPES_EXTENDED: List[str] = [
+    "Hall 1", "Hall 2", "Hall 3", "Room 1", "Room 2", "Room 3", "Stage", "Plate",
+    "White Room", "Tunnel", "Canyon", "Basement", "Church", "Cathedral", "Arena", "Hangar"
+]
+
+# XG Chorus Types (Extended)
+XG_CHORUS_TYPES_EXTENDED: List[str] = [
+    "Chorus 1", "Chorus 2", "Chorus 3", "Ensemble 1", "Ensemble 2", "Flanger", "Flanger 2", "Off",
+    "Chorus Hall", "Chorus Room", "Ensemble Hall", "Flanger Hall", "Chorus+Reverb", "Ensemble+Reverb"
+]
+
+# XG Insertion Effect Types (Extended)
+XG_INSERTION_TYPES_EXTENDED: List[str] = [
+    "Off", "Distortion", "Overdrive", "Compressor", "Gate", "Envelope Filter",
+    "Guitar Amp Sim", "Rotary Speaker", "Leslie", "Enhancer", "Slicer",
+    "Vocoder", "Talk Wah", "Harmonizer", "Octave", "Detune",
+    "Phaser", "Flanger", "Wah Wah", "Auto Wah 2", "Band Pass Filter",
+    "Notch Filter", "Formant Filter", "Exciter", "Subharmonic Synth", "Ring Modulator 2"
+]
+
+# XG Variation Effect Types (Extended)
+XG_VARIATION_TYPES_EXTENDED: List[str] = [
+    "Delay", "Dual Delay", "Echo", "Pan Delay", "Cross Delay", "Multi Tap",
+    "Reverse Delay", "Tremolo", "Auto Pan", "Phaser", "Flanger", "Auto Wah",
+    "Ring Mod", "Pitch Shifter", "Distortion", "Overdrive", "Compressor",
+    "Limiter", "Gate", "Expander", "Rotary Speaker", "Leslie", "Vibrato",
+    "Acoustic Simulator", "Guitar Amp Sim", "Enhancer", "Slicer", "Step Phaser",
+    "Step Flanger", "Step Tremolo", "Step Pan", "Step Filter", "Auto Filter",
+    "Vocoder", "Talk Wah", "Harmonizer", "Octave", "Detune", "Chorus/Reverb",
+    "Stereo Imager", "Ambience", "Doubler", "Enhancer/Reverb", "Spectral",
+    "Resonator", "Degrader", "Vinyl", "Looper", "Step Delay", "Step Echo",
+    "Step Pan Delay", "Step Cross Delay", "Step Multi Tap", "Step Reverse Delay",
+    "Step Ring Mod", "Step Pitch Shifter", "Step Distortion", "Step Overdrive",
+    "Step Compressor", "Step Limiter", "Step Gate", "Step Expander", "Step Rotary Speaker",
+    # NEW EXTENDED EFFECTS
+    "Multi Chorus", "Stereo Chorus", "Quad Chorus", "Hyper Chorus",
+    "Multi Flanger", "Through-Zero Flanger", "Phaser 2", "Bi-Phase Phaser",
+    "Auto Wah 2", "Touch Wah", "Pedal Wah", "Resonance Wah", "Formant Wah",
+    "Pitch Wah", "Cry Wah", "Vowel Filter", "Talk Box", "Megaphone", "Telephone",
+    "Radio", "Walkie Talkie", "Robot", "Alien", "Chorus+Delay", "Flanger+Delay",
+    "Phaser+Delay", "Chorus+Flanger", "Rotary+Chorus", "Leslie+Chorus",
+    "Ping Pong Delay", "Multi Tap Echo", "Reverse Echo", "Tape Echo",
+    "Spring Reverb", "Plate Reverb 2", "Hall Reverb 2", "Room Reverb 2",
+    "Ambience Reverb", "Stadium Reverb", "Concert Hall", "Opera House",
+    "Drum Booth", "Vocal Booth", "Guitar Amp Room", "Bass Amp Room",
+    "Control Room", "Live Room", "Chamber", "Cathedral 2", "Arena 2", "Hangar 2",
+    "Canyon 2", "Tunnel 2", "Basement 2", "White Room 2", "Church 2",
+    "Stone Room", "Wood Room", "Carpeted Room", "Draped Room", "Padded Cell",
+    "Anechoic Chamber", "Infinite Reverb", "Gated Reverb"
+]

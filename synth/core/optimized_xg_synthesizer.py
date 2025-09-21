@@ -1,4 +1,4 @@
-"""
+r"""
 OPTIMIZED XG SYNTHESIZER - PHASE 1 PERFORMANCE
 
 Fully MIDI XG compatible software synthesizer with optimized performance.
@@ -356,43 +356,55 @@ class OptimizedXGSynthesizer:
             for msg_time, data in sysex_messages:
                 self.send_sysex(data)
             
-            # CORRECT XG EFFECTS ARCHITECTURE - Audio Quality Priority
+            # FIXED XG EFFECTS ARCHITECTURE - CORRECT CHANNEL MIXING & SYSTEM EFFECTS
             # Step 1: Generate per-channel audio (for insertion effects processing)
 
             # Generate per-channel audio buffers before mixing
             # This allows insertion effects to be applied to individual channels
             channel_audio_samples = self._generate_channel_audio_vectorized(block_size)
 
-            # Step 2: Process effects correctly through VectorizedEffectManager
-            # This handles insertion effects per channel + system effects on final mix
-            processed_channels = self.effect_manager.process_audio(
+            # Step 2: Process effects through VectorizedEffectManager with proper mixing
+            # Use process_multi_channel_vectorized for CORRECT XG architecture:
+            # - Insertion effects applied per-channel
+            # - All channels mixed together
+            # - System effects applied to final mix
+            processed_channels = self.effect_manager.process_multi_channel_vectorized(
                 channel_audio_samples, block_size
             )
 
-            # Extract the processed stereo output from the first processed channel
-            # (VectorizedEffectManager returns processed output for all 16 channels)
-            if processed_channels and len(processed_channels[0]) >= block_size:
-                # Ensure we create proper 1D arrays with correct shape
-                left_result = np.array([float(processed_channels[0][i][0]) for i in range(block_size)], dtype=np.float32)
-                right_result = np.array([float(processed_channels[0][i][1]) for i in range(block_size)], dtype=np.float32)
-                
-                # Ensure arrays are 1D with shape (block_size,)
-                if left_result.ndim != 1:
+            # Step 3: CORRECT CHANNEL MIXING - Mix all processed channels together
+            # XG Specification: All 16 channels contribute to final stereo output
+            if processed_channels and len(processed_channels) > 0:
+                # Initialize mix buffers
+                left_result = np.zeros(block_size, dtype=np.float32)
+                right_result = np.zeros(block_size, dtype=np.float32)
+
+                # MIX ALL CHANNELS TOGETHER (not just channel 0!)
+                # Vectorized channel mixing for maximum performance
+                for channel_data in processed_channels:
+                    if len(channel_data) >= block_size:
+                        # Add this channel's left/right to mix (vectorized addition)
+                        np.add(left_result,
+                               channel_data[:block_size, 0] if channel_data.ndim > 1 else channel_data,
+                               out=left_result)
+                        np.add(right_result,
+                               channel_data[:block_size, 1] if channel_data.ndim > 1 else channel_data,
+                               out=right_result)
+
+                # Ensure correct output shape (flatten if needed)
+                if left_result.ndim > 1:
                     left_result = left_result.flatten()
-                if right_result.ndim != 1:
+                if right_result.ndim > 1:
                     right_result = right_result.flatten()
-                    
-                # Ensure correct length
+
+                # Resize if necessary
                 if len(left_result) != block_size:
                     left_result = np.resize(left_result, block_size)
                 if len(right_result) != block_size:
                     right_result = np.resize(right_result, block_size)
             else:
-                # Fallback if effects processing fails
-                print("XG Effects: Fallback to simplified processing")
-                left_buffer = np.zeros(block_size, dtype=np.float32)
-                right_buffer = np.zeros(block_size, dtype=np.float32)
-                left_result, right_result = left_buffer, right_buffer
+                left_result = np.zeros(block_size, dtype=np.float32)
+                right_result = np.zeros(block_size, dtype=np.float32)
 
             # Update current time in buffered processor
             self.buffered_processor.current_time = block_end_time
@@ -403,7 +415,7 @@ class OptimizedXGSynthesizer:
 
             return left_result, right_result
 
-    def _generate_channel_audio_vectorized(self, block_size: int) -> List[List[Tuple[float, float]]]:
+    def _generate_channel_audio_vectorized(self, block_size: int) -> List[np.ndarray]:
         """
         CORRECT XG INSERTION EFFECTS IMPLEMENTATION - Audio Quality Priority
 
@@ -416,7 +428,7 @@ class OptimizedXGSynthesizer:
             block_size: Block size in samples
 
         Returns:
-            List of channels, each containing list of (left, right) stereo tuples
+            List of channels, each containing stereo numpy array (N x 2)
         """
         # Prepare containers for all 16 MIDI channels
         channel_audio_list = []
@@ -443,31 +455,30 @@ class OptimizedXGSynthesizer:
                     np.multiply(renderer_right, master_volume_factor, out=renderer_right)
 
                     # Apply pan (stereo width adjustment)
-                    left_level = channel_volume * (1.0 - pan) * self.master_volume
-                    right_level = channel_volume * pan * self.master_volume
+                    # Correct pan calculation - pan ranges from 0 (hard left) to 1 (hard right)
+                    # Ensure pan is within valid range [0, 1]
+                    pan_clamped = np.clip(pan, 0.0, 1.0)
+                    pan_left = np.sqrt(1.0 - pan_clamped)   # Equal power panning
+                    pan_right = np.sqrt(pan_clamped)
 
-                    np.multiply(renderer_left, left_level, out=renderer_left)
-                    np.multiply(renderer_right, right_level, out=renderer_right)
+                    np.multiply(renderer_left, pan_left, out=renderer_left)
+                    np.multiply(renderer_right, pan_right, out=renderer_right)
 
                     # Apply clipping
                     np.clip(renderer_left, -1.0, 1.0, out=renderer_left)
                     np.clip(renderer_right, -1.0, 1.0, out=renderer_right)
 
-                    # Convert to list of tuples format expected by XGAudioProcessor
-                    channel_samples = [
-                        (float(renderer_left[i]), float(renderer_right[i]))
-                        for i in range(block_size)
-                    ]
+                    # Convert to stereo numpy array format expected by effect processor
+                    channel_stereo = np.column_stack((renderer_left, renderer_right))
 
                 except Exception as e:
-                    print(f"Error generating channel {channel_idx}: {e}")
-                    # Silent channel on error
-                    channel_samples = [(0.0, 0.0)] * block_size
+                    # Silent channel on error - zero stereo array
+                    channel_stereo = np.zeros((block_size, 2), dtype=np.float32)
             else:
                 # Inactive channel - silence
-                channel_samples = [(0.0, 0.0)] * block_size
+                channel_stereo = np.zeros((block_size, 2), dtype=np.float32)
 
-            channel_audio_list.append(channel_samples)
+            channel_audio_list.append(channel_stereo)
 
         return channel_audio_list
 
@@ -517,7 +528,6 @@ class OptimizedXGSynthesizer:
                     np.add(right_block, renderer_right, out=right_block)
                         
                 except Exception as e:
-                    print(f"Error generating samples from renderer: {e}")
                     continue
             
             # Apply master volume with vectorized multiplication (NumPy vectorized operation)
@@ -559,7 +569,6 @@ class OptimizedXGSynthesizer:
                         self.left_buffer[i] += l
                         self.right_buffer[i] += r
                 except Exception as e:
-                    print(f"Error generating samples from renderer: {e}")
                     # Disable problematic renderer
                     renderer.active = False
         

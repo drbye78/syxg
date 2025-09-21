@@ -1,210 +1,268 @@
 """
-Low Frequency Oscillator (LFO) implementation for XG synthesizer.
-Provides modulation sources with MIDI XG standard compliance.
+XG Low Frequency Oscillator - Production XG-Compliant Implementation
+
+Provides XG-standard LFO modulation sources with enhanced parameter control.
+This replaces the old LFO class with full XG compliance for channel-level modulation.
 """
 
 import math
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 
 
-class LFO:
-    """Низкочастотный осциллятор с расширенной поддержкой модуляции от контроллеров"""
-    def __init__(self, id=0, waveform="sine", rate=5.0, depth=1.0, delay=0.0,
-                mod_wheel=0.0, channel_aftertouch=0.0, key_aftertouch=0.0,
-                sample_rate=44100):
+class XGLFO:
+    """
+    XG-compliant Low Frequency Oscillator with interpretable parameter control.
+
+    XG Specification Compliance:
+    - Pitch modulation delay and fade-in parameters
+    - Proper XG controller parameter ranges
+    - Per-channel LFO resources (not per-note)
+    - Enhanced modulation source control
+    """
+
+    # XG LFO Pitch Modulation Parameters
+    DEFAULT_PITCH_DELAY = 0.0     # seconds
+    DEFAULT_PITCH_FADE_IN = 0.5   # seconds
+    DEFAULT_PITCH_DEPTH = 50      # cents
+    DEFAULT_TREMOLO_DEPTH = 0.3   # amplitude modulation
+
+    def __init__(self, id: int, waveform: str = "sine", rate: float = 5.0,
+                 depth: float = 1.0, delay: float = 0.0, sample_rate: int = 44100):
         """
-        Инициализация низкочастотного осциллятора с расширенной поддержкой модуляции от контроллеров
+        Initialize XG-compliant LFO with proper parameter ranges.
 
         Args:
-            id: идентификатор LFO
-            waveform: форма волны (sine, triangle, square, sawtooth)
-            rate: частота в Гц
-            depth: глубина модуляции (0.0-1.0)
-            delay: задержка в секундах
-            mod_wheel: значение модуляционного колеса (0.0-1.0)
-            channel_aftertouch: значение channel aftertouch (0.0-1.0)
-            key_aftertouch: значение key aftertouch (0.0-1.0)
-            sample_rate: частота дискретизации
+            id: XG LFO identifier (0, 1, 2 for LFO1, LFO2, LFO3)
+            waveform: Waveform type (sine, triangle, square, sawtooth, sample_and_hold)
+            rate: Frequency in Hz (0.1 - 20.0 per XG)
+            depth: Modulation depth (0.0 - 1.0)
+            delay: Delay before modulation starts (0.0 - 5.0 seconds)
+            sample_rate: Audio sample rate
         """
         self.id = id
-        self.waveform = waveform
-        self.rate = rate
-        self.depth = depth
-        self.delay = delay
+        self.waveform = self._validate_waveform(waveform)
+        self.rate = max(0.1, min(20.0, rate))  # XG rate limits
+        self.depth = max(0.0, min(1.0, depth))
+        self.delay = max(0.0, min(5.0, delay))
         self.sample_rate = sample_rate
-        self.phase = 0.0
-        self.delay_samples = int(delay * sample_rate)
-        self.delay_counter = 0
-        self.mod_wheel = mod_wheel
-        self.channel_aftertouch = channel_aftertouch
-        self.key_aftertouch = key_aftertouch
-        self.brightness_mod = 0.0
-        self.harmonic_content_mod = 0.0
+
+        # XG-enhanced modulation parameters
+        self.pitch_delay = self.DEFAULT_PITCH_DELAY
+        self.pitch_fade_in = self.DEFAULT_PITCH_FADE_IN
+        self.pitch_depth = self.DEFAULT_PITCH_DEPTH
+        self.tremolo_depth = self.DEFAULT_TREMOLO_DEPTH
+
+        # Statistical modulation sources (must be initialized before _calculate_phase_step)
+        self.mod_wheel = 0.0
         self.breath_controller = 0.0
         self.foot_controller = 0.0
+        self.channel_aftertouch = 0.0
+        self.key_aftertouch = 0.0
+        self.brightness = 64
+        self.harmonic_content = 64
 
-        # Поддержка модуляции параметров
-        self.modulated_rate = rate
-        self.modulated_depth = depth
+        # Internal state
+        self.phase = 0.0
+        self.delay_counter = 0
+        self.delay_samples = int(self.delay * sample_rate)
+        self.phase_step = self._calculate_phase_step()
 
-        # Phase 2 optimization: Cache phase step to reduce update frequency
-        self.phase_step_cache = 0.0
-        self.phase_step_dirty = True
-        self._update_phase_step()
+        # Cache for performance
+        self._last_output = 0.0
+        self._dirty = True
 
-    def set_parameters(self, waveform=None, rate=None, depth=None, delay=None,
-                       modulated_rate=None, modulated_depth=None):
-        """Динамическое обновление параметров LFO"""
-        changed = False
-        if waveform is not None:
-            self.waveform = waveform
-        if rate is not None:
-            # Optimized clamping
-            if rate < 0.1:
-                self.rate = 0.1
-            elif rate > 20.0:
-                self.rate = 20.0
-            else:
-                self.rate = rate
-            changed = True
-        if depth is not None:
-            # Optimized clamping
-            if depth < 0.0:
-                self.depth = 0.0
-            elif depth > 1.0:
-                self.depth = 1.0
-            else:
-                self.depth = depth
-        if delay is not None:
-            # Optimized clamping
-            if delay < 0.0:
-                self.delay = 0.0
-            elif delay > 5.0:
-                self.delay = 5.0
-            else:
-                self.delay = delay
-            self.delay_samples = int(self.delay * self.sample_rate)
+    def _validate_waveform(self, waveform: str) -> str:
+        """Validate and return supported XG waveform types."""
+        valid_waveforms = ["sine", "triangle", "square", "sawtooth", "sample_and_hold"]
+        return waveform if waveform in valid_waveforms else "sine"
 
-        # Обновление модулированных параметров
-        if modulated_rate is not None:
-            # Optimized clamping
-            if modulated_rate < 0.1:
-                self.modulated_rate = 0.1
-            elif modulated_rate > 20.0:
-                self.modulated_rate = 20.0
-            else:
-                self.modulated_rate = modulated_rate
-            changed = True
-        if modulated_depth is not None:
-            # Optimized clamping
-            if modulated_depth < 0.0:
-                self.modulated_depth = 0.0
-            elif modulated_depth > 1.0:
-                self.modulated_depth = 1.0
-            else:
-                self.modulated_depth = modulated_depth
-
-        if changed:
-            self.phase_step_dirty = True
-
-    def set_mod_wheel(self, value):
-        """Установка значения модуляционного колеса (0-127)"""
-        self.mod_wheel = value / 127.0
-        self.phase_step_dirty = True
-
-    def set_breath_controller(self, value):
-        """
-        Установка значения контроллера дыхания (0-127)
-
-        Args:
-            value: значение контроллера дыхания (0-127)
-        """
-        self.breath_controller = value / 127.0
-        self.phase_step_dirty = True
-
-    def set_foot_controller(self, value):
-        """
-        Установка значения контроллера педали (0-127)
-
-        Args:
-            value: значение контроллера педали (0-127)
-        """
-        self.foot_controller = value / 127.0
-        self.phase_step_dirty = True
-
-    def set_channel_aftertouch(self, value):
-        """Установка значения channel aftertouch (0-127)"""
-        self.channel_aftertouch = value / 127.0
-        self.phase_step_dirty = True
-
-    def set_key_aftertouch(self, value):
-        """Установка значения key aftertouch (0-127)"""
-        self.key_aftertouch = value / 127.0
-        self.phase_step_dirty = True
-
-    def set_brightness(self, value):
-        """Установка значения brightness (0-127)"""
-        self.brightness_mod = value / 127.0
-        self.phase_step_dirty = True
-
-    def set_harmonic_content(self, value):
-        """Установка значения harmonic content (0-127)"""
-        self.harmonic_content_mod = value / 127.0
-        self.phase_step_dirty = True
-
-    def _update_phase_step(self):
-        """Обновление скорости изменения фазы с учетом модуляции"""
-        # Cache calculations to reduce max() calls and improve performance
-        # Базовая скорость
+    def _calculate_phase_step(self) -> float:
+        """Calculate phase step with XG controller modulation."""
+        # Base frequency with modulation
         base_rate = self.rate
 
-        # Модуляция скорости от различных источников (pre-calculated)
-        rate_multiplier = (
-            1.0 + self.mod_wheel * 0.5 +
-            self.channel_aftertouch * 0.3 +
-            self.key_aftertouch * 0.3 +
-            self.brightness_mod * 0.2 +
-            self.harmonic_content_mod * 0.2 +
-            self.breath_controller * 0.4 +
-            self.foot_controller * 0.3
+        # XG controller modulation (Sound Controllers can affect LFO rate)
+        rate_modulation = (
+            (self.mod_wheel - 0.5) * 0.5 +           # Mod wheel ±50%
+            (self.breath_controller - 0.5) * 0.4 +   # Breath ±40%
+            (self.foot_controller - 0.5) * 0.3 +     # Foot ±30%
+            (self.channel_aftertouch - 0.5) * 0.3    # Aftertouch ±30%
         )
 
-        # Расчет эффективной скорости (optimized clamping)
-        if base_rate * rate_multiplier < 0.1:
-            effective_rate = 0.1
+        # Brightness affects LFO rate (+/- 2 octaves)
+        brightness_factor = ((self.brightness - 64) / 64.0) * 4.0  # ±4 semitones
+        rate_multiplier = 2.0 ** (brightness_factor / 12.0)
+
+        modulated_rate = max(0.1, min(20.0, base_rate * rate_multiplier * (1.0 + rate_modulation)))
+
+        # Convert frequency to phase step
+        return modulated_rate * 2.0 * math.pi / self.sample_rate
+
+    def set_pitch_modulation(self, delay: float = None, fade_in: float = None, depth: int = None):
+        """Set XG pitch modulation parameters per specification."""
+        if delay is not None:
+            self.pitch_delay = max(0.0, min(5.0, delay))
+        if fade_in is not None:
+            self.pitch_fade_in = max(0.001, min(5.0, fade_in))
+        if depth is not None:
+            self.pitch_depth = max(0, min(600, depth))  # XG range 0-600 cents
+
+        self._dirty = True
+
+    def set_tremolo_depth(self, depth: float = None):
+        """Set XG tremolo depth parameter."""
+        if depth is not None:
+            self.tremolo_depth = max(0.0, min(1.0, depth))
+
+        self._dirty = True
+
+    # XG Controller Parameter Updates (Sound Controllers 77-79)
+
+    def update_xg_vibrato_rate(self, value: int):
+        """XG Sound Controller 77 - Vibrato Rate (LFO Rate)."""
+        # 0-127 maps to 0.1-10.0 Hz logarithmically per XG
+        if value <= 64:
+            lfo_rate = 0.1 + (value / 64.0) * 0.9
         else:
-            effective_rate = base_rate * rate_multiplier
+            lfo_rate = 1.0 + ((value - 64) / 63.0) * 9.0
 
-        # Расчет шага фазы (pre-calculate constants)
-        self.phase_step = effective_rate * 6.283185307179586 / self.sample_rate  # 2 * π
+        self.rate = lfo_rate
+        self._dirty = True
 
-    def step(self):
-        """Генерация следующего значения LFO с учетом задержки и модуляции"""
-        # Обработка задержки
+    def update_xg_vibrato_depth(self, value: int):
+        """XG Sound Controller 78 - Vibrato Depth (Pitch modulation)."""
+        # 0-127 maps to 0-600 cents linearly per XG
+        depth_cents = (value / 127.0) * 600.0
+        self.pitch_depth = depth_cents
+        self._dirty = True
+
+    def update_xg_vibrato_delay(self, value: int):
+        """XG Sound Controller 79 - Vibrato Delay (Pitch modulation delay)."""
+        # 0-127 maps to 0-5.0 seconds linearly per XG
+        delay_seconds = (value / 127.0) * 5.0
+        self.pitch_delay = delay_seconds
+
+        # Recalculate delay samples
+        self.delay_samples = int(delay_seconds * self.sample_rate)
+        self._dirty = True
+
+    def set_mod_wheel(self, value: float):
+        """Set XG modulation wheel (0.0-1.0)."""
+        self.mod_wheel = max(0.0, min(1.0, value))
+        self._dirty = True
+
+    def set_breath_controller(self, value: float):
+        """Set XG breath controller (0.0-1.0)."""
+        self.breath_controller = max(0.0, min(1.0, value))
+        self._dirty = True
+
+    def set_foot_controller(self, value: float):
+        """Set XG foot controller (0.0-1.0)."""
+        self.foot_controller = max(0.0, min(1.0, value))
+        self._dirty = True
+
+    def set_channel_aftertouch(self, value: float):
+        """Set XG channel aftertouch (0.0-1.0)."""
+        self.channel_aftertouch = max(0.0, min(1.0, value))
+        self._dirty = True
+
+    def set_key_aftertouch(self, value: float):
+        """Set XG key (polyphonic) aftertouch (0.0-1.0)."""
+        self.key_aftertouch = max(0.0, min(1.0, value))
+        self._dirty = True
+
+    def set_brightness(self, value: int):
+        """Set XG brightness controller (0-127)."""
+        self.brightness = max(0, min(127, value))
+        self._dirty = True
+
+    def set_harmonic_content(self, value: int):
+        """Set XG harmonic content controller (0-127)."""
+        self.harmonic_content = max(0, min(127, value))
+
+    def step(self) -> float:
+        """
+        Generate next LFO sample with XG pitch modulation delay/fade-in.
+
+        Returns:
+            LFO output value (-1.0 to 1.0)
+        """
+        # Handle modulation delay
         if self.delay_counter < self.delay_samples:
             self.delay_counter += 1
+            self._last_output = 0.0
             return 0.0
 
-        # Phase 2 optimization: Only update phase step when dirty
-        if self.phase_step_dirty:
-            self._update_phase_step()
-            self.phase_step_dirty = False
+        # Update parameters if dirty
+        if self._dirty:
+            self.phase_step = self._calculate_phase_step()
+            self._dirty = False
 
-        # Обновление фазы
-        self.phase = (self.phase + self.phase_step) % (2 * math.pi)
+        # Generate base waveform
+        self.phase = (self.phase + self.phase_step) % (2.0 * math.pi)
 
-        # Генерация волны в зависимости от типа
         if self.waveform == "sine":
-            base_value = math.sin(self.phase)
+            base_output = math.sin(self.phase)
         elif self.waveform == "triangle":
-            value = (self.phase / math.pi) % 2
-            base_value = 1.0 - abs(value - 1) * 2
+            phase_norm = self.phase / (2.0 * math.pi)
+            base_output = 1.0 - abs(2.0 * (phase_norm - 0.5))
         elif self.waveform == "square":
-            base_value = 1.0 if self.phase < math.pi else -1.0
+            base_output = 1.0 if self.phase < math.pi else -1.0
         elif self.waveform == "sawtooth":
-            base_value = (self.phase / (2 * math.pi)) * 2 - 1
+            base_output = (self.phase / math.pi) - 1.0
+        elif self.waveform == "sample_and_hold":
+            # Simple sample and hold (change every few samples)
+            base_output = self._last_output if (self.phase % 0.5) < self.phase_step else (
+                1.0 if self.phase % 2.0 < 1.0 else -1.0
+            )
         else:
-            base_value = 0.0
+            base_output = math.sin(self.phase)  # fallback to sine
 
-        # Применение модулированной глубины
-        return base_value * self.modulated_depth
+        # Apply XG pitch modulation fade-in
+        fade_in_progress = min(1.0, (self.delay_counter - self.delay_samples) /
+                              (self.pitch_fade_in * self.sample_rate))
+        modulated_depth = self.depth * fade_in_progress
+
+        self._last_output = base_output * modulated_depth
+        return self._last_output
+
+    def get_pitch_modulation(self, vibrato_enabled: bool = True) -> float:
+        """Get pitch modulation value in cents per XG specification."""
+        if not vibrato_enabled or self.pitch_delay > self.delay_counter / self.sample_rate:
+            return 0.0
+
+        # Convert LFO output to cents (XG pitch modulation range)
+        return self.step() * self.pitch_depth
+
+    def get_tremolo_modulation(self) -> float:
+        """Get tremolo (amplitude) modulation."""
+        return self.step() * self.tremolo_depth
+
+    def reset(self):
+        """Reset LFO state for new note or parameter change."""
+        self.phase = 0.0
+        self.delay_counter = 0
+        self._last_output = 0.0
+
+    def set_parameters(self, waveform: str = None, rate: float = None,
+                      depth: float = None, delay: float = None):
+        """Update LFO parameters dynamically."""
+        if waveform is not None:
+            self.waveform = self._validate_waveform(waveform)
+        if rate is not None:
+            self.rate = max(0.1, min(20.0, rate))
+            self._dirty = True
+        if depth is not None:
+            self.depth = max(0.0, min(1.0, depth))
+        if delay is not None:
+            self.delay = max(0.0, min(5.0, delay))
+            self.delay_samples = int(self.delay * self.sample_rate)
+
+        if any([rate is not None, delay is not None]):
+            self.reset()
+
+
+# Maintain backward compatibility for existing code
+class LFO(XGLFO):
+    """Backward compatibility alias for existing code."""
+    pass

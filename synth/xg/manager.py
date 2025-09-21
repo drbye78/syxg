@@ -1,10 +1,20 @@
 """
-XG Synthesizer State Manager
+XG Synthesizer State Manager - XG Performance Memory Implementation
 
-Handles channel state management and RPN/NRPN parameter processing.
+Handles channel state management, RPN/NRPN parameter processing, and XG Performance Memory.
+XG Performance Memory allows saving and recalling complete synthesizer states including
+all channel settings, effects parameters, and system configuration.
+
+XG Specification Compliance:
+- Performance Memory: Save/recall complete synthesizer states
+- 128 performance memory locations (0-127)
+- System parameters, channel parameters, and effects settings
+- Bulk dump/load functionality for performance data
 """
 
-from typing import List, Dict, Tuple, Optional, Any
+from typing import List, Dict, Tuple, Optional, Any, Union
+import json
+import os
 from ..core.constants import DEFAULT_CONFIG, XG_CONSTANTS
 
 
@@ -21,7 +31,7 @@ class StateManager:
 
     def __init__(self):
         """
-        Initialize state manager.
+        Initialize state manager with XG Performance Memory support.
         """
         self.num_channels = DEFAULT_CONFIG["NUM_MIDI_CHANNELS"]
 
@@ -40,6 +50,17 @@ class StateManager:
         self.data_entry_states: List[Dict[str, int]] = [
             {"msb": 0, "lsb": 0} for _ in range(self.num_channels)
         ]
+
+        # XG Performance Memory - 128 performance slots (0-127)
+        self.performance_memory: List[Optional[Dict[str, Any]]] = [None] * 128
+        self.current_performance = 0  # Current performance number (0-127)
+
+        # System parameters for performance memory
+        self.system_parameters = self._create_default_system_parameters()
+
+        # Performance memory file path
+        self.performance_file = os.path.join(os.path.dirname(__file__), "performance_memory.json")
+        self._load_performance_memory()
 
     def _create_default_channel_state(self) -> Dict[str, Any]:
         """
@@ -689,3 +710,261 @@ class StateManager:
             # Set drum mode for channel 9 (MIDI channel 10)
             if channel == 9:
                 self.channel_states[channel]["bank"] = 128  # Drum bank
+
+    # XG PERFORMANCE MEMORY IMPLEMENTATION
+    # =====================================
+
+    def _create_default_system_parameters(self) -> Dict[str, Any]:
+        """
+        Create default XG system parameters for performance memory.
+
+        Returns:
+            Dictionary containing default system parameters
+        """
+        return {
+            "master_volume": DEFAULT_CONFIG["MASTER_VOLUME"],
+            "master_tune": 0.0,  # Master tuning in cents
+            "master_tune_fine": 0.0,  # Fine master tuning
+            "system_effects": {
+                "reverb": {
+                    "type": 0,  # Hall 1
+                    "level": 40,
+                    "time": 64,
+                    "feedback": 0,
+                    "balance": 64
+                },
+                "chorus": {
+                    "type": 0,  # Chorus 1
+                    "level": 0,
+                    "depth": 64,
+                    "speed": 2,
+                    "balance": 64
+                },
+                "variation": {
+                    "type": 0,  # Delay
+                    "level": 0,
+                    "depth": 64,
+                    "speed": 2,
+                    "balance": 64
+                }
+            },
+            "insertion_effects": {
+                "part_0": {"type": 0, "level": 0},
+                "part_1": {"type": 0, "level": 0},
+                "part_2": {"type": 0, "level": 0},
+                "part_3": {"type": 0, "level": 0},
+                "part_4": {"type": 0, "level": 0},
+                "part_5": {"type": 0, "level": 0},
+                "part_6": {"type": 0, "level": 0},
+                "part_7": {"type": 0, "level": 0},
+                "part_8": {"type": 0, "level": 0},
+                "part_9": {"type": 0, "level": 0},
+                "part_10": {"type": 0, "level": 0},
+                "part_11": {"type": 0, "level": 0},
+                "part_12": {"type": 0, "level": 0},
+                "part_13": {"type": 0, "level": 0},
+                "part_14": {"type": 0, "level": 0},
+                "part_15": {"type": 0, "level": 0}
+            }
+        }
+
+    def _load_performance_memory(self):
+        """
+        Load performance memory from file.
+        """
+        try:
+            if os.path.exists(self.performance_file):
+                with open(self.performance_file, 'r') as f:
+                    data = json.load(f)
+                    # Load performance slots
+                    if "performances" in data:
+                        for i, perf_data in enumerate(data["performances"]):
+                            if i < 128 and perf_data is not None:
+                                self.performance_memory[i] = perf_data
+                    # Load current performance
+                    if "current_performance" in data:
+                        self.current_performance = data["current_performance"]
+        except Exception as e:
+            print(f"Warning: Could not load performance memory: {e}")
+            # Initialize with defaults if loading fails
+
+    def _save_performance_memory(self):
+        """
+        Save performance memory to file.
+        """
+        try:
+            data = {
+                "performances": self.performance_memory,
+                "current_performance": self.current_performance
+            }
+            with open(self.performance_file, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"Warning: Could not save performance memory: {e}")
+
+    def save_performance(self, performance_number: int, name: str = ""):
+        """
+        Save current synthesizer state to a performance memory slot.
+
+        Args:
+            performance_number: Performance slot number (0-127)
+            name: Optional name for the performance
+
+        Raises:
+            ValueError: If performance number is out of range
+        """
+        if not (0 <= performance_number < 128):
+            raise ValueError(f"Performance number {performance_number} is out of range (0-127)")
+
+        # Create performance data
+        performance_data = {
+            "name": name or f"Performance {performance_number}",
+            "channel_states": self.get_all_channel_states(),
+            "system_parameters": self.system_parameters.copy(),
+            "timestamp": None  # Could add timestamp if needed
+        }
+
+        # Save to memory slot
+        self.performance_memory[performance_number] = performance_data
+        self.current_performance = performance_number
+
+        # Save to file
+        self._save_performance_memory()
+
+    def load_performance(self, performance_number: int):
+        """
+        Load synthesizer state from a performance memory slot.
+
+        Args:
+            performance_number: Performance slot number (0-127)
+
+        Returns:
+            True if performance was loaded successfully
+
+        Raises:
+            ValueError: If performance number is out of range
+        """
+        if not (0 <= performance_number < 128):
+            raise ValueError(f"Performance number {performance_number} is out of range (0-127)")
+
+        if self.performance_memory[performance_number] is None:
+            return False
+
+        performance_data = self.performance_memory[performance_number]
+
+        # Load channel states
+        if performance_data and "channel_states" in performance_data:
+            self.set_all_channel_states(performance_data["channel_states"])
+
+        # Load system parameters
+        if performance_data and "system_parameters" in performance_data:
+            self.system_parameters = performance_data["system_parameters"].copy()
+
+        self.current_performance = performance_number
+        return True
+
+    def get_performance_info(self, performance_number: int) -> Optional[Dict[str, Any]]:
+        """
+        Get information about a performance slot.
+
+        Args:
+            performance_number: Performance slot number (0-127)
+
+        Returns:
+            Performance information dictionary or None if slot is empty
+        """
+        if not (0 <= performance_number < 128):
+            return None
+
+        if self.performance_memory[performance_number] is None:
+            return None
+
+        perf_data = self.performance_memory[performance_number]
+        if perf_data is None:
+            return None
+        return {
+            "number": performance_number,
+            "name": perf_data.get("name", f"Performance {performance_number}"),
+            "has_data": True,
+            "current": performance_number == self.current_performance
+        }
+
+    def get_all_performance_info(self) -> List[Optional[Dict[str, Any]]]:
+        """
+        Get information about all performance slots.
+
+        Returns:
+            List of performance information dictionaries
+        """
+        return [self.get_performance_info(i) for i in range(128)]
+
+    def clear_performance(self, performance_number: int):
+        """
+        Clear a performance memory slot.
+
+        Args:
+            performance_number: Performance slot number (0-127)
+
+        Raises:
+            ValueError: If performance number is out of range
+        """
+        if not (0 <= performance_number < 128):
+            raise ValueError(f"Performance number {performance_number} is out of range (0-127)")
+
+        self.performance_memory[performance_number] = None
+        self._save_performance_memory()
+
+    def get_current_performance(self) -> int:
+        """
+        Get the current performance number.
+
+        Returns:
+            Current performance number (0-127)
+        """
+        return self.current_performance
+
+    def set_current_performance(self, performance_number: int):
+        """
+        Set the current performance number.
+
+        Args:
+            performance_number: Performance slot number (0-127)
+
+        Raises:
+            ValueError: If performance number is out of range
+        """
+        if not (0 <= performance_number < 128):
+            raise ValueError(f"Performance number {performance_number} is out of range (0-127)")
+
+        self.current_performance = performance_number
+
+    def get_system_parameters(self) -> Dict[str, Any]:
+        """
+        Get current system parameters.
+
+        Returns:
+            System parameters dictionary
+        """
+        return self.system_parameters.copy()
+
+    def set_system_parameters(self, parameters: Dict[str, Any]):
+        """
+        Set system parameters.
+
+        Args:
+            parameters: System parameters dictionary
+        """
+        self.system_parameters.update(parameters)
+
+    def reset_to_xg_defaults(self):
+        """
+        Reset synthesizer to XG standard defaults.
+        """
+        # Reset all channels to XG defaults
+        self.initialize_xg_defaults()
+
+        # Reset system parameters to defaults
+        self.system_parameters = self._create_default_system_parameters()
+
+        # Reset current performance
+        self.current_performance = 0

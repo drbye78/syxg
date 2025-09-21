@@ -781,6 +781,8 @@ class XGAudioProcessor:
             return self._process_phaser_effect(left, right, params, state, system_state)
         elif effect_type == 17:
             return self._process_flanger_effect(left, right, params, state, system_state)
+        elif effect_type == 18:
+            return self._process_wah_wah_effect(left, right, params, state, system_state)
 
         # Default: return original signal
         return (left, right)
@@ -2227,9 +2229,9 @@ class XGAudioProcessor:
         return (output, output)
 
     def _process_flanger_effect(self, left: float, right: float,
-                               params: Dict[str, float],
-                               state: Dict[str, Any],
-                               system_state: Dict[str, Any]) -> Tuple[float, float]:
+                                params: Dict[str, float],
+                                state: Dict[str, Any],
+                                system_state: Dict[str, Any]) -> Tuple[float, float]:
         """Process Flanger effect"""
         frequency = params.get("frequency", 0.5)
         depth = params.get("depth", 0.5)
@@ -2279,6 +2281,75 @@ class XGAudioProcessor:
 
         state["flanger"]["lfo_phase"] = lfo_phase
         return (output, output)
+
+    def _process_wah_wah_effect(self, left: float, right: float,
+                                params: Dict[str, float],
+                                state: Dict[str, Any],
+                                system_state: Dict[str, Any]) -> Tuple[float, float]:
+        """Process Wah Wah effect"""
+        manual_position = params.get("manual_position", 0.5)
+        lfo_rate = params.get("lfo_rate", 0.5) * 5.0
+        lfo_depth = params.get("lfo_depth", 0.5)
+        resonance = params.get("resonance", 0.5)
+
+        if "wah_wah" not in state:
+            state["wah_wah"] = {
+                "lfo_phase": 0.0,
+                "filter_state": [0.0, 0.0, 0.0, 0.0]  # x1, x2, y1, y2 for biquad filter
+            }
+
+        lfo_phase = state["wah_wah"]["lfo_phase"]
+        lfo_phase += 2 * math.pi * lfo_rate / self.sample_rate
+
+        # LFO modulation
+        lfo_value = math.sin(lfo_phase) * lfo_depth * 0.5 + 0.5
+        cutoff_freq = manual_position + lfo_value * 0.5  # Combine manual and LFO
+        cutoff_freq = max(0.01, min(0.99, cutoff_freq))  # Clamp to valid range
+
+        # Convert to frequency
+        freq = 200.0 + cutoff_freq * 3800.0  # 200Hz to 4000Hz range
+        norm_cutoff = freq / (self.sample_rate / 2.0)
+        norm_cutoff = max(0.001, min(0.95, norm_cutoff))
+
+        # Resonance (Q factor)
+        q = 1.0 / (resonance * 2.0 + 0.1)
+
+        # Bandpass filter coefficients
+        alpha = math.sin(math.pi * norm_cutoff) / (2 * q)
+        b0 = alpha
+        b1 = 0
+        b2 = -alpha
+        a0 = 1 + alpha
+        a1 = -2 * math.cos(math.pi * norm_cutoff)
+        a2 = 1 - alpha
+
+        # Process left channel
+        x_left = left
+        filter_state = state["wah_wah"]["filter_state"]
+        y_left = (b0/a0) * x_left + (b1/a0) * filter_state[0] + (b2/a0) * filter_state[1] - \
+                 (a1/a0) * filter_state[2] - (a2/a0) * filter_state[3]
+
+        # Update filter state for left
+        filter_state[0] = x_left
+        filter_state[1] = filter_state[0]
+        filter_state[2] = y_left
+        filter_state[3] = filter_state[2]
+
+        # Process right channel (same coefficients)
+        x_right = right
+        y_right = (b0/a0) * x_right + (b1/a0) * filter_state[0] + (b2/a0) * filter_state[1] - \
+                  (a1/a0) * filter_state[2] - (a2/a0) * filter_state[3]
+
+        # Update filter state for right
+        filter_state[0] = x_right
+        filter_state[1] = filter_state[0]
+        filter_state[2] = y_right
+        filter_state[3] = filter_state[2]
+
+        state["wah_wah"]["lfo_phase"] = lfo_phase
+        state["wah_wah"]["filter_state"] = filter_state
+
+        return (y_left, y_right)
 
     # --- Additional Variation Effect Implementations (simplified stubs) ---
 
