@@ -103,6 +103,13 @@ class StateManager:
             "tuning_program": 0,  # Tuning program (0-127)
             "tuning_bank": 0,  # Tuning bank (0-127)
             "modulation_depth": 64,  # Modulation depth (0-127 cents)
+            # XG System Parameters
+            "master_tune": 0.0,  # Master tuning in Hz (-6.4 to +6.3)
+            "master_volume": 1.0,  # Master volume (0.0-1.0)
+            "master_tune_fine": 0.0,  # Fine master tuning (-0.64 to +0.63 Hz)
+            "transpose": 0,  # Global transpose (-64 to +63 semitones)
+            "drum_setup_reset": False,  # Drum setup reset flag
+            "system_reset": False,  # System reset flag
         }
 
     def get_channel_state(self, channel: int) -> Dict[str, Any]:
@@ -723,8 +730,11 @@ class StateManager:
         """
         return {
             "master_volume": DEFAULT_CONFIG["MASTER_VOLUME"],
-            "master_tune": 0.0,  # Master tuning in cents
-            "master_tune_fine": 0.0,  # Fine master tuning
+            "master_tune": 0.0,  # Master tuning in Hz (-6.4 to +6.3)
+            "master_tune_fine": 0.0,  # Fine master tuning in Hz (-0.64 to +0.63)
+            "transpose": 0,  # Global transpose in semitones (-64 to +63)
+            "drum_setup_reset": False,  # Drum setup reset flag
+            "system_reset": False,  # System reset flag
             "system_effects": {
                 "reverb": {
                     "type": 0,  # Hall 1
@@ -968,3 +978,88 @@ class StateManager:
 
         # Reset current performance
         self.current_performance = 0
+
+    # XG System Parameter Methods
+    def set_master_tune(self, tune: float):
+        """
+        Set master tuning.
+
+        Args:
+            tune: Master tuning in Hz (-6.4 to +6.3)
+        """
+        self.system_parameters["master_tune"] = max(-6.4, min(6.3, tune))
+
+    def get_master_tune(self) -> float:
+        """
+        Get master tuning.
+
+        Returns:
+            Master tuning in Hz
+        """
+        return self.system_parameters.get("master_tune", 0.0)
+
+    def set_master_volume(self, volume: float):
+        """
+        Set master volume.
+
+        Args:
+            volume: Master volume (0.0-1.0)
+        """
+        self.system_parameters["master_volume"] = max(0.0, min(1.0, volume))
+
+    def get_master_volume(self) -> float:
+        """
+        Get master volume.
+
+        Returns:
+            Master volume (0.0-1.0)
+        """
+        return self.system_parameters.get("master_volume", 1.0)
+
+    def set_master_tune_fine(self, tune_fine: float):
+        """
+        Set fine master tuning.
+
+        Args:
+            tune_fine: Fine master tuning in Hz (-0.64 to +0.63)
+        """
+        self.system_parameters["master_tune_fine"] = max(-0.64, min(0.63, tune_fine))
+
+    def get_master_tune_fine(self) -> float:
+        """
+        Get fine master tuning.
+
+        Returns:
+            Fine master tuning in Hz
+        """
+        return self.system_parameters.get("master_tune_fine", 0.0)
+
+    def set_transpose(self, transpose: int):
+        """
+        Set global transpose.
+
+        Args:
+            transpose: Transpose in semitones (-64 to +63)
+        """
+        self.system_parameters["transpose"] = max(-64, min(63, transpose))
+
+    def get_transpose(self) -> int:
+        """
+        Get global transpose.
+
+        Returns:
+            Transpose in semitones
+        """
+        return self.system_parameters.get("transpose", 0)
+
+    def reset_drum_setup(self):
+        """
+        Reset drum setup parameters.
+        """
+        self.system_parameters["drum_setup_reset"] = True
+
+    def reset_system(self):
+        """
+        Reset entire system.
+        """
+        self.system_parameters["system_reset"] = True

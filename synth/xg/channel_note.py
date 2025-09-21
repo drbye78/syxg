@@ -621,19 +621,20 @@ class ChannelNote:
             return (0.0, 0.0)
 
         # Update channel LFOs with cached values (XG architecture: LFOs are channel-level)
-        for lfo in self.channel_lfos:
-            lfo.set_mod_wheel(mod_wheel)
-            lfo.set_breath_controller(breath_controller)
-            lfo.set_foot_controller(foot_controller)
-            lfo.set_brightness(brightness)
-            lfo.set_harmonic_content(harmonic_content)
-            lfo.set_channel_aftertouch(channel_pressure_value)
-            lfo.set_key_aftertouch(key_pressure)
+        if self.channel_lfos:
+            for lfo in self.channel_lfos:
+                lfo.set_mod_wheel(mod_wheel)
+                lfo.set_breath_controller(breath_controller)
+                lfo.set_foot_controller(foot_controller)
+                lfo.set_brightness(brightness)
+                lfo.set_harmonic_content(harmonic_content)
+                lfo.set_channel_aftertouch(channel_pressure_value)
+                lfo.set_key_aftertouch(key_pressure)
 
         # Pre-calculate LFO values (both channel and note level)
-        lfo1_val = self.channel_lfos[0].step() if len(self.channel_lfos) > 0 else 0.0
-        lfo2_val = self.channel_lfos[1].step() if len(self.channel_lfos) > 1 else 0.0
-        lfo3_val = self.channel_lfos[2].step() if len(self.channel_lfos) > 2 else 0.0
+        lfo1_val = self.channel_lfos[0].step() if self.channel_lfos and len(self.channel_lfos) > 0 else 0.0
+        lfo2_val = self.channel_lfos[1].step() if self.channel_lfos and len(self.channel_lfos) > 1 else 0.0
+        lfo3_val = self.channel_lfos[2].step() if self.channel_lfos and len(self.channel_lfos) > 2 else 0.0
 
         # Note-level LFO values (XG allows per-note LFO modulation)
         note_lfo1_val = self.note_lfos[0].step() if len(self.note_lfos) > 0 else 0.0

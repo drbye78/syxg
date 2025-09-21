@@ -8,7 +8,7 @@ including parameter changes and bulk data operations.
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 
 from .constants import (
-    XG_EFFECT_NRPN_PARAMS, YAMAHA_MANUFACTURER_ID,
+    XG_EFFECT_NRPN_PARAMS, XG_CHANNEL_NRPN_PARAMS, YAMAHA_MANUFACTURER_ID,
     XG_PARAMETER_CHANGE, XG_BULK_PARAMETER_DUMP, XG_BULK_PARAMETER_REQUEST,
     XG_BULK_EFFECTS, XG_BULK_CHANNEL_EFFECTS
 )
@@ -65,9 +65,9 @@ class XGCommunicationHandler:
         self.state_manager.update_temp_state(param_info["target"], param_info["param"], real_value)
 
     def handle_nrpn(self, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int,
-                   channel: Optional[int] = None) -> bool:
+                    channel: Optional[int] = None) -> bool:
         """
-        Handle NRPN message for effects.
+        Handle NRPN message for effects and XG parameters.
 
         Args:
             nrpn_msb: NRPN MSB
@@ -80,21 +80,30 @@ class XGCommunicationHandler:
             True if the NRPN was handled, False otherwise
         """
         nrpn = (nrpn_msb, nrpn_lsb)
-        if nrpn not in XG_EFFECT_NRPN_PARAMS:
-            return False
-
-        param_info = XG_EFFECT_NRPN_PARAMS[nrpn]
         data = (data_msb << 7) | data_lsb  # 14-bit value
 
-        # Apply transformation
-        real_value = param_info["transform"](data)
+        # Check if this is an XG channel parameter (MSB 1-15)
+        if 1 <= nrpn_msb <= 15 and nrpn in XG_CHANNEL_NRPN_PARAMS:
+            param_info = XG_CHANNEL_NRPN_PARAMS[nrpn]
+            if channel is None:
+                channel = self.current_nrpn_channel
+            return self._handle_xg_channel_parameter(channel, param_info["param"], param_info["transform"](data))
 
-        # Update state
-        if channel is None:
-            channel = self.current_nrpn_channel
+        # Check if this is an XG effect parameter
+        elif nrpn in XG_EFFECT_NRPN_PARAMS:
+            param_info = XG_EFFECT_NRPN_PARAMS[nrpn]
 
-        self.state_manager.update_temp_state(param_info["target"], param_info["param"], real_value)
-        return True
+            # Apply transformation
+            real_value = param_info["transform"](data)
+
+            # Update state
+            if channel is None:
+                channel = self.current_nrpn_channel
+
+            self.state_manager.update_temp_state(param_info["target"], param_info["param"], real_value)
+            return True
+
+        return False
 
     def handle_sysex(self, manufacturer_id: List[int], data: List[int]) -> bool:
         """
@@ -419,3 +428,49 @@ class XGCommunicationHandler:
         data = message[4:-1]
 
         return manufacturer_id, data
+
+    def _handle_xg_channel_parameter(self, channel: int, param: str, value: Union[float, int, bool]) -> bool:
+        """
+        Handle XG channel-specific parameters.
+
+        Args:
+            channel: MIDI channel (0-15)
+            param: Parameter name
+            value: Parameter value
+
+        Returns:
+            True if the parameter was handled, False otherwise
+        """
+        if not (0 <= channel < 16):
+            return False
+
+        # Store the current NRPN channel for the state manager
+        old_channel = self.current_nrpn_channel
+        self.current_nrpn_channel = channel
+
+        try:
+            # Update the channel state in the state manager
+            self.state_manager.update_temp_state("channel", param, value)
+            return True
+        except Exception:
+            return False
+        finally:
+            # Restore the original channel
+            self.current_nrpn_channel = old_channel
+
+    def _handle_system_parameter(self, param: str, value: Union[float, int, bool]) -> bool:
+        """
+        Handle XG system parameters.
+
+        Args:
+            param: Parameter name
+            value: Parameter value
+
+        Returns:
+            True if the parameter was handled, False otherwise
+        """
+        try:
+            self.state_manager.update_temp_state("system", param, value)
+            return True
+        except Exception:
+            return False

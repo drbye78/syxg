@@ -43,19 +43,21 @@ class VectorizedChannelRenderer:
     VOICE_MODE_MONO_LEGATO = 3  # Monophonic with legato (note overlapping)
     VOICE_MODE_MONO_PORTAMENTO = 4  # Monophonic with portamento (glide)
 
-    def __init__(self, channel: int, sample_rate: int = 44100, wavetable=None, max_voices: int = 64):
+    def __init__(self, channel: int, sample_rate: int = 44100, wavetable=None, max_voices: int = 64, drum_manager=None):
         """
         Initialize vectorized channel renderer with pre-allocated buffers.
-        
+
         Args:
             channel: MIDI channel number (0-15)
             sample_rate: Audio sample rate
             wavetable: Wavetable manager for sound generation
             max_voices: Maximum number of voices for this channel
+            drum_manager: Drum manager for drum parameter handling
         """
         self.channel = channel
         self.sample_rate = sample_rate
         self.wavetable = wavetable
+        self.drum_manager = drum_manager
         self.active = True
 
         # Channel state with pre-initialized values
@@ -673,7 +675,16 @@ class VectorizedChannelRenderer:
                 harmonic_content = self.cached_harmonic_content
                 channel_pressure = self.cached_channel_pressure
                 key_pressure = self.key_pressure_values.get(note, 0)
-                
+
+                # Apply drum-specific parameters if this is a drum channel and drum manager exists
+                drum_level = 1.0
+                drum_pan = 0.0
+                if self.is_drum and self.drum_manager:
+                    drum_params = self.drum_manager.get_drum_parameters_for_note(self.channel, note)
+                    if drum_params:
+                        drum_level = drum_params.get("level", 1.0)
+                        drum_pan = drum_params.get("pan", 0.0)
+
                 # Process all samples in the block for this note
                 for i in range(block_size):
                     # Generate a sample for this note with all modulation sources
@@ -689,14 +700,24 @@ class VectorizedChannelRenderer:
                         expression=self.expression,
                         global_pitch_mod=global_pitch_mod
                     )
-                    
+
+                    # Apply drum-specific level and pan
+                    left_sample *= drum_level
+                    right_sample *= drum_level
+
+                    if drum_pan != 0.0:
+                        pan_left = 1.0 - abs(drum_pan) if drum_pan < 0 else 1.0
+                        pan_right = 1.0 - abs(drum_pan) if drum_pan > 0 else 1.0
+                        left_sample *= pan_left
+                        right_sample *= pan_right
+
                     # Accumulate in batch buffers
                     left_batch[i] += left_sample
                     right_batch[i] += right_sample
-                    
+
                     # Update global pitch modulation for next sample if needed
                     # (In a more advanced implementation, this might vary per sample)
-                
+
             except Exception as e:
                 # Disable problematic note
                 channel_note.active = False
@@ -767,78 +788,119 @@ class VectorizedChannelRenderer:
     # XG-specific controller handlers with optimized parameter updates
     def _handle_xg_harmonic_content(self, value: int):
         """Handle XG Harmonic Content controller (71) with optimized parameter update."""
-        # Map 0-127 to normalized range and apply to all active notes with vectorized operations
-        normalized_value = np.float32(value / 127.0)
-        # Apply to all active notes - in a real implementation, this would modify filter parameters
-        # Implementation will update the cached value which will be used in note generation
+        # Map 0-127 to resonance range (±24 semitones) and apply to all active notes
+        semitones = ((value - 64) / 64.0) * 24.0
+        resonance = max(0.0, min(2.0, 0.7 + semitones * 0.05))
+
+        # Apply to all active notes - modify filter resonance parameters
+        for note, channel_note in self.active_notes.items():
+            if channel_note.is_active():
+                for partial in channel_note.partials:
+                    if partial.is_active() and hasattr(partial, 'filter_params'):
+                        partial.filter_params['resonance'] = resonance
+
         self.cached_harmonic_content = value
 
     def _handle_xg_brightness(self, value: int):
         """Handle XG Brightness controller (72) with optimized parameter update."""
-        # Map 0-127 to normalized range and apply to all active notes with vectorized operations
-        normalized_value = np.float32(value / 127.0)
-        # Apply to all active notes - in a real implementation, this would modify filter parameters
-        # Implementation will update the cached value which will be used in note generation
+        # Map 0-127 to brightness range (±24 semitones) and apply to all active notes
+        semitones = ((value - 64) / 64.0) * 24.0
+        brightness_mult = 2.0 ** (semitones / 12.0)
+        cutoff = max(20, min(20000, 1000.0 * brightness_mult))
+
+        # Apply to all active notes - modify filter cutoff parameters
+        for note, channel_note in self.active_notes.items():
+            if channel_note.is_active():
+                for partial in channel_note.partials:
+                    if partial.is_active() and hasattr(partial, 'filter_params'):
+                        partial.filter_params['cutoff'] = cutoff
+
         self.cached_brightness = value
 
     def _handle_xg_release_time(self, value: int):
         """Handle XG Release Time controller (73) with optimized parameter update."""
-        # Map 0-127 to release time range (0.001 to 10.0 seconds) with optimized calculation
-        release_time = np.float32(0.001 + (value / 127.0) * 9.999)
-        # Apply to all active notes with vectorized operations
-        # Implementation would modify envelope parameters for all active notes
-        # Implementation will log that the parameter was updated
-        pass
+        # Map 0-127 to release time range (0.001 to 10.0 seconds)
+        if value <= 64:
+            release_time = 0.001 + (value / 64.0) * 0.999
+        else:
+            release_time = 1.0 + ((value - 64) / 63.0) * 17.0  # Up to 18 seconds
+
+        # Apply to all active notes - modify envelope release parameters
+        for note, channel_note in self.active_notes.items():
+            if channel_note.is_active():
+                for partial in channel_note.partials:
+                    if partial.is_active() and partial.amp_envelope:
+                        partial.amp_envelope.release_time = release_time
 
     def _handle_xg_attack_time(self, value: int):
         """Handle XG Attack Time controller (74) with optimized parameter update."""
-        # Map 0-127 to attack time range (0.001 to 1.0 seconds) with optimized calculation
-        attack_time = np.float32(0.001 + (value / 127.0) * 0.999)
-        # Apply to all active notes with vectorized operations
-        # Implementation would modify envelope parameters for all active notes
-        # Implementation will log that the parameter was updated
-        pass
+        # Map 0-127 to attack time range (0.001 to 1.0 seconds)
+        if value <= 64:
+            attack_time = 0.001 + (value / 64.0) * 0.999
+        else:
+            attack_time = 1.0 + ((value - 64) / 63.0) * 17.0  # Up to 18 seconds
+
+        # Apply to all active notes - modify envelope attack parameters
+        for note, channel_note in self.active_notes.items():
+            if channel_note.is_active():
+                for partial in channel_note.partials:
+                    if partial.is_active() and partial.amp_envelope:
+                        partial.amp_envelope.attack_time = attack_time
 
     def _handle_xg_filter_cutoff(self, value: int):
         """Handle XG Filter Cutoff controller (75) with optimized parameter update."""
-        # Map 0-127 to filter cutoff frequency range with optimized calculation
-        normalized_value = np.float32(value / 127.0)
-        # Apply to all active notes with vectorized operations
-        # Implementation would modify filter parameters for all active notes
-        # Implementation will log that the parameter was updated
-        pass
+        # Map 0-127 to filter cutoff frequency range (4 octaves)
+        freq_ratio = 2.0 ** ((value - 64) / 32.0)
+        cutoff = max(20, min(20000, 1000.0 * freq_ratio))
+
+        # Apply to all active notes - modify filter cutoff parameters
+        for note, channel_note in self.active_notes.items():
+            if channel_note.is_active():
+                for partial in channel_note.partials:
+                    if partial.is_active() and hasattr(partial, 'filter_params'):
+                        partial.filter_params['cutoff'] = cutoff
 
     def _handle_xg_decay_time(self, value: int):
         """Handle XG Decay Time controller (76) with optimized parameter update."""
-        # Map 0-127 to decay time range (0.01 to 5.0 seconds) with optimized calculation
-        decay_time = np.float32(0.01 + (value / 127.0) * 4.99)
-        # Apply to all active notes with vectorized operations
-        # Implementation would modify envelope parameters for all active notes
-        # Implementation will log that the parameter was updated
-        pass
+        # Map 0-127 to decay time range (0.01 to 5.0 seconds)
+        decay_time = 0.01 + (value / 127.0) * 4.99
+
+        # Apply to all active notes - modify envelope decay parameters
+        for note, channel_note in self.active_notes.items():
+            if channel_note.is_active():
+                for partial in channel_note.partials:
+                    if partial.is_active() and partial.amp_envelope:
+                        partial.amp_envelope.decay_time = decay_time
 
     def _handle_xg_vibrato_rate(self, value: int):
         """Handle XG Vibrato Rate controller (77) with optimized parameter update."""
-        # Map 0-127 to LFO rate range (0.1 to 10.0 Hz) with optimized calculation
-        lfo_rate = float(0.1 + (value / 127.0) * 9.9)
-        # Apply to first LFO (typically used for vibrato) with optimized update
+        # Map 0-127 to LFO rate range (0.1 to 10.0 Hz)
+        lfo_rate = 0.1 * (10.0 ** (value * 2.0 / 127.0))
+
+        # Apply to first LFO (typically used for vibrato)
         if self.lfos and len(self.lfos) > 0:
+            self.lfos[0].rate = lfo_rate
             self.lfos[0].update_xg_vibrato_rate(value)
 
     def _handle_xg_vibrato_depth(self, value: int):
         """Handle XG Vibrato Depth controller (78) with optimized parameter update."""
-        # Map 0-127 to LFO depth range with optimized calculation
-        lfo_depth = float(value / 127.0)
-        # Apply to first LFO (typically used for vibrato) with optimized update
+        # Map 0-127 to LFO depth range (0-600 cents)
+        depth_cents = (value / 127.0) * 600.0
+        lfo_depth = depth_cents / 100.0  # Convert to semitones
+
+        # Apply to first LFO (typically used for vibrato)
         if self.lfos and len(self.lfos) > 0:
+            self.lfos[0].depth = lfo_depth
             self.lfos[0].update_xg_vibrato_depth(value)
 
     def _handle_xg_vibrato_delay(self, value: int):
         """Handle XG Vibrato Delay controller (79) with optimized parameter update."""
-        # Map 0-127 to LFO delay range (0.0 to 5.0 seconds) with optimized calculation
-        lfo_delay = float((value / 127.0) * 5.0)
-        # Apply to first LFO (typically used for vibrato) with optimized update
+        # Map 0-127 to LFO delay range (0.0 to 5.0 seconds)
+        lfo_delay = (value / 127.0) * 5.0
+
+        # Apply to first LFO (typically used for vibrato)
         if self.lfos and len(self.lfos) > 0:
+            self.lfos[0].delay = lfo_delay
             self.lfos[0].update_xg_vibrato_delay(value)
 
     # XG Part Mode Implementation with optimized parameter updates

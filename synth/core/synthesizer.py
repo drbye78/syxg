@@ -17,7 +17,6 @@ from .constants import MIDI_CONSTANTS, XG_CONSTANTS, DEFAULT_CONFIG, VOICE_ALLOC
 from ..sf2.manager import SF2Manager
 from ..xg.manager import StateManager
 from ..xg.drum_manager import DrumManager
-from ..midi.message_handler import MIDIMessageHandler
 from ..midi.buffered_processor import BufferedProcessor
 from ..audio.vectorized_engine import VectorizedAudioEngine
 from ..xg.channel_renderer import XGChannelRenderer
@@ -98,8 +97,6 @@ class XGSynthesizer:
         # Effects
         self.effect_manager = VectorizedEffectManager(sample_rate)
 
-        # MIDI message handling
-        self.message_handler = MIDIMessageHandler(self.state_manager, self.drum_manager, self.effect_manager, self)
 
         # Set wavetable manager for all channel renderers
         for renderer in self.channel_renderers:

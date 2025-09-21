@@ -89,6 +89,10 @@ class XGPartialGenerator:
         self.loop_end = 0
         self.loop_mode = 0  # 0=no loop, 1=forward, 2=backward, 3=alternating
 
+        # Loop state for alternating loops
+        self.loop_direction = 1  # 1=forward, -1=backward (for alternating loops)
+        self.loop_position = 0.0  # Current position within loop
+
         # XG Envelope parameters with proper scaling
         self.amp_attack_time = partial_params.get("amp_attack", 0.01)
         self.amp_decay_time = partial_params.get("amp_decay", 0.3)
@@ -149,7 +153,7 @@ class XGPartialGenerator:
         # XG Modulation cache
         self.last_pitch_mod = 0.0
         self.last_filter_mod = 0.0
-        self.last_amp_mod = 0.0
+        self.last_amp_mod = 1.0  # Default to 1.0 (no modulation)
 
     def _is_note_in_range(self, note: int, velocity: int) -> bool:
         """Check if note and velocity fall within this partial's XG-defined ranges."""
@@ -191,7 +195,8 @@ class XGPartialGenerator:
         )
 
         if sample_table is None or len(sample_table) == 0:
-            self.active = False
+            # No sample table available - use sine wave fallback
+            # Don't set active=False, as we can still generate sine wave
             return base_freq * 2.0 * math.pi / self.sample_rate
 
         # Get loop information from sample header
@@ -286,7 +291,7 @@ class XGPartialGenerator:
             resonance=self.filter_resonance,
             filter_type=self.filter_type,
             key_follow=self.filter_key_follow,
-            stereo_width=0.5,  # XG default stereo width
+            stereo_width=0.0,  # Mono processing for partials
             sample_rate=self.sample_rate
         )
 
@@ -299,6 +304,10 @@ class XGPartialGenerator:
         """Handle XG note-on event."""
         if not self.active:
             return
+
+        # Reset loop state for alternating loops
+        self.loop_direction = 1  # Start with forward direction
+        self.loop_position = 0.0
 
         # Calculate XG velocity scaling
         vel_normalized = velocity / 127.0
@@ -463,32 +472,68 @@ class XGPartialGenerator:
         table_length = len(sample_table)
         raw_index = self.phase * table_length / (2.0 * math.pi)
 
-        # Apply SF2 loop wrapping if loop is enabled
+        # Apply SF2 loop wrapping based on loop mode
         if self.loop_mode > 0 and self.loop_end > self.loop_start:
             # Convert loop points from sample space to table index space
-            loop_start_idx = self.loop_start
-            loop_end_idx = self.loop_end
+            loop_start_idx = float(self.loop_start)
+            loop_end_idx = float(self.loop_end)
 
             # Ensure loop points are within table bounds
-            loop_start_idx = max(0, min(loop_start_idx, table_length - 1))
-            loop_end_idx = max(loop_start_idx + 1, min(loop_end_idx, table_length))
+            loop_start_idx = max(0.0, min(loop_start_idx, table_length - 1))
+            loop_end_idx = max(loop_start_idx + 1, min(loop_end_idx, table_length - 1))
+            loop_length = loop_end_idx - loop_start_idx
 
-            # Apply loop wrapping
-            if raw_index >= loop_end_idx:
-                # Calculate how many loop lengths we've gone past the end
-                loop_length = loop_end_idx - loop_start_idx
-                if loop_length > 0:
-                    # Wrap back into the loop
-                    excess = raw_index - loop_end_idx
-                    wrapped_index = loop_start_idx + (excess % loop_length)
-                    table_index = wrapped_index
+            if loop_length > 0:
+                if self.loop_mode == 1:  # Forward loop
+                    # Standard forward loop
+                    if raw_index >= loop_end_idx:
+                        excess = raw_index - loop_end_idx
+                        table_index = loop_start_idx + (excess % loop_length)
+                    elif raw_index < loop_start_idx:
+                        # Before loop start - could clamp or wrap
+                        table_index = loop_start_idx
+                    else:
+                        table_index = raw_index
+
+                elif self.loop_mode == 2:  # Backward loop
+                    # Backward loop - play from end to start repeatedly
+                    if raw_index >= loop_end_idx:
+                        excess = raw_index - loop_end_idx
+                        # Calculate position from end
+                        backward_pos = loop_length - (excess % loop_length)
+                        table_index = loop_start_idx + backward_pos
+                    elif raw_index < loop_start_idx:
+                        table_index = loop_end_idx - 1  # Start from end
+                    else:
+                        # Within loop - play backward from current position
+                        table_index = loop_end_idx - (raw_index - loop_start_idx)
+
+                elif self.loop_mode == 3:  # Alternating loop (ping-pong)
+                    # Alternating between forward and backward
+                    if raw_index >= loop_end_idx:
+                        # Reached end - switch to backward and calculate position
+                        excess = raw_index - loop_end_idx
+                        self.loop_direction = -1  # Switch to backward
+                        # Position from end
+                        backward_pos = excess % loop_length
+                        table_index = loop_end_idx - backward_pos
+                    elif raw_index < loop_start_idx:
+                        # Reached start - switch to forward
+                        excess = loop_start_idx - raw_index
+                        self.loop_direction = 1  # Switch to forward
+                        table_index = loop_start_idx + (excess % loop_length)
+                    else:
+                        # Within loop - continue in current direction
+                        if self.loop_direction > 0:  # Forward
+                            table_index = raw_index
+                        else:  # Backward
+                            table_index = loop_end_idx - (raw_index - loop_start_idx)
                 else:
-                    table_index = loop_end_idx - 1  # Stay at end if invalid loop
-            elif raw_index < 0:
-                # Handle negative indices (shouldn't happen in normal playback)
-                table_index = 0
+                    # Unknown loop mode - default to forward
+                    table_index = raw_index
             else:
-                table_index = raw_index
+                # Invalid loop - no looping
+                table_index = max(0.0, min(raw_index, table_length - 1))
         else:
             # No loop - use raw index
             table_index = raw_index

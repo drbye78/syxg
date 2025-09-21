@@ -58,6 +58,16 @@ class EffectStateManager:
             "pan": 0.5,  # Pan (0.0-1.0)
             "volume": 1.0,  # Volume (0.0-1.0)
             "expression": 1.0,  # Expression (0.0-1.0)
+            # XG Channel Parameters
+            "pitch_bend_range": 2,  # Pitch bend range in semitones (0-24)
+            "fine_tuning": 0.0,  # Fine tuning (-1.0 to +1.0 representing -100 to +100 cents)
+            "coarse_tuning": 0,  # Coarse tuning (-64 to +63 semitones)
+            "tuning_program": 0,  # Tuning program (0-127)
+            "tuning_bank": 0,  # Tuning bank (0-127)
+            "modulation_depth": 64,  # Modulation depth (0-127 cents)
+            "element_reserve": 0,  # Element reserve (0-127)
+            "element_assign_mode": 0,  # Element assign mode (0-127)
+            "receive_channel": 0,  # Receive channel (0-15)
             "insertion_effect": self._create_insertion_effect_params(),
             "variation_params": self._create_variation_params()
         }
@@ -77,7 +87,42 @@ class EffectStateManager:
             "frequency": 1.0,
             "depth": 0.5,
             "feedback": 0.3,
-            "lfo_waveform": 0  # 0=sine, 1=triangle, 2=square, 3=sawtooth
+            "lfo_waveform": 0,  # 0=sine, 1=triangle, 2=square, 3=sawtooth
+            # Additional parameters for all effect types
+            "drive": 0.5,
+            "tone": 0.5,
+            "bias": 0.5,
+            "threshold": 0.5,
+            "ratio": 0.5,
+            "attack": 0.1,
+            "release": 0.5,
+            "reduction": 0.5,
+            "hold": 0.1,
+            "sensitivity": 0.5,
+            "resonance": 0.5,
+            "mode": 0,
+            "bass": 0.5,
+            "treble": 0.5,
+            "enhance": 0.5,
+            "speed": 1.0,
+            "balance": 0.5,
+            "accel": 0.5,
+            "rate": 1.0,
+            "waveform": 0,
+            "phase": 0.0,
+            "bands": 8,
+            "formant": 0.5,
+            "intervals": 12,
+            "mix": 0.5,
+            "shift": 0.0,
+            "cutoff": 1000.0,
+            "manual_position": 0.5,
+            "lfo_rate": 1.0,
+            "lfo_depth": 0.5,
+            "time": 0.5,
+            "stereo": 0.5,
+            "decay": 0.5,
+            "hf_damping": 0.5
         }
 
     def _create_variation_params(self) -> Dict[str, Any]:
@@ -137,7 +182,66 @@ class EffectStateManager:
                     "pan": source["channel_params"][i]["pan"],
                     "volume": source["channel_params"][i]["volume"],
                     "expression": source["channel_params"][i]["expression"],
-                    "insertion_effect": source["channel_params"][i]["insertion_effect"].copy(),
+                    # XG Channel Parameters
+                    "pitch_bend_range": source["channel_params"][i].get("pitch_bend_range", 2),
+                    "fine_tuning": source["channel_params"][i].get("fine_tuning", 0.0),
+                    "coarse_tuning": source["channel_params"][i].get("coarse_tuning", 0),
+                    "tuning_program": source["channel_params"][i].get("tuning_program", 0),
+                    "tuning_bank": source["channel_params"][i].get("tuning_bank", 0),
+                    "modulation_depth": source["channel_params"][i].get("modulation_depth", 64),
+                    "element_reserve": source["channel_params"][i].get("element_reserve", 0),
+                    "element_assign_mode": source["channel_params"][i].get("element_assign_mode", 0),
+                    "receive_channel": source["channel_params"][i].get("receive_channel", 0),
+                    "insertion_effect": {
+                        **source["channel_params"][i]["insertion_effect"],
+                        # Ensure all parameters are present
+                        "enabled": source["channel_params"][i]["insertion_effect"].get("enabled", True),
+                        "type": source["channel_params"][i]["insertion_effect"].get("type", 0),
+                        "parameter1": source["channel_params"][i]["insertion_effect"].get("parameter1", 0.5),
+                        "parameter2": source["channel_params"][i]["insertion_effect"].get("parameter2", 0.5),
+                        "parameter3": source["channel_params"][i]["insertion_effect"].get("parameter3", 0.5),
+                        "parameter4": source["channel_params"][i]["insertion_effect"].get("parameter4", 0.5),
+                        "level": source["channel_params"][i]["insertion_effect"].get("level", 1.0),
+                        "bypass": source["channel_params"][i]["insertion_effect"].get("bypass", False),
+                        "frequency": source["channel_params"][i]["insertion_effect"].get("frequency", 1.0),
+                        "depth": source["channel_params"][i]["insertion_effect"].get("depth", 0.5),
+                        "feedback": source["channel_params"][i]["insertion_effect"].get("feedback", 0.3),
+                        "lfo_waveform": source["channel_params"][i]["insertion_effect"].get("lfo_waveform", 0),
+                        "drive": source["channel_params"][i]["insertion_effect"].get("drive", 0.5),
+                        "tone": source["channel_params"][i]["insertion_effect"].get("tone", 0.5),
+                        "bias": source["channel_params"][i]["insertion_effect"].get("bias", 0.5),
+                        "threshold": source["channel_params"][i]["insertion_effect"].get("threshold", 0.5),
+                        "ratio": source["channel_params"][i]["insertion_effect"].get("ratio", 0.5),
+                        "attack": source["channel_params"][i]["insertion_effect"].get("attack", 0.1),
+                        "release": source["channel_params"][i]["insertion_effect"].get("release", 0.5),
+                        "reduction": source["channel_params"][i]["insertion_effect"].get("reduction", 0.5),
+                        "hold": source["channel_params"][i]["insertion_effect"].get("hold", 0.1),
+                        "sensitivity": source["channel_params"][i]["insertion_effect"].get("sensitivity", 0.5),
+                        "resonance": source["channel_params"][i]["insertion_effect"].get("resonance", 0.5),
+                        "mode": source["channel_params"][i]["insertion_effect"].get("mode", 0),
+                        "bass": source["channel_params"][i]["insertion_effect"].get("bass", 0.5),
+                        "treble": source["channel_params"][i]["insertion_effect"].get("treble", 0.5),
+                        "enhance": source["channel_params"][i]["insertion_effect"].get("enhance", 0.5),
+                        "speed": source["channel_params"][i]["insertion_effect"].get("speed", 1.0),
+                        "balance": source["channel_params"][i]["insertion_effect"].get("balance", 0.5),
+                        "accel": source["channel_params"][i]["insertion_effect"].get("accel", 0.5),
+                        "rate": source["channel_params"][i]["insertion_effect"].get("rate", 1.0),
+                        "waveform": source["channel_params"][i]["insertion_effect"].get("waveform", 0),
+                        "phase": source["channel_params"][i]["insertion_effect"].get("phase", 0.0),
+                        "bands": source["channel_params"][i]["insertion_effect"].get("bands", 8),
+                        "formant": source["channel_params"][i]["insertion_effect"].get("formant", 0.5),
+                        "intervals": source["channel_params"][i]["insertion_effect"].get("intervals", 12),
+                        "mix": source["channel_params"][i]["insertion_effect"].get("mix", 0.5),
+                        "shift": source["channel_params"][i]["insertion_effect"].get("shift", 0.0),
+                        "cutoff": source["channel_params"][i]["insertion_effect"].get("cutoff", 1000.0),
+                        "manual_position": source["channel_params"][i]["insertion_effect"].get("manual_position", 0.5),
+                        "lfo_rate": source["channel_params"][i]["insertion_effect"].get("lfo_rate", 1.0),
+                        "lfo_depth": source["channel_params"][i]["insertion_effect"].get("lfo_depth", 0.5),
+                        "time": source["channel_params"][i]["insertion_effect"].get("time", 0.5),
+                        "stereo": source["channel_params"][i]["insertion_effect"].get("stereo", 0.5),
+                        "decay": source["channel_params"][i]["insertion_effect"].get("decay", 0.5),
+                        "hf_damping": source["channel_params"][i]["insertion_effect"].get("hf_damping", 0.5)
+                    },
                     "variation_params": source["channel_params"][i]["variation_params"].copy()
                 }
 
@@ -155,16 +259,35 @@ class EffectStateManager:
             state["routing_params"][param] = value
         elif target == "global":
             state["global_effect_params"][param] = value
+        elif target == "system":
+            # Handle system parameters
+            if "system_params" not in state:
+                state["system_params"] = {}
+            state["system_params"][param] = value
         elif target == "channel":
             channel = getattr(self, 'current_nrpn_channel', 0)
             if 0 <= channel < NUM_CHANNELS:
-                if param in ["reverb_send", "chorus_send", "variation_send", "insertion_send", "muted", "soloed", "pan", "volume"]:
+                # Handle XG channel parameters
+                if param in ["reverb_send", "chorus_send", "variation_send", "insertion_send",
+                           "muted", "soloed", "pan", "volume", "expression",
+                           "pitch_bend_range", "fine_tuning", "coarse_tuning",
+                           "tuning_program", "tuning_bank", "modulation_depth",
+                           "element_reserve", "element_assign_mode", "receive_channel"]:
                     state["channel_params"][channel][param] = value
         elif target == "insertion":
             channel = getattr(self, 'current_nrpn_channel', 0)
             if 0 <= channel < NUM_CHANNELS:
-                if param in ["enabled", "type", "parameter1", "parameter2", "parameter3", "parameter4",
-                            "level", "bypass", "frequency", "depth", "feedback", "lfo_waveform"]:
+                # Support all insertion effect parameters
+                valid_params = [
+                    "enabled", "type", "parameter1", "parameter2", "parameter3", "parameter4",
+                    "level", "bypass", "frequency", "depth", "feedback", "lfo_waveform",
+                    "drive", "tone", "bias", "threshold", "ratio", "attack", "release",
+                    "reduction", "hold", "sensitivity", "resonance", "mode", "bass", "treble",
+                    "enhance", "speed", "balance", "accel", "rate", "waveform", "phase",
+                    "bands", "formant", "intervals", "mix", "shift", "cutoff", "manual_position",
+                    "lfo_rate", "lfo_depth", "time", "stereo", "decay", "hf_damping"
+                ]
+                if param in valid_params:
                     state["channel_params"][channel]["insertion_effect"][param] = value
 
     def get_current_state(self) -> Dict[str, Any]:
@@ -279,6 +402,16 @@ class EffectStateManager:
                     "pan": 0.5,  # Pan (0.0-1.0)
                     "volume": 1.0,  # Volume (0.0-1.0)
                     "expression": 1.0,  # Expression (0.0-1.0)
+                    # XG Channel Parameters (XG defaults)
+                    "pitch_bend_range": 2,  # Default XG pitch bend range
+                    "fine_tuning": 0.0,  # No fine tuning
+                    "coarse_tuning": 0,  # No coarse tuning
+                    "tuning_program": 0,  # Default tuning program
+                    "tuning_bank": 0,  # Default tuning bank
+                    "modulation_depth": 64,  # Default modulation depth
+                    "element_reserve": 0,  # Default element reserve
+                    "element_assign_mode": 0,  # Default element assign mode
+                    "receive_channel": i,  # Default to own channel
                     "insertion_effect": {
                         "enabled": True,
                         "type": 0,  # Off
@@ -292,7 +425,42 @@ class EffectStateManager:
                         "frequency": 1.0,
                         "depth": 0.5,
                         "feedback": 0.3,
-                        "lfo_waveform": 0
+                        "lfo_waveform": 0,  # 0=sine, 1=triangle, 2=square, 3=sawtooth
+                        # Additional parameters for all effect types
+                        "drive": 0.5,
+                        "tone": 0.5,
+                        "bias": 0.5,
+                        "threshold": 0.5,
+                        "ratio": 0.5,
+                        "attack": 0.1,
+                        "release": 0.5,
+                        "reduction": 0.5,
+                        "hold": 0.1,
+                        "sensitivity": 0.5,
+                        "resonance": 0.5,
+                        "mode": 0,
+                        "bass": 0.5,
+                        "treble": 0.5,
+                        "enhance": 0.5,
+                        "speed": 1.0,
+                        "balance": 0.5,
+                        "accel": 0.5,
+                        "rate": 1.0,
+                        "waveform": 0,
+                        "phase": 0.0,
+                        "bands": 8,
+                        "formant": 0.5,
+                        "intervals": 12,
+                        "mix": 0.5,
+                        "shift": 0.0,
+                        "cutoff": 1000.0,
+                        "manual_position": 0.5,
+                        "lfo_rate": 1.0,
+                        "lfo_depth": 0.5,
+                        "time": 0.5,
+                        "stereo": 0.5,
+                        "decay": 0.5,
+                        "hf_damping": 0.5
                     },
                     "variation_params": {
                         "type": 0,  # Delay

@@ -45,11 +45,14 @@ class ResonantFilter:
         # Учет модулированной stereo width
         stereo_width = self.modulated_stereo_width
 
-        # Учет стерео эффектов
-        if channel == 0:  # Левый канал
-            stereo_factor = 1.0 - stereo_width * 0.5
-        else:  # Правый канал
-            stereo_factor = 1.0 - stereo_width * 0.5 + stereo_width
+        # Учет стерео эффектов - only apply for stereo processing
+        if stereo_width > 0.0:  # Only apply stereo effects when stereo width > 0
+            if channel == 0:  # Левый канал
+                stereo_factor = 1.0 - stereo_width * 0.5
+            else:  # Правый канал
+                stereo_factor = 1.0 - stereo_width * 0.5 + stereo_width
+        else:
+            stereo_factor = 1.0  # No stereo effect for mono
 
         # Учет brightness и harmonic content
         effective_cutoff = self.cutoff * (1 + self.brightness_mod * 0.5) * stereo_factor
