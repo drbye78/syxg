@@ -257,7 +257,7 @@ class OptimizedXGSynthesizer:
     def send_sysex(self, data: List[int]):
         """
         Send system exclusive message.
-        
+
         Args:
             data: SYSEX message data (including F0 and F7)
         """
@@ -265,10 +265,38 @@ class OptimizedXGSynthesizer:
             # Check if this is really a SYSEX message
             if len(data) < 3 or data[0] != 0xF0 or data[-1] != 0xF7:
                 return
-            
+
             # Determine manufacturer
             if len(data) >= 2 and data[1] == 0x43:  # Yamaha
                 self._handle_yamaha_sysex(data)
+
+    def send_midi_message_block(self, messages: List[Tuple[float, int, int, int]],
+                               sysex_messages: Optional[List[Tuple[float, List[int]]]] = None):
+        """
+        Send block of timestamped MIDI messages for buffered processing.
+
+        Args:
+            messages: List of tuples (time_in_seconds, status, data1, data2)
+            sysex_messages: List of tuples (time_in_seconds, SYSEX_data) (optional)
+        """
+        with self.lock:
+            self.buffered_processor.send_midi_message_block(messages, sysex_messages)
+
+    def generate_audio_block(self, block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Generate audio block using buffered message processing.
+
+        This method processes buffered MIDI messages automatically during audio generation,
+        providing efficient buffered processing for real-time applications.
+
+        Args:
+            block_size: Block size in samples (if None, uses default value)
+
+        Returns:
+            Tuple (left_channel, right_channel) with audio data
+        """
+        # Use the sample-accurate method which already handles buffered processing
+        return self.generate_audio_block_sample_accurate(block_size)
 
     def _handle_yamaha_sysex(self, data: List[int]):
         """Handle Yamaha SYSEX messages."""

@@ -8,53 +8,53 @@ from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 
 
 class ResonantFilter:
-    """Расширенный резонансный фильтр с поддержкой harmonic content, brightness и стерео обработки"""
+    """Extended resonant filter with support for harmonic content, brightness and stereo processing"""
     def __init__(self, cutoff=1000.0, resonance=0.7, filter_type="lowpass",
                  key_follow=0.5, stereo_width=0.5, sample_rate=44100):
         self.cutoff = cutoff
         self.resonance = resonance
         self.filter_type = filter_type
         self.key_follow = key_follow
-        self.stereo_width = stereo_width  # 0.0 (моно) до 1.0 (полное стерео)
+        self.stereo_width = stereo_width  # 0.0 (mono) to 1.0 (full stereo)
         self.sample_rate = sample_rate
         self.brightness_mod = 0.0
         self.harmonic_content_mod = 0.0
 
-        # Поддержка модуляции stereo width
+        # Support for stereo width modulation
         self.modulated_stereo_width = stereo_width
 
         # Phase 2 optimization: Cache filter coefficients
         self.coeffs_cache = {}
         self.coeffs_dirty = True
 
-        # Коэффициенты для левого и правого каналов
+        # Coefficients for left and right channels
         self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = self._calculate_coefficients(0)
         self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = self._calculate_coefficients(1)
 
-        # Буферы для левого канала
+        # Buffers for left channel
         self.x_l = [0.0, 0.0]
         self.y_l = [0.0, 0.0]
 
-        # Буферы для правого канала
+        # Buffers for right channel
         self.x_r = [0.0, 0.0]
         self.y_r = [0.0, 0.0]
 
 
     def _calculate_coefficients(self, channel):
-        """Расчет коэффициентов фильтра для указанного канала"""
-        # Учет модулированной stereo width
+        """Calculate filter coefficients for the specified channel"""
+        # Account for modulated stereo width
         stereo_width = self.modulated_stereo_width
 
-        # Учет стерео эффектов - only apply for stereo processing
+        # Account for stereo effects - only apply for stereo processing
         if stereo_width > 0.0:  # Only apply stereo effects when stereo width > 0
-            if channel == 0:  # Левый канал
+            if channel == 0:  # Left channel
                 stereo_factor = 1.0 - stereo_width * 0.5
-            else:  # Правый канал
+            else:  # Right channel
                 stereo_factor = 1.0 - stereo_width * 0.5 + stereo_width
         else:
             stereo_factor = 1.0  # No stereo effect for mono
 
-        # Учет brightness и harmonic content
+        # Account for brightness and harmonic content
         effective_cutoff = self.cutoff * (1 + self.brightness_mod * 0.5) * stereo_factor
         effective_resonance = self.resonance * (1 + self.harmonic_content_mod * 0.3)
 
@@ -84,12 +84,12 @@ class ResonantFilter:
             a1 = -2 * cos_omega
             a2 = 1 - alpha
 
-        # Нормализация
+        # Normalization
         return b0/a0, b1/a0, b2/a0, a1/a0, a2/a0
 
     def set_parameters(self, cutoff=None, resonance=None, filter_type=None, key_follow=None, stereo_width=None,
                       modulated_stereo_width=None):
-        """Установка параметров фильтра"""
+        """Set filter parameters"""
         # Optimize parameter setting to reduce max/min calls
         changed = False
 
@@ -127,7 +127,7 @@ class ResonantFilter:
                 self.key_follow = key_follow
             changed = True
 
-        # Обновление модулированной stereo width
+        # Update modulated stereo width
         if modulated_stereo_width is not None:
             # Clamp modulated_stereo_width between 0.0 and 1.0
             if modulated_stereo_width < 0.0:
@@ -138,7 +138,7 @@ class ResonantFilter:
                 self.modulated_stereo_width = modulated_stereo_width
             changed = True
 
-        # Обновление stereo width
+        # Update stereo width
         if stereo_width is not None:
             # Clamp stereo_width between 0.0 and 1.0
             if stereo_width < 0.0:
@@ -156,33 +156,33 @@ class ResonantFilter:
             self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = self._calculate_coefficients(1)
 
     def set_brightness(self, value):
-        """Установка модуляции от brightness (0-127)"""
+        """Set modulation from brightness (0-127)"""
         self.brightness_mod = value / 127.0
         self.coeffs_dirty = True
 
     def set_harmonic_content(self, value):
-        """Установка модуляции от harmonic content (0-127)"""
+        """Set modulation from harmonic content (0-127)"""
         self.harmonic_content_mod = value / 127.0
         self.coeffs_dirty = True
 
     def apply_note_pitch(self, note):
-        """Применение влияния высоты ноты на cutoff через key follow"""
+        """Apply note pitch influence on cutoff through key follow"""
         if self.key_follow > 0:
-            # Изменение cutoff пропорционально высоте ноты (на 1 октаву вверх - удвоение cutoff)
+            # Change cutoff proportionally to note pitch (1 octave up - double cutoff)
             pitch_factor = 2 ** ((note - 60) / 12 * self.key_follow)
             return self.cutoff * pitch_factor
         return self.cutoff
 
     def process(self, input_sample, is_stereo=False):
         """
-        Обработка одного сэмпла через фильтр
+        Process one sample through the filter
 
         Args:
-            input_sample: моно сэмпл или кортеж (left, right)
-            is_stereo: флаг, указывающий, является ли вход стерео
+            input_sample: mono sample or tuple (left, right)
+            is_stereo: flag indicating whether input is stereo
 
         Returns:
-            кортеж (left_sample, right_sample)
+            tuple (left_sample, right_sample)
         """
         # Phase 2 optimization: Only recalculate coefficients when dirty
         if self.coeffs_dirty:
@@ -195,27 +195,27 @@ class ResonantFilter:
         else:
             left_in = right_in = input_sample
 
-        # Обработка левого канала
+        # Process left channel
         left_out = (self.b0_l * left_in +
                    self.b1_l * self.x_l[0] +
                    self.b2_l * self.x_l[1] -
                    self.a1_l * self.y_l[0] -
                    self.a2_l * self.y_l[1])
 
-        # Обновление буферов левого канала
+        # Update left channel buffers
         self.x_l[1] = self.x_l[0]
         self.x_l[0] = left_in
         self.y_l[1] = self.y_l[0]
         self.y_l[0] = left_out
 
-        # Обработка правого канала
+        # Process right channel
         right_out = (self.b0_r * right_in +
                     self.b1_r * self.x_r[0] +
                     self.b2_r * self.x_r[1] -
                     self.a1_r * self.y_r[0] -
                     self.a2_r * self.y_r[1])
 
-        # Обновление буферов правого канала
+        # Update right channel buffers
         self.x_r[1] = self.x_r[0]
         self.x_r[0] = right_in
         self.y_r[1] = self.y_r[0]

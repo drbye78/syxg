@@ -38,13 +38,15 @@ Key Features:
 - Provides real-time playback capabilities with time-based message retrieval
 - Supports System Exclusive (SysEx) messages, meta events, and standard channel messages
 - Unified message cache with timestamp-ordered access
+- Proper handling of tempo changes (per-track) and SMPTE offset
+- Timestamps converted to seconds during parsing for consistent timing
 
 Message Format Documentation:
 
 All MIDI messages returned by the API are dictionaries with the following structure:
 
 Common Fields (present in all messages):
-- 'time': Timestamp in internal time units (ticks for MIDI, various for UMP)
+- 'time': Timestamp in seconds from the start of the sequence (includes SMPTE offset if present)
 - 'type': Message type identifier (string)
 
 Channel Messages:
@@ -127,6 +129,8 @@ class MIDIParser:
         self.is_midi2 = False
         self.is_ump_file = False
         self.time_base = 0
+        # SMPTE timing variables
+        self.smpte_offset = 0.0  # SMPTE offset in seconds
         self._parse_file()
         self._merge_tracks()
         
@@ -456,44 +460,50 @@ class MIDIParser:
             
         return message, offset
 
-    def _parse_track_messages(self, track_data: bytes, track_index: int) -> List[Tuple[int, dict]]:
-        """Parse messages from a single track (MIDI or UMP)"""
+    def _parse_track_messages(self, track_data: bytes, track_index: int) -> List[Tuple[float, dict]]:
+        """Parse messages from a single track (MIDI or UMP) with proper timing"""
         messages = []
         offset = 0
-        time = 0
+        ticks_accumulated = 0  # Accumulated ticks from start of track
+        current_tempo = self.tempo  # Track-specific tempo (starts with global default)
         running_status = None
-        
+
         # Determine if this is an UMP track or standard MIDI track
         is_ump_track = self.is_ump_file or (
-            len(track_data) >= 4 and 
+            len(track_data) >= 4 and
             struct.unpack('>I', track_data[:4])[0] & 0xF0000000 != 0
         )
-        
+
         if is_ump_track:
             # Parse UMP messages
             while offset < len(track_data):
                 # For UMP files, time is typically implicit or in JR Timestamp messages
                 # In this simplified implementation, we'll use message order as time
                 try:
-                    message, offset = self._parse_ump_message(track_data, offset, time)
-                    messages.append((time, message))
-                    time += 1  # Increment for ordering
+                    message, offset = self._parse_ump_message(track_data, offset, ticks_accumulated)
+                    # Convert to seconds for UMP (simplified)
+                    time_seconds = ticks_accumulated / 1000.0 if self.time_base == 0 else ticks_accumulated / self.time_base
+                    messages.append((time_seconds, message))
+                    ticks_accumulated += 1  # Increment for ordering
                 except ValueError as e:
                     # Skip invalid messages
                     break
         else:
-            # Parse standard MIDI messages
+            # Parse standard MIDI messages with proper tempo handling
             while offset < len(track_data):
-                # Read delta time
-                delta_time, offset = self._read_variable_length(track_data, offset)
-                time += delta_time
-                
+                # Read delta time (ticks since last event)
+                delta_ticks, offset = self._read_variable_length(track_data, offset)
+                ticks_accumulated += delta_ticks
+
+                # Convert accumulated ticks to seconds using current tempo
+                time_seconds = self._ticks_to_seconds(ticks_accumulated, current_tempo)
+
                 # Read message
                 if offset >= len(track_data):
                     break
-                    
+
                 first_byte = track_data[offset]
-                
+
                 if first_byte == 0xFF:  # Meta event
                     offset += 1
                     if offset + 1 > len(track_data):
@@ -505,20 +515,30 @@ class MIDIParser:
                         break
                     meta_data = list(track_data[offset:offset + length])
                     offset += length
-                    
+
                     message = {
-                        'time': time,
+                        'time': time_seconds,
                         'type': 'meta',
                         'meta_type': meta_type,
                         'data': meta_data
                     }
-                    
-                    # Handle tempo changes
+
+                    # Handle tempo changes (per-track)
                     if meta_type == 0x51 and len(meta_data) == 3:
-                        self.tempo = struct.unpack('>I', b'\x00' + bytes(meta_data))[0]
-                        
-                    messages.append((time, message))
-                    
+                        # Update tempo for this track (affects subsequent timing calculations)
+                        current_tempo = struct.unpack('>I', b'\x00' + bytes(meta_data))[0]
+                        message['tempo_us_per_beat'] = current_tempo
+
+                    # Handle SMPTE offset (global, affects entire sequence)
+                    elif meta_type == 0x54 and len(meta_data) == 5:
+                        # SMPTE offset: hr, mn, se, fr, ff
+                        hr, mn, se, fr, ff = meta_data
+                        # Convert to seconds (simplified - assumes 30fps)
+                        self.smpte_offset = hr * 3600 + mn * 60 + se + (fr + ff/100.0) / 30.0
+                        message['smpte_offset_seconds'] = self.smpte_offset
+
+                    messages.append((time_seconds, message))
+
                 elif first_byte == 0xF0 or first_byte == 0xF7:  # SysEx
                     status_byte = first_byte
                     offset += 1
@@ -527,43 +547,43 @@ class MIDIParser:
                         break
                     sysex_data = list(track_data[offset:offset + length])
                     offset += length
-                    
+
                     message = {
-                        'time': time,
+                        'time': time_seconds,
                         'type': 'sysex',
                         'status': status_byte,
                         'data': sysex_data
                     }
-                    messages.append((time, message))
-                    
+                    messages.append((time_seconds, message))
+
                 else:  # Channel messages
                     status_byte = first_byte
                     offset += 1
-                    
+
                     # Handle running status
                     if status_byte < 0x80:
                         if running_status is None:
                             continue
                         status_byte = running_status
                         offset -= 1  # Re-read the data byte
-                    
+
                     # Parse channel message
                     status_nibble = status_byte & 0xF0
                     channel = status_byte & 0x0F
-                    
+
                     message:Dict[str, Any] = {
-                        'time': time,
+                        'time': time_seconds,
                         'status': status_byte,
                         'channel': channel
                     }
-                    
+
                     if status_nibble in (0x80, 0x90, 0xA0, 0xB0, 0xE0):  # 2-byte messages
                         if offset + 1 > len(track_data):
                             break
                         data_bytes = [track_data[offset], track_data[offset + 1]]
                         message['data'] = data_bytes
                         offset += 2
-                        
+
                         if status_nibble == 0x80:
                             message.update({
                                 'type': 'note_off',
@@ -593,14 +613,14 @@ class MIDIParser:
                                 'type': 'pitch_bend',
                                 'pitch': (data_bytes[1] << 7) | data_bytes[0]
                             })
-                            
+
                     elif status_nibble in (0xC0, 0xD0):  # 1-byte messages
                         if offset >= len(track_data):
                             break
                         data_byte = track_data[offset]
                         message['data'] = [data_byte]
                         offset += 1
-                        
+
                         if status_nibble == 0xC0:
                             message.update({
                                 'type': 'program_change',
@@ -611,15 +631,35 @@ class MIDIParser:
                                 'type': 'channel_pressure',
                                 'pressure': data_byte
                             })
-                            
+
                     else:
                         running_status = None
                         continue
-                    
+
                     running_status = status_byte
-                    messages.append((time, message))
-                
+                    messages.append((time_seconds, message))
+
         return messages
+
+    def _ticks_to_seconds(self, ticks: int, tempo_us_per_beat: int) -> float:
+        """
+        Convert MIDI ticks to seconds using the specified tempo.
+
+        Args:
+            ticks: Number of MIDI ticks
+            tempo_us_per_beat: Tempo in microseconds per beat
+
+        Returns:
+            Time in seconds
+        """
+        if self.division & 0x8000:  # SMPTE format
+            fps = 256 - ((self.division >> 8) & 0xFF)
+            ticks_per_frame = self.division & 0xFF
+            return ticks / (fps * ticks_per_frame)
+        else:  # PPQN format
+            ppqn = self.division
+            # Convert ticks to seconds: ticks * (tempo_us/beat) / (ppqn * 1,000,000 us/sec)
+            return (ticks * tempo_us_per_beat) / (ppqn * 1000000.0)
 
     def _merge_tracks(self):
         """Merge multiple tracks into a single time-ordered message stream"""
@@ -628,22 +668,24 @@ class MIDIParser:
         for i, track_data in enumerate(self.tracks):
             track_messages = self._parse_track_messages(track_data, i)
             all_messages.extend(track_messages)
-        
-        # Sort by timestamp
+
+        # Sort by timestamp (now in seconds)
         all_messages.sort(key=lambda x: x[0])
+
+        # Apply SMPTE offset to all messages
+        if self.smpte_offset > 0:
+            for i, (time_seconds, message) in enumerate(all_messages):
+                all_messages[i] = (time_seconds + self.smpte_offset, message)
+
         self._events = all_messages
         self._message_cache = [msg for _, msg in all_messages]
 
     def get_total_duration(self) -> float:
         """
-        Calculate total duration of the MIDI/UMP file in seconds.
+        Get total duration of the MIDI/UMP file in seconds.
 
-        This method computes the total playback time by converting the timestamp of the last message
-        to seconds using the appropriate timing mechanism:
-
-        - For UMP files: Uses the time_base value (samples per second)
-        - For MIDI files with SMPTE timing: Converts frames and ticks per frame to seconds
-        - For MIDI files with PPQN timing: Converts ticks to seconds using tempo and PPQN values
+        Since timestamps are now stored in seconds during parsing, this method
+        simply returns the timestamp of the last message.
 
         Returns:
             float: Total duration in seconds. Returns 0.0 if no messages exist.
@@ -655,20 +697,8 @@ class MIDIParser:
         if not self._message_cache:
             return 0.0
 
-        # Get last message time
-        last_time = self._message_cache[-1]['time']
-
-        # Convert ticks to seconds
-        if self.is_ump_file:
-            # UMP files use time base directly
-            return last_time / self.time_base if self.time_base > 0 else last_time / 1000.0
-        elif self.division & 0x8000:  # SMPTE format
-            fps = 256 - ((self.division >> 8) & 0xFF)
-            ticks_per_frame = self.division & 0xFF
-            return last_time / (fps * ticks_per_frame)
-        else:  # PPQN format
-            ppqn = self.division
-            return (last_time * self.tempo) / (ppqn * 1000000.0)
+        # Get last message time (already in seconds)
+        return self._message_cache[-1]['time']
 
     def get_all_messages(self) -> List[dict]:
         """Get all messages in the file"""
@@ -688,12 +718,12 @@ class MIDIParser:
 
         Returns:
             List[dict]: List of MIDI message dictionaries that occur within the time window.
-                       Messages include timing and event information. None if end of song reached.
+                        Messages include timing and event information. None if end of song reached.
 
         Timing Behavior:
             - Messages are consumed once retrieved (removed from internal cache)
-            - Internal time pointer (_current_time) advances to the time of the last message
-            - Timing accounts for file format (UMP uses time_base, MIDI uses tempo/PPQN or SMPTE)
+            - Internal time pointer (_current_time) advances by the specified duration
+            - Timestamps are now in seconds (converted during parsing)
             - Call repeatedly with consistent duration_ms for smooth real-time playback
 
         Note:
@@ -702,24 +732,16 @@ class MIDIParser:
         """
         if not self._events or self._index >= len(self._events):
             return None
-        
-        # Convert duration to appropriate time units
-        if self.is_ump_file:
-            # UMP files use time base
-            target_time = self._current_time + (duration_ms * self.time_base) / 1000.0 if self.time_base > 0 else self._current_time + duration_ms
-        elif self.division & 0x8000:  # SMPTE
-            fps = 256 - ((self.division >> 8) & 0xFF)
-            ticks_per_frame = self.division & 0xFF
-            target_time = self._current_time + duration_ms * fps * ticks_per_frame / 1000.0
-        else:  # PPQN
-            ppqn = self.division
-            target_time = self._current_time + (duration_ms * 1000.0 * ppqn) / self.tempo
+
+        # Convert duration from milliseconds to seconds
+        duration_seconds = duration_ms / 1000.0
+        target_time = self._current_time + duration_seconds
 
         # Retrieve all messages within time range
         start = self._index
         while (self._index < len(self._events) and self._events[self._index][0] <= target_time):
             self._index += 1
-        
+
         self._current_time = target_time
         return self._message_cache[start:self._index]
 
