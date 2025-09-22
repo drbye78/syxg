@@ -7,7 +7,7 @@ from typing import List
 
 
 class ModulationDestination:
-    """Класс для представления цели модуляции"""
+    """Class for representing modulation destination"""
     FILTER_CUTOFF = "filter_cutoff"
     PITCH = "pitch"
     FILTER_RESONANCE = "filter_resonance"
@@ -22,7 +22,7 @@ class ModulationDestination:
     VELOCITY_CROSSFADE = "velocity_crossfade"
     NOTE_CROSSFADE = "note_crossfade"
 
-    # Новые цели из SoundFont
+    # New destinations from SoundFont
     FILTER_ATTACK = "filter_attack"
     FILTER_DECAY = "filter_decay"
     FILTER_DELAY = "filter_delay"

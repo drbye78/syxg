@@ -8,7 +8,7 @@ from .routes import ModulationRoute
 
 
 class ModulationMatrix:
-    """Матрица модуляции XG с поддержкой до 16 маршрутов"""
+    """XG modulation matrix with support for up to 16 routes"""
     def __init__(self, num_routes=16):
         self.routes = [None] * num_routes
         self.num_routes = num_routes
@@ -16,16 +16,16 @@ class ModulationMatrix:
     def set_route(self, index, source, destination, amount=0.0, polarity=1.0,
                   velocity_sensitivity=0.0, key_scaling=0.0):
         """
-        Установка маршрута модуляции
+        Setting modulation route
 
         Args:
-            index: индекс маршрута (0-15)
-            source: источник модуляции
-            destination: цель модуляции
-            amount: глубина модуляции
-            polarity: полярность (1.0 или -1.0)
-            velocity_sensitivity: чувствительность к скорости
-            key_scaling: зависимость от высоты ноты
+            index: route index (0-15)
+            source: modulation source
+            destination: modulation destination
+            amount: modulation depth
+            polarity: polarity (1.0 or -1.0)
+            velocity_sensitivity: velocity sensitivity
+            key_scaling: note height dependency
         """
         if 0 <= index < self.num_routes:
             self.routes[index] = ModulationRoute(  # type: ignore
@@ -34,21 +34,21 @@ class ModulationMatrix:
             )
 
     def clear_route(self, index):
-        """Очистка маршрута модуляции"""
+        """Clearing modulation route"""
         if 0 <= index < self.num_routes:
             self.routes[index] = None
 
     def process(self, sources, velocity, note):
         """
-        Обработка матрицы модуляции
+        Processing modulation matrix
 
         Args:
-            sources: словарь с текущими значениями источников
-            velocity: скорость нажатия (0-127)
-            note: MIDI нота (0-127)
+            sources: dictionary with current source values
+            velocity: key press velocity (0-127)
+            note: MIDI note (0-127)
 
         Returns:
-            словарь с модулирующими значениями для целей
+            dictionary with modulating values for destinations
         """
         modulation_values = {}
 

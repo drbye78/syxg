@@ -10,19 +10,19 @@ from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 
 
 class VectorizedModulationRoute:
-    """Векторизованный маршрут модуляции в матрице модуляции"""
+    """Vectorized modulation route in the modulation matrix"""
     def __init__(self, source, destination, amount=0.0, polarity=1.0,
                  velocity_sensitivity=0.0, key_scaling=0.0):
         """
-        Инициализация векторизованного маршрута модуляции
+        Initialization of vectorized modulation route
         
         Args:
-            source: источник модуляции (из ModulationSource)
-            destination: цель модуляции (из ModulationDestination)
-            amount: глубина модуляции (0.0-1.0)
-            polarity: полярность (1.0 или -1.0)
-            velocity_sensitivity: чувствительность к скорости (0.0-1.0)
-            key_scaling: зависимость от высоты ноты (-1.0-1.0)
+            source: modulation source (from ModulationSource)
+            destination: modulation destination (from ModulationDestination)
+            amount: modulation depth (0.0-1.0)
+            polarity: polarity (1.0 or -1.0)
+            velocity_sensitivity: velocity sensitivity (0.0-1.0)
+            key_scaling: note height dependency (-1.0-1.0)
         """
         self.source = source
         self.destination = destination
@@ -34,37 +34,37 @@ class VectorizedModulationRoute:
     def get_modulation_value_vectorized(self, source_values: np.ndarray, 
                                       velocities: np.ndarray, notes: np.ndarray) -> np.ndarray:
         """
-        Получение значений модуляции для данного маршрута в векторизованном виде
+        Getting modulation values for this route in vectorized form
         
         Args:
-            source_values: массив текущих значений источника
-            velocities: массив скоростей нажатия (0-127)
-            notes: массив MIDI нот (0-127)
-            
+            source_values: array of current source values
+            velocities: array of key press velocities (0-127)
+            notes: array of MIDI notes (0-127)
+
         Returns:
-            массив значений модуляции
+            array of modulation values
         """
-        # Применение полярности
+        # Applying polarity
         values = source_values * self.polarity * self.amount
         
-        # Применение чувствительности к скорости в векторизованном виде
+        # Applying velocity sensitivity in vectorized form
         if self.velocity_sensitivity != 0.0:
             velocity_factors = (velocities / 127.0) ** (1.0 + self.velocity_sensitivity)
             values *= velocity_factors
         
-        # Применение key scaling в векторизованном виде
+        # Applying key scaling in vectorized form
         if self.key_scaling != 0.0:
-            # Нормализация нот (60 = C3)
+            # Note normalization (60 = C3)
             note_factors = (notes - 60) / 60.0
             key_factors = 1.0 + note_factors * self.key_scaling
-            key_factors = np.maximum(0.1, key_factors)  # Ограничение минимального значения
+            key_factors = np.maximum(0.1, key_factors)  # Limiting minimum value
             values *= key_factors
         
         return values
 
 
 class VectorizedModulationMatrix:
-    """Векторизованная матрица модуляции XG с поддержкой до 16 маршрутов"""
+    """Vectorized XG modulation matrix with support up to 16 routes"""
     def __init__(self, num_routes=16):
         self.routes: List[Optional[VectorizedModulationRoute]] = [None] * num_routes
         self.num_routes = num_routes
@@ -72,16 +72,16 @@ class VectorizedModulationMatrix:
     def set_route(self, index, source, destination, amount=0.0, polarity=1.0,
                   velocity_sensitivity=0.0, key_scaling=0.0):
         """
-        Установка маршрута модуляции
+        Setting modulation route
         
         Args:
-            index: индекс маршрута (0-15)
-            source: источник модуляции
-            destination: цель модуляции
-            amount: глубина модуляции
-            polarity: полярность (1.0 или -1.0)
-            velocity_sensitivity: чувствительность к скорости
-            key_scaling: зависимость от высоты ноты
+            index: route index (0-15)
+            source: modulation source
+            destination: modulation destination
+            amount: modulation depth
+            polarity: polarity (1.0 or -1.0)
+            velocity_sensitivity: velocity sensitivity
+            key_scaling: note height dependency
         """
         if 0 <= index < self.num_routes:
             self.routes[index] = VectorizedModulationRoute(
@@ -90,31 +90,31 @@ class VectorizedModulationMatrix:
             )
 
     def clear_route(self, index):
-        """Очистка маршрута модуляции"""
+        """Clearing modulation route"""
         if 0 <= index < self.num_routes:
             self.routes[index] = None
 
     def process_vectorized(self, sources: Dict[str, np.ndarray], 
                           velocities: np.ndarray, notes: np.ndarray) -> Dict[str, np.ndarray]:
         """
-        Обработка матрицы модуляции в векторизованном виде
+        Processing modulation matrix in vectorized form
         
         Args:
-            sources: словарь с массивами текущих значений источников
-            velocities: массив скоростей нажатия (0-127)
-            notes: массив MIDI нот (0-127)
-            
+            sources: dictionary with arrays of current source values
+            velocities: array of key press velocities (0-127)
+            notes: array of MIDI notes (0-127)
+
         Returns:
-            словарь с массивами модулирующих значений для целей
+            dictionary with arrays of modulating values for destinations
         """
-        # Определение размера массивов
+        # Determining array size
         if len(velocities) == 0:
             return {}
             
         block_size = len(velocities)
         modulation_values: Dict[str, np.ndarray] = {}
         
-        # Обработка всех маршрутов в векторизованном виде
+        # Processing all routes in vectorized form
         for route in self.routes:
             if route is None:
                 continue
@@ -122,22 +122,22 @@ class VectorizedModulationMatrix:
             if route.source in sources:
                 source_values = sources[route.source]
                 
-                # Проверка размера массива источника
+                # Checking source array size
                 if len(source_values) != block_size:
-                    # Интерполяция или репликация значений для соответствия размеру блока
+                    # Interpolation or replication of values to match block size
                     if len(source_values) == 1:
                         source_values = np.full(block_size, source_values[0], dtype=np.float32)
                     else:
-                        # Линейная интерполяция
+                        # Linear interpolation
                         indices = np.linspace(0, len(source_values) - 1, block_size)
                         source_values = np.interp(indices, 
                                                 np.arange(len(source_values)), 
                                                 source_values).astype(np.float32)
                 
-                # Получение значений модуляции в векторизованном виде
+                # Getting modulation values in vectorized form
                 mod_values = route.get_modulation_value_vectorized(source_values, velocities, notes)
                 
-                # Аккумулирование значений модуляции для каждой цели
+                # Accumulating modulation values for each target
                 if route.destination not in modulation_values:
                     modulation_values[route.destination] = np.zeros(block_size, dtype=np.float32)
                 modulation_values[route.destination] += mod_values
@@ -146,15 +146,15 @@ class VectorizedModulationMatrix:
 
     def process(self, sources: Dict[str, float], velocity: int, note: int) -> Dict[str, float]:
         """
-        Обработка матрицы модуляции для одиночного сэмпла (совместимость с оригинальной версией)
+        Processing modulation matrix for single sample (compatibility with original version)
         
         Args:
-            sources: словарь с текущими значениями источников
-            velocity: скорость нажатия (0-127)
-            note: MIDI нота (0-127)
-            
+            sources: dictionary with current source values
+            velocity: key press velocity (0-127)
+            note: MIDI note (0-127)
+
         Returns:
-            словарь с модулирующими значениями для целей
+            dictionary with modulating values for destinations
         """
         modulation_values = {}
         
@@ -164,12 +164,12 @@ class VectorizedModulationMatrix:
                 
             if route.source in sources:
                 source_value = sources[route.source]
-                # Создание скалярных массивов для совместимости
+                # Creating scalar arrays for compatibility
                 mod_value = route.get_modulation_value_vectorized(
                     np.array([source_value], dtype=np.float32),
                     np.array([velocity], dtype=np.float32),
                     np.array([note], dtype=np.float32)
-                )[0]  # Получаем скалярное значение
+                )[0]  # Get scalar value
                 
                 if route.destination not in modulation_values:
                     modulation_values[route.destination] = 0.0

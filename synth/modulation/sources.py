@@ -7,7 +7,7 @@ from typing import List
 
 
 class ModulationSource:
-    """Класс для представления источника модуляции"""
+    """Class representing modulation source"""
     VELOCITY = "velocity"
     AFTER_TOUCH = "after_touch"
     MOD_WHEEL = "mod_wheel"
@@ -27,7 +27,7 @@ class ModulationSource:
     TREMOLO_RATE = "tremolo_rate"
     NOTE_NUMBER = "note_number"
 
-    # Новые источники из SoundFont
+    # New sources from SoundFont
     BREATH_CONTROLLER = "breath_controller"
     FOOT_CONTROLLER = "foot_controller"
     DATA_ENTRY = "data_entry"

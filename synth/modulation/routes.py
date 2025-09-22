@@ -7,19 +7,19 @@ from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 
 
 class ModulationRoute:
-    """Маршрут модуляции в матрице модуляции"""
+    """Modulation route in the modulation matrix"""
     def __init__(self, source, destination, amount=0.0, polarity=1.0,
                  velocity_sensitivity=0.0, key_scaling=0.0):
         """
-        Инициализация маршрута модуляции
+        Initialization of modulation route
 
         Args:
-            source: источник модуляции (из ModulationSource)
-            destination: цель модуляции (из ModulationDestination)
-            amount: глубина модуляции (0.0-1.0)
-            polarity: полярность (1.0 или -1.0)
-            velocity_sensitivity: чувствительность к скорости (0.0-1.0)
-            key_scaling: зависимость от высоты ноты (-1.0-1.0)
+            source: modulation source (from ModulationSource)
+            destination: modulation destination (from ModulationDestination)
+            amount: modulation depth (0.0-1.0)
+            polarity: polarity (1.0 or -1.0)
+            velocity_sensitivity: velocity sensitivity (0.0-1.0)
+            key_scaling: note height dependency (-1.0-1.0)
         """
         self.source = source
         self.destination = destination
@@ -30,27 +30,27 @@ class ModulationRoute:
 
     def get_modulation_value(self, source_value, velocity, note):
         """
-        Получение значения модуляции для данного маршрута
+        Getting modulation value for this route
 
         Args:
-            source_value: текущее значение источника
-            velocity: скорость нажатия (0-127)
-            note: MIDI нота (0-127)
+            source_value: current source value
+            velocity: key press velocity (0-127)
+            note: MIDI note (0-127)
 
         Returns:
-            значение модуляции
+            modulation value
         """
-        # Применение полярности
+        # Applying polarity
         value = source_value * self.polarity * self.amount
 
-        # Применение чувствительности к скорости
+        # Applying velocity sensitivity
         if self.velocity_sensitivity != 0.0:
             velocity_factor = (velocity / 127.0) ** (1.0 + self.velocity_sensitivity)
             value *= velocity_factor
 
-        # Применение key scaling
+        # Applying key scaling
         if self.key_scaling != 0.0:
-            # Нормализация ноты (60 = C3)
+            # Note normalization (60 = C3)
             note_factor = (note - 60) / 60.0
             key_factor = 1.0 + note_factor * self.key_scaling
             value *= max(0.1, key_factor)

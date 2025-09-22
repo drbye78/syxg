@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 
 class SF2Modulator:
-    """Представляет модулятор в SoundFont 2.0"""
+    """Represents a modulator in SoundFont 2.0"""
     __slots__ = [
         'source_oper', 'source_polarity', 'source_type', 'source_direction', 'source_index',
         'control_oper', 'control_polarity', 'control_type', 'control_direction', 'control_index',
@@ -17,38 +17,38 @@ class SF2Modulator:
     ]
 
     def __init__(self):
-        # Источник модуляции
+        # Modulation source
         self.source_oper = 0  # Source Operator
         self.source_polarity = 0  # 0 = unipolar, 1 = bipolar
         self.source_type = 0  # 0 = linear, 1 = concave
         self.source_direction = 0  # 0 = max -> min, 1 = min -> max
-        self.source_index = 0  # Индекс источника (для CC)
+        self.source_index = 0  # Source index (for CC)
 
-        # Управление модуляцией
+        # Modulation control
         self.control_oper = 0  # Control Operator
         self.control_polarity = 0
         self.control_type = 0
         self.control_direction = 0
         self.control_index = 0
 
-        # Цель модуляции
+        # Modulation target
         self.destination = 0  # Destination Generator
 
-        # Глубина модуляции
-        self.amount = 0  # Значение глубины
+        # Modulation depth
+        self.amount = 0  # Depth value
 
-        # Источник глубины модуляции
+        # Modulation depth source
         self.amount_source_oper = 0
         self.amount_source_polarity = 0
         self.amount_source_type = 0
         self.amount_source_direction = 0
         self.amount_source_index = 0
 
-        # Преобразование
+        # Transform
         self.transform = 0  # Transform Operator
 
 class SF2InstrumentZone:
-    """Представляет зону инструмента в SoundFont 2.0"""
+    """Represents an instrument zone in SoundFont 2.0"""
     __slots__ = [
         'lokey', 'hikey', 'lovel', 'hivel', 'initial_filterQ', 'initialFilterFc',
         'peakConcave', 'voiceConcave', 'AttackVolEnv', 'DecayVolEnv', 'SustainVolEnv',
@@ -72,76 +72,75 @@ class SF2InstrumentZone:
     ]
 
     def __init__(self):
-        # Диапазоны нот и velocity
+        # Note and velocity ranges
         self.lokey = 0
         self.hikey = 127
         self.lovel = 0
         self.hivel = 127
 
-        # Основные параметры
+        # Main parameters
         self.initial_filterQ = 0
         self.initialFilterFc = 13500
         self.peakConcave = 0
         self.voiceConcave = 0
 
-        # Параметры амплитудной огибающей
-        self.AttackVolEnv = -12000  # в time cents
+        # Amplitude envelope parameters
+        self.AttackVolEnv = -12000  # in time cents
         self.DecayVolEnv = -12000
         self.SustainVolEnv = 0  # 0-127 (0 = -inf dB)
         self.ReleaseVolEnv = -12000
-        self.DelayVolEnv = -12000  # Задержка амплитудной огибающей
-        self.HoldVolEnv = -12000  # Hold амплитудной огибающей
-
-        # Параметры фильтровой огибающей
+        self.DelayVolEnv = -12000  # Amplitude envelope delay
+        self.HoldVolEnv = -12000  # Amplitude envelope hold
+        # Filter envelope parameters
         self.AttackFilEnv = -12000
         self.DecayFilEnv = -12000
         self.SustainFilEnv = 0
         self.ReleaseFilEnv = -12000
-        self.DelayFilEnv = -12000  # Задержка фильтровой огибающей
-        self.HoldFilEnv = -12000  # Hold фильтровой огибающей
+        self.DelayFilEnv = -12000  # Filter envelope delay
+        self.HoldFilEnv = -12000  # Filter envelope hold
 
-        # Параметры pitch огибающей
+        # Pitch envelope parameters
         self.AttackPitchEnv = 0
         self.DecayPitchEnv = 0
         self.SustainPitchEnv = 0
         self.ReleasePitchEnv = 0
-        self.DelayPitchEnv = 0  # Задержка pitch огибающей
-        self.HoldPitchEnv = 0  # Hold pitch огибающей
+        self.DelayPitchEnv = 0  # Pitch envelope delay
+        self.HoldPitchEnv = 0  # Pitch envelope hold
 
-        # LFO параметры
+        # LFO parameters
         self.DelayLFO1 = 0
         self.DelayLFO2 = 0
-        self.LFO1Freq = 500  # 0.01 Гц * значение
+        self.LFO1Freq = 500  # 0.01 Hz * value
         self.LFO2Freq = 0
         self.LFO1VolumeToPitch = 0
         self.LFO1VolumeToFilter = 0
         self.LFO1VolumeToVolume = 0
 
-        # Панорамирование
+        # Panning
         self.InitialAttenuation = 0  # 0-1440 (0 = 1.0, 960 = -6dB, 1440 = -9dB)
         self.Pan = 50  # 0-100 (0 = left, 50 = center, 100 = right)
 
-        # Скорость и высота
+        # Velocity and pitch
         self.VelocityAttenuation = 0
         self.VelocityPitch = 0
-        self.OverridingRootKey = -1  # -1 = использовать ноту, иначе переназначить root key
+        self.OverridingRootKey = -1  # -1 = use the note, otherwise reassign root key
 
-        # Key scaling для огибающих
+        # Key scaling for envelopes
         self.KeynumToVolEnvHold = 0  # Keynum to Volume Envelope Hold
         self.KeynumToVolEnvDecay = 0  # Keynum to Volume Envelope Decay
         self.KeynumToModEnvHold = 0  # Keynum to Modulation Envelope Hold
         self.KeynumToModEnvDecay = 0  # Keynum to Modulation Envelope Decay
 
-        # Настройка высоты
-        self.CoarseTune = 0  # Грубая настройка (октавы)
-        self.FineTune = 0  # Точная настройка (центы)
+        # Pitch tuning
+        self.CoarseTune = 0  # Coarse tuning (octaves)
+        self.FineTune = 0  # Fine tuning (cents)
         self.scale_tuning = 100  # Scale tuning (100 cents = 1 semitone)
 
-        # Ссылка на сэмпл
+        # Sample reference
         self.sample_index = 0
         self.sample_name = "Default"
 
-        # Дополнительные флаги
+        # Additional flags
         self.mute = False
         self.keynum_to_volume = 0  # Key Number to Volume Envelope Delay
 
@@ -161,13 +160,13 @@ class SF2InstrumentZone:
         self.reverb_send = 0  # 0-127
         self.chorus_send = 0  # 0-127
 
-        # Модуляторы
+        # Modulators
         self.modulators = []
 
-        # Генераторы (для хранения параметров)
+        # Generators (for storing parameters)
         self.generators = {}
 
-        # Распространенные модуляции (для упрощенного доступа)
+        # Common modulations (for simplified access)
         self.lfo_to_pitch = 0.0
         self.lfo_to_filter = 0.0
         self.velocity_to_pitch = 0.0
@@ -190,7 +189,7 @@ class SF2InstrumentZone:
         self.gen_ndx = 0
 
 class SF2PresetZone:
-    """Представляет зону пресета в SoundFont 2.0"""
+    """Represents a preset zone in SoundFont 2.0"""
     __slots__ = [
         'preset', 'bank', 'generators', 'modulators', 'instrument_index',
         'instrument_name', 'lokey', 'hikey', 'lovel', 'hivel', 'lfo_to_pitch',
@@ -217,7 +216,7 @@ class SF2PresetZone:
         self.instrument_index = 0
         self.instrument_name = ""
 
-        # Диапазоны нот и velocity
+        # Note and velocity ranges
         self.lokey = 0
         self.hikey = 127
         self.lovel = 0
@@ -250,7 +249,7 @@ class SF2PresetZone:
         self.FineTune = 0
         self.InitialAttenuation = 0  # 0-1440 (0 = 1.0, 960 = -6dB, 1440 = -9dB)
         self.scale_tuning = 100  # Scale tuning (100 cents = 1 semitone)
-        self.OverridingRootKey = -1  # -1 = использовать ноту, иначе переназначить root key
+        self.OverridingRootKey = -1  # -1 = use the note, otherwise reassign root key
         self.start_coarse = 0
         self.end_coarse = 0
         self.start_loop_coarse = 0
@@ -260,7 +259,7 @@ class SF2PresetZone:
         self.reverb_send = 0  # 0-127
         self.chorus_send = 0  # 0-127
 
-        # Распространенные модуляции (для упрощенного доступа)
+        # Common modulations (for simplified access)
         self.lfo_to_pitch = 0.0
         self.lfo_to_filter = 0.0
         self.velocity_to_pitch = 0.0
@@ -278,7 +277,7 @@ class SF2PresetZone:
         self.LFO2Freq = 0
 
 class SF2SampleHeader:
-    """Представляет заголовок сэмпла в SoundFont 2.0"""
+    """Represents a sample header in SoundFont 2.0"""
     __slots__ = [
         'name', 'start', 'end', 'start_loop', 'end_loop', 'sample_rate',
         'original_pitch', 'pitch_correction', 'link', 'type', 'stereo',
@@ -293,7 +292,7 @@ class SF2SampleHeader:
         self.end_loop = 0
         self.sample_rate = 44100
         self.original_pitch = 60  # MIDI note number
-        self.pitch_correction = 0  # в центах
+        self.pitch_correction = 0  # in cents
         self.link = 0
         self.type = 1  # 1 = mono, 2 = right, 4 = left, 8 = linked
 
@@ -307,7 +306,7 @@ class SF2SampleHeader:
             return 0
 
 class SF2Preset:
-    """Представляет пресет (инструмент) в SoundFont 2.0"""
+    """Represents a preset (instrument) in SoundFont 2.0"""
     __slots__ = [
         'name', 'preset', 'bank', 'preset_bag_index', 'library', 'genre',
         'morphology', 'zones'
@@ -321,13 +320,13 @@ class SF2Preset:
         self.library = 0
         self.genre = 0
         self.morphology = 0
-        self.zones: List[SF2PresetZone] = []  # Список SF2PresetZone
+        self.zones: List[SF2PresetZone] = []  # List of SF2PresetZone
 
 class SF2Instrument:
-    """Представляет инструмент в SoundFont 2.0"""
+    """Represents an instrument in SoundFont 2.0"""
     __slots__ = ['name', 'instrument_bag_index', 'zones']
 
     def __init__(self):
         self.name = "Default"
         self.instrument_bag_index = 0
-        self.zones: List[SF2InstrumentZone] = []  # Список SF2InstrumentZone
+        self.zones: List[SF2InstrumentZone] = []  # List of SF2InstrumentZone

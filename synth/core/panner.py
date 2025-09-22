@@ -8,14 +8,14 @@ from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 
 
 class StereoPanner:
-    """Класс для панорамирования звука в стерео поле"""
+    """Class for panning sound in the stereo field"""
     def __init__(self, pan_position=0.5, sample_rate=44100):
         """
-        Инициализация стерео панорамы
+        Stereo panner initialization
 
         Args:
-            pan_position: позиция панорамирования (0.0 - лево, 0.5 - центр, 1.0 - право)
-            sample_rate: частота дискретизации
+            pan_position: panning position (0.0 - left, 0.5 - center, 1.0 - right)
+            sample_rate: sample rate
         """
         self.pan_position = pan_position
         self.sample_rate = sample_rate
@@ -24,60 +24,60 @@ class StereoPanner:
         self._update_gains()
 
     def _update_gains(self):
-        """Обновление коэффициентов усиления для левого и правого каналов"""
-        # Нормализация позиции (0 = лево, 1 = право)
+        """Updating gain coefficients for left and right channels"""
+        # Position normalization (0 = left, 1 = right)
         pan = max(0.0, min(1.0, self.pan_position))
 
-        # Синусоидальное панорамирование для сохранения уровня
+        # Sinusoidal panning to preserve level
         angle = pan * math.pi / 2
         self.left_gain = math.cos(angle)
         self.right_gain = math.sin(angle)
 
     def set_pan(self, controller_value):
         """
-        Установка панорамирования через MIDI контроллер
+        Setting panning via MIDI controller
 
         Args:
-            controller_value: значение контроллера 10 (0-127)
+            controller_value: controller 10 value (0-127)
         """
-        # MIDI контроллер 10: 0 = лево, 64 = центр, 127 = право
+        # MIDI controller 10: 0 = left, 64 = center, 127 = right
         self.pan_position = controller_value / 127.0
         self._update_gains()
 
     def set_pan_normalized(self, pan_normalized):
         """
-        Установка нормализованного панорамирования
+        Setting normalized panning
 
         Args:
-            pan_normalized: значение от 0.0 (лево) до 1.0 (право)
+            pan_normalized: value from 0.0 (left) to 1.0 (right)
         """
         self.pan_position = max(0.0, min(1.0, pan_normalized))
         self._update_gains()
 
     def process(self, mono_sample):
         """
-        Панорамирование моно сэмпла в стерео
+        Panning mono sample to stereo
 
         Args:
-            mono_sample: входной моно сэмпл
+            mono_sample: input mono sample
 
         Returns:
-            кортеж (left_sample, right_sample)
+            tuple (left_sample, right_sample)
         """
         return (mono_sample * self.left_gain, mono_sample * self.right_gain)
 
     def process_stereo(self, left_in, right_in):
         """
-        Обработка стерео сэмпла с возможным дополнительным панорамированием
+        Processing stereo sample with possible additional panning
 
         Args:
-            left_in: левый входной сэмпл
-            right_in: правый входной сэмпл
+            left_in: left input sample
+            right_in: right input sample
 
         Returns:
-            кортеж (left_out, right_out)
+            tuple (left_out, right_out)
         """
-        # При обработке стерео сэмпла, применяем панорамирование к каждому каналу
+        # When processing stereo sample, apply panning to each channel
         left_out = left_in * self.left_gain + right_in * (1.0 - self.right_gain)
         right_out = right_in * self.right_gain + left_in * (1.0 - self.left_gain)
         return (left_out, right_out)
