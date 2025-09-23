@@ -59,18 +59,13 @@ class AvWriter:
         if self.container:
             self.container.close()
             
-    def write(self, left: np.ndarray, right: np.ndarray):
+    def write(self, audio: np.ndarray):
         """Write stereo audio block with multiple AV compatibility approaches"""
         if not self.container or not self.stream:
             return
         
-        # Ensure arrays are the same length
-        assert len(left) == len(right), "Left and right channels must have the same length"
-
-        packet = np.vstack([left, right])
-        
         # Create audio frame with float format
-        frame = av.AudioFrame.from_ndarray(packet, format='fltp', layout='stereo')
+        frame = av.AudioFrame.from_ndarray(audio, format='flt', layout='stereo')
         frame.sample_rate = self.sample_rate
         frame.time_base = Fraction(1, self.sample_rate)
         

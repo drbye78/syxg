@@ -79,7 +79,20 @@ class VectorizedEffectManager:
         # PRE-ALLOCATED BUFFER FOR STEREO EFFECT PROCESSING
         # Pre-allocate buffer for stereo effect processing with vectorized operations
         self.stereo_buffer = np.zeros((self.max_block_size, 2), dtype=np.float32)
-        
+
+        # PRE-ALLOCATED REVERB DELAY BUFFERS FOR HIGH-PERFORMANCE PROCESSING
+        # Maximum reverb time: 10 seconds at 48kHz = 480,000 samples
+        self.max_reverb_delay = int(10.0 * self.sample_rate)  # 10 seconds max reverb
+        self.reverb_delay_buffers = [
+            np.zeros(self.max_reverb_delay, dtype=np.float32) for _ in range(4)
+        ]
+        self.reverb_write_positions = [0, 0, 0, 0]  # Write positions for each delay line
+
+        # PRE-ALLOCATED CHORUS DELAY BUFFER
+        self.max_chorus_delay = int(0.05 * self.sample_rate)  # 50ms max delay
+        self.chorus_delay_buffer = np.zeros(self.max_chorus_delay, dtype=np.float32)
+        self.chorus_write_position = 0
+
         # EFFECT PROCESSING STATE
         self.current_block_size = 0
         self.buffer_dirty = False
@@ -770,55 +783,51 @@ class VectorizedEffectManager:
         return stereo_mix
 
     def _apply_reverb_to_mix(self, input_mix: np.ndarray, params: Dict[str, Any],
-                           num_samples: int) -> np.ndarray:
-        """Apply reverb to stereo mix"""
-        # Simple reverb implementation using delay lines
+                            num_samples: int) -> np.ndarray:
+        """Apply reverb to stereo mix using optimized circular buffer implementation"""
         reverb_time = params.get("time", 1.0)
         reverb_level = params.get("level", 0.3)
 
-        # Create simple reverb using multiple delay taps
-        delay_lengths = [int(0.03 * self.sample_rate),  # Early reflection 1
-                        int(0.05 * self.sample_rate),  # Early reflection 2
-                        int(0.07 * self.sample_rate),  # Early reflection 3
-                        int(reverb_time * self.sample_rate)]  # Main reverb
+        # Calculate delay lengths for reverb taps
+        delay_lengths = [
+            int(0.03 * self.sample_rate),  # Early reflection 1
+            int(0.05 * self.sample_rate),  # Early reflection 2
+            int(0.07 * self.sample_rate),  # Early reflection 3
+            int(reverb_time * self.sample_rate)  # Main reverb
+        ]
+
+        # Decay factors for each tap
+        decay_factors = [0.7 ** (j + 1) for j in range(4)]
 
         output = input_mix.copy()
-        delay_buffers = [np.zeros(length) for length in delay_lengths]
 
+        # Process each sample in the block
         for i in range(num_samples):
-            # Add reverb to output
+            # Sum reverb contributions from all delay taps
             reverb_sum = 0.0
-            for j, delay_buffer in enumerate(delay_buffers):
-                if i < len(delay_buffer):
-                    decay_factor = 0.7 ** (j + 1)  # Decreasing decay
-                    reverb_sum += delay_buffer[i] * decay_factor
+            for j in range(4):
+                delay_samples = delay_lengths[j]
+                if delay_samples < self.max_reverb_delay:
+                    # Read from circular buffer: (write_pos - delay) % buffer_size
+                    read_pos = (self.reverb_write_positions[j] - delay_samples) % self.max_reverb_delay
+                    reverb_sum += self.reverb_delay_buffers[j][read_pos] * decay_factors[j]
 
+            # Add reverb to output
             output[i, 0] += reverb_sum * reverb_level
             output[i, 1] += reverb_sum * reverb_level
 
-            # Update delay buffers
-            for j, delay_buffer in enumerate(delay_buffers):
-                if j == 0:  # First delay gets input
-                    input_sample = (input_mix[i, 0] + input_mix[i, 1]) * 0.5
-                else:  # Other delays get feedback from previous
-                    input_sample = delay_buffers[j-1][i] if i < len(delay_buffers[j-1]) else 0.0
-
-                # Update delay buffer
-                if j < len(delay_buffers) - 1:  # Not the last buffer
-                    # Simple circular buffer implementation
-                    buffer_len = len(delay_buffer)
-                    # Shift all elements to the right
-                    for k in range(buffer_len - 1, 0, -1):
-                        delay_buffer[k] = delay_buffer[k-1]
-                    # Insert new sample at the beginning
-                    delay_buffer[0] = input_sample
+            # Write input sample to all delay buffers
+            input_sample = (input_mix[i, 0] + input_mix[i, 1]) * 0.5
+            for j in range(4):
+                if delay_lengths[j] < self.max_reverb_delay:
+                    self.reverb_delay_buffers[j][self.reverb_write_positions[j]] = input_sample
+                    self.reverb_write_positions[j] = (self.reverb_write_positions[j] + 1) % self.max_reverb_delay
 
         return output
 
     def _apply_chorus_to_mix(self, input_mix: np.ndarray, params: Dict[str, Any],
-                           num_samples: int) -> np.ndarray:
-        """Apply chorus to stereo mix"""
-        # Simple chorus implementation
+                            num_samples: int) -> np.ndarray:
+        """Apply chorus to stereo mix using optimized circular buffer"""
         chorus_rate = params.get("rate", 1.0)
         chorus_depth = params.get("depth", 0.5)
         chorus_level = params.get("level", 0.3)
@@ -827,31 +836,28 @@ class VectorizedEffectManager:
         t = np.arange(num_samples) / self.sample_rate
         lfo = np.sin(2.0 * np.pi * chorus_rate * t)
 
-        # Create chorus effect
         output = input_mix.copy()
-        delay_samples = int(0.02 * self.sample_rate)  # 20ms base delay
-        max_delay = int(0.03 * self.sample_rate)      # 30ms max delay
+        base_delay_samples = int(0.02 * self.sample_rate)  # 20ms base delay
+        max_delay_samples = int(0.03 * self.sample_rate)   # 30ms max delay
 
-        delay_buffer = np.zeros(max_delay + 1)
-
+        # Process each sample
         for i in range(num_samples):
-            # Calculate variable delay
-            delay_offset = int(chorus_depth * max_delay * (lfo[i] + 1.0) / 2.0)
-            delay_pos = delay_samples + delay_offset
+            # Calculate variable delay based on LFO
+            delay_offset = int(chorus_depth * max_delay_samples * (lfo[i] + 1.0) / 2.0)
+            delay_samples = base_delay_samples + delay_offset
 
-            if delay_pos < len(delay_buffer):
-                delayed_sample = delay_buffer[delay_pos]
-            else:
-                delayed_sample = delay_buffer[-1]
+            # Read from circular buffer
+            read_pos = (self.chorus_write_position - delay_samples) % self.max_chorus_delay
+            delayed_sample = self.chorus_delay_buffer[read_pos]
 
             # Add chorus to output
-            chorus_sample = (input_mix[i, 0] + input_mix[i, 1]) * 0.5
             output[i, 0] += delayed_sample * chorus_level
             output[i, 1] += delayed_sample * chorus_level
 
-            # Update delay buffer
-            delay_buffer = np.roll(delay_buffer, 1)
-            delay_buffer[0] = chorus_sample
+            # Write input sample to delay buffer
+            chorus_sample = (input_mix[i, 0] + input_mix[i, 1]) * 0.5
+            self.chorus_delay_buffer[self.chorus_write_position] = chorus_sample
+            self.chorus_write_position = (self.chorus_write_position + 1) % self.max_chorus_delay
 
         return output
 

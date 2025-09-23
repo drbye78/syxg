@@ -14,13 +14,14 @@ import glob
 from typing import List, Optional, Tuple
 from pathlib import Path
 import threading
+import time
 
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from synth.audio.writer import AudioWriter
 from synth.core.optimized_xg_synthesizer import OptimizedXGSynthesizer
-from synth.midi.parser import MIDIParser
+from synth.midi.parser import MIDIParser, MIDIMessage
 from synth.utils.keyboard import KeyboardListener
 from synth.utils.progress import ProgressReporter
 
@@ -86,9 +87,6 @@ def expand_file_patterns(patterns: List[str], recursive: bool = False) -> List[s
             # It's a glob pattern
             if recursive:
                 # Use ** for recursive globbing
-                import fnmatch
-                import os
-
                 # For recursive, we need to walk directories
                 pattern_path = Path(pattern)
                 if '**' in pattern or pattern_path.parent != Path('.'):
@@ -179,7 +177,9 @@ def convert_midi_to_audio_buffered(
     volume: float = 0.8,
     silent: bool = False,
     chunk_size_ms: float = 10.6667,
-    abort_event: Optional[threading.Event] = None
+    abort_event: Optional[threading.Event] = None,
+    start_time: Optional[float] = None,
+    timeout_seconds: float = 90.0
 ) -> bool:
     """Convert a single MIDI file to audio using buffered processing mode."""
     try:
@@ -189,53 +189,24 @@ def convert_midi_to_audio_buffered(
         # Load MIDI file using new MIDIParser that supports both MIDI 1.0 and 2.0
         parser = MIDIParser(input_file)
 
-        # Get all messages upfront for buffered processing
-        all_messages = parser.get_all_messages()
-
         # Get duration info
         total_duration_seconds = parser.get_total_duration()
-        adjusted_duration_seconds = total_duration_seconds / tempo
-        total_samples = int(adjusted_duration_seconds * synthesizer.sample_rate)
-
         if not silent:
             print(f"Total duration: {total_duration_seconds:.2f} seconds")
 
-        # Prepare buffered messages
-        midi_messages = []
-        sysex_messages = []
+        adjusted_duration_seconds = total_duration_seconds / tempo
+        total_samples = int(adjusted_duration_seconds * synthesizer.sample_rate)
+        all_messages = parser.get_all_messages()
 
-        for msg in all_messages:
-            # Adjust timing for tempo
-            adjusted_time = msg['time'] / tempo
+        if tempo == 1.0:
+            synthesizer.send_midi_message_block(all_messages)
+        else:
+            scaled_messahes = [x.with_tempo(tempo) for x in all_messages]
+            synthesizer.send_midi_message_block(scaled_messahes)
 
-            msg_type = msg.get('type')
-            if msg_type == 'sysex':
-                # SYSEX message
-                sysex_messages.append((adjusted_time, msg['data']))
-            elif 'status' in msg and 'data' in msg:
-                # Channel message with raw data
-                status = msg['status']
-                data = msg['data'] if isinstance(msg['data'], list) else [msg['data']]
-                data1 = data[0] if len(data) > 0 else 0
-                data2 = data[1] if len(data) > 1 else 0
-                midi_messages.append((adjusted_time, status, data1, data2))
-            elif msg_type in ['note_on', 'note_off', 'control_change', 'program_change', 'pitch_bend']:
-                # Handle parsed message format
-                if msg_type in ['note_on', 'note_off']:
-                    midi_messages.append((adjusted_time, msg['status'], msg['note'], msg['velocity']))
-                elif msg_type == 'control_change':
-                    midi_messages.append((adjusted_time, msg['status'], msg['control'], msg['value']))
-                elif msg_type == 'program_change':
-                    midi_messages.append((adjusted_time, msg['status'], msg['program'], 0))
-                elif msg_type == 'pitch_bend':
-                    # Convert 14-bit pitch bend to two bytes
-                    pitch_value = msg['pitch'] + 8192  # Convert from signed to unsigned
-                    data1 = pitch_value & 0x7F
-                    data2 = (pitch_value >> 7) & 0x7F
-                    midi_messages.append((adjusted_time, msg['status'], data1, data2))
-
-        # Send all messages to synthesizer's buffered processor
-        synthesizer.send_midi_message_block(midi_messages, sysex_messages)
+        time0 = parser.get_first_note_on_time()
+        if time0:
+            synthesizer.set_current_time(time0)
 
         # Create audio writer
         writer = audio_writer.create_writer(output_file, format)
@@ -253,26 +224,34 @@ def convert_midi_to_audio_buffered(
         current_time = 0.0
 
         with writer:
-            while processed_samples < total_samples:
+            while synthesizer.get_current_time() < adjusted_duration_seconds:
                 # Check for abort signal
                 if abort_event and abort_event.is_set():
                     if not silent:
                         print("\nConversion aborted by user.")
                     return False
 
-                current_block_size = min(block_size, total_samples - processed_samples)
+                # Check for timeout
+                if start_time and (time.time() - start_time) > timeout_seconds:
+                    if not silent:
+                        print(f"\nConversion timed out after {timeout_seconds} seconds.")
+                    return False
 
                 # Generate audio block using buffered processing
                 # The synthesizer will automatically process buffered messages
-                left, right = synthesizer.generate_audio_block(current_block_size)
+                out_buffer = synthesizer.generate_audio_block(block_size)
 
                 # Write audio block
-                writer.write(left, right)
-
-                processed_samples += current_block_size
+                enc_buffer = out_buffer.reshape((1, -1))
+                writer.write(enc_buffer)
 
                 # Update progress
-                progress_reporter.update(current_block_size)
+                processed_samples += block_size
+                current_time = processed_samples / synthesizer.sample_rate
+                progress_reporter.update(processed_samples)
+
+                # Update progress
+                progress_reporter.update(block_size)
 
         if not silent:
             print(f"Conversion complete: {output_file}")
@@ -341,12 +320,23 @@ def main():
         # Multiple files with no output specified -> use current directory
         Path(".").mkdir(parents=True, exist_ok=True)
 
+    # Set up timeout mechanism (always active, regardless of keyboard abort)
+    abort_event = threading.Event()
+    timeout_timer = None
+
+    def timeout_handler():
+        """Handle timeout by setting abort event"""
+        print(f"\nConversion timed out after 90 seconds.")
+        abort_event.set()
+
+    # Start timeout timer (90 seconds)
+    timeout_timer = threading.Timer(90.0, timeout_handler)
+    timeout_timer.start()
+
     # Initialize keyboard listener for abort if requested
-    abort_event = None
     keyboard_listener = None
 
     if keyboard_abort:
-        abort_event = threading.Event()
         keyboard_listener = KeyboardListener()
 
         def on_key_press(key: str):
@@ -363,6 +353,8 @@ def main():
     try:
         # Convert each input file
         success_count = 0
+        start_time = time.time()
+
         for input_file in input_files:
             if not os.path.exists(input_file):
                 print(f"Error: Input file not found: {input_file}")
@@ -380,18 +372,20 @@ def main():
                 volume=master_volume,
                 silent=silent,
                 chunk_size_ms=chunk_size_ms,
-                abort_event=abort_event
+                abort_event=abort_event,
+                start_time=start_time,
+                timeout_seconds=90.0
             ):
                 success_count += 1
             else:
-                if abort_event and abort_event.is_set():
-                    break  # Stop processing if aborted
+                if abort_event.is_set():
+                    break  # Stop processing if aborted or timed out
                 print(f"Failed to convert: {input_file}")
 
         # Print summary
         if not silent:
             if abort_event and abort_event.is_set():
-                print(f"\nConversion aborted. {success_count}/{len(input_files)} files converted successfully.")
+                print(f"\nConversion aborted or timed out. {success_count}/{len(input_files)} files converted successfully.")
             else:
                 print(f"\nConversion complete. {success_count}/{len(input_files)} files converted successfully.")
 
@@ -401,6 +395,10 @@ def main():
         # Clean up keyboard listener
         if keyboard_listener:
             keyboard_listener.stop()
+
+        # Clean up timeout timer
+        if timeout_timer:
+            timeout_timer.cancel()
 
 
 if __name__ == "__main__":

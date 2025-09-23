@@ -43,7 +43,7 @@ Key Features:
 
 Message Format Documentation:
 
-All MIDI messages returned by the API are dictionaries with the following structure:
+All MIDI messages returned by the API are MIDIMessage instances with the following structure:
 
 Common Fields (present in all messages):
 - 'time': Timestamp in seconds from the start of the sequence (includes SMPTE offset if present)
@@ -115,8 +115,185 @@ import struct
 from typing import Any, Dict, List, Tuple, Optional, Iterator
 from collections import defaultdict
 
+
+class MIDIMessage:
+    """
+    Special class for MIDI messages with fixed fields and __slots__ for speed optimization.
+
+    This class represents a single MIDI message with predefined fields. It uses __slots__
+    to minimize memory usage and provide faster attribute access compared to regular
+    Python objects. The class maintains dict-like compatibility for backward compatibility
+    with existing code.
+
+    Attributes:
+        time (float): Timestamp in seconds from the start of the sequence
+        type (str): Message type identifier (e.g., 'note_on', 'note_off', 'control_change')
+        group (int): UMP group number (0-15) for UMP messages
+        ump (bool): True if this is a UMP (Universal MIDI Packet) message
+        status (int): Raw MIDI status byte
+        channel (int): MIDI channel number (0-15)
+        data (list): Raw MIDI data bytes
+        note (int): MIDI note number (0-127) for note messages
+        velocity (int): Note velocity (0-127) for note messages
+        control (int): Controller number (0-127) for control change messages
+        value (int): Controller value for control change messages
+        program (int): Program number (0-127) for program change messages
+        pitch (int): 14-bit pitch bend value (-8192 to 8191)
+        pressure (int): Pressure value (0-127) for pressure messages
+        meta_type (int): Meta event type for meta messages
+        tempo_us_per_beat (int): Tempo in microseconds per beat
+        smpte_offset_seconds (float): SMPTE offset in seconds
+        sysex_data (list): System Exclusive data bytes
+        form (int): Form field for data messages
+        mds_id (int): Mixed Data Set ID
+        num_chunks (int): Number of chunks in MDS message
+        is_last (bool): True if this is the last chunk in MDS message
+        data_bytes (int): Data bytes for MDS messages
+        address (int): Address field for flex data messages
+        subtype (str): Subtype for stream messages
+        message_type (int): Raw message type for unknown UMP messages
+        raw_data (int): Raw UMP data for unknown messages
+        data_words (list): Additional data words for 128-bit messages
+
+    Note:
+        Only a subset of these fields will be populated for any given message,
+        depending on the message type. Unset fields remain None.
+    """
+    __slots__ = (
+        'time', 'type', 'group', 'ump', 'status', 'channel', 'data', 'note', 'velocity',
+        'control', 'value', 'program', 'pitch', 'pressure', 'meta_type', 'tempo_us_per_beat',
+        'smpte_offset_seconds', 'sysex_data', 'form', 'mds_id', 'num_chunks', 'is_last',
+        'data_bytes', 'address', 'subtype', 'message_type', 'raw_data', 'data_words'
+    )
+
+    def __init__(self, **kwargs):
+        # Initialize all slots to None
+        for slot in self.__slots__:
+            setattr(self, slot, None)
+        # Set provided values
+        for key, value in kwargs.items():
+            if key in self.__slots__:
+                setattr(self, key, value)
+
+    def __getitem__(self, key):
+        if key in self.__slots__:
+            return getattr(self, key)
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        if key in self.__slots__:
+            setattr(self, key, value)
+        else:
+            raise KeyError(f"Invalid key: {key}")
+
+    def __contains__(self, key):
+        return key in self.__slots__ and getattr(self, key) is not None
+
+    def get(self, key, default=None):
+        try:
+            value = self[key]
+            return value if value is not None else default
+        except KeyError:
+            return default
+
+    def keys(self):
+        return (k for k in self.__slots__ if getattr(self, k) is not None)
+
+    def values(self):
+        return (getattr(self, k) for k in self.__slots__ if getattr(self, k) is not None)
+
+    def items(self):
+        return ((k, getattr(self, k)) for k in self.__slots__ if getattr(self, k) is not None)
+
+    def __iter__(self):
+        return self.keys()
+
+    def __len__(self):
+        return sum(1 for _ in self.keys())
+
+    def update(self, *args, **kwargs):
+        """Update the message with key/value pairs from dict or kwargs"""
+        if args:
+            other = args[0]
+            for k, v in other.items():
+                self[k] = v
+        for k, v in kwargs.items():
+            self[k] = v
+
+    def with_tempo(self, timescale):
+        copy = MIDIMessage(**self)
+        copy.time /= timescale
+        return copy
+
+    def __repr__(self):
+        return f"MIDIMessage({dict(self.items())})"
+
 class MIDIParser:
+    """
+    MIDI and UMP File Parser for real-time playback and analysis.
+
+    This class provides comprehensive parsing capabilities for MIDI (Musical Instrument Digital Interface)
+    files and UMP (Universal MIDI Packet) files. It supports both MIDI 1.0 and MIDI 2.0 formats,
+    handling various message types, tempo changes, and providing a unified API for real-time playback.
+
+    The parser automatically detects file format and handles both standard MIDI files (.mid) and
+    UMP files (.ump). Messages are parsed with proper timing, including tempo changes and SMPTE offsets.
+
+    Attributes:
+        filename (str): Path to the MIDI/UMP file being parsed
+        format (int): MIDI file format (0, 1, or 2)
+        division (int): Time division (ticks per quarter note or SMPTE format)
+        tempo (int): Default tempo in microseconds per beat (120 BPM = 500000)
+        tracks (list): List of raw track data bytes
+        is_midi2 (bool): True if parsing MIDI 2.0 format
+        is_ump_file (bool): True if parsing UMP file format
+        time_base (int): Time base for UMP files
+        smpte_offset (float): SMPTE offset in seconds
+        _message_cache (list): Cached list of parsed MIDIMessage objects
+        _events (list): Internal list of (time, message) tuples
+        _current_time (float): Current playback position in seconds
+        _index (int): Current index in the events list
+
+    Supported File Formats:
+        - MIDI files (.mid): Standard MIDI 1.0 and MIDI 2.0 format files
+        - UMP files (.ump): Universal MIDI Packet format files
+
+    Supported Message Types:
+        - Channel Messages: note_on, note_off, control_change, program_change, pitch_bend, etc.
+        - System Messages: SysEx, meta events, tempo changes
+        - UMP Messages: Extended channel voice, data messages, flex data, stream messages
+
+    Key Features:
+        - Automatic file format detection
+        - Proper tempo and timing handling
+        - SMPTE offset support
+        - Real-time playback capabilities
+        - Memory-efficient message storage
+        - Comprehensive error handling
+
+    Example:
+        parser = MIDIParser('song.mid')
+        duration = parser.get_total_duration()
+        messages = parser.get_next_messages(100)  # Get messages for next 100ms
+        parser.rewind()  # Reset to beginning
+    """
+
     def __init__(self, filename: str):
+        """
+        Initialize the MIDI parser with a file.
+
+        Args:
+            filename (str): Path to the MIDI (.mid) or UMP (.ump) file to parse.
+
+        Raises:
+            ValueError: If the file is not a valid MIDI/UMP file or cannot be read.
+            FileNotFoundError: If the specified file does not exist.
+
+        Note:
+            The constructor automatically parses the file and prepares the message cache
+            for playback. Parsing happens during initialization, so it may take some time
+            for large files.
+        """
         self.filename = filename
         self.format = 0
         self.division = 0
@@ -135,7 +312,20 @@ class MIDIParser:
         self._merge_tracks()
         
     def _read_variable_length(self, data: bytes, offset: int) -> Tuple[int, int]:
-        """Read variable-length quantity from MIDI data"""
+        """
+        Read a variable-length quantity from MIDI data.
+
+        MIDI uses variable-length encoding for values like delta times and
+        message lengths. Each byte has 7 data bits and 1 continuation bit.
+
+        Args:
+            data: Byte data to read from
+            offset: Starting position in the data
+
+        Returns:
+            Tuple[int, int]: (value, new_offset) where value is the decoded
+                            integer and new_offset is the position after reading
+        """
         value = 0
         shift = 0
         while True:
@@ -150,7 +340,16 @@ class MIDIParser:
         return value, offset
 
     def _parse_file(self):
-        """Parse MIDI/UMP file header and track data"""
+        """
+        Parse the MIDI/UMP file header and extract track data.
+
+        Automatically detects file format (MIDI vs UMP) and reads the appropriate
+        header structure. For MIDI files, reads the MThd chunk and track chunks.
+        For UMP files, reads the UMPP header and chunk data.
+
+        Raises:
+            ValueError: If file format is invalid or unsupported.
+        """
         with open(self.filename, 'rb') as f:
             # Check for UMP file signature
             signature = f.read(4)
@@ -186,7 +385,18 @@ class MIDIParser:
                     self.tracks.append(track_data)
 
     def _parse_ump_file(self, file_handle):
-        """Parse UMP (.ump) file format"""
+        """
+        Parse UMP (.ump) file format header and extract track chunks.
+
+        This method reads the UMP file header, extracts timing information,
+        and identifies MIDI and stream chunks for further processing.
+
+        Args:
+            file_handle: Open file handle positioned after the UMPP signature.
+
+        Raises:
+            ValueError: If the UMP file header is invalid or incomplete.
+        """
         # Read UMP file header
         header_data = file_handle.read(28)  # Read remaining header bytes
         if len(header_data) < 28:
@@ -217,7 +427,7 @@ class MIDIParser:
                 # Skip unknown chunks
                 file_handle.seek(chunk_length, 1)
 
-    def _parse_ump_message(self, data: bytes, offset: int, time: int) -> Tuple[dict, int]:
+    def _parse_ump_message(self, data: bytes, offset: int, time: int) -> Tuple[MIDIMessage, int]:
         """Parse a single UMP (Universal MIDI Packet) message"""
         if offset + 3 >= len(data):
             raise ValueError("Incomplete UMP message")
@@ -230,11 +440,11 @@ class MIDIParser:
         message_type = (ump_word >> 28) & 0xF
         group = (ump_word >> 24) & 0xF
         
-        message = {
-            'time': time,
-            'group': group,
-            'ump': True
-        }
+        message = MIDIMessage(
+            time=time,
+            group=group,
+            ump=True
+        )
         
         # Parse based on message type
         if message_type == 0x0:  # 32-bit MIDI 2.0 Channel Voice Messages
@@ -460,7 +670,7 @@ class MIDIParser:
             
         return message, offset
 
-    def _parse_track_messages(self, track_data: bytes, track_index: int) -> List[Tuple[float, dict]]:
+    def _parse_track_messages(self, track_data: bytes, track_index: int) -> List[Tuple[float, MIDIMessage]]:
         """Parse messages from a single track (MIDI or UMP) with proper timing"""
         messages = []
         offset = 0
@@ -516,12 +726,12 @@ class MIDIParser:
                     meta_data = list(track_data[offset:offset + length])
                     offset += length
 
-                    message = {
-                        'time': time_seconds,
-                        'type': 'meta',
-                        'meta_type': meta_type,
-                        'data': meta_data
-                    }
+                    message = MIDIMessage(
+                        time=time_seconds,
+                        type='meta',
+                        meta_type=meta_type,
+                        data=meta_data
+                    )
 
                     # Handle tempo changes (per-track)
                     if meta_type == 0x51 and len(meta_data) == 3:
@@ -548,12 +758,12 @@ class MIDIParser:
                     sysex_data = list(track_data[offset:offset + length])
                     offset += length
 
-                    message = {
-                        'time': time_seconds,
-                        'type': 'sysex',
-                        'status': status_byte,
-                        'data': sysex_data
-                    }
+                    message = MIDIMessage(
+                        time=time_seconds,
+                        type='sysex',
+                        status=status_byte,
+                        data=sysex_data
+                    )
                     messages.append((time_seconds, message))
 
                 else:  # Channel messages
@@ -571,11 +781,11 @@ class MIDIParser:
                     status_nibble = status_byte & 0xF0
                     channel = status_byte & 0x0F
 
-                    message:Dict[str, Any] = {
-                        'time': time_seconds,
-                        'status': status_byte,
-                        'channel': channel
-                    }
+                    message:MIDIMessage = MIDIMessage(
+                        time=time_seconds,
+                        status=status_byte,
+                        channel=channel
+                    )
 
                     if status_nibble in (0x80, 0x90, 0xA0, 0xB0, 0xE0):  # 2-byte messages
                         if offset + 1 > len(track_data):
@@ -662,7 +872,15 @@ class MIDIParser:
             return (ticks * tempo_us_per_beat) / (ppqn * 1000000.0)
 
     def _merge_tracks(self):
-        """Merge multiple tracks into a single time-ordered message stream"""
+        """
+        Merge all tracks into a single chronologically ordered message stream.
+
+        Parses messages from all tracks, sorts them by timestamp, applies any
+        SMPTE offset, and builds the internal message cache for playback.
+
+        This method is called automatically during initialization and should
+        not be called directly by users.
+        """
         # Parse all tracks
         all_messages = []
         for i, track_data in enumerate(self.tracks):
@@ -700,11 +918,21 @@ class MIDIParser:
         # Get last message time (already in seconds)
         return self._message_cache[-1]['time']
 
-    def get_all_messages(self) -> List[dict]:
-        """Get all messages in the file"""
-        return self._message_cache.copy()
+    def get_all_messages(self) -> List[MIDIMessage]:
+        """
+        Get a copy of all parsed messages in the file.
 
-    def get_next_messages(self, duration_ms: float) -> Optional[List[dict]]:
+        Returns:
+            List[MIDIMessage]: Complete list of messages in chronological order.
+                               Each message includes timing and event information.
+
+        Note:
+            This method returns a copy, so modifications won't affect the internal cache.
+            For real-time playback, use get_next_messages() instead.
+        """
+        return self._message_cache
+
+    def get_next_messages(self, duration_ms: float) -> Optional[List[MIDIMessage]]:
         """
         Retrieve MIDI messages that occur within the specified time window for real-time playback.
 
@@ -717,7 +945,7 @@ class MIDIParser:
                                 Should match your audio buffer processing time.
 
         Returns:
-            List[dict]: List of MIDI message dictionaries that occur within the time window.
+            List[MIDIMessage]: List of MIDI message instances that occur within the time window.
                         Messages include timing and event information. None if end of song reached.
 
         Timing Behavior:
@@ -765,7 +993,18 @@ class MIDIParser:
         self._index = 0
 
     def get_file_info(self) -> dict:
-        """Get detailed information about the MIDI/UMP file"""
+        """
+        Get detailed information about the parsed MIDI/UMP file.
+
+        Returns:
+            dict: Dictionary containing file metadata with the following keys:
+                - 'format': File format ('MIDI' or 'UMP')
+                - 'version': MIDI version ('1.0' or '2.0')
+                - 'tracks': Number of tracks in the file
+                - 'division': Time division (PPQN for MIDI, time base for UMP)
+                - 'total_messages': Total number of parsed messages
+                - 'duration_seconds': Total file duration in seconds
+        """
         return {
             'format': 'UMP' if self.is_ump_file else 'MIDI',
             'version': '2.0' if self.is_midi2 or self.is_ump_file else '1.0',
@@ -775,17 +1014,43 @@ class MIDIParser:
             'duration_seconds': self.get_total_duration()
         }
 
+    def get_first_note_on_time(self) -> Optional[float]:
+        """
+        Get the timestamp of the first note_on message in the MIDI file.
+
+        Returns:
+            float: Time in seconds when the first note_on occurs, or None if no note_on messages exist.
+        """
+        for msg in self._message_cache:
+            if msg.type == 'note_on':
+                return msg.time
+        return None
+
     def get_message_statistics(self) -> dict:
-        """Get statistics about message types in the file"""
+        """
+        Get statistics about message types in the parsed file.
+
+        Returns:
+            dict: Dictionary with message type counts. Keys include:
+                - Message types (e.g., 'note_on', 'note_off', 'control_change', etc.)
+                - 'ump_messages': Count of UMP format messages
+                - 'midi_messages': Count of standard MIDI format messages
+                - 'unknown': Count of unrecognized message types
+
+        Example:
+            stats = parser.get_message_statistics()
+            print(f"Note on messages: {stats.get('note_on', 0)}")
+            print(f"UMP messages: {stats.get('ump_messages', 0)}")
+        """
         stats = defaultdict(int)
         for msg in self._message_cache:
             msg_type = msg.get('type', 'unknown')
             stats[msg_type] += 1
-            
+
             # Count UMP vs MIDI messages
             if msg.get('ump'):
                 stats['ump_messages'] += 1
             else:
                 stats['midi_messages'] += 1
-                
+
         return dict(stats)

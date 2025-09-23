@@ -21,6 +21,7 @@ import numpy as np
 
 # Import internal modules
 from ..core.constants import DEFAULT_CONFIG
+from .parser import MIDIMessage
 
 
 class OptimizedBufferedProcessor:
@@ -50,11 +51,11 @@ class OptimizedBufferedProcessor:
         self.sample_rate = sample_rate
 
         # OPTIMIZED MESSAGE HEAPS - USE HEAPQ FOR EFFICIENT TIME-ORDERED PROCESSING
-        # (time, priority, status, data1, data2) for regular MIDI messages
-        self.message_heap: List[Tuple[float, int, int, int, int]] = []
+        # (time, priority, message) for MIDI messages
+        self.message_heap: List[Tuple[float, int, MIDIMessage]] = []
 
-        # (time, priority, sysex_data) for SYSEX messages
-        self.sysex_heap: List[Tuple[float, int, List[int]]] = []
+        # (time, priority, message) for SYSEX messages
+        self.sysex_heap: List[Tuple[float, int, MIDIMessage]] = []
 
         # CURRENT TIME FOR BUFFERED MODE - MAINTAINS ACCURATE TIMING
         self.current_time: float = 0.0
@@ -79,63 +80,59 @@ class OptimizedBufferedProcessor:
         self.current_batch_start_time = 0.0
         self.current_batch_end_time = 0.0
 
-    def send_midi_message_at_time(self, status: int, data1: int, data2: int, time: float):
+    def send_midi_message_at_time(self, message: MIDIMessage):
         """
         SEND MIDI MESSAGE AT SPECIFIED TIME - OPTIMIZED INSERTION
-        
+
         Send MIDI message at specified time with optimized insertion into message heap.
-        
+
         Performance optimizations:
         1. HEAP-BASED INSERTION - Uses heapq for efficient message insertion
         2. UNIQUE PRIORITY ASSIGNMENT - Ensures stable sorting with unique priorities
         3. MINIMAL OBJECT CREATION - Reduces allocation overhead for message insertion
-        
+
         Args:
-            status: MIDI status byte
-            data1: First data byte
-            data2: Second data byte
-            time: Time in seconds to process message
+            message: MIDIMessage instance to send
         """
         # Add message to heap with unique priority for stable sorting
         priority = self.message_priority_counter
         self.message_priority_counter += 1
 
         # OPTIMIZED HEAP INSERTION - USE HEAPQ FOR EFFICIENT INSERTION
-        heapq.heappush(self.message_heap, (time, priority, status, data1, data2))
+        heapq.heappush(self.message_heap, (message.time, priority, message))
 
-    def send_sysex_at_time(self, data: List[int], time: float):
+    def send_sysex_at_time(self, message: MIDIMessage):
         """
         SEND SYSEX MESSAGE AT SPECIFIED TIME - OPTIMIZED INSERTION
-        
+
         Send SYSEX message at specified time with optimized insertion into message heap.
-        
+
         Performance optimizations:
         1. HEAP-BASED INSERTION - Uses heapq for efficient message insertion
         2. UNIQUE PRIORITY ASSIGNMENT - Ensures stable sorting with unique priorities
         3. MINIMAL OBJECT CREATION - Reduces allocation overhead for message insertion
-        
+
         Args:
-            data: SYSEX message data
-            time: Time in seconds to process message
+            message: MIDIMessage instance containing SYSEX data
         """
         # Add message to heap with unique priority for stable sorting
         priority = self.message_priority_counter
         self.message_priority_counter += 1
 
         # OPTIMIZED HEAP INSERTION - USE HEAPQ FOR EFFICIENT INSERTION
-        heapq.heappush(self.sysex_heap, (time, priority, data))
+        heapq.heappush(self.sysex_heap, (message.time, priority, message))
 
     def send_midi_message_at_sample(self, status: int, data1: int, data2: int, sample: int):
         """
         SEND MIDI MESSAGE AT SPECIFIED SAMPLE - OPTIMIZED TIME CONVERSION
-        
+
         Send MIDI message at specified sample with optimized time conversion.
-        
+
         Performance optimizations:
         1. DIRECT TIME CALCULATION - Converts sample number to absolute time efficiently
         2. MINIMAL OBJECT CREATION - Reduces allocation overhead for message insertion
         3. OPTIMIZED INSERTION - Uses optimized insertion into message heap
-        
+
         Args:
             status: MIDI status byte
             data1: First data byte
@@ -144,62 +141,82 @@ class OptimizedBufferedProcessor:
         """
         # CONVERT SAMPLE NUMBER TO ABSOLUTE TIME - DIRECT CALCULATION FOR PERFORMANCE
         message_time = self.block_start_time + (sample / self.sample_rate)
-        self.send_midi_message_at_time(status, data1, data2, message_time)
+
+        # Create MIDIMessage from raw data
+        message = MIDIMessage(
+            time=message_time,
+            status=status,
+            channel=status & 0x0F,
+            data=[data1, data2] if data2 != 0 else [data1]
+        )
+        # Determine message type from status
+        command = status & 0xF0
+        if command == 0x80:
+            message.update({'type': 'note_off', 'note': data1, 'velocity': data2})
+        elif command == 0x90:
+            message.update({'type': 'note_on', 'note': data1, 'velocity': data2})
+        elif command == 0xB0:
+            message.update({'type': 'control_change', 'control': data1, 'value': data2})
+        # Add other types as needed
+
+        self.send_midi_message_at_time(message)
 
     def send_sysex_at_sample(self, data: List[int], sample: int):
         """
         SEND SYSEX MESSAGE AT SPECIFIED SAMPLE - OPTIMIZED TIME CONVERSION
-        
+
         Send SYSEX message at specified sample with optimized time conversion.
-        
+
         Performance optimizations:
         1. DIRECT TIME CALCULATION - Converts sample number to absolute time efficiently
         2. MINIMAL OBJECT CREATION - Reduces allocation overhead for message insertion
         3. OPTIMIZED INSERTION - Uses optimized insertion into message heap
-        
+
         Args:
             data: SYSEX message data
             sample: Sample number to process message
         """
         # CONVERT SAMPLE NUMBER TO ABSOLUTE TIME - DIRECT CALCULATION FOR PERFORMANCE
         message_time = self.block_start_time + (sample / self.sample_rate)
-        self.send_sysex_at_time(data, message_time)
 
-    def send_midi_message_block(self, messages: List[Tuple[float, int, int, int]],
-                               sysex_messages: Optional[List[Tuple[float, List[int]]]] = None):
+        # Create MIDIMessage for sysex
+        message = MIDIMessage(
+            time=message_time,
+            type='sysex',
+            sysex_data=data,
+            data=data
+        )
+
+        self.send_sysex_at_time(message)
+
+    def send_midi_message_block(self, messages: List[MIDIMessage]):
         """
         BATCH MIDI MESSAGE PROCESSING - OPTIMIZED BLOCK INSERTION
-        
-        Send block of timestamped MIDI messages with optimized batch insertion.
-        
+
+        Send block of MIDI messages with optimized batch insertion.
+
         Performance optimizations:
         1. BATCH INSERTION - Inserts all messages at once rather than individually
         2. HEAP-BASED INSERTION - Uses heapq for efficient message insertion
         3. UNIQUE PRIORITY ASSIGNMENT - Ensures stable sorting with unique priorities
         4. MINIMAL OBJECT CREATION - Reduces allocation overhead for message insertion
-        
+
         Args:
-            messages: List of tuples (time_in_seconds, status, data1, data2)
-            sysex_messages: List of tuples (time_in_seconds, SYSEX_data) (optional)
+            messages: List of MIDIMessage instances
         """
-        # BATCH INSERTION OF REGULAR MIDI MESSAGES - ADD ALL MESSAGES AT ONCE
-        for time, status, data1, data2 in messages:
-            # Add message to heap with unique priority for stable sorting
+
+        # BATCH INSERTION OF MESSAGES - ADD ALL MESSAGES AT ONCE
+        for message in messages:
+            # Add message to appropriate heap with unique priority for stable sorting
             priority = self.message_priority_counter
             self.message_priority_counter += 1
 
-            # OPTIMIZED HEAP INSERTION - USE HEAPQ FOR EFFICIENT INSERTION
-            heapq.heappush(self.message_heap, (time, priority, status, data1, data2))
-
-        # BATCH INSERTION OF SYSEX MESSAGES - ADD ALL MESSAGES AT ONCE
-        if sysex_messages:
-            for time, data in sysex_messages:
-                # Add message to heap with unique priority for stable sorting
-                priority = self.message_priority_counter
-                self.message_priority_counter += 1
-
+            if message.type == 'sysex':
                 # OPTIMIZED HEAP INSERTION - USE HEAPQ FOR EFFICIENT INSERTION
-                heapq.heappush(self.sysex_heap, (time, priority, data))
+                heapq.heappush(self.sysex_heap, (message.time, priority, message.sysex_data or message.data))
+            else:
+                # For MIDI messages, store the MIDIMessage directly
+                heapq.heappush(self.message_heap, (message.time, priority, message))
 
     def set_buffered_mode_time(self, time: float):
         """
@@ -256,8 +273,13 @@ class OptimizedBufferedProcessor:
         # BATCH PROCESSING OF REGULAR MIDI MESSAGES - PROCESS ALL MESSAGES AT ONCE
         # Process all messages whose time has arrived using heap-based extraction
         while self.message_heap and self.message_heap[0][0] <= current_time:
-            _, _, status, data1, data2 = heapq.heappop(self.message_heap)
-            processed_messages.append((status, data1, data2))
+            _, _, message = heapq.heappop(self.message_heap)
+            # For backward compatibility, return raw values
+            if hasattr(message, 'status') and message.status is not None:
+                status = message.status
+                data1 = message.data[0] if message.data and len(message.data) > 0 else 0
+                data2 = message.data[1] if message.data and len(message.data) > 1 else 0
+                processed_messages.append((status, data1, data2))
 
         return processed_messages
 
@@ -284,7 +306,9 @@ class OptimizedBufferedProcessor:
         # BATCH PROCESSING OF SYSEX MESSAGES - PROCESS ALL MESSAGES AT ONCE
         # Process all messages whose time has arrived using heap-based extraction
         while self.sysex_heap and self.sysex_heap[0][0] <= current_time:
-            _, _, data = heapq.heappop(self.sysex_heap)
+            _, _, message = heapq.heappop(self.sysex_heap)
+            # For backward compatibility, return raw data
+            data = message.sysex_data or message.data
             processed_sysex.append(data)
 
         return processed_sysex
@@ -362,14 +386,21 @@ class OptimizedBufferedProcessor:
         # Process all messages whose time has arrived for this sample using heap-based extraction
         midi_messages = []
         while self.message_heap and self.message_heap[0][0] <= current_sample_time:
-            _, _, status, data1, data2 = heapq.heappop(self.message_heap)
-            midi_messages.append((status, data1, data2))
+            _, _, message = heapq.heappop(self.message_heap)
+            # For backward compatibility, return raw values
+            if hasattr(message, 'status') and message.status is not None:
+                status = message.status
+                data1 = message.data[0] if message.data and len(message.data) > 0 else 0
+                data2 = message.data[1] if message.data and len(message.data) > 1 else 0
+                midi_messages.append((status, data1, data2))
 
         # BATCH PROCESSING OF SYSEX MESSAGES - PROCESS ALL MESSAGES AT ONCE
         # Process all messages whose time has arrived for this sample using heap-based extraction
         sysex_messages = []
         while self.sysex_heap and self.sysex_heap[0][0] <= current_sample_time:
-            _, _, data = heapq.heappop(self.sysex_heap)
+            _, _, message = heapq.heappop(self.sysex_heap)
+            # For backward compatibility, return raw data
+            data = message.sysex_data or message.data
             sysex_messages.append(data)
 
         return midi_messages, sysex_messages
@@ -396,14 +427,21 @@ class OptimizedBufferedProcessor:
         # Process all messages whose time has arrived using heap-based extraction
         midi_messages = []
         while self.message_heap and self.message_heap[0][0] <= sample_time:
-            _, _, status, data1, data2 = heapq.heappop(self.message_heap)
-            midi_messages.append((status, data1, data2))
+            _, _, message = heapq.heappop(self.message_heap)
+            # For backward compatibility, return raw values
+            if hasattr(message, 'status') and message.status is not None:
+                status = message.status
+                data1 = message.data[0] if message.data and len(message.data) > 0 else 0
+                data2 = message.data[1] if message.data and len(message.data) > 1 else 0
+                midi_messages.append((status, data1, data2))
 
         # BATCH PROCESSING OF SYSEX MESSAGES - PROCESS ALL MESSAGES AT ONCE
         # Process all messages whose time has arrived using heap-based extraction
         sysex_messages = []
         while self.sysex_heap and self.sysex_heap[0][0] <= sample_time:
-            _, _, data = heapq.heappop(self.sysex_heap)
+            _, _, message = heapq.heappop(self.sysex_heap)
+            # For backward compatibility, return raw data
+            data = message.sysex_data or message.data
             sysex_messages.append(data)
 
         return midi_messages, sysex_messages
@@ -439,11 +477,16 @@ class OptimizedBufferedProcessor:
         # Collect regular MIDI messages for the block
         temp_messages = []
         while self.message_heap and self.message_heap[0][0] <= end_time:
-            message_time, priority, status, data1, data2 = heapq.heappop(self.message_heap)
+            message_time, priority, message = heapq.heappop(self.message_heap)
             if start_time <= message_time <= end_time:
-                midi_messages.append((message_time, status, data1, data2))
+                # For backward compatibility, return raw values
+                if hasattr(message, 'status') and message.status is not None:
+                    status = message.status
+                    data1 = message.data[0] if message.data and len(message.data) > 0 else 0
+                    data2 = message.data[1] if message.data and len(message.data) > 1 else 0
+                    midi_messages.append((message_time, status, data1, data2))
             # Put back messages that don't fall in the range
-            temp_messages.append((message_time, priority, status, data1, data2))
+            temp_messages.append((message_time, priority, message))
         
         # Put back messages that were temporarily removed
         for msg in temp_messages:
@@ -452,11 +495,13 @@ class OptimizedBufferedProcessor:
         # Collect SYSEX messages for the block
         temp_sysex = []
         while self.sysex_heap and self.sysex_heap[0][0] <= end_time:
-            message_time, priority, data = heapq.heappop(self.sysex_heap)
+            message_time, priority, message = heapq.heappop(self.sysex_heap)
             if start_time <= message_time <= end_time:
+                # For backward compatibility, return raw data
+                data = message.sysex_data or message.data
                 sysex_messages.append((message_time, data))
             # Put back messages that don't fall in the range
-            temp_sysex.append((message_time, priority, data))
+            temp_sysex.append((message_time, priority, message))
         
         # Put back SYSEX messages that were temporarily removed
         for msg in temp_sysex:

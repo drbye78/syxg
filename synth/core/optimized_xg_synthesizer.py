@@ -32,7 +32,7 @@ from .constants import DEFAULT_CONFIG
 from ..sf2.manager import SF2Manager
 from ..xg.manager import StateManager
 from ..xg.drum_manager import DrumManager
-from ..midi.optimized_buffered_processor import OptimizedBufferedProcessor
+from ..midi.parser import MIDIMessage
 from ..audio.vectorized_engine import VectorizedAudioEngine
 from ..xg.channel_renderer import XGChannelRenderer
 from ..effects.vectorized_core import VectorizedEffectManager
@@ -85,10 +85,12 @@ class OptimizedXGSynthesizer:
         
         # SF2 file management
         self.sf2_manager = SF2Manager(param_cache=param_cache, drum_manager=self.drum_manager)
-        
-        # Buffered message processing
-        self.buffered_processor = OptimizedBufferedProcessor(sample_rate)
-        
+
+        # Message sequence storage and consumption
+        self._message_sequence: List[MIDIMessage] = []
+        self._current_message_index: int = 0
+        self._current_time: float = 0.0
+
         # Audio engine
         self.audio_engine = VectorizedAudioEngine(sample_rate, block_size, DEFAULT_CONFIG["NUM_MIDI_CHANNELS"])
         
@@ -120,8 +122,7 @@ class OptimizedXGSynthesizer:
     def _initialize_audio_buffers(self):
         """Initialize pre-allocated audio buffers for performance."""
         # Pre-allocate main audio buffers
-        self.left_buffer = np.zeros(self.block_size, dtype=np.float32)
-        self.right_buffer = np.zeros(self.block_size, dtype=np.float32)
+        self.out_buffer = np.zeros((self.block_size, 2), dtype=np.float32)
         
         # Pre-allocate temporary buffers for processing
         self.temp_left = np.zeros(self.block_size, dtype=np.float32)
@@ -130,6 +131,8 @@ class OptimizedXGSynthesizer:
         # Pre-allocate effect processing buffers
         self.effect_input = np.zeros((self.block_size, 2), dtype=np.float32)
         self.effect_output = np.zeros((self.block_size, 2), dtype=np.float32)
+        
+        self.channel_buffers = [np.zeros((self.block_size, 2), dtype=np.float32) for _ in range(DEFAULT_CONFIG["NUM_MIDI_CHANNELS"])]
 
     def _initialize_object_pools(self):
         """Initialize object pools for frequently allocated objects."""
@@ -224,65 +227,64 @@ class OptimizedXGSynthesizer:
             self.master_volume = max(0.0, min(1.0, volume))
             self.audio_engine.set_master_volume(volume)
 
-    def send_midi_message(self, status: int, data1: int, data2: int = 0):
+    def send_midi_message(self, message: MIDIMessage):
         """
         Send MIDI message to synthesizer.
-        
+
         Args:
-            status: Status byte (including channel number)
-            data1: First data byte
-            data2: Second data byte (for messages with two data bytes)
+            message: MIDIMessage instance containing the message data
         """
         with self.lock:
-            # Determine channel number
-            channel = status & 0x0F
-            command = status & 0xF0
-            
-            # Process commands
-            if command == 0x80:  # Note Off
-                self.channel_renderers[channel].note_off(data1, data2)
-            elif command == 0x90:  # Note On
-                self.channel_renderers[channel].note_on(data1, data2)
-            elif command == 0xA0:  # Poly Pressure
-                self.state_manager.set_key_pressure(channel, data1, data2)
-            elif command == 0xB0:  # Control Change
-                self.channel_renderers[channel].control_change(data1, data2)
-            elif command == 0xC0:  # Program Change
-                self._handle_program_change(channel, data1)
-            elif command == 0xD0:  # Channel Pressure
-                self.state_manager.set_channel_pressure(channel, data1)
-            elif command == 0xE0:  # Pitch Bend
-                self.state_manager.set_pitch_bend(channel, (data2 << 7) | data1)
+            msg_type = message.type
+            channel = message.channel
 
-    def send_sysex(self, data: List[int]):
+            # Process based on message type
+            if msg_type == 'note_off':
+                self.channel_renderers[channel].note_off(message.note, message.velocity)
+            elif msg_type == 'note_on':
+                self.channel_renderers[channel].note_on(message.note, message.velocity)
+            elif msg_type == 'poly_pressure':
+                self.state_manager.set_key_pressure(channel, message.note, message.pressure)
+            elif msg_type == 'control_change':
+                self.channel_renderers[channel].control_change(message.control, message.value)
+            elif msg_type == 'program_change':
+                self._handle_program_change(channel, message.program)
+            elif msg_type == 'channel_pressure':
+                self.state_manager.set_channel_pressure(channel, message.pressure)
+            elif msg_type == 'pitch_bend':
+                self.state_manager.set_pitch_bend(channel, message.pitch)
+
+    def send_sysex(self, message: MIDIMessage):
         """
         Send system exclusive message.
 
         Args:
-            data: SYSEX message data (including F0 and F7)
+            message: MIDIMessage instance containing SYSEX data
         """
         with self.lock:
-            # Check if this is really a SYSEX message
-            if len(data) < 3 or data[0] != 0xF0 or data[-1] != 0xF7:
+            data = message.sysex_data or message.data
+            if not data or len(data) < 3 or data[0] != 0xF0 or data[-1] != 0xF7:
                 return
 
             # Determine manufacturer
             if len(data) >= 2 and data[1] == 0x43:  # Yamaha
                 self._handle_yamaha_sysex(data)
 
-    def send_midi_message_block(self, messages: List[Tuple[float, int, int, int]],
-                               sysex_messages: Optional[List[Tuple[float, List[int]]]] = None):
+    def send_midi_message_block(self, messages: List[MIDIMessage]):
         """
-        Send block of timestamped MIDI messages for buffered processing.
+        Send block of MIDI messages for buffered processing.
+        Messages are stored in a sorted sequence for efficient consumption during rendering.
 
         Args:
-            messages: List of tuples (time_in_seconds, status, data1, data2)
-            sysex_messages: List of tuples (time_in_seconds, SYSEX_data) (optional)
+            messages: List of MIDIMessage instances
         """
         with self.lock:
-            self.buffered_processor.send_midi_message_block(messages, sysex_messages)
+            # Add messages to the sequence and keep it sorted by time
+            self._message_sequence.extend(messages)
+            # Sort the entire sequence by time (only when new messages are added)
+            self._message_sequence.sort(key=lambda msg: msg.time)
 
-    def generate_audio_block(self, block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+    def generate_audio_block(self, block_size: Optional[int] = None) -> np.ndarray:
         """
         Generate audio block using buffered message processing.
 
@@ -311,7 +313,7 @@ class OptimizedXGSynthesizer:
         # Forward message to effect manager
         self.effect_manager.handle_sysex([0x43], data[1:])  # 0x43 - Yamaha manufacturer ID
 
-    def generate_audio_block_sample_accurate(self, block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+    def generate_audio_block_sample_accurate(self, block_size: Optional[int] = None) -> np.ndarray:
         """
         TRUE SAMPLE-PERFECT AUDIO PROCESSING - PRODUCTION READY
 
@@ -335,155 +337,61 @@ class OptimizedXGSynthesizer:
             block_size = self.block_size
 
         # Ensure buffers are correct size
-        if len(self.left_buffer) != block_size:
-            self.left_buffer = np.zeros(block_size, dtype=np.float32)
-            self.right_buffer = np.zeros(block_size, dtype=np.float32)
+        if len(self.out_buffer) != block_size:
+            self.out_buffer = np.zeros((block_size, 2), dtype=np.float32)
             self.temp_left = np.zeros(block_size, dtype=np.float32)
             self.temp_right = np.zeros(block_size, dtype=np.float32)
             self.effect_input = np.zeros((block_size, 2), dtype=np.float32)
             self.effect_output = np.zeros((block_size, 2), dtype=np.float32)
+            self.channel_buffers = [np.zeros((block_size, 2), dtype=np.float32) for _ in range(16)]
 
         with self.lock:
-            # Set block start time in buffered processor
-            self.buffered_processor.set_block_start_time(self.buffered_processor.current_time)
+            at_time = self._current_time
+            at_index = self._current_message_index
+            block_offset = 0
 
-            # Calculate block end time
-            block_end_time = self.buffered_processor.block_start_time + (block_size / self.sample_rate)
+            while block_offset < block_size:
+                while at_index < len(self._message_sequence) and self._message_sequence[at_index].time <= at_time:
+                    message = self._message_sequence[at_index]
+                    at_index += 1
 
-            # TRUE SAMPLE-PERFECT PROCESSING
-            # Get all messages for this block with their timestamps
-            midi_messages, sysex_messages = self.buffered_processor.get_messages_for_block(
-                self.buffered_processor.block_start_time, block_end_time
-            )
-
-            # Sort messages by time for proper temporal order
-            midi_messages.sort(key=lambda x: x[0])
-            sysex_messages.sort(key=lambda x: x[0])
-
-            # Combine and sort all messages by timestamp
-            all_messages = []
-            for msg_time, status, data1, data2 in midi_messages:
-                all_messages.append((msg_time, 'midi', status, data1, data2))
-            for msg_time, data in sysex_messages:
-                all_messages.append((msg_time, 'sysex', data))
-
-            all_messages.sort(key=lambda x: x[0])
-
-            # Convert message timestamps to sample indices within the block
-            sample_rate = self.sample_rate
-            block_start_time = self.buffered_processor.block_start_time
-
-            messages_with_samples = []
-            for msg in all_messages:
-                msg_time = msg[0]
-                relative_time = msg_time - block_start_time
-                sample_index = int(relative_time * sample_rate)
-                # Clamp to valid range
-                sample_index = max(0, min(block_size - 1, sample_index))
-                messages_with_samples.append((sample_index,) + msg[1:])
-
-            # OPTIMIZED SAMPLE-PERFECT PROCESSING WITH VECTORIZED SEGMENTS
-            # Process messages at exact sample positions while using vectorized processing for segments
-            self.left_buffer.fill(0.0)
-            self.right_buffer.fill(0.0)
-
-            # Group messages by sample index for efficient processing
-            messages_by_sample = {}
-            for msg in messages_with_samples:
-                sample_idx = msg[0]
-                if sample_idx not in messages_by_sample:
-                    messages_by_sample[sample_idx] = []
-                messages_by_sample[sample_idx].append(msg)
-
-            # Process block in segments between message timestamps
-            current_sample = 0
-            sorted_samples = sorted(messages_by_sample.keys())
-
-            for target_sample in sorted_samples + [block_size]:
-                # Clamp to block boundaries
-                segment_end = min(target_sample, block_size)
-
-                # Process messages at current sample position
-                if current_sample in messages_by_sample:
-                    for msg in messages_by_sample[current_sample]:
-                        msg_type = msg[1]
-                        if msg_type == 'midi':
-                            _, _, status, data1, data2 = msg
-                            self.send_midi_message(status, data1, data2)
-                        elif msg_type == 'sysex':
-                            _, _, data = msg
-                            self.send_sysex(data)
-
-                # Generate audio segment from current_sample to segment_end using vectorized processing
-                if segment_end > current_sample:
-                    segment_size = segment_end - current_sample
-
-                    # Use optimized vectorized segment generation
-                    left_segment, right_segment = self._generate_audio_segment_vectorized(
-                        current_sample, segment_size
-                    )
-
-                    # Copy segment to output buffer
-                    self.left_buffer[current_sample:segment_end] = left_segment
-                    self.right_buffer[current_sample:segment_end] = right_segment
-
-                current_sample = segment_end
-                if current_sample >= block_size:
-                    break
-
-            # APPLY XG-COMPLIANT EFFECTS PROCESSING
-            try:
-                # Convert to format expected by effects processor
-                input_channels = self._generate_channel_audio_vectorized(block_size)
-
-                if input_channels and len(input_channels) > 0:
-                    # Process effects through corrected VectorizedEffectManager
-                    processed_channels = self.effect_manager.process_multi_channel_vectorized(
-                        input_channels, block_size
-                    )
-
-                    # Extract final stereo mix from processed channels
-                    if processed_channels and len(processed_channels) > 0:
-                        # Use channel 0 as the main stereo mix (XG standard)
-                        final_mix = processed_channels[0]
-                        if len(final_mix) >= block_size:
-                            if final_mix.ndim == 2 and final_mix.shape[1] == 2:
-                                # Stereo format
-                                self.left_buffer = final_mix[:block_size, 0]
-                                self.right_buffer = final_mix[:block_size, 1]
-                            else:
-                                # Mono format - duplicate to both channels
-                                self.left_buffer = final_mix[:block_size]
-                                self.right_buffer = final_mix[:block_size]
-                        else:
-                            # Fallback to generated audio if mix is too short
-                            print(f"Warning: Effects output too short ({len(final_mix)} < {block_size})")
+                    if message.type == 'sysex':
+                        self.send_sysex(message)
                     else:
-                        print("Warning: Effects processing returned no channels")
+                        self.send_midi_message(message)
+
+                if at_index < len(self._message_sequence):
+                    next_time = self._message_sequence[at_index].time
+                    segment_length = int((next_time - at_time) * self.sample_rate)
                 else:
-                    print("Warning: No input channels for effects processing")
+                    segment_length = block_size + 1
 
-            except ValueError as e:
-                print(f"ValueError in effects processing: {e}")
-                # Continue with unprocessed audio
-            except IndexError as e:
-                print(f"IndexError in effects processing: {e}")
-                # Continue with unprocessed audio
-            except TypeError as e:
-                print(f"TypeError in effects processing: {e}")
-                # Continue with unprocessed audio
-            except Exception as e:
-                print(f"Unexpected error in effects processing: {e}")
-                # Continue with unprocessed audio
+                if segment_length + block_offset > block_size:
+                    segment_length = block_size - block_offset
+                    next_time = at_time + (segment_length / self.sample_rate)
 
-            # Update current time in buffered processor
-            self.buffered_processor.current_time = block_end_time
+                # Use optimized vectorized segment generation
+                parts = self._generate_channel_audio_vectorized(segment_length)
+                fx_parts = self.effect_manager.process_multi_channel_vectorized(
+                    parts, segment_length
+                )
+                for i, part in enumerate(fx_parts):
+                    self.channel_buffers[i][block_offset:block_offset + segment_length] = part
+
+                block_offset += segment_length
+                at_time = next_time # type: ignore
+
+            self._current_message_index = at_index
+            self._current_time = at_time
+
+            self.out_buffer.fill(0.0)
+            for buf in self.channel_buffers:
+                self.out_buffer += buf
 
             # Apply final limiting with vectorized operations
-            np.clip(self.left_buffer, -1.0, 1.0, out=self.left_buffer)
-            np.clip(self.right_buffer, -1.0, 1.0, out=self.right_buffer)
+            np.clip(self.out_buffer, -1.0, 1.0, out=self.out_buffer)
 
-            return self.left_buffer.copy(), self.right_buffer.copy()
+            return self.out_buffer
 
     def _generate_sample_perfect(self, sample_idx: int) -> Tuple[float, float]:
         """
@@ -815,6 +723,37 @@ class OptimizedXGSynthesizer:
         np.clip(self.left_buffer, -1.0, 1.0, out=self.left_buffer)
         np.clip(self.right_buffer, -1.0, 1.0, out=self.right_buffer)
 
+    def rewind(self):
+        """
+        Reset playback position to the beginning for repeated playback.
+
+        This method resets the message consumption index and current time to allow
+        replaying the same sequence of messages from the start.
+        """
+        with self.lock:
+            self._current_message_index = 0
+            self._current_time = 0.0
+
+    def set_current_time(self, time: float):
+        """
+        Set the current playback time.
+
+        Args:
+            time: The new playback time in seconds.
+        """
+        with self.lock:
+            self._current_time = time
+
+    def get_current_time(self) -> float:
+        """
+        Get the current playback time.
+
+        Returns:
+            The current playback time in seconds.
+        """
+        with self.lock:
+            return self._current_time
+
     def reset(self):
         """Full synthesizer reset."""
         with self.lock:
@@ -824,24 +763,26 @@ class OptimizedXGSynthesizer:
                     renderer.all_sound_off()
                 except:
                     pass
-            
+
             # Reset state manager
             self.state_manager.reset_all_channels()
-            
+
             # Reset drum manager
             self.drum_manager.reset_all_drum_parameters()
-            
+
             # Reset effects
             self.effect_manager.reset_effects()
-            
-            # Reset buffered processor
-            self.buffered_processor.reset()
-            
+
+            # Reset message sequence and consumption state
+            self._message_sequence.clear()
+            self._current_message_index = 0
+            self._current_time = 0.0
+
             # Reset audio engine
             self.audio_engine.reset()
-            
+
             # Reinitialize XG
             self._initialize_xg()
-            
+
             # Set up drum channel enhancements
             self._setup_drum_channel_enhancements()

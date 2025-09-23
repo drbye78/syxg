@@ -4,8 +4,10 @@ XG Synthesizer Audio Module
 Handles audio generation and processing.
 """
 
-from .engine import AudioEngine
+from .writer import AudioWriter
+from .vectorized_engine import VectorizedAudioEngine
 
 __all__ = [
-    "AudioEngine"
+    "AudioWriter",
+    "VectorizedAudioEngine"
 ]
