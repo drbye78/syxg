@@ -65,7 +65,8 @@ class AvWriter:
             return
         
         # Create audio frame with float format
-        frame = av.AudioFrame.from_ndarray(audio, format='flt', layout='stereo')
+        rawdata = audio.reshape((1, -1))
+        frame = av.AudioFrame.from_ndarray(rawdata, format='flt', layout='stereo')
         frame.sample_rate = self.sample_rate
         frame.time_base = Fraction(1, self.sample_rate)
         

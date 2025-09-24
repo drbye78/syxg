@@ -2,7 +2,7 @@
 
 # Audio settings
 sample_rate: 48000
-block_size: 960
+chunk_size_ms: 50
 max_polyphony: 512
 master_volume: 1.0
 

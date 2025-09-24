@@ -24,6 +24,12 @@ class ProgressReporter:
             return
         self.processed += increment
         self._display()
+
+    def progress(self, processed: float): 
+        if self.silent or not self.start_time:
+            return
+        self.processed = processed
+        self._display()
         
     def _display(self):
         """Display current progress"""

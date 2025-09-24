@@ -176,10 +176,8 @@ def convert_midi_to_audio_buffered(
     tempo: float = 1.0,
     volume: float = 0.8,
     silent: bool = False,
-    chunk_size_ms: float = 10.6667,
     abort_event: Optional[threading.Event] = None,
-    start_time: Optional[float] = None,
-    timeout_seconds: float = 90.0
+    timeout_seconds:Optional[float] = None
 ) -> bool:
     """Convert a single MIDI file to audio using buffered processing mode."""
     try:
@@ -194,9 +192,8 @@ def convert_midi_to_audio_buffered(
         if not silent:
             print(f"Total duration: {total_duration_seconds:.2f} seconds")
 
-        adjusted_duration_seconds = total_duration_seconds / tempo
-        total_samples = int(adjusted_duration_seconds * synthesizer.sample_rate)
         all_messages = parser.get_all_messages()
+        synthesizer.reset()
 
         if tempo == 1.0:
             synthesizer.send_midi_message_block(all_messages)
@@ -206,7 +203,7 @@ def convert_midi_to_audio_buffered(
 
         time0 = parser.get_first_note_on_time()
         if time0:
-            synthesizer.set_current_time(time0)
+            synthesizer.set_current_time(time0 / tempo)
 
         # Create audio writer
         writer = audio_writer.create_writer(output_file, format)
@@ -215,16 +212,14 @@ def convert_midi_to_audio_buffered(
         synthesizer.set_master_volume(volume)
 
         # Initialize progress reporter
+        adjusted_duration = total_duration_seconds / tempo
         progress_reporter = ProgressReporter(silent=silent)
-        progress_reporter.start(total_samples)
+        progress_reporter.start(adjusted_duration)
+        abort_at = time.time() + timeout_seconds if timeout_seconds else None
 
         # Buffer processing
-        block_size = synthesizer.block_size
-        processed_samples = 0
-        current_time = 0.0
-
         with writer:
-            while synthesizer.get_current_time() < adjusted_duration_seconds:
+            while synthesizer.get_current_time() < adjusted_duration:
                 # Check for abort signal
                 if abort_event and abort_event.is_set():
                     if not silent:
@@ -232,26 +227,16 @@ def convert_midi_to_audio_buffered(
                     return False
 
                 # Check for timeout
-                if start_time and (time.time() - start_time) > timeout_seconds:
+                if abort_at and time.time() > abort_at:
                     if not silent:
                         print(f"\nConversion timed out after {timeout_seconds} seconds.")
-                    return False
+                    return True
 
-                # Generate audio block using buffered processing
-                # The synthesizer will automatically process buffered messages
-                out_buffer = synthesizer.generate_audio_block(block_size)
-
-                # Write audio block
-                enc_buffer = out_buffer.reshape((1, -1))
-                writer.write(enc_buffer)
+                out_buffer = synthesizer.generate_audio_block()
+                writer.write(out_buffer)
 
                 # Update progress
-                processed_samples += block_size
-                current_time = processed_samples / synthesizer.sample_rate
-                progress_reporter.update(processed_samples)
-
-                # Update progress
-                progress_reporter.update(block_size)
+                progress_reporter.progress(synthesizer.get_current_time())
 
         if not silent:
             print(f"Conversion complete: {output_file}")
@@ -273,7 +258,7 @@ def main():
 
     # Get configuration values (command line overrides config file)
     sample_rate = args.sample_rate or config.get("sample_rate", 48000)
-    chunk_size_ms = args.chunk_size_ms or config.get("chunk_size_ms", 512 / 48000 * 1000)
+    chunk_size_ms = args.chunk_size_ms or config.get("chunk_size_ms", 50)
     max_polyphony = args.max_polyphony or config.get("polyphony", 64)
     master_volume = args.master_volume or config.get("volume", 0.8)
     sf2_files = args.sf2_files or config.get("sf2_files", [])
@@ -322,16 +307,6 @@ def main():
 
     # Set up timeout mechanism (always active, regardless of keyboard abort)
     abort_event = threading.Event()
-    timeout_timer = None
-
-    def timeout_handler():
-        """Handle timeout by setting abort event"""
-        print(f"\nConversion timed out after 90 seconds.")
-        abort_event.set()
-
-    # Start timeout timer (90 seconds)
-    timeout_timer = threading.Timer(90.0, timeout_handler)
-    timeout_timer.start()
 
     # Initialize keyboard listener for abort if requested
     keyboard_listener = None
@@ -353,8 +328,6 @@ def main():
     try:
         # Convert each input file
         success_count = 0
-        start_time = time.time()
-
         for input_file in input_files:
             if not os.path.exists(input_file):
                 print(f"Error: Input file not found: {input_file}")
@@ -371,10 +344,8 @@ def main():
                 tempo=tempo,
                 volume=master_volume,
                 silent=silent,
-                chunk_size_ms=chunk_size_ms,
                 abort_event=abort_event,
-                start_time=start_time,
-                timeout_seconds=90.0
+                timeout_seconds=150.0
             ):
                 success_count += 1
             else:
@@ -395,11 +366,6 @@ def main():
         # Clean up keyboard listener
         if keyboard_listener:
             keyboard_listener.stop()
-
-        # Clean up timeout timer
-        if timeout_timer:
-            timeout_timer.cancel()
-
 
 if __name__ == "__main__":
     try:
