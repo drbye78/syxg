@@ -5,10 +5,17 @@ Provides filtering with MIDI XG standard compliance.
 
 import math
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+from ..math.fast_approx import fast_math
 
 
 class ResonantFilter:
     """Extended resonant filter with support for harmonic content, brightness and stereo processing"""
+
+    __slots__ = ('cutoff', 'resonance', 'filter_type', 'key_follow', 'stereo_width', 'sample_rate',
+                 'brightness_mod', 'harmonic_content_mod', 'modulated_stereo_width', 'coeffs_dirty',
+                 'b0_l', 'b1_l', 'b2_l', 'a1_l', 'a2_l', 'b0_r', 'b1_r', 'b2_r', 'a1_r', 'a2_r',
+                 'x_l', 'y_l', 'x_r', 'y_r')
+
     def __init__(self, cutoff=1000.0, resonance=0.7, filter_type="lowpass",
                  key_follow=0.5, stereo_width=0.5, sample_rate=44100):
         self.cutoff = cutoff
@@ -23,8 +30,7 @@ class ResonantFilter:
         # Support for stereo width modulation
         self.modulated_stereo_width = stereo_width
 
-        # Phase 2 optimization: Cache filter coefficients
-        self.coeffs_cache = {}
+        # Phase 2 optimization: Dirty flag for coefficients
         self.coeffs_dirty = True
 
         # Coefficients for left and right channels
@@ -59,8 +65,8 @@ class ResonantFilter:
         effective_resonance = self.resonance * (1 + self.harmonic_content_mod * 0.3)
 
         omega = 2 * math.pi * min(effective_cutoff, self.sample_rate/2) / self.sample_rate
-        alpha = math.sin(omega) / (2 * max(0.001, effective_resonance))
-        cos_omega = math.cos(omega)
+        alpha = fast_math.fast_sin(omega) / (2 * max(0.001, effective_resonance))
+        cos_omega = fast_math.fast_cos(omega)
 
         if self.filter_type == "lowpass":
             b0 = (1 - cos_omega) / 2

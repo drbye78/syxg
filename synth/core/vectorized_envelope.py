@@ -12,7 +12,14 @@ import math
 
 class VectorizedADSREnvelope:
     """Vectorized ADSR envelope with optimizations for batch processing"""
-    
+
+    __slots__ = ('sample_rate', 'delay', 'attack', 'hold', 'decay', 'sustain', 'release',
+                 'velocity_sense', 'key_scaling', 'states', 'levels', 'release_starts',
+                 'delay_counters', 'hold_counters', 'delay_samples', 'hold_samples',
+                 'attack_increment', 'decay_decrement', 'release_decrement', 'sustain_pedals',
+                 'sostenuto_pedals', 'held_by_sostenuto', 'soft_pedals', 'hold_notes_flags',
+                 '_single_state')
+
     def __init__(self, delay=0.0, attack=0.01, hold=0.0, decay=0.3, sustain=0.7, release=0.5,
                  velocity_sense=1.0, key_scaling=0.0, sample_rate=48000):
         """
@@ -172,14 +179,6 @@ class VectorizedADSREnvelope:
             sustain_mask = (self.states == "sustain")
             self.levels[sustain_mask] = self.sustain
     
-    def note_on(self, velocity, note=60, soft_pedal=False):
-        """Handle Note On event with compatibility interface."""
-        # For single envelope, create arrays and call vectorized version
-        velocities = np.array([velocity], dtype=np.float32)
-        notes = np.array([note], dtype=np.float32)
-        soft_pedals = np.array([soft_pedal], dtype=bool)
-        self.note_on_vectorized(velocities, notes, soft_pedals)
-
     def note_on_vectorized(self, velocities: np.ndarray, notes: np.ndarray = None,
                           soft_pedals: np.ndarray = None):
         """
@@ -238,15 +237,6 @@ class VectorizedADSREnvelope:
         # Transition to release state
         self.states[should_release] = "release"
     
-    def process(self):
-        """Process one sample of envelope generation with compatibility interface."""
-        # For single envelope, process block of size 1 and return first element
-        if len(self.states) == 0:
-            return 0.0
-        # Process one sample and return the level
-        self.process_block_vectorized(1)
-        return self.levels[0]
-
     def process_block_vectorized(self, block_size: int) -> np.ndarray:
         """
         Process envelope block in vectorized form
@@ -307,12 +297,11 @@ class VectorizedADSREnvelope:
         return output_levels.copy()
     
     def note_on(self, velocity, note=60, soft_pedal=False):
-        """Process Note On event for compatibility with original version"""
-        # Create scalar arrays for compatibility
+        """Handle Note On event with compatibility interface."""
+        # For single envelope, create arrays and call vectorized version
         velocities = np.array([velocity], dtype=np.float32)
         notes = np.array([note], dtype=np.float32)
         soft_pedals = np.array([soft_pedal], dtype=bool)
-
         self.note_on_vectorized(velocities, notes, soft_pedals)
 
     def note_off(self):
@@ -328,19 +317,10 @@ class VectorizedADSREnvelope:
                 self.states[0] = "release"
 
     def process(self):
-        """Process one sample for compatibility with original version"""
+        """Process one sample of envelope generation with compatibility interface."""
+        # For single envelope, process block of size 1 and return first element
         if len(self.states) == 0:
             return 0.0
-
-        # Process only the first element and return its level
-        temp_states = self.states.copy()
-        temp_levels = self.levels.copy()
-        temp_delay_counters = self.delay_counters.copy()
-        temp_hold_counters = self.hold_counters.copy()
-        temp_release_starts = self.release_starts.copy()
-
-        # Perform processing for one sample
-        # This is a simplified version of process_block_vectorized for one element
-        output = self.process_block_vectorized(1)[0]
-
-        return output
+        # Process one sample and return the level
+        self.process_block_vectorized(1)
+        return self.levels[0]

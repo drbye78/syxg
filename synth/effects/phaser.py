@@ -7,6 +7,7 @@ from typing import Dict, Any, Tuple, List
 import numpy as np
 
 from .base import BaseEffect
+from ..math.fast_approx import fast_math
 
 
 class PhaserEffect(BaseEffect):
@@ -58,7 +59,7 @@ class PhaserEffect(BaseEffect):
         self._lfo_phase += 2 * math.pi * rate / self.sample_rate
 
         # Calculate modulation
-        lfo_value = math.sin(self._lfo_phase)
+        lfo_value = fast_math.fast_sin(self._lfo_phase)
         modulation = lfo_value * depth
 
         # Calculate notch frequencies
@@ -106,13 +107,13 @@ class PhaserEffect(BaseEffect):
 
         # Allpass filter with Q=1 (maximally flat)
         q = 1.0
-        alpha = math.sin(w0) / (2 * q)
+        alpha = fast_math.fast_sin(w0) / (2 * q)
 
         b0 = 1 - alpha
-        b1 = -2 * math.cos(w0)
+        b1 = -2 * fast_math.fast_cos(w0)
         b2 = 1 + alpha
         a0 = 1 + alpha
-        a1 = -2 * math.cos(w0)
+        a1 = -2 * fast_math.fast_cos(w0)
         a2 = 1 - alpha
 
         return {

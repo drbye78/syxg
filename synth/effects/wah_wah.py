@@ -9,6 +9,7 @@ by sweeping a bandpass filter across the frequency spectrum.
 import numpy as np
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 from .base import BaseEffect
+from ..math.fast_approx import fast_math
 
 
 class WahWahEffect(BaseEffect):
@@ -158,7 +159,7 @@ class WahWahEffect(BaseEffect):
 
         elif self.mode == "auto":
             # Auto wah - use LFO
-            lfo_value = np.sin(self.lfo_phase)
+            lfo_value = fast_math.fast_sin(self.lfo_phase)
             self.lfo_phase += 2.0 * np.pi * self.lfo_rate / self.sample_rate
             if self.lfo_phase > 2.0 * np.pi:
                 self.lfo_phase -= 2.0 * np.pi

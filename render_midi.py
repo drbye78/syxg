@@ -176,6 +176,7 @@ def convert_midi_to_audio_buffered(
     tempo: float = 1.0,
     volume: float = 0.8,
     silent: bool = False,
+    render_limit: Optional[float] = None,
     abort_event: Optional[threading.Event] = None,
     timeout_seconds:Optional[float] = None
 ) -> bool:
@@ -212,7 +213,7 @@ def convert_midi_to_audio_buffered(
         synthesizer.set_master_volume(volume)
 
         # Initialize progress reporter
-        adjusted_duration = total_duration_seconds / tempo
+        adjusted_duration = total_duration_seconds / tempo if not render_limit else render_limit
         progress_reporter = ProgressReporter(silent=silent)
         progress_reporter.start(adjusted_duration)
         abort_at = time.time() + timeout_seconds if timeout_seconds else None
@@ -345,7 +346,8 @@ def main():
                 volume=master_volume,
                 silent=silent,
                 abort_event=abort_event,
-                timeout_seconds=150.0
+                render_limit=30.0,
+                # timeout_seconds=150.0
             ):
                 success_count += 1
             else:

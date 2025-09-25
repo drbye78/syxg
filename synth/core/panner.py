@@ -5,6 +5,7 @@ Provides stereo positioning with MIDI XG standard compliance.
 
 import math
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+from ..math.fast_approx import fast_math
 
 
 class StereoPanner:
@@ -30,8 +31,8 @@ class StereoPanner:
 
         # Sinusoidal panning to preserve level
         angle = pan * math.pi / 2
-        self.left_gain = math.cos(angle)
-        self.right_gain = math.sin(angle)
+        self.left_gain = fast_math.fast_cos(angle)
+        self.right_gain = fast_math.fast_sin(angle)
 
     def set_pan(self, controller_value):
         """

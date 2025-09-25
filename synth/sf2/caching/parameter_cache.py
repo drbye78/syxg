@@ -2,7 +2,9 @@ from typing import Dict, Any
 
 class ParameterCache:
     """Optimized cache for SF2 parameter merging operations"""
-    
+
+    __slots__ = ('_cache', '_hit_count', '_miss_count')
+
     def __init__(self):
         self._cache = {}
         self._hit_count = 0

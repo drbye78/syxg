@@ -16,6 +16,8 @@ class BaseEffect:
     Provides common functionality and interface that all effects must implement.
     """
 
+    __slots__ = ('sample_rate', 'enabled', 'bypass', 'level', '_state')
+
     def __init__(self, sample_rate: int = 44100):
         """
         Initialize the effect.

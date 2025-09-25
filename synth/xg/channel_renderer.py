@@ -497,27 +497,91 @@ class XGChannelRenderer:
 
     def _toggle_filter_type(self):
         """Toggle between different filter types"""
-        # This would typically cycle through filter types (lowpass, bandpass, highpass, etc.)
-        # For now, we'll just log the action
-        print(f"Channel {self.channel}: Toggling filter type")
+        # Cycle through filter types: lowpass -> bandpass -> highpass -> lowpass
+        filter_types = ['lowpass', 'bandpass', 'highpass']
+        current_type = getattr(self, '_current_filter_type', 'lowpass')
+        next_type_index = (filter_types.index(current_type) + 1) % len(filter_types)
+        new_filter_type = filter_types[next_type_index]
+        self._current_filter_type = new_filter_type
+
+        # Apply to all active notes - modify filter type parameters
+        for note, channel_note in self.active_notes.items():
+            for partial in channel_note.partials:
+                if hasattr(partial, 'filter') and partial.filter:
+                    partial.filter.set_type(new_filter_type)
+
+        print(f"Channel {self.channel}: Filter type set to {new_filter_type}")
 
     def _toggle_effect_bypass(self):
         """Toggle effect bypass state"""
-        # This would typically bypass/unbypass channel effects
-        # For now, we'll just log the action
-        print(f"Channel {self.channel}: Toggling effect bypass")
+        # Toggle channel effect bypass flag
+        self.effect_bypass = not getattr(self, 'effect_bypass', False)
+
+        # Apply bypass to all active notes - modify effect parameters
+        for note, channel_note in self.active_notes.items():
+            for partial in channel_note.partials:
+                if hasattr(partial, 'set_effect_bypass'):
+                    partial.set_effect_bypass(self.effect_bypass)
+
+        print(f"Channel {self.channel}: Effect bypass {'enabled' if self.effect_bypass else 'disabled'}")
 
     def _cycle_modulation_source(self):
         """Cycle through different modulation sources"""
-        # This would typically cycle modulation sources (LFO1, LFO2, envelope, etc.)
-        # For now, we'll just log the action
-        print(f"Channel {self.channel}: Cycling modulation source")
+        # Cycle through modulation sources for route 0
+        sources = ["lfo1", "lfo2", "lfo3", "velocity", "note_number", "channel_aftertouch", "mod_wheel"]
+        current_source = getattr(self, '_current_mod_source', "lfo1")
+        next_index = (sources.index(current_source) + 1) % len(sources)
+        new_source = sources[next_index]
+        self._current_mod_source = new_source
+
+        # Update modulation matrix route 0 with new source
+        self.mod_matrix.set_route(0,
+            new_source,
+            "pitch",  # Keep destination as pitch
+            amount=0.5,
+            polarity=1.0
+        )
+
+        print(f"Channel {self.channel}: Modulation source set to {new_source}")
 
     def _apply_performance_preset(self):
         """Apply performance parameter preset"""
-        # This would typically apply a performance preset (bright, dark, aggressive, etc.)
-        # For now, we'll just log the action
-        print(f"Channel {self.channel}: Applying performance preset")
+        # Cycle through presets: bright -> dark -> aggressive -> mellow -> bright
+        presets = ['bright', 'dark', 'aggressive', 'mellow']
+        current_preset = getattr(self, '_current_preset', 'bright')
+        next_index = (presets.index(current_preset) + 1) % len(presets)
+        new_preset = presets[next_index]
+        self._current_preset = new_preset
+
+        # Apply preset parameters to all active notes
+        for note, channel_note in self.active_notes.items():
+            for partial in channel_note.partials:
+                if new_preset == 'bright':
+                    # Bright: higher cutoff, faster attack
+                    if hasattr(partial, 'filter') and partial.filter:
+                        partial.filter.set_cutoff(min(1.0, partial.filter.cutoff * 1.5))
+                    if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
+                        partial.amp_envelope.update_parameters(attack=max(0.001, partial.amp_envelope.attack_time * 0.7))
+                elif new_preset == 'dark':
+                    # Dark: lower cutoff, slower attack
+                    if hasattr(partial, 'filter') and partial.filter:
+                        partial.filter.set_cutoff(max(0.1, partial.filter.cutoff * 0.7))
+                    if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
+                        partial.amp_envelope.update_parameters(attack=min(2.0, partial.amp_envelope.attack_time * 1.3))
+                elif new_preset == 'aggressive':
+                    # Aggressive: higher resonance, faster decay
+                    if hasattr(partial, 'filter') and partial.filter:
+                        partial.filter.set_cutoff(partial.filter.cutoff, resonance=min(2.0, partial.filter.resonance * 1.5))
+                    if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
+                        partial.amp_envelope.update_parameters(decay=max(0.01, partial.amp_envelope.decay_time * 0.6))
+                elif new_preset == 'mellow':
+                    # Mellow: lower resonance, slower decay
+                    if hasattr(partial, 'filter') and partial.filter:
+                        partial.filter.set_cutoff(partial.filter.cutoff, resonance=max(0.0, partial.filter.resonance * 0.6))
+                    if hasattr(partial, 'amp_envelope') and partial.amp_envelope:
+                        partial.amp_envelope.update_parameters(decay=min(5.0, partial.amp_envelope.decay_time * 1.4))
+
+        print(f"Channel {self.channel}: Applied {new_preset} performance preset")
 
     # XG Part Mode Implementation - NOW COMPLIANT WITH XG SPECIFICATION
     def set_part_mode(self, mode: int):

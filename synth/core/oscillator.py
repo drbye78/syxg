@@ -6,7 +6,12 @@ This replaces the old LFO class with full XG compliance for channel-level modula
 """
 
 import math
+import numpy as np
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+
+# Pre-computed sine lookup table for ultra-fast LFO processing
+_SINE_TABLE_SIZE = 8192
+_SINE_TABLE = np.sin(np.linspace(0, 2 * np.pi, _SINE_TABLE_SIZE, dtype=np.float32))
 
 
 class XGLFO:
@@ -19,6 +24,14 @@ class XGLFO:
     - Per-channel LFO resources (not per-note)
     - Enhanced modulation source control
     """
+
+    __slots__ = (
+        'id', 'waveform', 'rate', 'depth', 'delay', 'sample_rate',
+        'pitch_delay', 'pitch_fade_in', 'pitch_depth', 'tremolo_depth',
+        'mod_wheel', 'breath_controller', 'foot_controller', 'channel_aftertouch',
+        'key_aftertouch', 'brightness', 'harmonic_content', 'phase',
+        'delay_counter', 'delay_samples', 'phase_step', '_last_output', '_dirty'
+    )
 
     # XG LFO Pitch Modulation Parameters
     DEFAULT_PITCH_DELAY = 0.0     # seconds
@@ -98,7 +111,7 @@ class XGLFO:
         # Convert frequency to phase step
         return modulated_rate * 2.0 * math.pi / self.sample_rate
 
-    def set_pitch_modulation(self, delay: float = None, fade_in: float = None, depth: int = None):
+    def set_pitch_modulation(self, delay: Optional[float] = None, fade_in: Optional[float] = None, depth: Optional[int] = None):
         """Set XG pitch modulation parameters per specification."""
         if delay is not None:
             self.pitch_delay = max(0.0, min(5.0, delay))
@@ -109,7 +122,7 @@ class XGLFO:
 
         self._dirty = True
 
-    def set_tremolo_depth(self, depth: float = None):
+    def set_tremolo_depth(self, depth: Optional[float] = None):
         """Set XG tremolo depth parameter."""
         if depth is not None:
             self.tremolo_depth = max(0.0, min(1.0, depth))
@@ -198,11 +211,13 @@ class XGLFO:
             self.phase_step = self._calculate_phase_step()
             self._dirty = False
 
-        # Generate base waveform
+        # Generate base waveform - ULTRA-OPTIMIZED with lookup table
         self.phase = (self.phase + self.phase_step) % (2.0 * math.pi)
 
         if self.waveform == "sine":
-            base_output = math.sin(self.phase)
+            # ULTRA-OPTIMIZED: Use pre-computed sine lookup table
+            phase_index = int((self.phase / (2.0 * math.pi)) * (_SINE_TABLE_SIZE - 1))
+            base_output = _SINE_TABLE[phase_index]
         elif self.waveform == "triangle":
             phase_norm = self.phase / (2.0 * math.pi)
             base_output = 1.0 - abs(2.0 * (phase_norm - 0.5))
@@ -216,7 +231,9 @@ class XGLFO:
                 1.0 if self.phase % 2.0 < 1.0 else -1.0
             )
         else:
-            base_output = math.sin(self.phase)  # fallback to sine
+            # ULTRA-OPTIMIZED: Use pre-computed sine lookup table as fallback
+            phase_index = int((self.phase / (2.0 * math.pi)) * (_SINE_TABLE_SIZE - 1))
+            base_output = _SINE_TABLE[phase_index]
 
         # Apply XG pitch modulation fade-in
         fade_in_progress = min(1.0, (self.delay_counter - self.delay_samples) /
@@ -244,8 +261,8 @@ class XGLFO:
         self.delay_counter = 0
         self._last_output = 0.0
 
-    def set_parameters(self, waveform: str = None, rate: float = None,
-                      depth: float = None, delay: float = None):
+    def set_parameters(self, waveform: Optional[str] = None, rate: Optional[float] = None,
+                      depth: Optional[float] = None, delay: Optional[float] = None):
         """Update LFO parameters dynamically."""
         if waveform is not None:
             self.waveform = self._validate_waveform(waveform)
