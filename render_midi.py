@@ -286,7 +286,6 @@ def main():
     # Initialize synthesizer
     synthesizer = OptimizedXGSynthesizer(
         sample_rate=sample_rate,
-        block_size=int(chunk_size_ms / 1000 * sample_rate),
         max_polyphony=max_polyphony
     )
 

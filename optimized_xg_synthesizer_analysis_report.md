@@ -93,6 +93,7 @@ This report provides an in-depth analysis of the OptimizedXGSynthesizer implemen
 # Sample-perfect processing in OptimizedXGSynthesizer
 def generate_audio_block_sample_accurate(self):
     # Process pending MIDI messages at exact sample positions
+    # Uses synthesizer's default block size set during construction
     while self.midi_processor.has_pending_messages():
         message_time = self.midi_processor.get_next_message_time()
         if message_time <= self.current_sample:

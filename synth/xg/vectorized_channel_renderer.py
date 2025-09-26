@@ -9,8 +9,11 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 import math
 
+from synth.sf2.core.wavetable_manager import WavetableManager
+
 # Import internal modules
 from ..core.constants import DEFAULT_CONFIG
+from ..core.optimized_coefficient_manager import get_global_coefficient_manager
 from ..core.oscillator import XGLFO  # XG-compliant LFO
 from ..modulation.vectorized_matrix import VectorizedModulationMatrix
 from .partial_generator import XGPartialGenerator
@@ -43,7 +46,7 @@ class VectorizedChannelRenderer:
     VOICE_MODE_MONO_LEGATO = 3  # Monophonic with legato (note overlapping)
     VOICE_MODE_MONO_PORTAMENTO = 4  # Monophonic with portamento (glide)
 
-    def __init__(self, channel: int, sample_rate: int = 44100, wavetable=None, max_voices: int = 64, drum_manager=None):
+    def __init__(self, channel: int, sample_rate: int, wavetable: Optional[WavetableManager], max_voices, drum_manager):
         """
         Initialize vectorized channel renderer with pre-allocated buffers.
 
@@ -56,7 +59,7 @@ class VectorizedChannelRenderer:
         """
         self.channel = channel
         self.sample_rate = sample_rate
-        self.wavetable = wavetable
+        self.wavetable: Optional[WavetableManager] = wavetable
         self.drum_manager = drum_manager
         self.active = True
 
@@ -129,6 +132,9 @@ class VectorizedChannelRenderer:
         self.mod_matrix = VectorizedModulationMatrix(num_routes=16)
         # Setup modulation matrix after all components are initialized
         self._setup_default_modulation_matrix()
+
+        # Optimized coefficient manager for performance
+        self.coeff_manager = get_global_coefficient_manager()
 
         # PRE-ALLOCATED AUDIO BUFFERS FOR VECTORIZED PROCESSING
         # Pre-allocate audio buffers for vectorized processing
@@ -690,9 +696,10 @@ class VectorizedChannelRenderer:
         # Apply panning with vectorized operations - OPTIMIZED PANNING APPLICATION
         combined_pan = self._cached_pan
         if combined_pan != 0.0:
-            # Simple linear panning with vectorized operations
-            left_gain = np.float32(0.5 * (1.0 - combined_pan))
-            right_gain = np.float32(0.5 * (1.0 + combined_pan))
+            # Use pre-computed panning coefficients instead of expensive calculations
+            pan_int = int(combined_pan * 127.0)  # Convert to MIDI range
+            pan_int = max(0, min(127, pan_int))
+            left_gain, right_gain = self.coeff_manager.get_pan_gains(pan_int)
             np.multiply(self.left_buffer[:block_size], left_gain, out=self.left_buffer[:block_size])
             np.multiply(self.right_buffer[:block_size], right_gain, out=self.right_buffer[:block_size])
 
@@ -873,9 +880,11 @@ class VectorizedChannelRenderer:
 
     def _handle_xg_brightness(self, value: int):
         """Handle XG Brightness controller (72) with optimized parameter update."""
-        # Map 0-127 to brightness range (±24 semitones) and apply to all active notes
-        semitones = ((value - 64) / 64.0) * 24.0
-        brightness_mult = 2.0 ** (semitones / 12.0)
+        # Update coefficient manager with new brightness value
+        self.coeff_manager.update_xg_coefficient('brightness', value)
+
+        # Get pre-computed brightness multiplier
+        brightness_mult = self.coeff_manager.get_xg_coefficient('brightness', value)
         cutoff = max(20, min(20000, 1000.0 * brightness_mult))
 
         # Apply to all active notes - modify filter cutoff parameters
@@ -919,8 +928,11 @@ class VectorizedChannelRenderer:
 
     def _handle_xg_filter_cutoff(self, value: int):
         """Handle XG Filter Cutoff controller (75) with optimized parameter update."""
-        # Map 0-127 to filter cutoff frequency range (4 octaves)
-        freq_ratio = 2.0 ** ((value - 64) / 32.0)
+        # Update coefficient manager with new filter cutoff value
+        self.coeff_manager.update_xg_coefficient('filter_cutoff', value)
+
+        # Get pre-computed frequency ratio
+        freq_ratio = self.coeff_manager.get_xg_coefficient('filter_cutoff', value)
         cutoff = max(20, min(20000, 1000.0 * freq_ratio))
 
         # Apply to all active notes - modify filter cutoff parameters
@@ -944,8 +956,11 @@ class VectorizedChannelRenderer:
 
     def _handle_xg_vibrato_rate(self, value: int):
         """Handle XG Vibrato Rate controller (77) with optimized parameter update."""
-        # Map 0-127 to LFO rate range (0.1 to 10.0 Hz)
-        lfo_rate = 0.1 * (10.0 ** (value * 2.0 / 127.0))
+        # Update coefficient manager with new vibrato rate value
+        self.coeff_manager.update_xg_coefficient('vibrato_rate', value)
+
+        # Get pre-computed LFO rate
+        lfo_rate = self.coeff_manager.get_xg_coefficient('vibrato_rate', value)
 
         # Apply to first LFO (typically used for vibrato)
         if self.lfos and len(self.lfos) > 0:

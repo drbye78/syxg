@@ -11,6 +11,7 @@ import threading
 
 # Import internal modules
 from ..core.constants import DEFAULT_CONFIG
+from ..core.optimized_coefficient_manager import OptimizedCoefficientManager
 from .state import EffectStateManager
 from .communication import XGCommunicationHandler
 from .processing import XGAudioProcessor
@@ -56,6 +57,10 @@ class VectorizedEffectManager:
         # Audio processor for effect algorithms with optimized audio processing
         # Uses the production-grade XGAudioProcessor for full XG effect processing
         self.audio_processor = XGAudioProcessor(self.state_manager, sample_rate)
+
+        # Optimized coefficient manager for pre-computed mathematical operations
+        # Eliminates expensive calculations (sqrt, pow, exp) from inner loops
+        self.coeff_manager = OptimizedCoefficientManager()
 
         # Set up communication handler references with optimized reference handling
         self.comm_handler.state_manager = self.state_manager
@@ -528,9 +533,11 @@ class VectorizedEffectManager:
                 # Calculate channel gain
                 channel_gain = volume * expression
 
-                # Apply panning (equal power panning)
-                pan_left = np.sqrt(1.0 - pan)   # Left channel gain
-                pan_right = np.sqrt(pan)        # Right channel gain
+                # Apply panning (equal power panning) - OPTIMIZED
+                # Use pre-computed panning coefficients instead of expensive sqrt() calls
+                pan_int = int(pan * 127.0)  # Convert to MIDI range
+                pan_int = max(0, min(127, pan_int))
+                pan_left, pan_right = self.coeff_manager.get_pan_gains(pan_int)
 
                 # Mix this channel into the final mix
                 if len(channel_array.shape) == 2 and channel_array.shape[1] == 2:

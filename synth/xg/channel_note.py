@@ -21,6 +21,8 @@ Key Features:
 import math
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 from collections import OrderedDict
+
+from synth.sf2.core.wavetable_manager import WavetableManager
 from ..modulation.matrix import ModulationMatrix
 from .partial_generator import XGPartialGenerator  # XG-compliant partial generator
 from ..core.vectorized_envelope import VectorizedADSREnvelope  # For note-level envelopes
@@ -48,7 +50,7 @@ class ChannelNote:
         mod_matrix (ModulationMatrix): Per-note modulation routing
     """
     def __init__(self, note: int, velocity: int, program: int, bank: int,
-                 wavetable, sample_rate: int, is_drum: bool = False, channel_lfos: Optional[List] = None):
+                 wavetable: Optional[WavetableManager], sample_rate: int, is_drum: bool = False, channel_lfos: Optional[List] = None):
         # Input validation
         if not (0 <= note <= 127):
             raise ValueError(f"Note must be between 0-127, got {note}")
@@ -405,7 +407,7 @@ class ChannelNote:
             ]
         }
 
-    def _setup_partials(self, wavetable):
+    def _setup_partials(self, wavetable: Optional[WavetableManager]):
         """Setup partial structures for this note"""
         partials_params = self.params.get("partials", [])
 

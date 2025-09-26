@@ -7,9 +7,12 @@ Each partial has exclusive note/velocity ranges and independent XG parameters.
 
 import math
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+
+from synth.sf2.core.wavetable_manager import WavetableManager
 from ..core.vectorized_envelope import VectorizedADSREnvelope
 from ..core.filter import ResonantFilter
 from ..core.panner import StereoPanner
+from ..core.optimized_coefficient_manager import get_global_coefficient_manager
 
 
 class XGPartialGenerator:
@@ -30,7 +33,7 @@ class XGPartialGenerator:
     PITCH_BEND_CENTS = 1200  # XG pitch bend range in cents
     VELOCITY_SENSE_SCALING = 0.023  # XG velocity sensitivity formula
 
-    def __init__(self, wavetable, note: int, velocity: int, program: int,
+    def __init__(self, wavetable: Optional[WavetableManager], note: int, velocity: int, program: int,
                  partial_id: int, partial_params: Dict, is_drum: bool = False,
                  sample_rate: int = 44100, bank: int = 0):
         """
@@ -47,7 +50,7 @@ class XGPartialGenerator:
             sample_rate: Audio sample rate
             bank: Bank number (MSB 0-127)
         """
-        self.wavetable = wavetable
+        self.wavetable: Optional[WavetableManager] = wavetable
         self.partial_id = partial_id
         self.note = note
         self.velocity = velocity
@@ -133,6 +136,13 @@ class XGPartialGenerator:
             self.active = False
             return
 
+        # Optimized coefficient manager for performance
+        self.coeff_manager = get_global_coefficient_manager()
+
+        # Cache sample table once during construction (never changes for XG partials)
+        self._cached_sample_table = None
+        self._load_sample_table_once()
+
         # Initialize phase and synthesis parameters
         self.phase = 0.0
         self.phase_step = self._calculate_phase_step()
@@ -154,6 +164,7 @@ class XGPartialGenerator:
         self.last_pitch_mod = 0.0
         self.last_filter_mod = 0.0
         self.last_amp_mod = 1.0  # Default to 1.0 (no modulation)
+
 
     def _is_note_in_range(self, note: int, velocity: int) -> bool:
         """Check if note and velocity fall within this partial's XG-defined ranges."""
@@ -184,27 +195,40 @@ class XGPartialGenerator:
             freq_multiplier = 2.0 ** key_offset
             base_freq *= freq_multiplier
 
-        # No wavetable? Use basic sine wave synthesis
+        # No wavetable? Use zero sample fallback
         if self.wavetable is None:
-            return base_freq * 2.0 * math.pi / self.sample_rate
+            # Create a 1-sample zero table for silent fallback
+            self._cached_sample_table = [(0.0, 0.0)]  # 1-sample stereo zero table
+            return base_freq * 1 / self.sample_rate  # Phase step for 1-sample table
 
-        # Get XG wavetable sample for this partial
+        # Get XG wavetable sample for this partial - use cached table
+        sample_table = self._cached_sample_table
+
+        if sample_table is None or len(sample_table) == 0:
+            # No sample table available - use zero sample fallback
+            # Don't set active=False, as we can still generate silence
+            return base_freq * 1 / self.sample_rate  # Phase step for 1-sample table
+
+        # Calculate phase step for wavetable playback
+        table_length = len(sample_table)
+        return base_freq * table_length / self.sample_rate
+
+    def _load_sample_table_once(self):
+        """Load sample table once during construction (XG partials never change sample table)."""
+        if not self.wavetable:
+            return
+
+        # Get sample table from wavetable manager (only called once)
         sample_table = self.wavetable.get_partial_table(
             self.note, self.program, self.partial_id,
             self.velocity, self.bank
         )
 
-        if sample_table is None or len(sample_table) == 0:
-            # No sample table available - use sine wave fallback
-            # Don't set active=False, as we can still generate sine wave
-            return base_freq * 2.0 * math.pi / self.sample_rate
+        # Cache the sample table
+        self._cached_sample_table = sample_table
 
-        # Get loop information from sample header
+        # Load loop information when sample table is loaded
         self._load_sample_loop_info()
-
-        # Calculate phase step for wavetable playback
-        table_length = len(sample_table)
-        return base_freq * table_length / self.sample_rate
 
     def _load_sample_loop_info(self):
         """Load loop information from SF2 sample header."""
@@ -291,7 +315,7 @@ class XGPartialGenerator:
             resonance=self.filter_resonance,
             filter_type=self.filter_type,
             key_follow=self.filter_key_follow,
-            stereo_width=0.0,  # Mono processing for partials
+            stereo_width=1.0,  # Enable stereo processing for partials
             sample_rate=self.sample_rate
         )
 
@@ -388,23 +412,37 @@ class XGPartialGenerator:
                 resonance=self.filter_resonance
             )
 
-            sample = self.filter.process(sample, is_stereo=False)
+            # Now sample is always stereo, so process as stereo
+            sample = self.filter.process(sample, is_stereo=True)
 
         # Apply XG amplitude envelope and level
-        # Handle case where sample might be a tuple (stereo) or float (mono)
-        if isinstance(sample, (tuple, list)) and len(sample) >= 1:
-            sample = float(sample[0])  # Take left channel if stereo
+        # Sample is now always stereo (left, right)
+        if isinstance(sample, (tuple, list)) and len(sample) >= 2:
+            left_sample = float(sample[0])
+            right_sample = float(sample[1])
         else:
-            sample = float(sample)
+            # Fallback: if somehow not stereo, treat as mono and convert
+            mono_sample = float(sample[0]) if isinstance(sample, (tuple, list)) else float(sample)
+            left_sample = mono_sample
+            right_sample = mono_sample
 
-        sample = sample * float(amp_env) * float(self.level) * float(self.last_amp_mod)
+        # Apply amplitude envelope and level to both channels
+        left_sample = left_sample * float(amp_env) * float(self.level) * float(self.last_amp_mod)
+        right_sample = right_sample * float(amp_env) * float(self.level) * float(self.last_amp_mod)
 
-        # Apply crossfade
-        sample *= (1.0 - self.velocity_crossfade) * (1.0 - self.note_crossfade)
+        # Apply crossfade to both channels
+        crossfade_factor = (1.0 - self.velocity_crossfade) * (1.0 - self.note_crossfade)
+        left_sample *= crossfade_factor
+        right_sample *= crossfade_factor
 
-        # Apply XG panning
-        left_sample = sample * math.sqrt(1.0 - self.pan)
-        right_sample = sample * math.sqrt(self.pan)
+        # Apply XG panning - OPTIMIZED
+        # Use pre-computed panning coefficients instead of expensive sqrt() calls
+        pan_int = int(self.pan * 127.0)  # Convert to MIDI range
+        pan_int = max(0, min(127, pan_int))
+        left_gain, right_gain = self.coeff_manager.get_pan_gains(pan_int)
+
+        left_sample *= left_gain
+        right_sample *= right_gain
 
         return (left_sample, right_sample)
 
@@ -445,28 +483,26 @@ class XGPartialGenerator:
         # XG-compliant frequency clamping
         return max(20.0, min(20000.0, final_freq))
 
-    def _generate_waveform_sample(self, pitch_mod: float) -> float:
-        """Generate base waveform sample for XG synthesis with proper SF2 loop handling."""
+    def _generate_waveform_sample(self, pitch_mod: float) -> Tuple[float, float]:
+        """Generate base waveform sample for XG synthesis with proper SF2 loop handling.
+
+        Returns stereo samples (left, right) - converts mono to stereo if needed.
+        """
         # Apply pitch modulation to phase step
         modulation_mult = 2.0 ** (pitch_mod / 1200.0)  # cents to freq multiplier
         current_phase_step = self.phase_step * modulation_mult
 
         # Generate sample based on wavetable availability
         if self.wavetable is None:
-            # Basic XG sine wave generation (fallback)
-            self.phase += current_phase_step
-            if self.phase > 2.0 * math.pi:
-                self.phase -= 2.0 * math.pi
-            return math.sin(self.phase)
+            # Zero sample fallback - return stereo silence
+            # For 1-sample zero table, always return the same sample
+            return (0.0, 0.0)  # Return stereo silence
 
-        # XG Wavetable synthesis
-        sample_table = self.wavetable.get_partial_table(
-            self.note, self.program, self.partial_id,
-            self.velocity, self.bank
-        )
+        # XG Wavetable synthesis - use cached sample table
+        sample_table = self._cached_sample_table
 
         if not sample_table or len(sample_table) == 0:
-            return 0.0
+            return (0.0, 0.0)  # Return stereo silence
 
         # Calculate table index with loop handling
         table_length = len(sample_table)
@@ -549,45 +585,22 @@ class XGPartialGenerator:
         sample1 = sample_table[index_int] if index_int < table_length else 0.0
         sample2 = sample_table[min(index_int + 1, table_length - 1)] if index_int < table_length else 0.0
 
-        # Handle stereo vs mono samples - always return mono for processing
-        def safe_float_convert(value):
-            """Safely convert any value to float."""
-            if value is None:
-                return 0.0
-            try:
-                if isinstance(value, (int, float)):
-                    return float(value)
-                elif isinstance(value, str):
-                    return float(value) if value else 0.0
-                else:
-                    return 0.0  # Unknown type, default to 0
-            except (ValueError, TypeError):
-                return 0.0
-
-        def get_mono_sample(sample):
-            """Extract mono sample from various sample formats."""
-            if sample is None:
-                return 0.0
-            elif isinstance(sample, (tuple, list)):
-                if len(sample) >= 2:
-                    # Stereo - average channels
-                    left = safe_float_convert(sample[0])
-                    right = safe_float_convert(sample[1])
-                    return (left + right) * 0.5
-                elif len(sample) >= 1:
-                    # Single channel in list/tuple
-                    return safe_float_convert(sample[0])
-                else:
-                    return 0.0
+        # Get stereo samples instead of mono
+        def get_stereo_sample(sample):
+            if isinstance(sample, tuple):
+                left, right = sample
+                return (left, right)
             else:
-                # Direct numeric value
-                return safe_float_convert(sample)
+                return (sample, sample)
 
-        mono1 = get_mono_sample(sample1)
-        mono2 = get_mono_sample(sample2)
+        stereo1 = get_stereo_sample(sample1)
+        stereo2 = get_stereo_sample(sample2)
 
-        # Linear interpolation
-        return mono1 + frac * (mono2 - mono1)
+        # Linear interpolation for both channels
+        left_interp = stereo1[0] + frac * (stereo2[0] - stereo1[0])
+        right_interp = stereo1[1] + frac * (stereo2[1] - stereo1[1])
+
+        return (left_interp, right_interp)
 
     # XG Sound Controller Parameter Updates (Controllers 71-78)
 
@@ -600,9 +613,11 @@ class XGPartialGenerator:
 
     def update_brightness(self, value: float):
         """XG Sound Controller 72 - Brightness (+/- 24 semitones)."""
-        # Convert 0-127 MIDI to -24 to +24 semitone offset
-        semitones = ((value - 64) / 64.0) * 24.0
-        brightness_mult = 2.0 ** (semitones / 12.0)
+        # Update coefficient manager with new brightness value
+        self.coeff_manager.update_xg_coefficient('brightness', int(value))
+
+        # Get pre-computed brightness multiplier
+        brightness_mult = self.coeff_manager.get_xg_coefficient('brightness', int(value))
         self.filter_cutoff = max(20, min(20000, 1000.0 * brightness_mult))
 
     def update_amp_release(self, value: float):
@@ -629,8 +644,11 @@ class XGPartialGenerator:
 
     def update_filter_cutoff(self, value: float):
         """XG Sound Controller 75 - Filter Cutoff Frequency."""
-        # 0-127 maps to 4 octaves (16:1 frequency ratio)
-        freq_ratio = 2.0 ** ((value - 64) / 32.0)
+        # Update coefficient manager with new filter cutoff value
+        self.coeff_manager.update_xg_coefficient('filter_cutoff', int(value))
+
+        # Get pre-computed frequency ratio
+        freq_ratio = self.coeff_manager.get_xg_coefficient('filter_cutoff', int(value))
         self.filter_cutoff = max(20, min(20000, 1000.0 * freq_ratio))
 
     def update_amp_decay(self, value: float):
@@ -646,8 +664,11 @@ class XGPartialGenerator:
 
     def update_vibrato_rate(self, value: float):
         """XG Sound Controller 77 - Vibrato Rate."""
-        # 0-127 maps to 0.1 to 10.0 Hz logarithmically
-        rate_hz = 0.1 * (10.0 ** (value * 2.0 / 127.0))
+        # Update coefficient manager with new vibrato rate value
+        self.coeff_manager.update_xg_coefficient('vibrato_rate', int(value))
+
+        # Get pre-computed rate
+        rate_hz = self.coeff_manager.get_xg_coefficient('vibrato_rate', int(value))
         # Stored for use by channel-level LFO
         self.vibrato_rate = rate_hz
 
@@ -666,6 +687,7 @@ class XGPartialGenerator:
         self.last_pitch_mod = pitch_mod
         self.last_filter_mod = filter_mod
         self.last_amp_mod = amp_mod
+
 
 
 # Backward compatibility alias

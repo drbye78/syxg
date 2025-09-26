@@ -280,7 +280,7 @@ synth.send_midi_message(0x90, 60, 100)  # Note On: C4, velocity 100
 synth.send_midi_message(0xB0, 71, 64)  # CC 71: Harmonic Content
 
 # Generate audio
-left, right = synth.generate_audio_block_sample_accurate(512)
+audio_block = synth.generate_audio_block()
 ```
 
 ### Advanced Controller Usage

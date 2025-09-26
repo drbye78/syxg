@@ -29,6 +29,7 @@ from synth.xg.vectorized_channel_renderer import VectorizedChannelRenderer
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from .constants import DEFAULT_CONFIG
+from .optimized_coefficient_manager import OptimizedCoefficientManager, get_global_coefficient_manager
 from ..sf2.manager import SF2Manager
 from ..xg.manager import StateManager
 from ..xg.drum_manager import DrumManager
@@ -56,21 +57,19 @@ class OptimizedXGSynthesizer:
     """
 
     def __init__(self, sample_rate: int = DEFAULT_CONFIG["SAMPLE_RATE"],
-                 block_size: int = DEFAULT_CONFIG["BLOCK_SIZE"],
-                 max_polyphony: int = DEFAULT_CONFIG["MAX_POLYPHONY"],
-                 param_cache=None):
+                  max_polyphony: int = DEFAULT_CONFIG["MAX_POLYPHONY"],
+                  param_cache=None):
         """
         Initialize optimized XG synthesizer with performance enhancements.
-        
+
         Args:
-            sample_rate: Sampling rate (default 48000 Hz)
-            block_size: Audio block size in samples (default 512)
+            sample_rate: Sampling rate (default 44100 Hz)
             max_polyphony: Maximum polyphony (default 64 voices)
             param_cache: Optional parameter cache for performance optimization
         """
-        # Basic parameters
+        # Basic parameters - use fixed default block size for simplicity
         self.sample_rate = sample_rate
-        self.block_size = block_size
+        self.block_size = DEFAULT_CONFIG["BLOCK_SIZE"]  # Fixed default block size
         self.max_polyphony = max_polyphony
         self.master_volume = DEFAULT_CONFIG["MASTER_VOLUME"]
         
@@ -92,16 +91,21 @@ class OptimizedXGSynthesizer:
         self._current_time: float = 0.0
 
         # Audio engine
-        self.audio_engine = VectorizedAudioEngine(sample_rate, block_size, DEFAULT_CONFIG["NUM_MIDI_CHANNELS"])
+        self.audio_engine = VectorizedAudioEngine(sample_rate, DEFAULT_CONFIG["NUM_MIDI_CHANNELS"])
         
         # Per-channel renderers (one per MIDI channel)
         self.channel_renderers: List[VectorizedChannelRenderer] = []
         for channel in range(DEFAULT_CONFIG["NUM_MIDI_CHANNELS"]):
-            renderer = VectorizedChannelRenderer(channel=channel, sample_rate=sample_rate, drum_manager=self.drum_manager)
+            renderer = VectorizedChannelRenderer(channel=channel, sample_rate=sample_rate, 
+                                                 max_voices=DEFAULT_CONFIG["MAX_POLYPHONY"],
+                                                 wavetable=None, drum_manager=self.drum_manager)
             self.channel_renderers.append(renderer)
         
         # Effects
         self.effect_manager = VectorizedEffectManager(sample_rate)
+
+        # Optimized coefficient manager for performance
+        self.coeff_manager = get_global_coefficient_manager()
 
         # Set wavetable manager for all channel renderers
         for renderer in self.channel_renderers:
@@ -284,21 +288,20 @@ class OptimizedXGSynthesizer:
             # Sort the entire sequence by time (only when new messages are added)
             self._message_sequence.sort(key=lambda msg: msg.time)
 
-    def generate_audio_block(self, block_size: Optional[int] = None) -> np.ndarray:
+    def generate_audio_block(self) -> np.ndarray:
         """
         Generate audio block using buffered message processing.
 
         This method processes buffered MIDI messages automatically during audio generation,
         providing efficient buffered processing for real-time applications.
 
-        Args:
-            block_size: Block size in samples (if None, uses default value)
+        Uses the synthesizer's default block size set during construction.
 
         Returns:
-            Tuple (left_channel, right_channel) with audio data
+            Audio data as numpy array with shape (block_size, 2)
         """
         # Use the sample-accurate method which already handles buffered processing
-        return self.generate_audio_block_sample_accurate(block_size)
+        return self.generate_audio_block_sample_accurate()
 
     def _handle_yamaha_sysex(self, data: List[int]):
         """Handle Yamaha SYSEX messages."""
@@ -313,7 +316,7 @@ class OptimizedXGSynthesizer:
         # Forward message to effect manager
         self.effect_manager.handle_sysex([0x43], data[1:])  # 0x43 - Yamaha manufacturer ID
 
-    def generate_audio_block_sample_accurate(self, block_size: Optional[int] = None) -> np.ndarray:
+    def generate_audio_block_sample_accurate(self) -> np.ndarray:
         """
         TRUE SAMPLE-PERFECT AUDIO PROCESSING - PRODUCTION READY
 
@@ -327,23 +330,15 @@ class OptimizedXGSynthesizer:
         3. Generate audio for each sample with current state
         4. Apply effects per XG specification
 
-        Args:
-            block_size: Block size in samples (if None, uses default value)
+        Uses the synthesizer's default block size set during construction.
 
         Returns:
-            Tuple (left_channel, right_channel) with audio data
+            Audio data as numpy array with shape (block_size, 2)
         """
-        if block_size is None:
-            block_size = self.block_size
+        block_size = self.block_size
 
-        # Ensure buffers are correct size
-        if len(self.out_buffer) != block_size:
-            self.out_buffer = np.zeros((block_size, 2), dtype=np.float32)
-            self.temp_left = np.zeros(block_size, dtype=np.float32)
-            self.temp_right = np.zeros(block_size, dtype=np.float32)
-            self.effect_input = np.zeros((block_size, 2), dtype=np.float32)
-            self.effect_output = np.zeros((block_size, 2), dtype=np.float32)
-            self.channel_buffers = [np.zeros((block_size, 2), dtype=np.float32) for _ in range(16)]
+        # Buffers are pre-allocated with correct size in constructor
+        # No need to resize since we always use the default block size
 
         with self.lock:
             at_time = self._current_time
@@ -371,12 +366,12 @@ class OptimizedXGSynthesizer:
                     next_time = at_time + (segment_length / self.sample_rate)
 
                 # Use optimized vectorized segment generation
-                parts = self._generate_channel_audio_vectorized(segment_length)
+                parts = self._generate_channel_audio_vectorized()
                 fx_parts = self.effect_manager.process_multi_channel_vectorized(
                     parts, segment_length
                 )
                 for i, part in enumerate(fx_parts):
-                    self.channel_buffers[i][block_offset:block_offset + segment_length] = part
+                    self.channel_buffers[i][block_offset:block_offset + segment_length] = part[:segment_length]
 
                 block_offset += segment_length
                 at_time = next_time # type: ignore
@@ -449,7 +444,7 @@ class OptimizedXGSynthesizer:
 
         return left_sample, right_sample
 
-    def _generate_channel_audio_vectorized(self, block_size: int) -> List[np.ndarray]:
+    def _generate_channel_audio_vectorized(self) -> List[np.ndarray]:
         """
         CORRECT XG INSERTION EFFECTS IMPLEMENTATION - Audio Quality Priority
 
@@ -458,12 +453,12 @@ class OptimizedXGSynthesizer:
         each channel needs to have insertion effects applied individually
         before mixing channels together.
 
-        Args:
-            block_size: Block size in samples
+        Uses the synthesizer's default block size set during construction.
 
         Returns:
-            List of channels, each containing stereo numpy array (N x 2)
+            List of channels, each containing stereo numpy array (block_size x 2)
         """
+        block_size = self.block_size
         # Prepare containers for all 16 MIDI channels
         channel_audio_list = []
 
@@ -488,12 +483,11 @@ class OptimizedXGSynthesizer:
                     np.multiply(renderer_left, master_volume_factor, out=renderer_left)
                     np.multiply(renderer_right, master_volume_factor, out=renderer_right)
 
-                    # Apply pan (stereo width adjustment)
-                    # Correct pan calculation - pan ranges from 0 (hard left) to 1 (hard right)
-                    # Ensure pan is within valid range [0, 1]
-                    pan_clamped = np.clip(pan, 0.0, 1.0)
-                    pan_left = np.sqrt(1.0 - pan_clamped)   # Equal power panning
-                    pan_right = np.sqrt(pan_clamped)
+                    # Apply pan (stereo width adjustment) - OPTIMIZED
+                    # Use pre-computed panning coefficients instead of expensive sqrt() calls
+                    pan_int = int(pan * 127.0)  # Convert to MIDI range
+                    pan_int = max(0, min(127, pan_int))
+                    pan_left, pan_right = self.coeff_manager.get_pan_gains(pan_int)
 
                     np.multiply(renderer_left, pan_left, out=renderer_left)
                     np.multiply(renderer_right, pan_right, out=renderer_right)
@@ -553,10 +547,11 @@ class OptimizedXGSynthesizer:
                     np.multiply(renderer_left, master_volume_factor, out=renderer_left)
                     np.multiply(renderer_right, master_volume_factor, out=renderer_right)
 
-                    # Apply pan (stereo width adjustment) with vectorized operations
-                    pan_clamped = np.clip(pan, 0.0, 1.0)
-                    pan_left = np.sqrt(1.0 - pan_clamped)   # Equal power panning
-                    pan_right = np.sqrt(pan_clamped)
+                    # Apply pan (stereo width adjustment) - OPTIMIZED
+                    # Use pre-computed panning coefficients instead of expensive sqrt() calls
+                    pan_int = int(pan * 127.0)  # Convert to MIDI range
+                    pan_int = max(0, min(127, pan_int))
+                    pan_left, pan_right = self.coeff_manager.get_pan_gains(pan_int)
 
                     np.multiply(renderer_left, pan_left, out=renderer_left)
                     np.multiply(renderer_right, pan_right, out=renderer_right)
@@ -606,10 +601,11 @@ class OptimizedXGSynthesizer:
                     np.multiply(renderer_left, master_volume_factor, out=renderer_left)
                     np.multiply(renderer_right, master_volume_factor, out=renderer_right)
 
-                    # Apply pan (stereo width adjustment)
-                    pan_clamped = np.clip(pan, 0.0, 1.0)
-                    pan_left = np.sqrt(1.0 - pan_clamped)   # Equal power panning
-                    pan_right = np.sqrt(pan_clamped)
+                    # Apply pan (stereo width adjustment) - OPTIMIZED
+                    # Use pre-computed panning coefficients instead of expensive sqrt() calls
+                    pan_int = int(pan * 127.0)  # Convert to MIDI range
+                    pan_int = max(0, min(127, pan_int))
+                    pan_left, pan_right = self.coeff_manager.get_pan_gains(pan_int)
 
                     np.multiply(renderer_left, pan_left, out=renderer_left)
                     np.multiply(renderer_right, pan_right, out=renderer_right)
@@ -624,25 +620,25 @@ class OptimizedXGSynthesizer:
 
         return left_segment, right_segment
 
-    def _generate_audio_block_vectorized_optimized(self, block_size: int) -> Tuple[np.ndarray, np.ndarray]:
+    def _generate_audio_block_vectorized_optimized(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         OPTIMIZED VECTORIZED BLOCK AUDIO GENERATION - PHASE 1 PERFORMANCE
-        
+
         Generate audio block using optimized vectorized processing for maximum performance.
         This method processes all active voices simultaneously using vectorized operations.
-        
+
         Performance optimizations:
         1. BATCH VOICE PROCESSING - Processes all active voices in larger chunks
         2. VECTORIZED OPERATIONS - Leverages NumPy for efficient mathematical operations
         3. ELIMINATED PYTHON LOOPS - Replaced with vectorized operations where possible
         4. PRE-ALLOCATED BUFFERS - Uses pre-allocated buffers to reduce allocation overhead
-        
-        Args:
-            block_size: Block size in samples
-            
+
+        Uses the synthesizer's default block size set during construction.
+
         Returns:
             Tuple (left_channel, right_channel) with audio data
         """
+        block_size = self.block_size
         # Initialize block buffers with zeros
         left_block = np.zeros(block_size, dtype=np.float32)
         right_block = np.zeros(block_size, dtype=np.float32)

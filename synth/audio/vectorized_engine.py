@@ -40,18 +40,16 @@ class VectorizedAudioEngine:
     """
 
     def __init__(self, sample_rate: int = DEFAULT_CONFIG["SAMPLE_RATE"],
-                 block_size: int = DEFAULT_CONFIG["BLOCK_SIZE"],
-                 num_channels: int = DEFAULT_CONFIG["NUM_MIDI_CHANNELS"]):
+                  num_channels: int = DEFAULT_CONFIG["NUM_MIDI_CHANNELS"]):
         """
         Initialize vectorized audio engine with pre-allocated buffers.
-        
+
         Args:
             sample_rate: Sample rate in Hz
-            block_size: Audio block size in samples
             num_channels: Number of MIDI channels
         """
         self.sample_rate = sample_rate
-        self.block_size = block_size
+        self.block_size = DEFAULT_CONFIG["BLOCK_SIZE"]  # Fixed default block size
         self.num_channels = num_channels
         self.master_volume = DEFAULT_CONFIG["MASTER_VOLUME"]
         
@@ -60,30 +58,30 @@ class VectorizedAudioEngine:
         
         # PRE-ALLOCATED MAIN AUDIO BUFFERS - ELIMINATES ALLOCATION OVERHEAD
         # Pre-allocate main audio buffers with maximum expected block size
-        max_block_size = max(block_size, 8192)  # Allow for larger blocks if needed
+        max_block_size = max(self.block_size, 8192)  # Allow for larger blocks if needed
         self.left_buffer = np.zeros(max_block_size, dtype=np.float32)
         self.right_buffer = np.zeros(max_block_size, dtype=np.float32)
-        
+
         # PRE-ALLOCATED TEMPORARY BUFFERS - REUSED BETWEEN PROCESSING STEPS
         # Pre-allocate temporary buffers for intermediate processing
         self.temp_left = np.zeros(max_block_size, dtype=np.float32)
         self.temp_right = np.zeros(max_block_size, dtype=np.float32)
-        
+
         # PRE-ALLOCATED CHANNEL BUFFERS - ONE PER MIDI CHANNEL
         # Pre-allocate channel audio buffers for efficient per-channel processing
         self.channel_buffers = np.zeros((num_channels, max_block_size, 2), dtype=np.float32)
-        
+
         # PRE-ALLOCATED EFFECT INPUT/OUTPUT BUFFERS - FOR EFFICIENT EFFECTS PROCESSING
         # Pre-allocate buffers for effects processing with vectorized operations
         self.effect_input = np.zeros((max_block_size, 2), dtype=np.float32)
         self.effect_output = np.zeros((max_block_size, 2), dtype=np.float32)
-        
+
         # OBJECT POOLS - REDUCES ALLOCATION/DEALLOCATION OVERHEAD
         # Object pools for frequently allocated objects
         self._initialize_object_pools()
-        
+
         # BUFFER MANAGEMENT STATE
-        self.current_block_size = block_size
+        self.current_block_size = self.block_size
         self.buffer_dirty = False
 
     def _initialize_object_pools(self):
@@ -169,30 +167,27 @@ class VectorizedAudioEngine:
         # Mark buffers as clean
         self.buffer_dirty = False
 
-    def generate_audio_block_vectorized(self, channel_renderers: List, effect_manager,
-                                      block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+    def generate_audio_block_vectorized(self, channel_renderers: List, effect_manager) -> Tuple[np.ndarray, np.ndarray]:
         """
         VECTORIZED AUDIO BLOCK GENERATION - PHASE 2 PERFORMANCE
-        
+
         Generate audio block from all active channel renderers with vectorized NumPy operations.
-        
+
         Performance optimizations:
         1. NUMPY-BASED OPERATIONS - Replaces Python loops with vectorized NumPy operations
         2. BATCH PROCESSING - Processes multiple samples simultaneously rather than individually
         3. ZERO-CLEARING OPTIMIZATION - Clears buffers efficiently using vectorized operations
         4. PRE-ALLOCATED BUFFERS - Eliminates allocation overhead for audio buffers
         5. ZERO-COPY BUFFER PASSING - Eliminates unnecessary buffer copying
-        
+
         Args:
             channel_renderers: List of channel renderer objects
             effect_manager: Effect manager for processing
-            block_size: Block size in samples (optional)
-            
+
         Returns:
             Tuple of (left_channel, right_channel) audio buffers
         """
-        if block_size is None:
-            block_size = self.block_size
+        block_size = self.block_size
             
         with self.lock:
             # ENSURE BUFFERS ARE CORRECT SIZE - DYNAMIC BUFFER RESIZING
@@ -239,30 +234,28 @@ class VectorizedAudioEngine:
             else:
                 return self._mix_channels_without_effects(block_size)
 
-    def generate_audio_block(self, channel_renderers: List, effect_manager,
-                           block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+    def generate_audio_block(self, channel_renderers: List, effect_manager) -> Tuple[np.ndarray, np.ndarray]:
         """
         VECTORIZED AUDIO BLOCK GENERATION - PHASE 2 PERFORMANCE
-        
+
         Generate audio block from all active channel renderers with vectorized NumPy operations.
         This is the standard interface method for compatibility with other AudioEngine implementations.
-        
+
         Performance optimizations:
         1. NUMPY-BASED OPERATIONS - Replaces Python loops with vectorized NumPy operations
         2. BATCH PROCESSING - Processes multiple samples simultaneously rather than individually
         3. ZERO-CLEARING OPTIMIZATION - Clears buffers efficiently using vectorized operations
         4. PRE-ALLOCATED BUFFERS - Eliminates allocation overhead for audio buffers
         5. ZERO-COPY BUFFER PASSING - Eliminates unnecessary buffer copying
-        
+
         Args:
             channel_renderers: List of channel renderer objects
             effect_manager: Effect manager for processing
-            block_size: Block size in samples (optional)
-            
+
         Returns:
             Tuple of (left_channel, right_channel) audio buffers
         """
-        return self.generate_audio_block_vectorized(channel_renderers, effect_manager, block_size)
+        return self.generate_audio_block_vectorized(channel_renderers, effect_manager)
 
     def _generate_channel_audio_vectorized(self, active_renderers: List, 
                                          block_size: int) -> Tuple[np.ndarray, np.ndarray]:
