@@ -1,8 +1,8 @@
 """
-OPTIMIZED MEMORY MANAGER - PHASE 3 PERFORMANCE
+HIGH-PERFORMANCE MEMORY MANAGER
 
 This module provides an optimized memory manager implementation with
-efficient allocation and deallocation strategies for maximum performance.
+efficient allocation and deallocation strategies for audio synthesis applications.
 """
 
 import numpy as np
@@ -14,19 +14,25 @@ import gc
 
 class OptimizedMemoryManager:
     """
-    OPTIMIZED MEMORY MANAGER - PHASE 3 PERFORMANCE
-    
-    Manages memory allocation and deallocation with efficient strategies for maximum performance.
-    
-    Performance optimizations implemented:
-    1. OBJECT POOLING - Reuses objects to reduce allocation/deallocation overhead
-    2. PRE-ALLOCATED BUFFERS - Eliminates allocation overhead for audio buffers
-    3. ZERO-CLEARING OPTIMIZATION - Clears buffers efficiently using vectorized operations
-    4. CACHE-FRIENDLY ALLOCATION - Allocates objects in cache-friendly patterns
-    5. BATCH ALLOCATION - Allocates objects in batches to reduce allocation overhead
-    
-    This implementation achieves 2-5x performance improvement over the original
-    while maintaining full memory management functionality.
+    HIGH-PERFORMANCE MEMORY MANAGER
+
+    Manages memory allocation and deallocation with optimized strategies for audio synthesis.
+
+    Key Features:
+    - Object pooling for frequently allocated audio objects (voices, envelopes, filters, LFOs)
+    - Pre-allocated audio buffers to eliminate allocation overhead during processing
+    - Vectorized buffer operations for maximum performance
+    - Thread-safe concurrent access protection
+    - Memory usage statistics and monitoring
+    - Automatic buffer resizing for dynamic block sizes
+    - Zero-allocation audio processing through buffer reuse
+
+    Architecture:
+    - Object pools for reusable audio synthesis components
+    - Pre-allocated NumPy arrays for audio buffer management
+    - Thread-safe access with efficient locking mechanisms
+    - Memory usage tracking and optimization statistics
+    - Dynamic buffer sizing with minimal reallocation overhead
     """
 
     def __init__(self, sample_rate: int = 48000, max_block_size: int = 8192):
@@ -43,28 +49,32 @@ class OptimizedMemoryManager:
         # Thread safety lock
         self.lock = threading.RLock()
 
+        # OPTIMIZED BUFFER POOL SYSTEM - ELIMINATES ALLOCATION OVERHEAD
+        # Pre-allocate buffer pools by size for efficient memory management
+        self.buffer_pools = self._initialize_buffer_pools(max_block_size)
+
         # PRE-ALLOCATED AUDIO BUFFERS - ELIMINATES ALLOCATION OVERHEAD
         # Pre-allocate main audio buffers with maximum expected block size
-        self.left_buffer = np.zeros(max_block_size, dtype=np.float32)
-        self.right_buffer = np.zeros(max_block_size, dtype=np.float32)
-        
+        self.left_buffer = self._get_buffer_from_pool(max_block_size)
+        self.right_buffer = self._get_buffer_from_pool(max_block_size)
+
         # PRE-ALLOCATED TEMPORARY BUFFERS - REUSED BETWEEN PROCESSING STEPS
         # Pre-allocate temporary buffers for intermediate processing
-        self.temp_left = np.zeros(max_block_size, dtype=np.float32)
-        self.temp_right = np.zeros(max_block_size, dtype=np.float32)
-        
+        self.temp_left = self._get_buffer_from_pool(max_block_size)
+        self.temp_right = self._get_buffer_from_pool(max_block_size)
+
         # PRE-ALLOCATED CHANNEL BUFFERS - ONE PER MIDI CHANNEL
         # Pre-allocate channel audio buffers for efficient per-channel processing
         self.channel_buffers = np.zeros((16, max_block_size, 2), dtype=np.float32)
-        
+
         # PRE-ALLOCATED EFFECT INPUT/OUTPUT BUFFERS - FOR EFFICIENT EFFECTS PROCESSING
         # Pre-allocate buffers for effects processing with vectorized operations
-        self.effect_input = np.zeros((max_block_size, 2), dtype=np.float32)
-        self.effect_output = np.zeros((max_block_size, 2), dtype=np.float32)
-        
+        self.effect_input = self._get_buffer_from_pool(max_block_size)
+        self.effect_output = self._get_buffer_from_pool(max_block_size)
+
         # PRE-ALLOCATED STEREO BUFFER - FOR STEREO EFFECT PROCESSING
         # Pre-allocate buffer for stereo effect processing with vectorized operations
-        self.stereo_buffer = np.zeros((max_block_size, 2), dtype=np.float32)
+        self.stereo_buffer = self._get_buffer_from_pool(max_block_size)
         
         # OBJECT POOLS - REDUCES ALLOCATION/DEALLOCATION OVERHEAD
         # Object pools for frequently allocated objects
@@ -115,6 +125,51 @@ class OptimizedMemoryManager:
         self.partial_generator_pool_size = 0
         self.partial_generator_pool_max_size = 512  # Maximum pool size to prevent memory explosion
 
+    def _initialize_buffer_pools(self, max_block_size: int) -> Dict[int, List[np.ndarray]]:
+        """Initialize buffer pools for different sizes to optimize memory allocation"""
+        buffer_pools = {}
+
+        # Create pools for common buffer sizes
+        common_sizes = [512, 1024, 2048, 4096, 8192, 16384]
+
+        for size in common_sizes:
+            if size <= max_block_size:
+                # Pre-allocate buffers for each size
+                pool_size = max(4, 32 // (size // 512))  # Fewer large buffers
+                buffer_pools[size] = [
+                    np.zeros((size, 2), dtype=np.float32) for _ in range(pool_size)
+                ]
+
+        return buffer_pools
+
+    def _get_buffer_from_pool(self, size: int) -> np.ndarray:
+        """Get a buffer from the pool or create a new one if pool is empty"""
+        # Find the closest pool size
+        available_sizes = sorted(self.buffer_pools.keys())
+        pool_size = min(available_sizes, key=lambda x: abs(x - size))
+
+        if pool_size in self.buffer_pools and self.buffer_pools[pool_size]:
+            return self.buffer_pools[pool_size].pop()
+
+        # Pool empty or no suitable size, create new buffer
+        return np.zeros((size, 2), dtype=np.float32)
+
+    def _return_buffer_to_pool(self, buffer: np.ndarray):
+        """Return a buffer to the appropriate pool"""
+        if buffer is None:
+            return
+
+        buffer_size = buffer.shape[0]
+        available_sizes = sorted(self.buffer_pools.keys())
+
+        # Find closest pool size
+        pool_size = min(available_sizes, key=lambda x: abs(x - buffer_size))
+
+        if pool_size in self.buffer_pools:
+            # Clear buffer before returning to pool
+            buffer.fill(0.0)
+            self.buffer_pools[pool_size].append(buffer)
+
     def _initialize_allocation_statistics(self):
         """Initialize memory allocation statistics for tracking and optimization."""
         # Allocation counters
@@ -127,7 +182,7 @@ class OptimizedMemoryManager:
             "channel_renderer": 0,
             "partial_generator": 0
         }
-        
+
         # Deallocation counters
         self.deallocation_counts = {
             "voice": 0,
@@ -138,7 +193,7 @@ class OptimizedMemoryManager:
             "channel_renderer": 0,
             "partial_generator": 0
         }
-        
+
         # Pool usage counters
         self.pool_usage_counts = {
             "voice": 0,
@@ -149,7 +204,7 @@ class OptimizedMemoryManager:
             "channel_renderer": 0,
             "partial_generator": 0
         }
-        
+
         # Pool miss counters (when pool is empty and new object must be created)
         self.pool_miss_counts = {
             "voice": 0,
@@ -551,11 +606,11 @@ class OptimizedMemoryManager:
                 
                 # Create new LFO object
                 try:
-                    # Import LFO class locally to avoid circular imports
-                    from ..core.oscillator import LFO
+                    # Import XGLFO class locally to avoid circular imports
+                    from ..core.oscillator import XGLFO
                     
                     # Create new LFO with optimized initialization
-                    lfo = LFO()
+                    lfo = XGLFO(id=0)
                     
                     return lfo
                 except Exception as e:

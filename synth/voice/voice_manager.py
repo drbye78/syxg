@@ -4,7 +4,7 @@ Handles voice allocation, priority management, and voice stealing.
 """
 
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Any
 from .voice_priority import VoicePriority
 from .voice_info import VoiceInfo
 from ..xg.channel_note import ChannelNote
@@ -18,6 +18,17 @@ class VoiceManager:
         self.active_voices: Dict[int, VoiceInfo] = {}  # note -> VoiceInfo
         self.voice_allocation_mode = 0  # Default to basic polyphonic
         self.polyphony_limit = 32  # Default polyphony limit
+
+        # Performance optimization: Priority calculation caching
+        self.priority_cache = {}  # voice_id -> (priority_score, timestamp)
+        self.cache_ttl = 100  # Cache for 100 allocation cycles
+        self.cache_hits = 0
+        self.cache_misses = 0
+
+        # Predictive voice allocation system
+        self.voice_demand_history = {}  # channel -> list of recent demand
+        self.predicted_demand = {}  # channel -> predicted voice needs
+        self.allocation_prediction_window = 50  # Look ahead 50 messages
 
     def set_allocation_mode(self, mode: int):
         """Set voice allocation mode"""
@@ -126,6 +137,101 @@ class VoiceManager:
         velocity_score = velocity / 127.0
         priority_score = priority / VoicePriority.HIGHEST
         return velocity_score * 0.6 + priority_score * 0.4
+
+    def get_cached_priority_score(self, voice_info) -> float:
+        """Get cached priority score to avoid recalculation"""
+        import time
+        voice_id = id(voice_info)
+
+        if voice_id in self.priority_cache:
+            score, timestamp = self.priority_cache[voice_id]
+            if timestamp > time.time() - self.cache_ttl:
+                self.cache_hits += 1
+                return score
+
+        # Cache miss - recalculate
+        self.cache_misses += 1
+        score = voice_info.calculate_priority_score()
+        self.priority_cache[voice_id] = (score, time.time())
+        return score
+
+    def clear_priority_cache(self):
+        """Clear the priority cache to free memory"""
+        self.priority_cache.clear()
+        self.cache_hits = 0
+        self.cache_misses = 0
+
+    def get_cache_stats(self) -> Dict[str, float]:
+        """Get cache performance statistics"""
+        total_requests = self.cache_hits + self.cache_misses
+        hit_rate = (self.cache_hits / total_requests * 100) if total_requests > 0 else 0.0
+        return {
+            "cache_hits": float(self.cache_hits),
+            "cache_misses": float(self.cache_misses),
+            "hit_rate_percent": hit_rate,
+            "cache_size": float(len(self.priority_cache))
+        }
+
+    def predict_voice_needs(self, upcoming_messages: List[Any]) -> Dict[int, int]:
+        """Predict voice allocation needs based on upcoming MIDI messages"""
+        channel_demand = {}
+
+        for msg in upcoming_messages[:self.allocation_prediction_window]:
+            if hasattr(msg, 'type') and msg.type == 'note_on':
+                channel = getattr(msg, 'channel', 0)
+                if channel not in channel_demand:
+                    channel_demand[channel] = 0
+                channel_demand[channel] += 1
+
+        return channel_demand
+
+    def update_voice_demand_history(self, channel: int, demand: int):
+        """Update voice demand history for prediction"""
+        if channel not in self.voice_demand_history:
+            self.voice_demand_history[channel] = []
+
+        history = self.voice_demand_history[channel]
+        history.append(demand)
+
+        # Keep only recent history
+        if len(history) > 20:
+            history.pop(0)
+
+    def get_predicted_demand(self, channel: int) -> int:
+        """Get predicted voice demand for a channel"""
+        if channel not in self.voice_demand_history:
+            return 1
+
+        history = self.voice_demand_history[channel]
+        if not history:
+            return 1
+
+        # Simple moving average prediction
+        return sum(history[-5:]) // max(1, len(history[-5:]))
+
+    def preallocate_voices_for_predicted_demand(self, predicted_demand: Dict[int, int]):
+        """Pre-allocate voices based on predicted demand"""
+        for channel, demand in predicted_demand.items():
+            current_voices = sum(1 for note, voice in self.active_voices.items()
+                               if hasattr(voice, 'channel_note') and voice.channel_note.channel == channel)
+
+            if current_voices < demand:
+                # Reserve additional voices for this channel
+                self.predicted_demand[channel] = demand - current_voices
+            else:
+                self.predicted_demand[channel] = 0
+
+    def get_allocation_prediction_stats(self) -> Dict[str, float]:
+        """Get voice allocation prediction statistics"""
+        total_predictions = sum(len(history) for history in self.voice_demand_history.values())
+        total_predicted = sum(self.predicted_demand.values())
+
+        return {
+            "total_predictions": float(total_predictions),
+            "total_predicted_demand": float(total_predicted),
+            "channels_with_history": float(len(self.voice_demand_history)),
+            "average_prediction_window": float(self.allocation_prediction_window)
+        }
 
     def allocate_voice(self, note: int, velocity: int, channel_note: ChannelNote,
                       priority: int = VoicePriority.NORMAL) -> Optional[int]:

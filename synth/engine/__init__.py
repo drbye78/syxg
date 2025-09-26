@@ -1,9 +1,9 @@
 """
-Synthesis Engine Package
+SYNTHESIS ENGINE PACKAGE
 
-This package contains the synthesis engine components:
-- optimized_xg_synthesizer: Main XG synthesizer implementation
-- optimized_coefficient_manager: Performance optimization components
+This package contains the core synthesis engine components:
+- OptimizedXGSynthesizer: Main XG synthesizer implementation with high-performance processing
+- OptimizedCoefficientManager: Performance optimization components for real-time synthesis
 """
 
 from .optimized_xg_synthesizer import OptimizedXGSynthesizer

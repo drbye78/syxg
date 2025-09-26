@@ -69,6 +69,11 @@ class VectorizedModulationMatrix:
         self.routes: List[Optional[VectorizedModulationRoute]] = [None] * num_routes
         self.num_routes = num_routes
 
+        # Performance optimization: Pre-computed coefficient cache
+        self.coefficient_cache = {}
+        self.cache_version = 0
+        self.last_sources_hash = None
+
     def set_route(self, index, source, destination, amount=0.0, polarity=1.0,
                   velocity_sensitivity=0.0, key_scaling=0.0):
         """
@@ -147,7 +152,7 @@ class VectorizedModulationMatrix:
     def process(self, sources: Dict[str, float], velocity: int, note: int) -> Dict[str, float]:
         """
         Processing modulation matrix for single sample (compatibility with original version)
-        
+
         Args:
             sources: dictionary with current source values
             velocity: key press velocity (0-127)
@@ -157,11 +162,11 @@ class VectorizedModulationMatrix:
             dictionary with modulating values for destinations
         """
         modulation_values = {}
-        
+
         for route in self.routes:
             if route is None:
                 continue
-                
+
             if route.source in sources:
                 source_value = sources[route.source]
                 # Creating scalar arrays for compatibility
@@ -170,9 +175,93 @@ class VectorizedModulationMatrix:
                     np.array([velocity], dtype=np.float32),
                     np.array([note], dtype=np.float32)
                 )[0]  # Get scalar value
-                
+
                 if route.destination not in modulation_values:
                     modulation_values[route.destination] = 0.0
                 modulation_values[route.destination] += mod_value
-        
+
         return modulation_values
+
+    def process_optimized(self, sources: Dict[str, float], velocity: int, note: int) -> Dict[str, float]:
+        """
+        Optimized modulation processing with pre-computed coefficients
+
+        Args:
+            sources: dictionary with current source values
+            velocity: key press velocity (0-127)
+            note: MIDI note (0-127)
+
+        Returns:
+            dictionary with modulating values for destinations
+        """
+        # Check if we can use cached coefficients
+        sources_hash = hash(tuple(sorted(sources.items())))
+        if sources_hash == self.last_sources_hash and self.coefficient_cache:
+            return self._apply_cached_modulation(sources, velocity, note)
+
+        # Compute fresh modulation values
+        modulation_values = {}
+
+        for route in self.routes:
+            if route is None or route.source not in sources:
+                continue
+
+            source_value = sources[route.source]
+
+            # Pre-compute modulation coefficient to avoid repeated calculations
+            cache_key = (route.source, route.destination, velocity, note)
+            if cache_key not in self.coefficient_cache:
+                # Calculate and cache the coefficient
+                coeff = self._calculate_modulation_coefficient(route, source_value, velocity, note)
+                self.coefficient_cache[cache_key] = coeff
+            else:
+                coeff = self.coefficient_cache[cache_key]
+
+            if route.destination not in modulation_values:
+                modulation_values[route.destination] = 0.0
+            modulation_values[route.destination] += coeff
+
+        self.last_sources_hash = sources_hash
+        return modulation_values
+
+    def _calculate_modulation_coefficient(self, route, source_value: float, velocity: int, note: int) -> float:
+        """Calculate modulation coefficient with optimized operations"""
+        # Apply polarity and amount
+        value = source_value * route.polarity * route.amount
+
+        # Apply velocity sensitivity
+        if route.velocity_sensitivity != 0.0:
+            velocity_factor = (velocity / 127.0) ** (1.0 + route.velocity_sensitivity)
+            value *= velocity_factor
+
+        # Apply key scaling
+        if route.key_scaling != 0.0:
+            note_factor = (note - 60) / 60.0
+            key_factor = 1.0 + note_factor * route.key_scaling
+            key_factor = max(0.1, key_factor)  # Prevent zero or negative values
+            value *= key_factor
+
+        return value
+
+    def _apply_cached_modulation(self, sources: Dict[str, float], velocity: int, note: int) -> Dict[str, float]:
+        """Apply modulation using cached coefficients for better performance"""
+        modulation_values = {}
+
+        for route in self.routes:
+            if route is None or route.source not in sources:
+                continue
+
+            cache_key = (route.source, route.destination, velocity, note)
+            if cache_key in self.coefficient_cache:
+                coeff = self.coefficient_cache[cache_key]
+
+                if route.destination not in modulation_values:
+                    modulation_values[route.destination] = 0.0
+                modulation_values[route.destination] += coeff
+
+        return modulation_values
+
+    def clear_cache(self):
+        """Clear the modulation coefficient cache"""
+        self.coefficient_cache.clear()
+        self.last_sources_hash = None

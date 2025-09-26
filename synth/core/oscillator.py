@@ -279,7 +279,3 @@ class XGLFO:
             self.reset()
 
 
-# Maintain backward compatibility for existing code
-class LFO(XGLFO):
-    """Backward compatibility alias for existing code."""
-    pass
