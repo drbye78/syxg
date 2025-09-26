@@ -699,22 +699,25 @@ class VectorizedChannelRenderer:
     def generate_sample_block_vectorized(self, block_size: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         VECTORIZED BLOCK SAMPLE GENERATION - PHASE 2 PERFORMANCE
-        
+
         Generate audio block for this channel with vectorized NumPy operations.
-        
+
         Performance optimizations:
         1. BATCH NOTE PROCESSING - Processes all active notes simultaneously
         2. NUMPY-BASED OPERATIONS - Uses NumPy for efficient mathematical operations
         3. PRE-ALLOCATED BUFFERS - Uses pre-allocated buffers to reduce allocation overhead
         4. ZERO-CLEARING OPTIMIZATION - Clears buffers efficiently using vectorized operations
         5. VECTORIZED MODULATION PROCESSING - Processes modulation with vectorized operations
-        
+
         Args:
             block_size: Block size in samples
-            
+
         Returns:
             Tuple of (left_channel, right_channel) audio buffers
         """
+        import time
+        start_time = time.perf_counter()
+
         # ENSURE BUFFERS ARE CORRECT SIZE - DYNAMIC BUFFER RESIZING
         # Only resize buffers when necessary to avoid allocation overhead
         if block_size > self.max_block_size:
@@ -758,27 +761,35 @@ class VectorizedChannelRenderer:
         # BATCH NOTE PROCESSING WITH VECTORIZED OPERATIONS - PROCESS ALL NOTES AT ONCE
         # Instead of processing each note individually in Python loops (slow),
         # process all notes simultaneously with vectorized NumPy operations (fast)
-        
+
         # Process all active notes using vectorized operations for maximum performance
         active_notes_list = list(self.active_notes.items())
-        
+
+        batch_time = 0
+        per_note_time = 0
+
         if active_notes_list:
             # BATCH PROCESSING OF ALL ACTIVE NOTES WITH VECTORIZED ACCUMULATION
             # Process all notes simultaneously using vectorized operations
-            
+
             try:
-                # VECTORIZED BATCH NOTE PROCESSING
-                left_block, right_block = self._process_notes_vectorized_batch(
+                # BLOCK-BASED NOTE PROCESSING - Maximum Performance
+                block_start = time.perf_counter()
+                left_block, right_block = self._process_notes_block_based(
                     active_notes_list, block_size, global_pitch_mod
                 )
-                
-                # Copy batch-processed data to output buffers with vectorized operations
+                block_time = time.perf_counter() - block_start
+
+                # Copy block-processed data to output buffers
                 np.copyto(self.left_buffer[:block_size], left_block[:block_size])
                 np.copyto(self.right_buffer[:block_size], right_block[:block_size])
-                
+
             except Exception as e:
-                # Fallback to per-note processing if batch processing fails
+                # Fallback to per-sample processing if block processing fails
+                per_note_start = time.perf_counter()
                 self._process_notes_vectorized_per_note(active_notes_list, block_size, global_pitch_mod)
+                per_note_time = time.perf_counter() - per_note_start
+                block_time = 0
 
         # Apply channel volume with vectorized operations - OPTIMIZED VOLUME APPLICATION
         volume_factor = np.float32((self.volume / 127.0) * (self.expression / 127.0))
@@ -798,6 +809,10 @@ class VectorizedChannelRenderer:
         # Apply final clipping with vectorized operations - OPTIMIZED CLIPPING
         np.clip(self.left_buffer[:block_size], -1.0, 1.0, out=self.left_buffer[:block_size])
         np.clip(self.right_buffer[:block_size], -1.0, 1.0, out=self.right_buffer[:block_size])
+
+        # total_time = time.perf_counter() - start_time
+        # if total_time > 0.005:  # Log if channel takes more than 5ms
+        #     print(f"Channel {self.channel}: {total_time:.4f}s, Batch: {batch_time:.4f}s, Per-note: {per_note_time:.4f}s, Notes: {len(active_notes_list)}")
 
         return self.left_buffer[:block_size], self.right_buffer[:block_size]
 
@@ -853,6 +868,77 @@ class VectorizedChannelRenderer:
                 # Disable problematic note and continue processing
                 channel_note.active = False
                 continue
+
+        return left_batch, right_batch
+
+    def _process_notes_block_based(self, active_notes_list: List, block_size: int, global_pitch_mod: float) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        BLOCK-BASED NOTE PROCESSING - Maximum Performance
+
+        Process all active notes using block-based generation for maximum performance.
+        This uses the new generate_sample_block methods in ChannelNote and XGPartialGenerator.
+
+        Args:
+            active_notes_list: List of (note, channel_note) tuples for active notes
+            block_size: Block size in samples
+            global_pitch_mod: Global pitch modulation value
+
+        Returns:
+            Tuple of (left_channel, right_channel) audio buffers
+        """
+        if not active_notes_list:
+            return np.zeros(block_size, dtype=np.float32), np.zeros(block_size, dtype=np.float32)
+
+        # Initialize batch buffers
+        left_batch = np.zeros(block_size, dtype=np.float32)
+        right_batch = np.zeros(block_size, dtype=np.float32)
+
+        # Process all notes with block-based generation
+        for note, channel_note in active_notes_list:
+            try:
+                # Use the new block-based generation method
+                note_left, note_right = channel_note.generate_sample_block(
+                    block_size=block_size,
+                    mod_wheel=self.cached_mod_wheel,
+                    breath_controller=self.cached_breath_controller,
+                    foot_controller=self.cached_foot_controller,
+                    brightness=self.cached_brightness,
+                    harmonic_content=self.cached_harmonic_content,
+                    channel_pressure_value=self.cached_channel_pressure,
+                    key_pressure=self.key_pressure_values.get(note, 0),
+                    volume=self.volume,
+                    expression=self.expression,
+                    global_pitch_mod=global_pitch_mod
+                )
+
+                # Vectorized accumulation
+                np.add(left_batch, note_left, out=left_batch)
+                np.add(right_batch, note_right, out=right_batch)
+
+            except Exception as e:
+                # Fallback to per-sample processing for this note
+                print(f"Block processing failed for note {note}, falling back to per-sample: {e}")
+                try:
+                    # Per-sample fallback
+                    for i in range(block_size):
+                        left_sample, right_sample = channel_note.generate_sample(
+                            mod_wheel=self.cached_mod_wheel,
+                            breath_controller=self.cached_breath_controller,
+                            foot_controller=self.cached_foot_controller,
+                            brightness=self.cached_brightness,
+                            harmonic_content=self.cached_harmonic_content,
+                            channel_pressure_value=self.cached_channel_pressure,
+                            key_pressure=self.key_pressure_values.get(note, 0),
+                            volume=self.volume,
+                            expression=self.expression,
+                            global_pitch_mod=global_pitch_mod
+                        )
+                        left_batch[i] += left_sample
+                        right_batch[i] += right_sample
+                except Exception as e2:
+                    # Disable problematic note
+                    channel_note.active = False
+                    continue
 
         return left_batch, right_batch
 

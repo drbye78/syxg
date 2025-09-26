@@ -7,6 +7,7 @@ Each partial has exclusive note/velocity ranges and independent XG parameters.
 
 import math
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+import numpy as np
 
 from synth.sf2.core.wavetable_manager import WavetableManager
 from ..core.vectorized_envelope import VectorizedADSREnvelope
@@ -363,7 +364,7 @@ class XGPartialGenerator:
                 self.amp_envelope.state != "idle")
 
     def generate_sample(self, lfos: List, global_pitch_mod: float = 0.0,
-                       velocity_crossfade: float = 0.0, note_crossfade: float = 0.0) -> Tuple[float, float]:
+                        velocity_crossfade: float = 0.0, note_crossfade: float = 0.0) -> Tuple[float, float]:
         """
         Generate XG partial audio sample.
 
@@ -446,6 +447,81 @@ class XGPartialGenerator:
 
         return (left_sample, right_sample)
 
+    def generate_sample_block(self, block_size: int, lfos: List,
+                             global_pitch_mod: float = 0.0,
+                             velocity_crossfade: float = 0.0,
+                             note_crossfade: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Generate XG partial audio block with vectorized processing.
+
+        Args:
+            block_size: Number of samples to generate
+            lfos: Channel-level LFO sources (per XG architecture)
+            global_pitch_mod: Global pitch modulation (pitch bend, etc.)
+            velocity_crossfade: Velocity crossfade coefficient
+            note_crossfade: Note crossfade coefficient
+
+        Returns:
+            Tuple of (left_block, right_block) numpy arrays
+        """
+        if not self.is_active():
+            return (np.zeros(block_size, dtype=np.float32),
+                   np.zeros(block_size, dtype=np.float32))
+
+        # Update crossfade coefficients
+        self.velocity_crossfade = velocity_crossfade
+        self.note_crossfade = note_crossfade
+
+        # Generate envelope blocks
+        amp_env_block = self._generate_envelope_block(block_size, 'amp')
+        filter_env_block = self._generate_envelope_block(block_size, 'filter')
+        pitch_env_block = self._generate_envelope_block(block_size, 'pitch')
+
+        # Apply XG key follow to envelopes (envelope variation with note)
+        key_follow_factor = self._calculate_key_follow_factor()
+        amp_env_block *= key_follow_factor
+
+        # Generate base waveform block with pitch modulation
+        pitch_mod_total = (global_pitch_mod +
+                          self.last_pitch_mod +
+                          self._process_pitch_envelope_block(pitch_env_block))
+
+        # For now, use constant pitch modulation across block
+        # TODO: Implement time-varying pitch modulation
+        pitch_mod_constant = float(pitch_mod_total[0]) if len(pitch_mod_total) > 0 else 0.0
+        left_block, right_block = self._generate_waveform_block(block_size, pitch_mod_constant)
+
+        # Apply XG filter with envelope modulation
+        if self.filter:
+            # XG Filter envelope to cutoff modulation (±4800 cents range typically)
+            filter_cutoff_mod_block = filter_env_block * 4800.0 * self.last_filter_mod
+            filter_cutoff_freq_block = self._calculate_xg_filter_cutoff_block(filter_cutoff_mod_block)
+
+            # Apply filter to entire block
+            left_block, right_block = self._apply_filter_block(
+                left_block, right_block, filter_cutoff_freq_block)
+
+        # Apply amplitude envelope and level to both channels
+        amp_env_block = amp_env_block * float(self.level) * float(self.last_amp_mod)
+        left_block *= amp_env_block
+        right_block *= amp_env_block
+
+        # Apply crossfade to both channels
+        crossfade_factor = (1.0 - self.velocity_crossfade) * (1.0 - self.note_crossfade)
+        left_block *= crossfade_factor
+        right_block *= crossfade_factor
+
+        # Apply XG panning - OPTIMIZED
+        # Use pre-computed panning coefficients
+        pan_int = int(self.pan * 127.0)
+        pan_int = max(0, min(127, pan_int))
+        left_gain, right_gain = self.coeff_manager.get_pan_gains(pan_int)
+
+        left_block *= left_gain
+        right_block *= right_gain
+
+        return left_block, right_block
+
     def _calculate_key_follow_factor(self) -> float:
         """Calculate XG envelope key follow factor."""
         # XG standard: envelopes vary by ±88.02 cents over 10 octaves
@@ -482,6 +558,184 @@ class XGPartialGenerator:
 
         # XG-compliant frequency clamping
         return max(20.0, min(20000.0, final_freq))
+
+    def _generate_envelope_block(self, block_size: int, envelope_type: str) -> np.ndarray:
+        """Generate envelope values for entire block using vectorized processing."""
+        if envelope_type == 'amp' and self.amp_envelope:
+            return self.amp_envelope.process_block_vectorized(block_size)
+        elif envelope_type == 'filter' and self.filter_envelope:
+            return self.filter_envelope.process_block_vectorized(block_size)
+        elif envelope_type == 'pitch' and self.pitch_envelope:
+            return self.pitch_envelope.process_block_vectorized(block_size)
+        else:
+            return np.zeros(block_size, dtype=np.float32)
+
+    def _process_pitch_envelope_block(self, pitch_env_block: np.ndarray) -> np.ndarray:
+        """Process XG pitch envelope for block (fixed sustain level)."""
+        # XG pitch envelope has fixed sustain level (typically 0)
+        result = np.zeros_like(pitch_env_block)
+        if self.pitch_envelope and self.pitch_envelope.state == "sustain":
+            # Fixed sustain per XG spec
+            result.fill(0.0)
+        else:
+            # Convert to cents and apply
+            result = pitch_env_block * 1200.0
+        return result
+
+    def _generate_waveform_block(self, block_size: int, pitch_mod: float) -> Tuple[np.ndarray, np.ndarray]:
+        """Generate entire sample block for XG synthesis with SF2 loop handling."""
+        left_block = np.zeros(block_size, dtype=np.float32)
+        right_block = np.zeros(block_size, dtype=np.float32)
+
+        # Generate sample based on wavetable availability
+        if self.wavetable is None:
+            # Zero sample fallback - return stereo silence
+            return left_block, right_block
+
+        # XG Wavetable synthesis - use cached sample table
+        sample_table = self._cached_sample_table
+
+        if not sample_table or len(sample_table) == 0:
+            return left_block, right_block
+
+        # Apply pitch modulation to phase step
+        modulation_mult = 2.0 ** (pitch_mod / 1200.0)
+        current_phase_step = self.phase_step * modulation_mult
+
+        # Generate block of samples
+        for i in range(block_size):
+            # Calculate table index with loop handling
+            table_length = len(sample_table)
+            raw_index = self.phase * table_length / (2.0 * math.pi)
+
+            # Apply SF2 loop wrapping based on loop mode
+            table_index = self._apply_sf2_looping(raw_index, table_length)
+
+            # Ensure index is within bounds
+            table_index = max(0, min(table_index, table_length - 1))
+
+            # Linear interpolation for smooth playback
+            index_int = int(table_index)
+            frac = table_index - index_int
+
+            # Get samples with bounds checking
+            sample1 = sample_table[index_int] if index_int < table_length else 0.0
+            sample2 = sample_table[min(index_int + 1, table_length - 1)] if index_int < table_length else 0.0
+
+            # Get stereo samples
+            def get_stereo_sample(sample):
+                if isinstance(sample, tuple):
+                    left, right = sample
+                    return (left, right)
+                else:
+                    return (sample, sample)
+
+            stereo1 = get_stereo_sample(sample1)
+            stereo2 = get_stereo_sample(sample2)
+
+            # Linear interpolation for both channels
+            left_interp = stereo1[0] + frac * (stereo2[0] - stereo1[0])
+            right_interp = stereo1[1] + frac * (stereo2[1] - stereo1[1])
+
+            left_block[i] = left_interp
+            right_block[i] = right_interp
+
+            # Update phase
+            self.phase += current_phase_step
+            if self.phase > 2.0 * math.pi:
+                self.phase -= 2.0 * math.pi
+
+        return left_block, right_block
+
+    def _calculate_xg_filter_cutoff_block(self, env_mod_cents_block: np.ndarray) -> np.ndarray:
+        """Calculate XG filter cutoff with envelope modulation for block."""
+        base_freq = self.filter_cutoff
+
+        # Apply key follow per XG formula: ±24 semitones range
+        key_follow_semitones = (self.note - 60) * self.filter_key_follow
+        key_follow_mult = 2.0 ** (key_follow_semitones / 12.0)
+
+        # Apply envelope modulation
+        env_mult_block = 2.0 ** (env_mod_cents_block / 1200.0)
+
+        final_freq_block = base_freq * key_follow_mult * env_mult_block
+
+        # XG-compliant frequency clamping
+        return np.clip(final_freq_block, 20.0, 20000.0)
+
+    def _apply_filter_block(self, left_block: np.ndarray, right_block: np.ndarray,
+                            cutoff_freq_block: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Apply filter to entire block with varying cutoff frequencies."""
+        # For now, use the first cutoff frequency for the whole block
+        # TODO: Implement time-varying filter for better quality
+        cutoff_freq = cutoff_freq_block[0] if len(cutoff_freq_block) > 0 else self.filter_cutoff
+
+        if self.filter:
+            self.filter.set_parameters(
+                cutoff=cutoff_freq,
+                resonance=self.filter_resonance
+            )
+
+            # Process each sample individually (filter doesn't support block processing yet)
+            filtered_left = np.zeros_like(left_block)
+            filtered_right = np.zeros_like(right_block)
+
+            for i in range(len(left_block)):
+                # Process stereo sample
+                filtered_sample = self.filter.process((left_block[i], right_block[i]), is_stereo=True)
+                filtered_left[i] = filtered_sample[0]
+                filtered_right[i] = filtered_sample[1]
+
+            return filtered_left, filtered_right
+
+        return left_block, right_block
+
+    def _apply_sf2_looping(self, raw_index: float, table_length: int) -> float:
+        """Apply SF2 loop wrapping based on loop mode."""
+        if self.loop_mode == 0 or self.loop_end <= self.loop_start:
+            return raw_index
+
+        loop_start = float(self.loop_start)
+        loop_end = float(self.loop_end)
+        loop_length = loop_end - loop_start
+
+        if loop_length > 0:
+            if self.loop_mode == 1:  # Forward loop
+                if raw_index >= loop_end:
+                    excess = raw_index - loop_end
+                    return loop_start + (excess % loop_length)
+                elif raw_index < loop_start:
+                    return loop_start
+                else:
+                    return raw_index
+
+            elif self.loop_mode == 2:  # Backward loop
+                if raw_index >= loop_end:
+                    excess = raw_index - loop_end
+                    backward_pos = loop_length - (excess % loop_length)
+                    return loop_start + backward_pos
+                elif raw_index < loop_start:
+                    return loop_end - 1
+                else:
+                    return loop_end - (raw_index - loop_start)
+
+            elif self.loop_mode == 3:  # Alternating loop (ping-pong)
+                if raw_index >= loop_end:
+                    excess = raw_index - loop_end
+                    self.loop_direction = -1  # Switch to backward
+                    backward_pos = excess % loop_length
+                    return loop_end - backward_pos
+                elif raw_index < loop_start:
+                    excess = loop_start - raw_index
+                    self.loop_direction = 1  # Switch to forward
+                    return loop_start + (excess % loop_length)
+                else:
+                    if self.loop_direction > 0:  # Forward
+                        return raw_index
+                    else:  # Backward
+                        return loop_end - (raw_index - loop_start)
+
+        return raw_index
 
     def _generate_waveform_sample(self, pitch_mod: float) -> Tuple[float, float]:
         """Generate base waveform sample for XG synthesis with proper SF2 loop handling.

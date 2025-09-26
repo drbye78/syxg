@@ -615,10 +615,13 @@ class ChannelNote:
         return self.active and any(partial.is_active() for partial in self.partials)
 
     def generate_sample(self, mod_wheel: int, breath_controller: int, foot_controller: int,
-                       brightness: int, harmonic_content: int, channel_pressure_value: int,
-                       key_pressure: int, volume: float, expression: float,
-                       global_pitch_mod: float = 0.0):
+                        brightness: int, harmonic_content: int, channel_pressure_value: int,
+                        key_pressure: int, volume: float, expression: float,
+                        global_pitch_mod: float = 0.0):
         """Generate a sample for this note with precomputed controller values"""
+        import time
+        start_time = time.perf_counter()
+
         if not self.is_active():
             return (0.0, 0.0)
 
@@ -675,6 +678,11 @@ class ChannelNote:
             "portamento_time_cc": 0.0  # Default portamento time
         }
 
+        envelope_time = 0
+        modulation_time = 0
+        partial_time = 0
+
+        envelope_start = time.perf_counter()
         for partial in self.partials:
             if partial.is_active():
                 if partial.amp_envelope:
@@ -684,9 +692,12 @@ class ChannelNote:
                 if partial.pitch_envelope:
                     pitch_env_val = partial.pitch_envelope.process()
                 break
+        envelope_time = time.perf_counter() - envelope_start
 
         # Process modulation matrix
+        modulation_start = time.perf_counter()
         modulation_values = self.mod_matrix.process(sources, self.velocity, self.note)
+        modulation_time = time.perf_counter() - modulation_start
 
         # Apply modulation to global pitch
         if "pitch" in modulation_values:
@@ -697,6 +708,7 @@ class ChannelNote:
         right_sum = 0.0
         active_partials = 0
 
+        partial_start = time.perf_counter()
         for partial in self.partials:
             if not partial.is_active():
                 continue
@@ -711,6 +723,7 @@ class ChannelNote:
             left_sum += partial_samples[0]
             right_sum += partial_samples[1]
             active_partials += 1
+        partial_time = time.perf_counter() - partial_start
 
         # Normalize by active partials
         if active_partials > 0:
@@ -721,7 +734,129 @@ class ChannelNote:
         left_out = left_sum * volume_factor
         right_out = right_sum * volume_factor
 
+        total_time = time.perf_counter() - start_time
+        if total_time > 0.0001:  # Log if note sample takes more than 0.1ms
+            print(f"Note {self.note}: {total_time:.6f}s, Env: {envelope_time:.6f}s, Mod: {modulation_time:.6f}s, Partials: {partial_time:.6f}s")
+
         return (left_out, right_out)
+
+    def generate_sample_block(self, block_size: int, mod_wheel: int, breath_controller: int,
+                             foot_controller: int, brightness: int, harmonic_content: int,
+                             channel_pressure_value: int, key_pressure: int, volume: float,
+                             expression: float, global_pitch_mod: float = 0.0):
+        """Generate a block of samples for this note with vectorized processing"""
+        import time
+        import numpy as np
+        start_time = time.perf_counter()
+
+        if not self.is_active():
+            return (np.zeros(block_size, dtype=np.float32),
+                   np.zeros(block_size, dtype=np.float32))
+
+        # Update channel LFOs with cached values (XG architecture: LFOs are channel-level)
+        if self.channel_lfos:
+            for lfo in self.channel_lfos:
+                lfo.set_mod_wheel(mod_wheel)
+                lfo.set_breath_controller(breath_controller)
+                lfo.set_foot_controller(foot_controller)
+                lfo.set_brightness(brightness)
+                lfo.set_harmonic_content(harmonic_content)
+                lfo.set_channel_aftertouch(channel_pressure_value)
+                lfo.set_key_aftertouch(key_pressure)
+
+        # Pre-calculate LFO values for the block (constant across block for now)
+        lfo1_val = self.channel_lfos[0].step() if self.channel_lfos and len(self.channel_lfos) > 0 else 0.0
+        lfo2_val = self.channel_lfos[1].step() if self.channel_lfos and len(self.channel_lfos) > 1 else 0.0
+        lfo3_val = self.channel_lfos[2].step() if self.channel_lfos and len(self.channel_lfos) > 2 else 0.0
+
+        # Note-level LFO values (XG allows per-note LFO modulation)
+        note_lfo1_val = self.note_lfos[0].step() if len(self.note_lfos) > 0 else 0.0
+        note_lfo2_val = self.note_lfos[1].step() if len(self.note_lfos) > 1 else 0.0
+        note_lfo3_val = self.note_lfos[2].step() if len(self.note_lfos) > 2 else 0.0
+
+        # Build modulation sources
+        sources = {
+            "velocity": self.velocity / 127.0,
+            "after_touch": channel_pressure_value / 127.0,
+            "mod_wheel": mod_wheel / 127.0,
+            "breath_controller": breath_controller / 127.0,
+            "foot_controller": foot_controller / 127.0,
+            "data_entry": 100 / 127.0,  # Default data entry value
+            "lfo1": lfo1_val,
+            "lfo2": lfo2_val,
+            "lfo3": lfo3_val,
+            "note_lfo1": note_lfo1_val,  # Note-level LFOs
+            "note_lfo2": note_lfo2_val,
+            "note_lfo3": note_lfo3_val,
+            "amp_env": 0.0,  # Will be set from envelope processing
+            "filter_env": 0.0,
+            "pitch_env": 0.0,
+            "key_pressure": key_pressure / 127.0,
+            "brightness": brightness / 127.0,
+            "harmonic_content": harmonic_content / 127.0,
+            "portamento": 1.0,  # Default portamento is active
+            "vibrato": 0.5,  # Default vibrato
+            "tremolo": 0.0,
+            "tremolo_depth": 0.3,
+            "tremolo_rate": 4.0,
+            "note_number": self.note / 127.0,
+            "volume_cc": volume / 127.0,  # Use passed volume parameter
+            "balance": 0.0,  # Default balance
+            "portamento_time_cc": 0.0  # Default portamento time
+        }
+
+        envelope_time = 0
+        modulation_time = 0
+        partial_time = 0
+
+        # Process modulation matrix (constant across block for now)
+        modulation_start = time.perf_counter()
+        modulation_values = self.mod_matrix.process(sources, self.velocity, self.note)
+        modulation_time = time.perf_counter() - modulation_start
+
+        # Apply modulation to global pitch
+        pitch_mod = global_pitch_mod
+        if "pitch" in modulation_values:
+            pitch_mod += modulation_values["pitch"]
+
+        # Generate samples from partials using block processing
+        left_sum = np.zeros(block_size, dtype=np.float32)
+        right_sum = np.zeros(block_size, dtype=np.float32)
+        active_partials = 0
+
+        partial_start = time.perf_counter()
+        for partial in self.partials:
+            if not partial.is_active():
+                continue
+
+            partial_left, partial_right = partial.generate_sample_block(
+                block_size=block_size,
+                lfos=self.channel_lfos,
+                global_pitch_mod=pitch_mod,
+                velocity_crossfade=0.0,
+                note_crossfade=0.0
+            )
+
+            left_sum += partial_left
+            right_sum += partial_right
+            active_partials += 1
+        partial_time = time.perf_counter() - partial_start
+
+        # Normalize by active partials
+        if active_partials > 0:
+            left_sum /= active_partials
+            right_sum /= active_partials
+
+        # Apply channel volume and expression using precomputed values
+        volume_factor = (volume / 127.0) * (expression / 127.0)
+        left_sum *= volume_factor
+        right_sum *= volume_factor
+
+        # total_time = time.perf_counter() - start_time
+        # if total_time > 0.001:  # Log if note block takes more than 1ms
+        #     print(f"Note {self.note} block: {total_time:.6f}s, Mod: {modulation_time:.6f}s, Partials: {partial_time:.6f}s")
+
+        return left_sum, right_sum
 
     def _setup_basic_generator(self):
         """Setup a basic sine wave generator when no wavetable is available"""
