@@ -12,7 +12,7 @@ from synth.sf2.core.wavetable_manager import WavetableManager
 from ..core.vectorized_envelope import VectorizedADSREnvelope
 from ..core.filter import ResonantFilter
 from ..core.panner import StereoPanner
-from ..core.optimized_coefficient_manager import get_global_coefficient_manager
+from ..engine.optimized_coefficient_manager import get_global_coefficient_manager
 
 
 class XGPartialGenerator:

@@ -22,20 +22,18 @@ from typing import List, Tuple, Optional, Dict, Any
 import heapq
 import time
 
-from synth.xg.channel_renderer import XGChannelRenderer
 from synth.xg.vectorized_channel_renderer import VectorizedChannelRenderer
 
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from .constants import DEFAULT_CONFIG
+from ..core.constants import DEFAULT_CONFIG
 from .optimized_coefficient_manager import OptimizedCoefficientManager, get_global_coefficient_manager
 from ..sf2.manager import SF2Manager
 from ..xg.manager import StateManager
 from ..xg.drum_manager import DrumManager
 from ..midi.parser import MIDIMessage
 from ..audio.vectorized_engine import VectorizedAudioEngine
-from ..xg.channel_renderer import XGChannelRenderer
 from ..effects.vectorized_core import VectorizedEffectManager
 
 
@@ -171,7 +169,7 @@ class OptimizedXGSynthesizer:
             self._handle_program_change(channel, 0)
             # For channel 9, set drum mode by default for XG compatibility
             if channel == 9:
-                # Set drum mode - the new XGChannelRenderer handles this internally
+                # Set drum mode - VectorizedChannelRenderer handles this internally
                 self.channel_renderers[channel].is_drum = True
                 # Set drum bank
                 self.state_manager.set_bank(channel, 128)

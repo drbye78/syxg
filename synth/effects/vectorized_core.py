@@ -11,7 +11,7 @@ import threading
 
 # Import internal modules
 from ..core.constants import DEFAULT_CONFIG
-from ..core.optimized_coefficient_manager import OptimizedCoefficientManager
+from ..engine.optimized_coefficient_manager import OptimizedCoefficientManager
 from .state import EffectStateManager
 from .communication import XGCommunicationHandler
 from .processing import XGAudioProcessor

@@ -20,7 +20,7 @@ import time
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from synth.audio.writer import AudioWriter
-from synth.core.optimized_xg_synthesizer import OptimizedXGSynthesizer
+from synth.engine.optimized_xg_synthesizer import OptimizedXGSynthesizer
 from synth.midi.parser import MIDIParser, MIDIMessage
 from synth.utils.keyboard import KeyboardListener
 from synth.utils.progress import ProgressReporter

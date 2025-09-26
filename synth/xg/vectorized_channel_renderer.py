@@ -13,7 +13,7 @@ from synth.sf2.core.wavetable_manager import WavetableManager
 
 # Import internal modules
 from ..core.constants import DEFAULT_CONFIG
-from ..core.optimized_coefficient_manager import get_global_coefficient_manager
+from ..engine.optimized_coefficient_manager import get_global_coefficient_manager
 from ..core.oscillator import XGLFO  # XG-compliant LFO
 from ..modulation.vectorized_matrix import VectorizedModulationMatrix
 from .partial_generator import XGPartialGenerator

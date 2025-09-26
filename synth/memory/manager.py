@@ -732,10 +732,11 @@ class OptimizedMemoryManager:
                 # Create new channel renderer object
                 try:
                     # Import channel renderer class locally to avoid circular imports
-                    from ..xg.channel_renderer import XGChannelRenderer
-                    
+                    from ..xg.vectorized_channel_renderer import VectorizedChannelRenderer
+
                     # Create new channel renderer with optimized initialization
-                    renderer = XGChannelRenderer(channel=channel, sample_rate=self.sample_rate)
+                    renderer = VectorizedChannelRenderer(channel=channel, sample_rate=self.sample_rate,
+                                                       wavetable=None, max_voices=64, drum_manager=None)
                     
                     return renderer
                 except Exception as e:
