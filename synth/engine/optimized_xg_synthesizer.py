@@ -345,25 +345,15 @@ class OptimizedXGSynthesizer:
         Returns:
             Audio data as numpy array with shape (block_size, 2)
         """
-        import time
-        start_time = time.perf_counter()
-
         block_size = self.block_size
-
-        # Buffers are pre-allocated with correct size in constructor
-        # No need to resize since we always use the default block size
+        # Reset performance counters for new block
 
         with self.lock:
             at_time = self._current_time
             at_index = self._current_message_index
             block_offset = 0
 
-            midi_processing_time = 0
-            channel_generation_time = 0
-            effects_time = 0
-
             while block_offset < block_size:
-                midi_start = time.perf_counter()
                 while at_index < len(self._message_sequence) and self._message_sequence[at_index].time <= at_time:
                     message = self._message_sequence[at_index]
                     at_index += 1
@@ -372,7 +362,6 @@ class OptimizedXGSynthesizer:
                         self.send_sysex(message)
                     else:
                         self.send_midi_message(message)
-                midi_processing_time += time.perf_counter() - midi_start
 
                 if at_index < len(self._message_sequence):
                     next_time = self._message_sequence[at_index].time
@@ -385,15 +374,11 @@ class OptimizedXGSynthesizer:
                     next_time = at_time + (segment_length / self.sample_rate)
 
                 # Use optimized vectorized segment generation
-                channel_start = time.perf_counter()
                 parts = self._generate_channel_audio_vectorized()
-                channel_generation_time += time.perf_counter() - channel_start
 
-                effects_start = time.perf_counter()
                 fx_parts = self.effect_manager.process_multi_channel_vectorized(
                     parts, segment_length
                 )
-                effects_time += time.perf_counter() - effects_start
 
                 for i, part in enumerate(fx_parts):
                     self.channel_buffers[i][block_offset:block_offset + segment_length] = part[:segment_length]
@@ -410,10 +395,6 @@ class OptimizedXGSynthesizer:
 
             # Apply final limiting with vectorized operations
             np.clip(self.out_buffer, -1.0, 1.0, out=self.out_buffer)
-
-            # total_time = time.perf_counter() - start_time
-            # if total_time > 0.01:  # Log if block takes more than 10ms
-            #     print(f"Block generation: {total_time:.4f}s, MIDI: {midi_processing_time:.4f}s, Channels: {channel_generation_time:.4f}s, Effects: {effects_time:.4f}s")
 
             return self.out_buffer
 

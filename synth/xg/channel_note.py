@@ -88,12 +88,8 @@ class ChannelNote:
         self._setup_default_modulation_matrix()
 
         # Initialize partials
-        self.partials = []
+        self.partials: List[XGPartialGenerator] = []
         self._setup_partials(wavetable)
-
-        # If no active partials and wavetable is available, create basic generator
-        if not any(partial.is_active() for partial in self.partials) and wavetable is None:
-            self._setup_basic_generator()
 
         # If still no active partials, mark as inactive
         if not any(partial.is_active() for partial in self.partials):
@@ -102,7 +98,7 @@ class ChannelNote:
         # Initialize envelopes
         self._initialize_envelopes()
 
-    def _get_parameters(self, program: int, bank: int, wavetable, note: int, velocity: int, is_drum: bool):
+    def _get_parameters(self, program: int, bank: int, wavetable: Optional[WavetableManager], note: int, velocity: int, is_drum: bool):
         """Get parameters for this note"""
         # If no wavetable is available, use default parameters
         if wavetable is None:
@@ -857,59 +853,3 @@ class ChannelNote:
         #     print(f"Note {self.note} block: {total_time:.6f}s, Mod: {modulation_time:.6f}s, Partials: {partial_time:.6f}s")
 
         return left_sum, right_sum
-
-    def _setup_basic_generator(self):
-        """Setup a basic sine wave generator when no wavetable is available"""
-        # Create a simple sine wave partial
-        basic_params = {
-            "level": 1.0,
-            "pan": 0.5,
-            "key_range_low": 0,
-            "key_range_high": 127,
-            "velocity_range_low": 0,
-            "velocity_range_high": 127,
-            "key_scaling": 0.0,
-            "velocity_sense": 1.0,
-            "crossfade_velocity": False,
-            "crossfade_note": False,
-            "use_filter_env": True,
-            "use_pitch_env": True,
-            "amp_envelope": {
-                "delay": 0.0,
-                "attack": 0.01,
-                "hold": 0.0,
-                "decay": 0.3,
-                "sustain": 0.7,
-                "release": 0.5,
-                "key_scaling": 0.0
-            },
-            "filter_envelope": {
-                "delay": 0.0,
-                "attack": 0.1,
-                "hold": 0.0,
-                "decay": 0.5,
-                "sustain": 0.6,
-                "release": 0.8,
-                "key_scaling": 0.0
-            },
-            "pitch_envelope": {
-                "delay": 0.0,
-                "attack": 0.05,
-                "hold": 0.0,
-                "decay": 0.1,
-                "sustain": 0.0,
-                "release": 0.05
-            },
-            "filter": {
-                "cutoff": 1000.0,
-                "resonance": 0.7,
-                "type": "lowpass"
-            },
-            "coarse_tune": 0,
-            "fine_tune": 0
-        }
-
-        # For a basic generator, we'll add a simple sine wave partial
-        # Note: This would normally use a wavetable, but we're creating a minimal implementation
-        pass  # In a real implementation, this would create actual sound generation
-

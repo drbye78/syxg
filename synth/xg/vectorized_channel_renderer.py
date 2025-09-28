@@ -602,24 +602,12 @@ class VectorizedChannelRenderer:
         for note, channel_note in self.active_notes.items():
             if channel_note.is_active():
                 for partial in channel_note.partials:
-                    if partial.is_active() and hasattr(partial, 'filter_params'):
-                        partial.filter_params['type'] = new_filter_type
-
-        print(f"Channel {self.channel}: Filter type set to {new_filter_type}")
+                    partial.filter_type = new_filter_type
 
     def _toggle_effect_bypass(self):
         """Toggle effect bypass state with optimized parameter updates."""
         # Toggle channel effect bypass flag
         self.effect_bypass = not getattr(self, 'effect_bypass', False)
-
-        # Apply bypass to all active notes - modify effect parameters
-        for note, channel_note in self.active_notes.items():
-            if channel_note.is_active():
-                for partial in channel_note.partials:
-                    if partial.is_active() and hasattr(partial, 'effect_params'):
-                        partial.effect_params['bypass'] = self.effect_bypass
-
-        print(f"Channel {self.channel}: Effect bypass {'enabled' if self.effect_bypass else 'disabled'}")
 
     def _cycle_modulation_source(self):
         """Cycle through different modulation sources with optimized parameter updates."""
@@ -638,8 +626,6 @@ class VectorizedChannelRenderer:
             polarity=1.0
         )
 
-        print(f"Channel {self.channel}: Modulation source set to {new_source}")
-
     def _apply_performance_preset(self):
         """Apply performance parameter preset with optimized parameter updates."""
         # Cycle through presets: bright -> dark -> aggressive -> mellow -> bright
@@ -656,30 +642,20 @@ class VectorizedChannelRenderer:
                     if partial.is_active():
                         if new_preset == 'bright':
                             # Bright: higher cutoff, faster attack
-                            if hasattr(partial, 'filter_params'):
-                                partial.filter_params['cutoff'] = min(20000, partial.filter_params.get('cutoff', 1000) * 1.5)
-                            if partial.amp_envelope:
-                                partial.amp_envelope.attack_time = max(0.001, partial.amp_envelope.attack_time * 0.7)
+                            partial.filter_cutoff = min(20000, partial.filter_cutoff * 1.5)
+                            partial.amp_attack_time  = max(0.001, partial.amp_attack_time * 0.7)
                         elif new_preset == 'dark':
                             # Dark: lower cutoff, slower attack
-                            if hasattr(partial, 'filter_params'):
-                                partial.filter_params['cutoff'] = max(20, partial.filter_params.get('cutoff', 1000) * 0.7)
-                            if partial.amp_envelope:
-                                partial.amp_envelope.attack_time = min(2.0, partial.amp_envelope.attack_time * 1.3)
+                            partial.filter_cutoff = max(20, partial.filter_cutoff, 1000) * 0.7
+                            partial.amp_attack_time   = min(2.0, partial.amp_attack_time * 1.3)
                         elif new_preset == 'aggressive':
                             # Aggressive: higher resonance, faster decay
-                            if hasattr(partial, 'filter_params'):
-                                partial.filter_params['resonance'] = min(2.0, partial.filter_params.get('resonance', 0.7) * 1.5)
-                            if partial.amp_envelope:
-                                partial.amp_envelope.decay_time = max(0.01, partial.amp_envelope.decay_time * 0.6)
+                            partial.filter_resonance = min(2.0, (partial.filter_resonance if partial.filter_resonance else 0.7) * 1.5)
+                            partial.amp_decay_time = max(0.01, partial.amp_decay_time * 0.6)
                         elif new_preset == 'mellow':
                             # Mellow: lower resonance, slower decay
-                            if hasattr(partial, 'filter_params'):
-                                partial.filter_params['resonance'] = max(0.0, partial.filter_params.get('resonance', 0.7) * 0.6)
-                            if partial.amp_envelope:
-                                partial.amp_envelope.decay_time = min(5.0, partial.amp_envelope.decay_time * 1.4)
+                            partial.filter_resonance = max(0.0, (partial.filter_resonance or 0.7) * 0.6)
 
-        print(f"Channel {self.channel}: Applied {new_preset} performance preset")
 
     def is_active(self) -> bool:
         """Check if this channel renderer has any active notes with optimized check."""
@@ -715,9 +691,6 @@ class VectorizedChannelRenderer:
         Returns:
             Tuple of (left_channel, right_channel) audio buffers
         """
-        import time
-        start_time = time.perf_counter()
-
         # ENSURE BUFFERS ARE CORRECT SIZE - DYNAMIC BUFFER RESIZING
         # Only resize buffers when necessary to avoid allocation overhead
         if block_size > self.max_block_size:
@@ -765,20 +738,15 @@ class VectorizedChannelRenderer:
         # Process all active notes using vectorized operations for maximum performance
         active_notes_list = list(self.active_notes.items())
 
-        batch_time = 0
-        per_note_time = 0
-
         if active_notes_list:
             # BATCH PROCESSING OF ALL ACTIVE NOTES WITH VECTORIZED ACCUMULATION
             # Process all notes simultaneously using vectorized operations
 
             try:
                 # BLOCK-BASED NOTE PROCESSING - Maximum Performance
-                block_start = time.perf_counter()
                 left_block, right_block = self._process_notes_block_based(
                     active_notes_list, block_size, global_pitch_mod
                 )
-                block_time = time.perf_counter() - block_start
 
                 # Copy block-processed data to output buffers
                 np.copyto(self.left_buffer[:block_size], left_block[:block_size])
@@ -786,10 +754,7 @@ class VectorizedChannelRenderer:
 
             except Exception as e:
                 # Fallback to per-sample processing if block processing fails
-                per_note_start = time.perf_counter()
                 self._process_notes_vectorized_per_note(active_notes_list, block_size, global_pitch_mod)
-                per_note_time = time.perf_counter() - per_note_start
-                block_time = 0
 
         # Apply channel volume with vectorized operations - OPTIMIZED VOLUME APPLICATION
         volume_factor = np.float32((self.volume / 127.0) * (self.expression / 127.0))
@@ -809,10 +774,6 @@ class VectorizedChannelRenderer:
         # Apply final clipping with vectorized operations - OPTIMIZED CLIPPING
         np.clip(self.left_buffer[:block_size], -1.0, 1.0, out=self.left_buffer[:block_size])
         np.clip(self.right_buffer[:block_size], -1.0, 1.0, out=self.right_buffer[:block_size])
-
-        # total_time = time.perf_counter() - start_time
-        # if total_time > 0.005:  # Log if channel takes more than 5ms
-        #     print(f"Channel {self.channel}: {total_time:.4f}s, Batch: {batch_time:.4f}s, Per-note: {per_note_time:.4f}s, Notes: {len(active_notes_list)}")
 
         return self.left_buffer[:block_size], self.right_buffer[:block_size]
 
@@ -1105,8 +1066,7 @@ class VectorizedChannelRenderer:
         for note, channel_note in self.active_notes.items():
             if channel_note.is_active():
                 for partial in channel_note.partials:
-                    if partial.is_active() and hasattr(partial, 'filter_params'):
-                        partial.filter_params['resonance'] = resonance
+                    partial.filter_resonance = resonance
 
         self.cached_harmonic_content = value
 
@@ -1123,8 +1083,7 @@ class VectorizedChannelRenderer:
         for note, channel_note in self.active_notes.items():
             if channel_note.is_active():
                 for partial in channel_note.partials:
-                    if partial.is_active() and hasattr(partial, 'filter_params'):
-                        partial.filter_params['cutoff'] = cutoff
+                    partial.filter_cutoff = cutoff
 
         self.cached_brightness = value
 
@@ -1141,7 +1100,7 @@ class VectorizedChannelRenderer:
             if channel_note.is_active():
                 for partial in channel_note.partials:
                     if partial.is_active() and partial.amp_envelope:
-                        partial.amp_envelope.release_time = release_time
+                        partial.amp_release_time = release_time
 
     def _handle_xg_attack_time(self, value: int):
         """Handle XG Attack Time controller (74) with optimized parameter update."""
@@ -1156,7 +1115,7 @@ class VectorizedChannelRenderer:
             if channel_note.is_active():
                 for partial in channel_note.partials:
                     if partial.is_active() and partial.amp_envelope:
-                        partial.amp_envelope.attack_time = attack_time
+                        partial.amp_attack_time = attack_time
 
     def _handle_xg_filter_cutoff(self, value: int):
         """Handle XG Filter Cutoff controller (75) with optimized parameter update."""
@@ -1171,8 +1130,8 @@ class VectorizedChannelRenderer:
         for note, channel_note in self.active_notes.items():
             if channel_note.is_active():
                 for partial in channel_note.partials:
-                    if partial.is_active() and hasattr(partial, 'filter_params'):
-                        partial.filter_params['cutoff'] = cutoff
+                    if partial.is_active():
+                        partial.filter_cutoff = cutoff
 
     def _handle_xg_decay_time(self, value: int):
         """Handle XG Decay Time controller (76) with optimized parameter update."""
@@ -1184,7 +1143,7 @@ class VectorizedChannelRenderer:
             if channel_note.is_active():
                 for partial in channel_note.partials:
                     if partial.is_active() and partial.amp_envelope:
-                        partial.amp_envelope.decay_time = decay_time
+                        partial.amp_decay_time = decay_time
 
     def _handle_xg_vibrato_rate(self, value: int):
         """Handle XG Vibrato Rate controller (77) with optimized parameter update."""
@@ -1296,17 +1255,7 @@ class VectorizedChannelRenderer:
     def _update_active_notes_for_part_mode(self):
         """Update all active notes when part mode changes with optimized parameter updates."""
         # Mark all active notes as needing parameter updates
-        for note, channel_note in self.active_notes.items():
-            if channel_note.is_active():
-                # Force parameter refresh for all partials
-                for partial in channel_note.partials:
-                    if partial.is_active():
-                        partial.needs_update = True
-                        # Reset envelopes to ensure new parameters take effect
-                        if partial.amp_envelope:
-                            partial.amp_envelope.reset()
-                        if hasattr(partial, 'filter_envelope') and partial.filter_envelope:
-                            partial.filter_envelope.reset()
+        # TODO: implement proper updating of active notes
 
     def _apply_hyper_scream_mode_parameters(self):
         """Apply Hyper Scream Mode parameters (XG Aggressive) with optimized parameter updates."""
@@ -1316,13 +1265,10 @@ class VectorizedChannelRenderer:
                 for partial in channel_note.partials:
                     if partial.is_active():
                         if partial.amp_envelope:
-                            partial.amp_envelope.attack_time = max(0.001, partial.amp_envelope.attack_time * 0.5)
-                            partial.amp_envelope.decay_time = max(0.01, partial.amp_envelope.decay_time * 0.7)
-                        if hasattr(partial, 'filter_params'):
-                            partial.filter_params['resonance'] = min(2.0, partial.filter_params.get('resonance', 0.7) * 1.8)
-                            partial.filter_params['cutoff'] = min(20000, partial.filter_params.get('cutoff', 1000) * 1.3)
-
-        print(f"Channel {self.channel}: Hyper Scream Mode activated")
+                            partial.amp_attack_time = max(0.001, partial.amp_attack_time * 0.5)
+                            partial.amp_decay_time = max(0.01, partial.amp_decay_time * 0.7)
+                            partial.filter_resonance = min(2.0, (partial.filter_resonance or 0.7) * 1.8)
+                            partial.filter_cutoff = min(20000, (partial.filter_cutoff or 1000) * 1.3)
 
     def _apply_analog_mode_parameters(self):
         """Apply Analog Mode parameters (XG Warmer Sound) with optimized parameter updates."""
@@ -1332,13 +1278,10 @@ class VectorizedChannelRenderer:
                 for partial in channel_note.partials:
                     if partial.is_active():
                         if partial.amp_envelope:
-                            partial.amp_envelope.attack_time = min(1.0, partial.amp_envelope.attack_time * 1.2)
-                            partial.amp_envelope.release_time = min(5.0, partial.amp_envelope.release_time * 1.3)
-                        if hasattr(partial, 'filter_params'):
-                            partial.filter_params['cutoff'] = max(100, partial.filter_params.get('cutoff', 1000) * 0.8)
-                            partial.filter_params['resonance'] = max(0.1, partial.filter_params.get('resonance', 0.7) * 0.8)
-
-        print(f"Channel {self.channel}: Analog Mode activated")
+                            partial.amp_attack_time = min(1.0, partial.amp_attack_time * 1.2)
+                            partial.amp_release_time = min(5.0, partial.amp_release_time * 1.3)
+                            partial.filter_cutoff = max(100, (partial.filter_cutoff or 1000) * 0.8)
+                            partial.filter_resonance = max(0.1, (partial.filter_resonance or 0.7) * 0.8)
 
     def _apply_max_resonance_mode_parameters(self):
         """Apply Max Resonance Mode parameters (XG High Resonance) with optimized parameter updates."""
@@ -1346,11 +1289,8 @@ class VectorizedChannelRenderer:
         for note, channel_note in self.active_notes.items():
             if channel_note.is_active():
                 for partial in channel_note.partials:
-                    if partial.is_active() and hasattr(partial, 'filter_params'):
-                        partial.filter_params['resonance'] = 2.0
-                        partial.filter_params['cutoff'] = max(200, partial.filter_params.get('cutoff', 1000) * 0.9)
-
-        print(f"Channel {self.channel}: Max Resonance Mode activated")
+                    partial.filter_resonance = 2.0
+                    partial.filter_cutoff = max(200, (partial.filter_cutoff or 1000) * 0.9)
 
     def _apply_stereo_mode_parameters(self):
         """Apply Stereo Mode parameters (XG Enhanced Stereo) with optimized parameter updates."""
@@ -1367,22 +1307,18 @@ class VectorizedChannelRenderer:
         for note, channel_note in self.active_notes.items():
             if channel_note.is_active():
                 for partial in channel_note.partials:
-                    if partial.is_active() and hasattr(partial, 'filter_params'):
-                        partial.filter_params['type'] = 'bandpass'
-                        partial.filter_params['resonance'] = min(2.0, partial.filter_params.get('resonance', 0.7) * 1.5)
+                    if partial.is_active():
+                        partial.filter_type = 'bandpass'
+                        partial.filter_resonance = min(2.0, (partial.filter_resonance or 0.7) * 1.5)
 
         # Add LFO modulation to filter cutoff for wah effect
         self.mod_matrix.set_route(4, "lfo1", "filter_cutoff", amount=0.6, polarity=1.0)
-
-        print(f"Channel {self.channel}: Wah Mode activated")
 
     def _apply_dynamic_mode_parameters(self):
         """Apply Dynamic Mode parameters (XG Velocity Sensitive) with optimized parameter updates."""
         # Velocity sensitive: increase velocity sensitivity in modulation matrix
         self.mod_matrix.set_route(5, "velocity", "amp", amount=1.0, velocity_sensitivity=1.0)
         self.mod_matrix.set_route(11, "velocity", "filter_cutoff", amount=0.5, velocity_sensitivity=0.8)
-
-        print(f"Channel {self.channel}: Dynamic Mode activated")
 
     def _apply_distortion_mode_parameters(self):
         """Apply Distortion Mode parameters (XG Distorted Sound) with optimized parameter updates."""
@@ -1392,10 +1328,7 @@ class VectorizedChannelRenderer:
                 for partial in channel_note.partials:
                     if partial.is_active():
                         if partial.amp_envelope:
-                            partial.amp_envelope.attack_time = max(0.001, partial.amp_envelope.attack_time * 0.3)
-                            partial.amp_envelope.sustain_level = max(0.1, partial.amp_envelope.sustain_level * 0.8)
-                        if hasattr(partial, 'filter_params'):
-                            partial.filter_params['resonance'] = min(2.0, partial.filter_params.get('resonance', 0.7) * 2.0)
-                            partial.filter_params['cutoff'] = min(20000, partial.filter_params.get('cutoff', 1000) * 1.2)
-
-        print(f"Channel {self.channel}: Distortion Mode activated")
+                            partial.amp_attack_time = max(0.001, partial.amp_attack_time * 0.3)
+                            partial.amp_sustain_level = max(0.1, partial.amp_sustain_level * 0.8)
+                            partial.filter_resonance = min(2.0, (partial.filter_resonance or 0.7) * 2.0)
+                            partial.filter_cutoff = min(20000, (partial.filter_cutoff or 1000) * 1.2)

@@ -209,32 +209,10 @@ class VoiceManager:
         # Simple moving average prediction
         return sum(history[-5:]) // max(1, len(history[-5:]))
 
-    def preallocate_voices_for_predicted_demand(self, predicted_demand: Dict[int, int]):
-        """Pre-allocate voices based on predicted demand"""
-        for channel, demand in predicted_demand.items():
-            current_voices = sum(1 for note, voice in self.active_voices.items()
-                               if hasattr(voice, 'channel_note') and voice.channel_note.channel == channel)
-
-            if current_voices < demand:
-                # Reserve additional voices for this channel
-                self.predicted_demand[channel] = demand - current_voices
-            else:
-                self.predicted_demand[channel] = 0
-
-    def get_allocation_prediction_stats(self) -> Dict[str, float]:
-        """Get voice allocation prediction statistics"""
-        total_predictions = sum(len(history) for history in self.voice_demand_history.values())
-        total_predicted = sum(self.predicted_demand.values())
-
-        return {
-            "total_predictions": float(total_predictions),
-            "total_predicted_demand": float(total_predicted),
-            "channels_with_history": float(len(self.voice_demand_history)),
-            "average_prediction_window": float(self.allocation_prediction_window)
-        }
-
     def allocate_voice(self, note: int, velocity: int, channel_note: ChannelNote,
                       priority: int = VoicePriority.NORMAL) -> Optional[int]:
+        import time
+        alloc_start = time.perf_counter()
         """Allocate a voice, potentially stealing an existing one"""
         if not self.can_allocate_voice(note, velocity, priority):
             return None
@@ -253,6 +231,10 @@ class VoiceManager:
         # Allocate new voice
         voice_info = VoiceInfo(note, velocity, channel_note, priority)
         self.active_voices[note] = voice_info
+
+        duration = time.perf_counter() - alloc_start
+        if duration > 0.001:
+            print(f"[VOICE] Allocation took {duration*1000:.2f}ms for note {note}")
 
         return note
 
