@@ -40,3 +40,13 @@ class VoiceInfo:
         """Mark voice as starting release phase"""
         self.is_releasing = True
         self.release_time = time.time()
+
+    def reset(self, note: int, velocity: int, channel_note: Optional[ChannelNote], priority: int = VoicePriority.NORMAL):
+        """Reset voice info for reuse from pool"""
+        self.note = note
+        self.velocity = velocity
+        self.channel_note = channel_note
+        self.priority = priority
+        self.start_time = time.time()
+        self.release_time = None
+        self.is_releasing = False

@@ -106,6 +106,18 @@ class OptimizedCoefficientManager:
 
         return tuple(self.pan_coefficients[pan_value])
 
+    LEFT_PAN = (1.0, 0.0)
+    RIGHT_PAN = (0.0, 1.0)
+
+    def get_panning(self, pan: float) -> Tuple[float, float]:
+        if pan <= 0.0:
+            return OptimizedCoefficientManager.LEFT_PAN
+        if pan >= 1.0:
+            return OptimizedCoefficientManager.RIGHT_PAN
+        pan_index = int(pan * len(self.pan_coefficients))
+        pans = self.pan_coefficients[pan_index]
+        return (pans[0], pans[1])
+
     def update_xg_coefficient(self, coeff_type: str, value: int):
         """Update XG controller coefficient only when value changes."""
         if coeff_type not in self.xg_coefficients or value < 0 or value > 127:

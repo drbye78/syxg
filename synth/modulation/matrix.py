@@ -12,6 +12,8 @@ class ModulationMatrix:
     def __init__(self, num_routes=16):
         self.routes = [None] * num_routes
         self.num_routes = num_routes
+        # Pre-allocate modulation values dict to avoid allocation on every process call
+        self.modulation_values = {}
 
     def set_route(self, index, source, destination, amount=0.0, polarity=1.0,
                   velocity_sensitivity=0.0, key_scaling=0.0):
@@ -40,7 +42,7 @@ class ModulationMatrix:
 
     def process(self, sources, velocity, note):
         """
-        Processing modulation matrix
+        Processing modulation matrix (zero-allocation)
 
         Args:
             sources: dictionary with current source values
@@ -50,7 +52,9 @@ class ModulationMatrix:
         Returns:
             dictionary with modulating values for destinations
         """
-        modulation_values = {}
+        # Clear pre-allocated dict instead of creating new one (zero-allocation)
+        modulation_values = self.modulation_values
+        modulation_values.clear()
 
         for route in self.routes:
             if route is None:

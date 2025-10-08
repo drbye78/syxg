@@ -32,4 +32,3 @@ from .xg import *
 # Utilities
 from .utils import *
 from .math import *
-from .memory import *

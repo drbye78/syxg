@@ -101,6 +101,3 @@ def is_midi_file(file_path: str) -> bool:
     except:
         return False
 
-# Example usage:
-# format_type, description = detect_midi_format("example.mid")
-# print(f"Format: {format_type}, Description: {description}")

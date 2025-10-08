@@ -9,8 +9,6 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 import math
 
-from synth.sf2.core.wavetable_manager import WavetableManager
-
 # Import internal modules
 from ..core.constants import DEFAULT_CONFIG
 from ..engine.optimized_coefficient_manager import get_global_coefficient_manager
@@ -52,21 +50,22 @@ class VectorizedChannelRenderer:
     VOICE_MODE_MONO_LEGATO = 3  # Monophonic with legato (note overlapping)
     VOICE_MODE_MONO_PORTAMENTO = 4  # Monophonic with portamento (glide)
 
-    def __init__(self, channel: int, sample_rate: int, wavetable: Optional[WavetableManager], max_voices, drum_manager):
+    def __init__(self, channel: int, synth):
         """
-        Initialize vectorized channel renderer with pre-allocated buffers.
+        Initialize vectorized channel renderer owned by OptimizedXGSynthesizer.
 
         Args:
             channel: MIDI channel number (0-15)
             sample_rate: Audio sample rate
-            wavetable: Wavetable manager for sound generation
             max_voices: Maximum number of voices for this channel
-            drum_manager: Drum manager for drum parameter handling
+            drum_manager: Drum manager for drum parameter handling (owned by synthesizer)
+            memory_pool: Memory pool for buffer allocation (owned by synthesizer)
         """
         self.channel = channel
-        self.sample_rate = sample_rate
-        self.wavetable: Optional[WavetableManager] = wavetable
-        self.drum_manager = drum_manager
+        self.synth = synth
+        self.sample_rate = synth.sample_rate
+        self.drum_manager = synth.drum_manager
+        self.memory_pool = synth.memory_pool  # Reference to synthesizer's memory pool
         self.active = True
 
         # Channel state with pre-initialized values
@@ -75,8 +74,8 @@ class VectorizedChannelRenderer:
         self.is_drum = False  # Default to melodic mode
 
         # XG voice management system with enhanced mono/poly support
-        self.voice_manager = VoiceManager(max_voices)
-        self.polyphony_limit = 32  # Default polyphony limit
+        self.voice_manager = VoiceManager(synth.max_polyphony)
+        self.polyphony_limit = synth.max_polyphony
 
         # XG Voice Allocation Mode
         self.voice_mode = self.VOICE_MODE_POLY  # Default to standard polyphonic (XG)
@@ -125,10 +124,23 @@ class VectorizedChannelRenderer:
 
         # Initialize XG-compliant channel LFOs per XG specification
         self.lfos = [
-            XGLFO(id=0, waveform="sine", rate=5.0, depth=0.5, delay=0.0, sample_rate=sample_rate),
-            XGLFO(id=1, waveform="triangle", rate=2.0, depth=0.3, delay=0.0, sample_rate=sample_rate),
-            XGLFO(id=2, waveform="sawtooth", rate=0.5, depth=0.1, delay=0.5, sample_rate=sample_rate)
+            self.synth.lfo_pool.acquire_oscillator(id=0, waveform="sine", rate=5.0, depth=0.5, delay=0.0),
+            self.synth.lfo_pool.acquire_oscillator(id=1, waveform="triangle", rate=2.0, depth=0.3, delay=0.0),
+            self.synth.lfo_pool.acquire_oscillator(id=2, waveform="sawtooth", rate=0.5, depth=0.1, delay=0.5)
         ]
+
+        # Set XG modulation routing for channel LFOs
+        # LFO1: Pitch modulation (vibrato) - XG default
+        self.lfos[0].set_modulation_routing(pitch=True, filter=False, amplitude=False)
+        self.lfos[0].set_modulation_depths(pitch_cents=50.0, filter_depth=0.0, amplitude_depth=0.0)
+
+        # LFO2: Filter modulation - optional
+        self.lfos[1].set_modulation_routing(pitch=False, filter=True, amplitude=False)
+        self.lfos[1].set_modulation_depths(pitch_cents=0.0, filter_depth=0.3, amplitude_depth=0.0)
+
+        # LFO3: Amplitude modulation (tremolo) - optional
+        self.lfos[2].set_modulation_routing(pitch=False, filter=False, amplitude=True)
+        self.lfos[2].set_modulation_depths(pitch_cents=0.0, filter_depth=0.0, amplitude_depth=0.3)
 
         # XG LFO modulation state for channel-wide modulation
         self.lfo_pitch_modulation = 0.0
@@ -142,19 +154,16 @@ class VectorizedChannelRenderer:
         # Optimized coefficient manager for performance
         self.coeff_manager = get_global_coefficient_manager()
 
-        # PRE-ALLOCATED AUDIO BUFFERS FOR VECTORIZED PROCESSING
-        # Pre-allocate audio buffers for vectorized processing
-        self.max_block_size = 8192  # Maximum expected block size
-        self.left_buffer = np.zeros(self.max_block_size, dtype=np.float32)
-        self.right_buffer = np.zeros(self.max_block_size, dtype=np.float32)
-        
+        # Get stereo buffers from synthesizer's memory pool (will be zeroed)
+        self.left_buffer = self.memory_pool.get_mono_buffer(zero_buffer=True)
+        self.right_buffer = self.memory_pool.get_mono_buffer(zero_buffer=True)
+
         # Temporary buffers for intermediate processing
-        self.temp_left = np.zeros(self.max_block_size, dtype=np.float32)
-        self.temp_right = np.zeros(self.max_block_size, dtype=np.float32)
-        
-        # Batch processing buffers for multiple notes
-        self.note_buffers = np.zeros((max_voices, self.max_block_size, 2), dtype=np.float32)
-        
+        self.temp_left = self.memory_pool.get_mono_buffer(zero_buffer=True)
+        self.temp_right = self.memory_pool.get_mono_buffer(zero_buffer=True)
+        self.note_left = self.memory_pool.get_mono_buffer(zero_buffer=True)
+        self.note_right = self.memory_pool.get_mono_buffer(zero_buffer=True)
+
         # Cached parameter values for performance
         self.cached_mod_wheel = 0
         self.cached_breath_controller = 0
@@ -350,15 +359,12 @@ class VectorizedChannelRenderer:
             return
 
         # Create new note with proper ChannelNote object
-        channel_note = ChannelNote(
+        channel_note = ChannelNote(self,
             note=note,
             velocity=velocity,
             program=self.program,
             bank=self.bank,
-            wavetable=self.wavetable,
-            sample_rate=self.sample_rate,
-            is_drum=self.is_drum,
-            channel_lfos=self.lfos  # Pass channel-level LFOs (XG architecture)
+            is_drum=self.is_drum
         )
 
         if channel_note.is_active():
@@ -547,6 +553,73 @@ class VectorizedChannelRenderer:
             note.note_off()
         self.active_notes.clear()
 
+    def cleanup_buffers(self):
+        """Return all buffers to memory pool for proper cleanup."""
+        if self.memory_pool:
+            try:
+                # Return main buffers to pool
+                if hasattr(self, 'left_buffer'):
+                    self.memory_pool.return_mono_buffer(self.left_buffer)
+                if hasattr(self, 'right_buffer'):
+                    self.memory_pool.return_mono_buffer(self.right_buffer)
+                if hasattr(self, 'temp_left'):
+                    self.memory_pool.return_mono_buffer(self.temp_left)
+                if hasattr(self, 'temp_right'):
+                    self.memory_pool.return_mono_buffer(self.temp_right)
+                if hasattr(self, 'note_left'):
+                    self.memory_pool.return_mono_buffer(self.note_left)
+                if hasattr(self, 'note_right'):
+                    self.memory_pool.return_mono_buffer(self.note_right)
+            except:
+                # Ignore cleanup errors
+                pass
+
+    def cleanup(self):
+        """Complete cleanup of all resources."""
+        # Clean up active notes
+        for note, channel_note in list(self.active_notes.items()):
+            if hasattr(channel_note, 'cleanup'):
+                channel_note.cleanup()  # type: ignore
+            del self.active_notes[note]
+
+        # Return LFOs to pool
+        for lfo in self.lfos:
+            if hasattr(self.synth, 'lfo_pool'):
+                self.synth.lfo_pool.release_oscillator(lfo)
+
+        # Clean up buffers
+        self.cleanup_buffers()
+
+        # Clear references
+        self.lfos.clear()
+        self.active_notes.clear()
+
+    def __del__(self):
+        """Cleanup when VectorizedChannelRenderer is destroyed."""
+        self.cleanup()
+
+    def reset(self):
+        """Reset channel renderer and return buffers to pool."""
+        # Stop all notes
+        self.all_sound_off()
+
+        # Return buffers to memory pool
+        self.cleanup_buffers()
+
+        # Reset channel state
+        self.controllers = [0] * 128
+        self.controllers[7] = 100   # Volume
+        self.controllers[11] = 127  # Expression
+        self.controllers[64] = 0    # Sustain Pedal
+        self.controllers[71] = 64   # Harmonic Content default
+        self.controllers[72] = 64   # Brightness default
+
+        # Reset cached values
+        self._cached_volume = 1.0
+        self._cached_pan = 0.0
+        self._last_volume = self.controllers[7]
+        self._last_expression = self.controllers[11]
+
     def _handle_xg_gp_button(self, button_number: int, value: int):
         """Handle XG General Purpose Button controllers (80-83) with optimized parameter updates."""
         # Store the button state
@@ -672,6 +745,14 @@ class VectorizedChannelRenderer:
 
         return len(self.active_notes) > 0
 
+    def generate_silence(self, block_size: int) -> Tuple[np.ndarray, np.ndarray]:
+        ch_left = self.left_buffer[:block_size]
+        ch_right = self.right_buffer[:block_size]
+        ch_left.fill(0.0)
+        ch_right.fill(0.0)
+        return ch_left, ch_right
+
+
     def generate_sample_block_vectorized(self, block_size: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         VECTORIZED BLOCK SAMPLE GENERATION - PHASE 2 PERFORMANCE
@@ -691,29 +772,12 @@ class VectorizedChannelRenderer:
         Returns:
             Tuple of (left_channel, right_channel) audio buffers
         """
-        # ENSURE BUFFERS ARE CORRECT SIZE - DYNAMIC BUFFER RESIZING
-        # Only resize buffers when necessary to avoid allocation overhead
-        if block_size > self.max_block_size:
-            # Resize buffers to accommodate larger block size
-            new_size = max(block_size, self.max_block_size * 2)  # Double size to reduce future resizes
-            self.left_buffer = np.resize(self.left_buffer, new_size)
-            self.right_buffer = np.resize(self.right_buffer, new_size)
-            self.temp_left = np.resize(self.temp_left, new_size)
-            self.temp_right = np.resize(self.temp_right, new_size)
-            self.note_buffers = np.resize(self.note_buffers, (self.note_buffers.shape[0], new_size, 2))
-            self.max_block_size = new_size
-
-        # CLEAR BUFFERS FOR NEW PROCESSING CYCLE - ZERO-CLEARING OPTIMIZATION
-        # Use vectorized fill operations instead of creating new zero-filled arrays
-        self.left_buffer[:block_size].fill(0.0)
-        self.right_buffer[:block_size].fill(0.0)
-        self.temp_left[:block_size].fill(0.0)
-        self.temp_right[:block_size].fill(0.0)
-        self.note_buffers[:, :block_size, :].fill(0.0)
+        if block_size > self.synth.block_size:
+            raise Exception(f"invalid buffer size: {block_size}")
 
         # If no active notes, return silence with optimized return
         if not self.active_notes:
-            return self.left_buffer[:block_size], self.right_buffer[:block_size]
+            return self.generate_silence(block_size)
 
         # Get current channel state with optimized access
         channel_state = self.get_channel_state()
@@ -731,51 +795,25 @@ class VectorizedChannelRenderer:
         self.cached_harmonic_content = self.controllers[71] or 64
         self.cached_channel_pressure = self.channel_pressure_value
 
-        # BATCH NOTE PROCESSING WITH VECTORIZED OPERATIONS - PROCESS ALL NOTES AT ONCE
-        # Instead of processing each note individually in Python loops (slow),
-        # process all notes simultaneously with vectorized NumPy operations (fast)
-
-        # Process all active notes using vectorized operations for maximum performance
-        active_notes_list = list(self.active_notes.items())
-
-        if active_notes_list:
-            # BATCH PROCESSING OF ALL ACTIVE NOTES WITH VECTORIZED ACCUMULATION
-            # Process all notes simultaneously using vectorized operations
-
-            try:
-                # BLOCK-BASED NOTE PROCESSING - Maximum Performance
-                left_block, right_block = self._process_notes_block_based(
-                    active_notes_list, block_size, global_pitch_mod
-                )
-
-                # Copy block-processed data to output buffers
-                np.copyto(self.left_buffer[:block_size], left_block[:block_size])
-                np.copyto(self.right_buffer[:block_size], right_block[:block_size])
-
-            except Exception as e:
-                # Fallback to per-sample processing if block processing fails
-                self._process_notes_vectorized_per_note(active_notes_list, block_size, global_pitch_mod)
+        if self.active_notes:
+            self._process_notes_block_based(
+                self.active_notes.items(), block_size, global_pitch_mod, 
+                left_batch= self.left_buffer, right_batch=self.right_buffer
+            )
 
         # Apply channel volume with vectorized operations - OPTIMIZED VOLUME APPLICATION
         volume_factor = np.float32((self.volume / 127.0) * (self.expression / 127.0))
-        np.multiply(self.left_buffer[:block_size], volume_factor, out=self.left_buffer[:block_size])
-        np.multiply(self.right_buffer[:block_size], volume_factor, out=self.right_buffer[:block_size])
+        panning = self.pan / 127.0
+        pan_left, pan_right = self.coeff_manager.get_panning(panning)
 
-        # Apply panning with vectorized operations - OPTIMIZED PANNING APPLICATION
-        combined_pan = self._cached_pan
-        if combined_pan != 0.0:
-            # Use pre-computed panning coefficients instead of expensive calculations
-            pan_int = int(combined_pan * 127.0)  # Convert to MIDI range
-            pan_int = max(0, min(127, pan_int))
-            left_gain, right_gain = self.coeff_manager.get_pan_gains(pan_int)
-            np.multiply(self.left_buffer[:block_size], left_gain, out=self.left_buffer[:block_size])
-            np.multiply(self.right_buffer[:block_size], right_gain, out=self.right_buffer[:block_size])
+        np.multiply(self.left_buffer[:block_size], volume_factor*pan_left, out=self.left_buffer[:block_size])
+        np.multiply(self.right_buffer[:block_size], volume_factor*pan_right, out=self.right_buffer[:block_size])
 
         # Apply final clipping with vectorized operations - OPTIMIZED CLIPPING
         np.clip(self.left_buffer[:block_size], -1.0, 1.0, out=self.left_buffer[:block_size])
         np.clip(self.right_buffer[:block_size], -1.0, 1.0, out=self.right_buffer[:block_size])
 
-        return self.left_buffer[:block_size], self.right_buffer[:block_size]
+        return self.left_buffer, self.right_buffer
 
     def _process_notes_vectorized_batch(self, active_notes_list: List,
                                       block_size: int, global_pitch_mod: float) -> Tuple[np.ndarray, np.ndarray]:
@@ -832,7 +870,7 @@ class VectorizedChannelRenderer:
 
         return left_batch, right_batch
 
-    def _process_notes_block_based(self, active_notes_list: List, block_size: int, global_pitch_mod: float) -> Tuple[np.ndarray, np.ndarray]:
+    def _process_notes_block_based(self, active_notes_list, block_size: int, global_pitch_mod: float, left_batch, right_batch) -> Tuple[np.ndarray, np.ndarray]:
         """
         BLOCK-BASED NOTE PROCESSING - Maximum Performance
 
@@ -847,59 +885,31 @@ class VectorizedChannelRenderer:
         Returns:
             Tuple of (left_channel, right_channel) audio buffers
         """
+        left_batch[:block_size].fill(0.0)
+        right_batch[:block_size].fill(0.0)
         if not active_notes_list:
-            return np.zeros(block_size, dtype=np.float32), np.zeros(block_size, dtype=np.float32)
-
-        # Initialize batch buffers
-        left_batch = np.zeros(block_size, dtype=np.float32)
-        right_batch = np.zeros(block_size, dtype=np.float32)
+            return left_batch, right_batch
 
         # Process all notes with block-based generation
         for note, channel_note in active_notes_list:
-            try:
-                # Use the new block-based generation method
-                note_left, note_right = channel_note.generate_sample_block(
-                    block_size=block_size,
-                    mod_wheel=self.cached_mod_wheel,
-                    breath_controller=self.cached_breath_controller,
-                    foot_controller=self.cached_foot_controller,
-                    brightness=self.cached_brightness,
-                    harmonic_content=self.cached_harmonic_content,
-                    channel_pressure_value=self.cached_channel_pressure,
-                    key_pressure=self.key_pressure_values.get(note, 0),
-                    volume=self.volume,
-                    expression=self.expression,
-                    global_pitch_mod=global_pitch_mod
-                )
+            # Generate samples directly into note buffers
+            channel_note.generate_sample_block(block_size,
+                self.note_left, self.note_right,
+                mod_wheel=self.cached_mod_wheel,
+                breath_controller=self.cached_breath_controller,
+                foot_controller=self.cached_foot_controller,
+                brightness=self.cached_brightness,
+                harmonic_content=self.cached_harmonic_content,
+                channel_pressure_value=self.cached_channel_pressure,
+                key_pressure=self.key_pressure_values.get(note, 0),
+                volume=self.volume,
+                expression=self.expression,
+                global_pitch_mod=global_pitch_mod
+            )
 
-                # Vectorized accumulation
-                np.add(left_batch, note_left, out=left_batch)
-                np.add(right_batch, note_right, out=right_batch)
-
-            except Exception as e:
-                # Fallback to per-sample processing for this note
-                print(f"Block processing failed for note {note}, falling back to per-sample: {e}")
-                try:
-                    # Per-sample fallback
-                    for i in range(block_size):
-                        left_sample, right_sample = channel_note.generate_sample(
-                            mod_wheel=self.cached_mod_wheel,
-                            breath_controller=self.cached_breath_controller,
-                            foot_controller=self.cached_foot_controller,
-                            brightness=self.cached_brightness,
-                            harmonic_content=self.cached_harmonic_content,
-                            channel_pressure_value=self.cached_channel_pressure,
-                            key_pressure=self.key_pressure_values.get(note, 0),
-                            volume=self.volume,
-                            expression=self.expression,
-                            global_pitch_mod=global_pitch_mod
-                        )
-                        left_batch[i] += left_sample
-                        right_batch[i] += right_sample
-                except Exception as e2:
-                    # Disable problematic note
-                    channel_note.active = False
-                    continue
+            # Vectorized accumulation
+            np.add(left_batch[:block_size], self.note_left[:block_size], out=left_batch[:block_size])
+            np.add(right_batch[:block_size], self.note_right[:block_size], out=right_batch[:block_size])
 
         return left_batch, right_batch
 
@@ -1017,9 +1027,17 @@ class VectorizedChannelRenderer:
         # Process each active note individually with vectorized operations
         for note, channel_note in active_notes_list:
             try:
-                # Clear temporary buffers using vectorized operations
-                self.temp_left[:block_size].fill(0.0)
-                self.temp_right[:block_size].fill(0.0)
+                # Clear temporary buffers using memory pool optimization
+                if self.memory_pool:
+                    # Return and get fresh zeroed buffers for better performance
+                    self.memory_pool.return_mono_buffer(self.temp_left)
+                    self.memory_pool.return_mono_buffer(self.temp_right)
+                    self.temp_left = self.memory_pool.get_mono_buffer(zero_buffer=True)
+                    self.temp_right = self.memory_pool.get_mono_buffer(zero_buffer=True)
+                else:
+                    # Fallback to direct zeroing
+                    self.temp_left[:block_size].fill(0.0)
+                    self.temp_right[:block_size].fill(0.0)
                 
                 # Get cached controller values for this processing cycle
                 mod_wheel = self.cached_mod_wheel
@@ -1298,8 +1316,6 @@ class VectorizedChannelRenderer:
         self.stereo_width = min(1.0, getattr(self, 'stereo_width', 0.5) * 1.5)
         # Apply to modulation matrix for stereo enhancement
         self.mod_matrix.set_route(14, "expression", "pan", amount=0.3, polarity=1.0)
-
-        print(f"Channel {self.channel}: Stereo Mode activated")
 
     def _apply_wah_mode_parameters(self):
         """Apply Wah Mode parameters (XG Wah Effect) with optimized parameter updates."""
