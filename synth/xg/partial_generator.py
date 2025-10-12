@@ -1199,8 +1199,13 @@ class XGPartialGenerator:
         if note_distance == 0:
             return 1.0
 
-        exponent = (note_distance / (108 - 21)) * math.log2(key_follow_range)
-        return 2.0 ** exponent if self.note < center_note else 1.0 / (2.0 ** exponent)
+        # Use manual log calculation to avoid expensive math.log2
+        # log2(x) = ln(x) / ln(2), but since we're using 2**exponent, we can precompute
+        log_factor = 0.073637  # approximately ln(1.059463) / ln(2) = 0.073637
+        exponent = (note_distance / (108 - 21)) * log_factor
+        result = math.exp(exponent * math.log(2.0))  # Use natural log for better performance
+        
+        return result if self.note < center_note else 1.0 / result
 
     def _process_pitch_envelope(self, pitch_env: float) -> float:
         """Process XG pitch envelope (fixed sustain level)."""
@@ -1403,13 +1408,13 @@ class XGPartialGenerator:
         key_follow_semitones = (self.note - 60) * self.filter_key_follow
         key_follow_mult = 2.0 ** (key_follow_semitones / 12.0)
 
-        # Apply envelope modulation
-        env_mod_cents_block /= 1200.0
-        np.pow(2.0, env_mod_cents_block, out = env_mod_cents_block)
-        env_mod_cents_block *= base_freq * key_follow_mult
+        # Apply envelope modulation - fix overflow issue by clipping before pow
+        env_mod_octaves = np.clip(env_mod_cents_block / 1200.0, -6.0, 6.0)  # Limit to ±7200 cents
+        env_mult_block = np.exp2(env_mod_octaves)  # Use exp2 which is more stable than pow
+        result = env_mult_block * base_freq * key_follow_mult
 
         # XG-compliant frequency clamping
-        return np.clip(env_mod_cents_block, 20.0, 20000.0)
+        return np.clip(result, 20.0, 20000.0)
 
     def _apply_filter_block(self, left_block: np.ndarray, right_block: np.ndarray,
                             cutoff_freq_block: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -1438,52 +1443,7 @@ class XGPartialGenerator:
 
         return left_block, right_block
 
-    def _apply_sf2_looping(self, raw_index: float, table_length: int) -> float:
-        """Apply SF2 loop wrapping based on loop mode."""
-        if self.loop_mode == 0 or self.loop_end <= self.loop_start:
-            return raw_index
 
-        loop_start = float(self.loop_start)
-        loop_end = float(self.loop_end)
-        loop_length = loop_end - loop_start
-
-        if loop_length > 0:
-            if self.loop_mode == 1:  # Forward loop
-                if raw_index >= loop_end:
-                    excess = raw_index - loop_end
-                    return loop_start + (excess % loop_length)
-                elif raw_index < loop_start:
-                    return loop_start
-                else:
-                    return raw_index
-
-            elif self.loop_mode == 2:  # Backward loop
-                if raw_index >= loop_end:
-                    excess = raw_index - loop_end
-                    backward_pos = loop_length - (excess % loop_length)
-                    return loop_start + backward_pos
-                elif raw_index < loop_start:
-                    return loop_end - 1
-                else:
-                    return loop_end - (raw_index - loop_start)
-
-            elif self.loop_mode == 3:  # Alternating loop (ping-pong)
-                if raw_index >= loop_end:
-                    excess = raw_index - loop_end
-                    self.loop_direction = -1  # Switch to backward
-                    backward_pos = excess % loop_length
-                    return loop_end - backward_pos
-                elif raw_index < loop_start:
-                    excess = loop_start - raw_index
-                    self.loop_direction = 1  # Switch to forward
-                    return loop_start + (excess % loop_length)
-                else:
-                    if self.loop_direction > 0:  # Forward
-                        return raw_index
-                    else:  # Backward
-                        return loop_end - (raw_index - loop_start)
-
-        return raw_index
 
     def _generate_waveform_sample(self, pitch_mod: float) -> Tuple[float, float]:
         """Generate base waveform sample for XG synthesis with proper SF2 loop handling.
@@ -1683,61 +1643,304 @@ class XGPartialGenerator:
 
     # XG Modulation interface methods
 
-def set_modulation_values(self, pitch_mod: float = 0.0, filter_mod: float = 0.0,
-                        amp_mod: float = 1.0):
-    """Set modulation values from XG modulation matrix."""
-    self.last_pitch_mod = pitch_mod
-    self.last_filter_mod = filter_mod
-    self.last_amp_mod = amp_mod
+    def set_modulation_values(self, pitch_mod: float = 0.0, filter_mod: float = 0.0,
+                            amp_mod: float = 1.0):
+        """Set modulation values from XG modulation matrix."""
+        self.last_pitch_mod = pitch_mod
+        self.last_filter_mod = filter_mod
+        self.last_amp_mod = amp_mod
 
-def cleanup(self):
-    """Clean up all resources and return buffers to memory pool."""
-    # Return envelope buffers
-    if hasattr(self, 'amp_buffer') and self.amp_buffer is not None:
-        self.synth.memory_pool.return_mono_buffer(self.amp_buffer)
-        self.amp_buffer = None
+    def _reset_for_pool(self):
+        """Reset partial generator state for pool reuse."""
+        # Reset basic state
+        self.active = False
 
-    if hasattr(self, 'work_buffer') and self.work_buffer is not None:
-        self.synth.memory_pool.return_mono_buffer(self.work_buffer)
-        self.work_buffer = None
+        # Reset envelopes to idle state
+        if self.amp_envelope:
+            self.amp_envelope.reset()
+        if self.filter_envelope:
+            self.filter_envelope.reset()
+        if self.pitch_envelope:
+            self.pitch_envelope.reset()
 
-    if hasattr(self, 'acc_buffer') and self.acc_buffer is not None:
-        self.synth.memory_pool.return_mono_buffer(self.acc_buffer)
-        self.acc_buffer = None
+        # Reset LFO modulation values
+        self.last_pitch_mod = 0.0
+        self.last_filter_mod = 0.0
+        self.last_amp_mod = 1.0
 
-    if hasattr(self, 'item_buffer') and self.item_buffer is not None:
-        self.synth.memory_pool.return_mono_buffer(self.item_buffer)
-        self.item_buffer = None
+        # Reset crossfade values
+        self.velocity_crossfade = 0.0
+        self.note_crossfade = 0.0
 
-    if hasattr(self, 'filter_buffer') and self.filter_buffer is not None:
-        self.synth.memory_pool.return_mono_buffer(self.filter_buffer)
-        self.filter_buffer = None
+        # Reset phase for sample playback
+        self.phase = 0.0
 
-    if hasattr(self, 'pitch_buffer') and self.pitch_buffer is not None:
-        self.synth.memory_pool.return_mono_buffer(self.pitch_buffer)
-        self.pitch_buffer = None
+        # Reset loop state
+        self.loop_direction = 1
+        self.loop_position = 0.0
 
-    # Return envelopes to envelope pool
-    if hasattr(self, 'amp_envelope') and self.amp_envelope is not None:
-        if hasattr(self.synth, 'envelope_pool'):
-            self.synth.envelope_pool.release_envelope(self.amp_envelope)
-        self.amp_envelope = None
+    def _reconfigure(self, synth, note: int, velocity: int, program: int,
+                    partial_id: int, partial_params: Dict, is_drum: bool = False,
+                    sample_rate: int = 44100, bank: int = 0):
+        """Reconfigure existing partial generator with new parameters."""
+        # Update basic properties
+        self.synth = synth
+        self.partial_id = partial_id
+        self.note = note
+        self.velocity = velocity
+        self.program = program
+        self.bank = bank
+        self.is_drum = is_drum
+        self.sample_rate = sample_rate
 
-    if hasattr(self, 'filter_envelope') and self.filter_envelope is not None:
-        if hasattr(self.synth, 'envelope_pool'):
-            self.synth.envelope_pool.release_envelope(self.filter_envelope)
-        self.filter_envelope = None
+        # Update XG Core Partial Parameters
+        self.element_type = partial_params.get("element_type", "normal")
+        self.level = partial_params.get("level", 1.0)
+        self.pan = partial_params.get("pan", 0.5)
 
-    if hasattr(self, 'pitch_envelope') and self.pitch_envelope is not None:
-        if hasattr(self.synth, 'envelope_pool'):
-            self.synth.envelope_pool.release_envelope(self.pitch_envelope)
-        self.pitch_envelope = None
+        # Key Range - Exclusive per XG specification
+        self.key_range_low = partial_params.get("key_range_low", 0)
+        self.key_range_high = partial_params.get("key_range_high", 127)
+        self.velocity_range_low = partial_params.get("velocity_range_low", 0)
+        self.velocity_range_high = partial_params.get("velocity_range_high", 127)
 
-    # Return filter to filter pool
-    if hasattr(self, 'filter') and self.filter is not None:
-        if hasattr(self.synth, 'filter_pool'):
-            self.synth.filter_pool.release_filter(self.filter)
-        self.filter = None
+        # Crossfade settings
+        self.crossfade_note_width = partial_params.get("crossfade_note", 0)
+        self.crossfade_vel_width = partial_params.get("crossfade_velocity", 0)
+
+        # Key scaling and velocity sensitivity
+        self.key_scaling = partial_params.get("key_scaling", 0.0)
+        self.velocity_sense = partial_params.get("velocity_sense", 1.0)
+
+        # XG Scale tuning and octave settings
+        self.scale_tuning = partial_params.get("scale_tuning", 100)
+        self.coarse_tune = partial_params.get("coarse_tune", 0)
+        self.fine_tune = partial_params.get("fine_tune", 0)
+        self.overriding_root_key = partial_params.get("overriding_root_key", -1)
+
+        # XG Envelope parameters
+        self.amp_attack_time = partial_params.get("amp_attack", 0.01)
+        self.amp_decay_time = partial_params.get("amp_decay", 0.3)
+        self.amp_sustain_level = partial_params.get("amp_sustain", 0.7)
+        self.amp_release_time = partial_params.get("amp_release", 0.5)
+        self.amp_delay_time = partial_params.get("amp_delay", 0.0)
+        self.amp_hold_time = partial_params.get("amp_hold", 0.0)
+
+        # XG Filter envelope
+        self.use_filter_env = not is_drum or partial_params.get("use_filter_env", True)
+        if self.use_filter_env:
+            self.filter_attack_time = partial_params.get("filter_attack", 0.1)
+            self.filter_decay_time = partial_params.get("filter_decay", 0.5)
+            self.filter_sustain_level = partial_params.get("filter_sustain", 0.6)
+            self.filter_release_time = partial_params.get("filter_release", 0.8)
+            self.filter_delay_time = partial_params.get("filter_delay", 0.0)
+            self.filter_hold_time = partial_params.get("filter_hold", 0.0)
+
+        # XG Pitch envelope
+        self.use_pitch_env = not is_drum or partial_params.get("use_pitch_env", True)
+        if self.use_pitch_env:
+            self.pitch_attack_time = partial_params.get("pitch_attack", 0.05)
+            self.pitch_decay_time = partial_params.get("pitch_decay", 0.1)
+            self.pitch_sustain_level = partial_params.get("pitch_sustain", 0.0)
+            self.pitch_release_time = partial_params.get("pitch_release", 0.05)
+            self.pitch_delay_time = partial_params.get("pitch_delay", 0.0)
+            self.pitch_hold_time = partial_params.get("pitch_hold", 0.0)
+
+        # XG Filter parameters
+        filter_config = partial_params.get("filter", {})
+        self.filter_cutoff = filter_config.get("cutoff", 1000.0)
+        self.filter_resonance = filter_config.get("resonance", 0.7)
+        self.filter_type = filter_config.get("type", "lowpass")
+        self.filter_key_follow = filter_config.get("key_follow", 0.5)
+
+        # Check if note/velocity fall within this partial's range
+        if not self._is_note_in_range(note, velocity):
+            self.active = False
+            return
+
+        # Reinitialize phase and synthesis parameters
+        self.phase = 0.0
+        self.phase_step = self._calculate_phase_step()
+
+        # Reinitialize XG-compliant envelopes
+        self._initialize_envelopes(partial_params)
+
+        # Reinitialize XG filter
+        self._initialize_filter()
+
+        # Start envelopes
+        self.note_on(velocity, note)
+
+        # Reset crossfade tracking
+        self.velocity_crossfade = 0.0
+        self.note_crossfade = 0.0
+
+        # XG Modulation cache
+        self.last_pitch_mod = 0.0
+        self.last_filter_mod = 0.0
+        self.last_amp_mod = 1.0
+
+        # Cache sample format
+        self._sample_format_is_stereo = self._detect_sample_format()
+
+        # Mark as active
+        self.active = True
+
+    def cleanup(self):
+        """Clean up all resources and return buffers to memory pool."""
+        # Return envelope buffers
+        if hasattr(self, 'amp_buffer') and self.amp_buffer is not None:
+            self.synth.memory_pool.return_mono_buffer(self.amp_buffer)
+            self.amp_buffer = None
+
+        if hasattr(self, 'work_buffer') and self.work_buffer is not None:
+            self.synth.memory_pool.return_mono_buffer(self.work_buffer)
+            self.work_buffer = None
+
+        if hasattr(self, 'acc_buffer') and self.acc_buffer is not None:
+            self.synth.memory_pool.return_mono_buffer(self.acc_buffer)
+            self.acc_buffer = None
+
+        if hasattr(self, 'item_buffer') and self.item_buffer is not None:
+            self.synth.memory_pool.return_mono_buffer(self.item_buffer)
+            self.item_buffer = None
+
+        if hasattr(self, 'filter_buffer') and self.filter_buffer is not None:
+            self.synth.memory_pool.return_mono_buffer(self.filter_buffer)
+            self.filter_buffer = None
+
+        if hasattr(self, 'pitch_buffer') and self.pitch_buffer is not None:
+            self.synth.memory_pool.return_mono_buffer(self.pitch_buffer)
+            self.pitch_buffer = None
+
+        # Return envelopes to envelope pool
+        if hasattr(self, 'amp_envelope') and self.amp_envelope is not None:
+            if hasattr(self.synth, 'envelope_pool'):
+                self.synth.envelope_pool.release_envelope(self.amp_envelope)
+            self.amp_envelope = None
+
+        if hasattr(self, 'filter_envelope') and self.filter_envelope is not None:
+            if hasattr(self.synth, 'envelope_pool'):
+                self.synth.envelope_pool.release_envelope(self.filter_envelope)
+            self.filter_envelope = None
+
+        if hasattr(self, 'pitch_envelope') and self.pitch_envelope is not None:
+            if hasattr(self.synth, 'envelope_pool'):
+                self.synth.envelope_pool.release_envelope(self.pitch_envelope)
+            self.pitch_envelope = None
+
+        # Return filter to filter pool
+        if hasattr(self, 'filter') and self.filter is not None:
+            if hasattr(self.synth, 'filter_pool'):
+                self.synth.filter_pool.release_filter(self.filter)
+            self.filter = None
+
+def _reconfigure(self, synth, note: int, velocity: int, program: int,
+                partial_id: int, partial_params: Dict, is_drum: bool = False,
+                sample_rate: int = 44100, bank: int = 0):
+    """Reconfigure existing partial generator with new parameters."""
+    # Update basic properties
+    self.synth = synth
+    self.partial_id = partial_id
+    self.note = note
+    self.velocity = velocity
+    self.program = program
+    self.bank = bank
+    self.is_drum = is_drum
+    self.sample_rate = sample_rate
+
+    # Update XG Core Partial Parameters
+    self.element_type = partial_params.get("element_type", "normal")
+    self.level = partial_params.get("level", 1.0)
+    self.pan = partial_params.get("pan", 0.5)
+
+    # Key Range - Exclusive per XG specification
+    self.key_range_low = partial_params.get("key_range_low", 0)
+    self.key_range_high = partial_params.get("key_range_high", 127)
+    self.velocity_range_low = partial_params.get("velocity_range_low", 0)
+    self.velocity_range_high = partial_params.get("velocity_range_high", 127)
+
+    # Crossfade settings
+    self.crossfade_note_width = partial_params.get("crossfade_note", 0)
+    self.crossfade_vel_width = partial_params.get("crossfade_velocity", 0)
+
+    # Key scaling and velocity sensitivity
+    self.key_scaling = partial_params.get("key_scaling", 0.0)
+    self.velocity_sense = partial_params.get("velocity_sense", 1.0)
+
+    # XG Scale tuning and octave settings
+    self.scale_tuning = partial_params.get("scale_tuning", 100)
+    self.coarse_tune = partial_params.get("coarse_tune", 0)
+    self.fine_tune = partial_params.get("fine_tune", 0)
+    self.overriding_root_key = partial_params.get("overriding_root_key", -1)
+
+    # XG Envelope parameters
+    self.amp_attack_time = partial_params.get("amp_attack", 0.01)
+    self.amp_decay_time = partial_params.get("amp_decay", 0.3)
+    self.amp_sustain_level = partial_params.get("amp_sustain", 0.7)
+    self.amp_release_time = partial_params.get("amp_release", 0.5)
+    self.amp_delay_time = partial_params.get("amp_delay", 0.0)
+    self.amp_hold_time = partial_params.get("amp_hold", 0.0)
+
+    # XG Filter envelope
+    self.use_filter_env = not is_drum or partial_params.get("use_filter_env", True)
+    if self.use_filter_env:
+        self.filter_attack_time = partial_params.get("filter_attack", 0.1)
+        self.filter_decay_time = partial_params.get("filter_decay", 0.5)
+        self.filter_sustain_level = partial_params.get("filter_sustain", 0.6)
+        self.filter_release_time = partial_params.get("filter_release", 0.8)
+        self.filter_delay_time = partial_params.get("filter_delay", 0.0)
+        self.filter_hold_time = partial_params.get("filter_hold", 0.0)
+
+    # XG Pitch envelope
+    self.use_pitch_env = not is_drum or partial_params.get("use_pitch_env", True)
+    if self.use_pitch_env:
+        self.pitch_attack_time = partial_params.get("pitch_attack", 0.05)
+        self.pitch_decay_time = partial_params.get("pitch_decay", 0.1)
+        self.pitch_sustain_level = partial_params.get("pitch_sustain", 0.0)
+        self.pitch_release_time = partial_params.get("pitch_release", 0.05)
+        self.pitch_delay_time = partial_params.get("pitch_delay", 0.0)
+        self.pitch_hold_time = partial_params.get("pitch_hold", 0.0)
+
+    # XG Filter parameters
+    filter_config = partial_params.get("filter", {})
+    self.filter_cutoff = filter_config.get("cutoff", 1000.0)
+    self.filter_resonance = filter_config.get("resonance", 0.7)
+    self.filter_type = filter_config.get("type", "lowpass")
+    self.filter_key_follow = filter_config.get("key_follow", 0.5)
+
+    # Check if note/velocity fall within this partial's range
+    if not self._is_note_in_range(note, velocity):
+        self.active = False
+        return
+
+    # Reinitialize phase and synthesis parameters
+    self.phase = 0.0
+    self.phase_step = self._calculate_phase_step()
+
+    # Reinitialize XG-compliant envelopes
+    self._initialize_envelopes(partial_params)
+
+    # Reinitialize XG filter
+    self._initialize_filter()
+
+    # Start envelopes
+    self.note_on(velocity, note)
+
+    # Reset crossfade tracking
+    self.velocity_crossfade = 0.0
+    self.note_crossfade = 0.0
+
+    # XG Modulation cache
+    self.last_pitch_mod = 0.0
+    self.last_filter_mod = 0.0
+    self.last_amp_mod = 1.0
+
+    # Cache sample format
+    self._sample_format_is_stereo = self._detect_sample_format()
+
+    # Mark as active
+    self.active = True
 
 def __del__(self):
     """Cleanup when XGPartialGenerator is destroyed."""

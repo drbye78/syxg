@@ -31,7 +31,8 @@ from numba import jit, float32, int32, boolean
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_pan_block_mono(
-    input_mono, output_left, output_right, left_gain, right_gain, block_size
+    input_mono: np.ndarray, output_left: np.ndarray, output_right: np.ndarray,
+    left_gain: float, right_gain: float, block_size: int
 ):
     """
     NUMBA-COMPILED: Ultra-fast mono-to-stereo panning block processing.
@@ -52,8 +53,8 @@ def _numba_process_pan_block_mono(
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_pan_block_stereo(
-    input_left, input_right, output_left, output_right,
-    left_gain, right_gain, block_size
+    input_left: np.ndarray, input_right: np.ndarray, output_left: np.ndarray, output_right: np.ndarray,
+    left_gain: float, right_gain: float, block_size: int
 ):
     """
     NUMBA-COMPILED: Ultra-fast stereo-to-stereo panning block processing.

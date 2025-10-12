@@ -41,16 +41,16 @@ WAVEFORM_SAMPLE_AND_HOLD = 4
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_lfo_block(
-    output_buffer,
-    waveform,
-    phase,
-    phase_step,
-    delay_counter,
-    delay_samples,
-    depth,
-    pitch_fade_in_samples,
-    sample_rate,
-    block_size
+    output_buffer: np.ndarray,
+    waveform: int,
+    phase: float,
+    phase_step: float,
+    delay_counter: int,
+    delay_samples: int,
+    depth: float,
+    pitch_fade_in_samples: int,
+    sample_rate: int,
+    block_size: int
 ):
     """
     NUMBA-COMPILED: Ultra-fast LFO block processing with SIMD operations.

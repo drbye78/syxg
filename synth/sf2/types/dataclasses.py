@@ -2,55 +2,179 @@ import struct
 import numpy as np
 import os
 import warnings
+import math
 from collections import OrderedDict
 from typing import Dict, List, Tuple, Optional, Union, Any, Callable
 from dataclasses import dataclass
 
 
 class SF2Modulator:
-    """Represents a modulator in SoundFont 2.0"""
+    """Represents a complete modulator in SoundFont 2.0 with all advanced features"""
     __slots__ = [
+        # Primary modulation source
         'source_oper', 'source_polarity', 'source_type', 'source_direction', 'source_index',
+
+        # Secondary modulation source (control)
         'control_oper', 'control_polarity', 'control_type', 'control_direction', 'control_index',
-        'destination', 'amount', 'amount_source_oper', 'amount_source_polarity',
-        'amount_source_type', 'amount_source_direction', 'amount_source_index', 'transform'
+
+        # Modulation target
+        'destination', 'amount',
+
+        # Amount modulation source (depth modulation)
+        'amount_source_oper', 'amount_source_polarity', 'amount_source_type',
+        'amount_source_direction', 'amount_source_index',
+
+        # Transform operation
+        'transform',
+
+        # Computed values for processing
+        'source_cc', 'control_cc', 'amount_cc', 'final_amount'
     ]
 
     def __init__(self):
-        # Modulation source
-        self.source_oper = 0  # Source Operator
-        self.source_polarity = 0  # 0 = unipolar, 1 = bipolar
-        self.source_type = 0  # 0 = linear, 1 = concave
-        self.source_direction = 0  # 0 = max -> min, 1 = min -> max
-        self.source_index = 0  # Source index (for CC)
+        # Primary modulation source (what modulates)
+        self.source_oper = 0  # Source Operator (0=no controller, 2=key number, 3=velocity, etc.)
+        self.source_polarity = 0  # 0 = unipolar (0 to 1), 1 = bipolar (-1 to +1)
+        self.source_type = 0  # 0 = linear, 1 = concave, 2 = convex, 3 = switch
+        self.source_direction = 0  # 0 = max->min (normal), 1 = min->max (reverse)
+        self.source_index = 0  # Source index (for CC controllers)
 
-        # Modulation control
+        # Secondary modulation source (control input)
         self.control_oper = 0  # Control Operator
-        self.control_polarity = 0
-        self.control_type = 0
-        self.control_direction = 0
-        self.control_index = 0
+        self.control_polarity = 0  # 0 = unipolar, 1 = bipolar
+        self.control_type = 0  # 0 = linear, 1 = concave, 2 = convex, 3 = switch
+        self.control_direction = 0  # 0 = max->min, 1 = min->max
+        self.control_index = 0  # Control index
 
-        # Modulation target
-        self.destination = 0  # Destination Generator
+        # Modulation target and depth
+        self.destination = 0  # Destination Generator (what gets modulated)
+        self.amount = 0  # Base modulation amount
 
-        # Modulation depth
-        self.amount = 0  # Depth value
+        # Amount modulation source (modulates the modulation depth)
+        self.amount_source_oper = 0  # Amount source operator
+        self.amount_source_polarity = 0  # 0 = unipolar, 1 = bipolar
+        self.amount_source_type = 0  # 0 = linear, 1 = concave, 2 = convex, 3 = switch
+        self.amount_source_direction = 0  # 0 = max->min, 1 = min->max
+        self.amount_source_index = 0  # Amount source index
 
-        # Modulation depth source
-        self.amount_source_oper = 0
-        self.amount_source_polarity = 0
-        self.amount_source_type = 0
-        self.amount_source_direction = 0
-        self.amount_source_index = 0
+        # Transform operation
+        self.transform = 0  # Transform Operator (0=linear, 1=absolute)
 
-        # Transform
-        self.transform = 0  # Transform Operator
+        # Computed values for runtime processing
+        self.source_cc = -1  # Resolved CC number for source
+        self.control_cc = -1  # Resolved CC number for control
+        self.amount_cc = -1  # Resolved CC number for amount source
+        self.final_amount = 0.0  # Computed final modulation amount
+
+    def compute_modulation_value(self, source_value: float, control_value: float = 1.0,
+                                amount_value: float = 1.0) -> float:
+        """
+        Compute the final modulation value based on all sources and transforms.
+
+        Args:
+            source_value: Primary source value (0.0 to 1.0)
+            control_value: Secondary control value (0.0 to 1.0)
+            amount_value: Amount modulation value (0.0 to 1.0)
+
+        Returns:
+            Final modulation amount (-1.0 to +1.0)
+        """
+        # Apply source polarity and direction
+        if self.source_polarity == 1:  # Bipolar
+            source_value = (source_value * 2.0) - 1.0
+        if self.source_direction == 1:  # Reverse direction
+            source_value = 1.0 - source_value
+
+        # Apply source type (concave/convex/switch)
+        source_value = self._apply_transform_type(source_value, self.source_type)
+
+        # Apply control if present
+        if self.control_oper != 0:
+            if self.control_polarity == 1:  # Bipolar
+                control_value = (control_value * 2.0) - 1.0
+            if self.control_direction == 1:  # Reverse direction
+                control_value = 1.0 - control_value
+            control_value = self._apply_transform_type(control_value, self.control_type)
+            source_value *= control_value
+
+        # Apply amount modulation
+        if self.amount_source_oper != 0:
+            if self.amount_source_polarity == 1:  # Bipolar
+                amount_value = (amount_value * 2.0) - 1.0
+            if self.amount_source_direction == 1:  # Reverse direction
+                amount_value = 1.0 - amount_value
+            amount_value = self._apply_transform_type(amount_value, self.amount_source_type)
+            source_value *= amount_value
+
+        # Apply base amount
+        result = source_value * (self.amount / 32768.0)  # SF2 amounts are 16-bit signed
+
+        # Apply final transform
+        if self.transform == 1:  # Absolute value
+            result = abs(result)
+
+        self.final_amount = result
+        return result
+
+    def _apply_transform_type(self, value: float, transform_type: int) -> float:
+        """
+        Apply SF2 transform type to modulation value.
+
+        Args:
+            value: Input value (-1.0 to +1.0)
+            transform_type: SF2 transform type (0=linear, 1=concave, 2=convex, 3=switch)
+
+        Returns:
+            Transformed value
+        """
+        if transform_type == 0:  # Linear
+            return value
+        elif transform_type == 1:  # Concave (square root curve)
+            sign = 1.0 if value >= 0 else -1.0
+            return sign * math.sqrt(abs(value))
+        elif transform_type == 2:  # Convex (square curve)
+            return value * value * (1.0 if value >= 0 else -1.0)
+        elif transform_type == 3:  # Switch (threshold)
+            return 1.0 if value >= 0.5 else 0.0
+        else:
+            return value  # Default to linear
 
 class SF2InstrumentZone:
-    """Represents an instrument zone in SoundFont 2.0"""
+    """Represents an instrument zone in SoundFont 2.0 with complete generator support"""
     __slots__ = [
-        'lokey', 'hikey', 'lovel', 'hivel', 'initial_filterQ', 'initialFilterFc',
+        # Basic generators (0-7)
+        'startAddrsOffset', 'endAddrsOffset', 'startloopAddrsOffset', 'endloopAddrsOffset',
+        'startAddrsCoarseOffset', 'modLfoToPitch', 'vibLfoToPitch', 'modEnvToPitch',
+
+        # Filter generators (8-11)
+        'initialFilterFc', 'initialFilterQ', 'modLfoToFilterFc', 'modEnvToFilterFc',
+
+        # Volume envelope generators (12-20)
+        'modLfoToVolume', 'unused1', 'chorusEffectsSend', 'reverbEffectsSend', 'pan',
+        'unused2', 'unused3', 'unused4', 'delayModLFO',
+
+        # LFO generators (21-27)
+        'freqModLFO', 'delayVibLFO', 'freqVibLFO', 'delayModEnv', 'attackModEnv',
+        'holdModEnv', 'decayModEnv',
+
+        # More envelope generators (28-35)
+        'sustainModEnv', 'releaseModEnv', 'keynumToModEnvHold', 'keynumToModEnvDecay',
+        'delayVolEnv', 'attackVolEnv', 'holdVolEnv', 'decayVolEnv',
+
+        # Volume envelope completion (36-43)
+        'sustainVolEnv', 'releaseVolEnv', 'keynumToVolEnvHold', 'keynumToVolEnvDecay',
+        'instrument', 'reserved1', 'keyRange', 'velRange',
+
+        # Sample manipulation (44-51)
+        'startloopAddrsCoarse', 'keynum', 'velocity', 'initialAttenuation',
+        'reserved2', 'endloopAddrsCoarse', 'coarseTune', 'fineTune',
+
+        # More tuning and effects (52-59)
+        'sampleID', 'sampleModes', 'reserved3', 'scaleTuning',
+        'exclusiveClass', 'overridingRootKey', 'unused5', 'endAddrsCoarseOffset',
+
+        # Legacy compatibility fields (for backward compatibility)
+        'lokey', 'hikey', 'lovel', 'hivel', 'initial_filterQ',
         'peakConcave', 'voiceConcave', 'AttackVolEnv', 'DecayVolEnv', 'SustainVolEnv',
         'ReleaseVolEnv', 'DelayVolEnv', 'HoldVolEnv', 'AttackFilEnv', 'DecayFilEnv',
         'SustainFilEnv', 'ReleaseFilEnv', 'DelayFilEnv', 'HoldFilEnv', 'AttackPitchEnv',
@@ -72,99 +196,147 @@ class SF2InstrumentZone:
     ]
 
     def __init__(self):
-        # Note and velocity ranges
+        # Initialize all SF2 generators with their default values according to SF2 spec
+
+        # Sample addressing generators (0-7)
+        self.startAddrsOffset = 0
+        self.endAddrsOffset = 0
+        self.startloopAddrsOffset = 0
+        self.endloopAddrsOffset = 0
+        self.startAddrsCoarseOffset = 0
+        self.modLfoToPitch = 0
+        self.vibLfoToPitch = 0
+        self.modEnvToPitch = 0
+
+        # Filter generators (8-11)
+        self.initialFilterFc = 13500  # ~8.5kHz in cents above 8.175Hz
+        self.initialFilterQ = 0
+        self.modLfoToFilterFc = 0
+        self.modEnvToFilterFc = 0
+
+        # Volume envelope generators (12-20)
+        self.modLfoToVolume = 0
+        self.unused1 = 0
+        self.chorusEffectsSend = 0
+        self.reverbEffectsSend = 0
+        self.pan = 0  # -500 to +500 (0 = center)
+        self.unused2 = 0
+        self.unused3 = 0
+        self.unused4 = 0
+        self.delayModLFO = 0
+
+        # LFO generators (21-27)
+        self.freqModLFO = 0  # Default LFO frequency
+        self.delayVibLFO = 0
+        self.freqVibLFO = 0
+        self.delayModEnv = -12000  # Default delay (no delay)
+        self.attackModEnv = -12000
+        self.holdModEnv = -12000
+        self.decayModEnv = -12000
+
+        # More envelope generators (28-35)
+        self.sustainModEnv = 0
+        self.releaseModEnv = -12000
+        self.keynumToModEnvHold = 0
+        self.keynumToModEnvDecay = 0
+        self.delayVolEnv = -12000
+        self.attackVolEnv = -12000
+        self.holdVolEnv = -12000
+        self.decayVolEnv = -12000
+
+        # Volume envelope completion (36-43)
+        self.sustainVolEnv = 0
+        self.releaseVolEnv = -12000
+        self.keynumToVolEnvHold = 0
+        self.keynumToVolEnvDecay = 0
+        self.instrument = 0  # Not used in zones
+        self.reserved1 = 0
+        self.keyRange = 0  # Will be set to 0-127
+        self.velRange = 0  # Will be set to 0-127
+
+        # Sample manipulation (44-51)
+        self.startloopAddrsCoarse = 0
+        self.keynum = -1  # -1 = use root key from sample
+        self.velocity = -1  # -1 = use note velocity
+        self.initialAttenuation = 0
+        self.reserved2 = 0
+        self.endloopAddrsCoarse = 0
+        self.coarseTune = 0
+        self.fineTune = 0
+
+        # More tuning and effects (52-59)
+        self.sampleID = 0
+        self.sampleModes = 0
+        self.reserved3 = 0
+        self.scaleTuning = 100  # 100 cents per semitone
+        self.exclusiveClass = 0
+        self.overridingRootKey = -1  # -1 = use sample root key
+        self.unused5 = 0
+        self.endAddrsCoarseOffset = 0
+
+        # Legacy compatibility fields (for backward compatibility)
         self.lokey = 0
         self.hikey = 127
         self.lovel = 0
         self.hivel = 127
-
-        # Main parameters
         self.initial_filterQ = 0
-        self.initialFilterFc = 13500
         self.peakConcave = 0
         self.voiceConcave = 0
-
-        # Amplitude envelope parameters
-        self.AttackVolEnv = -12000  # in time cents
+        self.AttackVolEnv = -12000
         self.DecayVolEnv = -12000
-        self.SustainVolEnv = 0  # 0-127 (0 = -inf dB)
+        self.SustainVolEnv = 0
         self.ReleaseVolEnv = -12000
-        self.DelayVolEnv = -12000  # Amplitude envelope delay
-        self.HoldVolEnv = -12000  # Amplitude envelope hold
-        # Filter envelope parameters
+        self.DelayVolEnv = -12000
+        self.HoldVolEnv = -12000
         self.AttackFilEnv = -12000
         self.DecayFilEnv = -12000
         self.SustainFilEnv = 0
         self.ReleaseFilEnv = -12000
-        self.DelayFilEnv = -12000  # Filter envelope delay
-        self.HoldFilEnv = -12000  # Filter envelope hold
-
-        # Pitch envelope parameters
+        self.DelayFilEnv = -12000
+        self.HoldFilEnv = -12000
         self.AttackPitchEnv = 0
         self.DecayPitchEnv = 0
         self.SustainPitchEnv = 0
         self.ReleasePitchEnv = 0
-        self.DelayPitchEnv = 0  # Pitch envelope delay
-        self.HoldPitchEnv = 0  # Pitch envelope hold
-
-        # LFO parameters
+        self.DelayPitchEnv = 0
+        self.HoldPitchEnv = 0
         self.DelayLFO1 = 0
         self.DelayLFO2 = 0
-        self.LFO1Freq = 500  # 0.01 Hz * value
+        self.LFO1Freq = 0  # Default LFO frequency
         self.LFO2Freq = 0
         self.LFO1VolumeToPitch = 0
         self.LFO1VolumeToFilter = 0
         self.LFO1VolumeToVolume = 0
-
-        # Panning
-        self.InitialAttenuation = 0  # 0-1440 (0 = 1.0, 960 = -6dB, 1440 = -9dB)
-        self.Pan = 50  # 0-100 (0 = left, 50 = center, 100 = right)
-
-        # Velocity and pitch
+        self.InitialAttenuation = 0
+        self.Pan = 50  # 0-100 center
         self.VelocityAttenuation = 0
         self.VelocityPitch = 0
-        self.OverridingRootKey = -1  # -1 = use the note, otherwise reassign root key
-
-        # Key scaling for envelopes
-        self.KeynumToVolEnvHold = 0  # Keynum to Volume Envelope Hold
-        self.KeynumToVolEnvDecay = 0  # Keynum to Volume Envelope Decay
-        self.KeynumToModEnvHold = 0  # Keynum to Modulation Envelope Hold
-        self.KeynumToModEnvDecay = 0  # Keynum to Modulation Envelope Decay
-
-        # Pitch tuning
-        self.CoarseTune = 0  # Coarse tuning (octaves)
-        self.FineTune = 0  # Fine tuning (cents)
-        self.scale_tuning = 100  # Scale tuning (100 cents = 1 semitone)
-
-        # Sample reference
+        self.OverridingRootKey = -1
+        self.KeynumToVolEnvHold = 0
+        self.KeynumToVolEnvDecay = 0
+        self.KeynumToModEnvHold = 0
+        self.KeynumToModEnvDecay = 0
+        self.CoarseTune = 0
+        self.FineTune = 0
+        self.scale_tuning = 100
         self.sample_index = 0
         self.sample_name = "Default"
-
-        # Additional flags
         self.mute = False
-        self.keynum_to_volume = 0  # Key Number to Volume Envelope Delay
-
-        # Sample parameters
+        self.keynum_to_volume = 0
+        self.modulators = []
+        self.generators = {}
         self.sample_modes = 0
         self.exclusive_class = 0
         self.start = 0
         self.end = 0
         self.start_loop = 0
         self.end_loop = 0
+        self.reverb_send = 0
+        self.chorus_send = 0
         self.start_coarse = 0
         self.end_coarse = 0
         self.start_loop_coarse = 0
         self.end_loop_coarse = 0
-
-        # Effects send parameters
-        self.reverb_send = 0  # 0-127
-        self.chorus_send = 0  # 0-127
-
-        # Modulators
-        self.modulators = []
-
-        # Generators (for storing parameters)
-        self.generators = {}
 
         # Common modulations (for simplified access)
         self.lfo_to_pitch = 0.0
@@ -189,16 +361,36 @@ class SF2InstrumentZone:
         self.gen_ndx = 0
 
 class SF2PresetZone:
-    """Represents a preset zone in SoundFont 2.0"""
+    """Represents a preset zone in SoundFont 2.0 with complete generator support"""
     __slots__ = [
+        # Basic preset zone fields
         'preset', 'bank', 'generators', 'modulators', 'instrument_index',
-        'instrument_name', 'lokey', 'hikey', 'lovel', 'hivel', 'lfo_to_pitch',
+        'instrument_name', 'gen_ndx', 'mod_ndx',
+
+        # All SF2 generators that can be set at preset level
+        'startAddrsOffset', 'endAddrsOffset', 'startloopAddrsOffset', 'endloopAddrsOffset',
+        'startAddrsCoarseOffset', 'modLfoToPitch', 'vibLfoToPitch', 'modEnvToPitch',
+        'initialFilterFc', 'initialFilterQ', 'modLfoToFilterFc', 'modEnvToFilterFc',
+        'modLfoToVolume', 'unused1', 'chorusEffectsSend', 'reverbEffectsSend', 'pan',
+        'unused2', 'unused3', 'unused4', 'delayModLFO', 'freqModLFO', 'delayVibLFO',
+        'freqVibLFO', 'delayModEnv', 'attackModEnv', 'holdModEnv', 'decayModEnv',
+        'sustainModEnv', 'releaseModEnv', 'keynumToModEnvHold', 'keynumToModEnvDecay',
+        'delayVolEnv', 'attackVolEnv', 'holdVolEnv', 'decayVolEnv', 'sustainVolEnv',
+        'releaseVolEnv', 'keynumToVolEnvHold', 'keynumToVolEnvDecay', 'instrument',
+        'reserved1', 'keyRange', 'velRange', 'startloopAddrsCoarse', 'keynum',
+        'velocity', 'initialAttenuation', 'reserved2', 'endloopAddrsCoarse',
+        'coarseTune', 'fineTune', 'sampleID', 'sampleModes', 'reserved3',
+        'scaleTuning', 'exclusiveClass', 'overridingRootKey', 'unused5',
+        'endAddrsCoarseOffset',
+
+        # Legacy compatibility fields
+        'lokey', 'hikey', 'lovel', 'hivel', 'lfo_to_pitch',
         'lfo_to_filter', 'velocity_to_pitch', 'velocity_to_filter',
         'aftertouch_to_pitch', 'aftertouch_to_filter', 'mod_wheel_to_pitch',
         'mod_wheel_to_filter', 'brightness_to_filter', 'portamento_to_pitch',
-        'tremolo_depth', 'vibrato_depth', 'gen_ndx', 'mod_ndx',
+        'tremolo_depth', 'vibrato_depth',
         # Generator parameters that might be set by preset generators
-        'initialFilterFc', 'initial_filterQ', 'Pan', 'DelayLFO1', 'LFO1Freq',
+        'initial_filterQ', 'Pan', 'DelayLFO1', 'LFO1Freq',
         'DelayLFO2', 'DelayFilEnv', 'AttackFilEnv', 'HoldFilEnv', 'DecayFilEnv',
         'SustainFilEnv', 'ReleaseFilEnv', 'KeynumToModEnvHold', 'KeynumToModEnvDecay',
         'DelayVolEnv', 'AttackVolEnv', 'HoldVolEnv', 'DecayVolEnv', 'SustainVolEnv',
@@ -209,25 +401,117 @@ class SF2PresetZone:
     ]
 
     def __init__(self):
+        # Basic preset zone fields
         self.preset = 0
         self.bank = 0
         self.generators = {}  # Dictionary to store generator parameters
         self.modulators = []  # List of modulators for this preset zone
         self.instrument_index = 0
         self.instrument_name = ""
+        self.gen_ndx = 0
+        self.mod_ndx = 0
 
-        # Note and velocity ranges
+        # Initialize all SF2 generators with default values (presets can override instrument defaults)
+
+        # Sample addressing generators (0-7) - usually not set at preset level
+        self.startAddrsOffset = 0
+        self.endAddrsOffset = 0
+        self.startloopAddrsOffset = 0
+        self.endloopAddrsOffset = 0
+        self.startAddrsCoarseOffset = 0
+        self.modLfoToPitch = 0
+        self.vibLfoToPitch = 0
+        self.modEnvToPitch = 0
+
+        # Filter generators (8-11)
+        self.initialFilterFc = 13500  # Default filter cutoff
+        self.initialFilterQ = 0
+        self.modLfoToFilterFc = 0
+        self.modEnvToFilterFc = 0
+
+        # Volume envelope generators (12-20)
+        self.modLfoToVolume = 0
+        self.unused1 = 0
+        self.chorusEffectsSend = 0
+        self.reverbEffectsSend = 0
+        self.pan = 0  # -500 to +500
+        self.unused2 = 0
+        self.unused3 = 0
+        self.unused4 = 0
+        self.delayModLFO = 0
+
+        # LFO generators (21-27)
+        self.freqModLFO = 0
+        self.delayVibLFO = 0
+        self.freqVibLFO = 0
+        self.delayModEnv = -12000
+        self.attackModEnv = -12000
+        self.holdModEnv = -12000
+        self.decayModEnv = -12000
+
+        # More envelope generators (28-35)
+        self.sustainModEnv = 0
+        self.releaseModEnv = -12000
+        self.keynumToModEnvHold = 0
+        self.keynumToModEnvDecay = 0
+        self.delayVolEnv = -12000
+        self.attackVolEnv = -12000
+        self.holdVolEnv = -12000
+        self.decayVolEnv = -12000
+
+        # Volume envelope completion (36-43)
+        self.sustainVolEnv = 0
+        self.releaseVolEnv = -12000
+        self.keynumToVolEnvHold = 0
+        self.keynumToVolEnvDecay = 0
+        self.instrument = 0  # References instrument index
+        self.reserved1 = 0
+        self.keyRange = 0  # Will be set to 0-127
+        self.velRange = 0  # Will be set to 0-127
+
+        # Sample manipulation (44-51)
+        self.startloopAddrsCoarse = 0
+        self.keynum = -1
+        self.velocity = -1
+        self.initialAttenuation = 0
+        self.reserved2 = 0
+        self.endloopAddrsCoarse = 0
+        self.coarseTune = 0
+        self.fineTune = 0
+
+        # More tuning and effects (52-59)
+        self.sampleID = 0
+        self.sampleModes = 0
+        self.reserved3 = 0
+        self.scaleTuning = 100
+        self.exclusiveClass = 0
+        self.overridingRootKey = -1
+        self.unused5 = 0
+        self.endAddrsCoarseOffset = 0
+
+        # Legacy compatibility fields
         self.lokey = 0
         self.hikey = 127
         self.lovel = 0
         self.hivel = 127
+        self.lfo_to_pitch = 0.0
+        self.lfo_to_filter = 0.0
+        self.velocity_to_pitch = 0.0
+        self.velocity_to_filter = 0.0
+        self.aftertouch_to_pitch = 0.0
+        self.aftertouch_to_filter = 0.0
+        self.mod_wheel_to_pitch = 0.0
+        self.mod_wheel_to_filter = 0.0
+        self.brightness_to_filter = 0.0
+        self.portamento_to_pitch = 0.0
+        self.tremolo_depth = 0.0
+        self.vibrato_depth = 0.0
 
         # Generator parameters that might be set by preset generators
-        self.initialFilterFc = 13500
         self.initial_filterQ = 0
         self.Pan = 50
         self.DelayLFO1 = 0
-        self.LFO1Freq = 500
+        self.LFO1Freq = 0  # Default LFO frequency
         self.DelayLFO2 = 0
         self.DelayFilEnv = -12000
         self.AttackFilEnv = -12000
@@ -247,33 +531,15 @@ class SF2PresetZone:
         self.KeynumToVolEnvDecay = 0
         self.CoarseTune = 0
         self.FineTune = 0
-        self.InitialAttenuation = 0  # 0-1440 (0 = 1.0, 960 = -6dB, 1440 = -9dB)
-        self.scale_tuning = 100  # Scale tuning (100 cents = 1 semitone)
-        self.OverridingRootKey = -1  # -1 = use the note, otherwise reassign root key
+        self.InitialAttenuation = 0
+        self.scale_tuning = 100
+        self.OverridingRootKey = -1
         self.start_coarse = 0
         self.end_coarse = 0
         self.start_loop_coarse = 0
         self.end_loop_coarse = 0
-
-        # Effects send parameters
-        self.reverb_send = 0  # 0-127
-        self.chorus_send = 0  # 0-127
-
-        # Common modulations (for simplified access)
-        self.lfo_to_pitch = 0.0
-        self.lfo_to_filter = 0.0
-        self.velocity_to_pitch = 0.0
-        self.velocity_to_filter = 0.0
-        self.aftertouch_to_pitch = 0.0
-        self.aftertouch_to_filter = 0.0
-        self.mod_wheel_to_pitch = 0.0
-        self.mod_wheel_to_filter = 0.0
-        self.brightness_to_filter = 0.0
-        self.portamento_to_pitch = 0.0
-        self.tremolo_depth = 0.0
-        self.vibrato_depth = 0.0
-        self.gen_ndx = 0
-        self.mod_ndx = 0
+        self.reverb_send = 0
+        self.chorus_send = 0
         self.LFO2Freq = 0
 
 class SF2SampleHeader:

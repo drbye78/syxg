@@ -46,6 +46,7 @@ from .optimized_coefficient_manager import (
 from ..sf2.manager import SF2Manager
 from ..xg.manager import StateManager
 from ..xg.drum_manager import DrumManager
+from ..xg.channel_note import PartialGeneratorPool
 from ..midi.parser import MIDIMessage
 from ..effects.vectorized_core import VectorizedEffectManager
 
@@ -90,12 +91,17 @@ class MemoryPool:
 
     def _preallocate_buffers(self):
         """Pre-allocate buffers for ultra-fast access."""
+        # Pre-allocate more buffers to reduce allocation overhead during processing
+        # For high-performance audio processing, having more buffers in the pool is beneficial
+        stereo_count = self.initial_pool_size * 8  # Increase for better performance
+        mono_count = self.initial_pool_size * 4    # Increase for better performance
+
         # Pre-allocate stereo buffers (most common for audio processing)
-        for _ in range(self.initial_pool_size):
+        for _ in range(stereo_count):
             self.stereo_pool.append(np.zeros((self.block_size, 2), dtype=np.float32))
 
         # Pre-allocate mono buffers (less common but still needed)
-        for _ in range(self.initial_pool_size // 2):  # Fewer mono buffers needed
+        for _ in range(mono_count):
             self.mono_pool.append(np.zeros(self.block_size, dtype=np.float32))
 
     def get_mono_buffer(self, zero_buffer: bool = True) -> np.ndarray:
@@ -321,7 +327,10 @@ class OptimizedXGSynthesizer:
         )
 
         # Effects management
-        self.effect_manager = VectorizedEffectManager(sample_rate)
+        self.effect_manager = VectorizedEffectManager(self)
+
+        # Partial generator pool for optimized allocation
+        self.partial_pool = PartialGeneratorPool(max_size=512)  # Pool for up to 512 partial generators
 
         # Optimized coefficient manager for performance
         self.coeff_manager = get_global_coefficient_manager()
@@ -344,6 +353,9 @@ class OptimizedXGSynthesizer:
 
         # Set up drum channel enhancements
         self._setup_drum_channel_enhancements()
+
+        # Warm up numba-compiled functions to avoid runtime compilation
+        self._warm_up_numba_functions()
 
     def _create_channel_renderers(self):
         """Create and initialize channel renderers owned by synthesizer."""
@@ -391,10 +403,10 @@ class OptimizedXGSynthesizer:
     def _initialize_object_pools(self):
         """Initialize object pools for frequently allocated objects."""
         # Envelope object pool
-        self.envelope_pool = EnvelopePool()
-        self.lfo_pool = OscillatorPool()
-        self.filter_pool = FilterPool()
-        self.panner_pool = PannerPool()
+        self.envelope_pool = EnvelopePool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        self.lfo_pool = OscillatorPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        self.filter_pool = FilterPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        self.panner_pool = PannerPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
 
     def _initialize_xg(self):
         """Initialize XG synthesizer according to standard."""
@@ -432,6 +444,27 @@ class OptimizedXGSynthesizer:
         # Channel 9 is automatically set to drum mode in _initialize_xg
         # Additional drum-specific initialization can be added here if needed
         pass
+
+    def _warm_up_numba_functions(self):
+        """Warm up numba-compiled functions to avoid runtime compilation overhead."""
+        try:
+            # Generate a small amount of audio to trigger numba compilation
+            # This will naturally call all the numba functions used in normal operation
+            dummy_messages = [
+                MIDIMessage(type="note_on", channel=0, note=60, velocity=100, time=0.0),
+                MIDIMessage(type="note_off", channel=0, note=60, velocity=0, time=0.1)
+            ]
+            self.send_midi_message_block(dummy_messages)
+
+            # Generate a small block of audio to trigger all numba paths
+            self.generate_audio_block_sample_accurate()
+
+            # Reset to clean state
+            self.reset()
+
+        except Exception as e:
+            # If warm-up fails, just continue - numba will compile on first use
+            pass
 
     def _handle_program_change(self, channel: int, program: int):
         """Handle Program Change message."""
@@ -588,11 +621,16 @@ class OptimizedXGSynthesizer:
         block_size = self.block_size
 
         with self.lock:
+            if self.out_buffer is None:
+                self.out_buffer = self.memory_pool.get_stereo_buffer(False)
+
             at_time = self._current_time
             at_index = self._current_message_index
             block_offset = 0
 
+            # Process messages in segments to reduce per-sample overhead
             while block_offset < block_size:
+                # Process all messages that occur at or before the minimum time slice
                 while (
                     at_index < len(self._message_sequence)
                     and self._message_sequence[at_index].time <= at_time + self._minimum_time_slice
@@ -605,47 +643,34 @@ class OptimizedXGSynthesizer:
                     else:
                         self.send_midi_message(message)
 
+                # Determine the segment length until the next MIDI message
                 if at_index < len(self._message_sequence):
                     next_time = self._message_sequence[at_index].time
                     segment_length = int((next_time - at_time) * self.sample_rate)
+                    # Clamp to remaining block size
+                    segment_length = min(segment_length, block_size - block_offset)
                 else:
-                    segment_length = block_size + 1
-
-                if segment_length + block_offset > block_size:
+                    # No more messages, process to end of block
                     segment_length = block_size - block_offset
-                    next_time = at_time + (segment_length / self.sample_rate)
 
-                # Use optimized vectorized segment generation
-                parts = self._generate_channel_audio_vectorized(segment_length)
+                # Generate individual channel audio
+                channel_audio = self._generate_channel_audio_vectorized(segment_length)
 
-                fx_parts = self.effect_manager.process_multi_channel_vectorized(
-                    parts, segment_length
+                # Process through XG effects chain (insertion → mix → system effects)
+                final_stereo_segment = self.effect_manager.process_multi_channel_vectorized(
+                    channel_audio, segment_length
                 )
 
-                for i, part in enumerate(fx_parts):
-                    self.channel_lines[i][
-                        block_offset : block_offset + segment_length
-                    ] = part[:segment_length]
+                self.out_buffer[block_offset : block_offset + segment_length] = final_stereo_segment
 
+                # Advance time by the segment length
                 block_offset += segment_length
-                at_time = next_time  # type: ignore
+                at_time = at_time + (segment_length / self.sample_rate)
 
+            # Update message index and time to reflect current position
             self._current_message_index = at_index
             self._current_time = at_time
-
-            if self.out_buffer is not None:
-                self.out_buffer.fill(0.0)
-                for buf in self.channel_lines:
-                    if buf is not None:
-                        self.out_buffer += buf
-
-                # Apply final limiting with vectorized operations
-                np.clip(self.out_buffer, -1.0, 1.0, out=self.out_buffer)
-
-                return self.out_buffer
-            else:
-                # Fallback if buffer was cleaned up
-                return np.zeros((self.block_size, 2), dtype=np.float32)
+            return self.out_buffer
 
     def _generate_sample_perfect(self, block_size: int) -> Tuple[float, float]:
         """

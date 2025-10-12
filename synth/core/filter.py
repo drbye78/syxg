@@ -37,10 +37,10 @@ FILTER_HIGHPASS = 2
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_filter_block(
-    input_left, input_right, output_left, output_right,
-    b0_l, b1_l, b2_l, a1_l, a2_l,
-    b0_r, b1_r, b2_r, a1_r, a2_r,
-    x_l, y_l, x_r, y_r, block_size
+    input_left: np.ndarray, input_right: np.ndarray, output_left: np.ndarray, output_right: np.ndarray,
+    b0_l: float, b1_l: float, b2_l: float, a1_l: float, a2_l: float,
+    b0_r: float, b1_r: float, b2_r: float, a1_r: float, a2_r: float,
+    x_l: np.ndarray, y_l: np.ndarray, x_r: np.ndarray, y_r: np.ndarray, block_size: int
 ):
     """
     NUMBA-COMPILED: Ultra-fast filter block processing with SIMD operations.

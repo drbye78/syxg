@@ -51,20 +51,20 @@ STATE_MASK_RELEASE = 1 << EnvelopeState.RELEASE
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_envelope_block(
-    output_buffer,
-    state,
-    level,
-    release_start,
-    delay_counter,
-    hold_counter,
-    delay_samples,
-    hold_samples,
-    attack_increment,
-    decay_decrement,
-    release_decrement,
-    sustain_level,
-    velocity_factor,
-    block_size
+    output_buffer: np.ndarray,
+    state: int,
+    level: float,
+    release_start: float,
+    delay_counter: int,
+    hold_counter: int,
+    delay_samples: int,
+    hold_samples: int,
+    attack_increment: float,
+    decay_decrement: float,
+    release_decrement: float,
+    sustain_level: float,
+    velocity_factor: float,
+    block_size: int
 ):
     """
     NUMBA-COMPILED: Ultra-fast envelope block processing with SIMD operations.

@@ -91,6 +91,10 @@ class VectorizedChannelRenderer:
         self.controllers[11] = 127  # Expression
         self.controllers[64] = 0    # Sustain Pedal
         self.controllers[71] = 64   # Harmonic Content default
+
+        # Bank select state for XG bank selection
+        self.bank_msb = 0  # Bank Select MSB (CC 0)
+        self.bank_lsb = 0  # Bank Select LSB (CC 32)
         self.controllers[72] = 64   # Brightness default
 
         # Cached controller values for performance
@@ -325,6 +329,8 @@ class VectorizedChannelRenderer:
         return {
             "program": self.program,
             "bank": self.bank,
+            "bank_msb": self.bank_msb,
+            "bank_lsb": self.bank_lsb,
             "volume": self.volume,
             "expression": self.expression,
             "pan": self.pan,
@@ -364,7 +370,8 @@ class VectorizedChannelRenderer:
             velocity=velocity,
             program=self.program,
             bank=self.bank,
-            is_drum=self.is_drum
+            is_drum=self.is_drum,
+            synth=self.synth
         )
 
         if channel_note.is_active():
@@ -384,6 +391,16 @@ class VectorizedChannelRenderer:
             # Mark voice for release in voice manager with optimized marking
             self.voice_manager.start_voice_release(note)
 
+            # Check if note should be cleaned up immediately (no sustain pedal)
+            sustain_pedal = self.controllers[64] >= 64
+            if not sustain_pedal:
+                # Note is released, return partials to pool
+                channel_note = self.active_notes[note]
+                if hasattr(channel_note, 'cleanup'):
+                    channel_note.cleanup()
+                # Remove from active notes
+                del self.active_notes[note]
+
     def control_change(self, controller: int, value: int):
         """Handle Control Change message for this channel with optimized batching."""
         self.controllers[controller] = value
@@ -397,7 +414,17 @@ class VectorizedChannelRenderer:
             self._process_controller_batch()
 
         # Handle specific controllers with optimized parameter updates
-        if controller == 7:  # Volume
+        if controller == 0:  # Bank Select MSB (XG)
+            # XG Bank Select MSB - sets most significant byte of bank number
+            self.bank_msb = value
+            # Update combined bank value for XG compatibility
+            self.bank = (self.bank_msb << 7) | self.bank_lsb
+        elif controller == 32:  # Bank Select LSB (XG)
+            # XG Bank Select LSB - sets least significant byte of bank number
+            self.bank_lsb = value
+            # Update combined bank value for XG compatibility
+            self.bank = (self.bank_msb << 7) | self.bank_lsb
+        elif controller == 7:  # Volume
             self.volume = value
         elif controller == 11:  # Expression
             self.expression = value
@@ -459,6 +486,15 @@ class VectorizedChannelRenderer:
         elif controller == 83:  # General Purpose Button 4 (XG)
             # XG-specific: General purpose button 4 with optimized parameter update
             self._handle_xg_gp_button(4, value)
+        elif controller == 66:  # Sostenuto Pedal (XG)
+            # XG-specific: Sostenuto pedal - holds notes that are already playing
+            self._handle_sostenuto_pedal(value)
+        elif controller == 67:  # Soft Pedal (XG)
+            # XG-specific: Soft pedal - reduces volume/velocity
+            self._handle_soft_pedal(value)
+        elif controller == 68:  # Legato Foot Switch (XG)
+            # XG-specific: Legato foot switch - forces legato playing mode
+            self._handle_legato_foot_switch(value)
 
     def _process_controller_batch(self):
         """Process batched controller updates for improved performance"""
@@ -538,8 +574,41 @@ class VectorizedChannelRenderer:
         self.pitch_bend_value = (msb << 7) | lsb
 
     def program_change(self, program: int):
-        """Handle Program Change message for this channel with optimized parameter update."""
+        """Handle Program Change message for this channel with XG bank selection support."""
         self.program = program
+
+        # XG Bank Selection Logic:
+        # - Bank MSB 0, LSB 0: Normal melodic sounds (default)
+        # - Bank MSB 127, LSB 0: SFX sounds
+        # - Bank MSB 126, LSB 0: Drum kits (automatically set for channel 9)
+        # - Bank MSB 64, LSB 0: XG additional sounds
+        # - Other banks: Ignored per XG specification (maintain previous drum/melodic mode)
+
+        # Determine if this is a drum channel (channel 9/MIDI channel 10)
+        is_drum_channel = (self.channel == 9)
+
+        # XG Bank Mapping Logic - Only change mode for defined XG banks
+        combined_bank = (self.bank_msb << 7) | self.bank_lsb
+
+        if combined_bank == 0:  # Bank 0: Normal melodic sounds
+            self.is_drum = False
+        elif combined_bank == 16256:  # Bank MSB 127 (127<<7 = 16256): SFX sounds
+            self.is_drum = False
+            # SFX programs are typically in higher program numbers
+        elif combined_bank == 16128:  # Bank MSB 126 (126<<7 = 16128): Drum kits
+            self.is_drum = True
+        elif combined_bank == 8192:  # Bank MSB 64 (64<<7 = 8192): XG additional sounds
+            self.is_drum = False
+        else:
+            # XG Specification: Undefined banks are COMPLETELY IGNORED
+            # Do not change the current drum/melodic mode - maintain previous setting
+            # This is the correct XG behavior: undefined banks have no effect
+            pass
+
+        # Update state manager with the resolved bank and program
+        if hasattr(self.synth, 'state_manager'):
+            self.synth.state_manager.set_program(self.channel, program)
+            self.synth.state_manager.set_bank(self.channel, combined_bank)
 
     def all_notes_off(self):
         """Turn off all active notes with optimized batch termination."""
@@ -612,6 +681,11 @@ class VectorizedChannelRenderer:
         self.controllers[11] = 127  # Expression
         self.controllers[64] = 0    # Sustain Pedal
         self.controllers[71] = 64   # Harmonic Content default
+
+        # Reset bank select state to XG defaults
+        self.bank_msb = 0
+        self.bank_lsb = 0
+        self.bank = 0  # Combined bank value
         self.controllers[72] = 64   # Brightness default
 
         # Reset cached values
@@ -800,14 +874,6 @@ class VectorizedChannelRenderer:
                 self.active_notes.items(), block_size, global_pitch_mod, 
                 left_batch= self.left_buffer, right_batch=self.right_buffer
             )
-
-        # Apply channel volume with vectorized operations - OPTIMIZED VOLUME APPLICATION
-        volume_factor = np.float32((self.volume / 127.0) * (self.expression / 127.0))
-        panning = self.pan / 127.0
-        pan_left, pan_right = self.coeff_manager.get_panning(panning)
-
-        np.multiply(self.left_buffer[:block_size], volume_factor*pan_left, out=self.left_buffer[:block_size])
-        np.multiply(self.right_buffer[:block_size], volume_factor*pan_right, out=self.right_buffer[:block_size])
 
         # Apply final clipping with vectorized operations - OPTIMIZED CLIPPING
         np.clip(self.left_buffer[:block_size], -1.0, 1.0, out=self.left_buffer[:block_size])
@@ -1196,6 +1262,47 @@ class VectorizedChannelRenderer:
         if self.lfos and len(self.lfos) > 0:
             self.lfos[0].delay = lfo_delay
             self.lfos[0].update_xg_vibrato_delay(value)
+
+    def _handle_sostenuto_pedal(self, value: int):
+        """Handle XG Sostenuto Pedal controller (66) with optimized parameter update."""
+        # Sostenuto pedal: holds notes that are already playing when pedal is pressed
+        pedal_pressed = value >= 64
+
+        # Apply to all active notes - trigger envelope sostenuto methods
+        for note, channel_note in self.active_notes.items():
+            if channel_note.is_active():
+                for partial in channel_note.partials:
+                    if partial.is_active() and partial.amp_envelope:
+                        if pedal_pressed:
+                            partial.amp_envelope.sostenuto_pedal_on()
+                        else:
+                            partial.amp_envelope.sostenuto_pedal_off()
+
+    def _handle_soft_pedal(self, value: int):
+        """Handle XG Soft Pedal controller (67) with optimized parameter update."""
+        # Soft pedal: reduces volume/velocity by 50% when engaged
+        soft_pedal_active = value >= 64
+
+        # Apply to all active notes - set soft pedal state in envelopes
+        for note, channel_note in self.active_notes.items():
+            if channel_note.is_active():
+                for partial in channel_note.partials:
+                    if partial.is_active() and partial.amp_envelope:
+                        partial.amp_envelope.soft_pedal = soft_pedal_active
+
+    def _handle_legato_foot_switch(self, value: int):
+        """Handle XG Legato Foot Switch controller (68) with optimized parameter update."""
+        # Legato foot switch: forces monophonic legato mode when engaged
+        legato_active = value >= 64
+
+        if legato_active:
+            # Switch to monophonic legato mode
+            self.voice_mode = self.VOICE_MODE_MONO_LEGATO
+            self.mono_legato = True
+        else:
+            # Switch back to polyphonic mode
+            self.voice_mode = self.VOICE_MODE_POLY
+            self.mono_legato = False
 
     # XG Part Mode Implementation with optimized parameter updates
     def set_part_mode(self, mode: int):

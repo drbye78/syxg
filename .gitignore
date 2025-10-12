@@ -137,6 +137,10 @@ Thumbs.db
 
 *.wav
 *.mid
+*.mp3
+*.ogg
+*.prof
+profile_*.py
 *.?
 *test*.py
 *demo*.py

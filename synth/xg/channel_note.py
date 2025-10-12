@@ -19,7 +19,8 @@ Key Features:
 """
 
 import math
-from collections import OrderedDict
+import threading
+from collections import OrderedDict, deque
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -30,6 +31,142 @@ from ..core.oscillator import XGLFO  # For note-level LFOs
 from ..core.envelope import ADSREnvelope # For note-level envelopes
 from ..modulation.matrix import ModulationMatrix
 from .partial_generator import XGPartialGenerator  # XG-compliant partial generator
+
+
+class PartialGeneratorPool:
+    """
+    HIGH-PERFORMANCE PARTIAL GENERATOR POOL
+
+    Optimized object pool for XGPartialGenerator instances to eliminate
+    allocation overhead during real-time audio synthesis.
+
+    Key Features:
+    - Pre-allocated partial generators for zero-allocation note triggering
+    - Smart caching based on partial parameters
+    - Automatic cleanup and resource management
+    - Thread-safe operation for concurrent access
+    """
+
+    def __init__(self, max_size: int = 256):
+        """
+        Initialize partial generator pool.
+
+        Args:
+            max_size: Maximum number of partial generators to keep in pool
+        """
+        self.max_size = max_size
+        self.pool = deque()
+        self.lock = threading.Lock()
+        self._stats = {
+            'created': 0,
+            'acquired': 0,
+            'released': 0,
+            'pool_hits': 0,
+            'pool_misses': 0
+        }
+
+    def acquire(self, synth, note: int, velocity: int, program: int,
+                partial_id: int, partial_params: Dict, is_drum: bool = False,
+                sample_rate: int = 44100, bank: int = 0) -> XGPartialGenerator:
+        """
+        Acquire a partial generator from the pool or create new one.
+
+        Args:
+            synth: Synthesizer instance
+            note: MIDI note number
+            velocity: Note velocity
+            program: Program number
+            partial_id: Partial identifier
+            partial_params: Partial parameters
+            is_drum: Drum mode flag
+            sample_rate: Audio sample rate
+            bank: Bank number
+
+        Returns:
+            Configured XGPartialGenerator instance
+        """
+        with self.lock:
+            self._stats['acquired'] += 1
+
+            # Try to get from pool first
+            if self.pool:
+                partial = self.pool.popleft()
+                self._stats['pool_hits'] += 1
+
+                # Reconfigure existing partial with new parameters
+                partial._reconfigure(
+                    synth=synth,
+                    note=note,
+                    velocity=velocity,
+                    program=program,
+                    partial_id=partial_id,
+                    partial_params=partial_params,
+                    is_drum=is_drum,
+                    sample_rate=sample_rate,
+                    bank=bank
+                )
+                return partial
+
+            # Pool empty, create new partial
+            self._stats['pool_misses'] += 1
+            self._stats['created'] += 1
+
+            return XGPartialGenerator(
+                synth=synth,
+                note=note,
+                velocity=velocity,
+                program=program,
+                partial_id=partial_id,
+                partial_params=partial_params,
+                is_drum=is_drum,
+                sample_rate=sample_rate,
+                bank=bank
+            )
+
+    def release(self, partial: XGPartialGenerator) -> None:
+        """
+        Return a partial generator to the pool for reuse.
+
+        Args:
+            partial: Partial generator to return
+        """
+        if partial is None:
+            return
+
+        with self.lock:
+            self._stats['released'] += 1
+
+            # Reset partial state for reuse
+            partial._reset_for_pool()
+
+            # Only keep in pool if under max size
+            if len(self.pool) < self.max_size:
+                self.pool.append(partial)
+            else:
+                # Pool full, cleanup this partial
+                partial.cleanup()
+
+    def get_stats(self) -> Dict[str, int]:
+        """Get pool statistics for monitoring."""
+        with self.lock:
+            stats = self._stats.copy()
+            stats['pool_size'] = len(self.pool)
+            stats['max_size'] = self.max_size
+            return stats
+
+    def clear_pool(self) -> None:
+        """Clear all partial generators from pool."""
+        with self.lock:
+            while self.pool:
+                partial = self.pool.popleft()
+                partial.cleanup()
+            self._stats = {
+                'created': 0,
+                'acquired': 0,
+                'released': 0,
+                'pool_hits': 0,
+                'pool_misses': 0
+            }
 
 
 class ChannelNote:
@@ -61,6 +198,7 @@ class ChannelNote:
         program: int,
         bank: int,
         is_drum: bool = False,
+        synth=None,  # Reference to synthesizer for pool access
     ):
         # Input validation
         if not (0 <= note <= 127):
@@ -79,6 +217,7 @@ class ChannelNote:
         self.is_drum = is_drum
         self.active = True
         self.channel = channel
+        self.synth = synth  # Store synthesizer reference for pool access
         self.sample_rate = channel.sample_rate
         self.detune = 0.0
         self.phaser_depth = 0.0
@@ -438,11 +577,16 @@ class ChannelNote:
         }
 
     def _setup_partials(self):
-        """Setup partial structures for this note"""
+        """Setup partial structures for this note using optimized pooling"""
         partials_params = self.params.get("partials", [])
 
-        # Create partial generators for each partial structure
+        # Create partial generators only for active partials (level > 0)
         for i, partial_params in enumerate(partials_params):
+            # Check if this partial should be active (level > 0)
+            level = partial_params.get("level", 0.0)
+            if level <= 0.0:
+                continue  # Skip inactive partials
+
             # Apply key scaling to envelope parameters
             if "keynum_to_vol_env_decay" in partial_params:
                 key_scaling = partial_params["keynum_to_vol_env_decay"] / 1200.0
@@ -456,8 +600,9 @@ class ChannelNote:
             self.coarse_tune = partial_params.get("coarse_tune", 0)
             self.fine_tune = partial_params.get("fine_tune", 0)
 
-            partial = XGPartialGenerator(
-                synth=self.channel.synth,
+            # Acquire partial generator from pool
+            partial = self.synth.partial_pool.acquire(
+                synth=self.synth,
                 note=self.note,
                 velocity=self.velocity,
                 program=self.program,
@@ -901,31 +1046,31 @@ class ChannelNote:
             scale = volume_factor / active_partials
             left_buffer[:block_size] *= scale
             right_buffer[:block_size] *= scale
-    
-        def cleanup(self):
-            """Clean up all resources and return buffers to memory pool."""
-            # Return our own buffers
-            if hasattr(self, 'temp_left') and self.temp_left is not None:
-                self.channel.memory_pool.return_mono_buffer(self.temp_left)
-                self.temp_left = None
-            if hasattr(self, 'temp_right') and self.temp_right is not None:
-                self.channel.memory_pool.return_mono_buffer(self.temp_right)
-                self.temp_right = None
-    
-            # Clean up partials
-            for partial in self.partials:
-                if hasattr(partial, 'cleanup'):
-                    partial.cleanup()
-    
-            # Return note-level LFOs to pool
-            for lfo in self.note_lfos:
-                if hasattr(self.channel.synth, 'lfo_pool'):
-                    self.channel.synth.lfo_pool.release_oscillator(lfo)
-    
-            # Clear references
-            self.partials.clear()
-            self.note_lfos.clear()
-    
-        def __del__(self):
-            """Cleanup when ChannelNote is destroyed."""
-            self.cleanup()
+
+    def cleanup(self):
+        """Clean up all resources and return to pools for reuse."""
+        # Return our own buffers
+        if hasattr(self, 'temp_left') and self.temp_left is not None:
+            self.channel.memory_pool.return_mono_buffer(self.temp_left)
+            self.temp_left = None
+        if hasattr(self, 'temp_right') and self.temp_right is not None:
+            self.channel.memory_pool.return_mono_buffer(self.temp_right)
+            self.temp_right = None
+
+        # Return partials to pool instead of cleaning up
+        for partial in self.partials:
+            if self.synth and hasattr(self.synth, 'partial_pool'):
+                self.synth.partial_pool.release(partial)
+
+        # Return note-level LFOs to pool
+        for lfo in self.note_lfos:
+            if hasattr(self.channel.synth, 'lfo_pool'):
+                self.channel.synth.lfo_pool.release_oscillator(lfo)
+
+        # Clear references
+        self.partials.clear()
+        self.note_lfos.clear()
+
+    def __del__(self):
+        """Cleanup when ChannelNote is destroyed."""
+        self.cleanup()

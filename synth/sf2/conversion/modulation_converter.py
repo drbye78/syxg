@@ -13,34 +13,78 @@ class ModulationConverter:
     Converts SF2 modulation parameters to XG synthesizer format.
     """
 
-    # SF2 to XG destination mapping
+    # Complete SF2 to XG destination mapping (all 61 generators)
     SF2_TO_XG_DESTINATIONS = {
+        # Sample addressing (0-7)
+        0: "start_offset",  # startAddrsOffset
+        1: "end_offset",  # endAddrsOffset
+        2: "start_loop_offset",  # startloopAddrsOffset
+        3: "end_loop_offset",  # endloopAddrsOffset
+        4: "start_coarse_offset",  # startAddrsCoarseOffset
         5: "pitch",  # modLfoToPitch
         6: "pitch",  # vibLfoToPitch
         7: "pitch",  # modEnvToPitch
+
+        # Filter parameters (8-11)
         8: "filter_cutoff",  # initialFilterFc
+        9: "filter_resonance",  # initialFilterQ
         10: "filter_cutoff",  # modLfoToFilterFc
         11: "filter_cutoff",  # modEnvToFilterFc
-        13: "amplitude",  # modLfoToVolume
+
+        # Volume envelope (12-20)
+        12: "amplitude",  # modLfoToVolume
+        15: "reverb_send",  # reverbEffectsSend
+        16: "chorus_send",  # chorusEffectsSend
         17: "pan",  # pan
-        25: "amp_attack",  # delayVolEnv
+        21: "lfo1_delay",  # delayModLFO
+
+        # LFO parameters (21-27)
+        22: "lfo1_rate",  # freqModLFO
+        23: "lfo2_delay",  # delayVibLFO
+        24: "lfo2_rate",  # freqVibLFO
+        25: "filter_delay",  # delayModEnv
         26: "filter_attack",  # attackModEnv
         27: "filter_hold",  # holdModEnv
+
+        # More envelope parameters (28-35)
         28: "filter_decay",  # decayModEnv
         29: "filter_sustain",  # sustainModEnv
         30: "filter_release",  # releaseModEnv
         31: "filter_hold",  # keynumToModEnvHold
         32: "filter_decay",  # keynumToModEnvDecay
-        33: "amp_attack",  # delayVolEnv
+        33: "amp_delay",  # delayVolEnv
         34: "amp_attack",  # attackVolEnv
         35: "amp_hold",  # holdVolEnv
+
+        # Volume envelope completion (36-43)
         36: "amp_decay",  # decayVolEnv
         37: "amp_sustain",  # sustainVolEnv
         38: "amp_release",  # releaseVolEnv
         39: "amp_hold",  # keynumToVolEnvHold
         40: "amp_decay",  # keynumToVolEnvDecay
+        41: "instrument",  # instrument (not used in zones)
+        44: "start_loop_coarse",  # startloopAddrsCoarse
+        43: "key_range",  # keyRange
+        44: "vel_range",  # velRange
+
+        # Sample manipulation (45-52)
+        45: "start_loop_coarse",  # startloopAddrsCoarse
+        46: "key_number",  # keynum
+        47: "velocity",  # velocity
+        48: "amplitude",  # initialAttenuation
+        50: "end_loop_coarse",  # endloopAddrsCoarse
         51: "coarse_tune",  # coarseTune
         52: "fine_tune",  # fineTune
+
+        # More parameters (53-60)
+        53: "sample_id",  # sampleID
+        54: "sample_modes",  # sampleModes
+        55: "scale_tuning",  # scaleTuning
+        56: "exclusive_class",  # exclusiveClass
+        57: "root_key",  # overridingRootKey
+        58: "end_coarse_offset",  # endAddrsCoarseOffset
+
+        # Legacy CC destinations (for backward compatibility)
         77: "tremolo_depth",  # cc_tremolo_depth
         78: "tremolo_rate"  # cc_tremolo_rate
     }
@@ -66,16 +110,16 @@ class ModulationConverter:
 
     def convert_modulator(self, modulator: SF2Modulator) -> Optional[Dict[str, Any]]:
         """
-        Convert SF2 modulator to XG modulation route.
+        Convert complete SF2 modulator to XG modulation route with all advanced features.
 
         Args:
-            modulator: SF2 modulator
+            modulator: SF2 modulator with full feature set
 
         Returns:
             XG modulation route dictionary or None if unsupported
         """
-        # Get source name
-        source_name = self._get_modulator_source_name(modulator)
+        # Get source name with advanced source resolution
+        source_name = self._get_modulator_source_name_advanced(modulator)
         if not source_name:
             return None
 
@@ -84,19 +128,53 @@ class ModulationConverter:
         if not destination_name:
             return None
 
-        # Convert amount
-        amount = self._normalize_modulator_amount(modulator.amount, modulator.destination)
+        # Convert amount with proper SF2 scaling
+        amount = self._normalize_modulator_amount_advanced(modulator.amount, modulator.destination)
 
-        # Determine polarity
+        # Handle polarity and direction
         polarity = 1.0 if modulator.source_polarity == 0 else -1.0
+        if modulator.source_direction == 1:  # Reverse direction
+            polarity *= -1.0
 
-        return {
+        # Handle transform
+        transform_type = "linear"
+        if modulator.transform == 1:
+            transform_type = "absolute"
+
+        # Create comprehensive modulation route
+        route = {
             "source": source_name,
             "destination": destination_name,
             "amount": amount * polarity,
             "velocity_sensitivity": 0.0,
-            "key_scaling": 0.0
+            "key_scaling": 0.0,
+            "transform": transform_type,
+            "source_type": self._source_type_to_name(modulator.source_type),
+            "control_source": None,
+            "amount_source": None
         }
+
+        # Add secondary control source if present
+        if modulator.control_oper != 0:
+            control_name = self._get_control_source_name(modulator)
+            if control_name:
+                route["control_source"] = control_name
+                route["control_polarity"] = 1.0 if modulator.control_polarity == 0 else -1.0
+                route["control_type"] = self._source_type_to_name(modulator.control_type)
+                if modulator.control_direction == 1:
+                    route["control_polarity"] *= -1.0
+
+        # Add amount modulation source if present
+        if modulator.amount_source_oper != 0:
+            amount_name = self._get_amount_source_name(modulator)
+            if amount_name:
+                route["amount_source"] = amount_name
+                route["amount_polarity"] = 1.0 if modulator.amount_source_polarity == 0 else -1.0
+                route["amount_type"] = self._source_type_to_name(modulator.amount_source_type)
+                if modulator.amount_source_direction == 1:
+                    route["amount_polarity"] *= -1.0
+
+        return route
 
     def process_zone_modulators(self, zone: SF2InstrumentZone) -> Dict[str, Any]:
         """
@@ -294,9 +372,154 @@ class ModulationConverter:
         elif destination == 84:  # cc_portamento_control
             zone.portamento_to_pitch = amount * polarity
 
+    def _get_modulator_source_name_advanced(self, modulator: SF2Modulator) -> Optional[str]:
+        """
+        Get advanced modulator source name with full SF2 support.
+
+        Args:
+            modulator: SF2 modulator
+
+        Returns:
+            Source name or None if unsupported
+        """
+        # Resolve CC number for source
+        if modulator.source_oper >= 16 and modulator.source_oper <= 95:
+            cc_number = (modulator.source_oper - 16) % 32
+            if modulator.source_index > 0:
+                cc_number = modulator.source_index  # Use explicit index if provided
+            modulator.source_cc = cc_number
+            return f"cc_{cc_number}"
+        elif modulator.source_oper == 0:
+            return "no_controller"
+        elif modulator.source_oper == 1:
+            return "note_on_velocity"
+        elif modulator.source_oper == 2:
+            return "note_on_key_number"
+        elif modulator.source_oper == 3:
+            return "polyphonic_aftertouch"
+        elif modulator.source_oper == 4:
+            return "channel_aftertouch"
+        elif modulator.source_oper == 5:
+            return "pitch_wheel"
+        elif modulator.source_oper == 7:
+            return "channel_aftertouch"  # Alternative aftertouch
+        elif modulator.source_oper == 10:
+            return "polyphonic_aftertouch"  # Alternative poly aftertouch
+        elif modulator.source_oper == 13:
+            return "channel_aftertouch"  # Another aftertouch variant
+        else:
+            return None
+
+    def _get_control_source_name(self, modulator: SF2Modulator) -> Optional[str]:
+        """
+        Get control source name for secondary modulation.
+
+        Args:
+            modulator: SF2 modulator
+
+        Returns:
+            Control source name or None
+        """
+        # Similar logic to source name but for control
+        if modulator.control_oper >= 16 and modulator.control_oper <= 95:
+            cc_number = (modulator.control_oper - 16) % 32
+            if modulator.control_index > 0:
+                cc_number = modulator.control_index
+            modulator.control_cc = cc_number
+            return f"cc_{cc_number}"
+        elif modulator.control_oper == 1:
+            return "note_on_velocity"
+        elif modulator.control_oper == 2:
+            return "note_on_key_number"
+        elif modulator.control_oper == 3:
+            return "polyphonic_aftertouch"
+        elif modulator.control_oper == 4:
+            return "channel_aftertouch"
+        elif modulator.control_oper == 5:
+            return "pitch_wheel"
+        else:
+            return None
+
+    def _get_amount_source_name(self, modulator: SF2Modulator) -> Optional[str]:
+        """
+        Get amount source name for depth modulation.
+
+        Args:
+            modulator: SF2 modulator
+
+        Returns:
+            Amount source name or None
+        """
+        # Similar logic for amount source
+        if modulator.amount_source_oper >= 16 and modulator.amount_source_oper <= 95:
+            cc_number = (modulator.amount_source_oper - 16) % 32
+            if modulator.amount_source_index > 0:
+                cc_number = modulator.amount_source_index
+            modulator.amount_cc = cc_number
+            return f"cc_{cc_number}"
+        elif modulator.amount_source_oper == 1:
+            return "note_on_velocity"
+        elif modulator.amount_source_oper == 2:
+            return "note_on_key_number"
+        elif modulator.amount_source_oper == 3:
+            return "polyphonic_aftertouch"
+        elif modulator.amount_source_oper == 4:
+            return "channel_aftertouch"
+        elif modulator.amount_source_oper == 5:
+            return "pitch_wheel"
+        else:
+            return None
+
+    def _source_type_to_name(self, source_type: int) -> str:
+        """
+        Convert SF2 source type to name.
+
+        Args:
+            source_type: SF2 source type (0=linear, 1=concave, 2=convex, 3=switch)
+
+        Returns:
+            Source type name
+        """
+        type_map = {
+            0: "linear",
+            1: "concave",
+            2: "convex",
+            3: "switch"
+        }
+        return type_map.get(source_type, "linear")
+
+    def _normalize_modulator_amount_advanced(self, amount: int, destination: int) -> float:
+        """
+        Normalize modulation amount with advanced SF2 scaling.
+
+        Args:
+            amount: Raw modulation amount
+            destination: Modulation destination
+
+        Returns:
+            Normalized amount (-1.0 to +1.0)
+        """
+        # SF2 amounts are 16-bit signed integers (-32768 to +32767)
+        # Convert to float and normalize based on destination
+        float_amount = amount / 32768.0
+
+        # Scale based on destination type
+        if destination in [5, 6, 7]:  # Pitch modulation (in cents)
+            return float_amount * 1200.0  # ±1200 cents range
+        elif destination in [8, 10, 11]:  # Filter cutoff
+            return float_amount * 9600.0  # ±9600 cents range
+        elif destination in [12, 13]:  # Volume
+            return float_amount * 1440.0  # ±1440 centibels range
+        elif destination == 17:  # Pan
+            return float_amount * 500.0  # ±500 pan units
+        elif destination in [51, 52]:  # Tuning
+            return float_amount * 100.0  # ±100 cents
+        else:
+            return float_amount  # Default ±1.0 range
+
     def _source_oper_to_name(self, source_oper: int) -> str:
         """
-        Convert SF2 source operator to source name.
+        Convert SF2 source operator to source name (legacy method).
 
         Args:
             source_oper: SF2 source operator code

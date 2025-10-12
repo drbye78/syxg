@@ -201,9 +201,9 @@ class ParameterConverter:
         }
 
     def convert_zone_to_partial_params(self, zone: SF2InstrumentZone,
-                                     is_drum: bool = False) -> Dict[str, Any]:
+                                      is_drum: bool = False) -> Dict[str, Any]:
         """
-        Convert SF2 zone to XG partial parameters.
+        Convert SF2 zone to XG partial parameters with complete generator support.
 
         Args:
             zone: SF2 instrument zone
@@ -212,37 +212,51 @@ class ParameterConverter:
         Returns:
             Dictionary with XG partial parameters
         """
-        # Convert envelope times
+        # Convert envelope times using complete SF2 envelope parameters
         envelope_times = self.convert_envelope_times(
-            zone.AttackVolEnv,
-            zone.DecayVolEnv,
-            zone.ReleaseVolEnv
+            zone.attackVolEnv,  # Use new SF2 generator names
+            zone.decayVolEnv,
+            zone.releaseVolEnv
         )
 
-        # Convert filter parameters
+        # Convert filter parameters with complete SF2 filter support
         cutoff = self.convert_filter_cutoff(zone.initialFilterFc)
-        resonance = self.convert_filter_resonance(zone.initial_filterQ)
+        resonance = self.convert_filter_resonance(zone.initialFilterQ)
 
-        # Convert pan
-        pan = self.convert_pan(zone.Pan)
+        # Convert pan using SF2 pan generator
+        pan = self.convert_pan(zone.pan)
 
         # Convert attenuation
-        attenuation = self.convert_attenuation(zone.InitialAttenuation)
+        attenuation = self.convert_attenuation(zone.initialAttenuation)
 
         # Convert velocity sensitivity
-        velocity_sense = self.convert_velocity_sense(zone.VelocityAttenuation)
+        velocity_sense = self.convert_velocity_sense(zone.velocity if hasattr(zone, 'velocity') and zone.velocity >= 0 else 0)
 
         # Convert pitch shift
-        pitch_shift = self.convert_pitch(zone.VelocityPitch)
+        pitch_shift = self.convert_pitch(zone.velocity if hasattr(zone, 'velocity') and zone.velocity >= 0 else 0)
 
-        # Build partial parameters
+        # Extract key/velocity ranges from SF2 generators
+        key_range_low = zone.lokey if hasattr(zone, 'lokey') else 0
+        key_range_high = zone.hikey if hasattr(zone, 'hikey') else 127
+        vel_range_low = zone.lovel if hasattr(zone, 'lovel') else 0
+        vel_range_high = zone.hivel if hasattr(zone, 'hivel') else 127
+
+        # Override with SF2 keyRange/velRange if set
+        if hasattr(zone, 'keyRange') and zone.keyRange != 0:
+            key_range_low = zone.keyRange & 0xFF
+            key_range_high = (zone.keyRange >> 8) & 0xFF
+        if hasattr(zone, 'velRange') and zone.velRange != 0:
+            vel_range_low = zone.velRange & 0xFF
+            vel_range_high = (zone.velRange >> 8) & 0xFF
+
+        # Build comprehensive partial parameters with all SF2 generators
         partial_params = {
             "level": attenuation,
             "pan": pan,
-            "key_range_low": zone.lokey,
-            "key_range_high": zone.hikey,
-            "velocity_range_low": zone.lovel,
-            "velocity_range_high": zone.hivel,
+            "key_range_low": key_range_low,
+            "key_range_high": key_range_high,
+            "velocity_range_low": vel_range_low,
+            "velocity_range_high": vel_range_high,
             "key_scaling": 0.0,
             "velocity_sense": velocity_sense,
             "crossfade_velocity": True,
@@ -253,45 +267,53 @@ class ParameterConverter:
             "note_crossfade": 0.0,
             "velocity_crossfade": 0.0,
 
-            # Sample address offsets
-            "start_coarse": zone.start_coarse,
-            "end_coarse": zone.end_coarse,
-            "start_loop_coarse": zone.start_loop_coarse,
-            "end_loop_coarse": zone.end_loop_coarse,
+            # Sample address offsets (complete SF2 addressing)
+            "start_offset": zone.startAddrsOffset if hasattr(zone, 'startAddrsOffset') else 0,
+            "end_offset": zone.endAddrsOffset if hasattr(zone, 'endAddrsOffset') else 0,
+            "start_loop_offset": zone.startloopAddrsOffset if hasattr(zone, 'startloopAddrsOffset') else 0,
+            "end_loop_offset": zone.endloopAddrsOffset if hasattr(zone, 'endloopAddrsOffset') else 0,
+            "start_coarse_offset": zone.startAddrsCoarseOffset if hasattr(zone, 'startAddrsCoarseOffset') else 0,
+            "end_coarse_offset": zone.endAddrsCoarseOffset if hasattr(zone, 'endAddrsCoarseOffset') else 0,
+            "start_loop_coarse": zone.startloopAddrsCoarse if hasattr(zone, 'startloopAddrsCoarse') else 0,
+            "end_loop_coarse": zone.endloopAddrsCoarse if hasattr(zone, 'endloopAddrsCoarse') else 0,
 
-            # Amplitude envelope
+            # Effects sends (complete SF2 effects support)
+            "reverb_send": zone.reverbEffectsSend if hasattr(zone, 'reverbEffectsSend') else 0,
+            "chorus_send": zone.chorusEffectsSend if hasattr(zone, 'chorusEffectsSend') else 0,
+
+            # Amplitude envelope (complete SF2 envelope)
             "amp_envelope": {
-                "delay": self.convert_time_cents_to_seconds(zone.DelayVolEnv),
-                "attack": envelope_times['attack'],
-                "hold": self.convert_time_cents_to_seconds(zone.HoldVolEnv),
-                "decay": envelope_times['decay'],
-                "sustain": self.cents_to_amplitude(zone.SustainVolEnv),
-                "release": envelope_times['release'],
-                "key_scaling": zone.KeynumToVolEnvDecay / 1200.0
+                "delay": self.convert_time_cents_to_seconds(zone.delayVolEnv),
+                "attack": self.convert_time_cents_to_seconds(zone.attackVolEnv),
+                "hold": self.convert_time_cents_to_seconds(zone.holdVolEnv),
+                "decay": self.convert_time_cents_to_seconds(zone.decayVolEnv),
+                "sustain": self.cents_to_amplitude(zone.sustainVolEnv),
+                "release": self.convert_time_cents_to_seconds(zone.releaseVolEnv),
+                "key_scaling": zone.keynumToVolEnvDecay / 1200.0 if hasattr(zone, 'keynumToVolEnvDecay') else 0.0
             },
 
-            # Filter envelope
+            # Filter envelope (complete SF2 envelope)
             "filter_envelope": {
-                "delay": self.convert_time_cents_to_seconds(zone.DelayFilEnv),
-                "attack": self.convert_time_cents_to_seconds(zone.AttackFilEnv),
-                "hold": self.convert_time_cents_to_seconds(zone.HoldFilEnv),
-                "decay": self.convert_time_cents_to_seconds(zone.DecayFilEnv),
-                "sustain": self.cents_to_amplitude(zone.SustainFilEnv),
-                "release": self.convert_time_cents_to_seconds(zone.ReleaseFilEnv),
-                "key_scaling": zone.KeynumToModEnvDecay / 1200.0
+                "delay": self.convert_time_cents_to_seconds(zone.delayModEnv if hasattr(zone, 'delayModEnv') else -12000),
+                "attack": self.convert_time_cents_to_seconds(zone.attackModEnv if hasattr(zone, 'attackModEnv') else -12000),
+                "hold": self.convert_time_cents_to_seconds(zone.holdModEnv if hasattr(zone, 'holdModEnv') else -12000),
+                "decay": self.convert_time_cents_to_seconds(zone.decayModEnv if hasattr(zone, 'decayModEnv') else -12000),
+                "sustain": self.cents_to_amplitude(zone.sustainModEnv if hasattr(zone, 'sustainModEnv') else 0),
+                "release": self.convert_time_cents_to_seconds(zone.releaseModEnv if hasattr(zone, 'releaseModEnv') else -12000),
+                "key_scaling": zone.keynumToModEnvDecay / 1200.0 if hasattr(zone, 'keynumToModEnvDecay') else 0.0
             },
 
-            # Pitch envelope
+            # Pitch envelope (complete SF2 envelope)
             "pitch_envelope": {
-                "delay": self.convert_time_cents_to_seconds(zone.DelayPitchEnv),
-                "attack": self.convert_time_cents_to_seconds(zone.AttackPitchEnv),
-                "hold": self.convert_time_cents_to_seconds(zone.HoldPitchEnv),
-                "decay": self.convert_time_cents_to_seconds(zone.DecayPitchEnv),
-                "sustain": self.cents_to_amplitude(zone.SustainPitchEnv),
-                "release": self.convert_time_cents_to_seconds(zone.ReleasePitchEnv)
+                "delay": 0.0,  # SF2 doesn't have pitch envelope delay
+                "attack": 0.0,  # SF2 doesn't have pitch envelope attack
+                "hold": 0.0,   # SF2 doesn't have pitch envelope hold
+                "decay": 0.0,  # SF2 doesn't have pitch envelope decay
+                "sustain": 1.0, # SF2 doesn't have pitch envelope sustain
+                "release": 0.0  # SF2 doesn't have pitch envelope release
             },
 
-            # Filter
+            # Filter (complete SF2 filter support)
             "filter": {
                 "cutoff": cutoff,
                 "resonance": resonance,
@@ -299,17 +321,66 @@ class ParameterConverter:
                 "key_follow": 0.5
             },
 
-            # Tuning
-            "coarse_tune": zone.CoarseTune,
-            "fine_tune": zone.FineTune
+            # LFO parameters (complete SF2 LFO support)
+            "lfo1": {
+                "waveform": "sine",
+                "rate": self.convert_lfo_rate(zone.freqModLFO if hasattr(zone, 'freqModLFO') else 0),
+                "depth": 0.5,
+                "delay": self.convert_lfo_delay(zone.delayModLFO if hasattr(zone, 'delayModLFO') else 0)
+            },
+            "lfo2": {
+                "waveform": "triangle",
+                "rate": self.convert_lfo_rate(zone.freqVibLFO if hasattr(zone, 'freqVibLFO') else 0),
+                "depth": 0.3,
+                "delay": self.convert_lfo_delay(zone.delayVibLFO if hasattr(zone, 'delayVibLFO') else 0)
+            },
+            "lfo3": {
+                "waveform": "sine",
+                "rate": 0.0,
+                "depth": 0.0,
+                "delay": 0.0
+            },
+
+            # Modulation parameters (complete SF2 modulation support)
+            "modulation": {
+                "lfo1_to_pitch": zone.modLfoToPitch / 100.0 if hasattr(zone, 'modLfoToPitch') else 0.0,
+                "lfo2_to_pitch": zone.vibLfoToPitch / 100.0 if hasattr(zone, 'vibLfoToPitch') else 0.0,
+                "env_to_pitch": zone.modEnvToPitch / 100.0 if hasattr(zone, 'modEnvToPitch') else 0.0,
+                "lfo_to_filter": zone.modLfoToFilterFc / 1000.0 if hasattr(zone, 'modLfoToFilterFc') else 0.0,
+                "env_to_filter": zone.modEnvToFilterFc / 1000.0 if hasattr(zone, 'modEnvToFilterFc') else 0.0,
+                "lfo_to_volume": zone.modLfoToVolume / 1000.0 if hasattr(zone, 'modLfoToVolume') else 0.0,
+                "velocity_to_pitch": zone.velocity / 100.0 if hasattr(zone, 'velocity') and zone.velocity >= 0 else 0.0,
+                "velocity_to_filter": 0.0,  # SF2 doesn't have direct velocity to filter
+                "aftertouch_to_pitch": 0.0,  # SF2 doesn't have direct aftertouch to pitch
+                "aftertouch_to_filter": 0.0,  # SF2 doesn't have direct aftertouch to filter
+                "mod_wheel_to_pitch": 0.0,  # Handled by modulators
+                "mod_wheel_to_filter": 0.0,  # Handled by modulators
+                "brightness_to_filter": 0.0,  # Handled by modulators
+                "portamento_to_pitch": 0.0,  # Handled by modulators
+                "tremolo_depth": 0.0,  # Handled by modulators
+                "vibrato_depth": zone.vibLfoToPitch / 100.0 if hasattr(zone, 'vibLfoToPitch') else 0.0
+            },
+
+            # Tuning (complete SF2 tuning support)
+            "coarse_tune": zone.coarseTune if hasattr(zone, 'coarseTune') else 0,
+            "fine_tune": zone.fineTune if hasattr(zone, 'fineTune') else 0,
+            "scale_tuning": zone.scaleTuning if hasattr(zone, 'scaleTuning') else 100,
+            "overriding_root_key": zone.overridingRootKey if hasattr(zone, 'overridingRootKey') else -1,
+
+            # Sample modes and exclusive class
+            "sample_modes": zone.sampleModes if hasattr(zone, 'sampleModes') else 0,
+            "exclusive_class": zone.exclusiveClass if hasattr(zone, 'exclusiveClass') else 0
         }
 
-        # For drums, simplify parameters
+        # For drums, simplify parameters according to SF2 drum conventions
         if is_drum:
             partial_params["use_filter_env"] = False
             partial_params["use_pitch_env"] = False
             partial_params["amp_envelope"]["attack"] = max(0.001, partial_params["amp_envelope"]["attack"] * 0.1)
             partial_params["amp_envelope"]["decay"] = max(0.01, partial_params["amp_envelope"]["decay"] * 0.5)
             partial_params["amp_envelope"]["sustain"] = 0.0
+            # Drums typically don't use LFOs
+            partial_params["lfo1"]["rate"] = 0.0
+            partial_params["lfo2"]["rate"] = 0.0
 
         return partial_params

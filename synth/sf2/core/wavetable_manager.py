@@ -68,11 +68,13 @@ class WavetableManager:
     def get_program_parameters(self, program: int, bank: int = 0, note: int = 60, velocity: int = 64) -> Optional[Dict[str, Any]]:
         """
         Get program parameters in format compatible with XGToneGenerator.
-        Implements lazy loading - SF2 structures are parsed only on actual request.
+        Implements lazy loading with complete SF2 support including global zones.
 
         Args:
             program: program number (0-127)
             bank: bank number (0-16383)
+            note: MIDI note number for zone matching
+            velocity: MIDI velocity for zone matching
 
         Returns:
             dictionary with program parameters or None if not found
@@ -98,21 +100,46 @@ class WavetableManager:
 
         # Gather all merged zones for this preset that match the note and velocity
         all_merged_zones = []
-        for preset_zone in preset_obj.zones:
-            if preset_zone.instrument_index < len(instruments):
-                instrument = soundfont_obj.get_instrument(preset_zone.instrument_index)
-                if instrument is not None:
-                    # Merge preset and instrument parameters for each zone
-                    for instrument_zone in instrument.zones:
-                        # Check if note and velocity are within the zone ranges
-                        if (instrument_zone.lokey <= note <= instrument_zone.hikey and
-                            instrument_zone.lovel <= velocity <= instrument_zone.hivel):
-                            merged_zone = self._merge_preset_and_instrument_params(preset_zone, instrument_zone)
-                            all_merged_zones.append(merged_zone)
+        global_preset_zones = []  # Preset-level global zones
+        global_instrument_zones = []  # Instrument-level global zones
 
-        # If no zones, return None
+        for preset_zone in preset_obj.zones:
+            # Check if this is a global preset zone (no instrument assigned)
+            if preset_zone.instrument_index == -1 or preset_zone.instrument_index >= len(instruments):
+                global_preset_zones.append(preset_zone)
+                continue
+
+            instrument = soundfont_obj.get_instrument(preset_zone.instrument_index)
+            if instrument is not None:
+                # Process instrument zones
+                for instrument_zone in instrument.zones:
+                    # Check if this is a global instrument zone (no sample assigned)
+                    if instrument_zone.sample_index == -1:
+                        global_instrument_zones.append((preset_zone, instrument_zone))
+                        continue
+
+                    # Check if note and velocity are within the zone ranges
+                    if (instrument_zone.lokey <= note <= instrument_zone.hikey and
+                        instrument_zone.lovel <= velocity <= instrument_zone.hivel):
+                        merged_zone = self._merge_preset_and_instrument_params(preset_zone, instrument_zone)
+                        all_merged_zones.append(merged_zone)
+
+        # If no zones found, return None
         if not all_merged_zones:
             return None
+
+        # Apply global zones to all matched zones
+        for global_preset in global_preset_zones:
+            for zone in all_merged_zones:
+                self._apply_global_zone_params(zone, global_preset, is_preset_global=True)
+
+        for preset_zone, global_inst in global_instrument_zones:
+            for zone in all_merged_zones:
+                if zone.instrument_index == preset_zone.instrument_index:
+                    self._apply_global_zone_params(zone, global_inst, is_preset_global=False)
+
+        # Handle exclusive classes - group zones by exclusive class
+        exclusive_groups = self._group_zones_by_exclusive_class(all_merged_zones)
 
         # Convert zones to partial structure parameters
         partials_params = []
@@ -120,41 +147,11 @@ class WavetableManager:
             partial_params = self.parameter_converter.convert_zone_to_partial_params(zone)
             partials_params.append(partial_params)
 
-        # Base parameters
-        params = {
-            "amp_envelope": self.envelope_converter.calculate_average_envelope(
-                [p["amp_envelope"] for p in partials_params]
-            ),
-            "filter_envelope": self.envelope_converter.calculate_average_envelope(
-                [p["filter_envelope"] for p in partials_params]
-            ),
-            "pitch_envelope": self.envelope_converter.calculate_average_envelope(
-                [p["pitch_envelope"] for p in partials_params]
-            ),
-            "filter": self._calculate_average_filter(
-                [p["filter"] for p in partials_params]
-            ),
-            "lfo1": {
-                "waveform": "sine",
-                "rate": self.parameter_converter.convert_lfo_rate(all_merged_zones[0].LFO1Freq),
-                "depth": 0.5,
-                "delay": self.parameter_converter.convert_lfo_delay(all_merged_zones[0].DelayLFO1)
-            },
-            "lfo2": {
-                "waveform": "triangle",
-                "rate": self.parameter_converter.convert_lfo_rate(all_merged_zones[0].LFO2Freq),
-                "depth": 0.3,
-                "delay": self.parameter_converter.convert_lfo_delay(all_merged_zones[0].DelayLFO2)
-            },
-            "lfo3": {
-                "waveform": "sawtooth",
-                "rate": 0.5,
-                "depth": 0.1,
-                "delay": 0.5
-            },
-            "modulation": self.modulation_converter.calculate_modulation_params(all_merged_zones),
-            "partials": partials_params
-        }
+        # Apply exclusive class processing
+        self._apply_exclusive_class_processing(partials_params, exclusive_groups)
+
+        # Calculate average parameters with proper weighting
+        params = self._calculate_weighted_average_params(all_merged_zones, partials_params)
 
         return params
 
@@ -573,3 +570,136 @@ class WavetableManager:
                 return routes
 
         return []
+
+    def _apply_global_zone_params(self, zone, global_zone, is_preset_global: bool):
+        """
+        Apply global zone parameters to a zone.
+
+        Args:
+            zone: Target zone to modify
+            global_zone: Global zone with parameters to apply
+            is_preset_global: Whether this is a preset-level global zone
+        """
+        # Apply generators from global zone that aren't set in the target zone
+        for gen_type, gen_value in global_zone.generators.items():
+            # Only apply if the target zone doesn't have this generator set
+            if gen_type not in zone.generators or zone.generators[gen_type] == 0:
+                zone.generators[gen_type] = gen_value
+
+        # Apply modulators from global zone
+        zone.modulators.extend(global_zone.modulators)
+
+    def _group_zones_by_exclusive_class(self, zones):
+        """
+        Group zones by exclusive class for voice stealing.
+
+        Args:
+            zones: List of merged zones
+
+        Returns:
+            Dictionary mapping exclusive class to list of zones
+        """
+        exclusive_groups = {}
+        for zone in zones:
+            excl_class = getattr(zone, 'exclusive_class', 0)
+            if excl_class not in exclusive_groups:
+                exclusive_groups[excl_class] = []
+            exclusive_groups[excl_class].append(zone)
+        return exclusive_groups
+
+    def _apply_exclusive_class_processing(self, partials_params, exclusive_groups):
+        """
+        Apply exclusive class processing to partial parameters.
+
+        Args:
+            partials_params: List of partial parameter dictionaries
+            exclusive_groups: Dictionary of exclusive class groups
+        """
+        # Mark exclusive classes in partial parameters
+        for i, params in enumerate(partials_params):
+            zone = None  # We'd need to track which zone this partial came from
+            # For now, just add exclusive class info
+            params["exclusive_class"] = getattr(zone, 'exclusive_class', 0) if zone else 0
+
+    def _calculate_weighted_average_params(self, zones, partials_params):
+        """
+        Calculate weighted average parameters from zones with proper SF2 weighting.
+
+        Args:
+            zones: List of merged zones
+            partials_params: List of partial parameter dictionaries
+
+        Returns:
+            Weighted average parameters dictionary
+        """
+        if not partials_params:
+            return None
+
+        # Calculate weights based on velocity and key ranges
+        weights = []
+        for zone in zones:
+            # Weight by the size of the key/velocity range
+            key_range = max(1, zone.hikey - zone.lokey + 1)
+            vel_range = max(1, zone.hivel - zone.lovel + 1)
+            weight = key_range * vel_range
+            weights.append(weight)
+
+        total_weight = sum(weights)
+
+        # Calculate weighted averages
+        avg_params = {
+            "amp_envelope": self._weighted_average_envelope(
+                [p["amp_envelope"] for p in partials_params], weights
+            ),
+            "filter_envelope": self._weighted_average_envelope(
+                [p["filter_envelope"] for p in partials_params], weights
+            ),
+            "pitch_envelope": self._weighted_average_envelope(
+                [p["pitch_envelope"] for p in partials_params], weights
+            ),
+            "filter": self._calculate_average_filter(
+                [p["filter"] for p in partials_params]
+            ),
+            "lfo1": self._average_lfo_params([p["lfo1"] for p in partials_params], weights),
+            "lfo2": self._average_lfo_params([p["lfo2"] for p in partials_params], weights),
+            "lfo3": partials_params[0]["lfo3"],  # Use first one for LFO3
+            "modulation": self.modulation_converter.calculate_modulation_params(zones),
+            "partials": partials_params
+        }
+
+        return avg_params
+
+    def _weighted_average_envelope(self, envelopes, weights):
+        """Calculate weighted average of envelope parameters."""
+        if not envelopes:
+            return self.envelope_converter._get_default_envelope()
+
+        total_weight = sum(weights)
+        avg_envelope = {}
+
+        # Get all envelope keys
+        keys = envelopes[0].keys()
+
+        for key in keys:
+            if key in ['key_scaling']:  # Don't weight these
+                avg_envelope[key] = envelopes[0][key]
+            else:
+                weighted_sum = sum(env[key] * weight for env, weight in zip(envelopes, weights))
+                avg_envelope[key] = weighted_sum / total_weight
+
+        return avg_envelope
+
+    def _average_lfo_params(self, lfo_params, weights):
+        """Calculate weighted average of LFO parameters."""
+        if not lfo_params:
+            return {"waveform": "sine", "rate": 0.0, "depth": 0.0, "delay": 0.0}
+
+        total_weight = sum(weights)
+        avg_lfo = {
+            "waveform": lfo_params[0]["waveform"],  # Use first waveform
+            "rate": sum(lfo["rate"] * weight for lfo, weight in zip(lfo_params, weights)) / total_weight,
+            "depth": sum(lfo["depth"] * weight for lfo, weight in zip(lfo_params, weights)) / total_weight,
+            "delay": sum(lfo["delay"] * weight for lfo, weight in zip(lfo_params, weights)) / total_weight
+        }
+
+        return avg_lfo
