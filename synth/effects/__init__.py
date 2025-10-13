@@ -78,6 +78,10 @@ from .harmonizer_variation import HarmonizerVariationEffect
 from .octave_variation import OctaveVariationEffect
 from .detune_variation import DetuneVariationEffect
 
+# Modular effect processing components
+from .insertion_effects import InsertionEffectsProcessor
+from .system_effects import SystemEffectsProcessor
+
 __all__ = [
     "BaseEffect",
     "DistortionEffect",
@@ -150,4 +154,7 @@ __all__ = [
     "HarmonizerVariationEffect",
     "OctaveVariationEffect",
     "DetuneVariationEffect",
+    # Modular effect processing components
+    "InsertionEffectsProcessor",
+    "SystemEffectsProcessor",
 ]
