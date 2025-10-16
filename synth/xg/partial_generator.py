@@ -1656,12 +1656,13 @@ class XGPartialGenerator:
         self.active = False
 
         # Reset envelopes to idle state
-        if self.amp_envelope:
-            self.amp_envelope.reset()
-        if self.filter_envelope:
-            self.filter_envelope.reset()
-        if self.pitch_envelope:
-            self.pitch_envelope.reset()
+        self.cleanup()
+        # if self.amp_envelope:
+        #     self.amp_envelope.reset()
+        # if self.filter_envelope:
+        #     self.filter_envelope.reset()
+        # if self.pitch_envelope:
+        #     self.pitch_envelope.reset()
 
         # Reset LFO modulation values
         self.last_pitch_mod = 0.0
@@ -1835,116 +1836,9 @@ class XGPartialGenerator:
                 self.synth.filter_pool.release_filter(self.filter)
             self.filter = None
 
-def _reconfigure(self, synth, note: int, velocity: int, program: int,
-                partial_id: int, partial_params: Dict, is_drum: bool = False,
-                sample_rate: int = 44100, bank: int = 0):
-    """Reconfigure existing partial generator with new parameters."""
-    # Update basic properties
-    self.synth = synth
-    self.partial_id = partial_id
-    self.note = note
-    self.velocity = velocity
-    self.program = program
-    self.bank = bank
-    self.is_drum = is_drum
-    self.sample_rate = sample_rate
-
-    # Update XG Core Partial Parameters
-    self.element_type = partial_params.get("element_type", "normal")
-    self.level = partial_params.get("level", 1.0)
-    self.pan = partial_params.get("pan", 0.5)
-
-    # Key Range - Exclusive per XG specification
-    self.key_range_low = partial_params.get("key_range_low", 0)
-    self.key_range_high = partial_params.get("key_range_high", 127)
-    self.velocity_range_low = partial_params.get("velocity_range_low", 0)
-    self.velocity_range_high = partial_params.get("velocity_range_high", 127)
-
-    # Crossfade settings
-    self.crossfade_note_width = partial_params.get("crossfade_note", 0)
-    self.crossfade_vel_width = partial_params.get("crossfade_velocity", 0)
-
-    # Key scaling and velocity sensitivity
-    self.key_scaling = partial_params.get("key_scaling", 0.0)
-    self.velocity_sense = partial_params.get("velocity_sense", 1.0)
-
-    # XG Scale tuning and octave settings
-    self.scale_tuning = partial_params.get("scale_tuning", 100)
-    self.coarse_tune = partial_params.get("coarse_tune", 0)
-    self.fine_tune = partial_params.get("fine_tune", 0)
-    self.overriding_root_key = partial_params.get("overriding_root_key", -1)
-
-    # XG Envelope parameters
-    self.amp_attack_time = partial_params.get("amp_attack", 0.01)
-    self.amp_decay_time = partial_params.get("amp_decay", 0.3)
-    self.amp_sustain_level = partial_params.get("amp_sustain", 0.7)
-    self.amp_release_time = partial_params.get("amp_release", 0.5)
-    self.amp_delay_time = partial_params.get("amp_delay", 0.0)
-    self.amp_hold_time = partial_params.get("amp_hold", 0.0)
-
-    # XG Filter envelope
-    self.use_filter_env = not is_drum or partial_params.get("use_filter_env", True)
-    if self.use_filter_env:
-        self.filter_attack_time = partial_params.get("filter_attack", 0.1)
-        self.filter_decay_time = partial_params.get("filter_decay", 0.5)
-        self.filter_sustain_level = partial_params.get("filter_sustain", 0.6)
-        self.filter_release_time = partial_params.get("filter_release", 0.8)
-        self.filter_delay_time = partial_params.get("filter_delay", 0.0)
-        self.filter_hold_time = partial_params.get("filter_hold", 0.0)
-
-    # XG Pitch envelope
-    self.use_pitch_env = not is_drum or partial_params.get("use_pitch_env", True)
-    if self.use_pitch_env:
-        self.pitch_attack_time = partial_params.get("pitch_attack", 0.05)
-        self.pitch_decay_time = partial_params.get("pitch_decay", 0.1)
-        self.pitch_sustain_level = partial_params.get("pitch_sustain", 0.0)
-        self.pitch_release_time = partial_params.get("pitch_release", 0.05)
-        self.pitch_delay_time = partial_params.get("pitch_delay", 0.0)
-        self.pitch_hold_time = partial_params.get("pitch_hold", 0.0)
-
-    # XG Filter parameters
-    filter_config = partial_params.get("filter", {})
-    self.filter_cutoff = filter_config.get("cutoff", 1000.0)
-    self.filter_resonance = filter_config.get("resonance", 0.7)
-    self.filter_type = filter_config.get("type", "lowpass")
-    self.filter_key_follow = filter_config.get("key_follow", 0.5)
-
-    # Check if note/velocity fall within this partial's range
-    if not self._is_note_in_range(note, velocity):
-        self.active = False
-        return
-
-    # Reinitialize phase and synthesis parameters
-    self.phase = 0.0
-    self.phase_step = self._calculate_phase_step()
-
-    # Reinitialize XG-compliant envelopes
-    self._initialize_envelopes(partial_params)
-
-    # Reinitialize XG filter
-    self._initialize_filter()
-
-    # Start envelopes
-    self.note_on(velocity, note)
-
-    # Reset crossfade tracking
-    self.velocity_crossfade = 0.0
-    self.note_crossfade = 0.0
-
-    # XG Modulation cache
-    self.last_pitch_mod = 0.0
-    self.last_filter_mod = 0.0
-    self.last_amp_mod = 1.0
-
-    # Cache sample format
-    self._sample_format_is_stereo = self._detect_sample_format()
-
-    # Mark as active
-    self.active = True
-
-def __del__(self):
-    """Cleanup when XGPartialGenerator is destroyed."""
-    self.cleanup()
+    def __del__(self):
+        """Cleanup when XGPartialGenerator is destroyed."""
+        self.cleanup()
 
 
 

@@ -274,7 +274,7 @@ class EnvelopePool:
     def _preallocate_envelopes(self):
         """Pre-allocate envelopes for ultra-fast access."""
         # Pre-allocate envelopes for common use cases
-        num_prealloc = min(200, self.max_envelopes // 4)
+        num_prealloc = min(512, self.max_envelopes // 4)
         for _ in range(num_prealloc):
             envelope = UltraFastADSREnvelope(
                 block_size=self.block_size,

@@ -1058,13 +1058,13 @@ class ChannelNote:
             self.temp_right = None
 
         # Return partials to pool instead of cleaning up
-        for partial in self.partials:
-            if self.synth and hasattr(self.synth, 'partial_pool'):
+        if self.synth and hasattr(self.synth, 'partial_pool'):
+            for partial in self.partials:
                 self.synth.partial_pool.release(partial)
 
         # Return note-level LFOs to pool
-        for lfo in self.note_lfos:
-            if hasattr(self.channel.synth, 'lfo_pool'):
+        if hasattr(self.channel.synth, 'lfo_pool'):
+            for lfo in self.note_lfos:
                 self.channel.synth.lfo_pool.release_oscillator(lfo)
 
         # Clear references
