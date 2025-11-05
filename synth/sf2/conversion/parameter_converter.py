@@ -2,11 +2,16 @@
 SF2 Parameter Converter
 
 Handles conversion of SF2 parameters to XG synthesizer format.
+Enhanced with comprehensive error handling, unicode support, and sample normalization.
 """
 
 import math
-from typing import Dict, List, Any, Optional
-from ..types import SF2InstrumentZone
+import logging
+from typing import Dict, List, Any, Optional, Union
+from ..types import SF2InstrumentZone, SF2PresetZone, SF2Instrument
+
+# Set up logging for parameter conversion issues
+logger = logging.getLogger('SF2ParameterConverter')
 
 
 class ParameterConverter:
@@ -36,11 +41,13 @@ class ParameterConverter:
         Returns:
             Time in seconds
         """
-        if time_cents <= 0:
-            return 0.001  # Minimum value
-
         # SoundFont uses: time = 0.001 * 10^(value/1200)
-        return 0.001 * (10 ** (time_cents / 1200.0))
+        # For negative values, this gives times < 0.001 seconds
+        time_seconds = 0.001 * (10 ** (time_cents / 1200.0))
+
+        # Clamp to reasonable minimum (0.001 seconds = 1ms)
+        # but allow the formula to work for negative values
+        return max(0.0001, time_seconds)
 
     def convert_lfo_rate(self, lfo_value: int) -> float:
         """
@@ -180,7 +187,113 @@ class ParameterConverter:
             Amplitude (0.0 to 1.0)
         """
         amp = math.pow(10.0, bells / -200.0)
-        return min(1.0, amp)
+        return min(1.0, max(0.0, amp))  # Clamp to valid range
+
+    def validate_envelope_parameters(self, env_dict: Dict[str, float], envelope_type: str = "unknown") -> Dict[str, float]:
+        """
+        Validate envelope parameters to ensure they don't cause issues.
+
+        Args:
+            env_dict: Envelope parameter dictionary
+            envelope_type: Type of envelope for logging (e.g., "amplitude", "filter")
+
+        Returns:
+            Validated envelope dictionary
+        """
+        validated = {}
+        was_clamped = False
+
+        # Validate time parameters (should be >= 0)
+        for param in ['delay', 'attack', 'hold', 'decay', 'release']:
+            original_value = env_dict.get(param, 0.0)
+            value = max(0.0, original_value)
+
+            # Cap extremely long times to prevent issues
+            max_time = 60.0  # Max 60 seconds
+            if value > max_time:
+                logger.warning(f"{envelope_type} envelope {param} time clamped from {value:.3f}s to {max_time:.1f}s")
+                value = max_time
+                was_clamped = True
+            elif original_value < 0:
+                logger.warning(f"{envelope_type} envelope {param} time was negative ({original_value:.6f}s), clamped to 0.0s")
+                was_clamped = True
+
+            validated[param] = value
+
+        # Validate sustain level (0.0 to 1.0 for amplitude envelopes)
+        original_sustain = env_dict.get('sustain', 0.7)
+        sustain = max(0.0, min(1.0, original_sustain))
+        if sustain != original_sustain:
+            logger.warning(f"{envelope_type} envelope sustain clamped from {original_sustain:.3f} to {sustain:.3f}")
+            was_clamped = True
+        validated['sustain'] = sustain
+
+        # Validate key scaling (-10.0 to 10.0 reasonable range)
+        key_scaling = env_dict.get('key_scaling', 0.0)
+        clamped_scaling = max(-10.0, min(10.0, key_scaling))
+        if clamped_scaling != key_scaling:
+            logger.warning(f"{envelope_type} envelope key scaling clamped from {key_scaling:.1f} to {clamped_scaling:.1f}")
+            was_clamped = True
+        validated['key_scaling'] = clamped_scaling
+
+        if was_clamped:
+            logger.info(f"Envelope parameter validation completed for {envelope_type} envelope")
+
+        return validated
+
+    def validate_lfo_parameters(self, lfo_dict: Dict[str, float]) -> Dict[str, float]:
+        """
+        Validate LFO parameters.
+
+        Args:
+            lfo_dict: LFO parameter dictionary
+
+        Returns:
+            Validated LFO dictionary
+        """
+        validated = {}
+
+        # Validate rate (reasonable 0.1 to 30 Hz range)
+        rate = max(0.1, min(30.0, lfo_dict.get('rate', 5.0)))
+        validated['rate'] = rate
+
+        # Validate depth (0.0 to 5.0 reasonable range)
+        depth = max(0.0, min(5.0, lfo_dict.get('depth', 0.5)))
+        validated['depth'] = depth
+
+        # Validate delay (0.0 to 30.0 seconds)
+        delay = max(0.0, min(30.0, lfo_dict.get('delay', 0.0)))
+        validated['delay'] = delay
+
+        validated['waveform'] = lfo_dict.get('waveform', 'sine')
+
+        return validated
+
+    def validate_filter_parameters(self, filter_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate filter parameters.
+
+        Args:
+            filter_dict: Filter parameter dictionary
+
+        Returns:
+            Validated filter dictionary
+        """
+        validated = filter_dict.copy()
+
+        # Validate cutoff frequency (20 Hz to 20 kHz)
+        cutoff = max(20.0, min(20000.0, filter_dict.get('cutoff', 1000.0)))
+        validated['cutoff'] = cutoff
+
+        # Validate resonance (0.0 to 2.0 reasonable range)
+        resonance = max(0.0, min(2.0, filter_dict.get('resonance', 0.7)))
+        validated['resonance'] = resonance
+
+        # Ensure key_follow is reasonable (-200 to 200 cents/opt)
+        key_follow = max(-200.0, min(200.0, filter_dict.get('key_follow', 0.5)))
+        validated['key_follow'] = key_follow
+
+        return validated
 
     def convert_envelope_times(self, attack: int, decay: int, release: int) -> Dict[str, float]:
         """
@@ -212,11 +325,16 @@ class ParameterConverter:
         Returns:
             Dictionary with XG partial parameters
         """
+        # Use SF2 envelope generator codes directly:
+        # 34: attackVolEnv, 36: decayVolEnv, 38: releaseVolEnv
+        # Use musical defaults instead of SF2 "fastest" defaults when generators missing
+        amp_attack = zone.generators.get(34, 2000)    # Default: ~0.046s (musical attack)
+        amp_decay = zone.generators.get(36, 2800)     # Default: ~0.2s (musical decay)
+        amp_release = zone.generators.get(38, 3200)   # Default: ~0.4s (musical release)
+
         # Convert envelope times using complete SF2 envelope parameters
         envelope_times = self.convert_envelope_times(
-            zone.attackVolEnv,  # Use new SF2 generator names
-            zone.decayVolEnv,
-            zone.releaseVolEnv
+            amp_attack, amp_decay, amp_release
         )
 
         # Convert filter parameters with complete SF2 filter support
@@ -248,6 +366,13 @@ class ParameterConverter:
         if hasattr(zone, 'velRange') and zone.velRange != 0:
             vel_range_low = zone.velRange & 0xFF
             vel_range_high = (zone.velRange >> 8) & 0xFF
+
+        # Apply parameter validation to ensure all values are reasonable
+        validated_envelope_times = self.validate_envelope_parameters({
+            'delay': self.convert_time_cents_to_seconds(amp_attack),
+            'attack': self.convert_time_cents_to_seconds(amp_decay),
+            'decay': self.convert_time_cents_to_seconds(amp_release),
+        })
 
         # Build comprehensive partial parameters with all SF2 generators
         partial_params = {
@@ -281,26 +406,33 @@ class ParameterConverter:
             "reverb_send": zone.reverbEffectsSend if hasattr(zone, 'reverbEffectsSend') else 0,
             "chorus_send": zone.chorusEffectsSend if hasattr(zone, 'chorusEffectsSend') else 0,
 
-            # Amplitude envelope (complete SF2 envelope)
+            # Amplitude envelope (complete SF2 envelope) - SF2 generator types:
+            # 33: delayVolEnv, 34: attackVolEnv, 35: holdVolEnv
+            # 36: decayVolEnv, 37: sustainVolEnv, 38: releaseVolEnv
+            # 40: keynumToVolEnvDecay
+            # Use musical defaults when generators are missing
             "amp_envelope": {
-                "delay": self.convert_time_cents_to_seconds(zone.delayVolEnv),
-                "attack": self.convert_time_cents_to_seconds(zone.attackVolEnv),
-                "hold": self.convert_time_cents_to_seconds(zone.holdVolEnv),
-                "decay": self.convert_time_cents_to_seconds(zone.decayVolEnv),
-                "sustain": self.cents_to_amplitude(zone.sustainVolEnv),
-                "release": self.convert_time_cents_to_seconds(zone.releaseVolEnv),
-                "key_scaling": zone.keynumToVolEnvDecay / 1200.0 if hasattr(zone, 'keynumToVolEnvDecay') else 0.0
+                "delay": self.convert_time_cents_to_seconds(zone.generators.get(33, -12000)),
+                "attack": self.convert_time_cents_to_seconds(zone.generators.get(34, 2000)),    # ~0.046s default
+                "hold": self.convert_time_cents_to_seconds(zone.generators.get(35, -12000)),
+                "decay": self.convert_time_cents_to_seconds(zone.generators.get(36, 2800)),    # ~0.2s default
+                "sustain": self.cents_to_amplitude(zone.generators.get(37, 0)),               # ~1.0 sustain default (no decay)
+                "release": self.convert_time_cents_to_seconds(zone.generators.get(38, 3200)),  # ~0.4s default
+                "key_scaling": zone.generators.get(40, 0) / 1200.0
             },
 
-            # Filter envelope (complete SF2 envelope)
+            # Filter envelope (complete SF2 envelope) - SF2 generator types:
+            # 25: delayModEnv, 26: attackModEnv, 27: holdModEnv
+            # 28: decayModEnv, 29: sustainModEnv, 30: releaseModEnv
+            # 32: keynumToModEnvDecay
             "filter_envelope": {
-                "delay": self.convert_time_cents_to_seconds(zone.delayModEnv if hasattr(zone, 'delayModEnv') else -12000),
-                "attack": self.convert_time_cents_to_seconds(zone.attackModEnv if hasattr(zone, 'attackModEnv') else -12000),
-                "hold": self.convert_time_cents_to_seconds(zone.holdModEnv if hasattr(zone, 'holdModEnv') else -12000),
-                "decay": self.convert_time_cents_to_seconds(zone.decayModEnv if hasattr(zone, 'decayModEnv') else -12000),
-                "sustain": self.cents_to_amplitude(zone.sustainModEnv if hasattr(zone, 'sustainModEnv') else 0),
-                "release": self.convert_time_cents_to_seconds(zone.releaseModEnv if hasattr(zone, 'releaseModEnv') else -12000),
-                "key_scaling": zone.keynumToModEnvDecay / 1200.0 if hasattr(zone, 'keynumToModEnvDecay') else 0.0
+                "delay": self.convert_time_cents_to_seconds(zone.generators.get(25, -12000)),
+                "attack": self.convert_time_cents_to_seconds(zone.generators.get(26, -12000)),
+                "hold": self.convert_time_cents_to_seconds(zone.generators.get(27, -12000)),
+                "decay": self.convert_time_cents_to_seconds(zone.generators.get(28, -12000)),
+                "sustain": self.cents_to_amplitude(zone.generators.get(29, 0)),
+                "release": self.convert_time_cents_to_seconds(zone.generators.get(30, -12000)),
+                "key_scaling": zone.generators.get(32, 0) / 1200.0
             },
 
             # Pitch envelope (complete SF2 envelope)
@@ -321,18 +453,20 @@ class ParameterConverter:
                 "key_follow": 0.5
             },
 
-            # LFO parameters (complete SF2 LFO support)
+            # LFO parameters (complete SF2 LFO support) - SF2 generator types:
+            # 21: delayModLFO, 22: freqModLFO for LFO1 (Tremolo/Filters)
+            # 23: delayVibLFO, 24: freqVibLFO for LFO2 (Vibrato)
             "lfo1": {
                 "waveform": "sine",
-                "rate": self.convert_lfo_rate(zone.freqModLFO if hasattr(zone, 'freqModLFO') else 0),
+                "rate": self.convert_lfo_rate(zone.generators.get(22, 0)),
                 "depth": 0.5,
-                "delay": self.convert_lfo_delay(zone.delayModLFO if hasattr(zone, 'delayModLFO') else 0)
+                "delay": self.convert_lfo_delay(zone.generators.get(21, 0))
             },
             "lfo2": {
                 "waveform": "triangle",
-                "rate": self.convert_lfo_rate(zone.freqVibLFO if hasattr(zone, 'freqVibLFO') else 0),
+                "rate": self.convert_lfo_rate(zone.generators.get(24, 0)),
                 "depth": 0.3,
-                "delay": self.convert_lfo_delay(zone.delayVibLFO if hasattr(zone, 'delayVibLFO') else 0)
+                "delay": self.convert_lfo_delay(zone.generators.get(23, 0))
             },
             "lfo3": {
                 "waveform": "sine",
@@ -383,4 +517,76 @@ class ParameterConverter:
             partial_params["lfo1"]["rate"] = 0.0
             partial_params["lfo2"]["rate"] = 0.0
 
+        # Apply final parameter validation
+        if "amp_envelope" in partial_params:
+            partial_params["amp_envelope"] = self.validate_envelope_parameters(partial_params["amp_envelope"])
+        if "filter_envelope" in partial_params:
+            partial_params["filter_envelope"] = self.validate_envelope_parameters(partial_params["filter_envelope"])
+        if "lfo1" in partial_params:
+            partial_params["lfo1"] = self.validate_lfo_parameters(partial_params["lfo1"])
+        if "lfo2" in partial_params:
+            partial_params["lfo2"] = self.validate_lfo_parameters(partial_params["lfo2"])
+        if "filter" in partial_params:
+            partial_params["filter"] = self.validate_filter_parameters(partial_params["filter"])
+
         return partial_params
+
+    def validate_parameter_conversion(self, zone: SF2InstrumentZone, converted_params: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Validate that parameter conversion preserves the intent of original SF2 parameters.
+
+        This method provides debugging information to ensure envelope, LFO, and filter
+        parameters are being converted correctly from SF2 generators.
+
+        Args:
+            zone: Original SF2 zone
+            converted_params: XG parameters after conversion
+
+        Returns:
+            Dictionary of validation warnings/errors (empty if all good)
+        """
+        warnings = {}
+
+        # Check envelope conversion
+        try:
+            amp_env = converted_params.get('amp_envelope', {})
+            if 'delay' in amp_env and amp_env['delay'] >= 60.0:
+                warnings["amp_delay"] = f"Amp envelope delay {amp_env['delay']:.1f}s was clamped to maximum"
+            if 'attack' in amp_env and amp_env['attack'] <= 0.001:
+                warnings["amp_attack"] = f"Amp envelope attack {amp_env['attack']:.6f}s may be too fast"
+        except:
+            warnings["amp_envelope"] = "Invalid amp envelope conversion"
+
+        # Check filter parameters
+        try:
+            filter_params = converted_params.get('filter', {})
+            if 'cutoff' in filter_params:
+                cutoff = filter_params['cutoff']
+                if cutoff < 20.0 or cutoff > 20000.0:
+                    warnings["filter_cutoff"] = f"Filter cutoff {cutoff:.1f}Hz outside normal range"
+        except:
+            warnings["filter"] = "Invalid filter parameter conversion"
+
+        # Check LFO parameters
+        for lfo_name in ['lfo1', 'lfo2']:
+            lfo_params = converted_params.get(lfo_name, {})
+            try:
+                rate = lfo_params.get('rate', 0.0)
+                if rate < 0.1 and rate > 0.0:
+                    warnings[f"{lfo_name}_rate"] = f"LFO rate {rate:.3f}Hz may be too slow for vibrato"
+                elif rate == 0.0:
+                    warnings[f"{lfo_name}_rate"] = f"LFO rate is zero - LFO will not function"
+            except:
+                warnings[lfo_name] = f"Invalid {lfo_name} parameter conversion"
+
+        # Verify critical generators were accessed
+        critical_generators = [33, 34, 36, 37, 38, 25, 26, 28, 29, 30, 22, 24]
+        critical_missing = []
+        for gen_code in critical_generators:
+            if gen_code not in zone.generators:
+                critical_missing.append(gen_code)
+
+        if critical_missing:
+            warnings["missing_generators"] = f"Critical SF2 generators {critical_missing} were not found - envelope/LFO parameters may be default"
+
+        return warnings

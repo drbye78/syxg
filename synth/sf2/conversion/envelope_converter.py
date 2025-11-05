@@ -27,18 +27,23 @@ class EnvelopeConverter:
         Returns:
             XG amplitude envelope parameters
         """
+        # SF2 Generator type codes for amplitude envelope:
+        # 33: delayVolEnv, 34: attackVolEnv, 35: holdVolEnv
+        # 36: decayVolEnv, 37: sustainVolEnv, 38: releaseVolEnv
+        # 40: keynumToVolEnvDecay
+
         # Convert time values from time cents to seconds
-        delay = self._time_cents_to_seconds(zone.DelayVolEnv)
-        attack = self._time_cents_to_seconds(zone.AttackVolEnv)
-        hold = self._time_cents_to_seconds(zone.HoldVolEnv)
-        decay = self._time_cents_to_seconds(zone.DecayVolEnv)
-        release = self._time_cents_to_seconds(zone.ReleaseVolEnv)
+        delay = self._time_cents_to_seconds(zone.generators.get(33, -12000))
+        attack = self._time_cents_to_seconds(zone.generators.get(34, -12000))
+        hold = self._time_cents_to_seconds(zone.generators.get(35, -12000))
+        decay = self._time_cents_to_seconds(zone.generators.get(36, -12000))
+        release = self._time_cents_to_seconds(zone.generators.get(38, -12000))
 
         # Convert sustain from centibels to amplitude
-        sustain = self._cents_to_amplitude(zone.SustainVolEnv)
+        sustain = self._cents_to_amplitude(zone.generators.get(37, 0))
 
         # Key scaling for volume envelope
-        key_scaling = zone.KeynumToVolEnvDecay / 1200.0
+        key_scaling = zone.generators.get(40, 0) / 1200.0
 
         return {
             "delay": delay,
@@ -60,18 +65,23 @@ class EnvelopeConverter:
         Returns:
             XG filter envelope parameters
         """
+        # SF2 Generator type codes for filter envelope:
+        # 25: delayModEnv, 26: attackModEnv, 27: holdModEnv
+        # 28: decayModEnv, 29: sustainModEnv, 30: releaseModEnv
+        # 32: keynumToModEnvDecay
+
         # Convert time values from time cents to seconds
-        delay = self._time_cents_to_seconds(zone.DelayFilEnv)
-        attack = self._time_cents_to_seconds(zone.AttackFilEnv)
-        hold = self._time_cents_to_seconds(zone.HoldFilEnv)
-        decay = self._time_cents_to_seconds(zone.DecayFilEnv)
-        release = self._time_cents_to_seconds(zone.ReleaseFilEnv)
+        delay = self._time_cents_to_seconds(zone.generators.get(25, -12000))
+        attack = self._time_cents_to_seconds(zone.generators.get(26, -12000))
+        hold = self._time_cents_to_seconds(zone.generators.get(27, -12000))
+        decay = self._time_cents_to_seconds(zone.generators.get(28, -12000))
+        release = self._time_cents_to_seconds(zone.generators.get(30, -12000))
 
         # Convert sustain from centibels to amplitude
-        sustain = self._cents_to_amplitude(zone.SustainFilEnv)
+        sustain = self._cents_to_amplitude(zone.generators.get(29, 0))
 
         # Key scaling for filter envelope
-        key_scaling = zone.KeynumToModEnvDecay / 1200.0
+        key_scaling = zone.generators.get(32, 0) / 1200.0
 
         return {
             "delay": delay,
@@ -87,29 +97,23 @@ class EnvelopeConverter:
         """
         Convert SF2 pitch envelope to XG format.
 
-        Args:
-            zone: SF2 instrument zone
+        Note: SF2 specification doesn't define dedicated pitch envelope stages
+        like amplitude and filter envelopes. Pitch envelopes in XG synthesizers
+        are typically implemented separately or through modulation to the pitch
+        destination.
 
-        Returns:
-            XG pitch envelope parameters
+        Returns fixed values for XG compatibility.
         """
-        # Convert time values from time cents to seconds
-        delay = self._time_cents_to_seconds(zone.DelayPitchEnv)
-        attack = self._time_cents_to_seconds(zone.AttackPitchEnv)
-        hold = self._time_cents_to_seconds(zone.HoldPitchEnv)
-        decay = self._time_cents_to_seconds(zone.DecayPitchEnv)
-        release = self._time_cents_to_seconds(zone.ReleasePitchEnv)
-
-        # Convert sustain from centibels to amplitude
-        sustain = self._cents_to_amplitude(zone.SustainPitchEnv)
-
+        # SF2 doesn't have dedicated pitch envelope generators like vol/mod env
+        # Pitch modulation is typically handled through general modulators
+        # Return constants for XG compatibility (disabled pitch envelope)
         return {
-            "delay": delay,
-            "attack": attack,
-            "hold": hold,
-            "decay": decay,
-            "sustain": sustain,
-            "release": release
+            "delay": 0.0,
+            "attack": 0.0,
+            "hold": 0.0,
+            "decay": 0.0,
+            "sustain": 1.0,
+            "release": 0.0
         }
 
     def calculate_average_envelope(self, envelopes: List[Dict[str, Any]]) -> Dict[str, Any]:

@@ -294,7 +294,7 @@ class ChannelNote:
         is_drum: bool,
     ):
         """Get parameters for this note"""
-        wavetable = self.channel.synth.sf2_manager.get_manager()
+        wavetable: WavetableManager = self.channel.synth.sf2_manager.get_manager()
         # If no wavetable is available, use default parameters
         if wavetable is None:
             pass  # Fall through to default parameters

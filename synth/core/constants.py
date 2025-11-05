@@ -128,8 +128,8 @@ XG_CONSTANTS = {
 
 # Default Configuration Values
 DEFAULT_CONFIG = {
-    "SAMPLE_RATE": 44100,
-    "BLOCK_SIZE": 512,
+    "SAMPLE_RATE": 48000,
+    "BLOCK_SIZE": 1024,
     "MAX_POLYPHONY": 64,
     "MASTER_VOLUME": 1.0,
     "DEFAULT_PITCH_BEND_RANGE": 2,

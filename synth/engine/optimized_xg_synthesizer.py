@@ -255,6 +255,7 @@ class OptimizedXGSynthesizer:
         sample_rate: int = DEFAULT_CONFIG["SAMPLE_RATE"],
         max_polyphony: int = DEFAULT_CONFIG["MAX_POLYPHONY"],
         block_size: int = DEFAULT_CONFIG["BLOCK_SIZE"],
+        sf2_files = None,
         param_cache=None,
     ):
         """
@@ -293,6 +294,8 @@ class OptimizedXGSynthesizer:
         self.sf2_manager = SF2Manager(
             param_cache=param_cache, drum_manager=self.drum_manager
         )
+        if sf2_files:
+            self.sf2_manager.set_sf2_files(sf2_files)
 
         # Effects management
         self.effect_manager = VectorizedEffectManager(self)
@@ -324,6 +327,9 @@ class OptimizedXGSynthesizer:
 
         # Warm up numba-compiled functions to avoid runtime compilation
         self._warm_up_numba_functions()
+
+        # Recreate performance log file upon class creation
+        self._recreate_performance_log()
 
     def _create_channel_renderers(self):
         """Create and initialize channel renderers owned by synthesizer."""
@@ -588,6 +594,48 @@ class OptimizedXGSynthesizer:
         """
         block_size = self.block_size
 
+        # Performance logging: initialize timing and metrics collection
+        start_time = time.perf_counter()
+        midi_processing_time = 0.0
+        envelope_processing_time = 0.0
+        lfo_processing_time = 0.0
+        filter_processing_time = 0.0
+        wavetable_rendering_time = 0.0
+        partial_generator_rendering_time = 0.0
+        channel_notes_rendering_time = 0.0
+        channels_rendering_time = 0.0
+        effect_processing_time = 0.0
+
+        # Initialize real-time counters
+        envelope_blocks_processed = 0
+        lfo_blocks_processed = 0
+        filter_blocks_processed = 0
+        wavetable_blocks_processed = 0
+        partial_blocks_processed = 0
+        channel_note_blocks_processed = 0
+
+        # Set up global performance counters for all components
+        global_counters = {
+            'envelope_blocks_processed': 0,
+            'lfo_blocks_processed': 0,
+            'filter_blocks_processed': 0,
+            'wavetable_blocks_processed': 0,
+            'partial_blocks_processed': 0,
+            'channel_note_blocks_processed': 0
+        }
+
+        # Make counters available globally (this is a simple approach for the demo)
+        import sys
+        setattr(sys, '_global_performance_counters', global_counters)
+
+        # MIDI event counters
+        midi_events_consumed = {
+            'sysex': 0, 'note_on': 0, 'note_off': 0, 'control_change': 0,
+            'program_change': 0, 'channel_pressure': 0, 'pitch_bend': 0,
+            'poly_pressure': 0, 'other': 0
+        }
+        segments_processed = 0
+
         with self.lock:
             if self.out_buffer is None:
                 self.out_buffer = self.memory_pool.get_stereo_buffer(False)
@@ -599,17 +647,29 @@ class OptimizedXGSynthesizer:
             # Process messages in segments to reduce per-sample overhead
             while block_offset < block_size:
                 # Process all messages that occur at or before the minimum time slice
+                midi_start = time.perf_counter()
+                messages_in_segment = 0
                 while (
                     at_index < len(self._message_sequence)
                     and self._message_sequence[at_index].time <= at_time + self._minimum_time_slice
                 ):
                     message = self._message_sequence[at_index]
                     at_index += 1
+                    messages_in_segment += 1
+
+                    # Count MIDI events by type
+                    msg_type = message.type
+                    if msg_type in midi_events_consumed:
+                        midi_events_consumed[msg_type] += 1
+                    else:
+                        midi_events_consumed['other'] += 1
 
                     if message.type == "sysex":
                         self.send_sysex(message)
                     else:
                         self.send_midi_message(message)
+
+                midi_processing_time += time.perf_counter() - midi_start
 
                 # Determine the segment length until the next MIDI message
                 if at_index < len(self._message_sequence):
@@ -621,13 +681,20 @@ class OptimizedXGSynthesizer:
                     # No more messages, process to end of block
                     segment_length = block_size - block_offset
 
+                segments_processed += 1
+
                 # Generate individual channel audio
+                channels_start = time.perf_counter()
                 channel_audio = self._generate_channel_audio_vectorized(segment_length)
+                channels_rendering_time += time.perf_counter() - channels_start
+
 
                 # Process through XG effects chain (insertion → mix → system effects)
+                effects_start = time.perf_counter()
                 final_stereo_segment = self.effect_manager.process_multi_channel_vectorized(
                     channel_audio, segment_length
                 )
+                effect_processing_time += time.perf_counter() - effects_start
 
                 self.out_buffer[block_offset : block_offset + segment_length] = final_stereo_segment
 
@@ -638,6 +705,29 @@ class OptimizedXGSynthesizer:
             # Update message index and time to reflect current position
             self._current_message_index = at_index
             self._current_time = at_time
+
+            # Performance logging: collect and log comprehensive statistics
+            total_time = time.perf_counter() - start_time
+
+            # Get final counter values from global counters
+            import sys
+            global_counters = getattr(sys, '_global_performance_counters', {})
+            envelope_blocks_processed = global_counters.get('envelope_blocks_processed', 0)
+            lfo_blocks_processed = global_counters.get('lfo_blocks_processed', 0)
+            filter_blocks_processed = global_counters.get('filter_blocks_processed', 0)
+            wavetable_blocks_processed = global_counters.get('wavetable_blocks_processed', 0)
+            partial_blocks_processed = global_counters.get('partial_blocks_processed', 0)
+            channel_note_blocks_processed = global_counters.get('channel_note_blocks_processed', 0)
+
+            self._log_comprehensive_performance_stats(
+                self._current_time, midi_processing_time, envelope_processing_time, lfo_processing_time,
+                filter_processing_time, wavetable_rendering_time, partial_generator_rendering_time,
+                channel_notes_rendering_time, channels_rendering_time, effect_processing_time,
+                midi_events_consumed, segments_processed,
+                envelope_blocks_processed, lfo_blocks_processed, filter_blocks_processed,
+                wavetable_blocks_processed, partial_blocks_processed, channel_note_blocks_processed
+            )
+
             return self.out_buffer
 
 
@@ -789,6 +879,250 @@ class OptimizedXGSynthesizer:
 
             # Set up drum channel enhancements
             self._setup_drum_channel_enhancements()
+
+    def _log_comprehensive_performance_stats(self, total_time, midi_processing_time, envelope_processing_time,
+                                           lfo_processing_time, filter_processing_time, wavetable_rendering_time,
+                                           partial_generator_rendering_time, channel_notes_rendering_time,
+                                           channels_rendering_time, effect_processing_time,
+                                           midi_events_consumed, segments_processed,
+                                           envelope_blocks_processed, lfo_blocks_processed, filter_blocks_processed,
+                                           wavetable_blocks_processed, partial_blocks_processed, channel_note_blocks_processed):
+        """Log comprehensive performance statistics to file after each audio block generation."""
+        # Collect total statistics
+        total_active_channels = sum(1 for renderer in self.channel_renderers if renderer.is_active())
+        total_active_channel_notes = sum(len(renderer.active_notes) for renderer in self.channel_renderers)
+        total_active_partials = sum(
+            sum(1 for partial in channel_note.partials if partial.is_active())
+            for renderer in self.channel_renderers
+            for channel_note in renderer.active_notes.values()
+        )
+
+        # Collect LFO statistics
+        total_active_lfos = sum(
+            len([lfo for lfo in renderer.lfos if hasattr(lfo, 'is_active') and lfo.is_active()])
+            for renderer in self.channel_renderers
+        )
+
+        # Collect resonant filter statistics
+        total_active_filters = sum(
+            sum(len([partial for partial in channel_note.partials if hasattr(partial, 'filter') and partial.filter is not None])
+                for channel_note in renderer.active_notes.values())
+            for renderer in self.channel_renderers
+        )
+
+        # Calculate RMS of rendered audio buffer
+        if self.out_buffer is not None:
+            # RMS calculation: sqrt(mean(x^2))
+            rms_left = np.sqrt(np.mean(self.out_buffer[:, 0] ** 2))
+            rms_right = np.sqrt(np.mean(self.out_buffer[:, 1] ** 2))
+            rms_total = (rms_left + rms_right) / 2.0
+        else:
+            rms_total = 0.0
+
+        # Collect system effects status
+        system_effects_status = self._get_system_effects_status()
+
+        # Collect insertion effects status
+        insertion_effects = self._get_insertion_effects_status()
+
+        # Collect per-channel details with MIDI settings
+        per_channel_stats = []
+        for channel_idx, renderer in enumerate(self.channel_renderers):
+            if renderer.is_active():
+                channel_notes = len(renderer.active_notes)
+                channel_partials = sum(len(channel_note.partials) for channel_note in renderer.active_notes.values())
+
+                # Get channel MIDI settings from state manager
+                channel_state = self.state_manager.get_channel_state(channel_idx)
+                bank = channel_state.get('bank', 0)
+                program = channel_state.get('program', 0)
+
+                # Get SF2 preset name if available
+                preset_name = self._get_sf2_preset_name(bank, program)
+
+                # Get receive channel (0-15 for XG)
+                receive_channel = channel_idx
+                part_mode = getattr(renderer, 'part_mode', 0)  # Default to normal mode
+
+                # Calculate per-channel RMS from the channel buffer used in mixing
+                if self.channel_buffers[channel_idx] is not None:
+                    channel_buffer = self.channel_buffers[channel_idx]
+                    ch_rms_left = np.sqrt(np.mean(channel_buffer[:, 0] ** 2))
+                    ch_rms_right = np.sqrt(np.mean(channel_buffer[:, 1] ** 2))
+                    ch_rms = (ch_rms_left + ch_rms_right) / 2.0
+                else:
+                    ch_rms = 0.0
+
+                per_channel_stats.append({
+                    'channel': channel_idx,
+                    'receive_channel': receive_channel,
+                    'part_mode': part_mode,
+                    'bank': bank,
+                    'program': program,
+                    'preset_name': preset_name,
+                    'active_notes': channel_notes,
+                    'active_partials': channel_partials,
+                    'rms': ch_rms
+                })
+
+        # Write comprehensive statistics to log file
+        log_data = {
+            'timestamp': time.time(),
+            'current_time': total_time,
+            'midi_processing_time': midi_processing_time,
+            'envelope_processing_time': envelope_processing_time,
+            'lfo_processing_time': lfo_processing_time,
+            'filter_processing_time': filter_processing_time,
+            'wavetable_rendering_time': wavetable_rendering_time,
+            'partial_generator_rendering_time': partial_generator_rendering_time,
+            'channel_notes_rendering_time': channel_notes_rendering_time,
+            'channels_rendering_time': channels_rendering_time,
+            'effect_processing_time': effect_processing_time,
+            'total_active_channels': total_active_channels,
+            'total_active_channel_notes': total_active_channel_notes,
+            'total_active_partials': total_active_partials,
+            'total_active_lfos': total_active_lfos,
+            'total_active_filters': total_active_filters,
+            'audio_output_rms': rms_total,
+            'segments_processed': segments_processed,
+            'midi_events_consumed': midi_events_consumed,
+            'total_midi_events': sum(midi_events_consumed.values()),
+            'system_effects': system_effects_status,
+            'insertion_effects': insertion_effects,
+            'blocks_processed': {
+                'envelope': envelope_blocks_processed,
+                'lfo': lfo_blocks_processed,
+                'filter': filter_blocks_processed,
+                'wavetable': wavetable_blocks_processed,
+                'partial': partial_blocks_processed,
+                'channel_note': channel_note_blocks_processed
+            },
+            'per_channel_stats': per_channel_stats
+        }
+
+        # Write to log file
+        self._write_performance_log(log_data)
+
+    def _get_system_effects_status(self):
+        """Get status of system effects during block processing."""
+        try:
+            state = self.effect_manager.get_current_state()
+            return {
+                'reverb': 'ON' if state.get('reverb_params', {}).get('level', 0) > 0 else 'OFF',
+                'chorus': 'ON' if state.get('chorus_params', {}).get('level', 0) > 0 else 'OFF',
+                'variation': 'ON' if state.get('variation_params', {}).get('level', 0) > 0 else 'OFF',
+                'multi_eq': 'ON' if any(state.get('equalizer_params', {}).get(param, 0) != 0
+                                      for param in ['low_gain', 'mid_gain', 'high_gain']) else 'OFF'
+            }
+        except:
+            return {'reverb': 'UNK', 'chorus': 'UNK', 'variation': 'UNK', 'multi_eq': 'UNK'}
+
+    def _get_insertion_effects_status(self):
+        """Get status of insertion effects during block processing."""
+        try:
+            active_effects = []
+            for channel_idx in range(16):
+                effect_params = self.effect_manager.get_channel_insertion_effect(channel_idx)
+                if effect_params.get('enabled', False) and not effect_params.get('bypass', False):
+                    effect_type = effect_params.get('type', 0)
+                    effect_names = ['OFF', 'Dist', 'OD', 'AmpSim', 'SpeakerSim', 'Phaser', 'Chorus', 'Flanger',
+                                  'Delay', 'Echo', 'Reverb', 'Pan', 'Tremolo', 'Rotary', 'Vib', 'AutoWah',
+                                  'Phaser2', 'Flanger2']
+                    if effect_type < len(effect_names):
+                        active_effects.append(f"Ch{channel_idx}:{effect_names[effect_type]}")
+            return ', '.join(active_effects) if active_effects else 'None'
+        except:
+            return 'UNK'
+
+    def _get_sf2_preset_name(self, bank: int, program: int) -> str:
+        """Get the SF2 preset name for a given bank and program."""
+        try:
+            presets = self.sf2_manager.get_available_presets()
+            for preset_bank, preset_program, preset_name in presets:
+                if preset_bank == bank and preset_program == program:
+                    return preset_name
+            # If drum bank and no match found, try bank 0
+            if bank == 128:
+                for preset_bank, preset_program, preset_name in presets:
+                    if preset_bank == 0 and preset_program == program:
+                        return preset_name
+            return "Unknown"
+        except:
+            return "Unknown"
+
+    def _recreate_performance_log(self):
+        """Recreate the performance log file upon class creation."""
+        try:
+            # Ensure log directory exists
+            log_dir = os.path.join(os.path.dirname(sys.argv[0]), "logs")
+            os.makedirs(log_dir, exist_ok=True)
+
+            # Log file path
+            log_file = os.path.join(log_dir, "performance.log")
+
+            # Create/recreate the log file with a header
+            header = f"{'='*80}\n"
+            header += f"XG SYNTHESIZER PERFORMANCE LOG - SESSION STARTED\n"
+            header += f"{'='*80}\n"
+            header += f"Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}\n"
+            header += f"Synthesizer: OptimizedXGSynthesizer\n"
+            header += f"Sample Rate: {self.sample_rate} Hz\n"
+            header += f"Block Size: {self.block_size} samples\n"
+            header += f"Max Polyphony: {self.max_polyphony} voices\n"
+            header += f"{'='*80}\n\n"
+
+            # Write header to recreate the file
+            with open(log_file, 'w', encoding='utf-8') as f:
+                f.write(header)
+
+        except Exception as e:
+            # If log recreation fails, print to console as fallback
+            print(f"Warning: Failed to recreate performance log: {e}")
+
+    def _write_performance_log(self, log_data: Dict[str, Any]):
+        """Write performance statistics to a log file."""
+        try:
+            # Ensure log directory exists
+            log_dir = os.path.join(os.path.dirname(sys.argv[0]), "logs")
+            os.makedirs(log_dir, exist_ok=True)
+
+            # Log file path
+            log_file = os.path.join(log_dir, "performance.log")
+
+            # Format the log entry
+            timestamp = log_data['timestamp']
+            current_time = log_data['current_time']
+
+            # Build the log entry
+            log_entry = f"[{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))}] Performance Report:\n"
+            log_entry += f"  Current Time: {current_time*1000:.3f}ms\n"
+            log_entry += f"  Active Resources: channels={log_data['total_active_channels']}, notes={log_data['total_active_channel_notes']}, partials={log_data['total_active_partials']}, LFOs={log_data['total_active_lfos']}, filters={log_data['total_active_filters']}\n"
+            log_entry += f"  System Effects: reverb={log_data['system_effects']['reverb']}, chorus={log_data['system_effects']['chorus']}, variation={log_data['system_effects']['variation']}, multi_eq={log_data['system_effects']['multi_eq']}\n"
+            log_entry += f"  Insertion Effects: {log_data['insertion_effects']}\n"
+            log_entry += f"  MIDI Events: total={log_data['total_midi_events']}, segments={log_data['segments_processed']}\n"
+            log_entry += f"  Audio Output RMS: {log_data['audio_output_rms']:.6f}\n"
+
+            # Processing times
+            log_entry += f"  Processing Times (ms):\n"
+            times = log_data['blocks_processed']
+            log_entry += f"    MIDI: {log_data['midi_processing_time']*1000:.3f}, Envelope: {log_data['envelope_processing_time']*1000:.3f} ({times['envelope']} blocks), LFO: {log_data['lfo_processing_time']*1000:.3f} ({times['lfo']} blocks)\n"
+            log_entry += f"    Filter: {log_data['filter_processing_time']*1000:.3f} ({times['filter']} blocks), Wavetable: {log_data['wavetable_rendering_time']*1000:.3f} ({times['wavetable']} blocks), Partials: {log_data['partial_generator_rendering_time']*1000:.3f} ({times['partial']} blocks)\n"
+            log_entry += f"    Channel Notes: {log_data['channel_notes_rendering_time']*1000:.3f} ({times['channel_note']} blocks), Channels: {log_data['channels_rendering_time']*1000:.3f}, Effects: {log_data['effect_processing_time']*1000:.3f}\n"
+
+            # Per-channel statistics
+            log_entry += f"  Per-Channel Statistics:\n"
+            for stat in log_data['per_channel_stats']:
+                log_entry += f"    Ch{stat['channel']:2d} (RX:{stat['receive_channel']:2d}, Mode:{stat['part_mode']:1d}, Bank:{stat['bank']:3d}, Prog:{stat['program']:3d}, Preset:{stat['preset_name'][:12]:12}): notes={stat['active_notes']:2d}, partials={stat['active_partials']:2d}, RMS={stat['rms']:.6f}\n"
+
+            log_entry += "\n"
+
+            # Write to file (append mode)
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(log_entry)
+
+        except Exception as e:
+            # If logging fails, print to console as fallback
+            print(f"Warning: Failed to write performance log: {e}")
 
     def __del__(self):
         """Cleanup when OptimizedXGSynthesizer is destroyed."""

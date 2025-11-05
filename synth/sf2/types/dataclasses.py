@@ -1,11 +1,5 @@
-import struct
-import numpy as np
-import os
-import warnings
 import math
-from collections import OrderedDict
-from typing import Dict, List, Tuple, Optional, Union, Any, Callable
-from dataclasses import dataclass
+from typing import List, Tuple, Optional, Union
 
 
 class SF2Modulator:
@@ -176,7 +170,7 @@ class SF2InstrumentZone:
         # Legacy compatibility fields (for backward compatibility)
         'lokey', 'hikey', 'lovel', 'hivel', 'initial_filterQ',
         'peakConcave', 'voiceConcave', 'AttackVolEnv', 'DecayVolEnv', 'SustainVolEnv',
-        'ReleaseVolEnv', 'DelayVolEnv', 'HoldVolEnv', 'AttackFilEnv', 'DecayFilEnv',
+        'ReleaseVolEnv', 'DelayVolEnv', 'HoldVolEnv',
         'SustainFilEnv', 'ReleaseFilEnv', 'DelayFilEnv', 'HoldFilEnv', 'AttackPitchEnv',
         'DecayPitchEnv', 'SustainPitchEnv', 'ReleasePitchEnv', 'DelayPitchEnv',
         'HoldPitchEnv', 'DelayLFO1', 'DelayLFO2', 'LFO1Freq', 'LFO2Freq',
@@ -192,7 +186,8 @@ class SF2InstrumentZone:
         'vibrato_depth', 'mod_lfo_to_filter', 'mod_env_to_filter', 'mod_lfo_to_volume',
         'mod_ndx', 'gen_ndx', 'generators', 'sample_modes', 'exclusive_class',
         'start', 'end', 'start_loop', 'end_loop', 'reverb_send', 'chorus_send',
-        'scale_tuning', 'start_coarse', 'end_coarse', 'start_loop_coarse', 'end_loop_coarse'
+        'scale_tuning', 'start_coarse', 'end_coarse', 'start_loop_coarse', 'end_loop_coarse',
+        'preset_instrument_index'
     ]
 
     def __init__(self):
@@ -251,8 +246,8 @@ class SF2InstrumentZone:
         self.keynumToVolEnvDecay = 0
         self.instrument = 0  # Not used in zones
         self.reserved1 = 0
-        self.keyRange = 0  # Will be set to 0-127
-        self.velRange = 0  # Will be set to 0-127
+        self.keyRange = 32512  # 0x7F00 - default key range 0-127 (low=0, high=127)
+        self.velRange = 32512  # 0x7F00 - default vel range 0-127 (low=0, high=127)
 
         # Sample manipulation (44-51)
         self.startloopAddrsCoarse = 0
@@ -274,52 +269,25 @@ class SF2InstrumentZone:
         self.unused5 = 0
         self.endAddrsCoarseOffset = 0
 
-        # Legacy compatibility fields (for backward compatibility)
+        # Range helper fields (computed from keyRange/velRange)
         self.lokey = 0
         self.hikey = 127
         self.lovel = 0
         self.hivel = 127
         self.initial_filterQ = 0
-        self.peakConcave = 0
-        self.voiceConcave = 0
-        self.AttackVolEnv = -12000
-        self.DecayVolEnv = -12000
-        self.SustainVolEnv = 0
-        self.ReleaseVolEnv = -12000
-        self.DelayVolEnv = -12000
-        self.HoldVolEnv = -12000
-        self.AttackFilEnv = -12000
-        self.DecayFilEnv = -12000
-        self.SustainFilEnv = 0
-        self.ReleaseFilEnv = -12000
-        self.DelayFilEnv = -12000
-        self.HoldFilEnv = -12000
-        self.AttackPitchEnv = 0
-        self.DecayPitchEnv = 0
-        self.SustainPitchEnv = 0
-        self.ReleasePitchEnv = 0
-        self.DelayPitchEnv = 0
-        self.HoldPitchEnv = 0
+
+        # Legacy compatibility fields (restore essential ones used by existing code)
+        # These will be deprecated in future versions - use generators dict directly
+        # Some fields needed for compatibility with other parts of codebase
         self.DelayLFO1 = 0
         self.DelayLFO2 = 0
         self.LFO1Freq = 0  # Default LFO frequency
         self.LFO2Freq = 0
-        self.LFO1VolumeToPitch = 0
-        self.LFO1VolumeToFilter = 0
-        self.LFO1VolumeToVolume = 0
-        self.InitialAttenuation = 0
-        self.Pan = 50  # 0-100 center
-        self.VelocityAttenuation = 0
-        self.VelocityPitch = 0
-        self.OverridingRootKey = -1
-        self.KeynumToVolEnvHold = 0
-        self.KeynumToVolEnvDecay = 0
-        self.KeynumToModEnvHold = 0
-        self.KeynumToModEnvDecay = 0
-        self.CoarseTune = 0
-        self.FineTune = 0
+        self.peakConcave = 0
+        self.voiceConcave = 0
+        self.AttackVolEnv = -12000
         self.scale_tuning = 100
-        self.sample_index = 0
+        self.sample_index = -1
         self.sample_name = "Default"
         self.mute = False
         self.keynum_to_volume = 0
@@ -337,6 +305,7 @@ class SF2InstrumentZone:
         self.end_coarse = 0
         self.start_loop_coarse = 0
         self.end_loop_coarse = 0
+        self.preset_instrument_index = -1
 
         # Common modulations (for simplified access)
         self.lfo_to_pitch = 0.0
@@ -406,7 +375,7 @@ class SF2PresetZone:
         self.bank = 0
         self.generators = {}  # Dictionary to store generator parameters
         self.modulators = []  # List of modulators for this preset zone
-        self.instrument_index = 0
+        self.instrument_index = -1  # -1 means not yet set, will be set by generator parsing
         self.instrument_name = ""
         self.gen_ndx = 0
         self.mod_ndx = 0
@@ -466,8 +435,8 @@ class SF2PresetZone:
         self.keynumToVolEnvDecay = 0
         self.instrument = 0  # References instrument index
         self.reserved1 = 0
-        self.keyRange = 0  # Will be set to 0-127
-        self.velRange = 0  # Will be set to 0-127
+        self.keyRange = 32512  # 0x7F00 - default key range 0-127 (low=0, high=127)
+        self.velRange = 32512  # 0x7F00 - default vel range 0-127 (low=0, high=127)
 
         # Sample manipulation (44-51)
         self.startloopAddrsCoarse = 0

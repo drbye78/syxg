@@ -37,12 +37,13 @@ class SF2Manager:
         self.preset_blacklists = {}
         self.bank_mappings = {}
 
-    def set_sf2_files(self, sf2_paths: List[str]) -> bool:
+    def set_sf2_files(self, sf2_paths: List[str], selective_parsing: bool = True) -> bool:
         """
         Set list of SF2 files to use.
 
         Args:
             sf2_paths: List of paths to SF2 files
+            selective_parsing: Whether to use selective parsing for performance optimization
 
         Returns:
             True if successful, False otherwise

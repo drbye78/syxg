@@ -38,7 +38,7 @@ from ..engine.optimized_coefficient_manager import get_global_coefficient_manage
 def _numba_generate_waveform_block_mono(
     left_block, right_block, sample_table, table_length,
     phase, phase_step, loop_mode, loop_start, loop_end,
-    block_size
+    block_size, loop_direction
 ):
     """
     NUMBA-COMPILED: Ultra-fast SIMD waveform generation for mono SF2 samples.
@@ -51,8 +51,8 @@ def _numba_generate_waveform_block_mono(
         right_block: Output right channel buffer (modified in-place)
         sample_table: Pre-loaded mono sample table (list of floats)
         table_length: Length of sample table
-        phase: Current phase position
-        phase_step: Phase step per sample
+        phase: Current phase position (table index, 0 to table_length-1)
+        phase_step: Phase step per sample (samples per sample)
         loop_mode: SF2 loop mode (0=no loop, 1=forward, 2=backward, 3=alternating)
         loop_start: Loop start index
         loop_end: Loop end index
@@ -61,8 +61,8 @@ def _numba_generate_waveform_block_mono(
     loop_direction = 1  # For alternating loops
 
     for i in range(block_size):
-        # Calculate table index with SIMD-friendly operations
-        raw_index = phase * table_length / (2.0 * math.pi)
+        # Phase now directly represents table index position
+        raw_index = phase
 
         # Apply SF2 loop wrapping with optimized branching
         if loop_mode > 0 and loop_end > loop_start:
@@ -127,10 +127,14 @@ def _numba_generate_waveform_block_mono(
         left_block[i] = mono_interp
         right_block[i] = mono_interp
 
-        # Update phase with SIMD-friendly modulo
+        # Update phase with proper wrapping
         phase += phase_step
-        if phase > 2.0 * math.pi:
-            phase -= 2.0 * math.pi
+
+        # Handle table wrapping (no more 2*Pi normalization)
+        if phase >= table_length:
+            phase -= table_length
+        elif phase < 0:
+            phase += table_length
 
     return phase
 
@@ -139,7 +143,7 @@ def _numba_generate_waveform_block_mono(
 def _numba_generate_waveform_block_mono_time_varying(
     left_block, right_block, sample_table, table_length,
     phase, base_phase_step, pitch_mod_block, loop_mode, loop_start, loop_end,
-    block_size
+    block_size, loop_direction
 ):
     """
     NUMBA-COMPILED: Time-varying SIMD waveform generation for mono SF2 samples.
@@ -152,8 +156,8 @@ def _numba_generate_waveform_block_mono_time_varying(
         right_block: Output right channel buffer (modified in-place)
         sample_table: Pre-loaded mono sample table (list of floats)
         table_length: Length of sample table
-        phase: Current phase position
-        base_phase_step: Base phase step per sample
+        phase: Current phase position (table index, 0 to table_length-1)
+        base_phase_step: Base phase step per sample (samples per sample)
         pitch_mod_block: Time-varying pitch modulation in cents (block_size array)
         loop_mode: SF2 loop mode (0=no loop, 1=forward, 2=backward, 3=alternating)
         loop_start: Loop start index
@@ -168,8 +172,8 @@ def _numba_generate_waveform_block_mono_time_varying(
         modulation_mult = 2.0 ** (pitch_mod_cents / 1200.0)
         current_phase_step = base_phase_step * modulation_mult
 
-        # Calculate table index with SIMD-friendly operations
-        raw_index = phase * table_length / (2.0 * math.pi)
+        # Phase now directly represents table index position
+        raw_index = phase
 
         # Apply SF2 loop wrapping with optimized branching
         if loop_mode > 0 and loop_end > loop_start:
@@ -234,10 +238,14 @@ def _numba_generate_waveform_block_mono_time_varying(
         left_block[i] = mono_interp
         right_block[i] = mono_interp
 
-        # Update phase with SIMD-friendly modulo
+        # Update phase with proper wrapping
         phase += current_phase_step
-        if phase > 2.0 * math.pi:
-            phase -= 2.0 * math.pi
+
+        # Handle table wrapping (no more 2*Pi normalization)
+        if phase >= table_length:
+            phase -= table_length
+        elif phase < 0:
+            phase += table_length
 
     return phase
 
@@ -246,7 +254,7 @@ def _numba_generate_waveform_block_mono_time_varying(
 def _numba_generate_waveform_block_stereo_time_varying(
     left_block, right_block, sample_table, table_length,
     phase, base_phase_step, pitch_mod_block, loop_mode, loop_start, loop_end,
-    block_size
+    block_size, loop_direction
 ):
     """
     NUMBA-COMPILED: Time-varying SIMD waveform generation for stereo SF2 samples.
@@ -259,8 +267,8 @@ def _numba_generate_waveform_block_stereo_time_varying(
         right_block: Output right channel buffer (modified in-place)
         sample_table: Pre-loaded stereo sample table (list of 2-element tuples)
         table_length: Length of sample table
-        phase: Current phase position
-        base_phase_step: Base phase step per sample
+        phase: Current phase position (table index, 0 to table_length-1)
+        base_phase_step: Base phase step per sample (samples per sample)
         pitch_mod_block: Time-varying pitch modulation in cents (block_size array)
         loop_mode: SF2 loop mode (0=no loop, 1=forward, 2=backward, 3=alternating)
         loop_start: Loop start index
@@ -275,8 +283,8 @@ def _numba_generate_waveform_block_stereo_time_varying(
         modulation_mult = 2.0 ** (pitch_mod_cents / 1200.0)
         current_phase_step = base_phase_step * modulation_mult
 
-        # Calculate table index with SIMD-friendly operations
-        raw_index = phase * table_length / (2.0 * math.pi)
+        # Phase now directly represents table index position
+        raw_index = phase
 
         # Apply SF2 loop wrapping with optimized branching
         if loop_mode > 0 and loop_end > loop_start:
@@ -348,10 +356,14 @@ def _numba_generate_waveform_block_stereo_time_varying(
         left_block[i] = left_interp
         right_block[i] = right_interp
 
-        # Update phase with SIMD-friendly modulo
+        # Update phase with proper wrapping
         phase += current_phase_step
-        if phase > 2.0 * math.pi:
-            phase -= 2.0 * math.pi
+
+        # Handle table wrapping (no more 2*Pi normalization)
+        if phase >= table_length:
+            phase -= table_length
+        elif phase < 0:
+            phase += table_length
 
     return phase
     """
@@ -453,7 +465,7 @@ def _numba_generate_waveform_block_stereo_time_varying(
 def _numba_generate_waveform_block_stereo(
     left_block, right_block, sample_table, table_length,
     phase, phase_step, loop_mode, loop_start, loop_end,
-    block_size
+    block_size, loop_direction
 ):
     """
     NUMBA-COMPILED: Ultra-fast SIMD waveform generation for stereo SF2 samples.
@@ -466,8 +478,8 @@ def _numba_generate_waveform_block_stereo(
         right_block: Output right channel buffer (modified in-place)
         sample_table: Pre-loaded stereo sample table (list of 2-element tuples)
         table_length: Length of sample table
-        phase: Current phase position
-        phase_step: Phase step per sample
+        phase: Current phase position (table index, 0 to table_length-1)
+        phase_step: Phase step per sample (samples per sample)
         loop_mode: SF2 loop mode (0=no loop, 1=forward, 2=backward, 3=alternating)
         loop_start: Loop start index
         loop_end: Loop end index
@@ -476,8 +488,8 @@ def _numba_generate_waveform_block_stereo(
     loop_direction = 1  # For alternating loops
 
     for i in range(block_size):
-        # Calculate table index with SIMD-friendly operations
-        raw_index = phase * table_length / (2.0 * math.pi)
+        # Phase now directly represents table index position
+        raw_index = phase
 
         # Apply SF2 loop wrapping with optimized branching
         if loop_mode > 0 and loop_end > loop_start:
@@ -549,10 +561,14 @@ def _numba_generate_waveform_block_stereo(
         left_block[i] = left_interp
         right_block[i] = right_interp
 
-        # Update phase with SIMD-friendly modulo
+        # Update phase with proper wrapping
         phase += phase_step
-        if phase > 2.0 * math.pi:
-            phase -= 2.0 * math.pi
+
+        # Handle table wrapping (no more 2*Pi normalization)
+        if phase >= table_length:
+            phase -= table_length
+        elif phase < 0:
+            phase += table_length
 
     return phase
 
@@ -810,47 +826,149 @@ class XGPartialGenerator:
         return (self.key_range_low <= note <= self.key_range_high and
                 self.velocity_range_low <= velocity <= self.velocity_range_high)
 
-    def _calculate_phase_step(self) -> float:
-        """Calculate phase step for XG synthesis with proper tuning."""
-        # Determine root key for XG synthesis
+    def _calculate_base_frequency(self) -> float:
+        """
+        Calculate the base frequency for this partial based on SF2/XG specifications.
+
+        This includes:
+        1. Original pitch from sample header (MIDI note number)
+        2. Pitch correction from sample header (cents)
+        3. XG scale tuning (100 cents = 1 semitone)
+        4. XG coarse/fine tuning
+        5. XG key scaling (note-dependent pitch variation)
+        6. Root key override (if specified)
+
+        Returns:
+            Base frequency in Hz
+        """
+        # Start with the root key (MIDI note number)
         root_key = self.overriding_root_key if self.overriding_root_key >= 0 else self.note
 
-        # XG Base frequency calculation
-        base_freq = 440.0 * (2.0 ** ((root_key - 69) / 12.0))
+        # Get sample header information for original pitch and correction
+        sample_header = self._get_sample_header()
+        if sample_header:
+            # Use original pitch from sample header
+            original_pitch = sample_header.original_pitch
+            # Apply pitch correction (in cents, typically -50 to +50)
+            pitch_correction_cents = sample_header.pitch_correction
+        else:
+            # Fallback values
+            original_pitch = root_key
+            pitch_correction_cents = 0
 
-        # Apply XG scale tuning (cents to frequency multiplier)
-        tuning_multiplier = 2.0 ** (self.scale_tuning / 1200.0)
-        base_freq *= tuning_multiplier
+        # Calculate base frequency from original pitch
+        base_freq = 440.0 * (2.0 ** ((original_pitch - 69) / 12.0))
 
-        # Apply XG coarse/fine tuning
-        coarse_offset = 2.0 ** (self.coarse_tune / 12.0)
-        fine_multiplier = 2.0 ** (self.fine_tune / 1200.0)
-        base_freq *= coarse_offset * fine_multiplier
+        # Apply pitch correction
+        if pitch_correction_cents != 0:
+            base_freq *= 2.0 ** (pitch_correction_cents / 1200.0)
 
-        # XG Key scaling (note-dependence of pitch)
+        # Apply XG scale tuning (100 cents per semitone by default)
+        if self.scale_tuning != 100:
+            scale_tuning_cents = self.scale_tuning - 100  # Relative to 100 cents/semitone
+            base_freq *= 2.0 ** (scale_tuning_cents / 1200.0)
+
+        # Apply XG coarse tuning (semitones)
+        if self.coarse_tune != 0:
+            base_freq *= 2.0 ** (self.coarse_tune / 12.0)
+
+        # Apply XG fine tuning (cents)
+        if self.fine_tune != 0:
+            base_freq *= 2.0 ** (self.fine_tune / 1200.0)
+
+        # Apply XG key scaling (note-dependent pitch variation)
         if self.key_scaling != 0.0:
             # XG formula: pitch varies linearly with note from center (note 60)
-            key_offset = (self.note - 60) * (self.key_scaling / 1200.0)
-            freq_multiplier = 2.0 ** key_offset
-            base_freq *= freq_multiplier
+            # key_scaling is in cents per key
+            key_offset_cents = (self.note - 60) * self.key_scaling
+            base_freq *= 2.0 ** (key_offset_cents / 1200.0)
 
-        # No wavetable? Use zero sample fallback
-        if self.wavetable is None:
-            # Create a 1-sample zero table for silent fallback
-            self._cached_sample_table = [(0.0, 0.0)]  # 1-sample stereo zero table
-            return base_freq * 1 / self.sample_rate  # Phase step for 1-sample table
+        return base_freq
 
-        # Get XG wavetable sample for this partial - use cached table
-        sample_table = self._cached_sample_table
+    def _get_sample_header(self):
+        """
+        Get the SF2 sample header for this partial.
 
-        if sample_table is None or len(sample_table) == 0:
-            # No sample table available - use zero sample fallback
-            # Don't set active=False, as we can still generate silence
-            return base_freq * 1 / self.sample_rate  # Phase step for 1-sample table
+        Returns:
+            SF2SampleHeader object or None if not available
+        """
+        if not self.wavetable:
+            return None
 
-        # Calculate phase step for wavetable playback
-        table_length = len(sample_table)
-        return base_freq * table_length / self.sample_rate
+        # Get sample header from wavetable manager
+        cache_key = f'{self.bank}-{self.program}-{self.note}-{self.velocity}-{self.partial_id}'
+        header, soundfont_obj, valid = getattr(self.wavetable, 'partial_map', {}).get(cache_key, (None, None, False))
+
+        return header if valid else None
+
+    def _calculate_phase_step(self) -> float:
+        """
+        Calculate the base phase step for wavetable playback.
+
+        The phase step represents how much the phase (table index) advances per sample.
+        For proper wavetable synthesis, this depends on:
+
+        1. The base frequency (from _calculate_base_frequency)
+        2. The rendering sample rate
+        3. The sample table length
+
+        The phase step is: (frequency * table_length) / sample_rate samples per sample
+
+        This gives us the number of table indices to advance per audio sample.
+
+        Returns:
+            Phase step in table indices per sample
+        """
+        # Get base frequency
+        base_freq = self._calculate_base_frequency()
+
+        # Get sample table length
+        table_length = len(self._cached_sample_table) if self._cached_sample_table else 1
+
+        # Phase step = (frequency * table_length) / sample_rate
+        # This gives us table indices per sample
+        phase_step = (base_freq * table_length) / self.sample_rate
+
+        return phase_step
+
+    def _calculate_table_index(self, phase: float, table_length: int) -> float:
+        """
+        Calculate the table index from phase.
+
+        Since phase goes from 0 to 2*Pi for one complete cycle,
+        the table index = (phase / (2*Pi)) * table_length
+
+        Args:
+            phase: Current phase in radians (0 to 2*Pi)
+            table_length: Length of the sample table
+
+        Returns:
+            Table index (0 to table_length-1)
+        """
+        # Normalize phase to 0-1 range, then scale to table length
+        normalized_phase = phase / (2.0 * math.pi)
+        table_index = normalized_phase * table_length
+
+        return table_index
+
+    def _apply_pitch_modulation_to_phase_step(self, base_phase_step: float, pitch_mod_cents: float) -> float:
+        """
+        Apply pitch modulation to the phase step.
+
+        Args:
+            base_phase_step: Base phase step in radians per sample
+            pitch_mod_cents: Pitch modulation in cents
+
+        Returns:
+            Modulated phase step in radians per sample
+        """
+        if pitch_mod_cents == 0.0:
+            return base_phase_step
+
+        # Convert cents to frequency multiplier
+        freq_multiplier = 2.0 ** (pitch_mod_cents / 1200.0)
+
+        return base_phase_step * freq_multiplier
 
     def _load_sample_table_once(self):
         """Load sample table once during construction (XG partials never change sample table)."""
@@ -1103,6 +1221,10 @@ class XGPartialGenerator:
                               global_pitch_mod: float = 0.0,
                               velocity_crossfade: float = 0.0,
                               note_crossfade: float = 0.0) -> None:
+        # Performance monitoring: increment block counter (global counter)
+        import sys
+        if hasattr(sys, '_global_performance_counters'):
+            getattr(sys, '_global_performance_counters')['partial_blocks_processed'] += 1
         """
         Generate XG partial audio block with FULL time-varying modulation processing.
 
@@ -1274,14 +1396,14 @@ class XGPartialGenerator:
             self.phase = _numba_generate_waveform_block_stereo(
                 left_block, right_block, sample_table, table_length,
                 self.phase, current_phase_step, self.loop_mode,
-                self.loop_start, self.loop_end, block_size
+                self.loop_start, self.loop_end, block_size, self.loop_direction
             )
         else:
             # Mono samples - use mono Numba function (expands to stereo)
             self.phase = _numba_generate_waveform_block_mono(
                 left_block, right_block, sample_table, table_length,
                 self.phase, current_phase_step, self.loop_mode,
-                self.loop_start, self.loop_end, block_size
+                self.loop_start, self.loop_end, block_size, self.loop_direction
             )
 
     def _generate_waveform_block_time_varying(self, left_block: np.ndarray, right_block: np.ndarray,
@@ -1317,14 +1439,14 @@ class XGPartialGenerator:
             self.phase = _numba_generate_waveform_block_stereo_time_varying(
                 left_block, right_block, sample_table, table_length,
                 self.phase, self.phase_step, pitch_mod_block, self.loop_mode,
-                self.loop_start, self.loop_end, block_size
+                self.loop_start, self.loop_end, block_size, self.loop_direction
             )
         else:
             # Mono samples - use time-varying mono Numba function (expands to stereo)
             self.phase = _numba_generate_waveform_block_mono_time_varying(
                 left_block, right_block, sample_table, table_length,
                 self.phase, self.phase_step, pitch_mod_block, self.loop_mode,
-                self.loop_start, self.loop_end, block_size
+                self.loop_start, self.loop_end, block_size, self.loop_direction
             )
 
     def _generate_lfo_pitch_modulation_block(self, lfos: List[XGLFO], block_size: int) -> np.ndarray:
@@ -1457,7 +1579,6 @@ class XGPartialGenerator:
         # Generate sample based on wavetable availability
         if self.wavetable is None:
             # Zero sample fallback - return stereo silence
-            # For 1-sample zero table, always return the same sample
             return (0.0, 0.0)  # Return stereo silence
 
         # XG Wavetable synthesis - use cached sample table
@@ -1466,9 +1587,9 @@ class XGPartialGenerator:
         if not sample_table or len(sample_table) == 0:
             return (0.0, 0.0)  # Return stereo silence
 
-        # Calculate table index with loop handling
+        # Phase now directly represents table index position
         table_length = len(sample_table)
-        raw_index = self.phase * table_length / (2.0 * math.pi)
+        raw_index = self.phase
 
         # Apply SF2 loop wrapping based on loop mode
         if self.loop_mode > 0 and self.loop_end > self.loop_start:
@@ -1561,6 +1682,15 @@ class XGPartialGenerator:
         # Linear interpolation for both channels
         left_interp = stereo1[0] + frac * (stereo2[0] - stereo1[0])
         right_interp = stereo1[1] + frac * (stereo2[1] - stereo1[1])
+
+        # Update phase with proper wrapping
+        self.phase += current_phase_step
+
+        # Handle table wrapping (no more 2*Pi normalization)
+        if self.phase >= table_length:
+            self.phase -= table_length
+        elif self.phase < 0:
+            self.phase += table_length
 
         return (left_interp, right_interp)
 
@@ -1655,6 +1785,10 @@ class XGPartialGenerator:
         # Reset basic state
         self.active = False
 
+        # Ensure cached sample table is initialized
+        if not hasattr(self, '_cached_sample_table'):
+            self._cached_sample_table = None
+
         # Reset envelopes to idle state
         self.cleanup()
         # if self.amp_envelope:
@@ -1693,6 +1827,10 @@ class XGPartialGenerator:
         self.bank = bank
         self.is_drum = is_drum
         self.sample_rate = sample_rate
+
+        # Ensure cached sample table is initialized
+        if not hasattr(self, '_cached_sample_table'):
+            self._cached_sample_table = None
 
         # Update XG Core Partial Parameters
         self.element_type = partial_params.get("element_type", "normal")

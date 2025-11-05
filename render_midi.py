@@ -286,12 +286,9 @@ def main():
     # Initialize synthesizer
     synthesizer = OptimizedXGSynthesizer(
         sample_rate=sample_rate,
-        max_polyphony=max_polyphony
+        max_polyphony=max_polyphony,
+        sf2_files=sf2_files
     )
-
-    # Set SF2 files if provided
-    if sf2_files:
-        synthesizer.set_sf2_files(sf2_files)
 
     # Initialize audio writer
     audio_writer = AudioWriter(sample_rate, chunk_size_ms)
