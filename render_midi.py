@@ -343,7 +343,7 @@ def main():
                 silent=silent,
                 abort_event=abort_event,
                 render_limit=30.0,
-                # timeout_seconds=150.0
+                timeout_seconds=150.0
             ):
                 success_count += 1
             else:

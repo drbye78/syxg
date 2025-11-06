@@ -473,10 +473,10 @@ class WavetableManager:
     def _get_merged_zones_for_preset(self, program: int, bank: int, note: int, velocity: int,
                                     is_drum: bool = False) -> Tuple[Optional[Any], Optional[Any], List[SF2InstrumentZone]]:
         """
-        UNIFIED ZONE MERGING METHOD [PHASE 6: RANGED CACHING OPTIMIZATION]
+        UNIFIED ZONE MERGING METHOD - SF2 COMPLIANT WITH PERFORMANCE OPTIMIZATION
 
-        Advanced ranged caching: cache entire preset zone configurations instead of per note/velocity.
-        Single source of truth for SF2 zone merging across all methods.
+        Implements proper SF2 range matching with efficient caching.
+        Uses zone definitions to compute matches on-demand while maintaining compliance.
 
         Args:
             program: MIDI program number (0-127)
@@ -490,48 +490,43 @@ class WavetableManager:
         """
         prog_key = f"{program}-{bank}"
 
-        # PHASE 6: Check ranged preset cache first (much more efficient)
+        # Check preset zone cache for zone definitions
         if prog_key in self._preset_zone_cache:
             self._preset_cache_hits += 1
-            cached_soundfont, cached_preset, zone_map, access_count = self._preset_zone_cache[prog_key]
+            cached_soundfont, cached_preset, zone_definitions, access_count = self._preset_zone_cache[prog_key]
 
             # Update access count for LRU-style cache management
-            self._preset_zone_cache[prog_key] = (cached_soundfont, cached_preset, zone_map, access_count + 1)
+            self._preset_zone_cache[prog_key] = (cached_soundfont, cached_preset, zone_definitions, access_count + 1)
 
-            # Fast lookup in pre-computed zone map
-            instance_key = f"{note}-{velocity}" if not is_drum else str(note)
-            cached_zones = zone_map.get(instance_key)
+            # Compute matching zones on-demand based on SF2 range matching
+            matching_zones = self._compute_zones_for_note_velocity_from_definitions(
+                zone_definitions, note, velocity
+            )
 
-            # If direct match not found, find closest sampled combination
-            if cached_zones is None and not is_drum:
-                cached_zones = self._find_closest_sampled_zones(zone_map, note, velocity) or []
-            elif cached_zones is None:
-                cached_zones = []
-
-            return cached_soundfont, cached_preset, cached_zones
+            return cached_soundfont, cached_preset, matching_zones
 
         self._preset_cache_misses += 1
 
-        # PHASE 6: Build complete zone map for entire preset (one-time computation)
-        soundfont_obj, preset_obj, zone_map = self._build_preset_zone_map(program, bank, is_drum)
+        # Build zone definitions for entire preset (one-time computation)
+        soundfont_obj, preset_obj, zone_definitions = self._build_preset_zone_map(program, bank, is_drum)
 
-        if soundfont_obj and preset_obj and zone_map:
-            # Cache the complete preset zone configuration
-            self._preset_zone_cache[prog_key] = (soundfont_obj, preset_obj, zone_map, 1)
+        if soundfont_obj and preset_obj and zone_definitions:
+            # Cache the preset zone definitions
+            self._preset_zone_cache[prog_key] = (soundfont_obj, preset_obj, zone_definitions, 1)
 
-            # Return zones for requested note/velocity
-            instance_key = f"{note}-{velocity}" if not is_drum else str(note)
-            cached_zones = zone_map.get(instance_key, [])
-            return soundfont_obj, preset_obj, cached_zones
+            # Compute and return zones for requested note/velocity
+            matching_zones = self._compute_zones_for_note_velocity_from_definitions(
+                zone_definitions, note, velocity
+            )
+            return soundfont_obj, preset_obj, matching_zones
 
         return None, None, []
 
     def _build_preset_zone_map(self, program: int, bank: int, is_drum: bool = False) -> Tuple[Optional[Any], Optional[Any], Dict[str, List[SF2InstrumentZone]]]:
         """
-        PHASE 6: Build complete zone map for entire preset.
-
-        Analyzes all zones in a preset and pre-computes merged zones for every possible
-        note/velocity combination. This enables instant lookups and massive memory savings.
+        Build preset zone map structure with zone definitions for SF2-compliant matching.
+        This method now stores the actual zone definitions instead of pre-computing all combinations,
+        which allows for efficient on-demand computation while maintaining specification compliance.
 
         Args:
             program: MIDI program number (0-127)
@@ -539,7 +534,8 @@ class WavetableManager:
             is_drum: Whether this is for drum parameters
 
         Returns:
-            Tuple of (soundfont_obj, preset_obj, zone_map) where zone_map maps (note-vel) -> merged_zones
+            Tuple of (soundfont_obj, preset_obj, zone_definitions) where zone_definitions contains
+            the raw zone data that can be used for on-demand matching
         """
         # Find the preset and its SoundFont
         soundfont_obj = None
@@ -570,8 +566,8 @@ class WavetableManager:
         # Get instruments from the corresponding SoundFont
         instruments = soundfont_obj.instruments
 
-        # PHASE 6: Pre-analyze all zones to understand coverage ranges
-        preset_zones_info = []
+        # Collect all relevant zones with their ranges
+        preset_zones_with_ranges = []
         global_preset_zones = []
         global_instrument_zones = []
 
@@ -583,64 +579,31 @@ class WavetableManager:
 
             instrument = soundfont_obj.get_instrument(preset_zone.instrument_index)
             if instrument is not None:
-                instrument_zones_info = []
-
                 for instrument_zone in instrument.zones:
                     # Check if this is a global instrument zone
                     if instrument_zone.sample_index == -1:
                         global_instrument_zones.append((preset_zone, instrument_zone))
                         continue
 
-                    # Store zone info for range analysis
-                    instrument_zones_info.append({
+                    # Store zone with its ranges
+                    preset_zones_with_ranges.append({
                         'preset_zone': preset_zone,
                         'instrument_zone': instrument_zone,
-                        'note_range': (instrument_zone.lokey, instrument_zone.hikey),
-                        'vel_range': (instrument_zone.lovel, instrument_zone.hivel) if not is_drum else (0, 127)
+                        'key_low': instrument_zone.lokey,
+                        'key_high': instrument_zone.hikey,
+                        'vel_low': instrument_zone.lovel if not is_drum else 0,
+                        'vel_high': instrument_zone.hivel if not is_drum else 127
                     })
 
-                if instrument_zones_info:
-                    preset_zones_info.append({
-                        'preset_zone': preset_zone,
-                        'instrument_zones': instrument_zones_info
-                    })
+        # Return the zone definitions (not precomputed values)
+        zone_definitions = {
+            'preset_zones_with_ranges': preset_zones_with_ranges,
+            'global_preset_zones': global_preset_zones,
+            'global_instrument_zones': global_instrument_zones,
+            'is_drum': is_drum
+        }
 
-        # PHASE 6: Build optimized zone map with sampling (not all combinations)
-        zone_map = {}
-
-        if is_drum:
-            # For drums, only iterate through notes (velocity ignored)
-            for note in range(128):
-                instance_key = str(note)
-                merged_zones = self._compute_zones_for_note_velocity(
-                    preset_zones_info, global_preset_zones, global_instrument_zones,
-                    note, 64, is_drum=True  # velocity ignored for drums
-                )
-                if merged_zones:
-                    zone_map[instance_key] = merged_zones
-        else:
-            # PHASE 6 OPTIMIZATION: Sample representative combinations instead of all 128*128
-            # Use strategic sampling to capture zone transitions while minimizing memory usage
-
-            # Sample key transition points (where zones typically change)
-            sample_notes = [0, 24, 36, 48, 60, 72, 84, 96, 108, 120, 127]  # Octave boundaries + edges
-            sample_velocities = [1, 25, 50, 75, 100, 127]  # Velocity layer boundaries
-
-            # Sample grid points for comprehensive zone coverage
-            for note in sample_notes:
-                for velocity in sample_velocities:
-                    instance_key = f"{note}-{velocity}"
-                    merged_zones = self._compute_zones_for_note_velocity(
-                        preset_zones_info, global_preset_zones, global_instrument_zones,
-                        note, velocity, is_drum=False
-                    )
-                    # Always cache sampled points, even if empty (for proper range detection)
-                    zone_map[instance_key] = merged_zones
-
-            # PHASE 6: Store only sampled combinations - runtime lookups will find closest matches
-            # This reduces memory from 16,384 entries to ~66 entries (11×6)
-
-        return soundfont_obj, preset_obj, zone_map
+        return soundfont_obj, preset_obj, zone_definitions
 
     def _compute_zones_for_note_velocity(self, preset_zones_info, global_preset_zones,
                                        global_instrument_zones, note: int, velocity: int,
@@ -688,37 +651,68 @@ class WavetableManager:
 
         return all_merged_zones
 
-    def _find_closest_sampled_zones(self, zone_map: Dict[str, List[SF2InstrumentZone]],
-                                   note: int, velocity: int) -> Optional[List[SF2InstrumentZone]]:
+    def _get_zones_for_note_velocity(self, zone_map: Dict[str, List[SF2InstrumentZone]], 
+                                    note: int, velocity: int) -> Optional[List[SF2InstrumentZone]]:
         """
-        Find zones from the closest sampled note/velocity combination.
-
-        This optimization assumes that nearby note/velocity combinations
-        will have similar zone coverage patterns.
+        Find zones that match the exact note and velocity using SF2 range matching.
 
         Args:
-            zone_map: Map of sampled combinations to their zones
+            zone_map: Map of (note, velocity) -> zones
             note: Target note
             velocity: Target velocity
 
         Returns:
-            Zones from the closest sampled combination, or None if no close match
+            Zones that match the note/velocity combination, or None if no match
         """
-        closest_distance = float('inf')
-        closest_zones = None
+        # Check for direct match first
+        instance_key = f"{note}-{velocity}"
+        if instance_key in zone_map:
+            zones = zone_map[instance_key]
+            return zones.copy() if zones else []
+        
+        # If no direct match, return None (we should have computed all valid combinations at initialization time)
+        return None
 
-        for instance_key, zones in zone_map.items():
-            if '-' in instance_key:  # Program format: "note-velocity"
-                sampled_note, sampled_velocity = map(int, instance_key.split('-'))
-                # Calculate Manhattan distance
-                distance = abs(note - sampled_note) + abs(velocity - sampled_velocity)
+    def _compute_zones_for_note_velocity_from_definitions(self, zone_definitions, note: int, velocity: int) -> List[SF2InstrumentZone]:
+        """
+        Compute matching zones for a note/velocity based on zone definitions.
+        This implements proper SF2 range matching on-demand.
 
-                if distance < closest_distance:
-                    closest_distance = distance
-                    closest_zones = zones
+        Args:
+            zone_definitions: Dictionary containing preset_zones_with_ranges, global zones, etc.
+            note: MIDI note number
+            velocity: MIDI velocity
 
-        # Only use if reasonably close (within 8 units)
-        return closest_zones.copy() if closest_zones and closest_distance <= 8 else None
+        Returns:
+            List of SF2InstrumentZone objects that match the note/velocity
+        """
+        preset_zones_with_ranges = zone_definitions.get('preset_zones_with_ranges', [])
+        global_preset_zones = zone_definitions.get('global_preset_zones', [])
+        global_instrument_zones = zone_definitions.get('global_instrument_zones', [])
+        is_drum = zone_definitions.get('is_drum', False)
+
+        # Find all zones that match this note and velocity
+        matching_zones = []
+        for zone_info in preset_zones_with_ranges:
+            if (zone_info['key_low'] <= note <= zone_info['key_high'] and
+                zone_info['vel_low'] <= velocity <= zone_info['vel_high']):
+                merged_zone = self._merge_preset_and_instrument_params(
+                    zone_info['preset_zone'], 
+                    zone_info['instrument_zone']
+                )
+                matching_zones.append(merged_zone)
+        
+        # Apply global zones to all matched zones
+        for global_preset in global_preset_zones:
+            for zone in matching_zones:
+                self._apply_global_zone_params(zone, global_preset, is_preset_global=True)
+
+        for preset_zone, global_inst in global_instrument_zones:
+            for zone in matching_zones:
+                if hasattr(zone, 'preset_instrument_index') and zone.preset_instrument_index == preset_zone.instrument_index:
+                    self._apply_global_zone_params(zone, global_inst, is_preset_global=False)
+
+        return matching_zones
 
     def _initialize_soundfonts(self):
         """Initialize SoundFont files"""
@@ -1002,6 +996,7 @@ class WavetableManager:
                 # Get sample header
                 header = soundfont_obj.get_sample_header(zone.sample_index) if soundfont_obj else None
             else:
+                self._get_merged_zones_for_preset(program, bank, note, velocity, is_drum=False)
                 header = None
 
         self.partial_map[cache_key] = (header, soundfont_obj, True)

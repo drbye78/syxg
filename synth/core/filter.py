@@ -220,9 +220,13 @@ class UltraFastResonantFilter:
 
     __slots__ = ('cutoff', 'resonance', 'filter_type', 'filter_type_int', 'key_follow', 'stereo_width',
                  'sample_rate', 'block_size', 'brightness_mod', 'harmonic_content_mod',
-                 'modulated_stereo_width', 'coeffs_dirty',
+                 'modulated_stereo_width', 'coeffs_dirty', '_coeff_cache',
                  'b0_l', 'b1_l', 'b2_l', 'a1_l', 'a2_l', 'b0_r', 'b1_r', 'b2_r', 'a1_r', 'a2_r',
                  'x_l', 'y_l', 'x_r', 'y_r', 'memory_pool', 'is_pooled')
+
+    # Global coefficient cache for performance
+    _global_coeff_cache = {}
+    _cache_lock = threading.RLock()
 
     def __init__(self, cutoff=1000.0, resonance=0.7, filter_type="lowpass",
                  key_follow=0.5, stereo_width=0.5, sample_rate=48000,
@@ -262,7 +266,25 @@ class UltraFastResonantFilter:
 
 
     def _calculate_coefficients(self, channel):
-        """Calculate filter coefficients for the specified channel"""
+        """Calculate filter coefficients for the specified channel with caching"""
+        # Create cache key from all parameters that affect coefficients
+        cache_key = (
+            round(self.cutoff, 1),  # Round to reduce cache misses
+            round(self.resonance, 2),
+            self.filter_type,
+            round(self.brightness_mod, 2),
+            round(self.harmonic_content_mod, 2),
+            round(self.modulated_stereo_width, 2),
+            channel,
+            self.sample_rate
+        )
+
+        # Check global cache first
+        with UltraFastResonantFilter._cache_lock:
+            if cache_key in UltraFastResonantFilter._global_coeff_cache:
+                return UltraFastResonantFilter._global_coeff_cache[cache_key]
+
+        # Calculate coefficients if not cached
         # Account for modulated stereo width
         stereo_width = self.modulated_stereo_width
 
@@ -306,7 +328,14 @@ class UltraFastResonantFilter:
             a2 = 1 - alpha
 
         # Normalization
-        return b0/a0, b1/a0, b2/a0, a1/a0, a2/a0
+        coeffs = (b0/a0, b1/a0, b2/a0, a1/a0, a2/a0)
+
+        # Cache the result (limit cache size to prevent memory bloat)
+        with UltraFastResonantFilter._cache_lock:
+            if len(UltraFastResonantFilter._global_coeff_cache) < 10000:  # Max 10k entries
+                UltraFastResonantFilter._global_coeff_cache[cache_key] = coeffs
+
+        return coeffs
 
     def _filter_type_to_int(self, filter_type: str) -> int:
         """Convert filter type string to integer constant for Numba."""
