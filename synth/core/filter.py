@@ -97,6 +97,47 @@ def _numba_process_filter_block(
     return x_l, y_l, x_r, y_r
 
 
+@jit(nopython=True, fastmath=True, cache=True)
+def _numba_process_filter_block_tdf2(
+    input_left: np.ndarray, input_right: np.ndarray, output_left: np.ndarray, output_right: np.ndarray,
+    b0: float, b1: float, b2: float, a1: float, a2: float,
+    z1_l: float, z2_l: float, z1_r: float, z2_r: float, block_size: int
+):
+    """
+    NUMBA-COMPILED: Transposed Direct Form II (TDF-II) filter processing.
+
+    TDF-II structure provides better numerical stability and more efficient memory access.
+    Uses only 2 state variables per channel instead of 4.
+
+    Args:
+        input_left, input_right: Input audio buffers
+        output_left, output_right: Output audio buffers
+        b0, b1, b2, a1, a2: Filter coefficients (same for both channels in mono processing)
+        z1_l, z2_l: Left channel state variables
+        z1_r, z2_r: Right channel state variables
+        block_size: Number of samples to process
+
+    Returns:
+        Updated state variables (z1_l, z2_l, z1_r, z2_r)
+    """
+    for i in range(block_size):
+        # Left channel - TDF-II structure
+        left_in = input_left[i]
+        left_out = b0 * left_in + z1_l
+        z1_l = b1 * left_in - a1 * left_out + z2_l
+        z2_l = b2 * left_in - a2 * left_out
+        output_left[i] = left_out
+
+        # Right channel - TDF-II structure
+        right_in = input_right[i]
+        right_out = b0 * right_in + z1_r
+        z1_r = b1 * right_in - a1 * right_out + z2_r
+        z2_r = b2 * right_in - a2 * right_out
+        output_right[i] = right_out
+
+    return z1_l, z2_l, z1_r, z2_r
+
+
 class FilterPool:
     """
     ULTRA-FAST FILTER OBJECT POOL FOR 1000+ FILTERS/SECOND
@@ -523,8 +564,10 @@ class UltraFastResonantFilter:
 
         # Update coefficients if dirty
         if self.coeffs_dirty:
-            self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = self._calculate_coefficients(0)
-            self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = self._calculate_coefficients(1)
+            left_coeffs = self._calculate_coefficients(0)
+            right_coeffs = self._calculate_coefficients(1)
+            self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = left_coeffs
+            self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = right_coeffs
             self.coeffs_dirty = False
 
         # Convert delay buffers to numpy arrays for Numba

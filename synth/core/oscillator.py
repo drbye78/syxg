@@ -40,7 +40,7 @@ WAVEFORM_SAMPLE_AND_HOLD = 4
 
 
 @jit(nopython=True, fastmath=True, cache=True)
-def _numba_process_lfo_block(
+def _numba_process_lfo_block_optimized(
     output_buffer: np.ndarray,
     waveform: int,
     phase: float,
@@ -53,10 +53,10 @@ def _numba_process_lfo_block(
     block_size: int
 ):
     """
-    NUMBA-COMPILED: Ultra-fast LFO block processing with SIMD operations.
+    NUMBA-COMPILED: Ultra-fast SIMD LFO block processing.
 
-    Processes an entire block of LFO samples, handling delay and fade-in correctly.
-    Uses pre-calculated lookup tables for maximum performance.
+    Fully vectorized block processing with zero per-sample loops.
+    Handles delay and fade-in using vectorized operations.
 
     Args:
         output_buffer: Caller-provided float32 array to fill with LFO levels
@@ -73,62 +73,83 @@ def _numba_process_lfo_block(
     Returns:
         Updated phase, delay_counter
     """
-    samples_processed = 0
 
-    while samples_processed < block_size:
-        remaining_samples = block_size - samples_processed
+    # Handle delay phase - fill with zeros
+    if delay_counter < delay_samples:
+        delay_remaining = delay_samples - delay_counter
+        if delay_remaining >= block_size:
+            # Entire block is in delay
+            output_buffer[:block_size].fill(0.0)
+            return phase, delay_counter + block_size
+        else:
+            # Partial delay at start of block
+            output_buffer[:delay_remaining].fill(0.0)
+            delay_counter += delay_remaining
+            # Process remaining samples
+            active_start = delay_remaining
+            active_samples = block_size - delay_remaining
+    else:
+        # No delay - process entire block
+        active_start = 0
+        active_samples = block_size
 
-        # Handle modulation delay
-        if delay_counter < delay_samples:
-            delay_remaining = delay_samples - delay_counter
-            samples_in_delay = min(remaining_samples, delay_remaining)
+    if active_samples <= 0:
+        return phase, delay_counter
 
-            # Fill delay portion with zero
-            for i in range(samples_in_delay):
-                output_buffer[samples_processed + i] = 0.0
+    # Generate phase array for entire active block - SIMD friendly
+    phase_array = np.arange(active_samples, dtype=np.float32) * phase_step + phase
+    phase_array = phase_array % (2.0 * np.pi)
+    current_phase = phase + active_samples * phase_step
+    current_phase = current_phase % (2.0 * np.pi)
 
-            delay_counter += samples_in_delay
-            samples_processed += samples_in_delay
-            continue
+    # Generate waveform based on type - vectorized operations
+    if waveform == WAVEFORM_SINE:
+        # Vectorized sine lookup table access
+        phase_indices = ((phase_array / (2.0 * np.pi)) * (_SINE_TABLE_SIZE - 1)).astype(np.int32)
+        phase_indices = np.clip(phase_indices, 0, _SINE_TABLE_SIZE - 1)
+        base_output = _SINE_TABLE[phase_indices]
 
-        # Process active LFO samples
-        active_samples = remaining_samples
+    elif waveform == WAVEFORM_TRIANGLE:
+        # Vectorized triangle wave
+        phase_norm = phase_array / (2.0 * np.pi)
+        base_output = (2.0 * np.abs(2.0 * phase_norm - 1.0) - 1.0).astype(np.float32)
 
-        for i in range(active_samples):
-            sample_idx = samples_processed + i
+    elif waveform == WAVEFORM_SQUARE:
+        # Vectorized square wave
+        base_output = np.where(phase_array < np.pi, np.float32(1.0), np.float32(-1.0))
 
-            # Update phase
-            phase = (phase + phase_step) % (2.0 * math.pi)
+    elif waveform == WAVEFORM_SAWTOOTH:
+        # Vectorized sawtooth wave
+        base_output = ((phase_array / np.pi) - 1.0).astype(np.float32)
 
-            # Generate base waveform - ULTRA-OPTIMIZED with lookup table
-            if waveform == WAVEFORM_SINE:
-                # ULTRA-OPTIMIZED: Use pre-computed sine lookup table
-                phase_index = int((phase / (2.0 * math.pi)) * (_SINE_TABLE_SIZE - 1))
-                base_output = _SINE_TABLE[phase_index]
-            elif waveform == WAVEFORM_TRIANGLE:
-                phase_norm = phase / (2.0 * math.pi)
-                base_output = 2.0 * abs(2.0 * phase_norm - 1.0) - 1.0
-            elif waveform == WAVEFORM_SQUARE:
-                base_output = 1.0 if phase < math.pi else -1.0
-            elif waveform == WAVEFORM_SAWTOOTH:
-                base_output = (phase / math.pi) - 1.0
-            elif waveform == WAVEFORM_SAMPLE_AND_HOLD:
-                # Simple sample and hold (change every few samples)
-                base_output = 1.0 if phase % 2.0 < 1.0 else -1.0
-            else:
-                # Default to sine
-                phase_index = int((phase / (2.0 * math.pi)) * (_SINE_TABLE_SIZE - 1))
-                base_output = _SINE_TABLE[phase_index]
+    elif waveform == WAVEFORM_SAMPLE_AND_HOLD:
+        # Vectorized sample and hold
+        base_output = np.where(phase_array % 2.0 < 1.0, np.float32(1.0), np.float32(-1.0))
+    else:
+        # Default to sine
+        phase_indices = ((phase_array / (2.0 * np.pi)) * (_SINE_TABLE_SIZE - 1)).astype(np.int32)
+        phase_indices = np.clip(phase_indices, 0, _SINE_TABLE_SIZE - 1)
+        base_output = _SINE_TABLE[phase_indices]
 
-            # Apply XG pitch modulation fade-in
-            fade_in_progress = min(1.0, (delay_counter - delay_samples + i + 1) / pitch_fade_in_samples)
-            modulated_depth = depth * fade_in_progress
+    # Apply fade-in if needed - vectorized
+    if pitch_fade_in_samples > 0:
+        # Calculate fade-in progress for each sample
+        sample_positions = np.arange(active_samples, dtype=np.float32)
+        fade_progress = np.minimum(np.float32(1.0),
+                                 (delay_counter - delay_samples + sample_positions + np.float32(1.0)) /
+                                 np.float32(pitch_fade_in_samples))
+        modulated_depth = np.float32(depth) * fade_progress
+    else:
+        modulated_depth = np.full(active_samples, np.float32(depth), dtype=np.float32)
 
-            output_buffer[sample_idx] = base_output * modulated_depth
+    # Apply modulation and store result
+    output_buffer[active_start:active_start + active_samples] = base_output * modulated_depth
 
-        samples_processed += active_samples
+    return current_phase, delay_counter + active_samples
 
-    return phase, delay_counter
+
+# Keep backward compatibility
+_numba_process_lfo_block = _numba_process_lfo_block_optimized
 
 
 class OscillatorPool:
@@ -568,5 +589,3 @@ class UltraFastXGLFO:
 
 # Backward compatibility alias
 XGLFO = UltraFastXGLFO
-
-

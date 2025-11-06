@@ -880,6 +880,15 @@ class XGPartialGenerator:
         self.loop_direction = 1  # 1=forward, -1=backward (for alternating loops)
         self.loop_position = 0.0  # Current position within loop
 
+        # Pre-calculated loop parameters for optimization
+        self.loop_length = 0.0
+        self.loop_start_reciprocal = 0.0
+        self.loop_length_reciprocal = 0.0
+        self.has_loop = False
+
+        # Update loop parameters when loop info is loaded
+        self._update_loop_parameters()
+
         # XG Envelope parameters with proper scaling
         self.amp_attack_time = partial_params.get("amp_attack", 0.01)
         self.amp_decay_time = partial_params.get("amp_decay", 0.3)
@@ -910,10 +919,10 @@ class XGPartialGenerator:
 
         # XG Filter parameters
         filter_config = partial_params.get("filter", {})
-        self.filter_cutoff = filter_config.get("cutoff", 1000.0)  # Hz
-        self.filter_resonance = filter_config.get("resonance", 0.7)  # 0.0-2.0
+        self.filter_cutoff = filter_config.get("cutoff", 1000.0)
+        self.filter_resonance = filter_config.get("resonance", 0.7)
         self.filter_type = filter_config.get("type", "lowpass")
-        self.filter_key_follow = filter_config.get("key_follow", 0.5)  # XG key follow
+        self.filter_key_follow = filter_config.get("key_follow", 0.5)
 
         # Check if note/velocity fall within this partial's range
         if not self._is_note_in_range(note, velocity):
@@ -948,6 +957,29 @@ class XGPartialGenerator:
         self.last_pitch_mod = 0.0
         self.last_filter_mod = 0.0
         self.last_amp_mod = 1.0  # Default to 1.0 (no modulation)
+
+    def _update_loop_parameters(self):
+        """Pre-calculate optimized loop parameters for performance."""
+        if self.loop_mode > 0 and self.loop_end > self.loop_start:
+            self.loop_length = self.loop_end - self.loop_start
+            self.loop_start_reciprocal = 1.0 / self.loop_start if self.loop_start != 0 else 0.0
+            self.loop_length_reciprocal = 1.0 / self.loop_length if self.loop_length != 0 else 0.0
+            self.has_loop = True
+        else:
+            self.loop_length = 0.0
+            self.loop_start_reciprocal = 0.0
+            self.loop_length_reciprocal = 0.0
+            self.has_loop = False
+
+    def _detect_sample_format(self) -> bool:
+        """Detect if sample table contains stereo samples (cached for performance)."""
+        if self._cached_sample_table is None or len(self._cached_sample_table) == 0:
+            return False  # Default to mono if no samples
+
+        # Check first sample to determine format
+        first_sample = self._cached_sample_table[0]
+        # Stereo samples are 2-element tuples, mono samples are single floats
+        return isinstance(first_sample, (tuple, list)) and len(first_sample) >= 2
 
     def _is_note_in_range(self, note: int, velocity: int) -> bool:
         """Check if note and velocity fall within this partial's XG-defined ranges."""
