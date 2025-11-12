@@ -55,6 +55,8 @@ Examples:
     parser.add_argument("--keyboard-abort", action="store_true", help="Enable keyboard abort with SPACE key")
     parser.add_argument("--recursive", "-r", action="store_true", help="Recurse into subdirectories")
     parser.add_argument("--format", choices=list(AudioWriter.SUPPORTED_FORMATS.keys()), default="ogg", help="Output audio format")
+    parser.add_argument("--render-log-level", type=int, choices=[0, 1, 2], default=0,
+                       help="Audio rendering logging level: 0=no logging, 1=log combined channel audio before effects, 2=log each channel renderer output")
 
     return parser.parse_args()
 
@@ -239,6 +241,9 @@ def convert_midi_to_audio_buffered(
                 # Update progress
                 progress_reporter.progress(synthesizer.get_current_time())
 
+        # Finalize audio logging after conversion is complete
+        synthesizer.finalize_audio_logging()
+
         if not silent:
             print(f"Conversion complete: {output_file}")
 
@@ -251,6 +256,7 @@ def convert_midi_to_audio_buffered(
 
 def main():
     """Main conversion function."""
+
     # Parse arguments
     args = parse_arguments()
 
@@ -269,6 +275,7 @@ def main():
     silent = args.silent
     keyboard_abort = args.keyboard_abort
     recursive = args.recursive
+    render_log_level = args.render_log_level
 
     # Expand file patterns to get actual MIDI files
     input_files = expand_file_patterns(args.input_files, recursive)
@@ -284,10 +291,12 @@ def main():
     multiple_files = len(input_files) > 1
 
     # Initialize synthesizer
+    synth_start = time.time()
     synthesizer = OptimizedXGSynthesizer(
         sample_rate=sample_rate,
         max_polyphony=max_polyphony,
-        sf2_files=sf2_files
+        sf2_files=sf2_files,
+        render_log_level=render_log_level
     )
 
     # Initialize audio writer
@@ -342,7 +351,7 @@ def main():
                 volume=master_volume,
                 silent=silent,
                 abort_event=abort_event,
-                render_limit=30.0,
+                render_limit=50.0,
                 timeout_seconds=150.0
             ):
                 success_count += 1

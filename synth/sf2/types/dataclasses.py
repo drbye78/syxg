@@ -1,4 +1,5 @@
 import math
+import numpy as np
 from typing import List, Tuple, Optional, Union
 
 
@@ -516,7 +517,7 @@ class SF2SampleHeader:
     __slots__ = [
         'name', 'start', 'end', 'start_loop', 'end_loop', 'sample_rate',
         'original_pitch', 'pitch_correction', 'link', 'type', 'stereo',
-        'data'
+        'data', 'channels', 'sample_format'
     ]
 
     def __init__(self):
@@ -532,7 +533,9 @@ class SF2SampleHeader:
         self.type = 1  # 1 = mono, 2 = right, 4 = left, 8 = linked
 
         self.stereo = False
-        self.data : Optional[Union[List[float], List[Tuple[float, float]]]] = None
+        self.channels = 1  # 1 = mono, 2 = stereo
+        self.sample_format = "mono"  # "mono" or "stereo"
+        self.data : Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]] = None
 
     def size_estimate(self):
         if self.data:

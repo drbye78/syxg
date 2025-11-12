@@ -128,6 +128,10 @@ class PresetParser(ZoneParserMixin):
             start_bag = preset.preset_bag_index
             end_bag = presets[i + 1].preset_bag_index if i < len(presets) - 1 else len(bag_data)
 
+            # Get the next preset's start indices for proper zone boundary calculation
+            next_gen_start = bag_data[presets[i + 1].preset_bag_index][0] if i < len(presets) - 1 else len(gen_data)
+            next_mod_start = bag_data[presets[i + 1].preset_bag_index][1] if i < len(presets) - 1 else len(mod_data)
+
             # Create zones for this preset
             zones_data = []
             for bag_idx in range(start_bag, end_bag):
@@ -138,7 +142,7 @@ class PresetParser(ZoneParserMixin):
                 zones_data.append((bag_idx, gen_ndx, mod_ndx))
 
             # Batch parse zones for this preset
-            preset.zones = self._batch_parse_preset_zones(zones_data, gen_data, mod_data, preset.preset, preset.bank)
+            preset.zones = self._batch_parse_preset_zones(zones_data, gen_data, mod_data, next_gen_start, next_mod_start, preset.preset, preset.bank)
 
         return presets
 
@@ -183,6 +187,10 @@ class PresetParser(ZoneParserMixin):
         start_bag = preset.preset_bag_index
         end_bag = presets[preset_index + 1].preset_bag_index if preset_index < len(presets) - 1 else len(bag_data)
 
+        # Get the next preset's start indices for proper zone boundary calculation
+        next_gen_start = bag_data[presets[preset_index + 1].preset_bag_index][0] if preset_index < len(presets) - 1 else len(gen_data)
+        next_mod_start = bag_data[presets[preset_index + 1].preset_bag_index][1] if preset_index < len(presets) - 1 else len(mod_data)
+
         # Create zones data for this preset only
         zones_data = []
         for bag_idx in range(start_bag, end_bag):
@@ -192,7 +200,7 @@ class PresetParser(ZoneParserMixin):
             zones_data.append((bag_idx, gen_ndx, mod_ndx))
 
         # Parse zones for this preset
-        zones = self._batch_parse_preset_zones(zones_data, gen_data, mod_data, preset.preset, preset.bank)
+        zones = self._batch_parse_preset_zones(zones_data, gen_data, mod_data, next_gen_start, next_mod_start, preset.preset, preset.bank)
 
         # Cache the result
         self._preset_zone_cache[preset_index] = zones
@@ -201,6 +209,7 @@ class PresetParser(ZoneParserMixin):
 
     def _batch_parse_preset_zones(self, zones_data: List[Tuple[int, int, int]],
                                 gen_data: List[Tuple[int, int]], mod_data: List[SF2Modulator],
+                                max_gen_ndx: int, max_mod_ndx: int,
                                 preset_num: int, bank: int) -> List[SF2PresetZone]:
         """
         Batch parse multiple preset zones for better performance.
@@ -209,6 +218,8 @@ class PresetParser(ZoneParserMixin):
             zones_data: List of (bag_idx, gen_ndx, mod_ndx) tuples
             gen_data: Generator data
             mod_data: Modulator data
+            max_gen_ndx: Maximum generator index this preset can use
+            max_mod_ndx: Maximum modulator index this preset can use
             preset_num: Preset number
             bank: Bank number
 
@@ -219,8 +230,8 @@ class PresetParser(ZoneParserMixin):
 
         for i, (bag_idx, gen_ndx, mod_ndx) in enumerate(zones_data):
             # Calculate end indices for this zone
-            next_gen_ndx = zones_data[i + 1][1] if i + 1 < len(zones_data) else len(gen_data)
-            next_mod_ndx = zones_data[i + 1][2] if i + 1 < len(zones_data) else len(mod_data)
+            next_gen_ndx = zones_data[i + 1][1] if i + 1 < len(zones_data) else max_gen_ndx
+            next_mod_ndx = zones_data[i + 1][2] if i + 1 < len(zones_data) else max_mod_ndx
 
             # Create preset zone
             zone = SF2PresetZone()

@@ -7,6 +7,7 @@ Refactored version of Sf2WavetableManager with modular design.
 import threading
 import time
 import array
+import numpy as np
 from typing import Dict, List, Tuple, Optional, Union, Any, NamedTuple, Set
 from ..types import SF2InstrumentZone
 from ..core import SoundFontManager
@@ -967,7 +968,7 @@ class WavetableManager:
         return bank == 128
 
     def get_partial_table(self, note: int, program: int, partial_id: int,
-                         velocity: int, bank: int = 0) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
+                         velocity: int, bank: int = 0) -> Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]]:
         """
         Get sample data for a partial.
         Now uses unified zone merging for consistency with other methods.

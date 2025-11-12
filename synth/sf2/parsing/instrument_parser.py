@@ -127,6 +127,10 @@ class InstrumentParser(ZoneParserMixin):
         start_bag = instrument.instrument_bag_index
         end_bag = self._all[instrument_index + 1].instrument_bag_index if instrument_index < len(self._all) - 1 else len(self._bags) # type: ignore
 
+        # Get the next instrument's start indices for proper zone boundary calculation
+        next_gen_start = self._bags[self._all[instrument_index + 1].instrument_bag_index][0] if instrument_index < len(self._all) - 1 else len(self._gens) # type: ignore
+        next_mod_start = self._bags[self._all[instrument_index + 1].instrument_bag_index][1] if instrument_index < len(self._all) - 1 else len(self._mods) # type: ignore
+
         # Create zones data for batch processing
         zones_data = []
         for bag_idx in range(start_bag, end_bag):
@@ -137,12 +141,13 @@ class InstrumentParser(ZoneParserMixin):
             zones_data.append((bag_idx, gen_ndx, mod_ndx))
 
         # Batch parse zones for this instrument
-        instrument.zones = self._batch_parse_instrument_zones(zones_data, self._gens, self._mods)
+        instrument.zones = self._batch_parse_instrument_zones(zones_data, self._gens, self._mods, next_gen_start, next_mod_start)
 
         return instrument
 
     def _batch_parse_instrument_zones(self, zones_data: List[Tuple[int, int, int]],
-                                    gen_data: List[Tuple[int, int]], mod_data: List[SF2Modulator]) -> List[SF2InstrumentZone]:
+                                    gen_data: List[Tuple[int, int]], mod_data: List[SF2Modulator],
+                                    max_gen_ndx: int, max_mod_ndx: int) -> List[SF2InstrumentZone]:
         """
         Batch parse multiple instrument zones for better performance.
 
@@ -150,6 +155,8 @@ class InstrumentParser(ZoneParserMixin):
             zones_data: List of (bag_idx, gen_ndx, mod_ndx) tuples
             gen_data: Generator data
             mod_data: Modulator data
+            max_gen_ndx: Maximum generator index this instrument can use
+            max_mod_ndx: Maximum modulator index this instrument can use
 
         Returns:
             List of parsed instrument zones
@@ -158,8 +165,8 @@ class InstrumentParser(ZoneParserMixin):
 
         for i, (bag_idx, gen_ndx, mod_ndx) in enumerate(zones_data):
             # Calculate end indices for this zone
-            next_gen_ndx = zones_data[i + 1][1] if i + 1 < len(zones_data) else len(gen_data)
-            next_mod_ndx = zones_data[i + 1][2] if i + 1 < len(zones_data) else len(mod_data)
+            next_gen_ndx = zones_data[i + 1][1] if i + 1 < len(zones_data) else max_gen_ndx
+            next_mod_ndx = zones_data[i + 1][2] if i + 1 < len(zones_data) else max_mod_ndx
 
             # Create instrument zone
             zone = SF2InstrumentZone()

@@ -44,11 +44,12 @@ from .optimized_coefficient_manager import (
     get_global_coefficient_manager,
 )
 from ..sf2.manager import SF2Manager
-from ..xg.manager import StateManager
 from ..xg.drum_manager import DrumManager
 from ..xg.channel_note import PartialGeneratorPool
 from ..midi.parser import MIDIMessage
 from ..effects.vectorized_core import VectorizedEffectManager
+from ..audio.writer import AudioWriter
+
 
 
 class MemoryPool:
@@ -67,7 +68,7 @@ class MemoryPool:
     - Zero-copy buffer management where possible
     """
 
-    def __init__(self, block_size: int, initial_pool_size: int = 8):
+    def __init__(self, block_size: int, initial_pool_size: int = 32):
         """
         Initialize ultra-fast memory pool for audio buffers.
 
@@ -257,6 +258,7 @@ class OptimizedXGSynthesizer:
         block_size: int = DEFAULT_CONFIG["BLOCK_SIZE"],
         sf2_files = None,
         param_cache=None,
+        render_log_level: int = 0,
     ):
         """
         Initialize optimized XG synthesizer with performance enhancements.
@@ -271,21 +273,19 @@ class OptimizedXGSynthesizer:
         self.block_size = block_size
         self.max_polyphony = max_polyphony
         self.master_volume = DEFAULT_CONFIG["MASTER_VOLUME"]
+        self.render_log_level = render_log_level
 
         # Thread safety lock
         self.lock = threading.RLock()
 
         # Memory and object pooling system
-        self.memory_pool = MemoryPool(block_size=block_size, initial_pool_size=256)  # Ultra-fast fixed-size audio buffers
+        self.memory_pool = MemoryPool(block_size=block_size, initial_pool_size=32)  # Ultra-fast fixed-size audio buffers
         self._initialize_object_pools()
 
         # Core synthesizer components owned by this class
         self.sample_rate = sample_rate
         self.block_size = block_size
         self.max_polyphony = max_polyphony
-
-        # State management
-        self.state_manager = StateManager()
 
         # Drum management
         self.drum_manager = DrumManager()
@@ -330,6 +330,12 @@ class OptimizedXGSynthesizer:
 
         # Recreate performance log file upon class creation
         self._recreate_performance_log()
+
+        # Initialize audio writers for debugging pipeline
+        self._initialize_audio_writers()
+
+        # Ensure render_logs directory exists
+        os.makedirs("render_logs", exist_ok=True)
 
     def _create_channel_renderers(self):
         """Create and initialize channel renderers owned by synthesizer."""
@@ -378,15 +384,15 @@ class OptimizedXGSynthesizer:
         """Initialize object pools for frequently allocated objects."""
         # Envelope object pool
         self.envelope_pool = EnvelopePool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
-        self.lfo_pool = OscillatorPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        # Channel-level LFO pool for shared channel LFOs
+        self.lfo_pool = OscillatorPool(max_oscillators=500, block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        # Dedicated LFO pool for partials to avoid LFO contention (LFO bottleneck fix)
+        self.partial_lfo_pool = OscillatorPool(max_oscillators=1000, block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
         self.filter_pool = FilterPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
         self.panner_pool = PannerPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
 
     def _initialize_xg(self):
         """Initialize XG synthesizer according to standard."""
-        # Initialize state manager with XG defaults
-        self.state_manager.initialize_xg_defaults()
-
         # Initialize effect parameters for all channels
         for channel in range(self.num_channels):
             # Initialize effect parameters in effect manager
@@ -410,8 +416,6 @@ class OptimizedXGSynthesizer:
             if channel == 9:
                 # Set drum mode - VectorizedChannelRenderer handles this internally
                 self.channel_renderers[channel].is_drum = True
-                # Set drum bank
-                self.state_manager.set_bank(channel, 128)
 
     def _setup_drum_channel_enhancements(self):
         """Set up drum channel enhancements according to XG specification."""
@@ -442,12 +446,6 @@ class OptimizedXGSynthesizer:
 
     def _handle_program_change(self, channel: int, program: int):
         """Handle Program Change message."""
-        self.state_manager.set_program(channel, program)
-
-        # For drum channels (channels in drum mode), set drum bank
-        if self.channel_renderers[channel].is_drum:
-            self.state_manager.set_bank(channel, 128)
-
         # Forward to channel renderer
         self.channel_renderers[channel].program_change(program)
 
@@ -499,9 +497,8 @@ class OptimizedXGSynthesizer:
             elif msg_type == "note_on":
                 self.channel_renderers[channel].note_on(message.note, message.velocity)
             elif msg_type == "poly_pressure":
-                self.state_manager.set_key_pressure(
-                    channel, message.note, message.pressure
-                )
+                # Forward polyphonic aftertouch to channel renderer
+                self.channel_renderers[channel].set_key_pressure(message.note, message.pressure)
             elif msg_type == "control_change":
                 self.channel_renderers[channel].control_change(
                     message.control, message.value
@@ -509,9 +506,11 @@ class OptimizedXGSynthesizer:
             elif msg_type == "program_change":
                 self._handle_program_change(channel, message.program)
             elif msg_type == "channel_pressure":
-                self.state_manager.set_channel_pressure(channel, message.pressure)
+                # Forward channel pressure to channel renderer
+                self.channel_renderers[channel].set_channel_pressure(message.pressure)
             elif msg_type == "pitch_bend":
-                self.state_manager.set_pitch_bend(channel, message.pitch)
+                # Forward pitch bend to channel renderer
+                self.channel_renderers[channel].set_pitch_bend(message.pitch)
 
     def send_sysex(self, message: MIDIMessage):
         """
@@ -769,6 +768,10 @@ class OptimizedXGSynthesizer:
             channel_stereo = np.column_stack((channel_left, channel_right))
             self.channel_buffers[channel_idx] = channel_stereo
 
+        # Handle audio rendering logging based on level
+        if self.render_log_level >= 1:
+            self._log_channel_audio_rendering(block_size)
+
         return self.channel_buffers
 
 
@@ -805,9 +808,22 @@ class OptimizedXGSynthesizer:
         with self.lock:
             return self._current_time
 
+    def finalize_audio_logging(self):
+        """
+        Finalize audio logging by closing all streams and updating WAV headers.
+
+        This method should be called when MIDI rendering is complete to ensure
+        all audio log files are properly finalized with correct headers.
+        """
+        with self.lock:
+            self._finalize_audio_logging()
+
     def cleanup(self):
         """Complete cleanup of all synthesizer resources."""
         with self.lock:
+            # Finalize audio logging first
+            self._finalize_audio_logging()
+
             # Clean up channel renderers
             for renderer in self.channel_renderers:
                 try:
@@ -860,8 +876,10 @@ class OptimizedXGSynthesizer:
                 except:
                     pass
 
-            # Reset state manager
-            self.state_manager.reset_all_channels()
+            # Reset channel renderers
+            for renderer in self.channel_renderers:
+                if hasattr(renderer, 'reset'):
+                    renderer.reset()
 
             # Reset drum manager
             self.drum_manager.reset_all_drum_parameters()
@@ -932,10 +950,9 @@ class OptimizedXGSynthesizer:
                 channel_notes = len(renderer.active_notes)
                 channel_partials = sum(len(channel_note.partials) for channel_note in renderer.active_notes.values())
 
-                # Get channel MIDI settings from state manager
-                channel_state = self.state_manager.get_channel_state(channel_idx)
-                bank = channel_state.get('bank', 0)
-                program = channel_state.get('program', 0)
+                # Get channel MIDI settings from channel renderer
+                bank = getattr(renderer, 'bank', 0)
+                program = getattr(renderer, 'program', 0)
 
                 # Get SF2 preset name if available
                 preset_name = self._get_sf2_preset_name(bank, program)
@@ -1123,6 +1140,140 @@ class OptimizedXGSynthesizer:
         except Exception as e:
             # If logging fails, print to console as fallback
             print(f"Warning: Failed to write performance log: {e}")
+
+    def _initialize_audio_writers(self):
+        """Initialize audio writers for debugging pipeline based on render log level."""
+        # Create audio writer instance
+        self.audio_writer = AudioWriter(self.sample_rate, chunk_size_ms=100.0)
+
+        # Initialize audio writers for different logging levels
+        self.audio_writers = {}
+
+        # Level 1: Dry stereo output before effects processing
+        if self.render_log_level >= 1:
+            self.audio_writers[1] = self.audio_writer.create_writer(
+                os.path.join("render_logs", "level1_dry_output.wav"), "wav"
+            ).__enter__()
+
+        # Level 2: Output of each active channel renderer
+        if self.render_log_level >= 2:
+            for channel_idx in range(self.num_channels):
+                self.audio_writers[f"channel_{channel_idx}"] = self.audio_writer.create_writer(
+                    os.path.join("render_logs", f"level2_channel_{channel_idx}.wav"), "wav"
+                ).__enter__()
+
+        # Level 3: Output of each active channel note
+        if self.render_log_level >= 3:
+            # Note writers will be created dynamically as notes become active
+            self.note_writers = {}
+
+        # Initialize accumulation buffers for continuous logging
+        self.dry_output_accumulator = []
+        self.channel_accumulators = {f"channel_{i}": [] for i in range(self.num_channels)}
+        self.note_accumulators = {}
+
+    def _log_channel_audio_rendering(self, block_size: int):
+        """Log channel audio rendering based on the configured log level."""
+        if self.render_log_level == 0 or not hasattr(self, 'audio_writers'):
+            return
+
+        # Level 1: Dry stereo output before effects processing
+        if self.render_log_level >= 1 and 1 in self.audio_writers:
+            # Accumulate dry channel outputs (before effects)
+            dry_mix = np.zeros((block_size, 2), dtype=np.float32)
+            for channel_idx in range(self.num_channels):
+                if self.channel_buffers[channel_idx] is not None:
+                    # Use only the first block_size samples since channel_buffers may be larger
+                    np.add(dry_mix, self.channel_buffers[channel_idx][:block_size], out=dry_mix)
+
+            # Write accumulated dry output
+            self.audio_writers[1].write(dry_mix)
+
+        # Level 2: Output of each active channel renderer
+        if self.render_log_level >= 2:
+            for channel_idx in range(self.num_channels):
+                writer_key = f"channel_{channel_idx}"
+                if writer_key in self.audio_writers and self.channel_buffers[channel_idx] is not None:
+                    # Write only the first block_size samples of individual channel output
+                    self.audio_writers[writer_key].write(self.channel_buffers[channel_idx][:block_size])
+
+        # Level 3: Output of each active channel note
+        if self.render_log_level >= 3:
+            for channel_idx, renderer in enumerate(self.channel_renderers):
+                if renderer.is_active():
+                    for note_num, channel_note in renderer.active_notes.items():
+                        writer_key = f"channel_{channel_idx}_note_{note_num}"
+
+                        # Create writer if it doesn't exist
+                        if writer_key not in self.audio_writers:
+                            self.audio_writers[writer_key] = self.audio_writer.create_writer(
+                                os.path.join("render_logs", f"level3_channel_{channel_idx}_note_{note_num}.wav"), "wav"
+                            ).__enter__()
+
+                        # Generate note audio and write it
+                        if hasattr(channel_note, 'generate_sample_block'):
+                            # Get appropriately sized buffers for this block
+                            if block_size == self.block_size:
+                                # Use pool buffers for standard size
+                                note_left = self.memory_pool.get_mono_buffer(zero_buffer=True)
+                                note_right = self.memory_pool.get_mono_buffer(zero_buffer=True)
+                            else:
+                                # Get variable-sized buffers for smaller blocks
+                                note_left = self.memory_pool.get_buffer(block_size, 1, dtype=np.float32)
+                                note_right = self.memory_pool.get_buffer(block_size, 1, dtype=np.float32)
+
+                            try:
+                                channel_note.generate_sample_block(
+                                    block_size, note_left, note_right,
+                                    mod_wheel=renderer.controllers[1] if 1 in renderer.controllers else 0,
+                                    breath_controller=renderer.controllers[2] if 2 in renderer.controllers else 0,
+                                    foot_controller=renderer.controllers[4] if 4 in renderer.controllers else 0,
+                                    brightness=renderer.controllers[72] if 72 in renderer.controllers else 64,
+                                    harmonic_content=renderer.controllers[71] if 71 in renderer.controllers else 64,
+                                    channel_pressure_value=renderer.channel_pressure_value,
+                                    key_pressure=renderer.key_pressure_values.get(note_num, 0),
+                                    volume=renderer.volume,
+                                    expression=renderer.expression,
+                                    global_pitch_mod=0.0
+                                )
+
+                                # Combine into stereo and write
+                                note_stereo = np.column_stack((note_left, note_right))
+                                self.audio_writers[writer_key].write(note_stereo)
+
+                            finally:
+                                # Return buffers to pool - handle both fixed and variable sizes
+                                if block_size == self.block_size:
+                                    self.memory_pool.return_mono_buffer(note_left)
+                                    self.memory_pool.return_mono_buffer(note_right)
+                                else:
+                                    self.memory_pool.return_buffer(note_left)
+                                    self.memory_pool.return_buffer(note_right)
+
+    def _finalize_audio_logging(self):
+        """Finalize and close all audio logging streams."""
+        # Close all audio writers
+        if hasattr(self, 'audio_writers') and self.audio_writers:
+            for writer in self.audio_writers.values():
+                try:
+                    if hasattr(writer, '__exit__'):
+                        writer.__exit__(None, None, None)
+                except:
+                    pass
+
+        # Clear writer references
+        if hasattr(self, 'audio_writers'):
+            self.audio_writers.clear()
+        if hasattr(self, 'note_writers'):
+            self.note_writers.clear()
+
+        # Clear accumulators
+        if hasattr(self, 'dry_output_accumulator'):
+            self.dry_output_accumulator.clear()
+        if hasattr(self, 'channel_accumulators'):
+            self.channel_accumulators.clear()
+        if hasattr(self, 'note_accumulators'):
+            self.note_accumulators.clear()
 
     def __del__(self):
         """Cleanup when OptimizedXGSynthesizer is destroyed."""

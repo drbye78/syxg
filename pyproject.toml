@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xg-synthesizer"
+dynamic = ["version"]
+description = "High-performance MIDI XG (eXtended General MIDI) synthesizer implemented in Python with optimized vectorized processing"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Roger", email = "roger@syxg.dev"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Sound/Audio :: MIDI",
+    "Topic :: Multimedia :: Sound/Audio :: Sound Synthesis",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy>=1.21.0",
+    "scipy>=1.7.0",
+    "pydub>=0.25.1",
+    "librosa>=0.9.0",
+    "soundfile>=0.10.3",
+    "av>=9.0.0",
+    "numba>=0.56.0",
+    "PyYAML>=6.0",
+    "typing-extensions>=4.0.0",
+    "cython>=0.29.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.10.1",
+    "black>=21.0.0",
+    "flake8>=3.8.0",
+    "mypy>=0.812",
+]
+performance = [
+    "numba>=0.56.0",
+]
+audio = [
+    "pydub>=0.25.1",
+    "librosa>=0.9.0",
+    "soundfile>=0.10.3",
+    "av>=9.0.0",
+]
+visualization = [
+    "matplotlib>=3.3.0",
+    "seaborn>=0.11.0",
+]
+
+[project.scripts]
+render-midi = "render_midi:main"
+
+[project.urls]
+Homepage = "https://github.com/roger/syxg"
+"Repository" = "https://github.com/roger/syxg"
+"Bug Tracker" = "https://github.com/roger/syxg/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "synth.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["synth*"]

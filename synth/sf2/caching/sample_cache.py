@@ -65,7 +65,7 @@ class SampleCache:
         Returns:
             True if successfully cached, False otherwise
         """
-        if not sample.data:
+        if sample.data is None:
             return False
 
         with self.lock:
@@ -165,7 +165,7 @@ class SampleCache:
         Returns:
             Estimated size in samples
         """
-        if not sample.data:
+        if sample.data is None:
             return 0
 
         sample_length = sample.end - sample.start

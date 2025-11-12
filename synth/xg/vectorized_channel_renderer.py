@@ -573,6 +573,18 @@ class VectorizedChannelRenderer:
         # 14-bit pitch bend value with optimized calculation
         self.pitch_bend_value = (msb << 7) | lsb
 
+    def set_channel_pressure(self, pressure: int):
+        """Set channel pressure (aftertouch) for this channel."""
+        self.channel_pressure_value = pressure
+
+    def set_key_pressure(self, note: int, pressure: int):
+        """Set key pressure (polyphonic aftertouch) for a specific note."""
+        self.key_pressure_values[note] = pressure
+
+    def set_pitch_bend(self, value: int):
+        """Set pitch bend value for this channel."""
+        self.pitch_bend_value = value
+
     def program_change(self, program: int):
         """Handle Program Change message for this channel with XG bank selection support."""
         self.program = program
@@ -585,7 +597,7 @@ class VectorizedChannelRenderer:
         # - Other banks: Ignored per XG specification (maintain previous drum/melodic mode)
 
         # Determine if this is a drum channel (channel 9/MIDI channel 10)
-        is_drum_channel = (self.channel == 9)
+        is_drum_channel = self.is_drum
 
         # XG Bank Mapping Logic - Only change mode for defined XG banks
         combined_bank = (self.bank_msb << 7) | self.bank_lsb
@@ -605,10 +617,7 @@ class VectorizedChannelRenderer:
             # This is the correct XG behavior: undefined banks have no effect
             pass
 
-        # Update state manager with the resolved bank and program
-        if hasattr(self.synth, 'state_manager'):
-            self.synth.state_manager.set_program(self.channel, program)
-            self.synth.state_manager.set_bank(self.channel, combined_bank)
+
 
     def all_notes_off(self):
         """Turn off all active notes with optimized batch termination."""
@@ -618,8 +627,10 @@ class VectorizedChannelRenderer:
 
     def all_sound_off(self):
         """Immediately silence all notes with optimized batch termination."""
-        for note in self.active_notes.values():
-            note.note_off()
+        # Clean up all notes to release LFOs and other resources before clearing
+        for note, channel_note in list(self.active_notes.items()):
+            if hasattr(channel_note, 'cleanup'):
+                channel_note.cleanup()
         self.active_notes.clear()
 
     def cleanup_buffers(self):
@@ -810,6 +821,9 @@ class VectorizedChannelRenderer:
         inactive_notes = [note for note, channel_note in self.active_notes.items()
                          if not channel_note.is_active()]
         for note in inactive_notes:
+            # Clean up the channel note to release LFOs and other resources
+            channel_note = self.active_notes[note]
+            channel_note.cleanup()
             # Deallocate voice from voice manager with optimized deallocation
             self.voice_manager.deallocate_voice(note)
             del self.active_notes[note]

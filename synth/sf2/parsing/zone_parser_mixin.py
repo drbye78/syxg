@@ -100,8 +100,8 @@ class ZoneParserMixin(ABC):
             37: (-12000, 8000), # releaseVolEnv (timecent)
             38: (-1200, 1200),  # keynumToVolEnvHold (tcent/key)
             39: (-1200, 1200),  # keynumToVolEnvDecay (tcent/key)
-            40: (0, 0),         # instrument (preset level only)
-            41: (0, 0),         # reserved1
+            40: (-1, 65535),    # instrument (preset level only)
+            41: (-1, 65535),    # reserved1 (used for instrument linking in this implementation)
             42: (0, 0x7F7F),    # keyRange (special handling)
             43: (0, 0x7F7F),    # velRange (special handling)
 
@@ -116,8 +116,8 @@ class ZoneParserMixin(ABC):
             51: (-99, 99),      # fineTune (cents)
 
             # More tuning and effects (52-59)
-            52: (0, 0),         # sampleID (instrument level only)
-            53: (0, 3),         # sampleModes
+            52: (-1, 65535),    # sampleID (instrument level only)
+            53: (-1, 65535),    # sampleModes (used for sample linking in this implementation)
             54: (0, 0),         # reserved3
             55: (0, 1200),      # scaleTuning (cent/key)
             56: (0, 127),       # exclusiveClass

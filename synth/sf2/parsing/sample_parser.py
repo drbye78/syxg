@@ -5,6 +5,7 @@ Handles parsing of SF2 sample data including headers and sample data.
 """
 
 import struct
+import numpy as np
 from typing import List, Optional, BinaryIO, Dict, Tuple, Union, Any
 from ..types import SF2SampleHeader
 
@@ -90,12 +91,32 @@ class SampleParser:
         sample_header.link = struct.unpack('<H', header_data[42:44])[0]
         sample_header.type = struct.unpack('<H', header_data[44:46])[0]
 
-        # Determine if stereo
-        sample_header.stereo = (sample_header.type & 3) == 2
+        # Determine sample format and channels
+        sample_type = sample_header.type & 3
+        if sample_type == 1:
+            # Mono sample
+            sample_header.stereo = False
+            sample_header.channels = 1
+            sample_header.sample_format = "mono"
+        elif sample_type == 2:
+            # Right channel of stereo pair
+            sample_header.stereo = True
+            sample_header.channels = 2
+            sample_header.sample_format = "stereo"
+        elif sample_type == 4:
+            # Left channel of stereo pair
+            sample_header.stereo = True
+            sample_header.channels = 2
+            sample_header.sample_format = "stereo"
+        else:
+            # Default to mono
+            sample_header.stereo = False
+            sample_header.channels = 1
+            sample_header.sample_format = "mono"
 
         return sample_header
 
-    def read_sample_data(self, sample_header: SF2SampleHeader) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
+    def read_sample_data(self, sample_header: SF2SampleHeader) -> Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]]:
         """
         Read sample data from the file using block reading for performance.
 
@@ -103,7 +124,7 @@ class SampleParser:
             sample_header: Sample header containing position information
 
         Returns:
-            Sample data as list of floats (mono) or list of tuples (stereo)
+            Sample data as numpy array (mono) or tuple of numpy arrays (stereo per-channel planes)
         """
         if not self.file or 'smpl' not in self.chunk_info:
             return None
@@ -126,8 +147,11 @@ class SampleParser:
         # Read raw sample data in blocks for better performance
         raw_data = self._read_block_data(sample_size)
 
-        # Unpack 16-bit signed integers using block unpacking
-        raw_samples = self._unpack_sample_data(raw_data, num_samples)
+        # Unpack 16-bit signed integers using numpy for better performance
+        if len(raw_data) < num_samples * 2:
+            return None
+
+        raw_samples = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32)
 
         # Check for 24-bit samples
         is_24bit = 'sm24' in self.chunk_info
@@ -140,18 +164,23 @@ class SampleParser:
             if len(aux_data) < num_samples:
                 return None
 
+            aux_samples = np.frombuffer(aux_data, dtype=np.uint8).astype(np.int32)
             # Convert to 24-bit samples using vectorized operations
             maxx = 2.0 ** -23
-            sample_data = [(raw_samples[i] << 8 | aux_data[i]) * maxx for i in range(num_samples)]
+            raw_samples = ((raw_samples.astype(np.int32) << 8) | aux_samples) * maxx
         else:
             # Convert to normalized floats
-            sample_data = [raw_samples[i] / 32768.0 for i in range(num_samples)]
+            raw_samples /= 32768.0
 
-        # Format as mono or stereo
+        # Format as mono or stereo per-channel planes
         if sample_header.stereo:
-            sample_header.data = [(sample_data[i], sample_data[i + 1]) for i in range(0, len(sample_data), 2)]
+            # Split into left and right channels as separate numpy arrays
+            left_channel = raw_samples[0::2].copy()  # Even indices
+            right_channel = raw_samples[1::2].copy()  # Odd indices
+            sample_header.data = (left_channel, right_channel)
         else:
-            sample_header.data = sample_data
+            # Mono sample as single numpy array
+            sample_header.data = raw_samples
 
         return sample_header.data
 

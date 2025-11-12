@@ -6,6 +6,7 @@ Refactored version of Sf2SoundFont with modular design and optimizations for lar
 
 import os
 import threading
+import numpy as np
 from typing import Optional, BinaryIO, List, Dict, Tuple, Union, Any, Set
 from ..types import SF2Preset, SF2Instrument, SF2SampleHeader
 from ..parsing import ChunkParser, PresetParser, InstrumentParser, SampleParser
@@ -258,7 +259,7 @@ class SoundFontManager:
 
         return self.sample_headers[index]
 
-    def read_sample_data(self, sample_header: SF2SampleHeader) -> Optional[Union[List[float], List[Tuple[float, float]]]]:
+    def read_sample_data(self, sample_header: SF2SampleHeader) -> Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]]:
         """
         Read sample data with enhanced caching and memory management.
 
@@ -266,7 +267,7 @@ class SoundFontManager:
             sample_header: Sample header
 
         Returns:
-            Sample data or None
+            Sample data as numpy array (mono) or tuple of numpy arrays (stereo) or None
         """
         if not self.sample_parser:
             return None
@@ -280,7 +281,7 @@ class SoundFontManager:
         cache_key = f"{self.path}.{sample_header.name}"
         with self._cache_lock:
             cached_sample = self.sample_cache.get(cache_key)
-            if cached_sample and cached_sample.data:
+            if cached_sample and cached_sample.data is not None:
                 sample_header.data = cached_sample.data
                 self._samples_loaded.add(sample_index)
                 return cached_sample.data
@@ -290,7 +291,7 @@ class SoundFontManager:
             sample_data = self.sample_parser.read_sample_data(sample_header)
 
         # Cache if successful
-        if sample_data:
+        if sample_data is not None:
             sample_header.data = sample_data
             with self._cache_lock:
                 self.sample_cache.put(cache_key, sample_header)
