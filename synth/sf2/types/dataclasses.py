@@ -135,7 +135,14 @@ class SF2Modulator:
             return value  # Default to linear
 
 class SF2InstrumentZone:
-    """Represents an instrument zone in SoundFont 2.0 with complete generator support"""
+    """
+    Represents an instrument zone in SoundFont 2.0 with complete generator support
+
+    Notes on fields:
+    - sampleID and sample_index are synchronized for consistency
+    - sample_name is populated from SHDR chunk during parsing
+    - Various duplicate fields exist for backward compatibility (deprecated)
+    """
     __slots__ = [
         # Basic generators (0-7)
         'startAddrsOffset', 'endAddrsOffset', 'startloopAddrsOffset', 'endloopAddrsOffset',
@@ -261,7 +268,7 @@ class SF2InstrumentZone:
         self.fineTune = 0
 
         # More tuning and effects (52-59)
-        self.sampleID = 0
+        self.sampleID = -1  # -1 = not set yet, 0+ = valid sample indices
         self.sampleModes = 0
         self.reserved3 = 0
         self.scaleTuning = 100  # 100 cents per semitone
@@ -288,8 +295,8 @@ class SF2InstrumentZone:
         self.voiceConcave = 0
         self.AttackVolEnv = -12000
         self.scale_tuning = 100
-        self.sample_index = -1
-        self.sample_name = "Default"
+        self.sample_index = -1  # -1 = not set yet, 0+ = valid sample indices
+        self.sample_name = ""  # Empty string = not populated from SF2 file
         self.mute = False
         self.keynum_to_volume = 0
         self.modulators = []
@@ -376,7 +383,7 @@ class SF2PresetZone:
         self.bank = 0
         self.generators = {}  # Dictionary to store generator parameters
         self.modulators = []  # List of modulators for this preset zone
-        self.instrument_index = -1  # -1 means not yet set, will be set by generator parsing
+        self.instrument_index = -1  # -1 = not set yet, 0+ = valid instrument indices
         self.instrument_name = ""
         self.gen_ndx = 0
         self.mod_ndx = 0
@@ -450,7 +457,7 @@ class SF2PresetZone:
         self.fineTune = 0
 
         # More tuning and effects (52-59)
-        self.sampleID = 0
+        self.sampleID = -1
         self.sampleModes = 0
         self.reserved3 = 0
         self.scaleTuning = 100
@@ -479,7 +486,7 @@ class SF2PresetZone:
 
         # Generator parameters that might be set by preset generators
         self.initial_filterQ = 0
-        self.Pan = 50
+        self.Pan = 0  # Center pan position (-500 to +500)
         self.DelayLFO1 = 0
         self.LFO1Freq = 0  # Default LFO frequency
         self.DelayLFO2 = 0

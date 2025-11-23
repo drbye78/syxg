@@ -44,8 +44,8 @@ class VectorizedChannelRenderer:
     """
 
     # XG Voice Allocation Modes (Complete Implementation)
-    VOICE_MODE_POLY = 0   # Standard polyphonic mode (XG default)
-    VOICE_MODE_MONO = 1   # Basic monophonic mode
+    VOICE_MODE_POLY = 0  # Standard polyphonic mode (XG default)
+    VOICE_MODE_MONO = 1  # Basic monophonic mode
     VOICE_MODE_POLY_DRUM = 2  # Poly with drum priority
     VOICE_MODE_MONO_LEGATO = 3  # Monophonic with legato (note overlapping)
     VOICE_MODE_MONO_PORTAMENTO = 4  # Monophonic with portamento (glide)
@@ -83,19 +83,19 @@ class VectorizedChannelRenderer:
         self.mono_portamento = False  # XG mono portamento mode
 
         # Active notes on this channel with optimized data structure
-        self.active_notes: Dict[int, 'ChannelNote'] = {}  # note -> ChannelNote
+        self.active_notes: Dict[int, "ChannelNote"] = {}  # note -> ChannelNote
 
-        # Controller state with pre-initialized values
+        # Controller state with CORRECTED default values
         self.controllers = [0] * 128
-        self.controllers[7] = 100   # Volume
-        self.controllers[11] = 127  # Expression
-        self.controllers[64] = 0    # Sustain Pedal
-        self.controllers[71] = 64   # Harmonic Content default
+        self.controllers[7] = 110  # Volume - higher default
+        self.controllers[11] = 127  # Expression - full by default
+        self.controllers[64] = 0  # Sustain Pedal
+        self.controllers[71] = 64  # Harmonic Content default
 
         # Bank select state for XG bank selection
         self.bank_msb = 0  # Bank Select MSB (CC 0)
         self.bank_lsb = 0  # Bank Select LSB (CC 32)
-        self.controllers[72] = 64   # Brightness default
+        self.controllers[72] = 64  # Brightness default
 
         # Cached controller values for performance
         self._cached_volume = 1.0
@@ -111,7 +111,7 @@ class VectorizedChannelRenderer:
 
         # Pitch bend state
         self.pitch_bend_value = 8192  # Center value for 14-bit pitch bend
-        self.pitch_bend_range = 2     # Default 2 semitones
+        self.pitch_bend_range = 2  # Default 2 semitones
 
         # Portamento state
         self.portamento_active = False
@@ -120,31 +120,43 @@ class VectorizedChannelRenderer:
         self.portamento_step = 0.0
         self.previous_note = None
 
-        # Channel parameters with pre-initialized values
-        self.volume = 100
-        self.expression = 127
-        self.pan = 64
+        # Channel parameters with CORRECTED default values
+        self.volume = 110  # Higher default volume (87% of MIDI range)
+        self.expression = 127  # Full expression by default
+        self.pan = 64  # Center pan
         self.balance = 64
 
         # Initialize XG-compliant channel LFOs per XG specification
         self.lfos = [
-            self.synth.lfo_pool.acquire_oscillator(id=0, waveform="sine", rate=5.0, depth=0.5, delay=0.0),
-            self.synth.lfo_pool.acquire_oscillator(id=1, waveform="triangle", rate=2.0, depth=0.3, delay=0.0),
-            self.synth.lfo_pool.acquire_oscillator(id=2, waveform="sawtooth", rate=0.5, depth=0.1, delay=0.5)
+            self.synth.lfo_pool.acquire_oscillator(
+                id=0, waveform="sine", rate=5.0, depth=0.5, delay=0.0
+            ),
+            self.synth.lfo_pool.acquire_oscillator(
+                id=1, waveform="triangle", rate=2.0, depth=0.3, delay=0.0
+            ),
+            self.synth.lfo_pool.acquire_oscillator(
+                id=2, waveform="sawtooth", rate=0.5, depth=0.1, delay=0.5
+            ),
         ]
 
         # Set XG modulation routing for channel LFOs
         # LFO1: Pitch modulation (vibrato) - XG default
         self.lfos[0].set_modulation_routing(pitch=True, filter=False, amplitude=False)
-        self.lfos[0].set_modulation_depths(pitch_cents=50.0, filter_depth=0.0, amplitude_depth=0.0)
+        self.lfos[0].set_modulation_depths(
+            pitch_cents=50.0, filter_depth=0.0, amplitude_depth=0.0
+        )
 
         # LFO2: Filter modulation - optional
         self.lfos[1].set_modulation_routing(pitch=False, filter=True, amplitude=False)
-        self.lfos[1].set_modulation_depths(pitch_cents=0.0, filter_depth=0.3, amplitude_depth=0.0)
+        self.lfos[1].set_modulation_depths(
+            pitch_cents=0.0, filter_depth=0.3, amplitude_depth=0.0
+        )
 
         # LFO3: Amplitude modulation (tremolo) - optional
         self.lfos[2].set_modulation_routing(pitch=False, filter=False, amplitude=True)
-        self.lfos[2].set_modulation_depths(pitch_cents=0.0, filter_depth=0.0, amplitude_depth=0.3)
+        self.lfos[2].set_modulation_depths(
+            pitch_cents=0.0, filter_depth=0.0, amplitude_depth=0.3
+        )
 
         # XG LFO modulation state for channel-wide modulation
         self.lfo_pitch_modulation = 0.0
@@ -178,7 +190,7 @@ class VectorizedChannelRenderer:
 
         # XG Controller batching system for performance optimization
         self.pending_controller_updates = {}  # controller -> value
-        self.controller_update_batch = {}     # Batched updates by parameter type
+        self.controller_update_batch = {}  # Batched updates by parameter type
         self.last_controller_update_time = 0
         self.controller_update_threshold = 10  # Process batch every 10 updates
 
@@ -192,133 +204,90 @@ class VectorizedChannelRenderer:
         # Setup comprehensive XG modulation routes
 
         # LFO1 -> Pitch (Vibrato) - normalized amounts
-        self.mod_matrix.set_route(0,
+        self.mod_matrix.set_route(
+            0,
             "lfo1",
             "pitch",
             amount=50.0 / 100.0,  # 50 cents
-            polarity=1.0
+            polarity=1.0,
         )
 
         # LFO2 -> Pitch (additional modulation)
-        self.mod_matrix.set_route(1,
+        self.mod_matrix.set_route(
+            1,
             "lfo2",
             "pitch",
             amount=30.0 / 100.0,  # 30 cents
-            polarity=1.0
+            polarity=1.0,
         )
 
         # LFO3 -> Pitch (subtle modulation)
-        self.mod_matrix.set_route(2,
+        self.mod_matrix.set_route(
+            2,
             "lfo3",
             "pitch",
             amount=10.0 / 100.0,  # 10 cents
-            polarity=1.0
+            polarity=1.0,
         )
 
         # Amp Envelope -> Filter Cutoff
-        self.mod_matrix.set_route(3,
-            "amp_env",
-            "filter_cutoff",
-            amount=0.5,
-            polarity=1.0
+        self.mod_matrix.set_route(
+            3, "amp_env", "filter_cutoff", amount=0.5, polarity=1.0
         )
 
         # LFO1 -> Filter Cutoff
-        self.mod_matrix.set_route(4,
-            "lfo1",
-            "filter_cutoff",
-            amount=0.3,
-            polarity=1.0
-        )
+        self.mod_matrix.set_route(4, "lfo1", "filter_cutoff", amount=0.3, polarity=1.0)
 
         # Velocity -> Amplitude
-        self.mod_matrix.set_route(5,
-            "velocity",
-            "amp",
-            amount=0.5,
-            velocity_sensitivity=0.5
+        self.mod_matrix.set_route(
+            5, "velocity", "amp", amount=0.5, velocity_sensitivity=0.5
         )
 
         # Note Number -> Pitch (basic pitch mapping)
-        self.mod_matrix.set_route(6,
-            "note_number",
-            "pitch",
-            amount=1.0,
-            key_scaling=1.0
+        self.mod_matrix.set_route(
+            6, "note_number", "pitch", amount=1.0, key_scaling=1.0
         )
 
         # Mod Wheel -> LFO1 Depth (vibrato control)
-        self.mod_matrix.set_route(7,
-            "mod_wheel",
-            "lfo1_depth",
-            amount=1.0,
-            polarity=1.0
+        self.mod_matrix.set_route(
+            7, "mod_wheel", "lfo1_depth", amount=1.0, polarity=1.0
         )
 
         # Breath Controller -> LFO1 Depth
-        self.mod_matrix.set_route(8,
-            "breath_controller",
-            "lfo1_depth",
-            amount=0.8,
-            polarity=1.0
+        self.mod_matrix.set_route(
+            8, "breath_controller", "lfo1_depth", amount=0.8, polarity=1.0
         )
 
         # Foot Controller -> Filter Cutoff
-        self.mod_matrix.set_route(9,
-            "foot_controller",
-            "filter_cutoff",
-            amount=0.5,
-            polarity=1.0
+        self.mod_matrix.set_route(
+            9, "foot_controller", "filter_cutoff", amount=0.5, polarity=1.0
         )
 
         # Channel Aftertouch -> LFO1 Depth
-        self.mod_matrix.set_route(10,
-            "channel_aftertouch",
-            "lfo1_depth",
-            amount=0.6,
-            polarity=1.0
+        self.mod_matrix.set_route(
+            10, "channel_aftertouch", "lfo1_depth", amount=0.6, polarity=1.0
         )
 
         # Key Aftertouch -> Filter Resonance
-        self.mod_matrix.set_route(11,
-            "key_aftertouch",
-            "filter_resonance",
-            amount=0.4,
-            polarity=1.0
+        self.mod_matrix.set_route(
+            11, "key_aftertouch", "filter_resonance", amount=0.4, polarity=1.0
         )
 
         # Brightness -> Filter Cutoff (XG controller 72)
-        self.mod_matrix.set_route(12,
-            "brightness",
-            "filter_cutoff",
-            amount=0.7,
-            polarity=1.0
+        self.mod_matrix.set_route(
+            12, "brightness", "filter_cutoff", amount=0.7, polarity=1.0
         )
 
         # Harmonic Content -> Filter Resonance (XG controller 71)
-        self.mod_matrix.set_route(13,
-            "harmonic_content",
-            "filter_resonance",
-            amount=0.5,
-            polarity=1.0
+        self.mod_matrix.set_route(
+            13, "harmonic_content", "filter_resonance", amount=0.5, polarity=1.0
         )
 
         # Expression -> Amplitude
-        self.mod_matrix.set_route(14,
-            "expression",
-            "amp",
-            amount=0.8,
-            polarity=1.0
-        )
+        self.mod_matrix.set_route(14, "expression", "amp", amount=0.8, polarity=1.0)
 
         # Volume -> Amplitude
-        self.mod_matrix.set_route(15,
-            "volume_cc",
-            "amp",
-            amount=0.9,
-            polarity=1.0
-        )
-
+        self.mod_matrix.set_route(15, "volume_cc", "amp", amount=0.9, polarity=1.0)
 
     def _setup_default_modulation_matrix(self):
         """Setup default modulation matrix - calls XG-compliant implementation."""
@@ -365,18 +334,21 @@ class VectorizedChannelRenderer:
             return
 
         # Create new note with proper ChannelNote object
-        channel_note = ChannelNote(self,
+        channel_note = ChannelNote(
+            self,
             note=note,
             velocity=velocity,
             program=self.program,
             bank=self.bank,
             is_drum=self.is_drum,
-            synth=self.synth
+            synth=self.synth,
         )
 
         if channel_note.is_active():
             # Allocate voice through voice manager with optimized allocation
-            allocated_note = self.voice_manager.allocate_voice(note, velocity, channel_note, priority)
+            allocated_note = self.voice_manager.allocate_voice(
+                note, velocity, channel_note, priority
+            )
             if allocated_note is not None:
                 self.active_notes[note] = channel_note
 
@@ -396,7 +368,7 @@ class VectorizedChannelRenderer:
             if not sustain_pedal:
                 # Note is released, return partials to pool
                 channel_note = self.active_notes[note]
-                if hasattr(channel_note, 'cleanup'):
+                if hasattr(channel_note, "cleanup"):
                     channel_note.cleanup()
                 # Remove from active notes
                 del self.active_notes[note]
@@ -410,7 +382,10 @@ class VectorizedChannelRenderer:
 
         # Check if we should process the batch
         current_time = len(self.pending_controller_updates)
-        if current_time - self.last_controller_update_time >= self.controller_update_threshold:
+        if (
+            current_time - self.last_controller_update_time
+            >= self.controller_update_threshold
+        ):
             self._process_controller_batch()
 
         # Handle specific controllers with optimized parameter updates
@@ -617,8 +592,6 @@ class VectorizedChannelRenderer:
             # This is the correct XG behavior: undefined banks have no effect
             pass
 
-
-
     def all_notes_off(self):
         """Turn off all active notes with optimized batch termination."""
         for note in self.active_notes.values():
@@ -629,7 +602,7 @@ class VectorizedChannelRenderer:
         """Immediately silence all notes with optimized batch termination."""
         # Clean up all notes to release LFOs and other resources before clearing
         for note, channel_note in list(self.active_notes.items()):
-            if hasattr(channel_note, 'cleanup'):
+            if hasattr(channel_note, "cleanup"):
                 channel_note.cleanup()
         self.active_notes.clear()
 
@@ -638,17 +611,17 @@ class VectorizedChannelRenderer:
         if self.memory_pool:
             try:
                 # Return main buffers to pool
-                if hasattr(self, 'left_buffer'):
+                if hasattr(self, "left_buffer"):
                     self.memory_pool.return_mono_buffer(self.left_buffer)
-                if hasattr(self, 'right_buffer'):
+                if hasattr(self, "right_buffer"):
                     self.memory_pool.return_mono_buffer(self.right_buffer)
-                if hasattr(self, 'temp_left'):
+                if hasattr(self, "temp_left"):
                     self.memory_pool.return_mono_buffer(self.temp_left)
-                if hasattr(self, 'temp_right'):
+                if hasattr(self, "temp_right"):
                     self.memory_pool.return_mono_buffer(self.temp_right)
-                if hasattr(self, 'note_left'):
+                if hasattr(self, "note_left"):
                     self.memory_pool.return_mono_buffer(self.note_left)
-                if hasattr(self, 'note_right'):
+                if hasattr(self, "note_right"):
                     self.memory_pool.return_mono_buffer(self.note_right)
             except:
                 # Ignore cleanup errors
@@ -658,13 +631,13 @@ class VectorizedChannelRenderer:
         """Complete cleanup of all resources."""
         # Clean up active notes
         for note, channel_note in list(self.active_notes.items()):
-            if hasattr(channel_note, 'cleanup'):
+            if hasattr(channel_note, "cleanup"):
                 channel_note.cleanup()  # type: ignore
             del self.active_notes[note]
 
         # Return LFOs to pool
         for lfo in self.lfos:
-            if hasattr(self.synth, 'lfo_pool'):
+            if hasattr(self.synth, "lfo_pool"):
                 self.synth.lfo_pool.release_oscillator(lfo)
 
         # Clean up buffers
@@ -688,16 +661,16 @@ class VectorizedChannelRenderer:
 
         # Reset channel state
         self.controllers = [0] * 128
-        self.controllers[7] = 100   # Volume
+        self.controllers[7] = 100  # Volume
         self.controllers[11] = 127  # Expression
-        self.controllers[64] = 0    # Sustain Pedal
-        self.controllers[71] = 64   # Harmonic Content default
+        self.controllers[64] = 0  # Sustain Pedal
+        self.controllers[71] = 64  # Harmonic Content default
 
         # Reset bank select state to XG defaults
         self.bank_msb = 0
         self.bank_lsb = 0
         self.bank = 0  # Combined bank value
-        self.controllers[72] = 64   # Brightness default
+        self.controllers[72] = 64  # Brightness default
 
         # Reset cached values
         self._cached_volume = 1.0
@@ -709,7 +682,7 @@ class VectorizedChannelRenderer:
         """Handle XG General Purpose Button controllers (80-83) with optimized parameter updates."""
         # Store the button state
         self.controllers[79 + button_number] = value
-        
+
         # XG GP buttons can be used for various specific purposes with optimized updates
         if button_number == 1:  # GP Button 1
             # Typically used for filter type switching or effect bypass
@@ -719,7 +692,7 @@ class VectorizedChannelRenderer:
             else:  # Button released
                 # Could reset to default filter settings with optimized update
                 pass
-                
+
         elif button_number == 2:  # GP Button 2
             # Typically used for effect bypass/enable
             if value >= 64:  # Button pressed
@@ -728,7 +701,7 @@ class VectorizedChannelRenderer:
             else:  # Button released
                 # Could reset effect parameters with optimized update
                 pass
-                
+
         elif button_number == 3:  # GP Button 3
             # Typically used for modulation source selection
             if value >= 64:  # Button pressed
@@ -737,7 +710,7 @@ class VectorizedChannelRenderer:
             else:  # Button released
                 # Could reset modulation to default with optimized update
                 pass
-                
+
         elif button_number == 4:  # GP Button 4
             # Typically used for performance parameter control
             if value >= 64:  # Button pressed
@@ -750,8 +723,8 @@ class VectorizedChannelRenderer:
     def _toggle_filter_type(self):
         """Toggle between different filter types with optimized parameter updates."""
         # Cycle through filter types: lowpass -> bandpass -> highpass -> lowpass
-        filter_types = ['lowpass', 'bandpass', 'highpass']
-        current_type = getattr(self, '_current_filter_type', 'lowpass')
+        filter_types = ["lowpass", "bandpass", "highpass"]
+        current_type = getattr(self, "_current_filter_type", "lowpass")
         next_type_index = (filter_types.index(current_type) + 1) % len(filter_types)
         new_filter_type = filter_types[next_type_index]
         self._current_filter_type = new_filter_type
@@ -765,30 +738,39 @@ class VectorizedChannelRenderer:
     def _toggle_effect_bypass(self):
         """Toggle effect bypass state with optimized parameter updates."""
         # Toggle channel effect bypass flag
-        self.effect_bypass = not getattr(self, 'effect_bypass', False)
+        self.effect_bypass = not getattr(self, "effect_bypass", False)
 
     def _cycle_modulation_source(self):
         """Cycle through different modulation sources with optimized parameter updates."""
         # Cycle through modulation sources for route 0
-        sources = ["lfo1", "lfo2", "lfo3", "velocity", "note_number", "channel_aftertouch", "mod_wheel"]
-        current_source = getattr(self, '_current_mod_source', "lfo1")
+        sources = [
+            "lfo1",
+            "lfo2",
+            "lfo3",
+            "velocity",
+            "note_number",
+            "channel_aftertouch",
+            "mod_wheel",
+        ]
+        current_source = getattr(self, "_current_mod_source", "lfo1")
         next_index = (sources.index(current_source) + 1) % len(sources)
         new_source = sources[next_index]
         self._current_mod_source = new_source
 
         # Update modulation matrix route 0 with new source
-        self.mod_matrix.set_route(0,
+        self.mod_matrix.set_route(
+            0,
             new_source,
             "pitch",  # Keep destination as pitch
             amount=50.0 / 100.0,
-            polarity=1.0
+            polarity=1.0,
         )
 
     def _apply_performance_preset(self):
         """Apply performance parameter preset with optimized parameter updates."""
         # Cycle through presets: bright -> dark -> aggressive -> mellow -> bright
-        presets = ['bright', 'dark', 'aggressive', 'mellow']
-        current_preset = getattr(self, '_current_preset', 'bright')
+        presets = ["bright", "dark", "aggressive", "mellow"]
+        current_preset = getattr(self, "_current_preset", "bright")
         next_index = (presets.index(current_preset) + 1) % len(presets)
         new_preset = presets[next_index]
         self._current_preset = new_preset
@@ -798,28 +780,50 @@ class VectorizedChannelRenderer:
             if channel_note.is_active():
                 for partial in channel_note.partials:
                     if partial.is_active():
-                        if new_preset == 'bright':
+                        if new_preset == "bright":
                             # Bright: higher cutoff, faster attack
-                            partial.filter_cutoff = min(20000, partial.filter_cutoff * 1.5)
-                            partial.amp_attack_time  = max(0.001, partial.amp_attack_time * 0.7)
-                        elif new_preset == 'dark':
+                            partial.filter_cutoff = min(
+                                20000, partial.filter_cutoff * 1.5
+                            )
+                            partial.amp_attack_time = max(
+                                0.001, partial.amp_attack_time * 0.7
+                            )
+                        elif new_preset == "dark":
                             # Dark: lower cutoff, slower attack
-                            partial.filter_cutoff = max(20, partial.filter_cutoff, 1000) * 0.7
-                            partial.amp_attack_time   = min(2.0, partial.amp_attack_time * 1.3)
-                        elif new_preset == 'aggressive':
+                            partial.filter_cutoff = (
+                                max(20, partial.filter_cutoff, 1000) * 0.7
+                            )
+                            partial.amp_attack_time = min(
+                                2.0, partial.amp_attack_time * 1.3
+                            )
+                        elif new_preset == "aggressive":
                             # Aggressive: higher resonance, faster decay
-                            partial.filter_resonance = min(2.0, (partial.filter_resonance if partial.filter_resonance else 0.7) * 1.5)
-                            partial.amp_decay_time = max(0.01, partial.amp_decay_time * 0.6)
-                        elif new_preset == 'mellow':
+                            partial.filter_resonance = min(
+                                2.0,
+                                (
+                                    partial.filter_resonance
+                                    if partial.filter_resonance
+                                    else 0.7
+                                )
+                                * 1.5,
+                            )
+                            partial.amp_decay_time = max(
+                                0.01, partial.amp_decay_time * 0.6
+                            )
+                        elif new_preset == "mellow":
                             # Mellow: lower resonance, slower decay
-                            partial.filter_resonance = max(0.0, (partial.filter_resonance or 0.7) * 0.6)
-
+                            partial.filter_resonance = max(
+                                0.0, (partial.filter_resonance or 0.7) * 0.6
+                            )
 
     def is_active(self) -> bool:
         """Check if this channel renderer has any active notes with optimized check."""
         # Clean up inactive notes with optimized cleanup
-        inactive_notes = [note for note, channel_note in self.active_notes.items()
-                         if not channel_note.is_active()]
+        inactive_notes = [
+            note
+            for note, channel_note in self.active_notes.items()
+            if not channel_note.is_active()
+        ]
         for note in inactive_notes:
             # Clean up the channel note to release LFOs and other resources
             channel_note = self.active_notes[note]
@@ -840,8 +844,9 @@ class VectorizedChannelRenderer:
         ch_right.fill(0.0)
         return ch_left, ch_right
 
-
-    def generate_sample_block_vectorized(self, block_size: int) -> Tuple[np.ndarray, np.ndarray]:
+    def generate_sample_block_vectorized(
+        self, block_size: int
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         VECTORIZED BLOCK SAMPLE GENERATION - PHASE 2 PERFORMANCE
 
@@ -872,7 +877,9 @@ class VectorizedChannelRenderer:
 
         # Calculate pitch bend modulation with optimized calculation
         pitch_bend_range_cents = self.pitch_bend_range * 100
-        pitch_bend_offset = ((self.pitch_bend_value - 8192) / 8192.0) * pitch_bend_range_cents
+        pitch_bend_offset = (
+            (self.pitch_bend_value - 8192) / 8192.0
+        ) * pitch_bend_range_cents
         global_pitch_mod = pitch_bend_offset
 
         # Cache frequently used controller values with optimized caching
@@ -885,72 +892,34 @@ class VectorizedChannelRenderer:
 
         if self.active_notes:
             self._process_notes_block_based(
-                self.active_notes.items(), block_size, global_pitch_mod, 
-                left_batch= self.left_buffer, right_batch=self.right_buffer
+                self.active_notes.items(),
+                block_size,
+                global_pitch_mod,
+                left_batch=self.left_buffer,
+                right_batch=self.right_buffer,
             )
 
         # Apply final clipping with vectorized operations - OPTIMIZED CLIPPING
-        np.clip(self.left_buffer[:block_size], -1.0, 1.0, out=self.left_buffer[:block_size])
-        np.clip(self.right_buffer[:block_size], -1.0, 1.0, out=self.right_buffer[:block_size])
+        np.clip(
+            self.left_buffer[:block_size], -1.0, 1.0, out=self.left_buffer[:block_size]
+        )
+        np.clip(
+            self.right_buffer[:block_size],
+            -1.0,
+            1.0,
+            out=self.right_buffer[:block_size],
+        )
 
         return self.left_buffer, self.right_buffer
 
-    def _process_notes_vectorized_batch(self, active_notes_list: List,
-                                      block_size: int, global_pitch_mod: float) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        TRUE VECTORIZED BATCH NOTE PROCESSING - PHASE 3 PERFORMANCE
-
-        Process all active notes simultaneously using optimized vectorized NumPy operations.
-
-        Performance optimizations:
-        1. TRUE BATCH PROCESSING - Processes entire blocks at once rather than per-sample
-        2. PRE-COMPUTED MODULATION - Calculates modulation coefficients once per block
-        3. VECTORIZED ACCUMULATION - Uses NumPy operations for all accumulation
-        4. MEMORY POOL USAGE - Reuses pre-allocated buffers
-        5. CACHE-FRIENDLY ACCESS - Optimizes memory access patterns
-
-        Args:
-            active_notes_list: List of (note, channel_note) tuples for active notes
-            block_size: Block size in samples
-            global_pitch_mod: Global pitch modulation value
-
-        Returns:
-            Tuple of (left_channel, right_channel) audio buffers
-        """
-        if not active_notes_list:
-            return np.zeros(block_size, dtype=np.float32), np.zeros(block_size, dtype=np.float32)
-
-        # Pre-compute modulation values for entire block
-        modulation_cache = self._precompute_block_modulation(active_notes_list, block_size, global_pitch_mod)
-
-        # Initialize batch buffers with optimized zero initialization
-        left_batch = np.zeros(block_size, dtype=np.float32)
-        right_batch = np.zeros(block_size, dtype=np.float32)
-
-        # Process all notes with true vectorized batch operations
-        for note, channel_note in active_notes_list:
-            try:
-                # Get note-specific modulation data
-                note_mod_data = modulation_cache[note]
-
-                # Generate entire block for this note in one vectorized operation
-                note_samples = self._generate_note_block_vectorized(
-                    channel_note, note_mod_data, block_size
-                )
-
-                # Vectorized accumulation using NumPy addition
-                if note_samples is not None:
-                    np.add(left_batch, note_samples[:, 0], out=left_batch)
-                    np.add(right_batch, note_samples[:, 1], out=right_batch)
-
-            except Exception as e:
-                # Disable problematic note and continue processing
-                channel_note.active = False
-                continue
-
-        return left_batch, right_batch
-
-    def _process_notes_block_based(self, active_notes_list, block_size: int, global_pitch_mod: float, left_batch, right_batch) -> Tuple[np.ndarray, np.ndarray]:
+    def _process_notes_block_based(
+        self,
+        active_notes_list,
+        block_size: int,
+        global_pitch_mod: float,
+        left_batch,
+        right_batch,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         BLOCK-BASED NOTE PROCESSING - Maximum Performance
 
@@ -973,8 +942,10 @@ class VectorizedChannelRenderer:
         # Process all notes with block-based generation
         for note, channel_note in active_notes_list:
             # Generate samples directly into note buffers
-            channel_note.generate_sample_block(block_size,
-                self.note_left, self.note_right,
+            channel_note.generate_sample_block(
+                block_size,
+                self.note_left,
+                self.note_right,
                 mod_wheel=self.cached_mod_wheel,
                 breath_controller=self.cached_breath_controller,
                 foot_controller=self.cached_foot_controller,
@@ -984,121 +955,38 @@ class VectorizedChannelRenderer:
                 key_pressure=self.key_pressure_values.get(note, 0),
                 volume=self.volume,
                 expression=self.expression,
-                global_pitch_mod=global_pitch_mod
+                global_pitch_mod=global_pitch_mod,
             )
 
             # Vectorized accumulation
-            np.add(left_batch[:block_size], self.note_left[:block_size], out=left_batch[:block_size])
-            np.add(right_batch[:block_size], self.note_right[:block_size], out=right_batch[:block_size])
+            np.add(
+                left_batch[:block_size],
+                self.note_left[:block_size],
+                out=left_batch[:block_size],
+            )
+            np.add(
+                right_batch[:block_size],
+                self.note_right[:block_size],
+                out=right_batch[:block_size],
+            )
 
         return left_batch, right_batch
 
-    def _precompute_block_modulation(self, active_notes_list: List, block_size: int, global_pitch_mod: float) -> Dict:
-        """Pre-compute modulation values for entire block to avoid per-sample calculations"""
-        modulation_cache = {}
-
-        # Pre-calculate controller values that remain constant for the block
-        base_modulation = {
-            'mod_wheel': self.cached_mod_wheel,
-            'breath_controller': self.cached_breath_controller,
-            'foot_controller': self.cached_foot_controller,
-            'brightness': self.cached_brightness,
-            'harmonic_content': self.cached_harmonic_content,
-            'channel_pressure': self.cached_channel_pressure,
-            'volume': self.volume,
-            'expression': self.expression,
-            'global_pitch_mod': global_pitch_mod
-        }
-
-        for note, channel_note in active_notes_list:
-            # Calculate note-specific modulation values
-            note_modulation = base_modulation.copy()
-            note_modulation['key_pressure'] = self.key_pressure_values.get(note, 0)
-
-            # Apply drum-specific parameters if needed
-            if self.is_drum and self.drum_manager:
-                drum_params = self.drum_manager.get_drum_parameters_for_note(self.channel, note)
-                if drum_params:
-                    note_modulation['drum_level'] = drum_params.get("level", 1.0)
-                    note_modulation['drum_pan'] = drum_params.get("pan", 0.0)
-                else:
-                    note_modulation['drum_level'] = 1.0
-                    note_modulation['drum_pan'] = 0.0
-            else:
-                note_modulation['drum_level'] = 1.0
-                note_modulation['drum_pan'] = 0.0
-
-            modulation_cache[note] = note_modulation
-
-        return modulation_cache
-
-    def _generate_note_block_vectorized(self, channel_note, modulation_data: Dict, block_size: int) -> Optional[np.ndarray]:
-        """Generate entire sample block for a single note using vectorized operations"""
-        try:
-            # Create sample index array for vectorized processing
-            sample_indices = np.arange(block_size, dtype=np.float32)
-
-            # Generate base audio block for this note
-            # This calls the existing generate_sample method but we'll optimize it
-            left_samples = np.zeros(block_size, dtype=np.float32)
-            right_samples = np.zeros(block_size, dtype=np.float32)
-
-            # Vectorized sample generation - process multiple samples at once
-            for i in range(0, block_size, 32):  # Process in chunks of 32 samples
-                chunk_size = min(32, block_size - i)
-                chunk_indices = sample_indices[i:i+chunk_size]
-
-                # Generate chunk of samples
-                for j in range(chunk_size):
-                    sample_idx = i + j
-                    left_sample, right_sample = channel_note.generate_sample(
-                        mod_wheel=modulation_data['mod_wheel'],
-                        breath_controller=modulation_data['breath_controller'],
-                        foot_controller=modulation_data['foot_controller'],
-                        brightness=modulation_data['brightness'],
-                        harmonic_content=modulation_data['harmonic_content'],
-                        channel_pressure_value=modulation_data['channel_pressure'],
-                        key_pressure=modulation_data['key_pressure'],
-                        volume=modulation_data['volume'],
-                        expression=modulation_data['expression'],
-                        global_pitch_mod=modulation_data['global_pitch_mod']
-                    )
-
-                    # Apply drum modulation
-                    left_sample *= modulation_data['drum_level']
-                    right_sample *= modulation_data['drum_level']
-
-                    if modulation_data['drum_pan'] != 0.0:
-                        pan_left = 1.0 - abs(modulation_data['drum_pan']) if modulation_data['drum_pan'] < 0 else 1.0
-                        pan_right = 1.0 - abs(modulation_data['drum_pan']) if modulation_data['drum_pan'] > 0 else 1.0
-                        left_sample *= pan_left
-                        right_sample *= pan_right
-
-                    left_samples[sample_idx] = left_sample
-                    right_samples[sample_idx] = right_sample
-
-            # Combine into stereo array
-            stereo_samples = np.column_stack((left_samples, right_samples))
-            return stereo_samples
-
-        except Exception as e:
-            # Return None to indicate failure
-            return None
-
-    def _process_notes_vectorized_per_note(self, active_notes_list: List, 
-                                        block_size: int, global_pitch_mod: float):
+    def _process_notes_vectorized_per_note(
+        self, active_notes_list: List, block_size: int, global_pitch_mod: float
+    ):
         """
         VECTORIZED PER-NOTE PROCESSING - FALLBACK METHOD
-        
+
         Process each active note individually with vectorized operations.
         This is a fallback method when batch processing fails.
-        
+
         Performance optimizations:
         1. VECTORIZED OPERATIONS - Uses NumPy for efficient mathematical operations
         2. PRE-ALLOCATED BUFFERS - Uses pre-allocated buffers to reduce allocation overhead
         3. ZERO-CLEARING OPTIMIZATION - Clears buffers efficiently using vectorized operations
         4. BATCH SAMPLE PROCESSING - Processes samples in batches rather than individually
-        
+
         Args:
             active_notes_list: List of (note, channel_note) tuples for active notes
             block_size: Block size in samples
@@ -1118,7 +1006,7 @@ class VectorizedChannelRenderer:
                     # Fallback to direct zeroing
                     self.temp_left[:block_size].fill(0.0)
                     self.temp_right[:block_size].fill(0.0)
-                
+
                 # Get cached controller values for this processing cycle
                 mod_wheel = self.cached_mod_wheel
                 breath_controller = self.cached_breath_controller
@@ -1127,7 +1015,7 @@ class VectorizedChannelRenderer:
                 harmonic_content = self.cached_harmonic_content
                 channel_pressure = self.cached_channel_pressure
                 key_pressure = self.key_pressure_values.get(note, 0)
-                
+
                 # Process all samples in the block for this note
                 for i in range(block_size):
                     # Generate a sample for this note with all modulation sources
@@ -1141,13 +1029,13 @@ class VectorizedChannelRenderer:
                         key_pressure=key_pressure,
                         volume=self.volume,
                         expression=self.expression,
-                        global_pitch_mod=global_pitch_mod
+                        global_pitch_mod=global_pitch_mod,
                     )
-                    
+
                     # Accumulate in main buffers
                     self.left_buffer[i] += left_sample
                     self.right_buffer[i] += right_sample
-                    
+
             except Exception as e:
                 # Disable problematic note
                 channel_note.active = False
@@ -1171,10 +1059,10 @@ class VectorizedChannelRenderer:
     def _handle_xg_brightness(self, value: int):
         """Handle XG Brightness controller (72) with optimized parameter update."""
         # Update coefficient manager with new brightness value
-        self.coeff_manager.update_xg_coefficient('brightness', value)
+        self.coeff_manager.update_xg_coefficient("brightness", value)
 
         # Get pre-computed brightness multiplier
-        brightness_mult = self.coeff_manager.get_xg_coefficient('brightness', value)
+        brightness_mult = self.coeff_manager.get_xg_coefficient("brightness", value)
         cutoff = max(20, min(20000, 1000.0 * brightness_mult))
 
         # Apply to all active notes - modify filter cutoff parameters
@@ -1218,10 +1106,10 @@ class VectorizedChannelRenderer:
     def _handle_xg_filter_cutoff(self, value: int):
         """Handle XG Filter Cutoff controller (75) with optimized parameter update."""
         # Update coefficient manager with new filter cutoff value
-        self.coeff_manager.update_xg_coefficient('filter_cutoff', value)
+        self.coeff_manager.update_xg_coefficient("filter_cutoff", value)
 
         # Get pre-computed frequency ratio
-        freq_ratio = self.coeff_manager.get_xg_coefficient('filter_cutoff', value)
+        freq_ratio = self.coeff_manager.get_xg_coefficient("filter_cutoff", value)
         cutoff = max(20, min(20000, 1000.0 * freq_ratio))
 
         # Apply to all active notes - modify filter cutoff parameters
@@ -1246,10 +1134,10 @@ class VectorizedChannelRenderer:
     def _handle_xg_vibrato_rate(self, value: int):
         """Handle XG Vibrato Rate controller (77) with optimized parameter update."""
         # Update coefficient manager with new vibrato rate value
-        self.coeff_manager.update_xg_coefficient('vibrato_rate', value)
+        self.coeff_manager.update_xg_coefficient("vibrato_rate", value)
 
         # Get pre-computed LFO rate
-        lfo_rate = self.coeff_manager.get_xg_coefficient('vibrato_rate', value)
+        lfo_rate = self.coeff_manager.get_xg_coefficient("vibrato_rate", value)
 
         # Apply to first LFO (typically used for vibrato)
         if self.lfos and len(self.lfos) > 0:
@@ -1330,7 +1218,7 @@ class VectorizedChannelRenderer:
         # XG Specification Part Mode Implementation:
         # Mode 0: Normal Mode (synthesis mode)
         # Modes 1-7: Drum Kit variations
-        
+
         if self.part_mode == 0:  # Normal Mode - Synthesis
             self._apply_normal_mode_parameters()
         elif self.part_mode >= 1 and self.part_mode <= 7:  # Drum Kit Modes
@@ -1347,8 +1235,10 @@ class VectorizedChannelRenderer:
         # Standard synthesis parameters - no special modifications
         # Set normal synthesis mode (not drum mode)
         self.is_drum = False
-        self.program = max(0, min(127, self.program))  # Ensure valid program in synthesis range
-        
+        self.program = max(
+            0, min(127, self.program)
+        )  # Ensure valid program in synthesis range
+
         # Implementation would modify envelope/filter parameters
         # For vectorized renderer, we just flag that normal mode is active
         pass
@@ -1384,7 +1274,6 @@ class VectorizedChannelRenderer:
             self.bank = 128
             self.program = 127 + (kit_variation - 4)  # Programs 127-129 for alt kits
 
-
         # Update all active notes to use drum mode parameters
         for note, channel_note in self.active_notes.items():
             channel_note.is_drum = True
@@ -1404,10 +1293,18 @@ class VectorizedChannelRenderer:
                 for partial in channel_note.partials:
                     if partial.is_active():
                         if partial.amp_envelope:
-                            partial.amp_attack_time = max(0.001, partial.amp_attack_time * 0.5)
-                            partial.amp_decay_time = max(0.01, partial.amp_decay_time * 0.7)
-                            partial.filter_resonance = min(2.0, (partial.filter_resonance or 0.7) * 1.8)
-                            partial.filter_cutoff = min(20000, (partial.filter_cutoff or 1000) * 1.3)
+                            partial.amp_attack_time = max(
+                                0.001, partial.amp_attack_time * 0.5
+                            )
+                            partial.amp_decay_time = max(
+                                0.01, partial.amp_decay_time * 0.7
+                            )
+                            partial.filter_resonance = min(
+                                2.0, (partial.filter_resonance or 0.7) * 1.8
+                            )
+                            partial.filter_cutoff = min(
+                                20000, (partial.filter_cutoff or 1000) * 1.3
+                            )
 
     def _apply_analog_mode_parameters(self):
         """Apply Analog Mode parameters (XG Warmer Sound) with optimized parameter updates."""
@@ -1417,10 +1314,18 @@ class VectorizedChannelRenderer:
                 for partial in channel_note.partials:
                     if partial.is_active():
                         if partial.amp_envelope:
-                            partial.amp_attack_time = min(1.0, partial.amp_attack_time * 1.2)
-                            partial.amp_release_time = min(5.0, partial.amp_release_time * 1.3)
-                            partial.filter_cutoff = max(100, (partial.filter_cutoff or 1000) * 0.8)
-                            partial.filter_resonance = max(0.1, (partial.filter_resonance or 0.7) * 0.8)
+                            partial.amp_attack_time = min(
+                                1.0, partial.amp_attack_time * 1.2
+                            )
+                            partial.amp_release_time = min(
+                                5.0, partial.amp_release_time * 1.3
+                            )
+                            partial.filter_cutoff = max(
+                                100, (partial.filter_cutoff or 1000) * 0.8
+                            )
+                            partial.filter_resonance = max(
+                                0.1, (partial.filter_resonance or 0.7) * 0.8
+                            )
 
     def _apply_max_resonance_mode_parameters(self):
         """Apply Max Resonance Mode parameters (XG High Resonance) with optimized parameter updates."""
@@ -1429,12 +1334,14 @@ class VectorizedChannelRenderer:
             if channel_note.is_active():
                 for partial in channel_note.partials:
                     partial.filter_resonance = 2.0
-                    partial.filter_cutoff = max(200, (partial.filter_cutoff or 1000) * 0.9)
+                    partial.filter_cutoff = max(
+                        200, (partial.filter_cutoff or 1000) * 0.9
+                    )
 
     def _apply_stereo_mode_parameters(self):
         """Apply Stereo Mode parameters (XG Enhanced Stereo) with optimized parameter updates."""
         # Enhanced stereo: increase stereo width, adjust panning
-        self.stereo_width = min(1.0, getattr(self, 'stereo_width', 0.5) * 1.5)
+        self.stereo_width = min(1.0, getattr(self, "stereo_width", 0.5) * 1.5)
         # Apply to modulation matrix for stereo enhancement
         self.mod_matrix.set_route(14, "expression", "pan", amount=0.3, polarity=1.0)
 
@@ -1445,8 +1352,10 @@ class VectorizedChannelRenderer:
             if channel_note.is_active():
                 for partial in channel_note.partials:
                     if partial.is_active():
-                        partial.filter_type = 'bandpass'
-                        partial.filter_resonance = min(2.0, (partial.filter_resonance or 0.7) * 1.5)
+                        partial.filter_type = "bandpass"
+                        partial.filter_resonance = min(
+                            2.0, (partial.filter_resonance or 0.7) * 1.5
+                        )
 
         # Add LFO modulation to filter cutoff for wah effect
         self.mod_matrix.set_route(4, "lfo1", "filter_cutoff", amount=0.6, polarity=1.0)
@@ -1454,8 +1363,12 @@ class VectorizedChannelRenderer:
     def _apply_dynamic_mode_parameters(self):
         """Apply Dynamic Mode parameters (XG Velocity Sensitive) with optimized parameter updates."""
         # Velocity sensitive: increase velocity sensitivity in modulation matrix
-        self.mod_matrix.set_route(5, "velocity", "amp", amount=1.0, velocity_sensitivity=1.0)
-        self.mod_matrix.set_route(11, "velocity", "filter_cutoff", amount=0.5, velocity_sensitivity=0.8)
+        self.mod_matrix.set_route(
+            5, "velocity", "amp", amount=1.0, velocity_sensitivity=1.0
+        )
+        self.mod_matrix.set_route(
+            11, "velocity", "filter_cutoff", amount=0.5, velocity_sensitivity=0.8
+        )
 
     def _apply_distortion_mode_parameters(self):
         """Apply Distortion Mode parameters (XG Distorted Sound) with optimized parameter updates."""
@@ -1465,7 +1378,15 @@ class VectorizedChannelRenderer:
                 for partial in channel_note.partials:
                     if partial.is_active():
                         if partial.amp_envelope:
-                            partial.amp_attack_time = max(0.001, partial.amp_attack_time * 0.3)
-                            partial.amp_sustain_level = max(0.1, partial.amp_sustain_level * 0.8)
-                            partial.filter_resonance = min(2.0, (partial.filter_resonance or 0.7) * 2.0)
-                            partial.filter_cutoff = min(20000, (partial.filter_cutoff or 1000) * 1.2)
+                            partial.amp_attack_time = max(
+                                0.001, partial.amp_attack_time * 0.3
+                            )
+                            partial.amp_sustain_level = max(
+                                0.1, partial.amp_sustain_level * 0.8
+                            )
+                            partial.filter_resonance = min(
+                                2.0, (partial.filter_resonance or 0.7) * 2.0
+                            )
+                            partial.filter_cutoff = min(
+                                20000, (partial.filter_cutoff or 1000) * 1.2
+                            )

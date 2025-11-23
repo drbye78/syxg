@@ -28,7 +28,7 @@ import numpy as np
 from synth.sf2.core.wavetable_manager import WavetableManager
 
 from ..core.oscillator import XGLFO  # For note-level LFOs
-from ..core.envelope import ADSREnvelope # For note-level envelopes
+from ..core.envelope import ADSREnvelope  # For note-level envelopes
 from ..modulation.matrix import ModulationMatrix
 from .partial_generator import XGPartialGenerator  # XG-compliant partial generator
 
@@ -58,16 +58,25 @@ class PartialGeneratorPool:
         self.pool = deque()
         self.lock = threading.Lock()
         self._stats = {
-            'created': 0,
-            'acquired': 0,
-            'released': 0,
-            'pool_hits': 0,
-            'pool_misses': 0
+            "created": 0,
+            "acquired": 0,
+            "released": 0,
+            "pool_hits": 0,
+            "pool_misses": 0,
         }
 
-    def acquire(self, synth, note: int, velocity: int, program: int,
-                partial_id: int, partial_params: Dict, is_drum: bool = False,
-                sample_rate: int = 44100, bank: int = 0) -> XGPartialGenerator:
+    def acquire(
+        self,
+        synth,
+        note: int,
+        velocity: int,
+        program: int,
+        partial_id: int,
+        partial_params: Dict,
+        is_drum: bool = False,
+        sample_rate: int = 44100,
+        bank: int = 0,
+    ) -> XGPartialGenerator:
         """
         Acquire a partial generator from the pool or create new one.
 
@@ -86,12 +95,12 @@ class PartialGeneratorPool:
             Configured XGPartialGenerator instance
         """
         with self.lock:
-            self._stats['acquired'] += 1
+            self._stats["acquired"] += 1
 
             # Try to get from pool first
             if self.pool:
                 partial = self.pool.popleft()
-                self._stats['pool_hits'] += 1
+                self._stats["pool_hits"] += 1
 
                 # Reconfigure existing partial with new parameters
                 partial._reconfigure(
@@ -103,13 +112,13 @@ class PartialGeneratorPool:
                     partial_params=partial_params,
                     is_drum=is_drum,
                     sample_rate=sample_rate,
-                    bank=bank
+                    bank=bank,
                 )
                 return partial
 
             # Pool empty, create new partial
-            self._stats['pool_misses'] += 1
-            self._stats['created'] += 1
+            self._stats["pool_misses"] += 1
+            self._stats["created"] += 1
 
             return XGPartialGenerator(
                 synth=synth,
@@ -120,7 +129,7 @@ class PartialGeneratorPool:
                 partial_params=partial_params,
                 is_drum=is_drum,
                 sample_rate=sample_rate,
-                bank=bank
+                bank=bank,
             )
 
     def release(self, partial: XGPartialGenerator) -> None:
@@ -134,7 +143,7 @@ class PartialGeneratorPool:
             return
 
         with self.lock:
-            self._stats['released'] += 1
+            self._stats["released"] += 1
 
             # Reset partial state for reuse
             partial._reset_for_pool()
@@ -150,8 +159,8 @@ class PartialGeneratorPool:
         """Get pool statistics for monitoring."""
         with self.lock:
             stats = self._stats.copy()
-            stats['pool_size'] = len(self.pool)
-            stats['max_size'] = self.max_size
+            stats["pool_size"] = len(self.pool)
+            stats["max_size"] = self.max_size
             return stats
 
     def clear_pool(self) -> None:
@@ -161,11 +170,11 @@ class PartialGeneratorPool:
                 partial = self.pool.popleft()
                 partial.cleanup()
             self._stats = {
-                'created': 0,
-                'acquired': 0,
-                'released': 0,
-                'pool_hits': 0,
-                'pool_misses': 0
+                "created": 0,
+                "acquired": 0,
+                "released": 0,
+                "pool_hits": 0,
+                "pool_misses": 0,
             }
 
 
@@ -226,9 +235,7 @@ class ChannelNote:
         self.channel_lfos = channel.lfos
 
         # Initialize parameters for this note
-        self.params = self._get_parameters(
-            program, bank, note, velocity, is_drum
-        )
+        self.params = self._get_parameters(program, bank, note, velocity, is_drum)
 
         # Initialize note-level LFOs (XG specification allows per-note LFOs)
         self.note_lfos = []
@@ -744,7 +751,9 @@ class ChannelNote:
 
         # Note-level LFO1 (primarily for vibrato - additional pitch modulation per note)
         note_lfo1_rate = lfo_params.get("note_lfo1_rate", 5.0)
-        note_lfo1_depth = lfo_params.get("note_lfo1_depth", 0.0)  # Default to 0 for backward compatibility
+        note_lfo1_depth = lfo_params.get(
+            "note_lfo1_depth", 0.0
+        )  # Default to 0 for backward compatibility
         note_lfo1_delay = lfo_params.get("note_lfo1_delay", 0.0)
 
         note_lfo1 = self.channel.synth.lfo_pool.acquire_oscillator(
@@ -752,12 +761,14 @@ class ChannelNote:
             waveform="sine",
             rate=note_lfo1_rate,
             depth=note_lfo1_depth,
-            delay=note_lfo1_delay
+            delay=note_lfo1_delay,
         )
 
         # Set XG modulation routing for note-level LFO1 (pitch modulation)
         note_lfo1.set_modulation_routing(pitch=True, filter=False, amplitude=False)
-        note_lfo1.set_modulation_depths(pitch_cents=25.0, filter_depth=0.0, amplitude_depth=0.0)  # 25 cents additional vibrato
+        note_lfo1.set_modulation_depths(
+            pitch_cents=25.0, filter_depth=0.0, amplitude_depth=0.0
+        )  # 25 cents additional vibrato
 
         self.note_lfos.append(note_lfo1)
 
@@ -771,12 +782,14 @@ class ChannelNote:
             waveform="triangle",
             rate=note_lfo2_rate,
             depth=note_lfo2_depth,
-            delay=note_lfo2_delay
+            delay=note_lfo2_delay,
         )
 
         # Set XG modulation routing for note-level LFO2 (filter modulation)
         note_lfo2.set_modulation_routing(pitch=False, filter=True, amplitude=False)
-        note_lfo2.set_modulation_depths(pitch_cents=0.0, filter_depth=0.2, amplitude_depth=0.0)
+        note_lfo2.set_modulation_depths(
+            pitch_cents=0.0, filter_depth=0.2, amplitude_depth=0.0
+        )
 
         self.note_lfos.append(note_lfo2)
 
@@ -790,12 +803,14 @@ class ChannelNote:
             waveform="sawtooth",
             rate=note_lfo3_rate,
             depth=note_lfo3_depth,
-            delay=note_lfo3_delay
+            delay=note_lfo3_delay,
         )
 
         # Set XG modulation routing for note-level LFO3 (amplitude modulation)
         note_lfo3.set_modulation_routing(pitch=False, filter=False, amplitude=True)
-        note_lfo3.set_modulation_depths(pitch_cents=0.0, filter_depth=0.0, amplitude_depth=0.3)
+        note_lfo3.set_modulation_depths(
+            pitch_cents=0.0, filter_depth=0.0, amplitude_depth=0.3
+        )
 
         self.note_lfos.append(note_lfo3)
 
@@ -807,138 +822,6 @@ class ChannelNote:
     def is_active(self):
         """Check if this note is still active"""
         return self.active and any(partial.is_active() for partial in self.partials)
-
-    def generate_sample(
-        self,
-        mod_wheel: int,
-        breath_controller: int,
-        foot_controller: int,
-        brightness: int,
-        harmonic_content: int,
-        channel_pressure_value: int,
-        key_pressure: int,
-        volume: float,
-        expression: float,
-        global_pitch_mod: float = 0.0,
-    ):
-        """Generate a sample for this note with precomputed controller values"""
-        if not self.is_active():
-            return (0.0, 0.0)
-
-        # Update channel LFOs with cached values (XG architecture: LFOs are channel-level)
-        if self.channel_lfos:
-            for lfo in self.channel_lfos:
-                lfo.set_mod_wheel(mod_wheel)
-                lfo.set_breath_controller(breath_controller)
-                lfo.set_foot_controller(foot_controller)
-                lfo.set_brightness(brightness)
-                lfo.set_harmonic_content(harmonic_content)
-                lfo.set_channel_aftertouch(channel_pressure_value)
-                lfo.set_key_aftertouch(key_pressure)
-
-        # Pre-calculate LFO values (both channel and note level)
-        lfo1_val = (
-            self.channel_lfos[0].step()
-            if self.channel_lfos and len(self.channel_lfos) > 0
-            else 0.0
-        )
-        lfo2_val = (
-            self.channel_lfos[1].step()
-            if self.channel_lfos and len(self.channel_lfos) > 1
-            else 0.0
-        )
-        lfo3_val = (
-            self.channel_lfos[2].step()
-            if self.channel_lfos and len(self.channel_lfos) > 2
-            else 0.0
-        )
-
-        # Note-level LFO values (XG allows per-note LFO modulation)
-        note_lfo1_val = self.note_lfos[0].step() if len(self.note_lfos) > 0 else 0.0
-        note_lfo2_val = self.note_lfos[1].step() if len(self.note_lfos) > 1 else 0.0
-        note_lfo3_val = self.note_lfos[2].step() if len(self.note_lfos) > 2 else 0.0
-
-        # Get envelope values for first active partial (if any)
-        amp_env_val = filter_env_val = pitch_env_val = 0.0
-        sources = {
-            "velocity": self.velocity / 127.0,
-            "after_touch": channel_pressure_value / 127.0,
-            "mod_wheel": mod_wheel / 127.0,
-            "breath_controller": breath_controller / 127.0,
-            "foot_controller": foot_controller / 127.0,
-            "data_entry": 100 / 127.0,  # Default data entry value
-            "lfo1": lfo1_val,
-            "lfo2": lfo2_val,
-            "lfo3": lfo3_val,
-            "note_lfo1": note_lfo1_val,  # Note-level LFOs
-            "note_lfo2": note_lfo2_val,
-            "note_lfo3": note_lfo3_val,
-            "amp_env": amp_env_val,
-            "filter_env": filter_env_val,
-            "pitch_env": pitch_env_val,
-            "key_pressure": key_pressure / 127.0,
-            "brightness": brightness / 127.0,
-            "harmonic_content": harmonic_content / 127.0,
-            "portamento": 1.0,  # Default portamento is active
-            "vibrato": 0.5,  # Default vibrato
-            "tremolo": 0.0,
-            "tremolo_depth": 0.3,
-            "tremolo_rate": 4.0,
-            "note_number": self.note / 127.0,
-            "volume_cc": volume / 127.0,  # Use passed volume parameter
-            "balance": 0.0,  # Default balance
-            "portamento_time_cc": 0.0,  # Default portamento time
-        }
-
-        for partial in self.partials:
-            if partial.is_active():
-                if partial.amp_envelope:
-                    amp_env_block = partial.amp_envelope.generate_block(partial.amp_buffer, 1)
-                    amp_env_val = amp_env_block[0] if len(amp_env_block) > 0 else 0.0
-                if partial.filter_envelope:
-                    filter_env_block = partial.filter_envelope.generate_block(partial.filter_buffer, 1)
-                    filter_env_val = filter_env_block[0] if len(filter_env_block) > 0 else 0.0
-                if partial.pitch_envelope:
-                    pitch_env_block = partial.pitch_envelope.generate_block(partial.pitch_buffer, 1)
-                    pitch_env_val = pitch_env_block[0] if len(pitch_env_block) > 0 else 0.0
-                break
-
-        # Process modulation matrix
-        modulation_values = self.mod_matrix.process(sources, self.velocity, self.note)
-
-        # Apply modulation to global pitch
-        if "pitch" in modulation_values:
-            global_pitch_mod += modulation_values["pitch"]
-
-        # Generate sample from partials
-        left_sum = 0.0
-        right_sum = 0.0
-        active_partials = 0
-
-        for partial in self.partials:
-            if not partial.is_active():
-                continue
-
-            partial_samples = partial.generate_sample(
-                lfos=self.channel_lfos,
-                global_pitch_mod=global_pitch_mod,
-                velocity_crossfade=0.0,
-                note_crossfade=0.0,
-            )
-
-            left_sum += partial_samples[0]
-            right_sum += partial_samples[1]
-            active_partials += 1
-
-        # Normalize by active partials
-        if active_partials > 0:
-            left_sum /= active_partials
-            right_sum /= active_partials
-        # Apply channel volume and expression using precomputed values
-        volume_factor = (volume / 127.0) * (expression / 127.0)
-        left_out = left_sum * volume_factor
-        right_out = right_sum * volume_factor
-        return (left_out, right_out)
 
     def generate_sample_block(
         self,
@@ -991,12 +874,24 @@ class ChannelNote:
         sources["mod_wheel"] = mod_wheel / 127.0
         sources["breath_controller"] = breath_controller / 127.0
         sources["foot_controller"] = foot_controller / 127.0
-        sources["lfo1"] = self.channel_lfos[0].step() if len(self.channel_lfos) > 0 else 0.0
-        sources["lfo2"] = self.channel_lfos[1].step() if len(self.channel_lfos) > 1 else 0.0
-        sources["lfo3"] = self.channel_lfos[2].step() if len(self.channel_lfos) > 2 else 0.0
-        sources["note_lfo1"] = self.note_lfos[0].step() if len(self.note_lfos) > 0 else 0.0
-        sources["note_lfo2"] = self.note_lfos[1].step() if len(self.note_lfos) > 1 else 0.0
-        sources["note_lfo3"] = self.note_lfos[2].step() if len(self.note_lfos) > 2 else 0.0
+        sources["lfo1"] = (
+            self.channel_lfos[0].step() if len(self.channel_lfos) > 0 else 0.0
+        )
+        sources["lfo2"] = (
+            self.channel_lfos[1].step() if len(self.channel_lfos) > 1 else 0.0
+        )
+        sources["lfo3"] = (
+            self.channel_lfos[2].step() if len(self.channel_lfos) > 2 else 0.0
+        )
+        sources["note_lfo1"] = (
+            self.note_lfos[0].step() if len(self.note_lfos) > 0 else 0.0
+        )
+        sources["note_lfo2"] = (
+            self.note_lfos[1].step() if len(self.note_lfos) > 1 else 0.0
+        )
+        sources["note_lfo3"] = (
+            self.note_lfos[2].step() if len(self.note_lfos) > 2 else 0.0
+        )
         sources["amp_env"] = 0.0  # Will be set from envelope processing
         sources["filter_env"] = 0.0
         sources["pitch_env"] = 0.0
@@ -1035,35 +930,87 @@ class ChannelNote:
                 note_crossfade=0.0,
             )
 
-            np.add(left_buffer[:block_size], self.temp_left[:block_size], out=left_buffer[:block_size])
-            np.add(right_buffer[:block_size], self.temp_right[:block_size], out=right_buffer[:block_size])
+            np.add(
+                left_buffer[:block_size],
+                self.temp_left[:block_size],
+                out=left_buffer[:block_size],
+            )
+            np.add(
+                right_buffer[:block_size],
+                self.temp_right[:block_size],
+                out=right_buffer[:block_size],
+            )
             active_partials += 1
 
         # Normalize by active partials
         if active_partials > 0:
-            # Apply channel volume and expression using precomputed values
-            volume_factor = (volume / 127.0) * (expression / 127.0)
-            scale = volume_factor / active_partials
-            left_buffer[:block_size] *= scale
-            right_buffer[:block_size] *= scale
+            # Apply CORRECTED volume scaling to fix inaudible output
+            volume_scale = self._calculate_correct_volume_scale(
+                volume, expression, active_partials
+            )
+            left_buffer[:block_size] *= volume_scale
+            right_buffer[:block_size] *= volume_scale
+
+    def _calculate_correct_volume_scale(
+        self, volume_cc: int, expression_cc: int, active_partials: int
+    ) -> float:
+        """
+        Calculate correct volume scaling to fix inaudible output.
+
+        Fixes multiple issues:
+        1. Exponential MIDI volume conversion instead of linear
+        2. RMS normalization for multiple partials instead of division
+        3. Proper compensation for multiple volume controls
+        4. Boost to compensate for processing losses
+        """
+        import numpy as np
+
+        # Clamp MIDI values
+        midi_volume = np.clip(volume_cc, 0, 127)
+        midi_expression = np.clip(expression_cc, 0, 127)
+
+        # Convert MIDI volume to exponential scale (dB approximation)
+        # MIDI volume follows exponential curve, not linear
+        volume_db = (midi_volume / 127.0) * 40.0 - 40.0  # -40dB to 0dB
+        volume_linear = 10.0 ** (volume_db / 20.0)
+
+        expression_db = (midi_expression / 127.0) * 40.0 - 40.0
+        expression_linear = 10.0 ** (expression_db / 20.0)
+
+        # Combine volume and expression
+        combined_volume = volume_linear * expression_linear
+
+        # RMS normalization for multiple partials (not division!)
+        # This prevents excessive volume reduction with multiple partials
+        if active_partials > 1:
+            combined_volume /= np.sqrt(active_partials)
+
+        # Apply compensation boost to fix inaudible output
+        # This compensates for processing losses and ensures audibility
+        compensation_boost = 1.2  # +3.6dB boost to ensure audibility
+        combined_volume *= compensation_boost
+
+        # Limit to reasonable range to prevent clipping
+        max_allowed = 3.0  # +9.5dB maximum
+        return np.clip(combined_volume, 0.0, max_allowed)
 
     def cleanup(self):
         """Clean up all resources and return to pools for reuse."""
         # Return our own buffers
-        if hasattr(self, 'temp_left') and self.temp_left is not None:
+        if hasattr(self, "temp_left") and self.temp_left is not None:
             self.channel.memory_pool.return_mono_buffer(self.temp_left)
             self.temp_left = None
-        if hasattr(self, 'temp_right') and self.temp_right is not None:
+        if hasattr(self, "temp_right") and self.temp_right is not None:
             self.channel.memory_pool.return_mono_buffer(self.temp_right)
             self.temp_right = None
 
         # Return partials to pool instead of cleaning up
-        if self.synth and hasattr(self.synth, 'partial_pool'):
+        if self.synth and hasattr(self.synth, "partial_pool"):
             for partial in self.partials:
                 self.synth.partial_pool.release(partial)
 
         # Return note-level LFOs to pool
-        if hasattr(self.channel.synth, 'lfo_pool'):
+        if hasattr(self.channel.synth, "lfo_pool"):
             for lfo in self.note_lfos:
                 self.channel.synth.lfo_pool.release_oscillator(lfo)
 

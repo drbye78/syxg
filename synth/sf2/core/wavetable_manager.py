@@ -1184,8 +1184,8 @@ class WavetableManager:
                 return routes
 
         return []
-
     def _apply_global_zone_params(self, zone, global_zone, is_preset_global: bool):
+
         """
         Apply global zone parameters to a zone.
 

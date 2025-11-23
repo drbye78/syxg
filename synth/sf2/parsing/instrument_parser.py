@@ -32,6 +32,7 @@ class InstrumentParser(ZoneParserMixin):
         self._mods = None
         self._all = None
         self._names = None
+        self._sample_headers = None
 
     def parse_instrument_headers(self) -> Tuple[List[SF2Instrument], List[str]]:
         """
@@ -97,12 +98,13 @@ class InstrumentParser(ZoneParserMixin):
 
         return instrument, name
 
-    def parse_instrument_zones(self, instrument_index: int) -> SF2Instrument:
+    def parse_instrument_zones(self, instrument_index: int, sample_headers: list = None) -> SF2Instrument:
         """
         Parse instrument zones and associate them with instruments with batch processing.
 
         Args:
             instrument_index: Index of instrument to parse
+            sample_headers: Optional pre-parsed sample headers for populating sample names
 
         Returns:
             Instrument with zones
@@ -130,6 +132,9 @@ class InstrumentParser(ZoneParserMixin):
         # Get the next instrument's start indices for proper zone boundary calculation
         next_gen_start = self._bags[self._all[instrument_index + 1].instrument_bag_index][0] if instrument_index < len(self._all) - 1 else len(self._gens) # type: ignore
         next_mod_start = self._bags[self._all[instrument_index + 1].instrument_bag_index][1] if instrument_index < len(self._all) - 1 else len(self._mods) # type: ignore
+
+        # Set sample headers for use during parsing
+        self._sample_headers = sample_headers
 
         # Create zones data for batch processing
         zones_data = []
@@ -352,15 +357,23 @@ class InstrumentParser(ZoneParserMixin):
         """
         return 53
 
-    def _set_zone_link_index(self, zone, gen_amount: int):
+    def _set_zone_link_index(self, zone, gen_amount: int, sample_headers=None):
         """
         Set the sample index on the instrument zone.
+        According to SF2 spec, this should be setting sampleID from generator 53 (sampleModes),
+        but we also set sample_index for backward compatibility.
 
         Args:
             zone: Instrument zone to modify
             gen_amount: Generator amount (the sample index)
+            sample_headers: Optional list of sample headers for populating sample name
         """
-        zone.sample_index = gen_amount
+        zone.sampleID = gen_amount
+        zone.sample_index = gen_amount  # Keep for backward compatibility
+
+        # Populate sample name from SHDR chunk if available
+        if sample_headers and 0 <= gen_amount < len(sample_headers):
+            zone.sample_name = sample_headers[gen_amount].name
 
     # Refactored methods using the mixin
     def _parse_zone_generators(self, zone: SF2InstrumentZone, gen_data: List[Tuple[int, int]], start_idx: int, end_idx: int):

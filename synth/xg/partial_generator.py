@@ -32,267 +32,6 @@ from ..core.filter import ResonantFilter
 from ..core.panner import StereoPanner
 from ..engine.optimized_coefficient_manager import get_global_coefficient_manager
 
-
-# Numba-compiled SIMD functions for ultra-fast block processing
-@jit(nopython=True, fastmath=True, cache=True)
-def _numba_generate_waveform_block_mono_optimized(
-    left_block, right_block, sample_table, table_length,
-    phase, phase_step, loop_mode, loop_start, loop_end,
-    block_size, loop_direction
-):
-    """
-    HIGH PRIORITY OPTIMIZATION: 30% faster mono waveform generation.
-    
-    Optimizations:
-    - Minimized branch conditions
-    - Inline table lookup for most common case (forward loop)
-    - Optimized interpolation with bounds checking
-    """
-    # Handle most common case (forward loop) with minimal branching
-    if loop_mode == 1 and loop_end > loop_start:
-        # Optimized forward loop - 90% of cases
-        loop_start_f = float(loop_start)
-        loop_end_f = float(loop_end)
-        loop_length = loop_end - loop_start
-        
-        for i in range(block_size):
-            raw_index = phase
-            
-            # Fast forward loop handling
-            if raw_index >= loop_end_f:
-                excess = raw_index - loop_end_f
-                table_index = loop_start_f + (excess % loop_length)
-            elif raw_index < loop_start_f:
-                table_index = loop_start_f
-            else:
-                table_index = raw_index
-            
-            # Optimized bounds and interpolation
-            if table_index >= 0.0 and table_index < table_length - 1:
-                index_int = int(table_index)
-                frac = table_index - index_int
-                
-                mono1 = sample_table[index_int]
-                mono2 = sample_table[index_int + 1]
-                mono_interp = mono1 + frac * (mono2 - mono1)
-            else:
-                # Bounds check
-                table_index = max(0.0, min(table_index, table_length - 1))
-                index_int = int(table_index)
-                frac = table_index - index_int
-                
-                if index_int < table_length:
-                    mono1 = sample_table[index_int]
-                    mono2 = sample_table[min(index_int + 1, table_length - 1)]
-                    mono_interp = mono1 + frac * (mono2 - mono1)
-                else:
-                    mono_interp = 0.0
-            
-            # Expand to stereo
-            left_block[i] = mono_interp
-            right_block[i] = mono_interp
-            
-            # Phase advance
-            phase += phase_step
-            if phase >= table_length:
-                phase -= table_length
-    else:
-        # General case - keep original logic for correctness
-        current_loop_direction = loop_direction
-        for i in range(block_size):
-            raw_index = phase
-
-            # Apply SF2 loop wrapping with optimized branching
-            if loop_mode > 0 and loop_end > loop_start:
-                loop_length = loop_end - loop_start
-
-                if loop_mode == 1:  # Forward loop - most common
-                    if raw_index >= loop_end:
-                        excess = raw_index - loop_end
-                        table_index = loop_start + (excess % loop_length)
-                    elif raw_index < loop_start:
-                        table_index = loop_start
-                    else:
-                        table_index = raw_index
-
-                elif loop_mode == 2:  # Backward loop
-                    if raw_index >= loop_end:
-                        excess = raw_index - loop_end
-                        backward_pos = loop_length - (excess % loop_length)
-                        table_index = loop_start + backward_pos
-                    elif raw_index < loop_start:
-                        table_index = loop_end - 1
-                    else:
-                        table_index = loop_end - (raw_index - loop_start)
-
-                elif loop_mode == 3:  # Alternating loop (ping-pong)
-                    if raw_index >= loop_end:
-                        excess = raw_index - loop_end
-                        current_loop_direction = -1  # Switch to backward
-                        backward_pos = excess % loop_length
-                        table_index = loop_end - backward_pos
-                    elif raw_index < loop_start:
-                        excess = loop_start - raw_index
-                        current_loop_direction = 1  # Switch to forward
-                        table_index = loop_start + (excess % loop_length)
-                    else:
-                        if current_loop_direction > 0:  # Forward
-                            table_index = raw_index
-                        else:  # Backward
-                            table_index = loop_end - (raw_index - loop_start)
-                else:
-                    table_index = raw_index
-            else:
-                table_index = raw_index
-
-            # SIMD-friendly bounds checking and interpolation
-            table_index = max(0.0, min(table_index, table_length - 1))
-            index_int = int(table_index)
-            frac = table_index - index_int
-
-            # Get mono samples with bounds checking
-            mono1 = 0.0
-            mono2 = 0.0
-
-            if index_int < table_length:
-                mono1 = sample_table[index_int]
-                mono2 = sample_table[min(index_int + 1, table_length - 1)]
-
-            # Linear interpolation - SIMD friendly
-            mono_interp = mono1 + frac * (mono2 - mono1)
-
-            # Expand mono to stereo
-            left_block[i] = mono_interp
-            right_block[i] = mono_interp
-
-            # Update phase with proper wrapping
-            phase += phase_step
-
-            # Handle table wrapping (no more 2*Pi normalization)
-            if phase >= table_length:
-                phase -= table_length
-            elif phase < 0:
-                phase += table_length
-    
-    return phase, loop_direction
-
-
-# Keep original function for compatibility
-_numba_generate_waveform_block_mono = _numba_generate_waveform_block_mono_optimized
-
-
-@jit(nopython=True, fastmath=True, cache=True)
-def _numba_generate_waveform_block_mono_time_varying(
-    left_block, right_block, sample_table, table_length,
-    phase, base_phase_step, pitch_mod_block, loop_mode, loop_start, loop_end,
-    block_size, loop_direction
-):
-    """
-    NUMBA-COMPILED: Time-varying SIMD waveform generation for mono SF2 samples.
-
-    Processes mono sample tables with time-varying pitch modulation within blocks.
-    Supports SF2 loop handling with per-sample pitch modulation.
-
-    Args:
-        left_block: Output left channel buffer (modified in-place)
-        right_block: Output right channel buffer (modified in-place)
-        sample_table: Pre-loaded mono sample table (list of floats)
-        table_length: Length of sample table
-        phase: Current phase position (table index, 0 to table_length-1)
-        base_phase_step: Base phase step per sample (samples per sample)
-        pitch_mod_block: Time-varying pitch modulation in cents (block_size array)
-        loop_mode: SF2 loop mode (0=no loop, 1=forward, 2=backward, 3=alternating)
-        loop_start: Loop start index
-        loop_end: Loop end index
-        block_size: Number of samples to generate
-    """
-    # For alternating loops, use the passed direction state
-    current_loop_direction = loop_direction
-
-    for i in range(block_size):
-        # Calculate time-varying phase step with pitch modulation
-        pitch_mod_cents = pitch_mod_block[i]
-        modulation_mult = 2.0 ** (pitch_mod_cents / 1200.0)
-        current_phase_step = base_phase_step * modulation_mult
-
-        # Phase now directly represents table index position
-        raw_index = phase
-
-        # Apply SF2 loop wrapping with optimized branching
-        if loop_mode > 0 and loop_end > loop_start:
-            loop_length = loop_end - loop_start
-
-            if loop_mode == 1:  # Forward loop - most common
-                if raw_index >= loop_end:
-                    excess = raw_index - loop_end
-                    table_index = loop_start + (excess % loop_length)
-                elif raw_index < loop_start:
-                    table_index = loop_start
-                else:
-                    table_index = raw_index
-
-            elif loop_mode == 2:  # Backward loop
-                if raw_index >= loop_end:
-                    excess = raw_index - loop_end
-                    backward_pos = loop_length - (excess % loop_length)
-                    table_index = loop_start + backward_pos
-                elif raw_index < loop_start:
-                    table_index = loop_end - 1
-                else:
-                    table_index = loop_end - (raw_index - loop_start)
-
-            elif loop_mode == 3:  # Alternating loop (ping-pong)
-                if raw_index >= loop_end:
-                    excess = raw_index - loop_end
-                    current_loop_direction = -1  # Switch to backward
-                    backward_pos = excess % loop_length
-                    table_index = loop_end - backward_pos
-                elif raw_index < loop_start:
-                    excess = loop_start - raw_index
-                    current_loop_direction = 1  # Switch to forward
-                    table_index = loop_start + (excess % loop_length)
-                else:
-                    if current_loop_direction > 0:  # Forward
-                        table_index = raw_index
-                    else:  # Backward
-                        table_index = loop_end - (raw_index - loop_start)
-            else:
-                table_index = raw_index
-        else:
-            table_index = raw_index
-
-        # SIMD-friendly bounds checking and interpolation
-        table_index = max(0.0, min(table_index, table_length - 1))
-        index_int = int(table_index)
-        frac = table_index - index_int
-
-        # Get mono samples with bounds checking
-        mono1 = 0.0
-        mono2 = 0.0
-
-        if index_int < table_length:
-            mono1 = sample_table[index_int]
-            mono2 = sample_table[min(index_int + 1, table_length - 1)]
-
-        # Linear interpolation - SIMD friendly
-        mono_interp = mono1 + frac * (mono2 - mono1)
-
-        # Expand mono to stereo
-        left_block[i] = mono_interp
-        right_block[i] = mono_interp
-
-        # Update phase with proper wrapping
-        phase += current_phase_step
-
-        # Handle table wrapping (no more 2*Pi normalization)
-        if phase >= table_length:
-            phase -= table_length
-        elif phase < 0:
-            phase += table_length
-
-    return phase, current_loop_direction
-
-
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_generate_waveform_block_stereo_time_varying_numpy(
     left_block: np.ndarray, right_block: np.ndarray, left_table: np.ndarray, right_table: np.ndarray,
@@ -332,7 +71,7 @@ def _numba_generate_waveform_block_stereo_time_varying_numpy(
         raw_index = phase
 
         # Apply SF2 loop wrapping with optimized branching
-        if loop_mode > 0 and loop_end > loop_start:
+        if loop_mode > 0 and loop_end > loop_start and loop_end < table_length:
             loop_length = loop_end - loop_start
 
             if loop_mode == 1:  # Forward loop - most common
@@ -347,19 +86,19 @@ def _numba_generate_waveform_block_stereo_time_varying_numpy(
             elif loop_mode == 2:  # Backward loop
                 if raw_index >= loop_end:
                     excess = raw_index - loop_end
-                    backward_pos = loop_length - (excess % loop_length)
+                    backward_pos = loop_length - 1 - (excess % loop_length)
                     table_index = loop_start + backward_pos
                 elif raw_index < loop_start:
                     table_index = loop_end - 1
                 else:
-                    table_index = loop_end - (raw_index - loop_start)
+                    table_index = loop_end - 1 - (raw_index - loop_start)
 
             elif loop_mode == 3:  # Alternating loop (ping-pong)
                 if raw_index >= loop_end:
                     excess = raw_index - loop_end
                     current_loop_direction = -1  # Switch to backward
                     backward_pos = excess % loop_length
-                    table_index = loop_end - backward_pos
+                    table_index = loop_end - 1 - backward_pos
                 elif raw_index < loop_start:
                     excess = loop_start - raw_index
                     current_loop_direction = 1  # Switch to forward
@@ -368,14 +107,14 @@ def _numba_generate_waveform_block_stereo_time_varying_numpy(
                     if current_loop_direction > 0:  # Forward
                         table_index = raw_index
                     else:  # Backward
-                        table_index = loop_end - (raw_index - loop_start)
+                        table_index = loop_end - 1 - (raw_index - loop_start)
             else:
                 table_index = raw_index
         else:
             table_index = raw_index
 
-        # SIMD-friendly bounds checking and interpolation
-        table_index = max(0.0, min(table_index, table_length - 1))
+        # SIMD-friendly bounds checking and interpolation - ensure valid range
+        table_index = max(0.0, min(float(table_length - 1), table_index))
         index_int = int(table_index)
         frac = table_index - index_int
 
@@ -383,13 +122,25 @@ def _numba_generate_waveform_block_stereo_time_varying_numpy(
         left1, right1 = 0.0, 0.0
         left2, right2 = 0.0, 0.0
 
-        if index_int < table_length:
+        # Bounds check indices to prevent out-of-bounds access
+        if 0 <= index_int < table_length:
             left1 = left_table[index_int]
             right1 = right_table[index_int]
 
-            next_index = min(index_int + 1, table_length - 1)
-            left2 = left_table[next_index]
-            right2 = right_table[next_index]
+            next_index = index_int + 1
+            if next_index < table_length:
+                left2 = left_table[next_index]
+                right2 = right_table[next_index]
+            else:
+                # If at end of table, duplicate last sample to avoid discontinuities
+                left2 = left1
+                right2 = right1
+        else:
+            # If somehow index is out of bounds, use first sample
+            left1 = left_table[0] if table_length > 0 else 0.0
+            right1 = right_table[0] if table_length > 0 else 0.0
+            left2 = left1
+            right2 = right1
 
         # Linear interpolation for both channels - SIMD friendly
         left_interp = left1 + frac * (left2 - left1)
@@ -402,121 +153,10 @@ def _numba_generate_waveform_block_stereo_time_varying_numpy(
         phase += current_phase_step
 
         # Handle table wrapping (no more 2*Pi normalization)
-        if phase >= table_length:
-            phase -= table_length
+        if phase >= table_length and table_length > 0:
+            phase = phase - table_length
         elif phase < 0:
-            phase += table_length
-
-    return phase, current_loop_direction
-
-
-@jit(nopython=True, fastmath=True, cache=True)
-def _numba_generate_waveform_block_stereo(
-    left_block, right_block, left_table, right_table, table_length,
-    phase, phase_step, loop_mode, loop_start, loop_end,
-    block_size, loop_direction
-):
-    """
-    NUMBA-COMPILED: Ultra-fast SIMD waveform generation for stereo SF2 samples.
-
-    Processes stereo sample tables (separate left/right arrays) with SF2 loop handling.
-    Preserves stereo information from SF2 samples.
-
-    Args:
-        left_block: Output left channel buffer (modified in-place)
-        right_block: Output right channel buffer (modified in-place)
-        left_table: Left channel sample table (numpy array)
-        right_table: Right channel sample table (numpy array)
-        table_length: Length of sample table
-        phase: Current phase position (table index, 0 to table_length-1)
-        phase_step: Phase step per sample (samples per sample)
-        loop_mode: SF2 loop mode (0=no loop, 1=forward, 2=backward, 3=alternating)
-        loop_start: Loop start index
-        loop_end: Loop end index
-        block_size: Number of samples to generate
-    """
-    # For alternating loops, use the passed direction state
-    current_loop_direction = loop_direction
-
-    for i in range(block_size):
-        # Phase now directly represents table index position
-        raw_index = phase
-
-        # Apply SF2 loop wrapping with optimized branching
-        if loop_mode > 0 and loop_end > loop_start:
-            loop_length = loop_end - loop_start
-
-            if loop_mode == 1:  # Forward loop - most common
-                if raw_index >= loop_end:
-                    excess = raw_index - loop_end
-                    table_index = loop_start + (excess % loop_length)
-                elif raw_index < loop_start:
-                    table_index = loop_start
-                else:
-                    table_index = raw_index
-
-            elif loop_mode == 2:  # Backward loop
-                if raw_index >= loop_end:
-                    excess = raw_index - loop_end
-                    backward_pos = loop_length - (excess % loop_length)
-                    table_index = loop_start + backward_pos
-                elif raw_index < loop_start:
-                    table_index = loop_end - 1
-                else:
-                    table_index = loop_end - (raw_index - loop_start)
-
-            elif loop_mode == 3:  # Alternating loop (ping-pong)
-                if raw_index >= loop_end:
-                    excess = raw_index - loop_end
-                    loop_direction = -1  # Switch to backward
-                    backward_pos = excess % loop_length
-                    table_index = loop_end - backward_pos
-                elif raw_index < loop_start:
-                    excess = loop_start - raw_index
-                    loop_direction = 1  # Switch to forward
-                    table_index = loop_start + (excess % loop_length)
-                else:
-                    if loop_direction > 0:  # Forward
-                        table_index = raw_index
-                    else:  # Backward
-                        table_index = loop_end - (raw_index - loop_start)
-            else:
-                table_index = raw_index
-        else:
-            table_index = raw_index
-
-        # SIMD-friendly bounds checking and interpolation
-        table_index = max(0.0, min(table_index, table_length - 1))
-        index_int = int(table_index)
-        frac = table_index - index_int
-
-        # Get stereo samples with bounds checking from separate arrays
-        left1, right1 = 0.0, 0.0
-        left2, right2 = 0.0, 0.0
-
-        if index_int < table_length:
-            left1 = left_table[index_int]
-            right1 = right_table[index_int]
-
-            next_index = min(index_int + 1, table_length - 1)
-            left2 = left_table[next_index]
-            right2 = right_table[next_index]
-
-        # Linear interpolation for both channels - SIMD friendly
-        left_interp = left1 + frac * (left2 - left1)
-        right_interp = right1 + frac * (right2 - right1)
-
-        left_block[i] = left_interp
-        right_block[i] = right_interp
-
-        # Update phase with proper wrapping
-        phase += phase_step
-
-        # Handle table wrapping (no more 2*Pi normalization)
-        if phase >= table_length:
-            phase -= table_length
-        elif phase < 0:
-            phase += table_length
+            phase = phase + table_length
 
     return phase, current_loop_direction
 
@@ -684,9 +324,6 @@ def _numba_generate_waveform_block_mono_time_varying_numpy(
     return phase, current_loop_direction
 
 
-
-
-
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_apply_envelope_and_modulation(
     left_block, right_block, amp_env_block, level, amp_mod,
@@ -737,34 +374,16 @@ class XGPartialGenerator:
     PITCH_BEND_CENTS = 1200  # XG pitch bend range in cents
     VELOCITY_SENSE_SCALING = 0.023  # XG velocity sensitivity formula
 
-    def __init__(self, synth, note: int, velocity: int, program: int,
-                  partial_id: int, partial_params: Dict, is_drum: bool = False,
-                  sample_rate: int = 44100, bank: int = 0):
-        """
-        XG-compliant partial generator initialization.
+    def _set_partial_parameters(self, partial_params: Dict, is_drum: bool):
+        """Set XG partial parameters from configuration dictionary.
+
+        This method contains the common parameter setting logic used by both
+        __init__() and _reconfigure() methods to eliminate code duplication.
 
         Args:
-            wavetable: XG wavetable manager for sample access
-            note: MIDI note number (0-127)
-            velocity: Velocity value (0-127)
-            program: Program number (can be extended for drum kits)
-            partial_id: Partial identifier (0-7 for up to 8 partials)
             partial_params: XG partial parameters dictionary
             is_drum: True for drum mode (affects envelope/filter behavior)
-            sample_rate: Audio sample rate
-            bank: Bank number (MSB 0-127)
         """
-        self.synth = synth
-        self.wavetable: Optional[WavetableManager] = synth.sf2_manager.get_manager()
-        self.partial_id = partial_id
-        self.note = note
-        self.velocity = velocity
-        self.program = program
-        self.bank = bank
-        self.is_drum = is_drum
-        self.sample_rate = sample_rate
-        self.active = True
-
         # XG Core Partial Parameters
         self.element_type = partial_params.get("element_type", "normal")  # normal, drum, sfx
         self.level = partial_params.get("level", 1.0)  # 0.0-2.0
@@ -789,26 +408,6 @@ class XGPartialGenerator:
         self.coarse_tune = partial_params.get("coarse_tune", 0)  # semitones
         self.fine_tune = partial_params.get("fine_tune", 0)  # cents
         self.overriding_root_key = partial_params.get("overriding_root_key", -1)
-
-        # SF2 Loop information (initialized later when sample is loaded)
-        self.sample_start = 0
-        self.sample_end = 0
-        self.loop_start = 0
-        self.loop_end = 0
-        self.loop_mode = 0  # 0=no loop, 1=forward, 2=backward, 3=alternating
-
-        # Loop state for alternating loops
-        self.loop_direction = 1  # 1=forward, -1=backward (for alternating loops)
-        self.loop_position = 0.0  # Current position within loop
-
-        # Pre-calculated loop parameters for optimization
-        self.loop_length = 0.0
-        self.loop_start_reciprocal = 0.0
-        self.loop_length_reciprocal = 0.0
-        self.has_loop = False
-
-        # Update loop parameters when loop info is loaded
-        self._update_loop_parameters()
 
         # XG Envelope parameters with proper scaling
         self.amp_attack_time = partial_params.get("amp_attack", 0.01)
@@ -845,16 +444,61 @@ class XGPartialGenerator:
         self.filter_type = filter_config.get("type", "lowpass")
         self.filter_key_follow = filter_config.get("key_follow", 0.5)
 
-        # Check if note/velocity fall within this partial's range
-        if not self._is_note_in_range(note, velocity):
-            self.active = False
-            return
+    def __init__(self, synth, note: int, velocity: int, program: int,
+                  partial_id: int, partial_params: Dict, is_drum: bool = False,
+                  sample_rate: int = 44100, bank: int = 0):
+        """
+        XG-compliant partial generator initialization.
+
+        Args:
+            wavetable: XG wavetable manager for sample access
+            note: MIDI note number (0-127)
+            velocity: Velocity value (0-127)
+            program: Program number (can be extended for drum kits)
+            partial_id: Partial identifier (0-7 for up to 8 partials)
+            partial_params: XG partial parameters dictionary
+            is_drum: True for drum mode (affects envelope/filter behavior)
+            sample_rate: Audio sample rate
+            bank: Bank number (MSB 0-127)
+        """
+        self.synth = synth
+        self.wavetable: Optional[WavetableManager] = synth.sf2_manager.get_manager()
+        self.partial_id = partial_id
+        self.note = note
+        self.velocity = velocity
+        self.program = program
+        self.bank = bank
+        self.is_drum = is_drum
+        self.sample_rate = sample_rate
+        self.active = True
+
+        # Set XG partial parameters using shared method
+        self._set_partial_parameters(partial_params, is_drum)
+
+        # SF2 Loop information (initialized later when sample is loaded)
+        self.sample_start = 0
+        self.sample_end = 0
+        self.loop_start = 0
+        self.loop_end = 0
+        self.loop_mode = 0  # 0=no loop, 1=forward, 2=backward, 3=alternating
+
+        # Loop state for alternating loops
+        self.loop_direction = 1  # 1=forward, -1=backward (for alternating loops)
+        self.loop_position = 0.0  # Current position within loop
+
+        # Pre-calculated loop parameters for optimization
+        self.loop_length = 0.0
+        self.loop_start_reciprocal = 0.0
+        self.loop_length_reciprocal = 0.0
+        self.has_loop = False
 
         # Optimized coefficient manager for performance
         self.coeff_manager = get_global_coefficient_manager()
 
         self._cached_sample_table = None
         self._load_sample_table_once()
+        # Update loop parameters when loop info is loaded
+        self._update_loop_parameters()
 
         # Initialize sample table position and advance parameters
         self.sample_position = 0.0
@@ -869,8 +513,6 @@ class XGPartialGenerator:
         # Start envelopes (Per XG, envelopes start on note-on)
         self.note_on(velocity, note)
 
-        # CRITICAL LFO BOTTLENECK FIX: Get dedicated LFO instances for this partial
-        # This eliminates LFO sharing between partials which was causing performance bottlenecks
         self.dedicated_lfos = []
         for i in range(3):  # 3 LFOs per partial: pitch, filter, amplitude
             lfo = self.synth.partial_lfo_pool.acquire_oscillator(
@@ -913,11 +555,6 @@ class XGPartialGenerator:
             self.loop_start_reciprocal = 0.0
             self.loop_length_reciprocal = 0.0
             self.has_loop = False
-
-    def _is_note_in_range(self, note: int, velocity: int) -> bool:
-        """Check if note and velocity fall within this partial's XG-defined ranges."""
-        return (self.key_range_low <= note <= self.key_range_high and
-                self.velocity_range_low <= velocity <= self.velocity_range_high)
 
     def _calculate_base_frequency(self) -> float:
         """
@@ -1030,27 +667,6 @@ class XGPartialGenerator:
 
         return phase_step
 
-
-
-    def _apply_pitch_modulation_to_phase_step(self, base_phase_step: float, pitch_mod_cents: float) -> float:
-        """
-        Apply pitch modulation to the phase step.
-
-        Args:
-            base_phase_step: Base phase step in radians per sample
-            pitch_mod_cents: Pitch modulation in cents
-
-        Returns:
-            Modulated phase step in radians per sample
-        """
-        if pitch_mod_cents == 0.0:
-            return base_phase_step
-
-        # Convert cents to frequency multiplier
-        freq_multiplier = 2.0 ** (pitch_mod_cents / 1200.0)
-
-        return base_phase_step * freq_multiplier
-
     EMPTY_SAMPLE = np.zeros(1)
 
     def _load_sample_table_once(self):
@@ -1092,11 +708,18 @@ class XGPartialGenerator:
         header, soundfont_obj, valid = getattr(self.wavetable, 'partial_map', {}).get(cache_key, (None, None, False))
 
         if header and valid:
-            # Store loop information from SF2 sample header
+            # Store sample boundaries (absolute indices in original file)
             self.sample_start = header.start
             self.sample_end = header.end
-            self.loop_start = header.start_loop
-            self.loop_end = header.end_loop
+
+            # Convert absolute loop indices to relative indices in trimmed array
+            # SF2 loop points are absolute indices, but sample data is trimmed to [start:end]
+            loop_start_rel = header.start_loop - header.start
+            loop_end_rel = header.end_loop - header.start
+
+            # Store relative loop indices for use with trimmed sample arrays
+            self.loop_start = max(0, loop_start_rel)  # Ensure non-negative
+            self.loop_end = max(self.loop_start + 1, loop_end_rel)  # Ensure valid range
 
             # Determine loop mode from SF2 sample type
             # SF2 sample types: 0=no loop, 1=forward, 2=backward+forward, 3=backward
@@ -1109,6 +732,24 @@ class XGPartialGenerator:
                 self.loop_mode = 2  # Backward loop
             else:
                 self.loop_mode = 0  # No loop
+
+            # Get the actual sample table length to validate loop points
+            if self._cached_sample_table is not None:
+                if isinstance(self._cached_sample_table, tuple):
+                    # Stereo sample: use left channel length
+                    table_length = len(self._cached_sample_table[0])
+                else:
+                    # Mono sample
+                    table_length = len(self._cached_sample_table)
+
+                # Validate loop points are within sample bounds
+                if self.loop_mode > 0:
+                    self.loop_start = max(0, min(self.loop_start, table_length - 1))
+                    self.loop_end = max(self.loop_start + 1, min(self.loop_end, table_length))
+
+                    # Disable loop if validation fails (loop points out of bounds)
+                    if self.loop_start >= self.loop_end or self.loop_end > table_length:
+                        self.loop_mode = 0
         else:
             # No loop information available
             self.loop_mode = 0
@@ -1218,100 +859,6 @@ class XGPartialGenerator:
                 self.amp_envelope and
                 self.amp_envelope.state != EnvelopeState.IDLE)
 
-    def generate_sample(self, lfos: List, global_pitch_mod: float = 0.0,
-                        velocity_crossfade: float = 0.0, note_crossfade: float = 0.0) -> Tuple[float, float]:
-        """
-        Generate XG partial audio sample.
-
-        Args:
-            lfos: Channel-level LFO sources (per XG architecture)
-            global_pitch_mod: Global pitch modulation (pitch bend, etc.)
-            velocity_crossfade: Velocity crossfade coefficient
-            note_crossfade: Note crossfade coefficient
-
-        Returns:
-            Tuple of (left_sample, right_sample) in range [-1.0, 1.0]
-        """
-        if not self.is_active():
-            return (0.0, 0.0)
-
-        # Update crossfade coefficients
-        self.velocity_crossfade = velocity_crossfade
-        self.note_crossfade = note_crossfade
-
-        # Process XG envelopes - use block processing for zero allocations
-        # For single sample, we use the first element of the block
-        amp_env_block = self.amp_envelope.generate_block(self.amp_buffer, 1)
-        amp_env = amp_env_block[0] if len(amp_env_block) > 0 else 0.0
-
-        filter_env = 0.0
-        if self.filter_envelope:
-            filter_env_block = self.filter_envelope.generate_block(self.filter_buffer, 1)
-            filter_env = filter_env_block[0] if len(filter_env_block) > 0 else 0.0
-
-        pitch_env = 0.0
-        if self.pitch_envelope:
-            pitch_env_block = self.pitch_envelope.generate_block(self.pitch_buffer, 1)
-            pitch_env = pitch_env_block[0] if len(pitch_env_block) > 0 else 0.0
-
-        # Apply XG key follow to envelopes (envelope variation with note)
-        key_follow_factor = self._calculate_key_follow_factor()
-
-        # XG Amplitude envelope scaling (only affects amp env)
-        amp_env *= key_follow_factor
-
-        # Generate base waveform with pitch modulation
-        pitch_mod_total = (global_pitch_mod +
-                          self.last_pitch_mod +
-                          self._process_pitch_envelope(pitch_env))
-
-        sample = self._generate_waveform_sample(pitch_mod_total)
-
-        # Apply XG filter with envelope modulation
-        if self.filter:
-            # XG Filter envelope to cutoff modulation (±4800 cents range typically)
-            filter_cutoff_mod = filter_env * 4800.0 * self.last_filter_mod
-            filter_cutoff_freq = self._calculate_xg_filter_cutoff(filter_cutoff_mod)
-
-            self.filter.set_parameters(
-                cutoff=filter_cutoff_freq,
-                resonance=self.filter_resonance
-            )
-
-            # Now sample is always stereo, so process as stereo
-            sample = self.filter.process(sample, is_stereo=True)
-
-        # Apply XG amplitude envelope and level
-        # Sample is now always stereo (left, right)
-        if isinstance(sample, (tuple, list)) and len(sample) >= 2:
-            left_sample = float(sample[0])
-            right_sample = float(sample[1])
-        else:
-            # Fallback: if somehow not stereo, treat as mono and convert
-            mono_sample = float(sample) # type: ignore
-            left_sample = mono_sample
-            right_sample = mono_sample
-
-        # Apply amplitude envelope and level to both channels
-        left_sample = left_sample * float(amp_env) * float(self.level) * float(self.last_amp_mod)
-        right_sample = right_sample * float(amp_env) * float(self.level) * float(self.last_amp_mod)
-
-        # Apply crossfade to both channels
-        crossfade_factor = (1.0 - self.velocity_crossfade) * (1.0 - self.note_crossfade)
-        left_sample *= crossfade_factor
-        right_sample *= crossfade_factor
-
-        # Apply XG panning - OPTIMIZED
-        # Use pre-computed panning coefficients instead of expensive sqrt() calls
-        pan_int = int(self.pan * 127.0)  # Convert to MIDI range
-        pan_int = max(0, min(127, pan_int))
-        left_gain, right_gain = self.coeff_manager.get_pan_gains(pan_int)
-
-        left_sample *= left_gain
-        right_sample *= right_gain
-
-        return (left_sample, right_sample)
-
     def generate_sample_block(self, block_size: int, left_block: np.ndarray, right_block: np.ndarray, lfos: List[XGLFO],
                               global_pitch_mod: float = 0.0,
                               velocity_crossfade: float = 0.0,
@@ -1420,13 +967,6 @@ class XGPartialGenerator:
         
         return result if self.note < center_note else 1.0 / result
 
-    def _process_pitch_envelope(self, pitch_env: float) -> float:
-        """Process XG pitch envelope (fixed sustain level)."""
-        # XG pitch envelope has fixed sustain level (typically 0)
-        if self.pitch_envelope and self.pitch_envelope.state == EnvelopeState.SUSTAIN:
-            return 0.0  # Fixed sustain per XG spec
-        return pitch_env * 1200.0  # Convert to cents
-
     def _calculate_xg_filter_cutoff(self, env_mod_cents: float) -> float:
         """Calculate XG filter cutoff with envelope modulation."""
         base_freq = self.filter_cutoff
@@ -1451,53 +991,6 @@ class XGPartialGenerator:
         else:
             pitch_env_block[:block_size] *= 1200.0
         return pitch_env_block
-
-    def _generate_waveform_block(self, left_block: np.ndarray, right_block: np.ndarray, pitch_mod: float) -> None:
-        """Generate entire sample block for XG synthesis using Numba-compiled SIMD operations.
-
-        Handles both mono and stereo SF2 samples with zero temporary allocations.
-
-        Args:
-            left_block: Pre-allocated array to fill with left channel samples
-            right_block: Pre-allocated array to fill with right channel samples
-            pitch_mod: Pitch modulation in cents
-        """
-        block_size = len(left_block)
-
-        # Generate sample based on wavetable availability
-        if self.wavetable is None:
-            # Zero sample fallback - arrays are already zeroed
-            return
-
-        # XG Wavetable synthesis - use cached sample table
-        sample_table = self._cached_sample_table
-
-        if not sample_table or len(sample_table) == 0:
-            return
-
-        # Apply pitch modulation to phase step
-        modulation_mult = 2.0 ** (pitch_mod / 1200.0)
-        current_phase_step = self.sample_advance_step * modulation_mult
-
-        table_length = len(sample_table)
-
-        # Use cached sample format detection for zero-overhead format selection
-        if self._sample_format_is_stereo:
-            # Stereo samples - extract left and right arrays from the combined array
-            left_table, right_table = sample_table
-            # Stereo samples - use stereo Numba function
-            self.sample_position, self.loop_direction = _numba_generate_waveform_block_stereo(
-                left_block, right_block, left_table, right_table, table_length,
-                self.sample_position, current_phase_step, self.loop_mode,
-                self.loop_start, self.loop_end, block_size, self.loop_direction
-            )
-        else:
-            # Mono samples - use mono Numba function (expands to stereo)
-            self.sample_position, self.loop_direction = _numba_generate_waveform_block_mono(
-                left_block, right_block, sample_table, table_length,
-                self.sample_position, current_phase_step, self.loop_mode,
-                self.loop_start, self.loop_end, block_size, self.loop_direction
-            )
 
     def _generate_waveform_block_time_varying(self, left_block: np.ndarray, right_block: np.ndarray,
                                              pitch_mod_block: np.ndarray) -> None:
@@ -1658,136 +1151,6 @@ class XGPartialGenerator:
         # XG-compliant frequency clamping
         return np.clip(result, 20.0, 20000.0)
 
-
-
-
-    def _generate_waveform_sample(self, pitch_mod: float) -> Tuple[float, float]:
-        """Generate base waveform sample for XG synthesis with proper SF2 loop handling.
-
-        Returns stereo samples (left, right) - converts mono to stereo if needed.
-        """
-        # Apply pitch modulation to phase step
-        modulation_mult = 2.0 ** (pitch_mod / 1200.0)  # cents to freq multiplier
-        current_phase_step = self.sample_advance_step * modulation_mult
-
-        # Generate sample based on wavetable availability
-        if self.wavetable is None:
-            # Zero sample fallback - return stereo silence
-            return (0.0, 0.0)  # Return stereo silence
-
-        # XG Wavetable synthesis - use cached sample table
-        sample_table = self._cached_sample_table
-
-        if not sample_table or len(sample_table) == 0:
-            return (0.0, 0.0)  # Return stereo silence
-
-        # Phase now directly represents table index position
-        table_length = len(sample_table)
-        raw_index = self.sample_position
-
-        # Apply SF2 loop wrapping based on loop mode
-        if self.loop_mode > 0 and self.loop_end > self.loop_start:
-            # Convert loop points from sample space to table index space
-            loop_start_idx = float(self.loop_start)
-            loop_end_idx = float(self.loop_end)
-
-            # Ensure loop points are within table bounds
-            loop_start_idx = max(0.0, min(loop_start_idx, table_length - 1))
-            loop_end_idx = max(loop_start_idx + 1, min(loop_end_idx, table_length - 1))
-            loop_length = loop_end_idx - loop_start_idx
-
-            if loop_length > 0:
-                if self.loop_mode == 1:  # Forward loop
-                    # Standard forward loop
-                    if raw_index >= loop_end_idx:
-                        excess = raw_index - loop_end_idx
-                        table_index = loop_start_idx + (excess % loop_length)
-                    elif raw_index < loop_start_idx:
-                        # Before loop start - could clamp or wrap
-                        table_index = loop_start_idx
-                    else:
-                        table_index = raw_index
-
-                elif self.loop_mode == 2:  # Backward loop
-                    # Backward loop - play from end to start repeatedly
-                    if raw_index >= loop_end_idx:
-                        excess = raw_index - loop_end_idx
-                        # Calculate position from end
-                        backward_pos = loop_length - (excess % loop_length)
-                        table_index = loop_start_idx + backward_pos
-                    elif raw_index < loop_start_idx:
-                        table_index = loop_end_idx - 1  # Start from end
-                    else:
-                        # Within loop - play backward from current position
-                        table_index = loop_end_idx - (raw_index - loop_start_idx)
-
-                elif self.loop_mode == 3:  # Alternating loop (ping-pong)
-                    # Alternating between forward and backward
-                    if raw_index >= loop_end_idx:
-                        # Reached end - switch to backward and calculate position
-                        excess = raw_index - loop_end_idx
-                        self.loop_direction = -1  # Switch to backward
-                        # Position from end
-                        backward_pos = excess % loop_length
-                        table_index = loop_end_idx - backward_pos
-                    elif raw_index < loop_start_idx:
-                        # Reached start - switch to forward
-                        excess = loop_start_idx - raw_index
-                        self.loop_direction = 1  # Switch to forward
-                        table_index = loop_start_idx + (excess % loop_length)
-                    else:
-                        # Within loop - continue in current direction
-                        if self.loop_direction > 0:  # Forward
-                            table_index = raw_index
-                        else:  # Backward
-                            table_index = loop_end_idx - (raw_index - loop_start_idx)
-                else:
-                    # Unknown loop mode - default to forward
-                    table_index = raw_index
-            else:
-                # Invalid loop - no looping
-                table_index = max(0.0, min(raw_index, table_length - 1))
-        else:
-            # No loop - use raw index
-            table_index = raw_index
-
-        # Ensure index is within bounds
-        table_index = max(0, min(table_index, table_length - 1))
-
-        # Linear interpolation for smooth playback
-        index_int = int(table_index)
-        frac = table_index - index_int
-
-        # Get samples with bounds checking
-        sample1 = sample_table[index_int] if index_int < table_length else 0.0
-        sample2 = sample_table[min(index_int + 1, table_length - 1)] if index_int < table_length else 0.0
-
-        # Get stereo samples instead of mono
-        def get_stereo_sample(sample):
-            if isinstance(sample, tuple):
-                left, right = sample
-                return (left, right)
-            else:
-                return (sample, sample)
-
-        stereo1 = get_stereo_sample(sample1)
-        stereo2 = get_stereo_sample(sample2)
-
-        # Linear interpolation for both channels
-        left_interp = stereo1[0] + frac * (stereo2[0] - stereo1[0])
-        right_interp = stereo1[1] + frac * (stereo2[1] - stereo1[1])
-
-        # Update phase with proper wrapping
-        self.sample_position += current_phase_step
-
-        # Handle table wrapping (no more 2*Pi normalization)
-        if self.sample_position >= table_length:
-            self.sample_position -= table_length
-        elif self.sample_position < 0:
-            self.sample_position += table_length
-
-        return (left_interp, right_interp)
-
     # XG Sound Controller Parameter Updates (Controllers 71-78)
 
     def update_harmonic_content(self, value: float):
@@ -1923,74 +1286,8 @@ class XGPartialGenerator:
         self.sample_rate = sample_rate
         self.active = True
 
-        # Ensure cached sample table is initialized
-        if not hasattr(self, '_cached_sample_table'):
-            self._cached_sample_table = None
-
-        # Update XG Core Partial Parameters
-        self.element_type = partial_params.get("element_type", "normal")
-        self.level = partial_params.get("level", 1.0)
-        self.pan = partial_params.get("pan", 0.5)
-
-        # Key Range - Exclusive per XG specification
-        self.key_range_low = partial_params.get("key_range_low", 0)
-        self.key_range_high = partial_params.get("key_range_high", 127)
-        self.velocity_range_low = partial_params.get("velocity_range_low", 0)
-        self.velocity_range_high = partial_params.get("velocity_range_high", 127)
-
-        # Crossfade settings
-        self.crossfade_note_width = partial_params.get("crossfade_note", 0)
-        self.crossfade_vel_width = partial_params.get("crossfade_velocity", 0)
-
-        # Key scaling and velocity sensitivity
-        self.key_scaling = partial_params.get("key_scaling", 0.0)
-        self.velocity_sense = partial_params.get("velocity_sense", 1.0)
-
-        # XG Scale tuning and octave settings
-        self.scale_tuning = partial_params.get("scale_tuning", 100)
-        self.coarse_tune = partial_params.get("coarse_tune", 0)
-        self.fine_tune = partial_params.get("fine_tune", 0)
-        self.overriding_root_key = partial_params.get("overriding_root_key", -1)
-
-        # XG Envelope parameters
-        self.amp_attack_time = partial_params.get("amp_attack", 0.01)
-        self.amp_decay_time = partial_params.get("amp_decay", 0.3)
-        self.amp_sustain_level = partial_params.get("amp_sustain", 0.7)
-        self.amp_release_time = partial_params.get("amp_release", 0.5)
-        self.amp_delay_time = partial_params.get("amp_delay", 0.0)
-        self.amp_hold_time = partial_params.get("amp_hold", 0.0)
-
-        # XG Filter envelope
-        self.use_filter_env = not is_drum or partial_params.get("use_filter_env", True)
-        if self.use_filter_env:
-            self.filter_attack_time = partial_params.get("filter_attack", 0.1)
-            self.filter_decay_time = partial_params.get("filter_decay", 0.5)
-            self.filter_sustain_level = partial_params.get("filter_sustain", 0.6)
-            self.filter_release_time = partial_params.get("filter_release", 0.8)
-            self.filter_delay_time = partial_params.get("filter_delay", 0.0)
-            self.filter_hold_time = partial_params.get("filter_hold", 0.0)
-
-        # XG Pitch envelope
-        self.use_pitch_env = not is_drum or partial_params.get("use_pitch_env", True)
-        if self.use_pitch_env:
-            self.pitch_attack_time = partial_params.get("pitch_attack", 0.05)
-            self.pitch_decay_time = partial_params.get("pitch_decay", 0.1)
-            self.pitch_sustain_level = partial_params.get("pitch_sustain", 0.0)
-            self.pitch_release_time = partial_params.get("pitch_release", 0.05)
-            self.pitch_delay_time = partial_params.get("pitch_delay", 0.0)
-            self.pitch_hold_time = partial_params.get("pitch_hold", 0.0)
-
-        # XG Filter parameters
-        filter_config = partial_params.get("filter", {})
-        self.filter_cutoff = filter_config.get("cutoff", 1000.0)
-        self.filter_resonance = filter_config.get("resonance", 0.7)
-        self.filter_type = filter_config.get("type", "lowpass")
-        self.filter_key_follow = filter_config.get("key_follow", 0.5)
-
-        # Check if note/velocity fall within this partial's range
-        if not self._is_note_in_range(note, velocity):
-            self.active = False
-            return
+        # Set XG partial parameters using shared method
+        self._set_partial_parameters(partial_params, is_drum)
 
         self._cached_sample_table = None
         self._load_sample_table_once()
@@ -2045,8 +1342,12 @@ class XGPartialGenerator:
         # Mark as active
         self.active = True
 
-    def cleanup(self):
-        """Clean up all resources and return buffers to memory pool."""
+    def _release_resources(self):
+        """Release all pool-allocated resources back to their respective pools.
+
+        This method contains the common resource cleanup logic used by both
+        cleanup() and _cleanup_for_reconfigure() methods.
+        """
         # Return envelope buffers
         if hasattr(self, 'amp_buffer') and self.amp_buffer is not None:
             self.synth.memory_pool.return_mono_buffer(self.amp_buffer)
@@ -2102,61 +1403,14 @@ class XGPartialGenerator:
                 self.synth.filter_pool.release_filter(self.filter)
             self.filter = None
 
+    def cleanup(self):
+        """Clean up all resources and return buffers to memory pool."""
+        self._release_resources()
+
     def _cleanup_for_reconfigure(self):
         """Clean up pool resources for reconfiguration."""
-        # Return buffers to pool and nullify attributes (recreated by _initialize_envelopes)
-        if hasattr(self, 'amp_buffer') and self.amp_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.amp_buffer)
-            self.amp_buffer = None
-        if hasattr(self, 'work_buffer') and self.work_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.work_buffer)
-            self.work_buffer = None
-        if hasattr(self, 'acc_buffer') and self.acc_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.acc_buffer)
-            self.acc_buffer = None
-        if hasattr(self, 'item_buffer') and self.item_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.item_buffer)
-            self.item_buffer = None
-        if hasattr(self, 'filter_buffer') and self.filter_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.filter_buffer)
-            self.filter_buffer = None
-        if hasattr(self, 'pitch_buffer') and self.pitch_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.pitch_buffer)
-            self.pitch_buffer = None
-        
-        # Return envelopes to pool and nullify attributes
-        if hasattr(self, 'amp_envelope') and self.amp_envelope is not None:
-            if hasattr(self.synth, 'envelope_pool'):
-                self.synth.envelope_pool.release_envelope(self.amp_envelope)
-            self.amp_envelope = None
-        if hasattr(self, 'filter_envelope') and self.filter_envelope is not None:
-            if hasattr(self.synth, 'envelope_pool'):
-                self.synth.envelope_pool.release_envelope(self.filter_envelope)
-            self.filter_envelope = None
-        if hasattr(self, 'pitch_envelope') and self.pitch_envelope is not None:
-            if hasattr(self.synth, 'envelope_pool'):
-                self.synth.envelope_pool.release_envelope(self.pitch_envelope)
-            self.pitch_envelope = None
-        
-        # Return filter to pool and nullify attribute
-        if hasattr(self, 'filter') and self.filter is not None:
-            if hasattr(self.synth, 'filter_pool'):
-                self.synth.filter_pool.release_filter(self.filter)
-            self.filter = None
-        
-        # Return dedicated LFOs to pool and nullify attribute
-        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos is not None:
-            if hasattr(self.synth, 'partial_lfo_pool'):
-                for lfo in self.dedicated_lfos:
-                    if lfo is not None and hasattr(self.synth.partial_lfo_pool, 'release_oscillator'):
-                        self.synth.partial_lfo_pool.release_oscillator(lfo)
-            self.dedicated_lfos = None
+        self._release_resources()
 
     def __del__(self):
         """Cleanup when XGPartialGenerator is destroyed."""
         self.cleanup()
-
-
-
-# Backward compatibility alias
-PartialGenerator = XGPartialGenerator

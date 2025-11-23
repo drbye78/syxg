@@ -148,3 +148,4 @@ profile_*.py
 *debug*.py
 temp*.py
 tests/
+.aider*

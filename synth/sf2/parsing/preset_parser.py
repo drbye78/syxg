@@ -439,13 +439,14 @@ class PresetParser(ZoneParserMixin):
         """
         return 41
 
-    def _set_zone_link_index(self, zone, gen_amount: int):
+    def _set_zone_link_index(self, zone, gen_amount: int, sample_headers=None):
         """
         Set the instrument index on the preset zone.
 
         Args:
             zone: Preset zone to modify
             gen_amount: Generator amount (the instrument index)
+            sample_headers: Optional list of sample headers (unused for preset zones)
         """
         zone.instrument_index = gen_amount
 

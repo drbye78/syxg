@@ -26,13 +26,14 @@ class ZoneParserMixin(ABC):
         pass
 
     @abstractmethod
-    def _set_zone_link_index(self, zone, gen_amount: int):
+    def _set_zone_link_index(self, zone, gen_amount: int, sample_headers=None):
         """
         Set the appropriate link index on the zone.
 
         Args:
             zone: Zone object to modify
             gen_amount: Generator amount (the index)
+            sample_headers: Optional list of sample headers for name lookup
         """
         pass
 
@@ -224,6 +225,17 @@ class ZoneParserMixin(ABC):
             if hasattr(zone, field_name):
                 setattr(zone, field_name, gen_amount)
 
+                # Synchronize sampleID and sample_index fields
+                if field_name == 'sampleID':
+                    if hasattr(zone, 'sample_index'):
+                        zone.sample_index = gen_amount  # Synchronize with sample_index
+                elif field_name == 'sampleModes':
+                    # sampleModes is used for sample linking, synchronize both fields
+                    if hasattr(zone, 'sampleID'):
+                        zone.sampleID = gen_amount
+                    if hasattr(zone, 'sample_index'):
+                        zone.sample_index = gen_amount
+
         # Special handling for range generators
         if gen_type == 42:  # keyRange
             zone.keyRange = gen_amount
@@ -267,7 +279,7 @@ class ZoneParserMixin(ABC):
 
             # Handle zone linking (instrument/sample references)
             if gen_type == self._get_instrument_gen_type():
-                self._set_zone_link_index(zone, clamped_amount)
+                self._set_zone_link_index(zone, clamped_amount, getattr(self, '_sample_headers', None))
 
     def _validate_modulator(self, modulator) -> bool:
         """
