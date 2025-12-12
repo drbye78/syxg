@@ -47,8 +47,25 @@ from ..sf2.manager import SF2Manager
 from ..xg.drum_manager import DrumManager
 from ..xg.channel_note import PartialGeneratorPool
 from ..midi.parser import MIDIMessage
-from ..effects.vectorized_core import VectorizedEffectManager
+
+# MIDI Message Type Constants (for maintainability)
+MSG_TYPE_NOTE_OFF = "note_off"
+MSG_TYPE_NOTE_ON = "note_on"
+MSG_TYPE_POLY_PRESSURE = "poly_pressure"
+MSG_TYPE_CONTROL_CHANGE = "control_change"
+MSG_TYPE_PROGRAM_CHANGE = "program_change"
+MSG_TYPE_CHANNEL_PRESSURE = "channel_pressure"
+MSG_TYPE_PITCH_BEND = "pitch_bend"
+MSG_TYPE_SYSEX = "sysex"
+
 from ..audio.writer import AudioWriter
+
+# XG MIDI Control Integration
+from ..xg.xg_effects_manager import XGEffectsManager
+from ..xg.xg_rpn_controller import XGRPNController
+from ..xg.xg_drum_kit_parameters import XGDrumKitParameters
+from ..xg.xg_variation_effects import XGVariationEffectProcessor
+from ..xg.xg_receive_channel_manager import XGReceiveChannelManager
 
 
 
@@ -279,7 +296,7 @@ class OptimizedXGSynthesizer:
         self.lock = threading.RLock()
 
         # Memory and object pooling system
-        self.memory_pool = MemoryPool(block_size=block_size, initial_pool_size=32)  # Ultra-fast fixed-size audio buffers
+        self.memory_pool = MemoryPool(block_size=block_size, initial_pool_size=512)  # Ultra-fast fixed-size audio buffers
         self._initialize_object_pools()
 
         # Core synthesizer components owned by this class
@@ -297,8 +314,15 @@ class OptimizedXGSynthesizer:
         if sf2_files:
             self.sf2_manager.set_sf2_files(sf2_files)
 
-        # Effects management
-        self.effect_manager = VectorizedEffectManager(self)
+        # XG Effects Management - Complete XG Effects Suite
+        self.effect_manager = XGEffectsManager(sample_rate)
+
+        # XG Variation Effects Processor - 15 additional effect types
+        self.variation_processor = XGVariationEffectProcessor(sample_rate)
+
+        # XG MIDI Control Components
+        self.xg_rpn_controller = XGRPNController()
+        self.xg_drum_parameters = XGDrumKitParameters()
 
         # Partial generator pool for optimized allocation
         self.partial_pool = PartialGeneratorPool(max_size=512)  # Pool for up to 512 partial generators
@@ -315,6 +339,9 @@ class OptimizedXGSynthesizer:
         # Per-channel renderers owned by synthesizer (one per MIDI channel)
         self.channel_renderers: List[VectorizedChannelRenderer] = []
         self._create_channel_renderers()
+
+        # XG Receive Channel Manager - Production-quality channel mapping
+        self.receive_channel_manager = XGReceiveChannelManager(num_parts=self.num_channels)
 
         # Pre-allocated audio buffers for performance
         self._initialize_audio_buffers()
@@ -392,29 +419,37 @@ class OptimizedXGSynthesizer:
         self.panner_pool = PannerPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
 
     def _initialize_xg(self):
-        """Initialize XG synthesizer according to standard."""
-        # Initialize effect parameters for all channels
-        for channel in range(self.num_channels):
-            # Initialize effect parameters in effect manager
-            self.effect_manager.set_current_nrpn_channel(channel)
-            self.effect_manager.set_channel_effect_parameter(
-                channel, 0, 160, DEFAULT_CONFIG["DEFAULT_REVERB_SEND"]
-            )  # Reverb send
-            self.effect_manager.set_channel_effect_parameter(
-                channel, 0, 161, DEFAULT_CONFIG["DEFAULT_CHORUS_SEND"]
-            )  # Chorus send
+        """Initialize XG synthesizer according to XG MIDI specification."""
+        # Initialize XG RPN controller
+        self.xg_rpn_controller.reset_rpn_parameters()
 
-        # Reset effects to standard XG state
-        self.effect_manager.reset_effects()
+        # Initialize drum kit parameters to XG defaults
+        self.xg_drum_parameters.reset_all_drum_parameters()
+
+        # Initialize XG Effects Manager with professional effects suite
+        self.effect_manager.initialize_xg_effects()
+
+        # Initialize Variation Effects Processor
+        # (already initialized in __init__)
+
+        # Set default effect connections for XG compatibility
+        for channel in range(self.num_channels):
+            # Default XG effect sends for professional sound
+            self.effect_manager.set_channel_reverb_send(channel, DEFAULT_CONFIG["DEFAULT_REVERB_SEND"])
+            self.effect_manager.set_channel_chorus_send(channel, DEFAULT_CONFIG["DEFAULT_CHORUS_SEND"])
+            self.effect_manager.set_channel_variation_send(channel, 0)  # Initially off
+
+        # Reset all XG effects to standard state
+        self.effect_manager.reset_to_xg_defaults()
 
         # Additional initialization to match XG standard
         # Set standard parameters for all channels
         for channel in range(self.num_channels):
-            # Program Change to piano (program 0) for all channels
+            # Program Change to piano (program 0) for XG compatibility
             self._handle_program_change(channel, 0)
-            # For channel 9, set drum mode by default for XG compatibility
+            # Channel 9 (MIDI channel 10) defaults to drum mode for XG
             if channel == 9:
-                # Set drum mode - VectorizedChannelRenderer handles this internally
+                # Set drum mode - channel renderer handles internally
                 self.channel_renderers[channel].is_drum = True
 
     def _setup_drum_channel_enhancements(self):
@@ -482,35 +517,58 @@ class OptimizedXGSynthesizer:
 
     def send_midi_message(self, message: MIDIMessage):
         """
-        Send MIDI message to synthesizer.
+        Send MIDI message to synthesizer with XG receive channel mapping.
+
+        XG Specification Compliance:
+        - Messages are routed based on receive channel mapping, not direct MIDI channel
+        - Multiple parts can receive from the same MIDI channel
+        - Parts can be disabled or set to receive from all channels
 
         Args:
             message: MIDIMessage instance containing the message data
         """
         with self.lock:
             msg_type = message.type
-            channel = message.channel
+            midi_channel = message.channel
 
-            # Process based on message type
-            if msg_type == "note_off":
-                self.channel_renderers[channel].note_off(message.note, message.velocity)
-            elif msg_type == "note_on":
-                self.channel_renderers[channel].note_on(message.note, message.velocity)
-            elif msg_type == "poly_pressure":
-                # Forward polyphonic aftertouch to channel renderer
-                self.channel_renderers[channel].set_key_pressure(message.note, message.pressure)
-            elif msg_type == "control_change":
-                self.channel_renderers[channel].control_change(
-                    message.control, message.value
-                )
-            elif msg_type == "program_change":
-                self._handle_program_change(channel, message.program)
-            elif msg_type == "channel_pressure":
-                # Forward channel pressure to channel renderer
-                self.channel_renderers[channel].set_channel_pressure(message.pressure)
-            elif msg_type == "pitch_bend":
-                # Forward pitch bend to channel renderer
-                self.channel_renderers[channel].set_pitch_bend(message.pitch)
+            # Route message through XG receive channel mapping
+            target_parts = self.receive_channel_manager.get_parts_for_midi_channel(midi_channel)
+
+            if not target_parts:
+                # No parts receive from this MIDI channel
+                return
+
+            # Route message to all target parts
+            for part_id in target_parts:
+                if part_id >= len(self.channel_renderers):
+                    continue  # Invalid part ID
+
+                channel_renderer = self.channel_renderers[part_id]
+
+                # Process based on message type - route to appropriate part
+                if msg_type == MSG_TYPE_NOTE_OFF:
+                    channel_renderer.note_off(message.note, message.velocity)
+                elif msg_type == MSG_TYPE_NOTE_ON:
+                    channel_renderer.note_on(message.note, message.velocity)
+                elif msg_type == MSG_TYPE_POLY_PRESSURE:
+                    # Forward polyphonic aftertouch to channel renderer
+                    channel_renderer.set_key_pressure(message.note, message.pressure)
+                elif msg_type == MSG_TYPE_CONTROL_CHANGE:
+                    # Handle XG Effect Activation (CC 200-209) - forward to effect manager
+                    if 200 <= message.control <= 209:
+                        # XG Effect Unit Activation - handled by effect manager
+                        self.effect_manager.handle_effect_activation(message.control, message.value)
+                    else:
+                        # Forward other control changes to channel renderer
+                        channel_renderer.control_change(message.control, message.value)
+                elif msg_type == MSG_TYPE_PROGRAM_CHANGE:
+                    self._handle_program_change(part_id, message.program)  # Use part_id, not midi_channel
+                elif msg_type == MSG_TYPE_CHANNEL_PRESSURE:
+                    # Forward channel pressure to channel renderer
+                    channel_renderer.set_channel_pressure(message.pressure)
+                elif msg_type == MSG_TYPE_PITCH_BEND:
+                    # Forward pitch bend to channel renderer
+                    channel_renderer.set_pitch_bend(message.pitch)
 
     def send_sysex(self, message: MIDIMessage):
         """
@@ -520,7 +578,7 @@ class OptimizedXGSynthesizer:
             message: MIDIMessage instance containing SYSEX data
         """
         with self.lock:
-            data = message.sysex_data or message.data
+            data = message.sysex_data
             if not data or len(data) < 3 or data[0] != 0xF0 or data[-1] != 0xF7:
                 return
 
@@ -558,7 +616,7 @@ class OptimizedXGSynthesizer:
         return self.generate_audio_block_sample_accurate()
 
     def _handle_yamaha_sysex(self, data: List[int]):
-        """Handle Yamaha SYSEX messages."""
+        """Handle Yamaha SYSEX messages with XG receive channel mapping support."""
         if len(data) < 6:
             return
 
@@ -567,7 +625,20 @@ class OptimizedXGSynthesizer:
         sub_status = data[2] if len(data) > 2 else 0
         command = data[3] if len(data) > 3 else 0
 
-        # Forward message to effect manager
+        # Handle XG Receive Channel Assignment (F0 43 [dev] 4C 08 [part] [channel] F7)
+        if (len(data) >= 8 and
+            command == 0x4C and     # XG model ID (data[3])
+            data[4] == 0x08):      # Receive Channel assignment (data[4])
+
+            part_id = data[5] if len(data) > 5 else 0  # data[5] is part_id
+            midi_channel = data[6] if len(data) > 6 else 0  # data[6] is midi_channel
+
+            # Set receive channel mapping
+            if self.receive_channel_manager.handle_sysex_receive_channel(part_id, midi_channel):
+                print(f"🎹 XG SYSEX: Part {part_id} receive channel set to MIDI CH {midi_channel}")
+            return
+
+        # Forward other SYSEX messages to effect manager
         self.effect_manager.handle_sysex(
             [0x43], data[1:]
         )  # 0x43 - Yamaha manufacturer ID
@@ -663,7 +734,7 @@ class OptimizedXGSynthesizer:
                     else:
                         midi_events_consumed['other'] += 1
 
-                    if message.type == "sysex":
+                    if message.type == MSG_TYPE_SYSEX:
                         self.send_sysex(message)
                     else:
                         self.send_midi_message(message)
@@ -957,8 +1028,10 @@ class OptimizedXGSynthesizer:
                 # Get SF2 preset name if available
                 preset_name = self._get_sf2_preset_name(bank, program)
 
-                # Get receive channel (0-15 for XG)
-                receive_channel = channel_idx
+                # Get receive channel from XG receive channel manager
+                receive_channel = self.receive_channel_manager.get_receive_channel(channel_idx)
+                if receive_channel is None:
+                    receive_channel = channel_idx  # Fallback to direct mapping
                 part_mode = getattr(renderer, 'part_mode', 0)  # Default to normal mode
 
                 # Calculate per-channel RMS from the channel buffer used in mixing

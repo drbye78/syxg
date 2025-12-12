@@ -338,12 +338,25 @@ class UltraFastResonantFilter:
         else:
             stereo_factor = 1.0  # No stereo effect for mono
 
-        # Account for brightness and harmonic content
-        effective_cutoff = self.cutoff * (1 + self.brightness_mod * 0.5) * stereo_factor
-        effective_resonance = self.resonance * (1 + self.harmonic_content_mod * 0.3)
+        # Account for brightness and harmonic content with bounds checking
+        brightness_factor = 1 + self.brightness_mod * 0.5
+        harmonic_factor = 1 + self.harmonic_content_mod * 0.3
+        # Apply comprehensive bounds checking
+        brightness_factor = max(0.5, min(2.0, brightness_factor))
+        harmonic_factor = max(0.5, min(2.0, harmonic_factor))
+        effective_cutoff = self.cutoff * brightness_factor * stereo_factor
+        effective_resonance = self.resonance * harmonic_factor
+        # Final bounds checking for effective parameters
+        effective_cutoff = max(20.0, min(20000.0, effective_cutoff))
+        effective_resonance = max(0.001, min(2.0, effective_resonance))
 
+        # Calculate omega with comprehensive bounds checking
         omega = 2 * math.pi * min(effective_cutoff, self.sample_rate/2) / self.sample_rate
-        alpha = fast_math.fast_sin(omega) / (2 * max(0.001, effective_resonance))
+        # Apply bounds checking to prevent division by near-zero
+        safe_resonance = max(0.001, min(2.0, effective_resonance))
+        alpha = fast_math.fast_sin(omega) / (2 * safe_resonance)
+        # Apply bounds checking to alpha to prevent instability
+        alpha = max(0.001, min(10.0, alpha))
         cos_omega = fast_math.fast_cos(omega)
 
         if self.filter_type == "lowpass":

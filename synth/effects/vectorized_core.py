@@ -23,6 +23,11 @@ from .equalizer import XGMultiBandEqualizer
 from .insertion_effects import InsertionEffectsProcessor
 from .system_effects import SystemEffectsProcessor
 
+# Import XG parameter managers
+from ..xg.xg_drum_kit_manager import XGDrumKitStateManager
+from ..xg.xg_part_effect_router import XGPartEffectRouter
+from ..xg.xg_channel_parameter_manager import XGChannelParameterManager
+
 # Import math for effect calculations
 import math
 
@@ -47,7 +52,7 @@ class VectorizedEffectManager:
     def __init__(self, synth):
         """
         Initialize vectorized effects manager with pre-allocated buffers.
-        
+
         Args:
             sample_rate: Sample rate in Hz for effect processing
         """
@@ -86,12 +91,12 @@ class VectorizedEffectManager:
         # Pre-allocate main effect buffers with maximum expected block size
         self.left_buffer = self.memory_pool.get_mono_buffer()
         self.right_buffer = self.memory_pool.get_mono_buffer()
-        
+
         # PRE-ALLOCATED TEMPORARY BUFFERS FOR INTERMEDIATE PROCESSING
         # Pre-allocate temporary buffers for intermediate effect processing
         self.temp_left = self.memory_pool.get_mono_buffer()
         self.temp_right = self.memory_pool.get_mono_buffer()
-        
+
         # PRE-ALLOCATED MULTICHANNEL INPUT/OUTPUT BUFFERS FOR EFFECTS PROCESSING
         # Pre-allocate buffers for multichannel effect processing with vectorized operations
         self.effect_input = self.memory_pool.get_mono_buffer()
@@ -112,12 +117,12 @@ class VectorizedEffectManager:
         self.insertion_effects = InsertionEffectsProcessor(
             self.sample_rate, self.block_size, self.dsp_units
         )
-        
+
         # System effects processor requires max delay values
         max_reverb_delay = int(10.0 * self.sample_rate)  # 10 seconds max reverb
         max_chorus_delay = int(0.05 * self.sample_rate)  # 50ms max delay
         self.system_effects = SystemEffectsProcessor(
-            self.sample_rate, self.block_size, self.dsp_units, 
+            self.sample_rate, self.block_size, self.dsp_units,
             max_reverb_delay, max_chorus_delay
         )
 
@@ -125,8 +130,114 @@ class VectorizedEffectManager:
         self.current_block_size = 0
         self.buffer_dirty = False
 
+        # XG EFFECT ACTIVATION SYSTEM (CC 200-209)
+        # Track which effect units are enabled/disabled
+        self.effect_units_active = [True] * 10  # 10 effect units (0-9)
+
+        # XG DRUM KIT STATE MANAGER (MSB 40-41)
+        # Complete XG drum kit parameter handling for all 128 parameters per kit
+        self.drum_kit_manager = XGDrumKitStateManager(num_channels=16)
+
+        # XG PART EFFECT ROUTER (MSB 32-39)
+        # Multi-part effect routing for professional XG channel-to-effect assignment
+        self.part_effect_router = XGPartEffectRouter(num_channels=16, num_effect_units=10)
+
+        # XG CHANNEL PARAMETER MANAGER (MSB 3-31)
+        # Complete XG channel parameters for professional synthesis control
+        self.channel_parameter_manager = XGChannelParameterManager(num_channels=16)
+
         # Initialize effects with optimized initialization
         self.reset_effects()
+
+    # XG EFFECT ACTIVATION METHODS (CC 200-209)
+        # XG PART EFFECT ROUTER (MSB 32-39)
+        # Multi-part effect routing for professional XG channel-to-effect assignment
+        self.part_effect_router = XGPartEffectRouter(num_channels=16, num_effect_units=10)
+
+        # XG CHANNEL PARAMETER MANAGER (MSB 3-31)
+        # Complete XG channel parameters for professional synthesis control
+        self.channel_parameter_manager = XGChannelParameterManager(num_channels=16)
+
+        # Initialize effects with optimized initialization
+        self.reset_effects()
+
+        # Initialize effects with optimized initialization
+        self.reset_effects()
+
+    # XG EFFECT ACTIVATION METHODS (CC 200-209)
+    def handle_effect_activation(self, controller: int, value: int) -> bool:
+        """
+        Handle XG Effect Activation Controls (CC 200-209).
+
+        This is a major missing piece from XG compliance - these controllers
+        allow enabling/disabling individual effect units, which is essential
+        for professional XG setups.
+
+        Args:
+            controller: MIDI controller number (200-209)
+            value: Controller value (0-127)
+
+        Returns:
+            True if handled, False otherwise
+        """
+        try:
+            with self.lock:
+                if 200 <= controller <= 209:  # XG Effect Unit Activation
+                    unit_index = controller - 200  # 0-9 for units 1-10
+
+                    if 0 <= unit_index < len(self.effect_units_active):
+                        # XG spec: 0 = disable, 1-127 = enable
+                        was_active = self.effect_units_active[unit_index]
+                        self.effect_units_active[unit_index] = (value > 0)
+
+                        # Log activation change for debugging only in verbose mode
+                        if hasattr(self, '_debug_effect_activation') and self._debug_effect_activation:
+                            print(f"XG Effect Unit {unit_index + 1}: "
+                                  f"{'ENABLED' if self.effect_units_active[unit_index] else 'DISABLED'} "
+                                  f"(CC {controller}, value {value})")
+
+                        return True
+        except Exception as e:
+            # Silently handle any errors in effect activation
+            pass
+
+        return False
+
+    def get_effect_unit_active(self, unit: int) -> bool:
+        """
+        Get activation status of an effect unit.
+
+        Args:
+            unit: Effect unit index (0-9)
+
+        Returns:
+            True if unit is active, False otherwise
+        """
+        with self.lock:
+            if 0 <= unit < len(self.effect_units_active):
+                return self.effect_units_active[unit]
+            return False
+
+    def reset_effect_activations(self):
+        """Reset all effect units to active state."""
+        with self.lock:
+            self.effect_units_active = [True] * 10
+            print("XG Effect Activation: All units reset to ENABLED")
+
+    # LEGACY: Maintain compatibility with existing control_change method
+    def control_change(self, controller: int, value: int) -> bool:
+        """
+        Legacy control change handler for effect activation.
+        Forward XG Effect Activation (CC 200-209) to new handler.
+
+        Args:
+            controller: MIDI controller number
+            value: Controller value (0-127)
+
+        Returns:
+            True if handled, False otherwise
+        """
+        return self.handle_effect_activation(controller, value)
 
     def reset_effects(self):
         """Reset all effects to default values with optimized reset."""
@@ -583,20 +694,47 @@ class VectorizedEffectManager:
                    channel: Optional[int] = None) -> bool:
         """
         Handle NRPN message for effects with optimized parameter processing.
-        
+
         Performance optimizations:
         1. BATCH PARAMETER PROCESSING - Processes parameters in batches rather than individually
         2. OPTIMIZED VALIDATION - Validates parameters efficiently without unnecessary checks
         3. DIRECT STATE UPDATES - Updates state directly without additional processing overhead
         4. THREAD-SAFE OPERATION - Ensures safe concurrent access to effect state
-        
+
         Returns:
             True if NRPN was handled, False otherwise
         """
         with self.lock:
+            # Handle XG Multi-Part Effect Routing (MSB 32-39)
+            if 32 <= nrpn_msb <= 39:
+                # Route to part effect router
+                if channel is None:
+                    channel = 0  # Default to channel 0 if not specified
+                # Convert 14-bit data
+                data_value = (data_msb << 7) | data_lsb
+                return self.part_effect_router.handle_nrpn_msb32_to39(channel, nrpn_msb, nrpn_lsb, data_value)
+
+            # Handle XG Drum Kit parameters (MSB 40-41) - route to drum kit manager
+            elif nrpn_msb == 40:
+                # Drum Kit Assign
+                if channel is None:
+                    channel = 0  # Default to channel 0 if not specified
+                # Convert 14-bit data
+                data_value = (data_msb << 7) | data_lsb
+                return self.drum_kit_manager.handle_nrpn_msb40(channel, nrpn_lsb, data_value)
+
+            elif nrpn_msb == 41:
+                # Drum Details
+                if channel is None:
+                    channel = 0  # Default to channel 0 if not specified
+                # Convert 14-bit data
+                data_value = (data_msb << 7) | data_lsb
+                return self.drum_kit_manager.handle_nrpn_msb41(channel, nrpn_lsb, data_value)
+
+            # Fall back to regular effect NRPN handling
             return self.comm_handler.handle_nrpn(nrpn_msb, nrpn_lsb, data_msb, data_lsb, channel)
 
-    def handle_sysex(self, manufacturer_id: List[int], data: List[int]) -> bool:
+    def handle_sysex_xg(self, manufacturer_id: List[int], data: List[int]) -> bool:
         """
         Handle SysEx message for effects with optimized message processing.
         

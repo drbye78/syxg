@@ -25,7 +25,6 @@ from numba import jit, float32, int32, boolean
 from ..core.oscillator import OscillatorPool
 from ..core.envelope import EnvelopePool
 from ..core.filter import FilterPool
-from ..engine.optimized_coefficient_manager import OptimizedCoefficientManager
 
 
 class BiquadFilterBank:
@@ -49,8 +48,6 @@ class BiquadFilterBank:
                 'x1': 0.0, 'x2': 0.0,
                 'y1': 0.0, 'y2': 0.0
             })
-
-        self.coeff_manager = OptimizedCoefficientManager()
 
     def design_lowpass(self, filter_idx: int, cutoff: float, q: float = 0.707):
         """Design lowpass filter coefficients"""
@@ -469,8 +466,8 @@ class DSPUnitsManager:
         self.lfo_manager = LFOManager(sample_rate)
         self.filter_manager = FilterManager(sample_rate)
 
-        # Coefficient manager for optimized math
-        self.coeff_manager = OptimizedCoefficientManager()
+        # Coefficient manager for optimized math (lazy-loaded)
+        self._coeff_manager = None
 
         # Thread safety
         self.lock = threading.RLock()
@@ -509,6 +506,14 @@ class DSPUnitsManager:
         """Get filter manager"""
         return self.filter_manager
 
-    def get_coeff_manager(self) -> OptimizedCoefficientManager:
+    @property
+    def coeff_manager(self) -> Any:
+        """Get coefficient manager (lazy-loaded)"""
+        if self._coeff_manager is None:
+            from ..engine.optimized_coefficient_manager import OptimizedCoefficientManager
+            self._coeff_manager = OptimizedCoefficientManager()
+        return self._coeff_manager
+
+    def get_coeff_manager(self) -> Any:
         """Get coefficient manager"""
         return self.coeff_manager

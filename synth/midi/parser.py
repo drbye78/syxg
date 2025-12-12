@@ -115,6 +115,20 @@ import struct
 from typing import Any, Dict, List, Tuple, Optional, Iterator
 from collections import defaultdict
 
+from .constants import (
+    MSG_TYPE_META,
+    MSG_TYPE_SYSEX,
+    MSG_TYPE_EXTENDED_CHANNEL_MESSAGE,
+    MSG_TYPE_COMPLEX_CHANNEL_MESSAGE,
+    MSG_TYPE_FULL_128BIT_MESSAGE,
+    MSG_TYPE_DATA_MESSAGE,
+    MSG_TYPE_MIXED_DATA_SET,
+    MSG_TYPE_FLEX_DATA,
+    MSG_TYPE_STREAM_MESSAGE,
+    MSG_TYPE_SYSTEM_MESSAGE,
+    MSG_TYPE_UNKNOWN_UMP,
+)
+
 
 class MIDIMessage:
     """
@@ -728,7 +742,7 @@ class MIDIParser:
 
                     message = MIDIMessage(
                         time=time_seconds,
-                        type='meta',
+                        type=MSG_TYPE_META,
                         meta_type=meta_type,
                         data=meta_data
                     )

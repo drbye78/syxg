@@ -44,119 +44,11 @@ WAVEFORM_SQUARE = 2
 WAVEFORM_SAWTOOTH = 3
 WAVEFORM_SAMPLE_AND_HOLD = 4
 
-
-@jit(nopython=True, fastmath=True, cache=True)
-def _numba_process_lfo_block_optimized(
-    output_buffer: np.ndarray,
-    waveform: int,
-    phase: float,
-    phase_step: float,
-    delay_counter: int,
-    delay_samples: int,
-    depth: float,
-    pitch_fade_in_samples: int,
-    sample_rate: int,
-    block_size: int
-):
-    """
-    NUMBA-COMPILED: Ultra-fast SIMD LFO block processing.
-
-    Fully vectorized block processing with zero per-sample loops.
-    Handles delay and fade-in using vectorized operations.
-
-    Args:
-        output_buffer: Caller-provided float32 array to fill with LFO levels
-        waveform: Integer waveform type (0-4)
-        phase: Current phase (0-2π)
-        phase_step: Phase increment per sample
-        delay_counter: Current delay counter
-        delay_samples: Total delay samples
-        depth: Modulation depth (0.0-1.0)
-        pitch_fade_in_samples: Fade-in duration in samples
-        sample_rate: Sample rate in Hz
-        block_size: Number of samples to process
-
-    Returns:
-        Updated phase, delay_counter
-    """
-
-    # Handle delay phase - fill with zeros
-    if delay_counter < delay_samples:
-        delay_remaining = delay_samples - delay_counter
-        if delay_remaining >= block_size:
-            # Entire block is in delay
-            output_buffer[:block_size].fill(0.0)
-            return phase, delay_counter + block_size
-        else:
-            # Partial delay at start of block
-            output_buffer[:delay_remaining].fill(0.0)
-            delay_counter += delay_remaining
-            # Process remaining samples
-            active_start = delay_remaining
-            active_samples = block_size - delay_remaining
-    else:
-        # No delay - process entire block
-        active_start = 0
-        active_samples = block_size
-
-    if active_samples <= 0:
-        return phase, delay_counter
-
-    # Generate phase array for entire active block - SIMD friendly
-    phase_array = np.arange(active_samples, dtype=np.float32) * phase_step + phase
-    phase_array = phase_array % (2.0 * np.pi)
-    current_phase = phase + active_samples * phase_step
-    current_phase = current_phase % (2.0 * np.pi)
-
-    # Generate waveform based on type - vectorized operations
-    if waveform == WAVEFORM_SINE:
-        # Vectorized sine lookup table access
-        phase_indices = ((phase_array / (2.0 * np.pi)) * (_SINE_TABLE_SIZE - 1)).astype(np.int32)
-        phase_indices = np.clip(phase_indices, 0, _SINE_TABLE_SIZE - 1)
-        base_output = _SINE_TABLE[phase_indices]
-
-    elif waveform == WAVEFORM_TRIANGLE:
-        # Vectorized triangle wave
-        phase_norm = phase_array / (2.0 * np.pi)
-        base_output = (2.0 * np.abs(2.0 * phase_norm - 1.0) - 1.0).astype(np.float32)
-
-    elif waveform == WAVEFORM_SQUARE:
-        # Vectorized square wave
-        base_output = np.where(phase_array < np.pi, np.float32(1.0), np.float32(-1.0))
-
-    elif waveform == WAVEFORM_SAWTOOTH:
-        # Vectorized sawtooth wave
-        base_output = ((phase_array / np.pi) - 1.0).astype(np.float32)
-
-    elif waveform == WAVEFORM_SAMPLE_AND_HOLD:
-        # Vectorized sample and hold
-        base_output = np.where(phase_array % 2.0 < 1.0, np.float32(1.0), np.float32(-1.0))
-    else:
-        # Default to sine
-        phase_indices = ((phase_array / (2.0 * np.pi)) * (_SINE_TABLE_SIZE - 1)).astype(np.int32)
-        phase_indices = np.clip(phase_indices, 0, _SINE_TABLE_SIZE - 1)
-        base_output = _SINE_TABLE[phase_indices]
-
-    # Apply fade-in if needed - vectorized
-    if pitch_fade_in_samples > 0:
-        # Calculate fade-in progress for each sample
-        sample_positions = np.arange(active_samples, dtype=np.float32)
-        fade_progress = np.minimum(np.float32(1.0),
-                                 (delay_counter - delay_samples + sample_positions + np.float32(1.0)) /
-                                 np.float32(pitch_fade_in_samples))
-        modulated_depth = np.float32(depth) * fade_progress
-    else:
-        modulated_depth = np.full(active_samples, np.float32(depth), dtype=np.float32)
-
-    # Apply modulation and store result
-    output_buffer[active_start:active_start + active_samples] = base_output * modulated_depth
-
-    return current_phase, delay_counter + active_samples
-
-
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_lfo_block_critical_optimized(
     output_buffer: np.ndarray,
+    temp_phase_buffer: np.ndarray,
+    temp_modulated_depth: np.ndarray,
     waveform: int,
     phase: float,
     phase_step: float,
@@ -192,17 +84,19 @@ def _numba_process_lfo_block_critical_optimized(
     if active_samples <= 0:
         return phase, delay_counter
     
-    # Process all active samples at once using vectorized operations
-    phase_array = np.arange(active_samples, dtype=np.float32) * phase_step + phase
+    # Process all active samples using pre-allocated temp buffer
+    for i in nb.prange(active_samples):
+        temp_phase_buffer[i] = phase + i * phase_step
+    phase_array = temp_phase_buffer[:active_samples]
     phase = phase + active_samples * phase_step  # Update phase for return value
-    
+
     # Use modulo to keep phases within 0-2π range for table lookup
+    phase_array = phase_array % (2.0 * np.pi)
     phase_norm = phase_array / (2.0 * np.pi)
-    # Use fast floor equivalent: truncate and subtract if negative
+    # Since phase_norm is now in [0,1), phase_scaled in [0, 16384)
+    # Truncate to get integer indices 0-16383
     phase_scaled = phase_norm * _LFO_TABLE_SIZE
-    phase_indices = np.floor(phase_scaled).astype(nb.int32)
-    # Handle negative values by wrapping
-    phase_indices = phase_indices % _LFO_TABLE_SIZE
+    phase_indices = phase_scaled.astype(np.int32)
     
     # Generate waveform based on type using vectorized operations
     if waveform == WAVEFORM_SINE:
@@ -370,11 +264,17 @@ class UltraFastXGLFO:
         'pitch_delay', 'pitch_fade_in', 'pitch_depth', 'tremolo_depth',
         'mod_wheel', 'breath_controller', 'foot_controller', 'channel_aftertouch',
         'key_aftertouch', 'brightness', 'harmonic_content', 'phase',
+
         'delay_counter', 'delay_samples', 'phase_step', 'pitch_fade_in_samples',
         '_last_output', '_dirty', 'memory_pool', 'is_pooled',
+        'temp_phase_buffer', 'temp_modulated_depth',
+        'pool_buffer1', 'pool_buffer2',
         # XG modulation routing flags
         'modulates_pitch', 'modulates_filter', 'modulates_amplitude',
-        'pitch_depth_cents', 'filter_depth', 'amplitude_depth'
+        'pitch_depth_cents', 'filter_depth', 'amplitude_depth',
+        # Dynamic modulation support
+        'base_rate', 'base_depth', 'modulated_rate', 'modulated_depth',
+        'rate_modulation_history', 'depth_modulation_history'
     )
 
     # XG LFO Pitch Modulation Parameters
@@ -424,6 +324,14 @@ class UltraFastXGLFO:
         self.filter_depth = 0.0
         self.amplitude_depth = 0.0
 
+        # DYNAMIC MODULATION SUPPORT - Real-time parameter modulation
+        self.base_rate = self.rate  # Store original rate for modulation
+        self.base_depth = self.depth  # Store original depth for modulation
+        self.modulated_rate = self.rate  # Current modulated rate
+        self.modulated_depth = self.depth  # Current modulated depth
+        self.rate_modulation_history = deque(maxlen=4)  # Smooth rate transitions
+        self.depth_modulation_history = deque(maxlen=4)  # Smooth depth transitions
+
         # Statistical modulation sources (must be initialized before _calculate_phase_step)
         self.mod_wheel = 0.0
         self.breath_controller = 0.0
@@ -447,6 +355,21 @@ class UltraFastXGLFO:
         # Cache for performance
         self._last_output = 0.0
         self._dirty = True
+
+        # Pre-allocate temp buffers for zero-allocation processing
+        if self.is_pooled:
+            # Use memory pool for better heap management and consistency
+            self.pool_buffer1 = self.memory_pool.get_mono_buffer(zero_buffer=True)
+            self.pool_buffer2 = self.memory_pool.get_mono_buffer(zero_buffer=True)
+            # Use views of the pool buffers, assuming pool buffer >= block_size
+            self.temp_phase_buffer = self.pool_buffer1[:self.block_size]
+            self.temp_modulated_depth = self.pool_buffer2[:self.block_size]
+        else:
+            # Fallback to numpy allocation
+            self.pool_buffer1 = None
+            self.pool_buffer2 = None
+            self.temp_phase_buffer = np.zeros(self.block_size, dtype=np.float32)
+            self.temp_modulated_depth = np.zeros(self.block_size, dtype=np.float32)
 
     def _validate_waveform(self, waveform: str) -> str:
         """Validate and return supported XG waveform types."""
@@ -607,6 +530,41 @@ class UltraFastXGLFO:
         self.filter_depth = filter_depth
         self.amplitude_depth = amplitude_depth
 
+    def apply_rate_modulation(self, rate_mod: float):
+        """
+        Apply real-time rate modulation with smoothing to prevent audio artifacts.
+
+        Args:
+            rate_mod: Rate modulation amount (-1.0 to 1.0, where 1.0 = 2x faster)
+        """
+        # Add to modulation history for smoothing
+        self.rate_modulation_history.append(rate_mod)
+
+        # Calculate smoothed modulation (4-sample average)
+        smoothed_mod = sum(self.rate_modulation_history) / len(self.rate_modulation_history)
+
+        # Apply modulation with reasonable limits (±2 octaves)
+        self.modulated_rate = self.base_rate * (2.0 ** min(2.0, max(-2.0, smoothed_mod)))
+
+        # Update phase step for immediate effect
+        self.phase_step = self.modulated_rate * 2.0 * math.pi / self.sample_rate
+
+    def apply_depth_modulation(self, depth_mod: float):
+        """
+        Apply real-time depth modulation with smoothing to prevent audio artifacts.
+
+        Args:
+            depth_mod: Depth modulation amount (-1.0 to 1.0, where 1.0 = 2x deeper)
+        """
+        # Add to modulation history for smoothing
+        self.depth_modulation_history.append(depth_mod)
+
+        # Calculate smoothed modulation (4-sample average)
+        smoothed_mod = sum(self.depth_modulation_history) / len(self.depth_modulation_history)
+
+        # Apply modulation with reasonable limits (0.0 to 2.0x original depth)
+        self.modulated_depth = self.base_depth * max(0.0, min(2.0, 1.0 + smoothed_mod))
+
     def reset(self):
         """Reset LFO state for new note or parameter change."""
         self.phase = 0.0
@@ -651,6 +609,8 @@ class UltraFastXGLFO:
         # This minimizes function call overhead and maximizes SIMD utilization
         (self.phase, self.delay_counter) = _numba_process_lfo_block(
             output_buffer,
+            self.temp_phase_buffer,
+            self.temp_modulated_depth,
             self.waveform_int,
             self.phase,
             self.phase_step,
@@ -671,8 +631,10 @@ class UltraFastXGLFO:
 
     def __del__(self):
         """Cleanup when oscillator is destroyed."""
-        # Memory pool cleanup handled automatically by pool manager
-        pass
+        # Return memory pool buffers
+        if self.is_pooled and self.pool_buffer1 is not None and self.pool_buffer2 is not None:
+            self.memory_pool.return_mono_buffer(self.pool_buffer1)
+            self.memory_pool.return_mono_buffer(self.pool_buffer2)
 
 
 # Backward compatibility alias

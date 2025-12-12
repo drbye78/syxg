@@ -50,7 +50,7 @@ STATE_MASK_RELEASE = 1 << EnvelopeState.RELEASE
 
 
 @jit(nopython=True, fastmath=True, cache=True)
-def _numba_process_envelope_block(
+def _numba_process_envelope_block_robust(
     output_buffer: np.ndarray,
     state: int,
     level: float,
@@ -67,15 +67,19 @@ def _numba_process_envelope_block(
     block_size: int
 ):
     """
-    NUMBA-COMPILED: Ultra-fast envelope block processing with SIMD operations.
+    NUMBA-COMPILED: Ultra-fast envelope block processing with robust cross-block handling.
 
-    Processes an entire block of samples, handling phase transitions within the block.
-    Uses pre-calculated transition points for zero-branch execution.
+    FIXED VERSION: Properly handles cross-block envelope generation by:
+    - Tracking current level across blocks
+    - Using proper state transitions that respect previous block completion
+    - Correct attack/decay/release calculations that continue from current level
+    - Early termination when envelope reaches idle state
+    - Proper handling of envelope completion within blocks
 
     Args:
         output_buffer: Caller-provided float32 array to fill with envelope levels
         state: Current envelope state (integer)
-        level: Current envelope level
+        level: Current envelope level (carried across blocks)
         release_start: Level at release start
         delay_counter: Current delay counter
         hold_counter: Current hold counter
@@ -91,144 +95,97 @@ def _numba_process_envelope_block(
     Returns:
         Updated state, level, release_start, delay_counter, hold_counter
     """
-    samples_processed = 0
+    # Early exit if envelope is already idle
+    if state == 0:  # EnvelopeState.IDLE
+        output_buffer.fill(0.0)
+        return state, level, release_start, delay_counter, hold_counter
 
-    while samples_processed < block_size:
-        remaining_samples = block_size - samples_processed
-
-        if state == 0:  # EnvelopeState.IDLE
-            # Fill remaining block with zero
-            for i in range(remaining_samples):
-                output_buffer[samples_processed + i] = 0.0
-            break
-
-        elif state == 1:  # EnvelopeState.DELAY
-            # Process delay phase
-            if delay_counter >= delay_samples:
+    # Process each sample in the block
+    for sample_idx in range(block_size):
+        # Handle current state with proper cross-block continuation
+        if state == 1:  # EnvelopeState.DELAY
+            if delay_counter < delay_samples:
+                output_buffer[sample_idx] = 0.0
+                delay_counter += 1
+            else:
                 # Delay complete, transition to attack
                 state = 2  # EnvelopeState.ATTACK
+                # Continue processing this sample with new state
                 continue
 
-            # Calculate samples in delay phase
-            samples_in_delay = min(remaining_samples, delay_samples - delay_counter)
+        if state == 2:  # EnvelopeState.ATTACK
+            # Calculate attack increment from current level
+            new_level = level + attack_increment
+            new_level = min(new_level, velocity_factor)  # Don't exceed target
+            output_buffer[sample_idx] = new_level
 
-            # Fill delay portion with zero
-            for i in range(samples_in_delay):
-                output_buffer[samples_processed + i] = 0.0
+            # Check if attack completed
+            if new_level >= velocity_factor - 0.001:
+                # Attack complete, transition to hold
+                level = velocity_factor
+                state = 3  # EnvelopeState.HOLD
+                hold_counter = 0
+            else:
+                level = new_level  # Update level for next sample
 
-            delay_counter += samples_in_delay
-            samples_processed += samples_in_delay
-
-            # Check if delay completed within this block
-            if delay_counter >= delay_samples:
-                state = 2  # EnvelopeState.ATTACK
-
-        elif state == 2:  # EnvelopeState.ATTACK
-            # Process attack phase with exponential curve
-            samples_in_attack = remaining_samples
-
-            # Generate attack curve: exponential approach to 1.0
-            for i in range(samples_in_attack):
-                sample_idx = samples_processed + i
-                # Exponential attack curve for natural sound
-                attack_progress = 1.0 - math.exp(-attack_increment * (delay_counter + i) * 2.0)
-                attack_level = min(1.0, attack_progress) * velocity_factor
-                output_buffer[sample_idx] = attack_level
-
-                # Check if attack completed
-                if attack_level >= velocity_factor:
-                    # Attack complete, transition to hold
-                    level = velocity_factor
-                    state = 3  # EnvelopeState.HOLD
-                    hold_counter = 0
-                    # Fill remaining samples in block with hold level
-                    for j in range(i + 1, samples_in_attack):
-                        output_buffer[samples_processed + j] = level
-                    samples_processed += samples_in_attack
-                    break
-
-            if state != 3:  # EnvelopeState.HOLD
-                # Attack still in progress
-                level = output_buffer[samples_processed + samples_in_attack - 1]
-                samples_processed += samples_in_attack
-
-        elif state == 3:  # EnvelopeState.HOLD
-            # Process hold phase
-            if hold_counter >= hold_samples:
+        if state == 3:  # EnvelopeState.HOLD
+            if hold_counter < hold_samples:
+                output_buffer[sample_idx] = level
+                hold_counter += 1
+            else:
                 # Hold complete, transition to decay
                 state = 4  # EnvelopeState.DECAY
-                continue
+                # Process this sample with decay logic
+                new_level = level - decay_decrement
+                target_sustain = sustain_level * velocity_factor
+                new_level = max(target_sustain, new_level)
+                new_level = max(0.0, new_level)
+                output_buffer[sample_idx] = new_level
+                level = new_level  # Update level for next sample
 
-            # Calculate samples in hold phase
-            samples_in_hold = min(remaining_samples, hold_samples - hold_counter)
-
-            # Fill hold portion with current level
-            for i in range(samples_in_hold):
-                output_buffer[samples_processed + i] = level
-
-            hold_counter += samples_in_hold
-            samples_processed += samples_in_hold
-
-            # Check if hold completed within this block
-            if hold_counter >= hold_samples:
-                state = 4  # EnvelopeState.DECAY
-
-        elif state == 4:  # EnvelopeState.DECAY
-            # Process decay phase: linear decay to sustain
-            samples_in_decay = remaining_samples
-
-            for i in range(samples_in_decay):
-                sample_idx = samples_processed + i
-                decay_level = max(sustain_level * velocity_factor,
-                                level - decay_decrement * (i + 1))
-                output_buffer[sample_idx] = decay_level
-
-                # Check if sustain reached
-                if abs(decay_level - sustain_level * velocity_factor) < 0.001:
+                # Check if sustain reached immediately
+                if new_level <= target_sustain + 0.001:
                     # Sustain reached
-                    level = sustain_level * velocity_factor
+                    level = target_sustain
                     state = 5  # EnvelopeState.SUSTAIN
-                    # Fill remaining samples with sustain level
-                    for j in range(i + 1, samples_in_decay):
-                        output_buffer[samples_processed + j] = level
-                    samples_processed += samples_in_decay
-                    break
+                # Continue to process with DECAY state for this sample
+                # by falling through to the DECAY case
 
-            if state != 5:  # EnvelopeState.SUSTAIN
-                # Decay still in progress
-                level = output_buffer[samples_processed + samples_in_decay - 1]
-                samples_processed += samples_in_decay
+        if state == 4:  # EnvelopeState.DECAY
+            # Calculate decay from current level
+            new_level = level - decay_decrement
+            target_sustain = sustain_level * velocity_factor
+            new_level = max(target_sustain, new_level)
+            new_level = max(0.0, new_level)
+            output_buffer[sample_idx] = new_level
 
-        elif state == 5:  # EnvelopeState.SUSTAIN
-            # Sustain phase: constant level
-            for i in range(remaining_samples):
-                output_buffer[samples_processed + i] = level
-            samples_processed += remaining_samples
+            # Check if sustain reached
+            if new_level <= target_sustain + 0.001:
+                # Sustain reached
+                level = target_sustain
+                state = 5  # EnvelopeState.SUSTAIN
+            else:
+                level = new_level  # Update level for next sample
 
-        elif state == 6:  # EnvelopeState.RELEASE
-            # Process release phase: exponential decay to zero
-            samples_in_release = remaining_samples
+        if state == 5:  # EnvelopeState.SUSTAIN
+            output_buffer[sample_idx] = level
 
-            for i in range(samples_in_release):
-                sample_idx = samples_processed + i
-                release_progress = max(0.0, release_start - release_decrement * (i + 1))
-                output_buffer[sample_idx] = release_progress
+        if state == 6:  # EnvelopeState.RELEASE
+            # Calculate release from current level
+            new_level = level - release_decrement
+            new_level = max(0.0, new_level)
+            output_buffer[sample_idx] = new_level
 
-                # Check if release completed
-                if release_progress <= 0.0:
-                    # Release complete, transition to idle
-                    level = 0.0
-                    state = 0  # EnvelopeState.IDLE
-                    # Fill remaining samples with zero
-                    for j in range(i + 1, samples_in_release):
-                        output_buffer[samples_processed + j] = 0.0
-                    samples_processed += samples_in_release
-                    break
-
-            if state != 0:  # EnvelopeState.IDLE
-                # Release still in progress
-                level = output_buffer[samples_processed + samples_in_release - 1]
-                samples_processed += samples_in_release
+            # Check if release completed
+            if new_level <= 0.0:
+                # Release complete, transition to idle
+                level = 0.0
+                state = 0  # EnvelopeState.IDLE
+                # Early exit optimization - rest of block will be 0.0
+                output_buffer[sample_idx+1:block_size].fill(0.0)
+                break
+            else:
+                level = new_level  # Update level for next sample
 
     return state, level, release_start, delay_counter, hold_counter
 
@@ -378,7 +335,11 @@ class UltraFastADSREnvelope:
         'delay_samples', 'hold_samples', 'attack_increment', 'decay_decrement', 'release_decrement',
         'delay_counter', 'hold_counter', 'velocity_factor', 'key_factor',
         'sustain_pedal', 'sostenuto_pedal', 'held_by_sostenuto', 'soft_pedal', 'hold_notes',
-        'memory_pool', 'is_pooled'
+        'memory_pool', 'is_pooled',
+        # Dynamic modulation support
+        'base_delay', 'base_attack', 'base_hold', 'base_decay', 'base_sustain', 'base_release',
+        'target_delay', 'target_attack', 'target_hold', 'target_decay', 'target_sustain', 'target_release',
+        'parameter_transition_samples', 'parameter_transition_counter'
     )
 
     def __init__(self, delay=0.0, attack=0.01, hold=0.0, decay=0.3, sustain=0.7, release=0.5,
@@ -439,6 +400,22 @@ class UltraFastADSREnvelope:
         # Memory pool integration
         self.memory_pool = memory_pool
         self.is_pooled = memory_pool is not None
+
+        # DYNAMIC MODULATION SUPPORT - Real-time parameter modulation
+        self.base_delay = self.delay
+        self.base_attack = self.attack
+        self.base_hold = self.hold
+        self.base_decay = self.decay
+        self.base_sustain = self.sustain
+        self.base_release = self.release
+        self.target_delay = self.delay
+        self.target_attack = self.attack
+        self.target_hold = self.hold
+        self.target_decay = self.decay
+        self.target_sustain = self.sustain
+        self.target_release = self.release
+        self.parameter_transition_samples = 100  # Smooth transition over 100 samples
+        self.parameter_transition_counter = 0
 
         # Calculate increments
         self._recalculate_increments()
@@ -590,6 +567,76 @@ class UltraFastADSREnvelope:
         self.release_start = self.level
         self.state = EnvelopeState.RELEASE
 
+    def modulate_parameters(self, attack_mod: float = 0.0, decay_mod: float = 0.0,
+                          sustain_mod: float = 0.0, release_mod: float = 0.0,
+                          delay_mod: float = 0.0, hold_mod: float = 0.0):
+        """
+        Apply real-time envelope parameter modulation with smooth transitions.
+
+        This enables controllers to modulate envelope times during performance,
+        creating dynamic timbral changes. Parameters are smoothly transitioned
+        over multiple samples to prevent audio artifacts.
+
+        Args:
+            attack_mod: Attack time modulation (-1.0 to 1.0, where 1.0 = 2x longer)
+            decay_mod: Decay time modulation (-1.0 to 1.0, where 1.0 = 2x longer)
+            sustain_mod: Sustain level modulation (-1.0 to 1.0, additive to base)
+            release_mod: Release time modulation (-1.0 to 1.0, where 1.0 = 2x longer)
+            delay_mod: Delay time modulation (-1.0 to 1.0, where 1.0 = 2x longer)
+            hold_mod: Hold time modulation (-1.0 to 1.0, where 1.0 = 2x longer)
+        """
+        # Set target values based on modulation
+        self.target_attack = max(0.001, self.base_attack * (2.0 ** attack_mod))
+        self.target_decay = max(0.001, self.base_decay * (2.0 ** decay_mod))
+        self.target_sustain = np.clip(self.base_sustain + sustain_mod, 0.0, 1.0)
+        self.target_release = max(0.001, self.base_release * (2.0 ** release_mod))
+        self.target_delay = max(0.0, self.base_delay * (2.0 ** delay_mod))
+        self.target_hold = max(0.0, self.base_hold * (2.0 ** hold_mod))
+
+        # Reset transition counter to start smooth transition
+        self.parameter_transition_counter = 0
+
+    def _update_parameter_transitions(self):
+        """
+        Update envelope parameters during smooth transitions.
+
+        This method gradually moves current parameters toward target values
+        over multiple samples to prevent clicks and audio artifacts.
+        """
+        if self.parameter_transition_counter >= self.parameter_transition_samples:
+            # Transition complete - snap to final values
+            self.attack = self.target_attack
+            self.decay = self.target_decay
+            self.sustain = self.target_sustain
+            self.release = self.target_release
+            self.delay = self.target_delay
+            self.hold = self.target_hold
+
+            # Update derived values
+            self.delay_samples = int(self.delay * self.sample_rate)
+            self.hold_samples = int(self.hold * self.sample_rate)
+            self._recalculate_increments()
+            return
+
+        # Smooth interpolation between current and target values
+        progress = self.parameter_transition_counter / self.parameter_transition_samples
+        # Use smooth interpolation curve to reduce artifacts at start/end
+        smooth_progress = 0.5 - 0.5 * np.cos(progress * np.pi)
+
+        self.attack = self.attack + smooth_progress * (self.target_attack - self.attack)
+        self.decay = self.decay + smooth_progress * (self.target_decay - self.decay)
+        self.sustain = self.sustain + smooth_progress * (self.target_sustain - self.sustain)
+        self.release = self.release + smooth_progress * (self.target_release - self.release)
+        self.delay = self.delay + smooth_progress * (self.target_delay - self.delay)
+        self.hold = self.hold + smooth_progress * (self.target_hold - self.hold)
+
+        # Update derived values incrementally
+        self.delay_samples = int(self.delay * self.sample_rate)
+        self.hold_samples = int(self.hold * self.sample_rate)
+        self._recalculate_increments()
+
+        self.parameter_transition_counter += 1
+
     def generate_block(self, output_buffer: np.ndarray, num_samples: Optional[int] = None) -> np.ndarray:
         """
         ULTRA-FAST: Generate envelope block using caller-provided buffer.
@@ -604,9 +651,12 @@ class UltraFastADSREnvelope:
         Returns:
             The same output_buffer filled with envelope levels
         """
-        # Use Numba-compiled function for ultra-fast processing
+        # Update parameter transitions for smooth modulation
+        self._update_parameter_transitions()
+
+        # Use Numba-compiled robust function for ultra-fast processing
         (self.state, self.level, self.release_start,
-         self.delay_counter, self.hold_counter) = _numba_process_envelope_block(
+         self.delay_counter, self.hold_counter) = _numba_process_envelope_block_robust(
             output_buffer,
             self.state,
             self.level,
@@ -615,11 +665,11 @@ class UltraFastADSREnvelope:
             self.hold_counter,
             self.delay_samples,
             self.hold_samples,
-            self.attack_increment,
-            self.decay_decrement,
-            self.release_decrement,
-            self.sustain,
-            self.velocity_factor,
+            float(self.attack_increment),
+            float(self.decay_decrement),
+            float(self.release_decrement),
+            float(self.sustain),
+            float(self.velocity_factor),
             len(output_buffer) if num_samples is None else num_samples
         )
 

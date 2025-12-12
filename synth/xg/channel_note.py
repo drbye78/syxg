@@ -703,6 +703,60 @@ class ChannelNote:
             polarity=1.0,
         )
 
+        # PAN CONTROL - Route mod wheel to pan for stereo positioning
+        self.mod_matrix.set_route(
+            9,
+            "mod_wheel",
+            "pan",
+            amount=1.0,
+            polarity=1.0,
+        )
+
+        # VELOCITY CROSSFADE - Route velocity to crossfade for dynamic layering
+        self.mod_matrix.set_route(
+            10,
+            "velocity",
+            "velocity_crossfade",
+            amount=1.0,
+            velocity_sensitivity=0.5,
+        )
+
+        # NOTE CROSSFADE - Route note number to crossfade for keyboard splitting
+        self.mod_matrix.set_route(
+            11,
+            "note_number",
+            "note_crossfade",
+            amount=1.0,
+            key_scaling=0.0,
+        )
+
+        # STEREO WIDTH - Route breath controller to stereo width
+        self.mod_matrix.set_route(
+            12,
+            "breath_controller",
+            "stereo_width",
+            amount=1.0,
+            polarity=1.0,
+        )
+
+        # TREMOLO RATE - Route foot controller to tremolo rate
+        self.mod_matrix.set_route(
+            13,
+            "foot_controller",
+            "tremolo_rate",
+            amount=1.0,
+            polarity=1.0,
+        )
+
+        # TREMOLO DEPTH - Route expression to tremolo depth (alternative to amp modulation)
+        self.mod_matrix.set_route(
+            14,
+            "volume_cc",
+            "tremolo_depth",
+            amount=0.5,
+            polarity=1.0,
+        )
+
         # Note-level LFO routes (XG enhancement)
         # Note LFO1 -> Pitch (additional vibrato per note)
         self.mod_matrix.set_route(
@@ -838,7 +892,10 @@ class ChannelNote:
         volume: float,
         expression: float,
         global_pitch_mod: float = 0.0,
-    ):
+        modulation_pitch: float = 0.0,
+        modulation_filter: float = 0.0,
+        modulation_amplitude: float = 1.0,
+    ) -> None:
         """Generate a block of samples for this note with vectorized processing and XG LFO modulation"""
 
         left_buffer[:block_size].fill(0.0)
@@ -904,20 +961,48 @@ class ChannelNote:
         # Process modulation matrix (constant across block for now)
         modulation_values = self.mod_matrix.process(sources, self.velocity, self.note)
 
-        # Apply modulation to global pitch
-        pitch_mod = global_pitch_mod
-        if "pitch" in modulation_values:
-            pitch_mod += modulation_values["pitch"]
+        # Separate modulation by type for different consumers
+        synthesis_modulation = {k: v for k, v in modulation_values.items()
+                              if k in ['pitch', 'filter_cutoff', 'amp', 'pan']}
+
+        lfo_modulation = {k: v for k, v in modulation_values.items()
+                         if k.startswith('lfo') and ('_rate' in k or '_depth' in k)}
+
+        envelope_modulation = {k: v for k, v in modulation_values.items()
+                              if any(x in k for x in ['attack', 'decay', 'sustain', 'release', 'hold'])}
+
+        advanced_modulation = {k: v for k, v in modulation_values.items()
+                              if k in ['velocity_crossfade', 'note_crossfade', 'stereo_width', 'tremolo_rate']}
+
+        # Apply modulation to global pitch and additional modulation matrix values
+        pitch_mod = global_pitch_mod + modulation_pitch
+        if "pitch" in synthesis_modulation:
+            pitch_mod += synthesis_modulation["pitch"]
+
+        # Get additional modulation values for per-partial application
+        filter_mod = modulation_filter
+        if "filter_cutoff" in synthesis_modulation:
+            filter_mod += synthesis_modulation["filter_cutoff"]
+
+        amp_mod = modulation_amplitude
+        if "amp" in synthesis_modulation:
+            amp_mod *= 1.0 + synthesis_modulation["amp"]  # Apply as multiplier
 
         # Use pre-allocated combined LFOs list (zero-allocation)
         combined_lfos = self.combined_lfos
 
-        # Generate samples from partials using block processing with LFO modulation
+        # Generate samples from partials using comprehensive modulation
         active_partials = 0
 
         for partial in self.partials:
             if not partial.is_active():
                 continue
+
+            # Apply comprehensive modulation to partial
+            partial.apply_modulation(
+                synthesis_modulation, lfo_modulation,
+                envelope_modulation, advanced_modulation
+            )
 
             # Generate partial samples with time-varying LFO modulation
             partial.generate_sample_block(

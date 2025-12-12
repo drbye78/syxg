@@ -194,6 +194,28 @@ class VectorizedChannelRenderer:
         self.last_controller_update_time = 0
         self.controller_update_threshold = 10  # Process batch every 10 updates
 
+        # NRPN (Non-Registered Parameter Number) state tracking - XG compatibility
+        self.nrpn_msb = 0  # NRPN MSB (CC 99)
+        self.nrpn_lsb = 0  # NRPN LSB (CC 98)
+        self.nrpn_active = False  # NRPN sequence in progress
+        self.data_msb = 0  # Data Entry MSB received
+        self.data_msb_received = False  # Track if Data MSB has been received
+
+        # RPN (Registered Parameter Number) state tracking - GM2 compatibility
+        self.rpn_msb = 0  # RPN MSB (CC 101)
+        self.rpn_lsb = 0  # RPN LSB (CC 100)
+        self.rpn_active = False  # RPN sequence in progress
+
+        # Hold 2 pedal state - GM optional compliance
+        self.hold2_active = False   # CC69
+
+        # Local control state - GM optional
+        self.local_control = True  # CC122 - True = local control on
+
+        # Omni mode state - GM mode messages
+        self.omni_mode = False  # CC124/125 - False = omni off, True = omni on
+        self.mono_mode = False  # CC126/CC127 - False = poly, True = mono
+
     def _setup_xg_modulation_matrix(self):
         """Setup XG-standard default modulation matrix routes per XG specification."""
         # Clear existing routes efficiently
@@ -470,6 +492,96 @@ class VectorizedChannelRenderer:
         elif controller == 68:  # Legato Foot Switch (XG)
             # XG-specific: Legato foot switch - forces legato playing mode
             self._handle_legato_foot_switch(value)
+        elif controller == 69:  # Hold 2 (GM Optional)
+            # Hold 2 pedal - similar to sustain but with different characteristics
+            self._handle_hold2_pedal(value)
+        elif controller == 70:  # Sound Controller 1 (GM Optional/Tremolo)
+            # Tremolo depth control
+            self._handle_sound_controller_1(value)
+        elif controller == 84:  # Portamento Control (GM Optional)
+            # Portamento time control
+            self._handle_portamento_control(value)
+        elif controller == 92:  # Effects 2 Depth (GM Optional/Tremolo)
+            # Tremolo effect send level
+            self._handle_effects_2_depth(value)
+        elif controller == 95:  # Effects 5 Depth (GM Optional/Phaser)
+            # Phaser effect send level
+            self._handle_effects_5_depth(value)
+        elif controller == 5:  # Portamento Time (GM2)
+            # Portamento time in seconds
+            self._handle_portamento_time(value)
+        elif controller == 65:  # Portamento On/Off (GM Optional)
+            # Portamento enable/disable
+            self._handle_portamento_on_off(value)
+        elif controller == 98:  # NRPN LSB
+            # NRPN LSB - part of NRPN sequence
+            self.nrpn_lsb = value
+            self.nrpn_active = True
+            self.data_msb_received = False
+            return  # Don't process as regular controller
+        elif controller == 99:  # NRPN MSB
+            # NRPN MSB - start NRPN sequence
+            self.nrpn_msb = value
+            self.nrpn_active = True
+            self.data_msb_received = False
+            return  # Don't process as regular controller
+        elif controller == 100:  # RPN LSB
+            # RPN LSB - part of RPN sequence
+            self.rpn_lsb = value
+            self.rpn_active = True
+            return  # Don't process as regular controller
+        elif controller == 101:  # RPN MSB
+            # RPN MSB - start RPN sequence
+            self.rpn_msb = value
+            self.rpn_active = True
+            return  # Don't process as regular controller
+        elif controller == 6:  # Data Entry MSB
+            # Data Entry MSB - complete NRPN/RPN sequence
+            if self.nrpn_active and not self.data_msb_received:
+                self.data_msb = value
+                self.data_msb_received = True
+                return  # Wait for LSB
+            elif self.nrpn_active and self.data_msb_received:
+                # Complete NRPN message received
+                self._handle_nrpn_complete(self.nrpn_msb, self.nrpn_lsb, self.data_msb, value)
+                self.nrpn_active = False
+                self.data_msb_received = False
+                return
+            elif self.rpn_active:
+                # Handle RPN data entry
+                self._handle_rpn_complete(self.rpn_msb, self.rpn_lsb, value)
+                self.rpn_active = False
+                return
+        elif controller == 96:  # Data Increment (GM2 Optional)
+            # Data Increment - increment current NRPN/RPN value
+            if self.nrpn_active:
+                self._handle_nrpn_increment()
+            elif self.rpn_active:
+                self._handle_rpn_increment()
+        elif controller == 97:  # Data Decrement (GM2 Optional)
+            # Data Decrement - decrement current NRPN/RPN value
+            if self.nrpn_active:
+                self._handle_nrpn_decrement()
+            elif self.rpn_active:
+                self._handle_rpn_decrement()
+        elif controller == 121:  # Reset All Controllers (GM)
+            # Reset all controllers to default values
+            self._handle_reset_all_controllers()
+        elif controller == 122:  # Local Control (GM Optional)
+            # Local control on/off
+            self._handle_local_control(value)
+        elif controller == 124:  # Omni Off (GM Mode)
+            # All Notes Off, Omni Off
+            self._handle_omni_off()
+        elif controller == 125:  # Omni On (GM Mode)
+            # All Notes Off, Omni On
+            self._handle_omni_on()
+        elif controller == 126:  # Mono On (GM Mode)
+            # All Notes Off, Mono On (Poly Off)
+            self._handle_mono_on(value)
+        elif controller == 127:  # Poly On (GM Mode)
+            # All Notes Off, Poly On (Mono Off)
+            self._handle_poly_on()
 
     def _process_controller_batch(self):
         """Process batched controller updates for improved performance"""
@@ -1390,3 +1502,260 @@ class VectorizedChannelRenderer:
                             partial.filter_cutoff = min(
                                 20000, (partial.filter_cutoff or 1000) * 1.2
                             )
+
+    def _handle_nrpn_complete(self, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int) -> bool:
+        """
+        Handle completed NRPN message routing.
+
+        Args:
+            nrpn_msb: NRPN parameter MSB (0-127)
+            nrpn_lsb: NRPN parameter LSB (0-127)
+            data_msb: Data entry MSB (0-127)
+            data_lsb: Data entry LSB (0-127)
+
+        Returns:
+            True if NRPN was handled, False otherwise
+        """
+        # Check if this is a system NRPN (MSB 0-3) - includes effects parameters
+        if nrpn_msb <= 3:  # MSB 0-3: System Effects (Reverb, Chorus, Variation)
+            # Route to XG effects manager
+            if hasattr(self.synth, 'effects_manager'):
+                return self.synth.effects_manager.handle_nrpn_system_effects(
+                    nrpn_msb, nrpn_lsb, data_msb, data_lsb, self.channel
+                )
+
+        # Check if this is a channel-specific effect NRPN (MSB 1-15)
+        elif 1 <= nrpn_msb <= 15:
+            # Route to effect manager with channel specified
+            if hasattr(self.synth, 'effects_manager'):
+                return self.synth.effects_manager.handle_nrpn(
+                    nrpn_msb, nrpn_lsb, data_msb, data_lsb, self.channel
+                )
+
+        # Check if this is a drum NRPN (MSB 40-41) and we're on drum channel
+        elif 40 <= nrpn_msb <= 41 and self.channel == 9 and hasattr(self.synth, 'drum_manager'):
+            # Route to drum manager
+            return self.synth.drum_manager.handle_xg_drum_setup_nrpn(
+                self.channel, nrpn_msb, nrpn_lsb, data_msb, data_lsb
+            )
+
+        # Check if this is pitch envelope depth (MSB 0, LSB 440)
+        elif nrpn_msb == 0 and nrpn_lsb == 440:
+            # Control pitch envelope depth for all partial generators
+            for note in self.active_notes.values():
+                if hasattr(note, 'partials'):
+                    for partial in note.partials:
+                        if hasattr(partial, 'update_pitch_envelope_depth'):
+                            partial.update_pitch_envelope_depth(data_msb)
+            return True
+
+        # Check if this is XG Voice parameter (MSB 127)
+        elif nrpn_msb == 127:
+            # Route XG Voice parameters to all active partial generators
+            # These are voice-level synthesis parameters that affect all partials
+            for note in self.active_notes.values():
+                if hasattr(note, 'partials'):
+                    for partial in note.partials:
+                        self._route_xg_voice_nrpn_to_partial(partial, nrpn_lsb, data_msb, data_lsb)
+            return True
+
+        # Unknown NRPN - not handled
+        return False
+
+    def _handle_rpn_complete(self, rpn_msb: int, rpn_lsb: int, value: int) -> bool:
+        """
+        Handle completed RPN (Registered Parameter Number) message.
+
+        Args:
+            rpn_msb: RPN parameter MSB (0-127)
+            rpn_lsb: RPN parameter LSB (0-127)
+            value: Data entry value (0-127)
+
+        Returns:
+            True if RPN was handled, False otherwise
+        """
+        # GM2 RPN parameters - these are standardized across all devices
+        if rpn_msb == 0:
+            if rpn_lsb == 0:
+                # Pitch Bend Range - MSB (semitones)
+                self.pitch_bend_range = value
+                return True
+            elif rpn_lsb == 1:
+                # Fine Pitch Bend Range (cents) - LSB part of pitch bend range
+                # Usually used with MSB
+                return True
+            elif rpn_lsb == 2:
+                # Coarse Tuning (semitones -64 to +63)
+                # This affects the entire channel
+                semitones = value - 64  # Center at 0
+                # Would apply global tuning offset
+                return True
+            elif rpn_lsb == 3:
+                # Fine Tuning (cents -100 to +100)
+                # High resolution tuning adjustment
+                cents = ((value - 64) / 64.0) * 100.0
+                # Would apply fine tuning offset
+                return True
+            elif rpn_lsb == 4 or rpn_lsb == 5:
+                # Parameter Selection (for GM2 extended parameters)
+                # LSB 4 = Parameter selection MSB
+                # LSB 5 = Parameter selection LSB
+                return True
+
+        # Unknown RPN
+        return False
+
+    def _route_xg_voice_nrpn_to_partial(self, partial, nrpn_lsb: int, data_msb: int, data_lsb: int) -> None:
+        """
+        Route XG Voice NRPN parameters (MSB 127) to appropriate partial generator methods.
+
+        XG Voice Parameters are mapped according to the XG specification:
+        - LSB 0: Element Switch (bit field for which elements are active)
+        - And many others...
+        """
+        try:
+            if nrpn_lsb == 0:
+                # Element Switch - bit field for active elements
+                partial._process_element_switch(data_msb) if hasattr(partial, '_process_element_switch') else None
+            elif nrpn_lsb == 1:
+                # Detune Adjustment - fine pitch
+                detune_cents = ((data_msb - 64) * 100) / 16.0
+                partial._calc_detune(detune_cents) if hasattr(partial, '_calc_detune') else None
+            elif nrpn_lsb == 2:
+                # Volume Control
+                partial._level_control(data_msb / 127.0) if hasattr(partial, '_level_control') else None
+            elif nrpn_lsb == 3:
+                # Pan Control (-1 to +1)
+                pan = ((data_msb - 64) / 63.0)
+                partial._pan_control(pan) if hasattr(partial, '_pan_control') else None
+            # Add more XG Voice NRPN handlers as needed
+        except Exception:
+            # Ignore NRPN routing errors to maintain stability
+            pass
+
+    def _handle_nrpn_increment(self):
+        """Handle NRPN data increment (CC 96)."""
+        # Increment current NRPN parameter value
+        # Implementation would depend on what's currently selected
+        pass
+
+    def _handle_nrpn_decrement(self):
+        """Handle NRPN data decrement (CC 97)."""
+        # Decrement current NRPN parameter value
+        pass
+
+    def _handle_rpn_increment(self):
+        """Handle RPN data increment (CC 96)."""
+        # Increment current RPN parameter value
+        pass
+
+    def _handle_rpn_decrement(self):
+        """Handle RPN data decrement (CC 97)."""
+        # Decrement current RPN parameter value
+        pass
+
+    def _handle_reset_all_controllers(self):
+        """Handle Reset All Controllers (CC 121)."""
+        # Reset all controllers to default values per GM specification
+        self.controllers = [0] * 128
+
+        # Set standard defaults
+        self.controllers[7] = 100  # Volume
+        self.controllers[11] = 127  # Expression
+        self.controllers[10] = 64   # Pan center
+        self.controllers[64] = 0    # Sustain off
+
+        # Reset channel parameters
+        self.volume = 100
+        self.expression = 127
+        self.pan = 64
+
+    def _handle_local_control(self, value: int):
+        """Handle Local Control (CC 122)."""
+        # Local control on/off
+        self.local_control = value >= 64
+
+    def _handle_omni_off(self):
+        """Handle Omni Off (CC 124)."""
+        # All Notes Off, Omni Off
+        self.all_notes_off()
+        self.omni_mode = False
+
+    def _handle_omni_on(self):
+        """Handle Omni On (CC 125)."""
+        # All Notes Off, Omni On
+        self.all_notes_off()
+        self.omni_mode = True
+
+    def _handle_mono_on(self, value: int):
+        """Handle Mono On (Poly Off) - CC 126."""
+        # All Notes Off, Mono On (Poly Off)
+        self.all_notes_off()
+        self.mono_mode = True
+        self.voice_mode = self.VOICE_MODE_MONO
+
+    def _handle_poly_on(self):
+        """Handle Poly On (Mono Off) - CC 127."""
+        # All Notes Off, Poly On (Mono Off)
+        self.all_notes_off()
+        self.mono_mode = False
+        self.voice_mode = self.VOICE_MODE_POLY
+
+    def _handle_hold2_pedal(self, value: int):
+        """Handle Hold 2 pedal controller (69) - additional sustain mechanism."""
+        # Hold 2 pedal provides another sustain mechanism independent of sustain pedal
+        self.hold2_active = value >= 64
+
+        # Apply to all active notes - trigger hold mechanism
+        for note, channel_note in self.active_notes.items():
+            if channel_note.is_active():
+                for partial in channel_note.partials:
+                    if partial.is_active() and partial.amp_envelope:
+                        # Hold 2 creates additional sustain independent of main sustain pedal
+                        if hasattr(partial.amp_envelope, 'hold2'):
+                            partial.amp_envelope.hold2 = self.hold2_active
+
+    def _handle_sound_controller_1(self, value: int):
+        """Handle Sound Controller 1 (70) - Tremolo depth control."""
+        # Map 0-127 to tremolo depth range (0-100%)
+        tremolo_depth = value / 127.0
+
+        # Apply to third LFO (used for tremolo/amplitude modulation)
+        if self.lfos and len(self.lfos) >= 3:
+            self.lfos[2].depth = tremolo_depth
+            if hasattr(self.lfos[2], 'update_xg_tremolo_depth'):
+                self.lfos[2].update_xg_tremolo_depth(value)
+
+    def _handle_portamento_control(self, value: int):
+        """Handle Portamento Control (84) - Portamento time control."""
+        # Portamento time is the glide time between notes
+        # Map 0-127 to portamento time range (0.0 to 10.0 seconds)
+        self.portamento_time = (value / 127.0) * 10.0
+
+        # Enable portamento if time is > 0
+        self.portamento_active = self.portamento_time > 0 and self.portamento_on
+
+    def _handle_effects_2_depth(self, value: int):
+        """Handle Effects 2 Depth (92) - Tremolo effect send level."""
+        # Effects 2 Depth typically controls tremolo send level in XG
+        # Store the value for use by effect manager
+        self.controllers[92] = value
+
+    def _handle_effects_5_depth(self, value: int):
+        """Handle Effects 5 Depth (95) - Phaser effect send level."""
+        # Effects 5 Depth typically controls phaser send level in XG
+        # Store the value for use by effect manager
+        self.controllers[95] = value
+
+    def _handle_portamento_time(self, value: int):
+        """Handle Portamento Time (CC5) - Portamento response time."""
+        # CC5 Portamento Time: 0-127 mapped to time in seconds
+        # This sets the fixed time for pitch gliding between notes
+        self.portamento_time = value / 127.0 * 10.0  # 0-10 seconds
+
+    def _handle_portamento_on_off(self, value: int):
+        """Handle Portamento On/Off (CC65) - Enable/disable portamento."""
+        # CC65: Enable/disable portamento (pitch glide between notes)
+        self.portamento_on = value >= 64
+        # Update active state based on both enable flag and time setting
+        self.portamento_active = self.portamento_on and self.portamento_time > 0

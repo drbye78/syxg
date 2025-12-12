@@ -51,35 +51,42 @@ class ParameterConverter:
 
     def convert_lfo_rate(self, lfo_value: int) -> float:
         """
-        Convert LFO rate from SF2 format to Hz.
+        Convert LFO rate from SF2 cents to Hz.
 
         Args:
-            lfo_value: LFO rate in SF2 format
+            lfo_value: LFO rate in SF2 cents above 8.176 Hz
 
         Returns:
             LFO rate in Hz
         """
-        if lfo_value <= 0:
+        if lfo_value <= -12000:
             return 0.1  # Minimum rate
 
-        # SoundFont uses logarithmic scale
-        return (10 ** (lfo_value / 1200.0)) * 0.01
+        # SF2 LFO rate is in cents above 8.176 Hz
+        # Same formula as filter cutoff: base * 2^(value/1200)
+        hz = 8.176 * (2 ** (lfo_value / 1200.0))
+
+        # Clamp to reasonable audio range (0.1 Hz to 50 Hz)
+        return max(0.1, min(50.0, hz))
 
     def convert_lfo_delay(self, delay_value: int) -> float:
         """
-        Convert LFO delay from SF2 format to seconds.
+        Convert LFO delay from SF2 time cents to seconds.
 
         Args:
-            delay_value: LFO delay in SF2 format
+            delay_value: LFO delay in SF2 time cents
 
         Returns:
             LFO delay in seconds
         """
-        if delay_value <= 0:
+        if delay_value <= -12000:
             return 0.0
 
-        # SoundFont uses logarithmic scale
-        return (10 ** (delay_value / 1200.0)) * self.TIME_CENTISECONDS_TO_SECONDS
+        # SF2 LFO delay uses same logarithmic time conversion as envelopes
+        seconds = 0.001 * (10 ** (delay_value / 1200.0))
+
+        # Clamp to reasonable range (0.0 to 30.0 seconds)
+        return max(0.0, min(30.0, seconds))
 
     def convert_filter_cutoff(self, cutoff_value: int) -> float:
         """
@@ -100,24 +107,25 @@ class ParameterConverter:
 
     def convert_filter_resonance(self, resonance_value: int) -> float:
         """
-        Convert filter resonance from SF2 format.
+        Convert filter resonance from SF2 format to XG linear gain factor.
 
         Args:
-            resonance_value: Filter resonance in SF2 format
+            resonance_value: Filter resonance in SF2 centibels (1/10 dB)
 
         Returns:
-            Filter resonance (0.0 to 1.0)
+            Filter resonance as linear gain factor (1.0 = no boost, >1.0 = resonance boost)
         """
         # SF2 resonance is in centibels (1/10 dB)
-        # Convert to linear scale
+        # Convert centibels to linear gain: 10^(value/200)
+        # Example: +200 cb = +2 dB = 1.2589 linear gain
         if resonance_value <= 0:
-            return 0.0
+            return 1.0  # No resonance boost (unity gain)
 
-        # Convert centibels to linear: 10^(value/200)
-        linear_resonance = 10 ** (resonance_value / 200.0)
+        linear_gain = 10 ** (resonance_value / 200.0)
 
-        # Normalize to 0-1 range (rough approximation)
-        return min(1.0, linear_resonance / 10.0)
+        # Clamp to reasonable range to prevent extreme values
+        # Allow up to +48 dB boost (resonance_value = 9600 cb)
+        return max(1.0, min(251.0, linear_gain))  # 251 = 10^(9600/200)
 
     def convert_pan(self, pan_value: int) -> float:
         """
@@ -374,6 +382,32 @@ class ParameterConverter:
             'decay': self.convert_time_cents_to_seconds(amp_release),
         })
 
+        # Check modulation routing to assign SF2 modulation envelope correctly
+        # SF2 has one modulation envelope that gets routed to pitch, filter, or both
+        mod_env_to_pitch = getattr(zone, 'modEnvToPitch', 0)
+        mod_env_to_filter = getattr(zone, 'modEnvToFilterFc', 0)
+
+        # Initialize envelopes with defaults
+        pitch_envelope = self._create_default_pitch_envelope()
+        filter_envelope = self._create_default_filter_envelope()
+
+        # Assign SF2 modulation envelope based on routing
+        if mod_env_to_pitch and not mod_env_to_filter:
+            # Modulation envelope affects pitch
+            pitch_envelope = self._convert_sf2_modulation_envelope(zone)
+        elif mod_env_to_filter and not mod_env_to_pitch:
+            # Modulation envelope affects filter
+            filter_envelope = self._convert_sf2_modulation_envelope(zone)
+        elif mod_env_to_pitch and mod_env_to_filter:
+            # Both pitch and filter modulation - prioritize based on strength
+            pitch_strength = abs(mod_env_to_pitch)
+            filter_strength = abs(mod_env_to_filter)
+            if pitch_strength >= filter_strength:
+                pitch_envelope = self._convert_sf2_modulation_envelope(zone)
+            else:
+                filter_envelope = self._convert_sf2_modulation_envelope(zone)
+        # If neither is set, modulation envelope remains unused (defaults)
+
         # Build comprehensive partial parameters with all SF2 generators
         partial_params = {
             "level": attenuation,
@@ -421,29 +455,9 @@ class ParameterConverter:
                 "key_scaling": zone.generators.get(40, 0) / 1200.0
             },
 
-            # Filter envelope (complete SF2 envelope) - SF2 generator types:
-            # 25: delayModEnv, 26: attackModEnv, 27: holdModEnv
-            # 28: decayModEnv, 29: sustainModEnv, 30: releaseModEnv
-            # 32: keynumToModEnvDecay
-            "filter_envelope": {
-                "delay": self.convert_time_cents_to_seconds(zone.generators.get(25, -12000)),
-                "attack": self.convert_time_cents_to_seconds(zone.generators.get(26, -12000)),
-                "hold": self.convert_time_cents_to_seconds(zone.generators.get(27, -12000)),
-                "decay": self.convert_time_cents_to_seconds(zone.generators.get(28, -12000)),
-                "sustain": self.cents_to_amplitude(zone.generators.get(29, 0)),
-                "release": self.convert_time_cents_to_seconds(zone.generators.get(30, -12000)),
-                "key_scaling": zone.generators.get(32, 0) / 1200.0
-            },
-
-            # Pitch envelope (complete SF2 envelope)
-            "pitch_envelope": {
-                "delay": 0.0,  # SF2 doesn't have pitch envelope delay
-                "attack": 0.0,  # SF2 doesn't have pitch envelope attack
-                "hold": 0.0,   # SF2 doesn't have pitch envelope hold
-                "decay": 0.0,  # SF2 doesn't have pitch envelope decay
-                "sustain": 1.0, # SF2 doesn't have pitch envelope sustain
-                "release": 0.0  # SF2 doesn't have pitch envelope release
-            },
+            # Pitch and filter envelopes (assigned based on SF2 modulation routing)
+            "pitch_envelope": pitch_envelope,
+            "filter_envelope": filter_envelope,
 
             # Filter (complete SF2 filter support)
             "filter": {
@@ -590,3 +604,39 @@ class ParameterConverter:
             warnings["missing_generators"] = f"Critical SF2 generators {critical_missing} were not found - envelope/LFO parameters may be default"
 
         return warnings
+
+    def _create_default_pitch_envelope(self) -> Dict[str, float]:
+        """Create default XG pitch envelope (no modulation)."""
+        return {
+            "delay": 0.0,
+            "attack": 0.0,
+            "hold": 0.0,
+            "decay": 0.0,
+            "sustain": 1.0,
+            "release": 0.0,
+            "key_scaling": 0.0
+        }
+
+    def _create_default_filter_envelope(self) -> Dict[str, float]:
+        """Create default XG filter envelope (no modulation)."""
+        return {
+            "delay": 0.0,
+            "attack": 0.0,
+            "hold": 0.0,
+            "decay": 0.0,
+            "sustain": 1.0,
+            "release": 0.0,
+            "key_scaling": 0.0
+        }
+
+    def _convert_sf2_modulation_envelope(self, zone: SF2InstrumentZone) -> Dict[str, float]:
+        """Convert SF2 modulation envelope to XG format."""
+        return {
+            "delay": self.convert_time_cents_to_seconds(zone.generators.get(25, -12000)),  # delayModEnv
+            "attack": self.convert_time_cents_to_seconds(zone.generators.get(26, -12000)),  # attackModEnv
+            "hold": self.convert_time_cents_to_seconds(zone.generators.get(27, -12000)),   # holdModEnv
+            "decay": self.convert_time_cents_to_seconds(zone.generators.get(28, -12000)),  # decayModEnv
+            "sustain": self.cents_to_amplitude(zone.generators.get(29, 0)),                # sustainModEnv
+            "release": self.convert_time_cents_to_seconds(zone.generators.get(30, -12000)), # releaseModEnv
+            "key_scaling": zone.generators.get(32, 0) / 1200.0  # keynumToModEnvDecay
+        }

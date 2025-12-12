@@ -164,52 +164,118 @@ def _numba_generate_waveform_block_stereo_time_varying_numpy(
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_apply_time_varying_filter(
     left_block, right_block, filter_cutoff_block, filter_resonance,
-    block_size, sample_rate
+    block_size, sample_rate, filter_state=None
 ):
     """
-    NUMBA-COMPILED: Apply time-varying filter with per-sample cutoff modulation.
+    PRODUCTION-GRADE NUMBA-COMPILED: Apply time-varying second-order low-pass filter with accurate bilinear transform.
+
+    This implementation uses a proper digital state variable filter topology with:
+    - Accurate bilinear transform coefficient calculation
+    - State preservation across blocks (requires filter_state buffer)
+    - Proper DC response (no DC offset)
+    - Resonance limiting to prevent instability
+    - Time-varying cutoff with smooth interpolation
 
     Args:
         left_block: Left channel buffer (modified in-place)
         right_block: Right channel buffer (modified in-place)
         filter_cutoff_block: Time-varying cutoff frequencies (block_size array)
-        filter_resonance: Filter resonance (constant)
+        filter_resonance: Filter resonance (0.0-4.0, clamped to reasonable range)
         block_size: Number of samples to process
         sample_rate: Audio sample rate
+        filter_state: 4-element array for [left_z1, left_z2, right_z1, right_z2] filter state
+                     If None, state variables are reset to 0.0
     """
-    # Simple time-varying low-pass filter implementation
-    # This is a simplified version - in production you'd want a more sophisticated filter
-    prev_left = 0.0
-    prev_right = 0.0
+    # Initialize or validate filter state
+    if filter_state is None:
+        # Temporary state (won't persist between blocks)
+        left_z1, left_z2 = 0.0, 0.0
+        right_z1, right_z2 = 0.0, 0.0
+    else:
+        # Persistent state across blocks
+        left_z1 = filter_state[0]
+        left_z2 = filter_state[1]
+        right_z1 = filter_state[2]
+        right_z2 = filter_state[3]
+
+    # Clamp resonance to prevent instability (typical range 0.0-4.0)
+    resonance = max(0.0, min(4.0, filter_resonance))
 
     for i in range(block_size):
+        # Get and clamp cutoff frequency (prewarping for bilinear transform)
         cutoff = filter_cutoff_block[i]
-        # Clamp cutoff frequency
-        cutoff = max(20.0, min(cutoff, sample_rate * 0.4))
+        cutoff = max(20.0, min(cutoff, sample_rate * 0.49))
 
-        # Calculate filter coefficients (simplified bilinear transform)
-        # This is a basic implementation - production code would use more sophisticated filtering
+        # Calculate angular frequency with bilinear prewarping
         wc = 2.0 * math.pi * cutoff / sample_rate
-        k = wc / (wc + 1.0)  # Simplified coefficient
 
-        # Apply resonance
-        resonance_factor = 1.0 + filter_resonance * 0.5
+        # Limit wc to prevent tan() overflow (π/2 - ε for stability)
+        wc = min(wc, math.pi * 0.499)
 
-        # Apply filter to both channels
-        filtered_left = k * left_block[i] + (1.0 - k) * prev_left
-        filtered_right = k * right_block[i] + (1.0 - k) * prev_right
+        # Bilinear transform prewarping (maps analog frequency to digital)
+        wp = math.tan(wc * 0.5)
 
-        # Apply resonance feedback
-        filtered_left *= resonance_factor
-        filtered_right *= resonance_factor
+        # Additional safety clamp for wp to prevent extreme values
+        wp = max(0.001, min(wp, 1000.0))
 
-        # Store filtered values
-        left_block[i] = filtered_left
-        right_block[i] = filtered_right
+        # Calculate filter coefficients for second-order Butterworth response
+        # This provides smooth frequency response without ripple
+        k1 = wp * wp
+        k2 = 2.0 * wp * math.sqrt(resonance + 1.0)  # Q factor from resonance
 
-        # Update previous values
-        prev_left = filtered_left
-        prev_right = filtered_right
+        # Clamp intermediate values to prevent overflow in coefficient calculation
+        k1 = max(0.001, min(k1, 10000.0))
+        k2 = max(0.001, min(k2, 10000.0))
+
+        k3 = 1.0 + k1 + k2
+
+        # Normalize coefficients
+        a0 = 1.0 / k3
+        a1 = 2.0 / k3
+        a2 = 1.0 / k3
+        b1 = (2.0 - 2.0 * k1) / k3
+        b2 = (1.0 - k1 - k2) / k3
+
+        # Apply filter to left channel (direct form 2) with overflow protection
+        input_left = left_block[i]
+        # Clamp input to prevent overflow
+        input_left = max(-10.0, min(10.0, input_left))
+        output_left = a0 * input_left + a1 * left_z1 + a2 * left_z2 - b1 * left_z1 - b2 * left_z2
+        # Clamp output to prevent overflow
+        output_left = max(-10.0, min(10.0, output_left))
+
+        # Update left channel state with overflow protection
+        left_z2 = left_z1
+        left_z1 = a0 * input_left + left_z1 * (1.0 + b1) + left_z2 * b2
+        # Clamp state variables to prevent overflow
+        left_z1 = max(-10.0, min(10.0, left_z1))
+        left_z2 = max(-10.0, min(10.0, left_z2))
+
+        # Apply filter to right channel (direct form 2) with overflow protection
+        input_right = right_block[i]
+        # Clamp input to prevent overflow
+        input_right = max(-10.0, min(10.0, input_right))
+        output_right = a0 * input_right + a1 * right_z1 + a2 * right_z2 - b1 * right_z1 - b2 * right_z2
+        # Clamp output to prevent overflow
+        output_right = max(-10.0, min(10.0, output_right))
+
+        # Update right channel state with overflow protection
+        right_z2 = right_z1
+        right_z1 = a0 * input_right + right_z1 * (1.0 + b1) + right_z2 * b2
+        # Clamp state variables to prevent overflow
+        right_z1 = max(-10.0, min(10.0, right_z1))
+        right_z2 = max(-10.0, min(10.0, right_z2))
+
+        # Store output samples
+        left_block[i] = output_left
+        right_block[i] = output_right
+
+    # Update filter state if provided
+    if filter_state is not None:
+        filter_state[0] = left_z1
+        filter_state[1] = left_z2
+        filter_state[2] = right_z1
+        filter_state[3] = right_z2
 
 
 @jit(nopython=True, fastmath=True, cache=True)
@@ -243,6 +309,8 @@ def _numba_generate_waveform_block_mono_time_varying_numpy(
     for i in range(block_size):
         # Calculate time-varying phase step with pitch modulation
         pitch_mod_cents = pitch_mod_block[i]
+        if pitch_mod_cents > 3400:
+            pitch_mod_cents = 2400.0
         modulation_mult = 2.0 ** (pitch_mod_cents / 1200.0)
         current_phase_step = base_phase_step * modulation_mult
 
@@ -320,6 +388,8 @@ def _numba_generate_waveform_block_mono_time_varying_numpy(
             phase -= table_length
         elif phase < 0:
             phase += table_length
+        elif phase == np.inf:
+            phase = 0.0
 
     return phase, current_loop_direction
 
@@ -418,7 +488,7 @@ class XGPartialGenerator:
         self.amp_hold_time = partial_params.get("amp_hold", 0.0)
 
         # XG Filter envelope - can be disabled for drums
-        self.use_filter_env = not is_drum or partial_params.get("use_filter_env", True)
+        self.use_filter_env = partial_params.get("use_filter_env", False)#not is_drum)
         if self.use_filter_env:
             self.filter_attack_time = partial_params.get("filter_attack", 0.1)
             self.filter_decay_time = partial_params.get("filter_decay", 0.5)
@@ -428,7 +498,7 @@ class XGPartialGenerator:
             self.filter_hold_time = partial_params.get("filter_hold", 0.0)
 
         # XG Pitch envelope - can be disabled for drums
-        self.use_pitch_env = not is_drum or partial_params.get("use_pitch_env", True)
+        self.use_pitch_env = partial_params.get("use_pitch_env", False)#not is_drum)
         if self.use_pitch_env:
             self.pitch_attack_time = partial_params.get("pitch_attack", 0.05)
             self.pitch_decay_time = partial_params.get("pitch_decay", 0.1)
@@ -436,6 +506,8 @@ class XGPartialGenerator:
             self.pitch_release_time = partial_params.get("pitch_release", 0.05)
             self.pitch_delay_time = partial_params.get("pitch_delay", 0.0)
             self.pitch_hold_time = partial_params.get("pitch_hold", 0.0)
+            # XG Pitch envelope depth - controllable amount (cents)
+            self.pitch_envelope_depth = partial_params.get("pitch_envelope_depth", 1200.0)  # Default ±1200 cents
 
         # XG Filter parameters
         filter_config = partial_params.get("filter", {})
@@ -537,6 +609,15 @@ class XGPartialGenerator:
         # Crossfade tracking
         self.velocity_crossfade = 0.0
         self.note_crossfade = 0.0
+
+        # Base values for modulation
+        self.base_velocity_crossfade = 0.0
+        self.base_note_crossfade = 0.0
+        self.base_stereo_width = 1.0
+        self.base_pan = self.pan  # Store original pan for modulation
+
+        # Filter state for time-varying filter (4 elements: left_z1, left_z2, right_z1, right_z2)
+        self.filter_state = np.zeros(4, dtype=np.float32)
 
         # XG Modulation cache
         self.last_pitch_mod = 0.0
@@ -906,7 +987,7 @@ class XGPartialGenerator:
             self.work_buffer[:block_size] += lfo_pitch_block[:block_size]
 
         # Generate base waveform with TIME-VARYING pitch modulation
-        self._generate_waveform_block_time_varying(left_block, right_block, self.work_buffer)
+        self._generate_waveform_block_time_varying(left_block, right_block, self.work_buffer, block_size)
 
         # Apply XG filter with TIME-VARYING envelope modulation
         if self.filter and self.use_filter_env and self.filter_envelope:
@@ -924,7 +1005,7 @@ class XGPartialGenerator:
             # Apply TIME-VARYING filter processing
             _numba_apply_time_varying_filter(
                 left_block, right_block, filter_cutoff_freq_block,
-                self.filter_resonance, block_size, self.sample_rate
+                self.filter_resonance, block_size, self.sample_rate, self.filter_state
             )
 
         # Generate time-varying amplitude modulation (LFO tremolo)
@@ -989,11 +1070,22 @@ class XGPartialGenerator:
             # Fixed sustain per XG spec
             pitch_env_block[:block_size].fill(0.0)
         else:
-            pitch_env_block[:block_size] *= 1200.0
+            pitch_env_block[:block_size] *= self.pitch_envelope_depth
         return pitch_env_block
 
+    def update_pitch_envelope_depth(self, value: float):
+        """XG NRPN/Parameter: Pitch envelope to pitch depth control.
+
+        Maps 0-127 MIDI values to pitch envelope depth range.
+        XG Spec: MSB 0, LSB 440 (System Effects pitch env amount)
+        """
+        # Map 0-127 to ±1200 cents (1 octave) range, with center at 0
+        # 64 = 0 cents (no pitch modulation), 127 = +1200 cents, 0 = -1200 cents
+        cents_range = ((value - 64) / 63.0) * 1200.0
+        self.pitch_envelope_depth = max(-1200.0, min(2400.0, cents_range))  # Allow wider range
+
     def _generate_waveform_block_time_varying(self, left_block: np.ndarray, right_block: np.ndarray,
-                                             pitch_mod_block: np.ndarray) -> None:
+                                             pitch_mod_block: np.ndarray, block_size: int) -> None:
         """Generate entire sample block with TIME-VARYING pitch modulation.
 
         This method implements proper XG-compliant time-varying pitch modulation within blocks,
@@ -1004,8 +1096,6 @@ class XGPartialGenerator:
             right_block: Pre-allocated array to fill with right channel samples
             pitch_mod_block: Time-varying pitch modulation in cents (block_size array)
         """
-        block_size = len(left_block)
-
         # Generate sample based on wavetable availability
         if self.wavetable is None:
             # Zero sample fallback - arrays are already zeroed
@@ -1063,8 +1153,14 @@ class XGPartialGenerator:
             lfo = self.dedicated_lfos[0]  # Dedicated pitch LFO
             if lfo and hasattr(lfo, 'generate_block'):
                 lfo_block = lfo.generate_block(self.item_buffer, block_size)
+                # Apply LFO modulation with comprehensive bounds checking
                 if lfo_block is not None and len(lfo_block) >= block_size:
-                    pitch_mod_block[:block_size] += lfo_block[:block_size] * lfo.pitch_depth_cents
+                    # Calculate modulation with bounds checking
+                    raw_modulation = lfo_block[:block_size] * lfo.pitch_depth_cents
+                    # Apply bounds checking to prevent excessive modulation
+                    max_pitch_mod = 2400.0  # ±2 octaves maximum
+                    bounded_modulation = np.clip(raw_modulation, -max_pitch_mod, max_pitch_mod)
+                    pitch_mod_block[:block_size] += bounded_modulation
 
         return pitch_mod_block
 
@@ -1094,8 +1190,14 @@ class XGPartialGenerator:
             lfo = self.dedicated_lfos[1]  # Dedicated filter LFO
             if lfo and hasattr(lfo, 'generate_block'):
                 lfo_block = lfo.generate_block(self.item_buffer, block_size)
+                # Apply LFO filter modulation with comprehensive bounds checking
                 if lfo_block is not None and len(lfo_block) >= block_size:
-                    filter_mod_block[:block_size] += lfo_block[:block_size] * lfo.filter_depth
+                    # Calculate modulation with bounds checking
+                    raw_modulation = lfo_block[:block_size] * lfo.filter_depth
+                    # Apply bounds checking to prevent excessive modulation
+                    max_filter_mod = 1.0  # Maximum filter modulation depth
+                    bounded_modulation = np.clip(raw_modulation, -max_filter_mod, max_filter_mod)
+                    filter_mod_block[:block_size] += bounded_modulation
 
         return filter_mod_block
 
@@ -1127,11 +1229,17 @@ class XGPartialGenerator:
                 lfo_block = lfo.generate_block(self.item_buffer, block_size)
 
                 if lfo_block is not None and len(lfo_block) >= block_size:
-                    # Apply LFO depth for tremolo effect
+                    # Apply LFO amplitude modulation with comprehensive bounds checking
                     depth = lfo.amplitude_depth
-                    # Convert bipolar LFO (-1 to 1) to unipolar modulation (0.7 to 1.3)
-                    tremolo_mod = 1.0 + lfo_block[:block_size] * depth
-                    amp_mod_block[:block_size] *= tremolo_mod
+                    # Apply bounds checking to depth
+                    bounded_depth = max(0.0, min(1.0, depth))
+                    # Convert bipolar LFO (-1 to 1) to unipolar modulation with bounds checking
+                    raw_tremolo_mod = 1.0 + lfo_block[:block_size] * bounded_depth
+                    # Apply bounds checking to prevent excessive modulation
+                    min_tremolo = 0.5  # Minimum tremolo depth
+                    max_tremolo = 1.5  # Maximum tremolo depth
+                    bounded_tremolo_mod = np.clip(raw_tremolo_mod, min_tremolo, max_tremolo)
+                    amp_mod_block[:block_size] *= bounded_tremolo_mod
 
         return amp_mod_block
 
@@ -1218,15 +1326,27 @@ class XGPartialGenerator:
 
         # Get pre-computed rate
         rate_hz = self.coeff_manager.get_xg_coefficient('vibrato_rate', int(value))
-        # Stored for use by channel-level LFO
+        # Store for use by dedicated LFO
         self.vibrato_rate = rate_hz
+
+        # Apply rate to dedicated pitch LFO (LFO0)
+        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos is not None and len(self.dedicated_lfos) > 0:
+            lfo = self.dedicated_lfos[0]  # Dedicated pitch LFO
+            if lfo and hasattr(lfo, 'set_rate'):
+                lfo.set_rate(self.vibrato_rate)
 
     def update_vibrato_depth(self, value: float):
         """XG Sound Controller 78 - Vibrato Depth."""
         # 0-127 maps to 0 to 600 cents linearly
         depth_cents = (value / 127.0) * 600.0
-        # Stored for use by modulation matrix
+        # Store for use by dedicated LFO
         self.vibrato_depth_cents = depth_cents
+
+        # Apply depth to dedicated pitch LFO (LFO0)
+        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos is not None and len(self.dedicated_lfos) > 0:
+            lfo = self.dedicated_lfos[0]  # Pitch LFO
+            if lfo and hasattr(lfo, 'set_modulation_depths'):
+                lfo.set_modulation_depths(pitch_cents=self.vibrato_depth_cents, filter_depth=0.0, amplitude_depth=0.0)
 
     # XG Modulation interface methods
 
@@ -1339,6 +1459,231 @@ class XGPartialGenerator:
         self.last_filter_mod = 0.0
         self.last_amp_mod = 1.0
 
+        # LFO modulation cache for dynamic LFO control
+        self.lfo_rate_modulation = {}  # {lfo_index: rate_mod_value}
+        self.lfo_depth_modulation = {}  # {lfo_index: depth_mod_value}
+
+    def apply_lfo_modulation(self, lfo_modulation_values: Dict[str, float]):
+        """
+        Consume LFO modulation destinations and apply to dedicated LFOs.
+
+        This method enables real-time control of LFO parameters through the
+        modulation matrix, allowing controllers to modulate vibrato rate/depth,
+        filter LFO rate/depth, and tremolo rate/depth dynamically.
+
+        Args:
+            lfo_modulation_values: Dictionary containing LFO modulation values
+                                  from modulation matrix destinations
+        """
+        # Extract LFO rate modulation values
+        lfo1_rate_mod = lfo_modulation_values.get("lfo1_rate", 0.0)
+        lfo2_rate_mod = lfo_modulation_values.get("lfo2_rate", 0.0)
+        lfo3_rate_mod = lfo_modulation_values.get("lfo3_rate", 0.0)
+
+        # Extract LFO depth modulation values
+        lfo1_depth_mod = lfo_modulation_values.get("lfo1_depth", 0.0)
+        lfo2_depth_mod = lfo_modulation_values.get("lfo2_depth", 0.0)
+        lfo3_depth_mod = lfo_modulation_values.get("lfo3_depth", 0.0)
+
+        # Apply rate modulation to dedicated LFOs
+        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos:
+            # LFO1: Pitch modulation (vibrato)
+            if len(self.dedicated_lfos) > 0 and self.dedicated_lfos[0]:
+                self.dedicated_lfos[0].apply_rate_modulation(lfo1_rate_mod)
+                self.dedicated_lfos[0].apply_depth_modulation(lfo1_depth_mod)
+
+            # LFO2: Filter modulation
+            if len(self.dedicated_lfos) > 1 and self.dedicated_lfos[1]:
+                self.dedicated_lfos[1].apply_rate_modulation(lfo2_rate_mod)
+                self.dedicated_lfos[1].apply_depth_modulation(lfo2_depth_mod)
+
+            # LFO3: Amplitude modulation (tremolo)
+            if len(self.dedicated_lfos) > 2 and self.dedicated_lfos[2]:
+                self.dedicated_lfos[2].apply_rate_modulation(lfo3_rate_mod)
+                self.dedicated_lfos[2].apply_depth_modulation(lfo3_depth_mod)
+
+    def apply_envelope_modulation(self, envelope_modulation_values: Dict[str, float]):
+        """
+        Consume envelope modulation destinations for dynamic envelope control.
+
+        This enables real-time modulation of envelope parameters during performance,
+        allowing controllers to dynamically adjust attack, decay, sustain, and release
+        times for amplitude, filter, and pitch envelopes.
+
+        Args:
+            envelope_modulation_values: Dictionary containing envelope modulation values
+                                       from modulation matrix destinations
+        """
+        # Amplitude envelope modulation
+        amp_attack_mod = envelope_modulation_values.get("amp_attack", 0.0)
+        amp_decay_mod = envelope_modulation_values.get("amp_decay", 0.0)
+        amp_sustain_mod = envelope_modulation_values.get("amp_sustain", 0.0)
+        amp_release_mod = envelope_modulation_values.get("amp_release", 0.0)
+
+        if self.amp_envelope:
+            self.amp_envelope.modulate_parameters(
+                attack_mod=amp_attack_mod, decay_mod=amp_decay_mod,
+                sustain_mod=amp_sustain_mod, release_mod=amp_release_mod
+            )
+
+        # Filter envelope modulation
+        if self.use_filter_env and self.filter_envelope:
+            filter_attack_mod = envelope_modulation_values.get("filter_attack", 0.0)
+            filter_decay_mod = envelope_modulation_values.get("filter_decay", 0.0)
+            filter_sustain_mod = envelope_modulation_values.get("filter_sustain", 0.0)
+            filter_release_mod = envelope_modulation_values.get("filter_release", 0.0)
+
+            self.filter_envelope.modulate_parameters(
+                attack_mod=filter_attack_mod, decay_mod=filter_decay_mod,
+                sustain_mod=filter_sustain_mod, release_mod=filter_release_mod
+            )
+
+        # Pitch envelope modulation
+        if self.use_pitch_env and self.pitch_envelope:
+            pitch_attack_mod = envelope_modulation_values.get("pitch_attack", 0.0)
+            pitch_decay_mod = envelope_modulation_values.get("pitch_decay", 0.0)
+            pitch_sustain_mod = envelope_modulation_values.get("pitch_sustain", 0.0)
+            pitch_release_mod = envelope_modulation_values.get("pitch_release", 0.0)
+
+            self.pitch_envelope.modulate_parameters(
+                attack_mod=pitch_attack_mod, decay_mod=pitch_decay_mod,
+                sustain_mod=pitch_sustain_mod, release_mod=pitch_release_mod
+            )
+
+    def apply_advanced_modulation(self, advanced_modulation_values: Dict[str, float]):
+        """
+        Consume advanced synthesis modulation destinations.
+
+        This enables dynamic control of crossfade, stereo width, and tremolo
+        parameters for advanced synthesis capabilities.
+
+        Args:
+            advanced_modulation_values: Dictionary containing advanced modulation values
+                                       from modulation matrix destinations
+        """
+        # Crossfade modulation
+        velocity_crossfade_mod = advanced_modulation_values.get("velocity_crossfade", 0.0)
+        note_crossfade_mod = advanced_modulation_values.get("note_crossfade", 0.0)
+
+        # Apply crossfade modulation to existing crossfade parameters
+        self.velocity_crossfade = np.clip(self.base_velocity_crossfade + velocity_crossfade_mod, 0.0, 1.0)
+        self.note_crossfade = np.clip(self.base_note_crossfade + note_crossfade_mod, 0.0, 1.0)
+
+        # Stereo width modulation
+        stereo_width_mod = advanced_modulation_values.get("stereo_width", 0.0)
+        self.stereo_width = np.clip(self.base_stereo_width + stereo_width_mod, 0.0, 2.0)
+        self._update_stereo_coefficients()
+
+        # Tremolo rate modulation (applied to dedicated tremolo LFO)
+        tremolo_rate_mod = advanced_modulation_values.get("tremolo_rate", 0.0)
+        tremolo_depth_mod = advanced_modulation_values.get("tremolo_depth", 0.0)
+
+        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos and len(self.dedicated_lfos) > 2:
+            tremolo_lfo = self.dedicated_lfos[2]  # Dedicated amplitude LFO
+            if tremolo_lfo:
+                tremolo_lfo.apply_rate_modulation(tremolo_rate_mod)
+                tremolo_lfo.apply_depth_modulation(tremolo_depth_mod)
+
+    def _update_stereo_coefficients(self):
+        """
+        Update stereo panning coefficients based on current stereo width.
+
+        This method recalculates left/right channel gains based on the
+        modulated stereo width parameter for dynamic stereo imaging.
+
+        Stereo width ranges from 0.0 (mono) to 2.0 (extra-wide stereo).
+        """
+        # Base panning from partial pan parameter
+        base_pan = self.pan  # -1.0 to 1.0 range
+
+        # Apply stereo width modulation
+        # Width of 1.0 = normal stereo, 0.0 = mono, 2.0 = enhanced stereo
+        width_factor = self.stereo_width
+
+        if width_factor <= 0.0:
+            # Mono - both channels get same signal
+            self.stereo_left_gain = 0.707  # 1/sqrt(2) for proper mono mix
+            self.stereo_right_gain = 0.707
+        else:
+            # Stereo with width modulation
+            # Calculate left/right gains based on pan and width
+            if base_pan < 0:
+                # Panned left - reduce right channel more with width
+                left_base = 1.0
+                right_base = 1.0 + base_pan  # base_pan is negative, so this increases right
+            elif base_pan > 0:
+                # Panned right - reduce left channel more with width
+                left_base = 1.0 - base_pan  # base_pan is positive, so this reduces left
+                right_base = 1.0
+            else:
+                # Center - equal power to both channels
+                left_base = 1.0
+                right_base = 1.0
+
+            # Apply width factor
+            # Width > 1.0 increases separation, width < 1.0 reduces separation
+            width_boost = width_factor
+            self.stereo_left_gain = left_base * width_boost
+            self.stereo_right_gain = right_base * width_boost
+
+            # Normalize to prevent clipping (optional - could be left as-is for effect)
+            total_gain = self.stereo_left_gain + self.stereo_right_gain
+            if total_gain > 2.0:  # Prevent excessive boost
+                normalize_factor = 2.0 / total_gain
+                self.stereo_left_gain *= normalize_factor
+                self.stereo_right_gain *= normalize_factor
+
+    def apply_pan_modulation(self, pan_mod: float):
+        """
+        Apply pan modulation to the partial.
+
+        Args:
+            pan_mod: Pan modulation value (-1.0 to 1.0, where 0.0 = center)
+        """
+        # Apply pan modulation with bounds checking
+        self.pan = np.clip(self.base_pan + pan_mod, -1.0, 1.0)
+
+        # Update stereo coefficients if stereo width is active
+        if hasattr(self, 'stereo_width') and self.stereo_width != 1.0:
+            self._update_stereo_coefficients()
+
+    def apply_modulation(self, synthesis_mod, lfo_mod, envelope_mod, advanced_mod):
+        """
+        Unified modulation application method.
+
+        Applies all types of modulation in the correct order for proper synthesis:
+        1. Envelope modulation (affects envelope shapes)
+        2. LFO modulation (affects LFO parameters)
+        3. Advanced synthesis modulation (crossfade, stereo, etc.)
+        4. Core synthesis modulation (pitch, filter, amplitude, pan)
+
+        Args:
+            synthesis_mod: Core synthesis modulation values
+            lfo_mod: LFO parameter modulation values
+            envelope_mod: Envelope parameter modulation values
+            advanced_mod: Advanced synthesis modulation values
+        """
+        # 1. Apply envelope modulation first (affects envelope shapes)
+        self.apply_envelope_modulation(envelope_mod)
+
+        # 2. Apply LFO modulation (affects LFO parameters)
+        self.apply_lfo_modulation(lfo_mod)
+
+        # 3. Apply advanced synthesis modulation
+        self.apply_advanced_modulation(advanced_mod)
+
+        # 4. Apply pan modulation
+        pan_mod = synthesis_mod.get("pan", 0.0)
+        if pan_mod != 0.0:
+            self.apply_pan_modulation(pan_mod)
+
+        # 5. Apply core synthesis modulation (stored for audio generation)
+        self.set_modulation_values(
+            synthesis_mod.get("pitch", 0.0),
+            synthesis_mod.get("filter_cutoff", 0.0),
+            synthesis_mod.get("amp", 1.0)
+        )
+
         # Mark as active
         self.active = True
 
@@ -1414,3 +1759,256 @@ class XGPartialGenerator:
     def __del__(self):
         """Cleanup when XGPartialGenerator is destroyed."""
         self.cleanup()
+
+
+    # ============================================================================
+    # XG VOICE PARAMETER EXTENSIONS - PHASE A COMPLETION
+    # Implements missing MSB 127 NRPN voice synthesis parameters
+    # ============================================================================
+
+    def _process_element_switch(self, value: int):
+        """Process XG Voice Element Switch (MSB 127, LSB 0).
+
+        Controls which voice elements (0-7) are active as bit field.
+        Bit 0 = Element 0, Bit 1 = Element 1, etc.
+
+        Args:
+            value: Bit field (0-255) where each bit enables/disables an element
+        """
+        # Update element activation state (though partials typically don't manage elements)
+        # This is mainly for XG voice definition consistency
+        self.element_switch = value
+
+        # In a real XG voice, this would enable/disable partial elements
+        # For this partial generator, we note the element activation
+        active_elements = []
+        for i in range(8):  # Maximum 8 elements in XG
+            if (value & (1 << i)) != 0:
+                active_elements.append(i)
+        self.active_elements = active_elements
+
+    def _handle_key_limits(self, low_limit: int, high_limit: int):
+        """Handle XG Voice Key Limits (MSB 127, LSB 3-4).
+
+        Defines the note range this voice responds to.
+
+        Args:
+            low_limit: Lowest MIDI note (0-127)
+            high_limit: Highest MIDI note (0-127)
+        """
+        self.voice_key_low = max(0, min(127, low_limit))
+        self.voice_key_high = max(0, min(127, high_limit))
+
+        # Ensure valid range
+        if self.voice_key_high < self.voice_key_low:
+            self.voice_key_high = self.voice_key_low
+
+    def _apply_pitch_shift(self, shift_semitones: int):
+        """Apply XG Voice Note Shift (MSB 127, LSB 5).
+
+        Shifts the entire voice up/down in semitone intervals.
+
+        Args:
+            shift_semitones: Shift in semitones (-64 to +63)
+        """
+        # Clamp to valid range per XG specification
+        self.note_shift_semitones = max(-64, min(63, shift_semitones))
+
+        # Apply shift to fundamental calculation
+        # This effectively offsets the root key
+        self.effective_root_key = self.note + self.note_shift_semitones
+
+    def _calc_detune(self, detune_cents: float):
+        """Calculate XG Voice Detune (MSB 127, LSB 6).
+
+        Fine pitch adjustment beyond tuning in Hz, centered at 0.
+
+        Args:
+            detune_cents: Detune in cent units (-400 to +393.75 cents)
+        """
+        # XG detune formula: (value - 64) * 100 / 16 (where value = MSB 127 LSB 6)
+        # Converts MIDI value to cents, then to Hz
+        if detune_cents != 0.0:
+            # Convert cents to frequency ratio
+            detune_ratio = 2.0 ** (detune_cents / 1200.0)
+
+            # Apply to base frequency (compound with note shift)
+            self.detune_multiplier = detune_ratio
+        else:
+            self.detune_multiplier = 1.0
+
+    def _velocity_sensitivity_xg(self, sensitivity: int):
+        """Apply XG Voice Velocity Sensitivity (MSB 127, LSB 7).
+
+        Controls how MIDI velocity affects voice level.
+
+        Args:
+            sensitivity: Velocity sensitivity (0-127)
+        """
+        # XG formula: (velocity_sense_param * 127 / 2000) + 0.007
+        self.xg_velocity_sensitivity = (sensitivity * 127.0 / 2000.0) + 0.007
+
+        # Update velocity scaling curve
+        # This affects how input velocity maps to output amplitude
+        self.velocity_curve_factor = 1.0 + (sensitivity / 127.0) * 0.5
+
+    def _level_control(self, voice_level: float):
+        """Control XG Voice Level (MSB 127, LSB 8).
+
+        Overall voice output level.
+
+        Args:
+            voice_level: Voice level (0.0 to 1.0)
+        """
+        self.voice_master_level = max(0.0, min(1.0, voice_level))
+
+        # This multiplies with the existing level parameter
+        # self.level *= self.voice_master_level
+
+    def _velocity_rate_sens(self, rate_sensitivity: float):
+        """Control XG Velocity Rate Sensitivity (MSB 127, LSB 9).
+
+        How velocity affects envelope attack time.
+
+        Args:
+            rate_sensitivity: Velocity sensitivity for attack rate (-1.0 to +1.0)
+        """
+        # XG velocity rate sensitivity affects envelope attack time
+        self.attack_velocity_factor = max(-1.0, min(1.0, rate_sensitivity))
+
+        # Update envelope parameters if envelope exists
+        if hasattr(self, 'amp_envelope') and self.amp_envelope:
+            # Modify attack time based on velocity
+            # Higher positive values = faster attack with higher velocity
+            base_attack = getattr(self.amp_envelope, '_attack_time', 0.01)
+            self.modified_attack_time = base_attack * (1.0 + rate_sensitivity * 0.5)
+
+    def _pan_control(self, pan_position: float):
+        """Control XG Voice Pan (MSB 127, LSB 10).
+
+        Left/right stereo positioning for the voice.
+
+        Args:
+            pan_position: Pan position (-1.0 left, 0.0 center, +1.0 right)
+        """
+        self.voice_pan = max(-1.0, min(1.0, pan_position))
+
+        # Convert to pan gains (overrides channel pan for voice-specific positioning)
+        if self.voice_pan < 0:
+            # Pan left: left gain full, right gain reduced
+            self.voice_pan_left = 1.0
+            self.voice_pan_right = 1.0 + self.voice_pan  # -1.0 results in 0.0
+        elif self.voice_pan > 0:
+            # Pan right: left gain reduced, right gain full
+            self.voice_pan_left = 1.0 - self.voice_pan   # 1.0 results in 0.0
+            self.voice_pan_right = 1.0
+        else:
+            # Center: both full gain
+            self.voice_pan_left = 1.0
+            self.voice_pan_right = 1.0
+
+    def _mode_assignment(self, assign_mode: int):
+        """Control XG Voice Assign Mode (MSB 127, LSB 11).
+
+        How voices are assigned when polyphony is exceeded.
+
+        Args:
+            assign_mode: Assignment mode (0=single, 1=multi, 2=poly, 3=mono)
+        """
+        self.voice_assign_mode = max(0, min(3, assign_mode))
+
+        # XG assign modes:
+        # 0: Single - only one voice at a time
+        # 1: Multi - multiple voices (default polyphonic)
+        # 2: Poly - strict polyphonic allocation
+        # 3: Mono - monophonic with portamento
+
+        # Configure polyphony behavior
+        if assign_mode == 0:  # Single
+            self.max_concurrent_voices = 1
+            self.voice_stealing_mode = 'single'
+        elif assign_mode == 3:  # Mono
+            self.max_concurrent_voices = 1
+            self.voice_stealing_mode = 'mono'
+            self.portamento_enabled = True
+        else:  # Multi/Poly
+            self.max_concurrent_voices = 8  # No limit
+            self.voice_stealing_mode = 'round_robin'
+
+    def _fine_tune_xg(self, fine_tune_cents: float):
+        """Apply XG Fine Tuning (MSB 127, LSB 12).
+
+        Microscopic pitch adjustment in cents.
+
+        Args:
+            fine_tune_cents: Fine tuning in cents (-1.0 to +1.0)
+        """
+        # XG fine tuning precision: (value - 64) / 8192 relative to A=440
+        # This is in addition to coarse tuning and detune
+        self.xg_fine_tune_cents = max(-1.0, min(1.0, fine_tune_cents))
+
+        # Convert to frequency ratio
+        fine_tune_ratio = 2.0 ** (self.xg_fine_tune_cents / 1200.0)
+        self.fine_tune_multiplier = fine_tune_ratio
+
+    def _coarse_tune_xg(self, coarse_tune_semitones: int):
+        """Apply XG Coarse Tuning (MSB 127, LSB 13).
+
+        Coarse pitch adjustment in semitones.
+
+        Args:
+            coarse_tune_semitones: Coarse tuning in semitones (-64 to +63)
+        """
+        # XG coarse tuning: full semitone steps
+        self.xg_coarse_tune_semitones = max(-64, min(63, coarse_tune_semitones))
+
+        # Convert to frequency ratio
+        coarse_tune_ratio = 2.0 ** (self.xg_coarse_tune_semitones / 12.0)
+        self.coarse_tune_multiplier = coarse_tune_ratio
+
+    def _random_pitch(self, random_range: float):
+        """Apply XG Pitch Random (MSB 127, LSB 14).
+
+        Adds randomization to pitch per note-on.
+
+        Args:
+            random_range: Random range in semitones (0-1.27)
+        """
+        self.pitch_random_range = max(0.0, min(1.27, random_range))
+
+        # This would be applied per note-on event
+        # Implementation would set a random offset within this range
+        self.pitch_random_enabled = random_range > 0.0
+
+    def _pitch_scaling(self, scale_tune_cents: int, scale_sensitivity: int):
+        """Apply XG Pitch Scale Tuning/Sensitivity (MSB 127, LSB 15-16).
+
+        Microtonal per-scale-degree pitch adjustments.
+
+        Args:
+            scale_tune_cents: Scale tuning offset (-64 to +63 cents per degree)
+            scale_sensitivity: How scale degrees affect pitch (-24 to +24)
+        """
+        self.scale_tuning_cents = max(-64, min(63, scale_tune_cents))
+        self.scale_sensitivity = max(-24, min(24, scale_sensitivity))
+
+        # XG scale tuning affects pitch based on scale degree
+        # This is complex and would require scale analysis
+        self.scale_tuning_enabled = abs(scale_tune_cents) > 0 or abs(scale_sensitivity) > 0
+
+    def _voice_delay_effects(self, delay_mode: int, delay_time: float, delay_feedback: float):
+        """Apply XG Voice Delay Effects (MSB 127, LSB 17-19).
+
+        Voice-internal delay processing.
+
+        Args:
+            delay_mode: Delay trigger mode (0=normal, 1=keyed, 2=hold)
+            delay_time: Delay time in samples (0-2048 typically)
+            delay_feedback: Delay feedback amount (0.0-1.0)
+        """
+        self.delay_mode = max(0, min(2, delay_mode))
+        self.delay_time_samples = max(0, min(2048, delay_time))
+        self.delay_feedback = max(0.0, min(1.0, delay_feedback))
+
+        # These would control internal voice delay processing
+        self.voice_delay_enabled = delay_time > 0

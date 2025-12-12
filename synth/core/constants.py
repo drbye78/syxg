@@ -139,6 +139,11 @@ DEFAULT_CONFIG = {
     "NUM_MIDI_CHANNELS": 16
 }
 
+# Convenience constants (exposed for easier import)
+SAMPLE_RATE = DEFAULT_CONFIG["SAMPLE_RATE"]
+BLOCK_SIZE = DEFAULT_CONFIG["BLOCK_SIZE"]
+MAX_POLYPHONY = DEFAULT_CONFIG["MAX_POLYPHONY"]
+
 # Voice Allocation Modes
 VOICE_ALLOCATION_MODES = {
     "POLY1": 0,   # Basic polyphonic mode
@@ -166,4 +171,117 @@ DEFAULT_DRUM_PARAMETERS = {
     "eg_release": 0.5,    # Medium release
     "pitch_coarse": 0,    # No coarse tuning
     "pitch_fine": 0,      # No fine tuning
+}
+
+# XG Voice NRPN Parameters - Complete XG Voice Parameter Mapping
+XG_VOICE_NRPN_PARAMS = {
+    # Element Switch Parameters (MSB 127, LSB 0-7)
+    0: "element_switch",        # Bit field for active elements
+    1: "element_switch_lsb",    # LSB for element switch (reserved)
+
+    # Voice Parameters (MSB 127, LSB 8-127)
+    8: "detune",                   # Voice detune (±400 cents)
+    9: "volume",                   # Voice volume (0-127)
+    10: "pan",                     # Voice pan (-64 to +63)
+    11: "assign_mode",            # Voice assignment mode (0-2)
+    12: "coarse_tune",            # Coarse tuning (-24 to +24 semitones)
+    13: "fine_tune",              # Fine tuning (-50 to +50 cents)
+
+    # Filter Parameters (MSB 127, LSB 32-47)
+    32: "filter_cutoff_freq",     # Filter cutoff frequency (0-127)
+    33: "filter_resonance",       # Filter resonance (0-127)
+    34: "filter_eg_depth",        # Filter EG depth (±63)
+    35: "filter_lfo_depth",       # Filter LFO depth (0-127)
+
+    # Envelope Parameters (MSB 127, LSB 48-96)
+    48: "amp_attack_time",        # Amplitude envelope attack time (0-127)
+    49: "amp_decay_time",         # Amplitude envelope decay time (0-127)
+    50: "amp_sustain_level",      # Amplitude envelope sustain level (0-127)
+    51: "amp_release_time",       # Amplitude envelope release time (0-127)
+    52: "filter_attack_time",     # Filter envelope attack time (0-127)
+    53: "filter_decay_time",      # Filter envelope decay time (0-127)
+    54: "filter_sustain_level",   # Filter envelope sustain level (0-127)
+    55: "filter_release_time",    # Filter envelope release time (0-127)
+
+    # LFO Parameters (MSB 127, LSB 97-120)
+    97: "lfo_speed",              # LFO speed (0-127)
+    98: "lfo_depth",              # LFO depth (0-127)
+    99: "lfo_waveform",           # LFO waveform type (0-3)
+    100: "lfo_delay",              # LFO delay time (0-127)
+
+    # Reserved for future XG Voice parameters
+    121: "reserved_1",
+    122: "reserved_2",
+    123: "reserved_3",
+    124: "reserved_4",
+    125: "reserved_5",
+    126: "reserved_6",
+    127: "reserved_7",
+}
+
+# Convenience mapping for XG Voice NRPN parameters
+XG_VOICE_NRPN_NAMES = {v: k for k, v in XG_VOICE_NRPN_PARAMS.items()}
+
+# XG System Effects NRPN Parameters
+XG_SYSTEM_EFFECTS_NRPN = {
+    # Reverb Parameters (MSB 0)
+    0: "reverb_type",
+    1: "reverb_time",
+    2: "reverb_diffusion",
+    3: "reverb_pre_delay",
+    4: "reverb_tone",
+    5: "reverb_level",
+
+    # Chorus Parameters (MSB 1)
+    8: "chorus_type",
+    9: "chorus_lfo_freq",
+    10: "chorus_depth",
+    11: "chorus_feedback",
+    12: "chorus_send_to_reverb",
+    13: "chorus_level",
+
+    # Variation Parameters (MSB 2)
+    16: "variation_type",
+    17: "variation_parameter1",
+    18: "variation_parameter2",
+    19: "variation_parameter3",
+    20: "variation_parameter4",
+    21: "variation_parameter5",
+    22: "variation_parameter6",
+    23: "variation_parameter7",
+    24: "variation_parameter8",
+    25: "variation_level",
+
+    # Multi Effects Parameters (MSB 3)
+    26: "multi_fx_type",
+    27: "multi_fx_part_parameter",
+    28: "multi_fx_return_level",
+    29: "multi_fx_pan",
+    30: "multi_fx_send_reverb",
+    31: "multi_fx_send_chorus",
+    32: "multi_fx_send_delay",
+}
+
+# XG Drum Kit NRPN Parameters (MSB 40-41)
+XG_DRUM_NRPN_PARAMS = {
+    # Drum Note Parameters (MSB 40, LSB 0-127 = MIDI note numbers)
+    0: "drum_tune",              # Fine tuning (-64 to +63)
+    1: "drum_level",             # Note level (0-127)
+    2: "drum_pan",               # Note pan (-64 to +63)
+    3: "drum_reverb",            # Reverb send (0-127)
+    4: "drum_chorus",            # Chorus send (0-127)
+    5: "drum_variation",         # Variation send (0-127)
+    6: "drum_cutoff",            # Filter cutoff frequency (0-127)
+    7: "drum_resonance",         # Filter resonance (0-127)
+    8: "drum_eg_attack",         # EG attack time (0-127)
+    9: "drum_eg_decay",          # EG decay time (0-127)
+    10: "drum_eg_release",        # EG release time (0-127)
+    11: "drum_pitch_coarse",     # Coarse pitch tuning (-24 to +24 semitones)
+    12: "drum_pitch_fine",       # Fine pitch tuning (-50 to +50 cents)
+
+    # Drum Kit Selection (MSB 41, LSB 0)
+    256: "drum_kit_select",       # MSB for drum kit selection (bank select)
+
+    # Drum Setup Channel (MSB 40 or 41, LSB 254)
+    254: "drum_setup_channel",    # Channel 16 (0-based: 15) - drum setup channel
 }

@@ -1,30 +1,21 @@
-# MIDI to MP3 Converter Configuration File
+audio:
+  sample_rate: 44100
+  chunk_duration_ms: 50
+  max_polyphony: 128
+  master_volume: 1.0
 
-# Audio settings
-sample_rate: 48000
-chunk_size_ms: 50
-max_polyphony: 512
-master_volume: 1.0
+soundfonts:
+  - "sine_test_final_corrected.sf2"
 
-# SoundFont files
-sf2_files:
-  - "tests/ref.sf2" 
+output:
+  format: "wav"
+  quality: 5
 
-# # Bank blacklists (exclude specific banks from SF2 files)
-# bank_blacklists:
-#   "soundfonts/FluidR3_GM.sf2":
-#     - 120
-#     - 121
-#     - 122
+midi:
+  default_tempo: 120
+  default_velocity: 100
 
-# # Preset blacklists (exclude specific presets from SF2 files)
-# preset_blacklists:
-#   "soundfonts/FluidR3_GM.sf2":
-#     - [0, 30]  # Bank 0, Program 30
-#     - [0, 31]  # Bank 0, Program 31
-
-# # Bank mappings (map MIDI banks to SF2 banks)
-# bank_mappings:
-#   "soundfonts/FluidR3_GM.sf2":
-#     1: 0  # Map MIDI bank 1 to SF2 bank 0
-#     2: 1  # Map MIDI bank 2 to SF2 bank 1
+performance:
+  use_vectorization: true
+  use_threading: false
+  buffer_size: 8192

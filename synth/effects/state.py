@@ -37,6 +37,7 @@ class EffectStateManager:
     def _create_empty_state(self) -> Dict[str, Any]:
         """Create an empty state structure"""
         return {
+            "system_params": {},
             "reverb_params": {},
             "chorus_params": {},
             "variation_params": {},
@@ -164,6 +165,7 @@ class EffectStateManager:
     def _copy_state(self, source: Dict[str, Any], dest: Dict[str, Any]):
         """Copy state from source to destination"""
         with self.state_lock:
+            dest["system_params"] = source.get("system_params", {}).copy()
             dest["reverb_params"] = source["reverb_params"].copy()
             dest["chorus_params"] = source["chorus_params"].copy()
             dest["variation_params"] = source["variation_params"].copy()
