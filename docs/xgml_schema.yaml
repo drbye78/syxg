@@ -1,0 +1,993 @@
+# XGML Schema Definition (JSON Schema compatible)
+# XG Markup Language - High-level YAML interface for XG synthesizer control
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://github.com/drbye78/syxg/xgml-schema.yaml"
+title: "XGML Schema"
+description: "Schema for XG Markup Language (XGML) documents - high-level YAML interface for Yamaha XG synthesizer control"
+type: object
+
+# Required properties
+required:
+  - xg_dsl_version
+
+# XGML Document Structure
+properties:
+  # Version information
+  xg_dsl_version:
+    type: string
+    enum: ["1.0"]
+    description: "XGML DSL version"
+
+  # Optional metadata
+  description:
+    type: string
+    description: "Human-readable description of the XGML document"
+
+  timestamp:
+    type: string
+    format: date-time
+    description: "ISO 8601 timestamp when the document was created"
+
+  # Main content sections
+  basic_messages:
+    $ref: "#/definitions/BasicMessages"
+    description: "Static MIDI messages applied at initialization"
+
+  rpn_parameters:
+    $ref: "#/definitions/RPNParameters"
+    description: "Registered Parameter Number settings"
+
+  channel_parameters:
+    $ref: "#/definitions/ChannelParameters"
+    description: "XG channel parameters (NRPN MSB 3-31)"
+
+  drum_parameters:
+    $ref: "#/definitions/DrumParameters"
+    description: "XG drum kit parameters (NRPN MSB 40-41)"
+
+  system_exclusive:
+    $ref: "#/definitions/SystemExclusive"
+    description: "System exclusive messages"
+
+  modulation_routing:
+    $ref: "#/definitions/ModulationRouting"
+    description: "Advanced modulation routing configuration"
+
+  effects:
+    $ref: "#/definitions/Effects"
+    description: "XG effects configuration"
+
+  presets:
+    $ref: "#/definitions/Presets"
+    description: "Instrument and arrangement presets"
+
+  advanced_features:
+    $ref: "#/definitions/AdvancedFeatures"
+    description: "Advanced XG features"
+
+  sequences:
+    $ref: "#/definitions/Sequences"
+    description: "Time-bound musical sequences"
+
+# Additional properties allowed for extensibility
+additionalProperties: false
+
+# Schema definitions
+definitions:
+
+  # ============================================================================
+  # BASIC MESSAGES
+  # ============================================================================
+  BasicMessages:
+    type: object
+    properties:
+      channels:
+        type: object
+        patternProperties:
+          "^channel_[1-9][0-6]?$":  # channel_1 to channel_16
+            $ref: "#/definitions/ChannelConfig"
+        additionalProperties: false
+    additionalProperties: false
+
+  ChannelConfig:
+    type: object
+    properties:
+      program_change:
+        oneOf:
+          - type: string
+            enum: [
+              "acoustic_grand_piano", "bright_acoustic_piano", "electric_grand_piano", "honky_tonk_piano",
+              "electric_piano_1", "electric_piano_2", "harpsichord", "clavinet", "celesta", "glockenspiel",
+              "music_box", "vibraphone", "marimba", "xylophone", "tubular_bells", "dulcimer",
+              "drawbar_organ", "percussive_organ", "rock_organ", "church_organ", "reed_organ",
+              "accordion", "harmonica", "tango_accordion", "nylon_string_guitar", "steel_string_guitar",
+              "electric_jazz_guitar", "electric_clean_guitar", "electric_muted_guitar", "overdriven_guitar",
+              "distortion_guitar", "guitar_harmonics", "acoustic_bass", "electric_bass_finger",
+              "electric_bass_pick", "fretless_bass", "slap_bass_1", "slap_bass_2", "synth_bass_1", "synth_bass_2",
+              "violin", "viola", "cello", "contrabass", "tremolo_strings", "pizzicato_strings",
+              "orchestral_harp", "timpani", "string_ensemble_1", "string_ensemble_2", "synth_strings_1",
+              "synth_strings_2", "choir_aahs", "voice_oohs", "synth_voice", "orchestra_hit",
+              "trumpet", "trombone", "tuba", "muted_trumpet", "french_horn", "brass_section",
+              "synth_brass_1", "synth_brass_2", "soprano_sax", "alto_sax", "tenor_sax", "baritone_sax",
+              "oboe", "english_horn", "bassoon", "clarinet", "piccolo", "flute", "recorder", "pan_flute",
+              "blown_bottle", "shakuhachi", "whistle", "ocarina", "lead_1_square", "lead_2_sawtooth",
+              "lead_3_calliope", "lead_4_chiff", "lead_5_charang", "lead_6_voice", "lead_7_fifths", "lead_8_bass_lead",
+              "pad_1_new_age", "pad_2_warm", "pad_3_polysynth", "pad_4_choir", "pad_5_bowed", "pad_6_metallic",
+              "pad_7_halo", "pad_8_sweep", "fx_1_rain", "fx_2_soundtrack", "fx_3_crystal", "fx_4_atmosphere",
+              "fx_5_brightness", "fx_6_goblins", "fx_7_echoes", "fx_8_sci_fi", "sitar", "banjo", "shamisen",
+              "koto", "kalimba", "bag_pipe", "fiddle", "shanai", "tinkle_bell", "agogo", "steel_drums",
+              "woodblock", "taiko_drum", "melodic_tom", "synth_drum", "reverse_cymbal", "guitar_fret_noise",
+              "breath_noise", "seashore", "bird_tweet", "telephone_ring", "helicopter", "applause", "gunshot"
+            ]
+          - type: integer
+            minimum: 0
+            maximum: 127
+        description: "Program change - instrument selection"
+
+      bank_msb:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Bank Select MSB"
+
+      bank_lsb:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Bank Select LSB"
+
+      volume:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Channel volume"
+
+      pan:
+        oneOf:
+          - type: string
+            enum: ["left", "center", "right", "left_10", "left_20", "left_30", "right_10", "right_20", "right_30"]
+          - type: integer
+            minimum: 0
+            maximum: 127
+        description: "Pan position"
+
+      expression:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Expression controller"
+
+      reverb_send:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Reverb send level"
+
+      chorus_send:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Chorus send level"
+
+      brightness:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG brightness (filter cutoff)"
+
+      harmonic_content:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG harmonic content (filter resonance)"
+
+      release_time:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG release time"
+
+      attack_time:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG attack time"
+
+      decay_time:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG decay time"
+
+      vibrato_rate:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG vibrato rate"
+
+      vibrato_depth:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG vibrato depth"
+
+      vibrato_delay:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG vibrato delay"
+
+      sustain:
+        type: boolean
+        description: "Sustain pedal"
+
+      portamento:
+        type: boolean
+        description: "Portamento on/off"
+
+      sostenuto:
+        type: boolean
+        description: "Sostenuto pedal"
+
+      soft_pedal:
+        type: boolean
+        description: "Soft pedal"
+
+      legato_foot:
+        type: boolean
+        description: "Legato foot switch"
+
+      hold_2:
+        type: boolean
+        description: "Hold 2 pedal"
+
+      sound_variation:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG sound variation"
+
+      tremor:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "XG tremor intensity"
+    additionalProperties: false
+
+  # ============================================================================
+  # RPN PARAMETERS
+  # ============================================================================
+  RPNParameters:
+    type: object
+    properties:
+      global:
+        $ref: "#/definitions/RPNGlobalParams"
+      channel_1:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_2:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_3:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_4:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_5:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_6:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_7:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_8:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_9:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_10:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_11:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_12:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_13:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_14:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_15:
+        $ref: "#/definitions/RPNChannelParams"
+      channel_16:
+        $ref: "#/definitions/RPNChannelParams"
+    additionalProperties: false
+
+  RPNGlobalParams:
+    type: object
+    properties:
+      pitch_bend_range:
+        type: integer
+        minimum: 0
+        maximum: 24
+        description: "Global pitch bend range in semitones"
+      fine_tuning:
+        type: integer
+        minimum: -100
+        maximum: 100
+        description: "Global fine tuning in cents"
+      coarse_tuning:
+        type: integer
+        minimum: -24
+        maximum: 24
+        description: "Global coarse tuning in semitones"
+      modulation_depth_range:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Global modulation depth range"
+      tuning_program_select:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Tuning program select"
+      tuning_bank_select:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Tuning bank select"
+    additionalProperties: false
+
+  RPNChannelParams:
+    type: object
+    properties:
+      pitch_bend_range:
+        type: integer
+        minimum: 0
+        maximum: 24
+        description: "Channel pitch bend range in semitones"
+      fine_tuning:
+        type: integer
+        minimum: -100
+        maximum: 100
+        description: "Channel fine tuning in cents"
+      coarse_tuning:
+        type: integer
+        minimum: -24
+        maximum: 24
+        description: "Channel coarse tuning in semitones"
+      modulation_depth_range:
+        type: integer
+        minimum: 0
+        maximum: 127
+        description: "Channel modulation depth range"
+    additionalProperties: false
+
+  # ============================================================================
+  # CHANNEL PARAMETERS (NRPN MSB 3-31)
+  # ============================================================================
+  ChannelParameters:
+    type: object
+    patternProperties:
+      "^channel_[1-9][0-6]?$":
+        $ref: "#/definitions/ChannelParameterSet"
+    additionalProperties: false
+
+  ChannelParameterSet:
+    type: object
+    properties:
+      # Basic Channel Parameters (MSB 3)
+      volume:
+        type: object
+        properties:
+          coarse:
+            type: integer
+            minimum: 0
+            maximum: 127
+          fine:
+            type: integer
+            minimum: 0
+            maximum: 127
+        additionalProperties: false
+
+      pan:
+        type: object
+        properties:
+          coarse:
+            oneOf:
+              - type: string
+                enum: ["left", "center", "right", "left_10", "left_20", "left_30", "right_10", "right_20", "right_30"]
+              - type: integer
+                minimum: 0
+                maximum: 127
+          fine:
+            type: integer
+            minimum: 0
+            maximum: 127
+        additionalProperties: false
+
+      expression:
+        type: object
+        properties:
+          coarse:
+            type: integer
+            minimum: 0
+            maximum: 127
+          fine:
+            type: integer
+            minimum: 0
+            maximum: 127
+        additionalProperties: false
+
+      modulation_depth:
+        type: integer
+        minimum: 0
+        maximum: 127
+
+      modulation_speed:
+        type: integer
+        minimum: 0
+        maximum: 127
+
+      # Filter Parameters (MSB 5-6)
+      filter:
+        type: object
+        properties:
+          cutoff:
+            type: integer
+            minimum: 0
+            maximum: 127
+          resonance:
+            type: integer
+            minimum: 0
+            maximum: 127
+          type:
+            type: string
+            enum: ["lowpass", "highpass", "bandpass", "bandreject"]
+          envelope:
+            type: object
+            properties:
+              attack:
+                type: integer
+                minimum: 0
+                maximum: 127
+              decay:
+                type: integer
+                minimum: 0
+                maximum: 127
+              sustain:
+                type: integer
+                minimum: 0
+                maximum: 127
+              release:
+                type: integer
+                minimum: 0
+                maximum: 127
+            additionalProperties: false
+        additionalProperties: false
+
+      # Amplifier Envelope (MSB 7-8)
+      amplifier:
+        type: object
+        properties:
+          envelope:
+            type: object
+            properties:
+              attack:
+                type: integer
+                minimum: 0
+                maximum: 127
+              decay:
+                type: integer
+                minimum: 0
+                maximum: 127
+              sustain:
+                type: integer
+                minimum: 0
+                maximum: 127
+              release:
+                type: integer
+                minimum: 0
+                maximum: 127
+            additionalProperties: false
+          velocity_sensitivity:
+            type: integer
+            minimum: 0
+            maximum: 127
+          key_scaling:
+            type: integer
+            minimum: 0
+            maximum: 127
+        additionalProperties: false
+
+      # LFO Parameters (MSB 9-10)
+      lfo:
+        type: object
+        properties:
+          lfo1:
+            $ref: "#/definitions/LFOConfig"
+          lfo2:
+            $ref: "#/definitions/LFOConfig"
+        additionalProperties: false
+
+      # Effects Send (MSB 11-12)
+      effects_sends:
+        type: object
+        properties:
+          reverb:
+            type: integer
+            minimum: 0
+            maximum: 127
+          chorus:
+            type: integer
+            minimum: 0
+            maximum: 127
+          variation:
+            type: integer
+            minimum: 0
+            maximum: 127
+          dry_level:
+            type: integer
+            minimum: 0
+            maximum: 127
+          insertion:
+            type: object
+            properties:
+              part_l:
+                type: integer
+                minimum: 0
+                maximum: 127
+              part_r:
+                type: integer
+                minimum: 0
+                maximum: 127
+              connection:
+                type: string
+                enum: ["system", "insertion"]
+            additionalProperties: false
+        additionalProperties: false
+
+      # Controller Assignments (MSB 15-16)
+      controller_assignments:
+        type: object
+        properties:
+          mod_wheel:
+            type: string
+            enum: ["off", "modulation", "volume", "pan", "expression", "reverb_send", "chorus_send", "variation_send", "filter_cutoff", "filter_resonance", "pitch_modulation", "portamento_time", "pitch_bend_range"]
+          foot_controller:
+            type: string
+            enum: ["off", "modulation", "volume", "pan", "expression", "reverb_send", "chorus_send", "variation_send", "filter_cutoff", "filter_resonance", "pitch_modulation", "portamento_time", "pitch_bend_range"]
+          aftertouch:
+            type: string
+            enum: ["off", "modulation", "volume", "pan", "expression", "reverb_send", "chorus_send", "variation_send", "filter_cutoff", "filter_resonance", "pitch_modulation", "portamento_time", "pitch_bend_range"]
+          breath_controller:
+            type: string
+            enum: ["off", "modulation", "volume", "pan", "expression", "reverb_send", "chorus_send", "variation_send", "filter_cutoff", "filter_resonance", "pitch_modulation", "portamento_time", "pitch_bend_range"]
+          general1:
+            type: string
+            enum: ["off", "modulation", "volume", "pan", "expression", "reverb_send", "chorus_send", "variation_send", "filter_cutoff", "filter_resonance", "pitch_modulation", "portamento_time", "pitch_bend_range"]
+          general2:
+            type: string
+            enum: ["off", "modulation", "volume", "pan", "expression", "reverb_send", "chorus_send", "variation_send", "filter_cutoff", "filter_resonance", "pitch_modulation", "portamento_time", "pitch_bend_range"]
+        additionalProperties: false
+
+      # Scale Tuning (MSB 17-18)
+      scale_tuning:
+        type: object
+        properties:
+          notes:
+            type: object
+            properties:
+              c:
+                type: integer
+                minimum: 0
+                maximum: 127
+              csharp:
+                type: integer
+                minimum: 0
+                maximum: 127
+              d:
+                type: integer
+                minimum: 0
+                maximum: 127
+              dsharp:
+                type: integer
+                minimum: 0
+                maximum: 127
+              e:
+                type: integer
+                minimum: 0
+                maximum: 127
+              f:
+                type: integer
+                minimum: 0
+                maximum: 127
+              fsharp:
+                type: integer
+                minimum: 0
+                maximum: 127
+              g:
+                type: integer
+                minimum: 0
+                maximum: 127
+              gsharp:
+                type: integer
+                minimum: 0
+                maximum: 127
+              a:
+                type: integer
+                minimum: 0
+                maximum: 127
+              asharp:
+                type: integer
+                minimum: 0
+                maximum: 127
+              b:
+                type: integer
+                minimum: 0
+                maximum: 127
+            additionalProperties: false
+          octave_tune:
+            type: integer
+            minimum: 0
+            maximum: 127
+        additionalProperties: false
+
+      # Velocity Response (MSB 19)
+      velocity_response:
+        type: object
+        properties:
+          curve:
+            type: integer
+            minimum: 0
+            maximum: 9
+          offset:
+            type: integer
+            minimum: 0
+            maximum: 127
+          range:
+            type: integer
+            minimum: 0
+            maximum: 127
+        additionalProperties: false
+    additionalProperties: false
+
+  LFOConfig:
+    type: object
+    properties:
+      waveform:
+        type: string
+        enum: ["triangle", "sawtooth", "square", "sine"]
+      speed:
+        type: integer
+        minimum: 0
+        maximum: 127
+      delay:
+        type: integer
+        minimum: 0
+        maximum: 127
+      fade_time:
+        type: integer
+        minimum: 0
+        maximum: 127
+      pitch_depth:
+        type: integer
+        minimum: 0
+        maximum: 127
+      filter_depth:
+        type: integer
+        minimum: 0
+        maximum: 127
+      amp_depth:
+        type: integer
+        minimum: 0
+        maximum: 127
+    additionalProperties: false
+
+  # ============================================================================
+  # SEQUENCES (Time-bound Events)
+  # ============================================================================
+  Sequences:
+    type: object
+    additionalProperties:
+      $ref: "#/definitions/SequenceDefinition"
+
+  SequenceDefinition:
+    type: object
+    properties:
+      tempo:
+        type: integer
+        minimum: 30
+        maximum: 300
+        default: 120
+        description: "Sequence tempo in BPM"
+
+      time_signature:
+        type: string
+        pattern: "^\\d+/\\d+$"
+        default: "4/4"
+        description: "Time signature (e.g., '4/4', '3/4')"
+
+      quantization:
+        type: string
+        enum: ["1/1", "1/2", "1/4", "1/8", "1/16", "1/32"]
+        default: "1/8"
+        description: "Note quantization"
+
+      duration:
+        type: number
+        minimum: 0
+        description: "Total sequence duration in seconds"
+
+      tracks:
+        type: array
+        items:
+          $ref: "#/definitions/TrackDefinition"
+    additionalProperties: false
+    required: ["tracks"]
+
+  TrackDefinition:
+    type: object
+    properties:
+      track:
+        $ref: "#/definitions/TrackContent"
+    additionalProperties: false
+    required: ["track"]
+
+  TrackContent:
+    type: object
+    properties:
+      channel:
+        type: integer
+        minimum: 0
+        maximum: 15
+        description: "MIDI channel (0-15)"
+
+      parameters:
+        type: object
+        description: "Default track parameters"
+        additionalProperties: true  # Allow any controller parameters
+
+      events:
+        type: array
+        items:
+          $ref: "#/definitions/EventDefinition"
+    additionalProperties: false
+    required: ["channel", "events"]
+
+  EventDefinition:
+    type: object
+    properties:
+      at:
+        type: object
+        properties:
+          time:
+            type: number
+            minimum: 0
+            description: "Event time in seconds"
+        additionalProperties:
+          $ref: "#/definitions/EventContent"
+    additionalProperties: false
+    required: ["at"]
+
+  EventContent:
+    oneOf:
+      - $ref: "#/definitions/NoteEvent"
+      - $ref: "#/definitions/ControllerEvent"
+      - $ref: "#/definitions/ProgramChangeEvent"
+      - $ref: "#/definitions/PitchBendEvent"
+      - $ref: "#/definitions/ComplexEvent"
+
+  NoteEvent:
+    type: object
+    properties:
+      note_on:
+        type: object
+        properties:
+          note:
+            oneOf:
+              - type: string
+                pattern: "^[A-G]#?[0-8]$"
+              - type: integer
+                minimum: 0
+                maximum: 127
+          velocity:
+            type: integer
+            minimum: 1
+            maximum: 127
+        additionalProperties: false
+        required: ["note"]
+      note_off:
+        type: object
+        properties:
+          note:
+            oneOf:
+              - type: string
+                pattern: "^[A-G]#?[0-8]$"
+              - type: integer
+                minimum: 0
+                maximum: 127
+          velocity:
+            type: integer
+            minimum: 0
+            maximum: 127
+            default: 40
+        additionalProperties: false
+        required: ["note"]
+    additionalProperties: false
+
+  ControllerEvent:
+    type: object
+    patternProperties:
+      "^(volume|pan|expression|modulation|breath_controller|foot_controller|portamento_time|data_entry_msb|balance|effect_control_1|effect_control_2|brightness|harmonic_content|release_time|attack_time|decay_time|vibrato_rate|vibrato_depth|vibrato_delay|reverb_send|chorus_send|variation_send|external_data|sound_variation|tremor|sustain|portamento|sostenuto|soft_pedal|legato_foot|hold_2)$":
+        oneOf:
+          - type: integer
+            minimum: 0
+            maximum: 127
+          - type: boolean
+          - type: string
+            enum: ["left", "center", "right", "left_10", "left_20", "left_30", "right_10", "right_20", "right_30"]
+          - type: object  # Complex controller values with from/to/curve
+            properties:
+              from:
+                oneOf:
+                  - type: integer
+                    minimum: 0
+                    maximum: 127
+                  - type: boolean
+                  - type: string
+                    enum: ["left", "center", "right", "left_10", "left_20", "left_30", "right_10", "right_20", "right_30"]
+              to:
+                oneOf:
+                  - type: integer
+                    minimum: 0
+                    maximum: 127
+                  - type: boolean
+                  - type: string
+                    enum: ["left", "center", "right", "left_10", "left_20", "left_30", "right_10", "right_20", "right_30"]
+              curve:
+                type: string
+                enum: ["linear", "exponential", "sine_wave", "triangle_wave", "sawtooth_wave", "square_wave", "adsr", "ar", "one_shot", "crescendo", "diminuendo", "vibrato", "tremolo", "glissando"]
+              duration:
+                type: number
+                minimum: 0
+            additionalProperties: false
+    additionalProperties: false
+
+  ProgramChangeEvent:
+    type: object
+    properties:
+      program_change:
+        oneOf:
+          - type: string
+            enum: [
+              "acoustic_grand_piano", "bright_acoustic_piano", "electric_grand_piano", "honky_tonk_piano",
+              "electric_piano_1", "electric_piano_2", "harpsichord", "clavinet", "celesta", "glockenspiel",
+              "music_box", "vibraphone", "marimba", "xylophone", "tubular_bells", "dulcimer",
+              "drawbar_organ", "percussive_organ", "rock_organ", "church_organ", "reed_organ",
+              "accordion", "harmonica", "tango_accordion", "nylon_string_guitar", "steel_string_guitar",
+              "electric_jazz_guitar", "electric_clean_guitar", "electric_muted_guitar", "overdriven_guitar",
+              "distortion_guitar", "guitar_harmonics", "acoustic_bass", "electric_bass_finger",
+              "electric_bass_pick", "fretless_bass", "slap_bass_1", "slap_bass_2", "synth_bass_1", "synth_bass_2",
+              "violin", "viola", "cello", "contrabass", "tremolo_strings", "pizzicato_strings",
+              "orchestral_harp", "timpani", "string_ensemble_1", "string_ensemble_2", "synth_strings_1",
+              "synth_strings_2", "choir_aahs", "voice_oohs", "synth_voice", "orchestra_hit",
+              "trumpet", "trombone", "tuba", "muted_trumpet", "french_horn", "brass_section",
+              "synth_brass_1", "synth_brass_2", "soprano_sax", "alto_sax", "tenor_sax", "baritone_sax",
+              "oboe", "english_horn", "bassoon", "clarinet", "piccolo", "flute", "recorder", "pan_flute",
+              "blown_bottle", "shakuhachi", "whistle", "ocarina", "lead_1_square", "lead_2_sawtooth",
+              "lead_3_calliope", "lead_4_chiff", "lead_5_charang", "lead_6_voice", "lead_7_fifths", "lead_8_bass_lead",
+              "pad_1_new_age", "pad_2_warm", "pad_3_polysynth", "pad_4_choir", "pad_5_bowed", "pad_6_metallic",
+              "pad_7_halo", "pad_8_sweep", "fx_1_rain", "fx_2_soundtrack", "fx_3_crystal", "fx_4_atmosphere",
+              "fx_5_brightness", "fx_6_goblins", "fx_7_echoes", "fx_8_sci_fi", "sitar", "banjo", "shamisen",
+              "koto", "kalimba", "bag_pipe", "fiddle", "shanai", "tinkle_bell", "agogo", "steel_drums",
+              "woodblock", "taiko_drum", "melodic_tom", "synth_drum", "reverse_cymbal", "guitar_fret_noise",
+              "breath_noise", "seashore", "bird_tweet", "telephone_ring", "helicopter", "applause", "gunshot"
+            ]
+          - type: integer
+            minimum: 0
+            maximum: 127
+    additionalProperties: false
+
+  PitchBendEvent:
+    type: object
+    properties:
+      pitch_bend:
+        oneOf:
+          - type: integer
+            minimum: -8192
+            maximum: 8191
+          - type: object
+            properties:
+              value:
+                type: integer
+                minimum: -8192
+                maximum: 8191
+              curve:
+                type: string
+                enum: ["linear", "exponential", "sine_wave", "triangle_wave"]
+              duration:
+                type: number
+                minimum: 0
+            additionalProperties: false
+    additionalProperties: false
+
+  ComplexEvent:
+    type: object
+    properties:
+      chord:
+        type: object
+        properties:
+          notes:
+            type: array
+            items:
+              oneOf:
+                - type: string
+                  pattern: "^[A-G]#?[0-8]$"
+                - type: integer
+                  minimum: 0
+                  maximum: 127
+            minItems: 2
+          velocity:
+            type: integer
+            minimum: 1
+            maximum: 127
+          duration:
+            type: number
+            minimum: 0
+          voicing:
+            type: string
+            enum: ["spread", "close", "drop2", "drop3"]
+          articulation:
+            type: string
+            enum: ["legato", "staccato", "accent", "tenuto"]
+        additionalProperties: false
+        required: ["notes"]
+
+      system_exclusive:
+        type: object
+        properties:
+          manufacturer:
+            type: string
+            enum: ["yamaha"]
+          model:
+            type: string
+            enum: ["xg"]
+          command:
+            type: string
+            enum: ["parameter_change", "bulk_dump", "request"]
+          address:
+            type: string
+            pattern: "^0x[0-9A-Fa-f]+$"
+          values:
+            type: object
+            additionalProperties: true
+        additionalProperties: false
+    additionalProperties: false
+
+  # ============================================================================
+  # PLACEHOLDER DEFINITIONS (for future expansion)
+  # ============================================================================
+  DrumParameters:
+    type: object
+    description: "XG drum kit parameters (NRPN MSB 40-41)"
+    # Implementation would define drum note parameters
+
+  SystemExclusive:
+    type: object
+    description: "System exclusive messages"
+    # Implementation would define SYSEX message structure
+
+  ModulationRouting:
+    type: object
+    description: "Advanced modulation routing configuration"
+    # Implementation would define modulation matrix
+
+  Effects:
+    type: object
+    description: "XG effects configuration"
+    # Implementation would define system/variation/insertion effects
+
+  Presets:
+    type: object
+    description: "Instrument and arrangement presets"
+    # Implementation would define preset collections
+
+  AdvancedFeatures:
+    type: object
+    description: "Advanced XG features"
+    # Implementation would define macros, conditional logic, automation

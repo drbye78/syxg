@@ -530,6 +530,8 @@ class OptimizedXGSynthesizer:
         with self.lock:
             msg_type = message.type
             midi_channel = message.channel
+            if midi_channel is None:
+                return  # Not channel-specific message
 
             # Route message through XG receive channel mapping
             target_parts = self.receive_channel_manager.get_parts_for_midi_channel(midi_channel)

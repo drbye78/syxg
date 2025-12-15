@@ -1,1 +1,0 @@
-# XG PHASE B: VARIATION EFFECTS BUS MANAGER\n# XG Variation Effects integration (62 effect types)\n

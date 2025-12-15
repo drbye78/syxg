@@ -619,6 +619,85 @@ class XGPartialGenerator:
         # Filter state for time-varying filter (4 elements: left_z1, left_z2, right_z1, right_z2)
         self.filter_state = np.zeros(4, dtype=np.float32)
 
+    def _calculate_antialiasing_cutoff(self) -> float:
+        """
+        Calculate the appropriate antialiasing filter cutoff for the current note.
+
+        This prevents aliasing artifacts when playing high-pitched notes by filtering
+        out harmonics that would fold back into the audible range above the Nyquist
+        frequency (half the sample rate).
+
+        The cutoff is calculated based on:
+        1. The fundamental frequency of the note being played
+        2. The desired harmonic content preservation (typically up to 8th harmonic)
+        3. Safe margin below the Nyquist frequency
+
+        Returns:
+            Antialiasing filter cutoff frequency in Hz
+        """
+        # Get the fundamental frequency of the note
+        fundamental_freq = self._calculate_base_frequency()
+
+        # Determine how many harmonics to preserve
+        # For high notes, we need to be more aggressive to prevent aliasing
+        if fundamental_freq > 1000:  # Above C6
+            # Preserve up to 4th harmonic for very high notes
+            max_preserved_harmonic = 4
+        elif fundamental_freq > 500:  # Above C5
+            # Preserve up to 6th harmonic for high notes
+            max_preserved_harmonic = 6
+        else:
+            # Preserve up to 8th harmonic for lower notes
+            max_preserved_harmonic = 8
+
+        # Calculate the highest frequency to preserve
+        highest_preserved_freq = fundamental_freq * max_preserved_harmonic
+
+        # Apply safety margin (80% of Nyquist to prevent artifacts)
+        nyquist_freq = self.sample_rate / 2.0
+        safe_cutoff = nyquist_freq * 0.8  # 80% of Nyquist
+
+        # The antialiasing cutoff is the minimum of:
+        # 1. The highest preserved harmonic frequency
+        # 2. The safe cutoff frequency
+        # 3. A reasonable maximum (20kHz for audibility)
+        antialiasing_cutoff = min(highest_preserved_freq, safe_cutoff, 20000.0)
+
+        # Ensure minimum cutoff (prevent over-filtering low notes)
+        antialiasing_cutoff = max(antialiasing_cutoff, 5000.0)  # Minimum 5kHz
+
+        return antialiasing_cutoff
+
+    def _apply_antialiasing_filter(self, left_block: np.ndarray, right_block: np.ndarray,
+                                  block_size: int):
+        """
+        Apply antialiasing filter to prevent high-frequency aliasing artifacts.
+
+        This filter removes frequencies above the calculated cutoff that would
+        fold back into the audible range when the sample is pitch-shifted to
+        high notes.
+
+        Args:
+            left_block: Left channel audio buffer (modified in-place)
+            right_block: Right channel audio buffer (modified in-place)
+            block_size: Number of samples to process
+        """
+        if not self.antialiasing_enabled or self.antialiasing_cutoff_hz >= 20000.0:
+            # Skip filtering if disabled or cutoff is very high
+            return
+
+        # Create time-varying cutoff block for the antialiasing filter
+        # Use the same cutoff for the entire block (could be made time-varying in future)
+        cutoff_block = np.full(block_size, self.antialiasing_cutoff_hz, dtype=np.float32)
+
+        # Apply low-pass filter with high slope (24dB/octave) for effective antialiasing
+        # Use resonance = 0.0 for flat response, focus on frequency attenuation
+        _numba_apply_time_varying_filter(
+            left_block, right_block, cutoff_block,
+            0.0,  # No resonance for clean antialiasing
+            block_size, self.sample_rate, self.antialiasing_filter_state
+        )
+
         # XG Modulation cache
         self.last_pitch_mod = 0.0
         self.last_filter_mod = 0.0
@@ -987,6 +1066,7 @@ class XGPartialGenerator:
             self.work_buffer[:block_size] += lfo_pitch_block[:block_size]
 
         # Generate base waveform with TIME-VARYING pitch modulation
+        # Mip-mapping handles quality reduction at sample loading level
         self._generate_waveform_block_time_varying(left_block, right_block, self.work_buffer, block_size)
 
         # Apply XG filter with TIME-VARYING envelope modulation
@@ -1018,7 +1098,8 @@ class XGPartialGenerator:
         crossfade_factor = (1.0 - self.velocity_crossfade) * (1.0 - self.note_crossfade)
 
         # Get pre-computed panning coefficients
-        pan_int = int(self.pan * 127.0)
+        # Convert normalized pan (-1.0 to 1.0) to MIDI pan (0-127)
+        pan_int = int((self.pan + 1.0) / 2.0 * 127.0)
         pan_int = max(0, min(127, pan_int))
         pan_left, pan_right = self.coeff_manager.get_pan_gains(pan_int)
 

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-MIDI to Audio Converter - Unified Audio Encoding with Keyboard Control
+Universal Audio Converter - XG Synthesizer with MIDI & XGML Support
 
-Converts MIDI files to high-quality audio using XG Synthesizer with
-unified audio writing support for multiple formats and keyboard abort capability.
+Converts MIDI and XGML (XG Markup Language) files to high-quality audio using XG Synthesizer.
+Supports unified audio encoding with keyboard abort capability and advanced XG parameter control.
+
+XGML provides a high-level YAML interface for XG synthesizer control with human-readable
+parameter names and semantic abstractions instead of numerical MIDI values.
 """
 
 import os
@@ -11,7 +14,7 @@ import sys
 import argparse
 import yaml
 import glob
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 from pathlib import Path
 import threading
 import time
@@ -22,6 +25,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from synth.audio.writer import AudioWriter
 from synth.engine.optimized_xg_synthesizer import OptimizedXGSynthesizer
 from synth.midi.parser import MIDIParser, MIDIMessage
+from synth.xgml import XGMLParser, XGMLToMIDITranslator
 from synth.utils.keyboard import KeyboardListener
 from synth.utils.progress import ProgressReporter
 
@@ -29,20 +33,26 @@ from synth.utils.progress import ProgressReporter
 def parse_arguments():
     """Parse command-line arguments"""
     parser = argparse.ArgumentParser(
-        description="Convert MIDI files to audio using XG Synthesizer",
+        description="Convert MIDI and XGML files to audio using XG Synthesizer",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""Supported formats: ogg, wav, mp3, aac, flac, m4a
+        epilog="""Supported input formats: MIDI (.mid, .midi), XGML (.xgml, .yaml, .yml)
+Supported output formats: ogg, wav, mp3, aac, flac, m4a
+
+XGML (XG Markup Language) provides high-level YAML interface for XG synthesizer control
+with human-readable parameter names and semantic abstractions.
+
 Examples:
-   render_midi.py input.mid                    # Output: input.ogg (same name, format extension)
+   render_midi.py input.mid                    # MIDI: Output input.ogg
+   render_midi.py input.xgml                   # XGML: Output input.ogg
    render_midi.py input.mid output.wav         # Output: output.wav
-   render_midi.py --format mp3 input.mid       # Output: input.mp3
-   render_midi.py --volume 0.8 *.mid           # Output to current directory
+   render_midi.py --format mp3 input.xgml      # Output: input.mp3
+   render_midi.py --volume 0.8 *.mid *.xgml    # Convert multiple files
    render_midi.py --recursive *.mid output/    # Recurse subdirectories
-   render_midi.py --keyboard-abort input.mid
+   render_midi.py --keyboard-abort input.xgml  # XGML with abort control
         """
     )
 
-    parser.add_argument("input_files", nargs="+", help="Input MIDI file(s) or patterns to convert (supports wildcards)")
+    parser.add_argument("input_files", nargs="+", help="Input MIDI/XGML file(s) or patterns to convert (supports wildcards)")
     parser.add_argument("output", nargs="?", default=None, help="Output file or directory (optional)")
     parser.add_argument("-c", "--config", help="Path to YAML configuration file", default="config.yaml")
     parser.add_argument("--sf2", action="append", dest="sf2_files", help="SoundFont (.sf2) file paths")
@@ -80,8 +90,8 @@ def load_config(config_path: str) -> dict:
 
 
 def expand_file_patterns(patterns: List[str], recursive: bool = False) -> List[str]:
-    """Expand file patterns and optionally recurse into subdirectories."""
-    midi_files = []
+    """Expand file patterns and optionally recurse into subdirectories for MIDI and XGML files."""
+    audio_files = []
 
     for pattern in patterns:
         # Handle both file paths and glob patterns
@@ -89,7 +99,6 @@ def expand_file_patterns(patterns: List[str], recursive: bool = False) -> List[s
             # It's a glob pattern
             if recursive:
                 # Use ** for recursive globbing
-                # For recursive, we need to walk directories
                 pattern_path = Path(pattern)
                 if '**' in pattern or pattern_path.parent != Path('.'):
                     # Complex pattern, use glob with **
@@ -114,25 +123,27 @@ def expand_file_patterns(patterns: List[str], recursive: bool = False) -> List[s
                 # Non-recursive glob
                 matched_files = glob.glob(pattern, recursive=False)
 
-            # Filter for MIDI files
+            # Filter for supported audio files (MIDI and XGML)
             for file_path in matched_files:
-                if file_path.lower().endswith(('.mid', '.midi')):
-                    midi_files.append(file_path)
+                if file_path.lower().endswith(('.mid', '.midi', '.xgml', '.yaml', '.yml')):
+                    audio_files.append(file_path)
         else:
             # Direct file path
-            if Path(pattern).exists() and pattern.lower().endswith(('.mid', '.midi')):
-                midi_files.append(pattern)
+            if Path(pattern).exists():
+                ext = pattern.lower().split('.')[-1] if '.' in pattern else ''
+                if ext in ['mid', 'midi', 'xgml', 'yaml', 'yml'] or pattern.lower().endswith(('.mid', '.midi', '.xgml', '.yaml', '.yml')):
+                    audio_files.append(pattern)
             elif recursive and Path(pattern).is_dir():
-                # Directory with recursive flag - find all MIDI files in subdirs
+                # Directory with recursive flag - find all supported files in subdirs
                 for root, dirs, files in os.walk(pattern):
                     for file in files:
-                        if file.lower().endswith(('.mid', '.midi')):
-                            midi_files.append(os.path.join(root, file))
+                        if file.lower().endswith(('.mid', '.midi', '.xgml', '.yaml', '.yml')):
+                            audio_files.append(os.path.join(root, file))
 
     # Remove duplicates while preserving order
     seen = set()
     unique_files = []
-    for file in midi_files:
+    for file in audio_files:
         if file not in seen:
             seen.add(file)
             unique_files.append(file)
@@ -169,7 +180,98 @@ def get_output_path(input_file: str, output: Optional[str], format: str, multipl
             return str(output_path.with_suffix(f".{format}"))
 
 
-def convert_midi_to_audio_buffered(
+def parse_audio_file(file_path: str) -> Tuple[Optional[List[MIDIMessage]], Optional[float]]:
+    """
+    Parse audio file (MIDI or XGML) and return MIDI messages and duration.
+
+    Args:
+        file_path: Path to audio file (MIDI or XGML)
+
+    Returns:
+        Tuple of (midi_messages, duration_seconds) or (None, None) on error
+    """
+    file_ext = file_path.lower().split('.')[-1]
+
+    if file_ext in ['mid', 'midi']:
+        # Parse as MIDI file
+        try:
+            parser = MIDIParser(file_path)
+            total_duration_seconds = parser.get_total_duration()
+            all_messages = parser.get_all_messages()
+            return all_messages, total_duration_seconds
+        except Exception as e:
+            print(f"Error parsing MIDI file {file_path}: {e}")
+            return None, None
+
+    elif file_ext in ['xgml', 'yaml', 'yml'] or file_path.lower().endswith(('.xgml', '.yaml', '.yml')):
+        # Parse as XGML file
+        try:
+            # Parse XGML
+            parser = XGMLParser()
+            document = parser.parse_file(file_path)
+
+            if document is None:
+                if not parser.has_errors():
+                    print(f"Warning: No XGML content found in {file_path}")
+                else:
+                    print(f"Error parsing XGML {file_path}:")
+                    for error in parser.get_errors():
+                        print(f"  - {error}")
+                return None, None
+
+            if parser.has_warnings():
+                print(f"XGML warnings in {file_path}:")
+                for warning in parser.get_warnings():
+                    print(f"  - {warning}")
+
+            # Translate to MIDI
+            translator = XGMLToMIDITranslator()
+            midi_messages = translator.translate_document(document)
+
+            if translator.has_errors():
+                print(f"XGML translation errors in {file_path}:")
+                for error in translator.get_errors():
+                    print(f"  - {error}")
+                return None, None
+
+            if translator.has_warnings():
+                print(f"XGML translation warnings in {file_path}:")
+                for warning in translator.get_warnings():
+                    print(f"  - {warning}")
+
+            # Calculate duration from sequences
+            duration = 0.0
+            sequences = document.get_section('sequences')
+            if sequences:
+                for seq_name, seq_data in sequences.items():
+                    # Check for explicit duration or calculate from events
+                    if 'duration' in seq_data:
+                        duration = max(duration, seq_data['duration'])
+                    else:
+                        # Calculate from last event time
+                        for track in seq_data.get('tracks', []):
+                            for event in track.get('events', []):
+                                if 'at' in event:
+                                    event_time = event['at'].get('time', 0)
+                                    if isinstance(event_time, (int, float)):
+                                        duration = max(duration, float(event_time))
+
+            # Minimum duration fallback
+            if duration == 0.0:
+                duration = 10.0  # Default 10 seconds
+
+            return midi_messages, duration
+
+        except Exception as e:
+            print(f"Error processing XGML file {file_path}: {e}")
+            return None, None
+
+    else:
+        print(f"Unsupported file format: {file_path}")
+        return None, None
+
+
+def convert_audio_to_audio_buffered(
     input_file: str,
     output_file: str,
     synthesizer: OptimizedXGSynthesizer,
@@ -180,33 +282,43 @@ def convert_midi_to_audio_buffered(
     silent: bool = False,
     render_limit: Optional[float] = None,
     abort_event: Optional[threading.Event] = None,
-    timeout_seconds:Optional[float] = None
+    timeout_seconds: Optional[float] = None
 ) -> bool:
-    """Convert a single MIDI file to audio using buffered processing mode."""
+    """Convert a single audio file (MIDI or XGML) to audio using buffered processing mode."""
     try:
         if not silent:
             print(f"Converting {input_file} -> {output_file}")
 
-        # Load MIDI file using new MIDIParser that supports both MIDI 1.0 and 2.0
-        parser = MIDIParser(input_file)
+        # Parse input file (MIDI or XGML)
+        midi_messages, duration = parse_audio_file(input_file)
 
-        # Get duration info
-        total_duration_seconds = parser.get_total_duration()
+        if midi_messages is None or duration is None:
+            return False
+
+        file_type = "XGML" if input_file.lower().endswith(('.xgml', '.yaml', '.yml')) else "MIDI"
         if not silent:
-            print(f"Total duration: {total_duration_seconds:.2f} seconds")
+            print(f"{file_type} parsed: {len(midi_messages)} MIDI messages, duration: {duration:.2f} seconds")
 
-        all_messages = parser.get_all_messages()
         synthesizer.reset()
 
+        # Apply tempo scaling if needed (only affects MIDI timing)
         if tempo == 1.0:
-            synthesizer.send_midi_message_block(all_messages)
+            synthesizer.send_midi_message_block(midi_messages)
         else:
-            scaled_messahes = [x.with_tempo(tempo) for x in all_messages]
-            synthesizer.send_midi_message_block(scaled_messahes)
+            scaled_messages = [msg.with_tempo(tempo) for msg in midi_messages if hasattr(msg, 'with_tempo')]
+            synthesizer.send_midi_message_block(scaled_messages)
 
-        time0 = parser.get_first_note_on_time()
-        if time0:
-            synthesizer.set_current_time(time0 / tempo)
+        # For XGML files, we don't adjust start time as sequences are already properly timed
+        if file_type == "MIDI":
+            # Find first note-on time for MIDI files
+            first_note_time = None
+            for msg in midi_messages:
+                if msg.type == 'note_on' and msg.time is not None:
+                    if first_note_time is None or msg.time < first_note_time:
+                        first_note_time = msg.time
+                    break
+            if first_note_time:
+                synthesizer.set_current_time(first_note_time / tempo)
 
         # Create audio writer
         writer = audio_writer.create_writer(output_file, format)
@@ -215,7 +327,7 @@ def convert_midi_to_audio_buffered(
         synthesizer.set_master_volume(volume)
 
         # Initialize progress reporter
-        adjusted_duration = total_duration_seconds / tempo if not render_limit else render_limit
+        adjusted_duration = duration / tempo if file_type == "MIDI" and tempo != 1.0 else (duration if not render_limit else min(duration, render_limit))
         progress_reporter = ProgressReporter(silent=silent)
         progress_reporter.start(adjusted_duration)
         abort_at = time.time() + timeout_seconds if timeout_seconds else None
@@ -281,11 +393,11 @@ def main():
     input_files = expand_file_patterns(args.input_files, recursive)
 
     if not input_files:
-        print("Error: No MIDI files found matching the specified patterns.")
+        print("Error: No audio files found matching the specified patterns.")
         return False
 
     if not silent:
-        print(f"Found {len(input_files)} MIDI file(s) to convert")
+        print(f"Found {len(input_files)} audio file(s) to convert")
 
     # Determine if we have multiple files
     multiple_files = len(input_files) > 1
@@ -341,7 +453,7 @@ def main():
 
             output_file = get_output_path(input_file, args.output, format, multiple_files)
 
-            if convert_midi_to_audio_buffered(
+            if convert_audio_to_audio_buffered(
                 input_file=input_file,
                 output_file=output_file,
                 synthesizer=synthesizer,

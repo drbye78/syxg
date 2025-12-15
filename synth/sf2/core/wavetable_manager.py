@@ -406,6 +406,225 @@ class WavetableManager:
     # Maximum sample cache size (in samples, not bytes)
     MAX_CACHE_SIZE = 50000000  # ~200 MB for 16-bit samples
 
+    # Mip-mapping configuration
+    MIP_MAP_LEVELS = [1, 2, 4, 8]  # Quality levels (1 = full quality, 8 = 1/8th quality)
+    MIP_MAP_MAX_CACHE_SIZE = 100000000  # 400MB for mip-maps
+    MIP_MAP_QUALITY_THRESHOLDS = {
+        1: 1.0,    # Full quality: pitch ratios 1.0x and below
+        2: 2.0,    # 2x downsampled: pitch ratios 2.0x and below
+        4: 4.0,    # 4x downsampled: pitch ratios 4.0x and below
+        8: 8.0     # 8x downsampled: pitch ratios 8.0x and above
+    }
+
+    # Mip-map cache and management
+    _mip_map_cache: Dict[str, Dict[int, np.ndarray]] = {}
+    _mip_map_cache_size = 0
+    _mip_map_access_stats: Dict[str, int] = {}
+
+    def _generate_mip_map(self, sample_data: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]], 
+                         level: int) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """
+        Generate a mip-map level for sample data by downsampling.
+
+        This creates lower-quality versions of samples for high-pitch notes,
+        providing significant performance improvements while maintaining
+        acceptable audio quality.
+
+        Args:
+            sample_data: Original sample data (mono array or stereo tuple)
+            level: Mip-map level (2, 4, 8 = downsampling factor)
+
+        Returns:
+            Downsampled sample data in same format as input
+        """
+        if level == 1:
+            return sample_data  # No downsampling needed
+
+        # Handle stereo samples
+        if isinstance(sample_data, tuple):
+            left_data, right_data = sample_data
+            downsampled_left = self._downsample_audio(left_data, level)
+            downsampled_right = self._downsample_audio(right_data, level)
+            return (downsampled_left, downsampled_right)
+        else:
+            # Handle mono samples
+            return self._downsample_audio(sample_data, level)
+
+    def _downsample_audio(self, audio_data: np.ndarray, factor: int) -> np.ndarray:
+        """
+        Downsample audio data using high-quality filtering.
+
+        Uses a simple but effective low-pass filtering approach before
+        downsampling to prevent aliasing artifacts.
+
+        Args:
+            audio_data: Input audio data
+            factor: Downsampling factor (2, 4, 8)
+
+        Returns:
+            Downsampled audio data
+        """
+        if factor == 1:
+            return audio_data
+
+        # Apply simple low-pass filter before downsampling
+        # This is a basic implementation - could be enhanced with better filtering
+        filtered_data = self._apply_simple_lowpass(audio_data, factor)
+
+        # Downsample by taking every Nth sample
+        return filtered_data[::factor]
+
+    def _apply_simple_lowpass(self, audio_data: np.ndarray, factor: int) -> np.ndarray:
+        """
+        Apply a simple low-pass filter to prevent aliasing during downsampling.
+
+        Args:
+            audio_data: Input audio data
+            factor: Downsampling factor
+
+        Returns:
+            Filtered audio data
+        """
+        # Simple averaging filter - replace each sample with average of neighbors
+        # This provides basic low-pass filtering for downsampling
+        window_size = min(factor, 5)  # Adaptive window size based on downsampling factor
+
+        if len(audio_data) < window_size:
+            return audio_data
+
+        # Create filtered output
+        filtered = np.zeros_like(audio_data)
+
+        # Apply moving average filter
+        for i in range(len(audio_data)):
+            start_idx = max(0, i - window_size // 2)
+            end_idx = min(len(audio_data), i + window_size // 2 + 1)
+            filtered[i] = np.mean(audio_data[start_idx:end_idx])
+
+        return filtered
+
+    def _get_mip_map_level(self, pitch_ratio: float) -> int:
+        """
+        Determine the appropriate mip-map level based on pitch ratio.
+
+        Higher pitch ratios (notes far above sample root) benefit from
+        lower quality mip-maps for better performance.
+
+        Args:
+            pitch_ratio: Ratio of target frequency to original sample frequency
+
+        Returns:
+            Mip-map level (1=full quality, 2=half quality, 4=quarter quality, 8=eighth quality)
+        """
+        # Find the highest threshold that the pitch ratio exceeds
+        for level, threshold in sorted(self.MIP_MAP_QUALITY_THRESHOLDS.items(), reverse=True):
+            if pitch_ratio >= threshold:
+                return level
+
+        return 1  # Default to full quality
+
+    def _calculate_pitch_ratio(self, target_note: int, original_pitch: int) -> float:
+        """
+        Calculate the pitch ratio between target note and original sample pitch.
+
+        Args:
+            target_note: Target MIDI note (0-127)
+            original_pitch: Original sample pitch (typically around 60/C4)
+
+        Returns:
+            Pitch ratio (target_freq / original_freq)
+        """
+        # Convert MIDI notes to frequency ratios
+        target_freq_ratio = 2.0 ** ((target_note - original_pitch) / 12.0)
+        return target_freq_ratio
+
+    def _get_cached_mip_map(self, sample_key: str, level: int) -> Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]]:
+        """
+        Retrieve a cached mip-map level for a sample.
+
+        Args:
+            sample_key: Unique sample identifier
+            level: Mip-map level to retrieve
+
+        Returns:
+            Cached mip-map data or None if not cached
+        """
+        if sample_key in self._mip_map_cache and level in self._mip_map_cache[sample_key]:
+            # Update access statistics
+            if sample_key not in self._mip_map_access_stats:
+                self._mip_map_access_stats[sample_key] = 0
+            self._mip_map_access_stats[sample_key] += 1
+
+            return self._mip_map_cache[sample_key][level]
+
+        return None
+
+    def _cache_mip_map(self, sample_key: str, level: int, 
+                      mip_map_data: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]):
+        """
+        Cache a mip-map level for a sample.
+
+        Implements LRU-style cache management to stay within memory limits.
+
+        Args:
+            sample_key: Unique sample identifier
+            level: Mip-map level
+            mip_map_data: Mip-map data to cache
+        """
+        # Initialize cache entry if needed
+        if sample_key not in self._mip_map_cache:
+            self._mip_map_cache[sample_key] = {}
+
+        # Calculate data size
+        if isinstance(mip_map_data, tuple):
+            data_size = len(mip_map_data[0]) + len(mip_map_data[1])
+        else:
+            data_size = len(mip_map_data)
+
+        # Check if we need to make room in cache
+        if self._mip_map_cache_size + data_size > self.MIP_MAP_MAX_CACHE_SIZE:
+            self._evict_lru_mip_maps(data_size)
+
+        # Store the mip-map
+        self._mip_map_cache[sample_key][level] = mip_map_data
+        self._mip_map_cache_size += data_size
+
+    def _evict_lru_mip_maps(self, required_space: int):
+        """
+        Evict least recently used mip-maps to make room for new data.
+
+        Args:
+            required_space: Amount of space needed
+        """
+        # Simple LRU eviction based on access statistics
+        # In a production system, this would use timestamps or access counts
+        evicted_space = 0
+
+        # Sort samples by access frequency (ascending = least recently used)
+        sorted_samples = sorted(self._mip_map_access_stats.items(), key=lambda x: x[1])
+
+        for sample_key, _ in sorted_samples:
+            if sample_key in self._mip_map_cache:
+                # Remove all mip-map levels for this sample
+                sample_cache = self._mip_map_cache[sample_key]
+
+                # Calculate space freed
+                for level_data in sample_cache.values():
+                    if isinstance(level_data, tuple):
+                        evicted_space += len(level_data[0]) + len(level_data[1])
+                    else:
+                        evicted_space += len(level_data)
+
+                # Remove from cache
+                del self._mip_map_cache[sample_key]
+                del self._mip_map_access_stats[sample_key]
+
+                # Check if we have enough space
+                if self._mip_map_cache_size - evicted_space + required_space <= self.MIP_MAP_MAX_CACHE_SIZE:
+                    break
+
+        self._mip_map_cache_size -= evicted_space
+
     def __init__(self, sf2_paths: Union[str, List[str]], cache_size: Optional[int] = None, param_cache=None):
         """
         Initialize SoundFont manager.
@@ -1009,8 +1228,11 @@ class WavetableManager:
     def get_partial_table(self, note: int, program: int, partial_id: int,
                          velocity: int, bank: int = 0) -> Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]]:
         """
-        Get sample data for a partial.
-        Now uses unified zone merging for consistency with other methods.
+        Get sample data for a partial with intelligent mip-mapping for high-pitch notes.
+
+        Uses progressive quality reduction for high-pitch notes to prevent aliasing
+        while maintaining excellent performance. Automatically selects appropriate
+        mip-map level based on pitch ratio from original sample.
 
         Args:
             note: MIDI note (0-127)
@@ -1020,10 +1242,11 @@ class WavetableManager:
             bank: bank number (0-16383)
 
         Returns:
-            Sample data or None if not found
+            Sample data at appropriate quality level or None if not found
         """
         cache_key = f'{bank}-{program}-{note}-{velocity}-{partial_id}'
         header, soundfont_obj, valid = self.partial_map.get(cache_key, (None, None, False))
+        zone = None  # Initialize zone variable
         if not valid:
             # PHASE 5: Use unified zone merging method for consistency
             soundfont_obj, preset_obj, matching_merged_zones = self._get_merged_zones_for_preset(program, bank, note, velocity, is_drum=False)
@@ -1040,19 +1263,54 @@ class WavetableManager:
                 header = None
 
         self.partial_map[cache_key] = (header, soundfont_obj, True)
-        if header is None:
+        if header is None or zone is None:
             return None
 
-        # Read sample data
-        return soundfont_obj.read_sample_data(header) if soundfont_obj else None
+        # Determine original sample pitch for mip-mapping calculations
+        original_pitch = getattr(header, 'original_pitch', 60)  # Default to C4 if not available
+        pitch_ratio = self._calculate_pitch_ratio(note, original_pitch)
+
+        # Select appropriate mip-map level based on pitch ratio
+        mip_level = self._get_mip_map_level(pitch_ratio)
+
+        # Create sample key for mip-map caching (use zone's sample_index, not header's)
+        sample_key = f"{soundfont_obj.path if soundfont_obj else 'unknown'}-{zone.sample_index}"
+
+        # Check if mip-map is cached
+        cached_mip_map = self._get_cached_mip_map(sample_key, mip_level)
+        if cached_mip_map is not None:
+            return cached_mip_map
+
+        # Load full-quality sample data
+        full_quality_data = soundfont_obj.read_sample_data(header) if soundfont_obj else None
+        if full_quality_data is None:
+            return None
+
+        # Generate or retrieve appropriate mip-map level
+        if mip_level == 1:
+            # Full quality - use original data
+            mip_map_data = full_quality_data
+        else:
+            # Generate downsampled version
+            mip_map_data = self._generate_mip_map(full_quality_data, mip_level)
+
+        # Cache the mip-map for future use
+        self._cache_mip_map(sample_key, mip_level, mip_map_data)
+
+        return mip_map_data
 
     def clear_cache(self):
-        """Clear all sample caches including memory pool and multi-level caches."""
+        """Clear all sample caches including memory pool, mip-maps, and multi-level caches."""
         for soundfont in self.soundfonts:
             soundfont.clear_cache()
 
         # Clear memory pool [PHASE 4 MEMORY POOL OPTIMIZATION]
         self._memory_pool.clear()
+
+        # Clear mip-map cache and statistics
+        self._mip_map_cache.clear()
+        self._mip_map_access_stats.clear()
+        self._mip_map_cache_size = 0
 
         # Clear unified merged zones cache
         self._merged_zones_cache.clear()
@@ -1320,7 +1578,11 @@ class WavetableManager:
             "partials": partials_params
         }
 
-        return avg_params
+        # CRITICAL FIX: Flatten envelope parameters to match XGPartialGenerator expectations
+        # XGPartialGenerator expects flat parameter names like amp_attack_time, not nested amp_envelope["attack"]
+        flattened_params = self._flatten_envelope_parameters(avg_params)
+
+        return flattened_params
 
     def _weighted_average_envelope(self, envelopes, weights):
         """Calculate weighted average of envelope parameters."""
@@ -1356,6 +1618,175 @@ class WavetableManager:
         }
 
         return avg_lfo
+
+    def _flatten_envelope_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Flatten nested envelope, filter, and LFO parameters to match XGPartialGenerator expectations.
+
+        ParameterConverter returns nested structures like:
+        {
+            "amp_envelope": {"delay": 0.0, "attack": 0.01, ...},
+            "filter": {"cutoff": 1000.0, "resonance": 0.7, ...},
+            "lfo1": {"rate": 5.0, "depth": 0.5, ...}
+        }
+
+        But XGPartialGenerator expects flat parameter names like:
+        {
+            "amp_attack_time": 0.01,
+            "filter_cutoff": 1000.0,
+            "lfo1_rate": 5.0,
+            ...
+        }
+
+        Args:
+            params: Parameters with nested structures
+
+        Returns:
+            Parameters with flattened parameter names
+        """
+        flattened = params.copy()
+
+        # Flatten amplitude envelope parameters
+        if "amp_envelope" in params and isinstance(params["amp_envelope"], dict):
+            amp_env = params["amp_envelope"]
+            flattened["amp_delay_time"] = amp_env.get("delay", 0.0)
+            flattened["amp_attack_time"] = amp_env.get("attack", 0.01)
+            flattened["amp_hold_time"] = amp_env.get("hold", 0.0)
+            flattened["amp_decay_time"] = amp_env.get("decay", 0.3)
+            flattened["amp_sustain_level"] = amp_env.get("sustain", 0.7)
+            flattened["amp_release_time"] = amp_env.get("release", 0.5)
+            flattened["amp_key_scaling"] = amp_env.get("key_scaling", 0.0)
+
+        # Flatten filter envelope parameters
+        if "filter_envelope" in params and isinstance(params["filter_envelope"], dict):
+            filter_env = params["filter_envelope"]
+            flattened["filter_delay_time"] = filter_env.get("delay", 0.0)
+            flattened["filter_attack_time"] = filter_env.get("attack", 0.1)
+            flattened["filter_hold_time"] = filter_env.get("hold", 0.0)
+            flattened["filter_decay_time"] = filter_env.get("decay", 0.5)
+            flattened["filter_sustain_level"] = filter_env.get("sustain", 0.6)
+            flattened["filter_release_time"] = filter_env.get("release", 0.8)
+            flattened["filter_key_scaling"] = filter_env.get("key_scaling", 0.0)
+
+        # Flatten pitch envelope parameters
+        if "pitch_envelope" in params and isinstance(params["pitch_envelope"], dict):
+            pitch_env = params["pitch_envelope"]
+            flattened["pitch_delay_time"] = pitch_env.get("delay", 0.0)
+            flattened["pitch_attack_time"] = pitch_env.get("attack", 0.05)
+            flattened["pitch_hold_time"] = pitch_env.get("hold", 0.0)
+            flattened["pitch_decay_time"] = pitch_env.get("decay", 0.1)
+            flattened["pitch_sustain_level"] = pitch_env.get("sustain", 0.0)
+            flattened["pitch_release_time"] = pitch_env.get("release", 0.05)
+            flattened["pitch_key_scaling"] = pitch_env.get("key_scaling", 0.0)
+            flattened["pitch_envelope_depth"] = pitch_env.get("depth", 1200.0)  # XG pitch envelope depth
+
+        # Flatten filter parameters
+        if "filter" in params and isinstance(params["filter"], dict):
+            filter_params = params["filter"]
+            flattened["filter_cutoff"] = filter_params.get("cutoff", 1000.0)
+            flattened["filter_resonance"] = filter_params.get("resonance", 0.7)
+            flattened["filter_type"] = filter_params.get("type", "lowpass")
+            flattened["filter_key_follow"] = filter_params.get("key_follow", 0.5)
+
+        # Flatten LFO parameters
+        lfo_names = ["lfo1", "lfo2", "lfo3"]
+        for lfo_name in lfo_names:
+            if lfo_name in params and isinstance(params[lfo_name], dict):
+                lfo_params = params[lfo_name]
+                flattened[f"{lfo_name}_rate"] = lfo_params.get("rate", 5.0 if lfo_name == "lfo1" else 2.0)
+                flattened[f"{lfo_name}_depth"] = lfo_params.get("depth", 0.5 if lfo_name == "lfo1" else 0.3)
+                flattened[f"{lfo_name}_delay"] = lfo_params.get("delay", 0.0)
+                flattened[f"{lfo_name}_waveform"] = lfo_params.get("waveform", "sine")
+
+        # CRITICAL FIX: Also flatten parameters within each partial in the "partials" array
+        # XGPartialGenerator instances use parameters from individual partials, not averaged ones
+        if "partials" in params and isinstance(params["partials"], list):
+            flattened_partials = []
+            for partial_params in params["partials"]:
+                if isinstance(partial_params, dict):
+                    # Flatten the envelope/filter/LFO parameters within this partial
+                    flattened_partial = self._flatten_single_partial_parameters(partial_params)
+                    flattened_partials.append(flattened_partial)
+                else:
+                    # If not a dict, keep as-is
+                    flattened_partials.append(partial_params)
+            flattened["partials"] = flattened_partials
+
+        # Keep the nested structures for backward compatibility
+        # (some parts of the system might still expect them)
+
+        return flattened
+
+    def _flatten_single_partial_parameters(self, partial_params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Flatten nested envelope, filter, and LFO parameters within a single partial.
+
+        This handles the parameters that XGPartialGenerator instances actually use,
+        which come from individual items in the "partials" array, not the averaged
+        program parameters.
+
+        Args:
+            partial_params: Parameters for a single partial (from params["partials"][i])
+
+        Returns:
+            Partial parameters with flattened envelope/filter/LFO parameter names
+        """
+        flattened = partial_params.copy()
+
+        # Flatten amplitude envelope parameters within this partial
+        if "amp_envelope" in partial_params and isinstance(partial_params["amp_envelope"], dict):
+            amp_env = partial_params["amp_envelope"]
+            flattened["amp_delay_time"] = amp_env.get("delay", 0.0)
+            flattened["amp_attack_time"] = amp_env.get("attack", 0.01)
+            flattened["amp_hold_time"] = amp_env.get("hold", 0.0)
+            flattened["amp_decay_time"] = amp_env.get("decay", 0.3)
+            flattened["amp_sustain_level"] = amp_env.get("sustain", 0.7)
+            flattened["amp_release_time"] = amp_env.get("release", 0.5)
+            flattened["amp_key_scaling"] = amp_env.get("key_scaling", 0.0)
+
+        # Flatten filter envelope parameters within this partial
+        if "filter_envelope" in partial_params and isinstance(partial_params["filter_envelope"], dict):
+            filter_env = partial_params["filter_envelope"]
+            flattened["filter_delay_time"] = filter_env.get("delay", 0.0)
+            flattened["filter_attack_time"] = filter_env.get("attack", 0.1)
+            flattened["filter_hold_time"] = filter_env.get("hold", 0.0)
+            flattened["filter_decay_time"] = filter_env.get("decay", 0.5)
+            flattened["filter_sustain_level"] = filter_env.get("sustain", 0.6)
+            flattened["filter_release_time"] = filter_env.get("release", 0.8)
+            flattened["filter_key_scaling"] = filter_env.get("key_scaling", 0.0)
+
+        # Flatten pitch envelope parameters within this partial
+        if "pitch_envelope" in partial_params and isinstance(partial_params["pitch_envelope"], dict):
+            pitch_env = partial_params["pitch_envelope"]
+            flattened["pitch_delay_time"] = pitch_env.get("delay", 0.0)
+            flattened["pitch_attack_time"] = pitch_env.get("attack", 0.05)
+            flattened["pitch_hold_time"] = pitch_env.get("hold", 0.0)
+            flattened["pitch_decay_time"] = pitch_env.get("decay", 0.1)
+            flattened["pitch_sustain_level"] = pitch_env.get("sustain", 0.0)
+            flattened["pitch_release_time"] = pitch_env.get("release", 0.05)
+            flattened["pitch_key_scaling"] = pitch_env.get("key_scaling", 0.0)
+            flattened["pitch_envelope_depth"] = pitch_env.get("depth", 1200.0)
+
+        # Flatten filter parameters within this partial
+        if "filter" in partial_params and isinstance(partial_params["filter"], dict):
+            filter_params = partial_params["filter"]
+            flattened["filter_cutoff"] = filter_params.get("cutoff", 1000.0)
+            flattened["filter_resonance"] = filter_params.get("resonance", 0.7)
+            flattened["filter_type"] = filter_params.get("type", "lowpass")
+            flattened["filter_key_follow"] = filter_params.get("key_follow", 0.5)
+
+        # Flatten LFO parameters within this partial
+        lfo_names = ["lfo1", "lfo2", "lfo3"]
+        for lfo_name in lfo_names:
+            if lfo_name in partial_params and isinstance(partial_params[lfo_name], dict):
+                lfo_params = partial_params[lfo_name]
+                flattened[f"{lfo_name}_rate"] = lfo_params.get("rate", 5.0 if lfo_name == "lfo1" else 2.0)
+                flattened[f"{lfo_name}_depth"] = lfo_params.get("depth", 0.5 if lfo_name == "lfo1" else 0.3)
+                flattened[f"{lfo_name}_delay"] = lfo_params.get("delay", 0.0)
+                flattened[f"{lfo_name}_waveform"] = lfo_params.get("waveform", "sine")
+
+        # Keep nested structures for backward compatibility within partials too
+        return flattened
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """

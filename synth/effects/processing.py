@@ -224,6 +224,214 @@ class XGAudioProcessor:
             # Return input unchanged if processing failed
             return input_samples
 
+    def _process_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                       output_left: np.ndarray, output_right: np.ndarray,
+                                       params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """
+        Process variation effect for a block of samples (vectorized implementation).
+
+        Args:
+            input_left: Left channel input block
+            input_right: Right channel input block
+            output_left: Left channel output block (modified in-place)
+            output_right: Right channel output block (modified in-place)
+            params: Effect parameters
+            state: Effect state
+        """
+        effect_type = params.get("type", 0)
+
+        # Route to appropriate vectorized effect implementation
+        if effect_type == 0:
+            self._process_delay_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 1:
+            self._process_dual_delay_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 2:
+            self._process_echo_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 3:
+            self._process_pan_delay_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 4:
+            self._process_cross_delay_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 5:
+            self._process_multi_tap_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 6:
+            self._process_reverse_delay_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 7:
+            self._process_tremolo_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 8:
+            self._process_auto_pan_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 9:
+            self._process_phaser_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 10:
+            self._process_flanger_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 11:
+            self._process_auto_wah_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 12:
+            self._process_ring_mod_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 13:
+            self._process_pitch_shifter_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 14:
+            self._process_distortion_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 15:
+            self._process_overdrive_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 16:
+            self._process_compressor_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 17:
+            self._process_limiter_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 18:
+            self._process_gate_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 19:
+            self._process_expander_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 20:
+            self._process_rotary_speaker_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 21:
+            self._process_leslie_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 22:
+            self._process_vibrato_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 23:
+            self._process_acoustic_simulator_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 24:
+            self._process_guitar_amp_sim_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 25:
+            self._process_enhancer_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 26:
+            self._process_slicer_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 27:
+            self._process_step_phaser_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 28:
+            self._process_step_flanger_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 29:
+            self._process_step_tremolo_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 30:
+            self._process_step_pan_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 31:
+            self._process_step_filter_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 32:
+            self._process_auto_filter_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 33:
+            self._process_vocoder_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 34:
+            self._process_talk_wah_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 35:
+            self._process_harmonizer_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 36:
+            self._process_octave_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 37:
+            self._process_detune_variation_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 38:
+            self._process_chorus_reverb_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 39:
+            self._process_stereo_imager_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 40:
+            self._process_ambience_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 41:
+            self._process_doubler_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 42:
+            self._process_enhancer_reverb_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 43:
+            self._process_spectral_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 44:
+            self._process_resonator_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 45:
+            self._process_degrader_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 46:
+            self._process_vinyl_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 47:
+            self._process_looper_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 48:
+            self._process_step_delay_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 49:
+            self._process_step_echo_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 50:
+            self._process_step_pan_delay_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 51:
+            self._process_step_cross_delay_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 52:
+            self._process_step_multi_tap_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 53:
+            self._process_step_reverse_delay_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 54:
+            self._process_step_ring_mod_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 55:
+            self._process_step_pitch_shifter_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 56:
+            self._process_step_distortion_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 57:
+            self._process_step_overdrive_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 58:
+            self._process_step_compressor_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 59:
+            self._process_step_limiter_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 60:
+            self._process_step_gate_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 61:
+            self._process_step_expander_effect_block(input_left, input_right, output_left, output_right, params, state)
+        elif effect_type == 62:
+            self._process_step_rotary_speaker_effect_block(input_left, input_right, output_left, output_right, params, state)
+        else:
+            # Default: copy input to output
+            output_left[:] = input_left
+            output_right[:] = input_right
+
+    def _process_insertion_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                       output_left: np.ndarray, output_right: np.ndarray,
+                                       params: Dict[str, float], state: Dict[str, Any],
+                                       system_state: Dict[str, Any]) -> None:
+        """
+        Process insertion effect for a block of samples (vectorized implementation).
+
+        Args:
+            input_left: Left channel input block
+            input_right: Right channel input block
+            output_left: Left channel output block (modified in-place)
+            output_right: Right channel output block (modified in-place)
+            params: Effect parameters
+            state: Effect state
+            system_state: System state
+        """
+        effect_type = params.get("type", 0)
+
+        # Route to appropriate vectorized effect implementation
+        if effect_type == 1:
+            self._process_distortion_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 2:
+            self._process_overdrive_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 3:
+            self._process_compressor_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 4:
+            self._process_gate_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 5:
+            self._process_envelope_filter_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 6:
+            self._process_guitar_amp_sim_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 7:
+            self._process_rotary_speaker_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 8:
+            self._process_leslie_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 9:
+            self._process_enhancer_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 10:
+            self._process_slicer_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 11:
+            self._process_vocoder_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 12:
+            self._process_talk_wah_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 13:
+            self._process_harmonizer_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 14:
+            self._process_octave_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 15:
+            self._process_detune_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 16:
+            self._process_phaser_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 17:
+            self._process_flanger_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        elif effect_type == 18:
+            self._process_wah_wah_effect_block(input_left, input_right, output_left, output_right, params, state, system_state)
+        else:
+            # Default: copy input to output
+            output_left[:] = input_left
+            output_right[:] = input_right
+
     def _process_effect_routing(self, left_in: float, right_in: float,
                                state: Dict[str, Any]) -> Tuple[float, float]:
         """
@@ -1577,6 +1785,730 @@ class XGAudioProcessor:
 
         output = input_sample * expander_state["gain"]
         return (output, output)
+
+    # --- Vectorized Block Processing Implementations ---
+
+    def _process_delay_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                   output_left: np.ndarray, output_right: np.ndarray,
+                                   params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Process Delay effect for a block of samples (vectorized)"""
+        time = params.get("parameter1", 0.5) * 1000  # 0-1000 ms
+        feedback = params.get("parameter2", 0.5)
+        level = params.get("parameter3", 0.5)
+        stereo = params.get("parameter4", 0.5)
+
+        if "delay" not in state:
+            buffer_size = int(self.sample_rate)
+            state["delay"] = {
+                "buffer": np.zeros(buffer_size, dtype=np.float32),
+                "pos": 0,
+                "feedback_buffer": 0.0
+            }
+
+        delay_samples = int(time * self.sample_rate / 1000.0)
+        delay_state = state["delay"]
+        buffer = delay_state["buffer"]
+        pos = delay_state["pos"]
+
+        # Process block
+        for i in range(len(input_left)):
+            input_sample = (input_left[i] + input_right[i]) / 2.0
+
+            # Read from delay buffer
+            delay_pos = (pos - delay_samples) % len(buffer)
+            delayed_sample = buffer[int(delay_pos)]
+
+            # Apply feedback
+            feedback_sample = delay_state["feedback_buffer"] * feedback
+            processed_sample = input_sample + feedback_sample
+
+            # Write to buffer
+            buffer[pos] = processed_sample
+            delay_state["feedback_buffer"] = processed_sample
+
+            # Mix dry and wet
+            output_sample = input_sample * (1 - level) + delayed_sample * level
+            output_left[i] = output_sample * (1 - stereo)
+            output_right[i] = output_sample * stereo
+
+            pos = (pos + 1) % len(buffer)
+
+        delay_state["pos"] = pos
+
+    def _process_tremolo_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Process Tremolo effect for a block of samples (vectorized)"""
+        rate = params.get("parameter1", 0.5) * 10.0
+        depth = params.get("parameter2", 0.5)
+        waveform = int(params.get("parameter3", 0.5) * 3)
+        phase = params.get("parameter4", 0.5)
+
+        if "tremolo" not in state:
+            state["tremolo"] = {"lfo_phase": 0.0}
+
+        lfo_phase = state["tremolo"]["lfo_phase"]
+
+        for i in range(len(input_left)):
+            # Generate LFO value
+            if waveform == 0:  # Sine
+                lfo_value = math.sin(lfo_phase + phase * 2 * math.pi)
+            elif waveform == 1:  # Triangle
+                lfo_value = 1 - abs((lfo_phase / math.pi) % 2 - 1) * 2
+            elif waveform == 2:  # Square
+                lfo_value = 1 if math.sin(lfo_phase + phase * 2 * math.pi) > 0 else -1
+            else:  # Sawtooth
+                lfo_value = (lfo_phase / (2 * math.pi)) % 1 * 2 - 1
+
+            # Convert to amplitude modulation (0.0 to 1.0)
+            amplitude = 1.0 - depth * 0.5 + depth * 0.5 * lfo_value
+
+            # Apply modulation
+            output_left[i] = input_left[i] * amplitude
+            output_right[i] = input_right[i] * amplitude
+
+            # Update LFO phase
+            lfo_phase += 2 * math.pi * rate / self.sample_rate
+
+        state["tremolo"]["lfo_phase"] = lfo_phase % (2 * math.pi)
+
+    def _process_distortion_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                       output_left: np.ndarray, output_right: np.ndarray,
+                                       params: Dict[str, float], state: Dict[str, Any],
+                                       system_state: Dict[str, Any]) -> None:
+        """Process Distortion effect for a block of samples (vectorized)"""
+        drive = params.get("parameter1", 0.5)
+        tone = params.get("parameter2", 0.5)
+        level = params.get("parameter3", 0.5)
+        type_param = int(params.get("parameter4", 0.5) * 3)
+
+        # Vectorized distortion processing
+        input_mono = (input_left + input_right) / 2.0
+
+        if type_param == 0:  # Soft clipping
+            distorted = np.arctan(input_mono * drive * 5.0) / (math.pi / 2)
+        elif type_param == 1:  # Hard clipping
+            distorted = np.clip(input_mono * drive, -1.0, 1.0)
+        elif type_param == 2:  # Asymmetric
+            # Vectorized asymmetric clipping
+            distorted = np.where(input_mono > 0,
+                               1 - np.exp(-input_mono * drive),
+                               -1 + np.exp(input_mono * drive))
+        else:  # Symmetric
+            distorted = np.tanh(input_mono * drive)
+
+        # Apply tone control (simplified)
+        if tone < 0.5:
+            bass_boost = 1.0 + (0.5 - tone) * 2.0
+            final = distorted * 0.7 + input_mono * 0.3 * bass_boost
+        else:
+            treble_boost = 1.0 + (tone - 0.5) * 2.0
+            final = distorted * 0.7 + input_mono * 0.3 * treble_boost
+
+        # Apply level and output
+        final *= level
+        output_left[:] = final
+        output_right[:] = final
+
+    def _process_compressor_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                       output_left: np.ndarray, output_right: np.ndarray,
+                                       params: Dict[str, float], state: Dict[str, Any],
+                                       system_state: Dict[str, Any]) -> None:
+        """Process Compressor effect for a block of samples (vectorized)"""
+        threshold = -60 + params.get("parameter1", 0.5) * 60
+        ratio = 1 + params.get("parameter2", 0.5) * 19
+        attack = 1 + params.get("parameter3", 0.5) * 99
+        release = 10 + params.get("parameter4", 0.5) * 290
+
+        threshold_linear = 10 ** (threshold / 20.0)
+
+        if "compressor" not in state:
+            state["compressor"] = {
+                "gain": 1.0,
+                "attack_counter": 0,
+                "release_counter": 0
+            }
+
+        comp_state = state["compressor"]
+
+        for i in range(len(input_left)):
+            input_sample = (input_left[i] + input_right[i]) / 2.0
+            input_level = abs(input_sample)
+
+            if input_level > threshold_linear:
+                desired_gain = threshold_linear / (input_level ** (1/ratio))
+            else:
+                desired_gain = 1.0
+
+            # Smooth gain changes
+            if desired_gain < comp_state["gain"]:
+                comp_state["gain"] = desired_gain
+            else:
+                # Simple release
+                comp_state["gain"] = comp_state["gain"] * 0.99 + desired_gain * 0.01
+
+            output_sample = input_sample * comp_state["gain"]
+            output_left[i] = output_sample
+            output_right[i] = output_sample
+
+    # --- Stub implementations for remaining effects ---
+
+    def _process_dual_delay_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                       output_left: np.ndarray, output_right: np.ndarray,
+                                       params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Dual Delay effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_echo_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                 output_left: np.ndarray, output_right: np.ndarray,
+                                 params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Echo effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_pan_delay_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                      output_left: np.ndarray, output_right: np.ndarray,
+                                      params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Pan Delay effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_cross_delay_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                        output_left: np.ndarray, output_right: np.ndarray,
+                                        params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Cross Delay effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_multi_tap_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                      output_left: np.ndarray, output_right: np.ndarray,
+                                      params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Multi Tap effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_reverse_delay_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                          output_left: np.ndarray, output_right: np.ndarray,
+                                          params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Reverse Delay effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_auto_pan_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Auto Pan effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_phaser_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                             output_left: np.ndarray, output_right: np.ndarray,
+                                             params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Phaser effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_flanger_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                              output_left: np.ndarray, output_right: np.ndarray,
+                                              params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Flanger effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_auto_wah_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Auto Wah effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_ring_mod_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Ring Mod effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_pitch_shifter_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                          output_left: np.ndarray, output_right: np.ndarray,
+                                          params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Pitch Shifter effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_distortion_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                                 output_left: np.ndarray, output_right: np.ndarray,
+                                                 params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Distortion effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_overdrive_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                                output_left: np.ndarray, output_right: np.ndarray,
+                                                params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Overdrive effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_compressor_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                                 output_left: np.ndarray, output_right: np.ndarray,
+                                                 params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Compressor effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_limiter_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                    output_left: np.ndarray, output_right: np.ndarray,
+                                    params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Limiter effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_gate_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                           output_left: np.ndarray, output_right: np.ndarray,
+                                           params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Gate effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_expander_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Expander effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_rotary_speaker_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                                     output_left: np.ndarray, output_right: np.ndarray,
+                                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Rotary Speaker effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_leslie_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                             output_left: np.ndarray, output_right: np.ndarray,
+                                             params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Leslie effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_vibrato_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                    output_left: np.ndarray, output_right: np.ndarray,
+                                    params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Vibrato effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_acoustic_simulator_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                               output_left: np.ndarray, output_right: np.ndarray,
+                                               params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Acoustic Simulator effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_guitar_amp_sim_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                                     output_left: np.ndarray, output_right: np.ndarray,
+                                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Guitar Amp Sim effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_enhancer_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                               output_left: np.ndarray, output_right: np.ndarray,
+                                               params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Enhancer effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_slicer_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                             output_left: np.ndarray, output_right: np.ndarray,
+                                             params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Slicer effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_phaser_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                        output_left: np.ndarray, output_right: np.ndarray,
+                                        params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Phaser effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_flanger_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                         output_left: np.ndarray, output_right: np.ndarray,
+                                         params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Flanger effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_tremolo_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                         output_left: np.ndarray, output_right: np.ndarray,
+                                         params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Tremolo effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_pan_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Pan effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_filter_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                        output_left: np.ndarray, output_right: np.ndarray,
+                                        params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Filter effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_auto_filter_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                        output_left: np.ndarray, output_right: np.ndarray,
+                                        params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Auto Filter effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_vocoder_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                              output_left: np.ndarray, output_right: np.ndarray,
+                                              params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Vocoder effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_talk_wah_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                               output_left: np.ndarray, output_right: np.ndarray,
+                                               params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Talk Wah effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_harmonizer_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                                 output_left: np.ndarray, output_right: np.ndarray,
+                                                 params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Harmonizer effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_octave_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                             output_left: np.ndarray, output_right: np.ndarray,
+                                             params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Octave effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_detune_variation_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                             output_left: np.ndarray, output_right: np.ndarray,
+                                             params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Detune effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_chorus_reverb_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                          output_left: np.ndarray, output_right: np.ndarray,
+                                          params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Chorus/Reverb effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_stereo_imager_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                          output_left: np.ndarray, output_right: np.ndarray,
+                                          params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Stereo Imager effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_ambience_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Ambience effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_doubler_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                    output_left: np.ndarray, output_right: np.ndarray,
+                                    params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Doubler effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_enhancer_reverb_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                            output_left: np.ndarray, output_right: np.ndarray,
+                                            params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Enhancer/Reverb effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_spectral_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Spectral effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_resonator_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                      output_left: np.ndarray, output_right: np.ndarray,
+                                      params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Resonator effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_degrader_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Degrader effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_vinyl_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                  output_left: np.ndarray, output_right: np.ndarray,
+                                  params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Vinyl effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_looper_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                   output_left: np.ndarray, output_right: np.ndarray,
+                                   params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Looper effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_delay_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                       output_left: np.ndarray, output_right: np.ndarray,
+                                       params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Delay effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_echo_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                      output_left: np.ndarray, output_right: np.ndarray,
+                                      params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Echo effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_pan_delay_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                           output_left: np.ndarray, output_right: np.ndarray,
+                                           params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Pan Delay effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_cross_delay_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                             output_left: np.ndarray, output_right: np.ndarray,
+                                             params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Cross Delay effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_multi_tap_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                           output_left: np.ndarray, output_right: np.ndarray,
+                                           params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Multi Tap effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_reverse_delay_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                               output_left: np.ndarray, output_right: np.ndarray,
+                                               params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Reverse Delay effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_ring_mod_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                          output_left: np.ndarray, output_right: np.ndarray,
+                                          params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Ring Mod effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_pitch_shifter_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                               output_left: np.ndarray, output_right: np.ndarray,
+                                               params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Pitch Shifter effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_distortion_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                            output_left: np.ndarray, output_right: np.ndarray,
+                                            params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Distortion effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_overdrive_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                           output_left: np.ndarray, output_right: np.ndarray,
+                                           params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Overdrive effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_compressor_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                            output_left: np.ndarray, output_right: np.ndarray,
+                                            params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Compressor effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_limiter_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                         output_left: np.ndarray, output_right: np.ndarray,
+                                         params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Limiter effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_gate_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                      output_left: np.ndarray, output_right: np.ndarray,
+                                      params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Gate effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_expander_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                          output_left: np.ndarray, output_right: np.ndarray,
+                                          params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Expander effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_step_rotary_speaker_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                                output_left: np.ndarray, output_right: np.ndarray,
+                                                params: Dict[str, float], state: Dict[str, Any]) -> None:
+        """Stub: Process Step Rotary Speaker effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    # --- Insertion Effect Block Implementations ---
+
+    def _process_overdrive_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                      output_left: np.ndarray, output_right: np.ndarray,
+                                      params: Dict[str, float], state: Dict[str, Any],
+                                      system_state: Dict[str, Any]) -> None:
+        """Stub: Process Overdrive effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_gate_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                 output_left: np.ndarray, output_right: np.ndarray,
+                                 params: Dict[str, float], state: Dict[str, Any],
+                                 system_state: Dict[str, Any]) -> None:
+        """Stub: Process Gate effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_envelope_filter_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                            output_left: np.ndarray, output_right: np.ndarray,
+                                            params: Dict[str, float], state: Dict[str, Any],
+                                            system_state: Dict[str, Any]) -> None:
+        """Stub: Process Envelope Filter effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_guitar_amp_sim_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                           output_left: np.ndarray, output_right: np.ndarray,
+                                           params: Dict[str, float], state: Dict[str, Any],
+                                           system_state: Dict[str, Any]) -> None:
+        """Stub: Process Guitar Amp Sim effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_rotary_speaker_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                           output_left: np.ndarray, output_right: np.ndarray,
+                                           params: Dict[str, float], state: Dict[str, Any],
+                                           system_state: Dict[str, Any]) -> None:
+        """Stub: Process Rotary Speaker effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_leslie_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                   output_left: np.ndarray, output_right: np.ndarray,
+                                   params: Dict[str, float], state: Dict[str, Any],
+                                   system_state: Dict[str, Any]) -> None:
+        """Stub: Process Leslie effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_enhancer_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any],
+                                     system_state: Dict[str, Any]) -> None:
+        """Stub: Process Enhancer effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_slicer_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                   output_left: np.ndarray, output_right: np.ndarray,
+                                   params: Dict[str, float], state: Dict[str, Any],
+                                   system_state: Dict[str, Any]) -> None:
+        """Stub: Process Slicer effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_vocoder_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                    output_left: np.ndarray, output_right: np.ndarray,
+                                    params: Dict[str, float], state: Dict[str, Any],
+                                    system_state: Dict[str, Any]) -> None:
+        """Stub: Process Vocoder effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_talk_wah_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                     output_left: np.ndarray, output_right: np.ndarray,
+                                     params: Dict[str, float], state: Dict[str, Any],
+                                     system_state: Dict[str, Any]) -> None:
+        """Stub: Process Talk Wah effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_harmonizer_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                       output_left: np.ndarray, output_right: np.ndarray,
+                                       params: Dict[str, float], state: Dict[str, Any],
+                                       system_state: Dict[str, Any]) -> None:
+        """Stub: Process Harmonizer effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_octave_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                   output_left: np.ndarray, output_right: np.ndarray,
+                                   params: Dict[str, float], state: Dict[str, Any],
+                                   system_state: Dict[str, Any]) -> None:
+        """Stub: Process Octave effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_detune_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                   output_left: np.ndarray, output_right: np.ndarray,
+                                   params: Dict[str, float], state: Dict[str, Any],
+                                   system_state: Dict[str, Any]) -> None:
+        """Stub: Process Detune effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_phaser_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                   output_left: np.ndarray, output_right: np.ndarray,
+                                   params: Dict[str, float], state: Dict[str, Any],
+                                   system_state: Dict[str, Any]) -> None:
+        """Stub: Process Phaser effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_flanger_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                    output_left: np.ndarray, output_right: np.ndarray,
+                                    params: Dict[str, float], state: Dict[str, Any],
+                                    system_state: Dict[str, Any]) -> None:
+        """Stub: Process Flanger effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
+
+    def _process_wah_wah_effect_block(self, input_left: np.ndarray, input_right: np.ndarray,
+                                    output_left: np.ndarray, output_right: np.ndarray,
+                                    params: Dict[str, float], state: Dict[str, Any],
+                                    system_state: Dict[str, Any]) -> None:
+        """Stub: Process Wah Wah effect for a block of samples"""
+        output_left[:] = input_left
+        output_right[:] = input_right
 
     def _process_rotary_speaker_variation_effect(self, left: float, right: float,
                                                params: Dict[str, float],
