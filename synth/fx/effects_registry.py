@@ -31,15 +31,17 @@ import threading
 try:
     from .system_effects import XGSystemReverbProcessor, XGSystemChorusProcessor
     from .variation_effects import XGVariationEffectsProcessor
-    from .insertion_effects import XGInsertionEffectsProcessor
-    from .eq_processor import XGChannelEQProcessor, XGMasterEQProcessor
+    from .insertion_pro import ProductionXGInsertionEffectsProcessor as XGInsertionEffectsProcessor
+    from .eq_processor import XGMultiBandEqualizer
     from .types import (
         XGReverbType, XGChorusType, XGVariationType, XGInsertionType, XGEQType,
         XGSystemEffectsParams, XGChannelMixerParams, XGChannelEQParams, XGMasterEQParams,
         XG_CHANNEL_MIXER_DEFAULT
     )
-except ImportError:
+except ImportError as e:
     # Fallback for development
+    print(f"Import error in effects_registry: {e}")
+    XGMultiBandEqualizer = None
     pass
 
 
@@ -489,52 +491,53 @@ class XGEffectFactory:
             except Exception:
                 return None
 
-    def create_channel_eq(self, eq_type: XGEQType) -> Optional[XGChannelEQProcessor]:
+    def create_channel_eq(self, eq_type: int) -> Optional[XGMultiBandEqualizer]:
         """
-        Create a channel EQ processor.
+        Create a channel EQ processor using XGMultiBandEqualizer.
 
         Args:
-            eq_type: XG EQ type
+            eq_type: XG EQ type (0-9)
 
         Returns:
-            Channel EQ processor instance
+            XGMultiBandEqualizer instance configured for channel use
         """
         with self.lock:
-            if not isinstance(eq_type, XGEQType):
+            if not (0 <= eq_type <= 9):
                 return None
 
-            pool_key = f"channel_eq_{eq_type.value}"
+            pool_key = f"channel_eq_{eq_type}"
             if pool_key in self._instance_pool and self._instance_pool[pool_key]:
                 # Reuse from pool
                 instance = self._instance_pool[pool_key].pop()
-                instance.param_updated = True  # Force coefficient update
+                instance.reset()
                 return instance
 
             # Create new instance
             try:
-                processor = XGChannelEQProcessor(self.sample_rate)
+                processor = XGMultiBandEqualizer(self.sample_rate)
                 processor.set_eq_type(eq_type)
                 return processor
             except Exception:
                 return None
 
-    def create_master_eq(self) -> Optional[XGMasterEQProcessor]:
+    def create_master_eq(self) -> Optional[XGMultiBandEqualizer]:
         """
-        Create a master EQ processor.
+        Create a master EQ processor using XGMultiBandEqualizer.
 
         Returns:
-            Master EQ processor instance
+            XGMultiBandEqualizer instance configured for master use
         """
         with self.lock:
             pool_key = "master_eq"
             if pool_key in self._instance_pool and self._instance_pool[pool_key]:
                 # Reuse from pool
                 instance = self._instance_pool[pool_key].pop()
+                instance.reset()
                 return instance
 
             # Create new instance
             try:
-                return XGMasterEQProcessor(self.sample_rate)
+                return XGMultiBandEqualizer(self.sample_rate)
             except Exception:
                 return None
 

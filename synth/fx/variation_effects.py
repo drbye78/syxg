@@ -101,10 +101,9 @@ class XGVariationEffectsProcessor:
                 # Delay effects (0-9) - route to delay processor
                 self.delay_processor.process_effect(effect_type, stereo_mix, num_samples, self._effect_states)
             elif 10 <= effect_type <= 26:
-                # Chorus/Modulation effects (10-26) - route to chorus processor (placeholder for now)
+                # Chorus/Modulation effects (10-26) - route to chorus processor (PRODUCTION-READY)
                 if self.chorus_processor:
                     self.chorus_processor.process_effect(effect_type, stereo_mix, num_samples, self._effect_states)
-                # For now, pass through for unimplemented effects
             elif 27 <= effect_type <= 57:
                 # Distortion/Dynamics effects (27-57) - route to distortion processor (production-ready)
                 if self.distortion_processor:

@@ -32,7 +32,7 @@ from .buffer_pool import XGBufferPool, XGBufferManager
 from .system_effects import XGSystemEffectsProcessor
 from .variation_effects import XGVariationEffectsProcessor
 from .insertion_pro import ProductionXGInsertionEffectsProcessor
-from ..effects.equalizer import XGMultiBandEqualizer
+from .eq_processor import XGMultiBandEqualizer
 
 
 class XGEffectsCoordinator:
@@ -805,6 +805,49 @@ class XGEffectsCoordinator:
             self.effect_units_active.fill(True)
             self.master_level = 1.0
             self.wet_dry_mix = 1.0
+
+    def get_current_state(self) -> Dict[str, Any]:
+        """
+        Get current effects coordinator state for monitoring.
+
+        Returns:
+            Dictionary with current effect parameters and status
+        """
+        with self.lock:
+            return {
+                'processing_enabled': self.processing_enabled,
+                'master_level': self.master_level,
+                'wet_dry_mix': self.wet_dry_mix,
+                'reverb_params': {
+                    'type': self.system_effects.reverb_processor.params.get('reverb_type', 1),
+                    'level': self.system_effects.reverb_processor.params.get('level', 0.0),
+                    'time': self.system_effects.reverb_processor.params.get('time', 0.5),
+                    'hf_damping': self.system_effects.reverb_processor.params.get('hf_damping', 0.5),
+                    'density': self.system_effects.reverb_processor.params.get('density', 0.8),
+                },
+                'chorus_params': {
+                    'type': self.system_effects.chorus_processor.params.get('chorus_type', 0),
+                    'level': self.system_effects.chorus_processor.params.get('level', 0.0),
+                    'rate': self.system_effects.chorus_processor.params.get('rate', 1.0),
+                    'depth': self.system_effects.chorus_processor.params.get('depth', 0.5),
+                    'feedback': self.system_effects.chorus_processor.params.get('feedback', 0.3),
+                },
+                'variation_params': {
+                    'level': 0.0,  # Not implemented in current version
+                    'type': 0,     # Not implemented in current version
+                },
+                'equalizer_params': {
+                    'low_gain': 0.0,    # Not implemented in current version
+                    'mid_gain': 0.0,    # Not implemented in current version
+                    'high_gain': 0.0,   # Not implemented in current version
+                },
+                'effect_units_active': self.effect_units_active.tolist(),
+                'channel_volumes': self.channel_volumes.tolist(),
+                'channel_pans': self.channel_pans.tolist(),
+                'reverb_sends': self.reverb_sends.tolist(),
+                'chorus_sends': self.chorus_sends.tolist(),
+                'variation_sends': self.variation_sends.tolist(),
+            }
 
     def shutdown(self) -> None:
         """Clean shutdown of effects coordinator."""

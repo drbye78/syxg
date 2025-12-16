@@ -17,7 +17,7 @@ Architecture:
 """
 
 # Core System Imports
-from .coordinator import XGEffectsCoordinator
+from .effects_coordinator import XGEffectsCoordinator
 
 # Factory System
 try:
