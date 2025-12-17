@@ -24,7 +24,7 @@ import numpy as np
 import threading
 import sys
 import os
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any, Callable
 # heapq removed - unused
 import time
 from collections import deque
@@ -46,6 +46,8 @@ from .optimized_coefficient_manager import (
 from ..sf2.manager import SF2Manager
 from ..xg.drum_manager import DrumManager
 from ..xg.channel_note import PartialGeneratorPool
+from ..xg.xg_receive_channel_manager import XGReceiveChannelManager
+from ..xg.xg_rpn_controller import XGRPNController
 from ..midi.parser import MIDIMessage
 
 # MIDI Message Type Constants (for maintainability)
@@ -86,16 +88,20 @@ class MemoryPool:
     - Zero-copy buffer management where possible
     """
 
-    def __init__(self, block_size: int, initial_pool_size: int = 32):
+    def __init__(self, block_size: int, initial_pool_size: int = 32, stereo_multiplier: int = 8, mono_multiplier: int = 4):
         """
         Initialize ultra-fast memory pool for audio buffers.
 
         Args:
             block_size: Fixed buffer size (from synthesizer block_size)
             initial_pool_size: Initial number of buffers to pre-allocate for each type
+            stereo_multiplier: Multiplier for stereo buffer pre-allocation (default 8)
+            mono_multiplier: Multiplier for mono buffer pre-allocation (default 4)
         """
         self.block_size = block_size
         self.initial_pool_size = initial_pool_size
+        self.stereo_multiplier = stereo_multiplier
+        self.mono_multiplier = mono_multiplier
 
         # Separate pools for different buffer types - ultra-fast access
         # No maxlen limit - pools can grow unlimited for maximum flexibility
@@ -110,10 +116,10 @@ class MemoryPool:
 
     def _preallocate_buffers(self):
         """Pre-allocate buffers for ultra-fast access."""
-        # Pre-allocate more buffers to reduce allocation overhead during processing
+        # Pre-allocate buffers using configurable multipliers to reduce allocation overhead during processing
         # For high-performance audio processing, having more buffers in the pool is beneficial
-        stereo_count = self.initial_pool_size * 8  # Increase for better performance
-        mono_count = self.initial_pool_size * 4    # Increase for better performance
+        stereo_count = self.initial_pool_size * self.stereo_multiplier
+        mono_count = self.initial_pool_size * self.mono_multiplier
 
         # Pre-allocate stereo buffers (most common for audio processing)
         for _ in range(stereo_count):
@@ -279,6 +285,10 @@ class OptimizedXGSynthesizer:
         render_log_level: int = 0,
         use_modulation_matrix: bool = False,
         voice_allocation_mode: int = 1,  # Default to XG priority polyphonic
+        memory_pool_stereo_multiplier: int = 8,  # Configurable memory pool size multipliers
+        memory_pool_mono_multiplier: int = 4,
+        minimum_time_slice: float = 0.002,  # Configurable timing parameters
+        sysex_response_callback: Optional[Callable] = None,  # Callback for SYSEX responses
     ):
         """
         Initialize optimized XG synthesizer with performance enhancements.
@@ -301,12 +311,18 @@ class OptimizedXGSynthesizer:
         self.render_log_level = render_log_level
         self.use_modulation_matrix = use_modulation_matrix
         self.voice_allocation_mode = voice_allocation_mode
+        self.sysex_response_callback = sysex_response_callback
 
         # Thread safety lock
         self.lock = threading.RLock()
 
         # Memory and object pooling system
-        self.memory_pool = MemoryPool(block_size=block_size, initial_pool_size=512)  # Ultra-fast fixed-size audio buffers
+        self.memory_pool = MemoryPool(
+            block_size=block_size,
+            initial_pool_size=512,
+            stereo_multiplier=memory_pool_stereo_multiplier,
+            mono_multiplier=memory_pool_mono_multiplier
+        )  # Ultra-fast fixed-size audio buffers
         self._initialize_object_pools()
 
         # Core synthesizer components owned by this class
@@ -339,6 +355,9 @@ class OptimizedXGSynthesizer:
         # XG NRPN Controller for comprehensive MIDI parameter control
         self.nrpn_controller = XGNRPNController(self.effects_coordinator)
 
+        # XG RPN Controller for standard MIDI parameter control
+        self.rpn_controller = XGRPNController()
+
         # XG SYSEX Controller for bulk parameter dumps and advanced control
         self.sysex_controller = XGSYSEXController(self.effects_coordinator, self.nrpn_controller)
 
@@ -356,9 +375,8 @@ class OptimizedXGSynthesizer:
         self._current_time: float = 0.0
         self._minimum_time_slice = 0.002
 
-        # XG Receive Channel Manager - TODO: Import or create
-        # self.receive_channel_manager = XGReceiveChannelManager(num_parts=self.num_channels)
-        self.receive_channel_manager = None  # Placeholder for now
+        # XG Receive Channel Manager - Production-ready multichannel routing
+        self.receive_channel_manager = XGReceiveChannelManager(num_parts=self.num_channels)
 
         # Pre-allocated audio buffers for performance
         self._initialize_audio_buffers()
@@ -439,11 +457,11 @@ class OptimizedXGSynthesizer:
 
     def _initialize_xg(self):
         """Initialize XG synthesizer according to XG MIDI specification."""
-        # Initialize XG RPN controller - TODO: migrate to new FX system
-        # self.xg_rpn_controller.reset_rpn_parameters()
+        # Initialize XG RPN controller - migrated to new FX system
+        self.rpn_controller.reset_rpn_parameters()
 
         # Initialize drum kit parameters to XG defaults
-        # self.xg_drum_parameters.reset_all_drum_parameters()
+        self.drum_manager.reset_all_drum_parameters()
 
         # XG Effects Manager initialization handled in __init__ with effects_coordinator
         # XG Effects Coordinator is initialized and reset in __init__
@@ -539,9 +557,8 @@ class OptimizedXGSynthesizer:
             if midi_channel is None:
                 return  # Not channel-specific message
 
-            # Route message through XG receive channel mapping - TODO: implement multichannel routing
-            # For now, route directly to the same channel
-            target_parts = [midi_channel]  # Direct 1:1 mapping for simplicity
+            # Route message through XG receive channel mapping - Production-ready implementation
+            target_parts = self.receive_channel_manager.get_parts_for_midi_channel(midi_channel)
 
             if not target_parts:
                 # No parts receive from this MIDI channel
@@ -644,8 +661,15 @@ class OptimizedXGSynthesizer:
             try:
                 response = self.sysex_controller.process_sysex(data)
                 if response:
-                    # TODO: Send SYSEX response back if needed
-                    print(f"XG SYSEX: Processed command, response available ({len(response)} bytes)")
+                    # Send SYSEX response back to MIDI device if callback is available
+                    if self.sysex_response_callback:
+                        try:
+                            self.sysex_response_callback(response)
+                            print(f"XG SYSEX: Response sent ({len(response)} bytes)")
+                        except Exception as callback_error:
+                            print(f"Warning: SYSEX response callback failed: {callback_error}")
+                    else:
+                        print(f"XG SYSEX: Processed command, response available ({len(response)} bytes) - no callback configured")
                 return
             except Exception as e:
                 print(f"XG SYSEX: Error processing message: {e}")
@@ -658,37 +682,94 @@ class OptimizedXGSynthesizer:
 
     def _handle_nrpn_message(self, cc_number: int, value: int):
         """
-        Handle NRPN (Non-Registered Parameter Number) messages.
+        Handle NRPN (Non-Registered Parameter Number) messages with enhanced processing.
 
         NRPN messages consist of:
         - CC 98: NRPN LSB (parameter index)
         - CC 99: NRPN MSB (parameter group)
-        - CC 6: Data MSB (parameter value)
-        - CC 38: Data LSB (usually unused)
+        - CC 6: Data Entry MSB (parameter value)
+        - CC 38: Data Entry LSB (fine control, usually unused)
+
+        Enhanced implementation with proper state management and validation.
 
         Args:
             cc_number: Control change number (98, 99, 6, 38)
             value: Control change value (0-127)
         """
-        # NRPN messages are handled by the XG NRPN controller
-        # The controller accumulates the NRPN state and processes complete messages
-        if hasattr(self, 'nrpn_controller') and self.nrpn_controller:
-            # For now, we'll handle the basic NRPN accumulation here
-            # In a full implementation, this would be more sophisticated
-            if cc_number == 98:  # NRPN LSB
-                self._nrpn_lsb = value
-            elif cc_number == 99:  # NRPN MSB
-                self._nrpn_msb = value
-            elif cc_number == 6:   # Data MSB
-                self._nrpn_data_msb = value
-                # Process complete NRPN message
-                if hasattr(self, '_nrpn_msb') and hasattr(self, '_nrpn_lsb'):
+        # Initialize NRPN state if not exists
+        if not hasattr(self, '_nrpn_state'):
+            self._nrpn_state: Dict[str, Optional[int]] = {
+                'msb': None,      # NRPN MSB (CC 99)
+                'lsb': None,      # NRPN LSB (CC 98)
+                'data_msb': None, # Data Entry MSB (CC 6)
+                'data_lsb': None  # Data Entry LSB (CC 38)
+            }
+
+        # Update NRPN state based on controller
+        if cc_number == 99:  # NRPN MSB
+            self._nrpn_state['msb'] = value
+            # Reset data when NRPN is set
+            self._nrpn_state['data_msb'] = None
+            self._nrpn_state['data_lsb'] = None
+        elif cc_number == 98:  # NRPN LSB
+            self._nrpn_state['lsb'] = value
+            # Reset data when NRPN is set
+            self._nrpn_state['data_msb'] = None
+            self._nrpn_state['data_lsb'] = None
+        elif cc_number == 6:  # Data Entry MSB
+            self._nrpn_state['data_msb'] = value
+            # Process complete NRPN message if we have all required parts
+            self._process_complete_nrpn_message()
+        elif cc_number == 38:  # Data Entry LSB
+            self._nrpn_state['data_lsb'] = value
+            # Process complete NRPN message if we have all required parts
+            self._process_complete_nrpn_message()
+
+    def _process_complete_nrpn_message(self):
+        """
+        Process a complete NRPN message when all required parts are received.
+
+        NRPN requires at minimum: MSB, LSB, and Data MSB.
+        Data LSB is optional for fine control.
+        """
+        state = self._nrpn_state
+
+        # Check if we have minimum required parts for NRPN processing
+        if (state['msb'] is not None and
+            state['lsb'] is not None and
+            state['data_msb'] is not None):
+
+            # Process the NRPN message through the XG NRPN controller
+            if hasattr(self, 'nrpn_controller') and self.nrpn_controller:
+                try:
+                    # Use 0 for LSB if not provided (common case)
+                    data_lsb = state['data_lsb'] if state['data_lsb'] is not None else 0
+
+                    # Process NRPN through effects coordinator
                     self.nrpn_controller.process_nrpn(
-                        self._nrpn_msb, self._nrpn_lsb,
-                        self._nrpn_data_msb, getattr(self, '_nrpn_data_lsb', 0)
+                        state['msb'], state['lsb'],
+                        state['data_msb'], data_lsb
                     )
-            elif cc_number == 38:  # Data LSB
-                self._nrpn_data_lsb = value
+
+                    # Log successful NRPN processing
+                    nrpn_value = (state['data_msb'] << 7) | data_lsb
+                    print(f"🎛️  NRPN: Processed {state['msb']:3d}:{state['lsb']:3d} = {nrpn_value:5d}")
+
+                except Exception as e:
+                    print(f"Warning: NRPN processing failed for {state['msb']}:{state['lsb']}: {e}")
+
+            # Reset NRPN state after processing (NRPN is one-shot)
+            self._reset_nrpn_state()
+
+    def _reset_nrpn_state(self):
+        """Reset NRPN state to prepare for next message sequence."""
+        if hasattr(self, '_nrpn_state'):
+            self._nrpn_state = {
+                'msb': None,
+                'lsb': None,
+                'data_msb': None,
+                'data_lsb': None
+            }
 
     def generate_audio_block_sample_accurate(self) -> np.ndarray:
         """
@@ -731,8 +812,8 @@ class OptimizedXGSynthesizer:
         partial_blocks_processed = 0
         channel_note_blocks_processed = 0
 
-        # Set up global performance counters for all components
-        global_counters = {
+        # Initialize performance counters for this audio block
+        performance_counters = {
             'envelope_blocks_processed': 0,
             'lfo_blocks_processed': 0,
             'filter_blocks_processed': 0,
@@ -741,9 +822,8 @@ class OptimizedXGSynthesizer:
             'channel_note_blocks_processed': 0
         }
 
-        # Make counters available globally (this is a simple approach for the demo)
-        import sys
-        setattr(sys, '_global_performance_counters', global_counters)
+        # Store counters in instance variable for component access
+        self._current_performance_counters = performance_counters
 
         # MIDI event counters
         midi_events_consumed = {
@@ -827,15 +907,13 @@ class OptimizedXGSynthesizer:
             # Performance logging: collect and log comprehensive statistics
             total_time = time.perf_counter() - start_time
 
-            # Get final counter values from global counters
-            import sys
-            global_counters = getattr(sys, '_global_performance_counters', {})
-            envelope_blocks_processed = global_counters.get('envelope_blocks_processed', 0)
-            lfo_blocks_processed = global_counters.get('lfo_blocks_processed', 0)
-            filter_blocks_processed = global_counters.get('filter_blocks_processed', 0)
-            wavetable_blocks_processed = global_counters.get('wavetable_blocks_processed', 0)
-            partial_blocks_processed = global_counters.get('partial_blocks_processed', 0)
-            channel_note_blocks_processed = global_counters.get('channel_note_blocks_processed', 0)
+            # Get final counter values from instance counters
+            envelope_blocks_processed = self._current_performance_counters.get('envelope_blocks_processed', 0)
+            lfo_blocks_processed = self._current_performance_counters.get('lfo_blocks_processed', 0)
+            filter_blocks_processed = self._current_performance_counters.get('filter_blocks_processed', 0)
+            wavetable_blocks_processed = self._current_performance_counters.get('wavetable_blocks_processed', 0)
+            partial_blocks_processed = self._current_performance_counters.get('partial_blocks_processed', 0)
+            channel_note_blocks_processed = self._current_performance_counters.get('channel_note_blocks_processed', 0)
 
             self._log_comprehensive_performance_stats(
                 self._current_time, midi_processing_time, envelope_processing_time, lfo_processing_time,
@@ -877,7 +955,8 @@ class OptimizedXGSynthesizer:
                         np.multiply(channel_left, master_volume_factor, out=channel_left)
                         np.multiply(channel_right, master_volume_factor, out=channel_right)
                 except Exception as e:
-                    print(e)
+                    # Log error and generate silence to prevent audio dropouts
+                    print(f"Warning: Channel {channel_idx} audio generation failed: {e}")
                     channel_left, channel_right = channel_renderer.generate_silence(block_size)
             else:
                 # Inactive channel - get zero buffer from ultra-fast pool
@@ -1003,8 +1082,8 @@ class OptimizedXGSynthesizer:
             # Reset drum manager
             self.drum_manager.reset_all_drum_parameters()
 
-            # Reset effects - TODO: implement coordinator reset
-            # self.effects_coordinator.reset_all_effects() # already called in init
+            # Reset effects coordinator to XG defaults
+            self.effects_coordinator.reset_all_effects()
 
             # Reset message sequence and consumption state
             self._message_sequence.clear()
@@ -1076,9 +1155,10 @@ class OptimizedXGSynthesizer:
                 # Get SF2 preset name if available
                 preset_name = self._get_sf2_preset_name(bank, program)
 
-                # Get receive channel from XG receive channel manager - TODO: implement
-                # For now, use direct mapping
-                receive_channel = channel_idx  # Fallback to direct mapping
+                # Get receive channel from XG receive channel manager
+                receive_channel = self.receive_channel_manager.get_receive_channel(channel_idx)
+                if receive_channel is None:
+                    receive_channel = channel_idx  # Fallback to direct mapping
                 part_mode = getattr(renderer, 'part_mode', 0)  # Default to normal mode
 
                 # Calculate per-channel RMS from the channel buffer used in mixing
@@ -1157,11 +1237,22 @@ class OptimizedXGSynthesizer:
     def _get_insertion_effects_status(self):
         """Get status of insertion effects during block processing."""
         try:
-            active_effects = []
-            # TODO: Implement insertion effects status querying from effects coordinator
-            # For now, return 'None' since we don't have insertion effects implemented yet
-            return 'None'
-        except:
+            # Query effects coordinator for basic insertion effects state
+            state = self.effects_coordinator.get_current_state()
+
+            # Check if insertion effects are available in the coordinator
+            if hasattr(self.effects_coordinator, 'insertion_effects'):
+                num_channels = len(self.effects_coordinator.insertion_effects)
+                if num_channels > 0:
+                    return f"{num_channels} channels available"
+                else:
+                    return "None"
+            else:
+                return "Not configured"
+
+        except Exception as e:
+            # Log error but don't crash the performance logging
+            print(f"Warning: Failed to get insertion effects status: {e}")
             return 'UNK'
 
     def _get_sf2_preset_name(self, bank: int, program: int) -> str:
