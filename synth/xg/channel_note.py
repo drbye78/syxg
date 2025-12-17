@@ -76,6 +76,7 @@ class PartialGeneratorPool:
         is_drum: bool = False,
         sample_rate: int = 44100,
         bank: int = 0,
+        use_modulation_matrix: bool = False,
     ) -> XGPartialGenerator:
         """
         Acquire a partial generator from the pool or create new one.
@@ -130,6 +131,7 @@ class PartialGeneratorPool:
                 is_drum=is_drum,
                 sample_rate=sample_rate,
                 bank=bank,
+                use_modulation_matrix=use_modulation_matrix,
             )
 
     def release(self, partial: XGPartialGenerator) -> None:
@@ -208,6 +210,7 @@ class ChannelNote:
         bank: int,
         is_drum: bool = False,
         synth=None,  # Reference to synthesizer for pool access
+        use_modulation_matrix: bool = False,
     ):
         # Input validation
         if not (0 <= note <= 127):
@@ -228,6 +231,7 @@ class ChannelNote:
         self.channel = channel
         self.synth = synth  # Store synthesizer reference for pool access
         self.sample_rate = channel.sample_rate
+        self.use_modulation_matrix = use_modulation_matrix
         self.detune = 0.0
         self.phaser_depth = 0.0
 
@@ -618,6 +622,7 @@ class ChannelNote:
                 is_drum=self.is_drum,
                 sample_rate=self.sample_rate,
                 bank=self.bank,
+                use_modulation_matrix=self.use_modulation_matrix,
             )
             self.partials.append(partial)
 

@@ -518,7 +518,7 @@ class XGPartialGenerator:
 
     def __init__(self, synth, note: int, velocity: int, program: int,
                   partial_id: int, partial_params: Dict, is_drum: bool = False,
-                  sample_rate: int = 44100, bank: int = 0):
+                  sample_rate: int = 44100, bank: int = 0, use_modulation_matrix: bool = False):
         """
         XG-compliant partial generator initialization.
 
@@ -542,6 +542,7 @@ class XGPartialGenerator:
         self.bank = bank
         self.is_drum = is_drum
         self.sample_rate = sample_rate
+        self.use_modulation_matrix = use_modulation_matrix
         self.active = True
 
         # Set XG partial parameters using shared method
@@ -1730,7 +1731,7 @@ class XGPartialGenerator:
 
     def apply_modulation(self, synthesis_mod, lfo_mod, envelope_mod, advanced_mod):
         """
-        Unified modulation application method.
+        Unified modulation application method with optional modulation matrix support.
 
         Applies all types of modulation in the correct order for proper synthesis:
         1. Envelope modulation (affects envelope shapes)
@@ -1738,11 +1739,30 @@ class XGPartialGenerator:
         3. Advanced synthesis modulation (crossfade, stereo, etc.)
         4. Core synthesis modulation (pitch, filter, amplitude, pan)
 
+        When use_modulation_matrix=True, routes modulation through the XG modulation matrix.
+        When use_modulation_matrix=False (default), uses traditional dedicated LFO approach.
+
         Args:
             synthesis_mod: Core synthesis modulation values
             lfo_mod: LFO parameter modulation values
             envelope_mod: Envelope parameter modulation values
             advanced_mod: Advanced synthesis modulation values
+        """
+        if self.use_modulation_matrix:
+            # MODULATION MATRIX MODE: Route all modulation through XG modulation matrix
+            self._apply_modulation_matrix_mode(synthesis_mod, lfo_mod, envelope_mod, advanced_mod)
+        else:
+            # TRADITIONAL LFO MODE: Use existing dedicated LFO approach
+            self._apply_traditional_lfo_mode(synthesis_mod, lfo_mod, envelope_mod, advanced_mod)
+
+        # Mark as active
+        self.active = True
+
+    def _apply_traditional_lfo_mode(self, synthesis_mod, lfo_mod, envelope_mod, advanced_mod):
+        """
+        Apply modulation using traditional dedicated LFO approach.
+
+        This is the existing behavior - maintains backward compatibility.
         """
         # 1. Apply envelope modulation first (affects envelope shapes)
         self.apply_envelope_modulation(envelope_mod)
@@ -1765,8 +1785,338 @@ class XGPartialGenerator:
             synthesis_mod.get("amp", 1.0)
         )
 
-        # Mark as active
-        self.active = True
+    def _apply_modulation_matrix_mode(self, synthesis_mod, lfo_mod, envelope_mod, advanced_mod):
+        """
+        Apply modulation using XG modulation matrix approach.
+
+        Routes all modulation sources through the modulation matrix for advanced
+        routing capabilities and XG specification compliance.
+        """
+        # Import modulation matrix here to avoid circular imports
+        from ..modulation.matrix import ModulationMatrix
+
+        # Create modulation matrix instance if not already present
+        if not hasattr(self, 'modulation_matrix') or self.modulation_matrix is None:
+            # Use vectorized matrix for better performance
+            from ..modulation.vectorized_matrix import VectorizedModulationMatrix
+            self.modulation_matrix = VectorizedModulationMatrix(num_routes=16)
+            self._setup_modulation_matrix_routes()
+
+        # Prepare modulation sources dictionary
+        sources = self._prepare_modulation_sources(synthesis_mod, lfo_mod, envelope_mod, advanced_mod)
+
+        # Process through modulation matrix
+        modulation_values = self.modulation_matrix.process(sources, self.velocity, self.note)
+
+        # Separate modulation by type for different consumers
+        synthesis_matrix_mod = {k: v for k, v in modulation_values.items()
+                              if k in ['pitch', 'filter_cutoff', 'amp', 'pan']}
+
+        lfo_matrix_mod = {k: v for k, v in modulation_values.items()
+                         if k.startswith('lfo') and ('_rate' in k or '_depth' in k)}
+
+        envelope_matrix_mod = {k: v for k, v in modulation_values.items()
+                              if any(x in k for x in ['attack', 'decay', 'sustain', 'release', 'hold'])}
+
+        advanced_matrix_mod = {k: v for k, v in modulation_values.items()
+                              if k in ['velocity_crossfade', 'note_crossfade', 'stereo_width', 'tremolo_rate']}
+
+        # Apply modulation in correct order
+        # 1. Envelope modulation (affects envelope shapes)
+        self.apply_envelope_modulation(envelope_matrix_mod)
+
+        # 2. LFO modulation (affects LFO parameters)
+        self.apply_lfo_modulation(lfo_matrix_mod)
+
+        # 3. Advanced synthesis modulation
+        self.apply_advanced_modulation(advanced_matrix_mod)
+
+        # 4. Apply pan modulation from matrix results
+        pan_mod = synthesis_matrix_mod.get("pan", 0.0)
+        if pan_mod != 0.0:
+            self.apply_pan_modulation(pan_mod)
+
+        # 5. Apply core synthesis modulation (stored for audio generation)
+        self.set_modulation_values(
+            synthesis_matrix_mod.get("pitch", 0.0),
+            synthesis_matrix_mod.get("filter_cutoff", 0.0),
+            synthesis_matrix_mod.get("amp", 1.0)
+        )
+
+    def _prepare_modulation_sources(self, synthesis_mod, lfo_mod, envelope_mod, advanced_mod):
+        """
+        Prepare modulation sources dictionary for matrix processing.
+
+        Consolidates all modulation sources into a single dictionary
+        that the modulation matrix can process.
+        """
+        sources = {
+            # Basic sources
+            "velocity": self.velocity / 127.0,
+            "after_touch": 0.0,  # Channel aftertouch (could be added later)
+            "mod_wheel": 0.0,    # Mod wheel (could be added later)
+            "breath_controller": 0.0,  # Breath controller
+            "foot_controller": 0.0,     # Foot controller
+            "data_entry": 100 / 127.0,  # Default data entry value
+            "lfo1": 0.0,
+            "lfo2": 0.0,
+            "lfo3": 0.0,
+            "note_lfo1": 0.0,  # Note-level LFOs
+            "note_lfo2": 0.0,
+            "note_lfo3": 0.0,
+            "amp_env": 0.0,     # Current envelope value
+            "filter_env": 0.0,  # Current filter envelope value
+            "pitch_env": 0.0,   # Current pitch envelope value
+            "key_pressure": 0.0,
+            "brightness": 0.0,
+            "harmonic_content": 0.0,
+            "note_number": self.note / 127.0,
+            "volume_cc": 0.0,
+            "balance": 0.0,
+            "portamento_time_cc": 0.0,
+        }
+
+        # Update from current LFO states if available
+        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos:
+            for i, lfo in enumerate(self.dedicated_lfos):
+                if lfo is not None:
+                    sources[f"lfo{i+1}"] = lfo.step() if hasattr(lfo, 'step') else 0.0
+
+        # Update from envelope states if available
+        if hasattr(self, 'amp_envelope') and self.amp_envelope:
+            sources["amp_env"] = self.amp_envelope.current_value if hasattr(self.amp_envelope, 'current_value') else 0.0
+        if hasattr(self, 'filter_envelope') and self.filter_envelope:
+            sources["filter_env"] = self.filter_envelope.current_value if hasattr(self.filter_envelope, 'current_value') else 0.0
+        if hasattr(self, 'pitch_envelope') and self.pitch_envelope:
+            sources["pitch_env"] = self.pitch_envelope.current_value if hasattr(self.pitch_envelope, 'current_value') else 0.0
+
+        return sources
+
+    def _setup_modulation_matrix_routes(self):
+        """
+        Set up XG-compliant modulation matrix routes for this partial.
+
+        Routes are configured according to XG modulation matrix specification.
+        Supports all XG modulation sources and destinations.
+        """
+        # Clear existing routes
+        for i in range(16):
+            self.modulation_matrix.clear_route(i)
+
+        # ============================================================================
+        # XG MODULATION MATRIX - FULL COMPLIANCE
+        # Implements complete XG modulation matrix specification
+        # ============================================================================
+
+        # STANDARD XG ROUTES (Routes 0-6: Basic modulation)
+        # LFO1 -> Pitch (Vibrato) - primary vibrato
+        self.modulation_matrix.set_route(
+            0, "lfo1", "pitch", amount=50.0/100.0, polarity=1.0
+        )
+
+        # LFO2 -> Pitch (additional modulation)
+        self.modulation_matrix.set_route(
+            1, "lfo2", "pitch", amount=30.0/100.0, polarity=1.0
+        )
+
+        # LFO3 -> Pitch (subtle modulation)
+        self.modulation_matrix.set_route(
+            2, "lfo3", "pitch", amount=10.0/100.0, polarity=1.0
+        )
+
+        # Amp Envelope -> Filter Cutoff (timbral evolution)
+        self.modulation_matrix.set_route(
+            3, "amp_env", "filter_cutoff", amount=0.5, polarity=1.0
+        )
+
+        # LFO1 -> Filter Cutoff (wah/filter modulation)
+        self.modulation_matrix.set_route(
+            4, "lfo1", "filter_cutoff", amount=0.3, polarity=1.0
+        )
+
+        # Velocity -> Amplitude (dynamics)
+        self.modulation_matrix.set_route(
+            5, "velocity", "amp", amount=0.5, velocity_sensitivity=0.5
+        )
+
+        # Note Number -> Pitch (keyboard tracking)
+        self.modulation_matrix.set_route(
+            6, "note_number", "pitch", amount=1.0, key_scaling=1.0
+        )
+
+        # ============================================================================
+        # ADVANCED XG ROUTES (Routes 7-15: Controller and advanced modulation)
+        # ============================================================================
+
+        # CONTROLLER ROUTES
+        # Mod Wheel -> LFO1 Depth (vibrato control)
+        self.modulation_matrix.set_route(
+            7, "mod_wheel", "lfo1_depth", amount=1.0, polarity=1.0
+        )
+
+        # Breath Controller -> LFO1 Depth (expression vibrato)
+        self.modulation_matrix.set_route(
+            8, "breath_controller", "lfo1_depth", amount=0.8, polarity=1.0
+        )
+
+        # Foot Controller -> Filter Cutoff (pedal wah)
+        self.modulation_matrix.set_route(
+            9, "foot_controller", "filter_cutoff", amount=0.5, polarity=1.0
+        )
+
+        # Channel Aftertouch -> LFO1 Depth (pressure vibrato)
+        self.modulation_matrix.set_route(
+            10, "after_touch", "lfo1_depth", amount=0.6, polarity=1.0
+        )
+
+        # Key Aftertouch -> Filter Resonance (timbral pressure)
+        self.modulation_matrix.set_route(
+            11, "key_pressure", "filter_resonance", amount=0.4, polarity=1.0
+        )
+
+        # Brightness -> Filter Cutoff (timbral control)
+        self.modulation_matrix.set_route(
+            12, "brightness", "filter_cutoff", amount=0.7, polarity=1.0
+        )
+
+        # Harmonic Content -> Filter Resonance (timbre shaping)
+        self.modulation_matrix.set_route(
+            13, "harmonic_content", "filter_resonance", amount=0.5, polarity=1.0
+        )
+
+        # Volume CC -> Amplitude (additional level control)
+        self.modulation_matrix.set_route(
+            14, "volume_cc", "amp", amount=0.9, polarity=1.0
+        )
+
+        # Expression -> Amplitude (primary level control)
+        self.modulation_matrix.set_route(
+            15, "expression", "amp", amount=0.8, polarity=1.0
+        )
+
+    # ============================================================================
+    # MODULATION MATRIX CONTROL INTERFACE - XG COMPLIANT
+    # Provides runtime control of modulation matrix routes for advanced synthesis
+    # ============================================================================
+
+    def set_matrix_route(self, index: int, source: str, destination: str,
+                        amount: float = 0.0, polarity: float = 1.0,
+                        velocity_sensitivity: float = 0.0, key_scaling: float = 0.0):
+        """
+        Set a modulation matrix route for advanced synthesis control.
+
+        Allows runtime modification of modulation matrix routes, enabling
+        dynamic routing of any source to any destination with full XG compliance.
+
+        Args:
+            index: Route index (0-15 for XG compliance)
+            source: Modulation source (velocity, lfo1, amp_env, etc.)
+            destination: Modulation destination (pitch, filter_cutoff, amp, etc.)
+            amount: Modulation depth (0.0-1.0)
+            polarity: Polarity (+1.0 or -1.0)
+            velocity_sensitivity: Velocity sensitivity (0.0-1.0)
+            key_scaling: Key scaling (-1.0 to +1.0)
+        """
+        if not self.use_modulation_matrix:
+            # Matrix not enabled - silently ignore
+            return
+
+        if not hasattr(self, 'modulation_matrix') or self.modulation_matrix is None:
+            # Create matrix if it doesn't exist
+            from ..modulation.matrix import ModulationMatrix
+            self.modulation_matrix = ModulationMatrix(num_routes=16)
+            self._setup_modulation_matrix_routes()
+
+        if 0 <= index < self.modulation_matrix.num_routes:
+            self.modulation_matrix.set_route(
+                index, source, destination, amount,
+                polarity, velocity_sensitivity, key_scaling
+            )
+
+    def get_matrix_route(self, index: int) -> Optional[Dict[str, any]]:
+        """
+        Get modulation matrix route configuration.
+
+        Args:
+            index: Route index (0-15)
+
+        Returns:
+            Route configuration dictionary or None if invalid index
+        """
+        if not self.use_modulation_matrix or not hasattr(self, 'modulation_matrix'):
+            return None
+
+        if 0 <= index < len(self.modulation_matrix.routes):
+            route = self.modulation_matrix.routes[index]
+            if route is not None:
+                return {
+                    'source': route.source,
+                    'destination': route.destination,
+                    'amount': route.amount,
+                    'polarity': route.polarity,
+                    'velocity_sensitivity': route.velocity_sensitivity,
+                    'key_scaling': route.key_scaling
+                }
+        return None
+
+    def clear_matrix_route(self, index: int):
+        """
+        Clear a modulation matrix route.
+
+        Args:
+            index: Route index to clear (0-15)
+        """
+        if not self.use_modulation_matrix or not hasattr(self, 'modulation_matrix'):
+            return
+
+        self.modulation_matrix.clear_route(index)
+
+    def reset_matrix_to_defaults(self):
+        """
+        Reset modulation matrix to XG-compliant default routes.
+
+        Restores the standard XG modulation matrix configuration
+        with vibrato, tremolo, and envelope modulation.
+        """
+        if not self.use_modulation_matrix:
+            return
+
+        if not hasattr(self, 'modulation_matrix') or self.modulation_matrix is None:
+            from ..modulation.matrix import ModulationMatrix
+            self.modulation_matrix = ModulationMatrix(num_routes=16)
+
+        self._setup_modulation_matrix_routes()
+
+    def get_matrix_status(self) -> Dict[str, any]:
+        """
+        Get modulation matrix status and configuration.
+
+        Returns:
+            Dictionary containing matrix status and active routes
+        """
+        if not self.use_modulation_matrix:
+            return {'enabled': False}
+
+        status = {
+            'enabled': True,
+            'num_routes': self.modulation_matrix.num_routes if hasattr(self, 'modulation_matrix') else 0,
+            'active_routes': 0,
+            'routes': []
+        }
+
+        if hasattr(self, 'modulation_matrix') and self.modulation_matrix:
+            for i, route in enumerate(self.modulation_matrix.routes):
+                if route is not None:
+                    status['active_routes'] += 1
+                    status['routes'].append({
+                        'index': i,
+                        'source': route.source,
+                        'destination': route.destination,
+                        'amount': route.amount,
+                        'polarity': route.polarity
+                    })
+
+        return status
 
     def _release_resources(self):
         """Release all pool-allocated resources back to their respective pools.

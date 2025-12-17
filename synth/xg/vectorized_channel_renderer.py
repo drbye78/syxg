@@ -56,10 +56,7 @@ class VectorizedChannelRenderer:
 
         Args:
             channel: MIDI channel number (0-15)
-            sample_rate: Audio sample rate
-            max_voices: Maximum number of voices for this channel
-            drum_manager: Drum manager for drum parameter handling (owned by synthesizer)
-            memory_pool: Memory pool for buffer allocation (owned by synthesizer)
+            synth: Parent synthesizer instance
         """
         self.channel = channel
         self.synth = synth
@@ -364,6 +361,7 @@ class VectorizedChannelRenderer:
             bank=self.bank,
             is_drum=self.is_drum,
             synth=self.synth,
+            use_modulation_matrix=self.synth.use_modulation_matrix,
         )
 
         if channel_note.is_active():

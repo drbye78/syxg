@@ -25,7 +25,7 @@ import threading
 import sys
 import os
 from typing import List, Tuple, Optional, Dict, Any
-import heapq
+# heapq removed - unused
 import time
 from collections import deque
 
@@ -277,6 +277,8 @@ class OptimizedXGSynthesizer:
         sf2_files = None,
         param_cache=None,
         render_log_level: int = 0,
+        use_modulation_matrix: bool = False,
+        voice_allocation_mode: int = 1,  # Default to XG priority polyphonic
     ):
         """
         Initialize optimized XG synthesizer with performance enhancements.
@@ -284,7 +286,12 @@ class OptimizedXGSynthesizer:
         Args:
             sample_rate: Sampling rate (default 44100 Hz)
             max_polyphony: Maximum polyphony (default 64 voices)
+            block_size: Audio processing block size (default 1024)
+            sf2_files: Optional list of SF2 soundfont files
             param_cache: Optional parameter cache for performance optimization
+            render_log_level: Audio rendering debug log level (0-3)
+            use_modulation_matrix: Enable XG modulation matrix instead of fixed LFOs (default False)
+            voice_allocation_mode: Voice allocation mode (0=basic poly, 1=XG priority, 2=mono)
         """
         # Basic parameters - use fixed default block size for simplicity
         self.sample_rate = sample_rate
@@ -292,6 +299,8 @@ class OptimizedXGSynthesizer:
         self.max_polyphony = max_polyphony
         self.master_volume = DEFAULT_CONFIG["MASTER_VOLUME"]
         self.render_log_level = render_log_level
+        self.use_modulation_matrix = use_modulation_matrix
+        self.voice_allocation_mode = voice_allocation_mode
 
         # Thread safety lock
         self.lock = threading.RLock()
@@ -382,6 +391,8 @@ class OptimizedXGSynthesizer:
         for channel in range(self.num_channels):
             # Create renderer with synthesizer-owned resources
             renderer = VectorizedChannelRenderer(channel=channel, synth=self)
+            # Set voice allocation mode from synthesizer parameter
+            renderer.voice_manager.set_allocation_mode(self.voice_allocation_mode)
             self.channel_renderers[channel] = renderer
             self.channel_lines[channel] = self.memory_pool.get_stereo_buffer(zero_buffer=False)
 
