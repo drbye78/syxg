@@ -55,7 +55,7 @@ class ChorusModulationProcessor:
         Process chorus/modulation effect.
 
         Args:
-            effect_type: XG variation effect type (10-26)
+            effect_type: XG variation effect type (10-31)
             stereo_mix: Input/output stereo buffer (num_samples, 2)
             num_samples: Number of samples to process
             params: Effect parameters (parameter1-4)
@@ -95,6 +95,16 @@ class ChorusModulationProcessor:
                 self._process_enhancer(stereo_mix, num_samples, params)
             elif effect_type == 26:
                 self._process_slicer(stereo_mix, num_samples, params)
+            elif effect_type == 27:
+                self._process_phaser_flanger(stereo_mix, num_samples, params)
+            elif effect_type == 28:
+                self._process_chorus_autopan(stereo_mix, num_samples, params)
+            elif effect_type == 29:
+                self._process_celeste_autopan(stereo_mix, num_samples, params)
+            elif effect_type == 30:
+                self._process_delay_autopan(stereo_mix, num_samples, params)
+            elif effect_type == 31:
+                self._process_reverb_autopan(stereo_mix, num_samples, params)
 
     def _ensure_state(self, effect_key: str, state_config: Dict[str, Any]) -> Dict[str, Any]:
         """Ensure effect state exists, create if needed."""
@@ -942,9 +952,282 @@ class ChorusModulationProcessor:
             stereo_mix[i, 0] = output
             stereo_mix[i, 1] = output
 
+    def _process_phaser_flanger(self, stereo_mix: np.ndarray, num_samples: int,
+                               params: Dict[str, float]) -> None:
+        """
+        Process Phaser-Flanger effect (XG Variation Type 27).
+        Combined phaser and flanger effect.
+        """
+        rate = params.get("parameter1", 0.5) * 3.0
+        depth = params.get("parameter2", 0.5)
+        feedback = params.get("parameter3", 0.3)
+        level = params.get("parameter4", 0.5)
+
+        state = self._ensure_state('phaser_flanger', {
+            'delay_lines': [np.zeros(self.max_delay_samples, dtype=np.float32) for _ in range(4)],
+            'write_positions': [0, 0, 0, 0],
+            'lfo_phases': [0.0, 0.0, 0.0, 0.0],
+            'allpass_filters': [0.0] * 4,
+            'feedback_buffers': [0.0, 0.0, 0.0, 0.0]
+        })
+
+        for i in range(num_samples):
+            output = stereo_mix[i, 0]  # Start with left channel
+
+            # Apply all-pass filters (phaser portion)
+            for stage in range(4):
+                # Update LFO
+                phase_increment = 2 * math.pi * rate / self.sample_rate
+                state['lfo_phases'][stage] = (state['lfo_phases'][stage] + phase_increment) % (2 * math.pi)
+
+                # Calculate modulated delay for flanger portion
+                base_delay = int(0.001 * self.sample_rate)  # 1ms base delay
+                modulation = int(math.sin(state['lfo_phases'][stage]) * depth * base_delay)
+                total_delay = base_delay + modulation
+                total_delay = max(1, min(total_delay, self.max_delay_samples - 1))
+
+                # Read from delay line
+                read_pos = (state['write_positions'][stage] - total_delay) % self.max_delay_samples
+                delayed = state['delay_lines'][stage][int(read_pos)]
+
+                # Apply feedback
+                input_sample = output + state['feedback_buffers'][stage] * feedback
+                state['delay_lines'][stage][state['write_positions'][stage]] = input_sample
+                state['feedback_buffers'][stage] = input_sample
+
+                # All-pass filter calculation
+                g = 0.7  # All-pass coefficient
+                allpass_output = delayed + g * (input_sample - delayed * g)
+                state['allpass_filters'][stage] = allpass_output
+
+                # Chain stages
+                output = allpass_output
+
+                state['write_positions'][stage] = (state['write_positions'][stage] + 1) % self.max_delay_samples
+
+            stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - level) + output * level
+            stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output * level
+
+    def _process_chorus_autopan(self, stereo_mix: np.ndarray, num_samples: int,
+                               params: Dict[str, float]) -> None:
+        """
+        Process Chorus Auto-Pan effect (XG Variation Type 28).
+        Chorus with auto-panning modulation.
+        """
+        rate = params.get("parameter1", 0.5) * 4.0
+        depth = params.get("parameter2", 0.5)
+        feedback = params.get("parameter3", 0.2)
+        level = params.get("parameter4", 0.4)
+
+        state = self._ensure_state('chorus_autopan', {
+            'delay_lines': [np.zeros(self.max_delay_samples, dtype=np.float32) for _ in range(3)],
+            'write_positions': [0, 0, 0],
+            'lfo_phases': [0.0, 0.0, 0.0],
+            'pan_phase': 0.0
+        })
+
+        for i in range(num_samples):
+            chorus_sum = np.zeros(2, dtype=np.float32)
+
+            # Update pan LFO
+            pan_increment = 2 * math.pi * rate * 0.3 / self.sample_rate
+            state['pan_phase'] = (state['pan_phase'] + pan_increment) % (2 * math.pi)
+            pan_pos = math.sin(state['pan_phase'])
+
+            for tap_idx in range(3):
+                # Update chorus LFO
+                phase_increment = 2 * math.pi * rate / self.sample_rate
+                state['lfo_phases'][tap_idx] = (state['lfo_phases'][tap_idx] + phase_increment) % (2 * math.pi)
+
+                base_delay = int(0.010 * self.sample_rate)
+                modulation = int(math.sin(state['lfo_phases'][tap_idx]) * depth * base_delay * 0.5)
+                total_delay = base_delay + modulation
+                total_delay = max(1, min(total_delay, self.max_delay_samples - 1))
+
+                read_pos = (state['write_positions'][tap_idx] - total_delay) % self.max_delay_samples
+                delayed = state['delay_lines'][tap_idx][int(read_pos)]
+
+                input_sample = (stereo_mix[i, 0] + stereo_mix[i, 1]) * 0.5
+                state['delay_lines'][tap_idx][state['write_positions'][tap_idx]] = input_sample
+
+                # Apply auto-panning to each tap
+                tap_pan = pan_pos + tap_idx * math.pi / 3  # Different pan for each tap
+                left_gain = math.cos(tap_pan * math.pi / 4)
+                right_gain = math.sin(tap_pan * math.pi / 4)
+
+                chorus_sum[0] += delayed * left_gain * 0.33
+                chorus_sum[1] += delayed * right_gain * 0.33
+
+                state['write_positions'][tap_idx] = (state['write_positions'][tap_idx] + 1) % self.max_delay_samples
+
+            stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - level) + chorus_sum[0] * level
+            stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
+
+    def _process_celeste_autopan(self, stereo_mix: np.ndarray, num_samples: int,
+                                params: Dict[str, float]) -> None:
+        """
+        Process Celeste Auto-Pan effect (XG Variation Type 29).
+        Celeste with auto-panning modulation.
+        """
+        rate = params.get("parameter1", 0.6) * 5.0
+        depth = params.get("parameter2", 0.4)
+        feedback = params.get("parameter3", 0.15)
+        level = params.get("parameter4", 0.35)
+
+        state = self._ensure_state('celeste_autopan', {
+            'delay_lines': [np.zeros(self.max_delay_samples, dtype=np.float32) for _ in range(3)],
+            'write_positions': [0, 0, 0],
+            'lfo_phases': [0.0, 0.0, 0.0],
+            'pan_phase': 0.0
+        })
+
+        for i in range(num_samples):
+            chorus_sum = np.zeros(2, dtype=np.float32)
+
+            pan_increment = 2 * math.pi * rate * 0.4 / self.sample_rate
+            state['pan_phase'] = (state['pan_phase'] + pan_increment) % (2 * math.pi)
+            pan_pos = math.sin(state['pan_phase']) * 0.8
+
+            for tap_idx in range(3):
+                phase_increment = 2 * math.pi * rate / self.sample_rate
+                state['lfo_phases'][tap_idx] = (state['lfo_phases'][tap_idx] + phase_increment) % (2 * math.pi)
+
+                # Celeste uses different spacing
+                base_delays = [int(0.007 * self.sample_rate), int(0.011 * self.sample_rate), int(0.015 * self.sample_rate)]
+                base_delay = base_delays[tap_idx]
+                modulation = int(math.sin(state['lfo_phases'][tap_idx]) * depth * base_delay * 0.3)
+                total_delay = base_delay + modulation
+                total_delay = max(1, min(total_delay, self.max_delay_samples - 1))
+
+                read_pos = (state['write_positions'][tap_idx] - total_delay) % self.max_delay_samples
+                delayed = state['delay_lines'][tap_idx][int(read_pos)]
+
+                input_sample = (stereo_mix[i, 0] + stereo_mix[i, 1]) * 0.5
+                state['delay_lines'][tap_idx][state['write_positions'][tap_idx]] = input_sample
+
+                # Apply auto-panning
+                tap_pan = pan_pos + tap_idx * math.pi / 2
+                left_gain = math.cos(tap_pan * math.pi / 4)
+                right_gain = math.sin(tap_pan * math.pi / 4)
+
+                chorus_sum[0] += delayed * left_gain * 0.33
+                chorus_sum[1] += delayed * right_gain * 0.33
+
+                state['write_positions'][tap_idx] = (state['write_positions'][tap_idx] + 1) % self.max_delay_samples
+
+            stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - level) + chorus_sum[0] * level
+            stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
+
+    def _process_delay_autopan(self, stereo_mix: np.ndarray, num_samples: int,
+                              params: Dict[str, float]) -> None:
+        """
+        Process Delay Auto-Pan effect (XG Variation Type 30).
+        Delay with auto-panning modulation.
+        """
+        time = params.get("parameter1", 0.3) * 1000
+        feedback = params.get("parameter2", 0.25)
+        delay_level = params.get("parameter3", 0.35)
+        pan_rate = params.get("parameter4", 0.5) * 3.0
+
+        delay_samples = int(time * self.sample_rate / 1000.0)
+        delay_samples = max(1, min(delay_samples, self.max_delay_samples - 1))
+
+        state = self._ensure_state('delay_autopan', {
+            'delay_lines': [np.zeros(self.max_delay_samples, dtype=np.float32) for _ in range(2)],
+            'write_positions': [0, 0],
+            'feedback_buffers': [0.0, 0.0],
+            'pan_phase': 0.0
+        })
+
+        for i in range(num_samples):
+            # Update pan LFO
+            pan_increment = 2 * math.pi * pan_rate / self.sample_rate
+            state['pan_phase'] = (state['pan_phase'] + pan_increment) % (2 * math.pi)
+            pan_pos = math.sin(state['pan_phase'])
+
+            for ch in range(2):
+                read_pos = (state['write_positions'][ch] - delay_samples) % self.max_delay_samples
+                delayed = state['delay_lines'][ch][int(read_pos)]
+
+                input_sample = stereo_mix[i, ch]
+                processed = input_sample + state['feedback_buffers'][ch] * feedback
+                state['delay_lines'][ch][state['write_positions'][ch]] = processed
+                state['feedback_buffers'][ch] = processed
+
+                # Apply auto-panning to delayed signal
+                pan_offset = ch * math.pi  # Opposite channels pan differently
+                channel_pan = pan_pos + pan_offset
+                left_gain = math.cos(channel_pan * math.pi / 4)
+                right_gain = math.sin(channel_pan * math.pi / 4)
+
+                delayed_left = delayed * left_gain
+                delayed_right = delayed * right_gain
+
+                stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - delay_level) + delayed_left * delay_level
+                stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - delay_level) + delayed_right * delay_level
+
+                state['write_positions'][ch] = (state['write_positions'][ch] + 1) % self.max_delay_samples
+
+    def _process_reverb_autopan(self, stereo_mix: np.ndarray, num_samples: int,
+                               params: Dict[str, float]) -> None:
+        """
+        Process Reverb Auto-Pan effect (XG Variation Type 31).
+        Reverb with auto-panning modulation.
+        """
+        reverb_time = params.get("parameter1", 0.5) * 3.0
+        hf_damping = params.get("parameter2", 0.5)
+        level = params.get("parameter3", 0.4)
+        pan_rate = params.get("parameter4", 0.5) * 2.0
+
+        state = self._ensure_state('reverb_autopan', {
+            'delay_lines': [np.zeros(self.max_delay_samples, dtype=np.float32) for _ in range(4)],
+            'write_positions': [0, 0, 0, 0],
+            'feedback_buffers': [0.0, 0.0, 0.0, 0.0],
+            'pan_phase': 0.0
+        })
+
+        # Simple reverb taps with different delays
+        reverb_delays = [
+            int(reverb_time * 0.1 * self.sample_rate),
+            int(reverb_time * 0.15 * self.sample_rate),
+            int(reverb_time * 0.22 * self.sample_rate),
+            int(reverb_time * 0.3 * self.sample_rate)
+        ]
+
+        for i in range(num_samples):
+            reverb_sum = np.zeros(2, dtype=np.float32)
+
+            # Update pan LFO
+            pan_increment = 2 * math.pi * pan_rate / self.sample_rate
+            state['pan_phase'] = (state['pan_phase'] + pan_increment) % (2 * math.pi)
+            pan_pos = math.sin(state['pan_phase'])
+
+            for tap_idx, delay in enumerate(reverb_delays):
+                delay = max(1, min(delay, self.max_delay_samples - 1))
+                read_pos = (state['write_positions'][tap_idx] - delay) % self.max_delay_samples
+                delayed = state['delay_lines'][tap_idx][int(read_pos)]
+
+                input_sample = (stereo_mix[i, 0] + stereo_mix[i, 1]) * 0.5
+                processed = input_sample + state['feedback_buffers'][tap_idx] * 0.4
+                state['delay_lines'][tap_idx][state['write_positions'][tap_idx]] = processed
+                state['feedback_buffers'][tap_idx] = processed
+
+                # Apply auto-panning to each reverb tap
+                tap_pan = pan_pos + tap_idx * math.pi / 2
+                left_gain = math.cos(tap_pan * math.pi / 4)
+                right_gain = math.sin(tap_pan * math.pi / 4)
+
+                reverb_sum[0] += delayed * left_gain * 0.25
+                reverb_sum[1] += delayed * right_gain * 0.25
+
+                state['write_positions'][tap_idx] = (state['write_positions'][tap_idx] + 1) % self.max_delay_samples
+
+            stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - level) + reverb_sum[0] * level
+            stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + reverb_sum[1] * level
+
     def get_supported_types(self) -> list:
         """Get list of supported effect types."""
-        return list(range(10, 27))  # Types 10-26
+        return list(range(10, 32))  # Types 10-31
 
     def reset(self) -> None:
         """Reset all effect states."""

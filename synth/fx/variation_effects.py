@@ -29,8 +29,7 @@ from .types import XGVariationType
 from .delay_variations import DelayVariationProcessor
 from .chorus_modulation import ChorusModulationProcessor
 from .distortion_pro import ProductionDistortionDynamicsProcessor
-from .pitch_effects import ProductionPitchEffectsProcessor
-from .spatial_enhanced import ProductionSpatialEffectsProcessor
+from .special_variations import SpecialVariationProcessor
 
 
 class XGVariationEffectsProcessor:
@@ -56,8 +55,7 @@ class XGVariationEffectsProcessor:
         self.delay_processor = DelayVariationProcessor(sample_rate, max_delay_samples)
         self.chorus_processor = ChorusModulationProcessor(sample_rate, max_delay_samples)
         self.distortion_processor = ProductionDistortionDynamicsProcessor(sample_rate, max_delay_samples)
-        self.pitch_processor = ProductionPitchEffectsProcessor(sample_rate, max_delay_samples)
-        self.spatial_processor = ProductionSpatialEffectsProcessor(sample_rate, max_delay_samples)
+        self.special_processor = SpecialVariationProcessor(sample_rate, max_delay_samples)
 
         # Effect state storage for parameters (coordinator level)
         self._effect_states = {}
@@ -108,14 +106,10 @@ class XGVariationEffectsProcessor:
                 # Distortion/Dynamics effects (27-57) - route to distortion processor (production-ready)
                 if self.distortion_processor:
                     self.distortion_processor.process_effect(effect_type, stereo_mix, num_samples, self._effect_states)
-            elif 58 <= effect_type <= 65:
-                # Pitch effects (58-65) - route to pitch processor (production-ready)
-                if self.pitch_processor:
-                    self.pitch_processor.process_effect(effect_type, stereo_mix, num_samples, self._effect_states)
-            elif 66 <= effect_type <= 83:
-                # Spatial/Vocal effects (66-83) - route to spatial processor (production-ready)
-                if self.spatial_processor:
-                    self.spatial_processor.process_effect(effect_type, stereo_mix, num_samples, self._effect_states)
+            elif 58 <= effect_type <= 83:
+                # Special/Spatial effects (58-83) - route to special processor (production-ready)
+                if self.special_processor:
+                    self.special_processor.process_effect(effect_type, stereo_mix, num_samples, self._effect_states)
             else:
                 # Unknown effect type - pass through
                 pass
@@ -131,7 +125,6 @@ class XGVariationEffectsProcessor:
                     'delay': self.delay_processor.get_supported_types() if self.delay_processor else [],
                     'chorus': self.chorus_processor.get_supported_types() if self.chorus_processor else [],
                     'distortion': self.distortion_processor.get_supported_types() if self.distortion_processor else [],
-                    'pitch': self.pitch_processor.get_supported_types() if self.pitch_processor else [],
-                    'spatial': self.spatial_processor.get_supported_types() if self.spatial_processor else []
+                    'special': self.special_processor.get_supported_types() if self.special_processor else []
                 }
             }

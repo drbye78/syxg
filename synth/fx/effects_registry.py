@@ -177,109 +177,142 @@ class XGEffectRegistry:
             self._register_effect(effect)
 
     def _create_delay_effects(self) -> List[XGEffectMetadata]:
-        """Create all delay-type variation effects."""
+        """Create all delay-type variation effects (0-9)."""
         return [
-            XGEffectMetadata(XGVariationType.DELAY_LCR.value, XGEffectCategory.VARIATION,
-                           "Delay LCR", "DLCR", "Stereo LCR Delay", True),
-            XGEffectMetadata(XGVariationType.DELAY_LR.value, XGEffectCategory.VARIATION,
-                           "Delay L+R", "DLR", "Left+Right Delay", True),
-            XGEffectMetadata(XGVariationType.DELAY_MONO.value, XGEffectCategory.VARIATION,
-                           "Delay Mono", "DMONO", "Mono Delay", True),
-            XGEffectMetadata(XGVariationType.DELAY_PING_PONG_1.value, XGEffectCategory.VARIATION,
-                           "Delay PingPong 1", "DPONG1", "Ping Pong Delay 1", True),
-            # Add more delay effects... (truncated for brevity)
-            XGEffectMetadata(XGVariationType.DELAY_PING_PONG_2.value, XGEffectCategory.VARIATION,
-                           "Delay PingPong 2", "DPONG2", "Ping Pong Delay 2", True),
+            XGEffectMetadata(0, XGEffectCategory.VARIATION, "Delay L/C/R", "DLCR", "3-channel delay with stereo width", True),
+            XGEffectMetadata(1, XGEffectCategory.VARIATION, "Delay L/R", "DLR", "Dual delay with cross-feedback", True),
+            XGEffectMetadata(2, XGEffectCategory.VARIATION, "Echo", "ECHO", "Echo with configurable decay", True),
+            XGEffectMetadata(3, XGEffectCategory.VARIATION, "Dual Delay", "DDLY", "Two independent delay lines", True),
+            XGEffectMetadata(4, XGEffectCategory.VARIATION, "Pan Delay", "PDLY", "Auto-panning delay with LFO", True),
+            XGEffectMetadata(5, XGEffectCategory.VARIATION, "Cross Delay", "CDLY", "Cross-feedback delay processing", True),
+            XGEffectMetadata(6, XGEffectCategory.VARIATION, "Multi-tap Delay", "MTDLY", "Multiple simultaneous delay taps", True),
+            XGEffectMetadata(7, XGEffectCategory.VARIATION, "Reverse Delay", "RDLY", "Reverse delay effect", True),
+            XGEffectMetadata(8, XGEffectCategory.VARIATION, "Tremolo", "TREM", "Amplitude modulation", True),
+            XGEffectMetadata(9, XGEffectCategory.VARIATION, "Auto-pan", "APAN", "Stereo panning modulation", True),
         ]
 
     def _create_chorus_effects(self) -> List[XGEffectMetadata]:
-        """Create all chorus-type variation effects."""
+        """Create all chorus-type variation effects (10-31)."""
         return [
-            XGEffectMetadata(XGVariationType.CHORUS_1.value, XGEffectCategory.VARIATION,
-                           "Chorus 1", "CHO1", "Basic Chorus", True),
-            XGEffectMetadata(XGVariationType.CELESTE_1.value, XGEffectCategory.VARIATION,
-                           "Celeste 1", "CEL1", "Celeste Ensemble", True),
-            XGEffectMetadata(XGVariationType.FLANGER_1.value, XGEffectCategory.VARIATION,
-                           "Flanger 1", "FLG1", "Classic Flanger", True),
-            # Add more chorus effects... (truncated for brevity)
+            XGEffectMetadata(10, XGEffectCategory.VARIATION, "Chorus 1", "CHO1", "Multi-tap chorus with LFO modulation", True),
+            XGEffectMetadata(11, XGEffectCategory.VARIATION, "Chorus 2", "CHO2", "Faster chorus with different spacing", True),
+            XGEffectMetadata(12, XGEffectCategory.VARIATION, "Chorus 3", "CHO3", "Chorus with feedback for richness", True),
+            XGEffectMetadata(13, XGEffectCategory.VARIATION, "Chorus 4", "CHO4", "Deep, wide chorus effect", True),
+            XGEffectMetadata(14, XGEffectCategory.VARIATION, "Celeste 1", "CEL1", "Pitch-shifted chorus variation", True),
+            XGEffectMetadata(15, XGEffectCategory.VARIATION, "Celeste 2", "CEL2", "Alternative celeste characteristics", True),
+            XGEffectMetadata(16, XGEffectCategory.VARIATION, "Flanger 1", "FLG1", "Short delay with heavy feedback", True),
+            XGEffectMetadata(17, XGEffectCategory.VARIATION, "Flanger 2", "FLG2", "Alternative flanger modulation", True),
+            XGEffectMetadata(18, XGEffectCategory.VARIATION, "Delay LCR Chorus", "DLCRC", "Delay + Chorus combination", True),
+            XGEffectMetadata(19, XGEffectCategory.VARIATION, "Delay LR Chorus", "DLRC", "Dual delay combined with chorus", True),
+            XGEffectMetadata(20, XGEffectCategory.VARIATION, "Rotary Speaker Variation", "ROT_V", "Alternative rotary speaker", True),
+            XGEffectMetadata(21, XGEffectCategory.VARIATION, "Celeste Chorus", "CELC", "Enhanced celeste effect", True),
+            XGEffectMetadata(22, XGEffectCategory.VARIATION, "Vibrato", "VIB", "Pitch modulation effect", True),
+            XGEffectMetadata(23, XGEffectCategory.VARIATION, "Acoustic Simulator", "ACO", "Room acoustic simulation", True),
+            XGEffectMetadata(24, XGEffectCategory.VARIATION, "Guitar Amp Simulator", "GAMP", "Guitar amplifier simulation", True),
+            XGEffectMetadata(25, XGEffectCategory.VARIATION, "Enhancer", "ENH", "Dynamic enhancement", True),
+            XGEffectMetadata(26, XGEffectCategory.VARIATION, "Slicer", "SLIC", "Rhythmic gating effect", True),
+            XGEffectMetadata(27, XGEffectCategory.VARIATION, "Phaser-Flanger", "PHFL", "Combined phaser and flanger", True),
+            XGEffectMetadata(28, XGEffectCategory.VARIATION, "Chorus Auto-Pan", "CHOAP", "Chorus with auto-panning", True),
+            XGEffectMetadata(29, XGEffectCategory.VARIATION, "Celeste Auto-Pan", "CELAP", "Celeste with auto-panning", True),
+            XGEffectMetadata(30, XGEffectCategory.VARIATION, "Delay Auto-Pan", "DLAP", "Delay with auto-panning", True),
+            XGEffectMetadata(31, XGEffectCategory.VARIATION, "Reverb Auto-Pan", "RVAP", "Reverb with auto-panning", True),
         ]
 
     def _create_modulation_effects(self) -> List[XGEffectMetadata]:
-        """Create all modulation variation effects."""
+        """Create all modulation variation effects (32-42)."""
         return [
-            XGEffectMetadata(XGVariationType.AUTO_PAN.value, XGEffectCategory.VARIATION,
-                           "Auto Pan", "APAN", "Automatic Panning", True),
-            XGEffectMetadata(XGVariationType.AUTO_WAH.value, XGEffectCategory.VARIATION,
-                           "Auto Wah", "AWAH", "Automatic Wah-Wah", True),
-            XGEffectMetadata(XGVariationType.STEP_PHASER_UP.value, XGEffectCategory.VARIATION,
-                           "Step Phaser Up", "SPHU", "Stepped Phaser Up", True),
-            # Add more modulation effects...
+            XGEffectMetadata(32, XGEffectCategory.VARIATION, "Auto Pan", "APAN", "Automatic stereo panning", True),
+            XGEffectMetadata(33, XGEffectCategory.VARIATION, "Auto Wah", "AWAH", "Automatic wah-wah filter", True),
+            XGEffectMetadata(34, XGEffectCategory.VARIATION, "Ring Modulation", "RING", "Amplitude modulation with carrier", True),
+            XGEffectMetadata(35, XGEffectCategory.VARIATION, "Step Phaser Up", "SPHU", "Stepped phaser upward sweep", True),
+            XGEffectMetadata(36, XGEffectCategory.VARIATION, "Step Phaser Down", "SPHD", "Stepped phaser downward sweep", True),
+            XGEffectMetadata(37, XGEffectCategory.VARIATION, "Step Flanger Up", "SFLU", "Stepped flanger upward sweep", True),
+            XGEffectMetadata(38, XGEffectCategory.VARIATION, "Step Flanger Down", "SFLD", "Stepped flanger downward sweep", True),
+            XGEffectMetadata(39, XGEffectCategory.VARIATION, "Step Tremolo Up", "STMU", "Stepped tremolo upward sweep", True),
+            XGEffectMetadata(40, XGEffectCategory.VARIATION, "Step Tremolo Down", "STMD", "Stepped tremolo downward sweep", True),
+            XGEffectMetadata(41, XGEffectCategory.VARIATION, "Step Pan Up", "SPAN_U", "Stepped panning upward sweep", True),
+            XGEffectMetadata(42, XGEffectCategory.VARIATION, "Step Pan Down", "SPAN_D", "Stepped panning downward sweep", True),
         ]
 
     def _create_distortion_effects(self) -> List[XGEffectMetadata]:
-        """Create all distortion variation effects."""
+        """Create all distortion variation effects (43-52)."""
         return [
-            XGEffectMetadata(XGVariationType.DISTORTION_LIGHT.value, XGEffectCategory.VARIATION,
-                           "Distortion Light", "DST_LT", "Light Distortion", True),
-            XGEffectMetadata(XGVariationType.DISTORTION_MEDIUM.value, XGEffectCategory.VARIATION,
-                           "Distortion Medium", "DST_MD", "Medium Distortion", True),
-            XGEffectMetadata(XGVariationType.OVERDRIVE_1.value, XGEffectCategory.VARIATION,
-                           "Overdrive 1", "OVD1", "Tube Overdrive", True),
+            XGEffectMetadata(43, XGEffectCategory.VARIATION, "Overdrive 1", "OVD1", "Light tube overdrive", True),
+            XGEffectMetadata(44, XGEffectCategory.VARIATION, "Overdrive 2", "OVD2", "Medium tube overdrive", True),
+            XGEffectMetadata(45, XGEffectCategory.VARIATION, "Overdrive 3", "OVD3", "Heavy tube overdrive", True),
+            XGEffectMetadata(46, XGEffectCategory.VARIATION, "Clipping Warning", "CLIP", "Hard limiting with look-ahead", True),
+            XGEffectMetadata(47, XGEffectCategory.VARIATION, "Fuzz", "FUZZ", "Multi-stage distortion with octave", True),
+            XGEffectMetadata(48, XGEffectCategory.VARIATION, "Guitar Distortion", "G_DIST", "Multi-stage saturation", True),
+            XGEffectMetadata(49, XGEffectCategory.VARIATION, "Compressor Electronic", "CMP_EL", "Electronic compression", True),
+            XGEffectMetadata(50, XGEffectCategory.VARIATION, "Compressor Optical", "CMP_OP", "Optical compression", True),
+            XGEffectMetadata(51, XGEffectCategory.VARIATION, "Limiter", "LIMIT", "Peak limiting", True),
+            XGEffectMetadata(52, XGEffectCategory.VARIATION, "Multi Band Compressor", "MB_CMP", "Multi-band compression", True),
         ]
 
     def _create_dynamics_effects(self) -> List[XGEffectMetadata]:
-        """Create all dynamics variation effects."""
+        """Create all dynamics variation effects (53-57)."""
         return [
-            XGEffectMetadata(XGVariationType.COMPRESSOR_ELECTRONIC.value, XGEffectCategory.VARIATION,
-                           "Compressor Electronic", "CMP_EL", "Electronic Compression", True),
-            XGEffectMetadata(XGVariationType.LIMITER.value, XGEffectCategory.VARIATION,
-                           "Limiter", "LIM", "Peak Limiting", True),
+            XGEffectMetadata(53, XGEffectCategory.VARIATION, "Expander", "EXP", "Dynamic expander", True),
+            XGEffectMetadata(54, XGEffectCategory.VARIATION, "Enhancer Peaking", "ENH_PK", "Peaking enhancer", True),
+            XGEffectMetadata(55, XGEffectCategory.VARIATION, "Enhancer Shelving", "ENH_SH", "Shelving enhancer", True),
+            XGEffectMetadata(56, XGEffectCategory.VARIATION, "Multi Band Enhancer", "MB_ENH", "Multi-band enhancement", True),
+            XGEffectMetadata(57, XGEffectCategory.VARIATION, "Overdrive 4", "OVD4", "Additional overdrive variation", True),
         ]
 
     def _create_enhancer_effects(self) -> List[XGEffectMetadata]:
-        """Create all enhancer variation effects."""
+        """Create all enhancer variation effects (58-61)."""
         return [
-            XGEffectMetadata(XGVariationType.ENHANCER_PEAKING.value, XGEffectCategory.VARIATION,
-                           "Enhancer Peaking", "ENH_PK", "Peaking Enhancer", True),
-            XGEffectMetadata(XGVariationType.STEREO_IMAGER.value, XGEffectCategory.VARIATION,
-                           "Stereo Imager", "STEREO", "Stereo Enhancement", True),
+            XGEffectMetadata(58, XGEffectCategory.VARIATION, "Stereo Imager", "STEREO", "Stereo field enhancement", True),
+            XGEffectMetadata(59, XGEffectCategory.VARIATION, "Surround Processor", "SURROUND", "Surround sound processing", True),
+            XGEffectMetadata(60, XGEffectCategory.VARIATION, "Fader", "FADER", "Level fading effect", True),
+            XGEffectMetadata(61, XGEffectCategory.VARIATION, "Sub Woofer", "SUBWOOFER", "Sub-bass enhancement", True),
         ]
 
     def _create_vocoder_effects(self) -> List[XGEffectMetadata]:
-        """Create all vocoder variation effects."""
+        """Create all vocoder variation effects (62-65)."""
         return [
-            XGEffectMetadata(XGVariationType.VOCODER_COMB_FILTER.value, XGEffectCategory.VARIATION,
-                           "Vocoder Comb", "VOC_COMB", "Comb Filter Vocoder", True),
+            XGEffectMetadata(62, XGEffectCategory.VARIATION, "Vocoder Comb Filter", "VOC_COMB", "Comb filter vocoder", True),
+            XGEffectMetadata(63, XGEffectCategory.VARIATION, "Vocoder Resonator", "VOC_RES", "Resonator vocoder", True),
+            XGEffectMetadata(64, XGEffectCategory.VARIATION, "Vocoder Formant", "VOC_FORM", "Formant vocoder", True),
+            XGEffectMetadata(65, XGEffectCategory.VARIATION, "Vocoder Ensemble", "VOC_ENS", "Ensemble vocoder", True),
         ]
 
     def _create_pitch_effects(self) -> List[XGEffectMetadata]:
-        """Create all pitch variation effects."""
+        """Create all pitch variation effects (66-69)."""
         return [
-            XGEffectMetadata(XGVariationType.PITCH_SHIFT_UP_MINOR_THIRD.value, XGEffectCategory.VARIATION,
-                           "Pitch Shift +mi3", "PSH_m3", "Minor Third Up", True),
-            XGEffectMetadata(XGVariationType.HARMONIZER.value, XGEffectCategory.VARIATION,
-                           "Harmonizer", "HARM", "2-Voice Harmonizer", True),
+            XGEffectMetadata(66, XGEffectCategory.VARIATION, "Pitch Shift Up Minor 3rd", "PSH_M3U", "Minor 3rd up", True),
+            XGEffectMetadata(67, XGEffectCategory.VARIATION, "Pitch Shift Up Major 3rd", "PSH_M3D", "Major 3rd up", True),
+            XGEffectMetadata(68, XGEffectCategory.VARIATION, "Pitch Shift Down Minor 3rd", "PSH_m3D", "Minor 3rd down", True),
+            XGEffectMetadata(69, XGEffectCategory.VARIATION, "Pitch Shift Down Major 3rd", "PSH_M3D", "Major 3rd down", True),
         ]
 
     def _create_er_effects(self) -> List[XGEffectMetadata]:
-        """Create all early reflection variation effects."""
+        """Create all early reflection variation effects (70-77)."""
         return [
-            XGEffectMetadata(XGVariationType.ERL_HALL_SMALL.value, XGEffectCategory.VARIATION,
-                           "ER Hall Small", "ERH_SM", "Early Reflections Hall Small", True),
+            XGEffectMetadata(70, XGEffectCategory.VARIATION, "ER Hall Small", "ERH_SM", "Small hall early reflections", True),
+            XGEffectMetadata(71, XGEffectCategory.VARIATION, "ER Hall Medium", "ERH_MD", "Medium hall early reflections", True),
+            XGEffectMetadata(72, XGEffectCategory.VARIATION, "ER Hall Large", "ERH_LG", "Large hall early reflections", True),
+            XGEffectMetadata(73, XGEffectCategory.VARIATION, "ER Room Small", "ERR_SM", "Small room early reflections", True),
+            XGEffectMetadata(74, XGEffectCategory.VARIATION, "ER Room Medium", "ERR_MD", "Medium room early reflections", True),
+            XGEffectMetadata(75, XGEffectCategory.VARIATION, "ER Room Large", "ERR_LG", "Large room early reflections", True),
+            XGEffectMetadata(76, XGEffectCategory.VARIATION, "ER Plate", "ER_PLT", "Plate reverb early reflections", True),
+            XGEffectMetadata(77, XGEffectCategory.VARIATION, "ER Spring", "ER_SPR", "Spring reverb early reflections", True),
         ]
 
     def _create_gate_reverb_effects(self) -> List[XGEffectMetadata]:
-        """Create all gate reverb variation effects."""
+        """Create all gate reverb variation effects (78-80)."""
         return [
-            XGEffectMetadata(XGVariationType.GATE_REVERB_FAST_ATTACK.value, XGEffectCategory.VARIATION,
-                           "Gate Reverb Fast", "GTR_FAST", "Fast Attack Gate Reverb", True),
+            XGEffectMetadata(78, XGEffectCategory.VARIATION, "Gate Reverb Fast Attack", "GTR_FAST", "Fast attack gate reverb", True),
+            XGEffectMetadata(79, XGEffectCategory.VARIATION, "Gate Reverb Slow Attack", "GTR_SLOW", "Slow attack gate reverb", True),
+            XGEffectMetadata(80, XGEffectCategory.VARIATION, "Gate Reverb Normal", "GTR_NORM", "Normal gate reverb", True),
         ]
 
     def _create_special_effects(self) -> List[XGEffectMetadata]:
-        """Create all special variation effects."""
+        """Create all special variation effects (81-83)."""
         return [
-            XGEffectMetadata(XGVariationType.VOICE_CANCEL.value, XGEffectCategory.VARIATION,
-                           "Voice Cancel", "VOICECAN", "Voice Cancellation", True),
+            XGEffectMetadata(81, XGEffectCategory.VARIATION, "Voice Cancel", "VOICECAN", "Voice cancellation", True),
+            XGEffectMetadata(82, XGEffectCategory.VARIATION, "Through", "THROUGH", "No effect (bypass)", False),
+            XGEffectMetadata(83, XGEffectCategory.VARIATION, "Bypass", "BYPASS", "Signal bypass", False),
         ]
 
     def _initialize_insertion_effects(self) -> None:
@@ -453,9 +486,21 @@ class XGEffectFactory:
             # Create new instance
             try:
                 processor = XGVariationEffectsProcessor(self.sample_rate, max_delay_samples)
-                processor.set_variation_type(effect_type)
+                # Convert integer to enum value if needed
+                if isinstance(effect_type, int):
+                    # Map integer to XGVariationType enum
+                    try:
+                        enum_value = XGVariationType(effect_type)
+                        processor.set_variation_type(enum_value)
+                    except ValueError:
+                        # If integer doesn't map to enum, use default
+                        processor.set_variation_type(XGVariationType.DELAY_LCR)
+                else:
+                    # Assume it's already an enum
+                    processor.set_variation_type(effect_type)
                 return processor
-            except Exception:
+            except Exception as e:
+                print(f"Failed to create variation effect {effect_type}: {e}")
                 return None
 
     def create_insertion_effect(self, effect_type: int,
