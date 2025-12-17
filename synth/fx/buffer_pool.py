@@ -46,6 +46,11 @@ class XGBufferPool:
         self.max_block_size = max_block_size
         self.lock = threading.RLock()
 
+        # Memory usage tracking - initialize BEFORE preallocation
+        self._active_buffers = 0
+        self._total_memory_mb = 0.0
+        self._allocation_count = 0
+
         # Pre-allocated buffer pools - different sizes for different use cases
         self._mono_buffers: Dict[int, deque[np.ndarray]] = {}
         self._stereo_buffers: Dict[int, deque[np.ndarray]] = {}
@@ -54,11 +59,6 @@ class XGBufferPool:
 
         # Pre-allocate common buffer sizes
         self._preallocate_common_sizes()
-
-        # Memory usage tracking
-        self._active_buffers = 0
-        self._total_memory_mb = 0.0
-        self._allocation_count = 0
 
     def _preallocate_common_sizes(self):
         """Pre-allocate buffers for common XG processing scenarios."""

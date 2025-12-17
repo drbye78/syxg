@@ -32,8 +32,9 @@ import threading
 # Import our coordinator for parameter updates
 try:
     from .effects_coordinator import XGEffectsCoordinator
-    from .eq_processor import XGEQProcessor
-    from .mixer_processor import XGChannelMixerProcessor
+    from .eq_processor import XGMultiBandEqualizer
+    # Note: XGChannelMixerProcessor doesn't exist yet, commented out
+    # from .mixer_processor import XGChannelMixerProcessor
 except ImportError:
     # Fallback for development
     pass
@@ -260,11 +261,28 @@ class XGNRPNController:
                 param_name, scaler = mapping
                 scaled_value = scaler(normalized_value)
 
-                # Update coordinator's EQ parameters
-                if hasattr(self.effects_coordinator, 'eq_processor'):
-                    success = self.effects_coordinator.eq_processor.set_master_eq_params(
-                        **{param_name: scaled_value}
-                    )
+                # Update coordinator's EQ parameters using proper method names
+                if hasattr(self.effects_coordinator, 'master_eq'):
+                    eq_processor = self.effects_coordinator.master_eq
+                    if param_name == 'low_gain':
+                        success = True  # Value already scaled correctly
+                        eq_processor.set_low_gain(scaled_value)
+                    elif param_name == 'mid_gain':
+                        success = True
+                        eq_processor.set_mid_gain(scaled_value)
+                    elif param_name == 'high_gain':
+                        success = True
+                        eq_processor.set_high_gain(scaled_value)
+                    elif param_name == 'mid_freq':
+                        success = True
+                        eq_processor.set_mid_frequency(scaled_value)
+                elif hasattr(self.effects_coordinator, 'set_master_eq_gain'):
+                    # Alternative interface
+                    if 'gain' in param_name:
+                        band = param_name.replace('_gain', '')
+                        success = self.effects_coordinator.set_master_eq_gain(band, scaled_value)
+                    elif param_name == 'mid_freq':
+                        success = self.effects_coordinator.set_master_eq_frequency(scaled_value)
 
         # Channel-specific parameters (MSB >= 8, might be used for channel control)
         elif bank >= 8:
@@ -286,23 +304,23 @@ class XGNRPNController:
 
     def _apply_channel_parameter(self, channel: int, param: int, value: float) -> bool:
         """Apply channel-specific NRPN parameter."""
-        if not hasattr(self.effects_coordinator, 'mixer_processor'):
+        if self.effects_coordinator is None:
             return False
 
         success = False
-        mixer = self.effects_coordinator.mixer_processor
 
-        # Map parameter numbers to channel parameters
+        # Map parameter numbers to channel parameters using effects coordinator methods
         if param == 0:  # Volume
-            success = mixer.set_channel_params(channel, volume=value)
+            success = self.effects_coordinator.set_channel_volume(channel, value)
         elif param == 1:  # Pan
-            success = mixer.set_channel_params(channel, pan=value * 2.0 - 1.0)  # Convert to -1/+1
+            pan_value = value * 2.0 - 1.0  # Convert to -1/+1
+            success = self.effects_coordinator.set_channel_pan(channel, pan_value)
         elif param == 2:  # Reverb send
-            success = mixer.set_channel_params(channel, reverb_send=value)
+            success = self.effects_coordinator.set_effect_send_level(channel, 'reverb', value)
         elif param == 3:  # Chorus send
-            success = mixer.set_channel_params(channel, chorus_send=value)
+            success = self.effects_coordinator.set_effect_send_level(channel, 'chorus', value)
         elif param == 4:  # Variation send
-            success = mixer.set_channel_params(channel, variation_send=value)
+            success = self.effects_coordinator.set_effect_send_level(channel, 'variation', value)
 
         return success
 
@@ -629,18 +647,14 @@ class XGSysExController:
 
     def _apply_channel_sysex_parameter(self, channel: int, param_type: int, value: float) -> bool:
         """Apply SysEx channel parameter update."""
-        # Map channel parameters to mixer settings
-        if not hasattr(self.effects_coordinator, 'mixer_processor'):
+        if self.effects_coordinator is None:
             return False
 
+        # Map channel parameters using effects coordinator methods
         if param_type == 0x00:  # Volume
-            return self.effects_coordinator.mixer_processor.set_channel_params(
-                channel, volume=value
-            )
+            return self.effects_coordinator.set_channel_volume(channel, value)
         elif param_type == 0x01:  # Pan
-            pan_value = value * 2.0 - 1.0
-            return self.effects_coordinator.mixer_processor.set_channel_params(
-                channel, pan=pan_value
-            )
+            pan_value = value * 2.0 - 1.0  # Convert to -1/+1
+            return self.effects_coordinator.set_channel_pan(channel, pan_value)
 
         return False
