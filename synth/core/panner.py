@@ -208,7 +208,7 @@ class UltraFastStereoPanner:
         self.left_gain = 0.0
         self.right_gain = 0.0
 
-        # Memory pool integration
+        # XGBufferPool integration
         self.memory_pool = memory_pool
         self.is_pooled = memory_pool is not None
 
@@ -295,13 +295,13 @@ class UltraFastStereoPanner:
         # Use caller-provided buffers or create temporary ones
         if output_left is None:
             if self.memory_pool:
-                output_left = self.memory_pool.get_mono_buffer(zero_buffer=False)
+                output_left = self.memory_pool.get_mono_buffer(len(input_mono))
             else:
                 output_left = np.zeros(len(input_mono), dtype=np.float32)
 
         if output_right is None:
             if self.memory_pool:
-                output_right = self.memory_pool.get_mono_buffer(zero_buffer=False)
+                output_right = self.memory_pool.get_mono_buffer(len(input_mono))
             else:
                 output_right = np.zeros(len(input_mono), dtype=np.float32)
 

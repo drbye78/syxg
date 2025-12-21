@@ -36,7 +36,7 @@ from enum import IntEnum
 # Import our core components for monitoring
 try:
     from .effects_coordinator import XGEffectsCoordinator
-    from .buffer_pool import XGBufferPool
+    from ..core.buffer_pool import XGBufferPool
 except ImportError:
     # Fallback for development
     pass

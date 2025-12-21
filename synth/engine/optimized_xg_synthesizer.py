@@ -25,14 +25,13 @@ import threading
 import sys
 import os
 from typing import List, Tuple, Optional, Dict, Any, Callable
-# heapq removed - unused
 import time
-from collections import deque
 
 from synth.core.envelope import EnvelopePool
 from synth.core.filter import FilterPool
 from synth.core.oscillator import OscillatorPool
 from synth.core.panner import PannerPool
+from synth.core.buffer_pool import XGBufferPool
 from synth.xg.vectorized_channel_renderer import VectorizedChannelRenderer
 
 # Add the project directory to the path
@@ -71,187 +70,6 @@ from ..fx.xg_nrpn_controller import XGNRPNController
 from ..fx.xg_sysex_controller import XGSYSEXController
 
 
-
-class MemoryPool:
-    """
-    ULTRA-FAST MEMORY POOL FOR AUDIO BUFFERS
-
-    Specialized memory pool for mono/stereo audio samples with fixed block sizes.
-    Optimized for ultra-fast acquire/release operations in real-time audio synthesis.
-
-    Key optimizations:
-    - Fixed buffer sizes based on synthesizer block_size
-    - Separate pools for mono and stereo buffers
-    - Unlimited buffer pool growth for maximum flexibility
-    - Optional zeroing - caller controls buffer initialization
-    - Lock-free operation for single-threaded usage patterns
-    - Zero-copy buffer management where possible
-    """
-
-    def __init__(self, block_size: int, initial_pool_size: int = 32, stereo_multiplier: int = 8, mono_multiplier: int = 4):
-        """
-        Initialize ultra-fast memory pool for audio buffers.
-
-        Args:
-            block_size: Fixed buffer size (from synthesizer block_size)
-            initial_pool_size: Initial number of buffers to pre-allocate for each type
-            stereo_multiplier: Multiplier for stereo buffer pre-allocation (default 8)
-            mono_multiplier: Multiplier for mono buffer pre-allocation (default 4)
-        """
-        self.block_size = block_size
-        self.initial_pool_size = initial_pool_size
-        self.stereo_multiplier = stereo_multiplier
-        self.mono_multiplier = mono_multiplier
-
-        # Separate pools for different buffer types - ultra-fast access
-        # No maxlen limit - pools can grow unlimited for maximum flexibility
-        self.mono_pool = deque()
-        self.stereo_pool = deque()
-
-        # Pre-allocate common buffers for ultra-fast access
-        self._preallocate_buffers()
-
-        # Single lock for thread safety (only when needed)
-        self.lock = threading.Lock()
-
-    def _preallocate_buffers(self):
-        """Pre-allocate buffers for ultra-fast access."""
-        # Pre-allocate buffers using configurable multipliers to reduce allocation overhead during processing
-        # For high-performance audio processing, having more buffers in the pool is beneficial
-        stereo_count = self.initial_pool_size * self.stereo_multiplier
-        mono_count = self.initial_pool_size * self.mono_multiplier
-
-        # Pre-allocate stereo buffers (most common for audio processing)
-        for _ in range(stereo_count):
-            self.stereo_pool.append(np.zeros((self.block_size, 2), dtype=np.float32))
-
-        # Pre-allocate mono buffers (less common but still needed)
-        for _ in range(mono_count):
-            self.mono_pool.append(np.zeros(self.block_size, dtype=np.float32))
-
-    def get_mono_buffer(self, zero_buffer: bool = True) -> np.ndarray:
-        """
-        ULTRA-FAST: Get mono audio buffer with optional zeroing.
-
-        Args:
-            zero_buffer: Whether to zero the buffer before returning
-
-        Returns:
-            Mono buffer with shape (block_size,) - zeroed or uninitialized based on zero_buffer
-        """
-        try:
-            # Try to get from pool first (ultra-fast path)
-            buffer = self.mono_pool.popleft()
-            # Zero the buffer only if requested
-            if zero_buffer:
-                buffer.fill(0.0)
-            return buffer
-        except IndexError:
-            # Pool empty - create new buffer (fallback path)
-            shape = (self.block_size,)
-            if zero_buffer:
-                return np.zeros(shape, dtype=np.float32)
-            else:
-                return np.empty(shape, dtype=np.float32)
-
-    def get_stereo_buffer(self, zero_buffer: bool = True) -> np.ndarray:
-        """
-        ULTRA-FAST: Get stereo audio buffer with optional zeroing.
-
-        Args:
-            zero_buffer: Whether to zero the buffer before returning
-
-        Returns:
-            Stereo buffer with shape (block_size, 2) - zeroed or uninitialized based on zero_buffer
-        """
-        try:
-            # Try to get from pool first (ultra-fast path)
-            buffer = self.stereo_pool.popleft()
-            # Zero the buffer only if requested
-            if zero_buffer:
-                buffer.fill(0.0)
-            return buffer
-        except IndexError:
-            # Pool empty - create new buffer (fallback path)
-            shape = (self.block_size, 2)
-            if zero_buffer:
-                return np.zeros(shape, dtype=np.float32)
-            else:
-                return np.empty(shape, dtype=np.float32)
-
-    def return_mono_buffer(self, buffer: np.ndarray) -> None:
-        """
-        ULTRA-FAST: Return mono buffer to pool.
-
-        Args:
-            buffer: Mono buffer to return (must be correct size)
-        """
-        if buffer is not None and buffer.shape == (self.block_size,):
-            try:
-                # No limit on pool size - always return buffer to pool
-                self.mono_pool.append(buffer)
-            except:
-                # Memory error - just discard
-                pass
-
-    def return_stereo_buffer(self, buffer: np.ndarray) -> None:
-        """
-        ULTRA-FAST: Return stereo buffer to pool.
-
-        Args:
-            buffer: Stereo buffer to return (must be correct size)
-        """
-        if buffer is not None and buffer.shape == (self.block_size, 2):
-            try:
-                # No limit on pool size - always return buffer to pool
-                self.stereo_pool.append(buffer)
-            except:
-                # Memory error - just discard
-                pass
-
-    # Backward compatibility methods (slower path)
-    def get_buffer(self, size: int, channels: int = 1, dtype=np.float32) -> np.ndarray:
-        """Get a buffer from the pool or create a new one (backward compatibility)."""
-        if size != self.block_size:
-            # Non-standard size - create directly (no pooling)
-            shape = (size, channels) if channels > 1 else size
-            return np.zeros(shape, dtype=dtype)
-
-        # Use ultra-fast specialized methods
-        if channels == 1:
-            return self.get_mono_buffer()
-        else:
-            return self.get_stereo_buffer()
-
-    def return_buffer(self, buffer: np.ndarray, needs_zeroing: bool = True) -> None:
-        """Return a buffer to the pool (backward compatibility)."""
-        if buffer is None or buffer.size > self.block_size * 2:
-            return
-
-        # Determine buffer type and use ultra-fast return methods
-        if buffer.ndim == 1 and buffer.shape[0] == self.block_size:
-            self.return_mono_buffer(buffer)
-        elif buffer.ndim == 2 and buffer.shape == (self.block_size, 2):
-            self.return_stereo_buffer(buffer)
-
-    def clear_pools(self) -> None:
-        """Clear all pools."""
-        with self.lock:
-            self.mono_pool.clear()
-            self.stereo_pool.clear()
-            # Re-preallocate after clearing
-            self._preallocate_buffers()
-
-    def get_pool_stats(self) -> Dict[str, int]:
-        """Get pool statistics for monitoring."""
-        return {
-            'mono_buffers': len(self.mono_pool),
-            'stereo_buffers': len(self.stereo_pool),
-            'block_size': self.block_size,
-            'initial_pool_size': self.initial_pool_size
-        }
-
-
 class OptimizedXGSynthesizer:
     """
     HIGH-PERFORMANCE XG SYNTHESIZER
@@ -283,7 +101,6 @@ class OptimizedXGSynthesizer:
         sf2_files = None,
         param_cache=None,
         render_log_level: int = 0,
-        use_modulation_matrix: bool = False,
         voice_allocation_mode: int = 1,  # Default to XG priority polyphonic
         memory_pool_stereo_multiplier: int = 8,  # Configurable memory pool size multipliers
         memory_pool_mono_multiplier: int = 4,
@@ -300,7 +117,6 @@ class OptimizedXGSynthesizer:
             sf2_files: Optional list of SF2 soundfont files
             param_cache: Optional parameter cache for performance optimization
             render_log_level: Audio rendering debug log level (0-3)
-            use_modulation_matrix: Enable XG modulation matrix instead of fixed LFOs (default False)
             voice_allocation_mode: Voice allocation mode (0=basic poly, 1=XG priority, 2=mono)
         """
         # Basic parameters - use fixed default block size for simplicity
@@ -309,20 +125,20 @@ class OptimizedXGSynthesizer:
         self.max_polyphony = max_polyphony
         self.master_volume = DEFAULT_CONFIG["MASTER_VOLUME"]
         self.render_log_level = render_log_level
-        self.use_modulation_matrix = use_modulation_matrix
         self.voice_allocation_mode = voice_allocation_mode
         self.sysex_response_callback = sysex_response_callback
 
         # Thread safety lock
         self.lock = threading.RLock()
 
-        # Memory and object pooling system
-        self.memory_pool = MemoryPool(
-            block_size=block_size,
-            initial_pool_size=512,
-            stereo_multiplier=memory_pool_stereo_multiplier,
-            mono_multiplier=memory_pool_mono_multiplier
-        )  # Ultra-fast fixed-size audio buffers
+        # Modulation matrix configuration
+        self.use_modulation_matrix = True  # Enable XG modulation matrix by default
+
+        # Memory and object pooling system - XGBufferPool for advanced buffer management
+        self.memory_pool = XGBufferPool(
+            sample_rate=sample_rate,
+            max_block_size=block_size
+        )  # Advanced zero-allocation buffer pool
         self._initialize_object_pools()
 
         # Core synthesizer components owned by this class
@@ -361,31 +177,28 @@ class OptimizedXGSynthesizer:
         # XG SYSEX Controller for bulk parameter dumps and advanced control
         self.sysex_controller = XGSYSEXController(self.effects_coordinator, self.nrpn_controller)
 
-        # Effects coordinator handles its own performance monitoring
+        # XG Receive Channel Manager - Production-ready multichannel routing
+        self.receive_channel_manager = XGReceiveChannelManager(num_parts=self.num_channels)
 
-        # Partial generator pool for optimized allocation
-        self.partial_pool = PartialGeneratorPool(max_size=512)  # Pool for up to 512 partial generators
-
-        # Optimized coefficient manager for performance
+        # Initialize optimized coefficient manager for performance optimization
+        from .optimized_coefficient_manager import get_global_coefficient_manager
         self.coeff_manager = get_global_coefficient_manager()
 
-        # Message sequence storage and consumption
+        # Initialize partial generator pool for XG partial management
+        from ..xg.channel_note import PartialGeneratorPool
+        self.partial_pool = PartialGeneratorPool(max_size=512)  # Pool for up to 512 partial generators
+
+        # Initialize message processing state
         self._message_sequence: List[MIDIMessage] = []
         self._current_message_index: int = 0
         self._current_time: float = 0.0
-        self._minimum_time_slice = 0.002
-
-        # XG Receive Channel Manager - Production-ready multichannel routing
-        self.receive_channel_manager = XGReceiveChannelManager(num_parts=self.num_channels)
+        self._minimum_time_slice = minimum_time_slice
 
         # Pre-allocated audio buffers for performance
         self._initialize_audio_buffers()
 
         # Initialize XG
         self._initialize_xg()
-
-        # Set up drum channel enhancements
-        self._setup_drum_channel_enhancements()
 
         # Warm up numba-compiled functions to avoid runtime compilation
         self._warm_up_numba_functions()
@@ -403,8 +216,7 @@ class OptimizedXGSynthesizer:
         """Create and initialize channel renderers owned by synthesizer."""
         self.num_channels = DEFAULT_CONFIG["NUM_MIDI_CHANNELS"]
         self.channel_renderers = [None] * self.num_channels
-        self.channel_buffers =  [None] * self.num_channels
-        self.channel_lines = [None] * self.num_channels
+        self.channel_buffers = [None] * self.num_channels
 
         for channel in range(self.num_channels):
             # Create renderer with synthesizer-owned resources
@@ -412,37 +224,37 @@ class OptimizedXGSynthesizer:
             # Set voice allocation mode from synthesizer parameter
             renderer.voice_manager.set_allocation_mode(self.voice_allocation_mode)
             self.channel_renderers[channel] = renderer
-            self.channel_lines[channel] = self.memory_pool.get_stereo_buffer(zero_buffer=False)
 
     def _initialize_audio_buffers(self):
-        """Initialize pre-allocated audio buffers for performance using ultra-fast memory pool."""
-        # Get buffers from ultra-fast memory pool - optimized for audio processing
+        """Initialize pre-allocated audio buffers for performance using XGBufferPool."""
+        # Get buffers from advanced XGBufferPool - optimized for audio processing
         # Main output buffers need zeroing for accumulation
-        self.out_buffer = self.memory_pool.get_stereo_buffer(zero_buffer=True)
-        self.temp_left = self.memory_pool.get_mono_buffer(zero_buffer=True)
-        self.temp_right = self.memory_pool.get_mono_buffer(zero_buffer=True)
-        self.effect_input = self.memory_pool.get_stereo_buffer(zero_buffer=True)
-        self.effect_output = self.memory_pool.get_stereo_buffer(zero_buffer=True)
+        self.out_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
+        self.temp_left = self.memory_pool.get_mono_buffer(self.block_size)
+        self.temp_right = self.memory_pool.get_mono_buffer(self.block_size)
+        self.effect_input = self.memory_pool.get_stereo_buffer(self.block_size)
+        self.effect_output = self.memory_pool.get_stereo_buffer(self.block_size)
 
     def get_audio_buffer(self, size: int, channels: int = 1, zero_buffer: bool = True) -> np.ndarray:
-        """Get an audio buffer from the ultra-fast memory pool."""
+        """Get an audio buffer from the XGBufferPool."""
         if size == self.block_size and channels == 1:
-            return self.memory_pool.get_mono_buffer()
+            return self.memory_pool.get_mono_buffer(size)
         elif size == self.block_size and channels == 2:
-            return self.memory_pool.get_stereo_buffer()
+            return self.memory_pool.get_stereo_buffer(size)
         else:
-            # Fallback for non-standard sizes
-            return self.memory_pool.get_buffer(size, channels)
+            # XGBufferPool handles different sizes automatically
+            if channels == 1:
+                return self.memory_pool.get_mono_buffer(size)
+            else:
+                return self.memory_pool.get_stereo_buffer(size)
 
     def return_audio_buffer(self, buffer: np.ndarray, needs_zeroing: bool = True) -> None:
-        """Return an audio buffer to the ultra-fast memory pool."""
-        if buffer.shape == (self.block_size,):
-            self.memory_pool.return_mono_buffer(buffer)
-        elif buffer.shape == (self.block_size, 2):
-            self.memory_pool.return_stereo_buffer(buffer)
-        else:
-            # Fallback for non-standard sizes
-            self.memory_pool.return_buffer(buffer, needs_zeroing)
+        """Return an audio buffer to the XGBufferPool."""
+        if buffer.shape[0] == self.block_size:
+            if buffer.ndim == 1:
+                self.memory_pool.return_mono_buffer(buffer)
+            elif buffer.ndim == 2 and buffer.shape[1] == 2:
+                self.memory_pool.return_stereo_buffer(buffer)
 
     def _initialize_object_pools(self):
         """Initialize object pools for frequently allocated objects."""
@@ -452,12 +264,13 @@ class OptimizedXGSynthesizer:
         self.lfo_pool = OscillatorPool(max_oscillators=500, block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
         # Dedicated LFO pool for partials to avoid LFO contention (LFO bottleneck fix)
         self.partial_lfo_pool = OscillatorPool(max_oscillators=1000, block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
-        self.filter_pool = FilterPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        # Filter pool with OptimizedCoefficientManager integration for instant coefficient lookups
+        self.filter_pool = FilterPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate, coeff_manager=self.coeff_manager)
         self.panner_pool = PannerPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
 
     def _initialize_xg(self):
         """Initialize XG synthesizer according to XG MIDI specification."""
-        # Initialize XG RPN controller - migrated to new FX system
+        # Initialize XG RPN controller - production-ready implementation
         self.rpn_controller.reset_rpn_parameters()
 
         # Initialize drum kit parameters to XG defaults
@@ -475,12 +288,6 @@ class OptimizedXGSynthesizer:
             if channel == 9:
                 # Set drum mode - channel renderer handles internally
                 self.channel_renderers[channel].is_drum = True
-
-    def _setup_drum_channel_enhancements(self):
-        """Set up drum channel enhancements according to XG specification."""
-        # Channel 9 is automatically set to drum mode in _initialize_xg
-        # Additional drum-specific initialization can be added here if needed
-        pass
 
     def _warm_up_numba_functions(self):
         """Warm up numba-compiled functions to avoid runtime compilation overhead."""
@@ -539,6 +346,29 @@ class OptimizedXGSynthesizer:
         with self.lock:
             self.master_volume = max(0.0, min(1.0, volume))
 
+    def set_part_mode(self, channel: int, mode: int):
+        """
+        Set XG part mode for a specific MIDI channel.
+
+        XG Part Modes control how the synthesizer processes sounds:
+        - Mode 0: Normal Mode (standard synthesis)
+        - Modes 1-7: Drum Kit variations (different drum kits)
+
+        Args:
+            channel: MIDI channel number (0-15)
+            mode: Part mode (0-7)
+
+        Returns:
+            True if mode was set successfully, False otherwise
+        """
+        with self.lock:
+            if 0 <= channel < len(self.channel_renderers) and 0 <= mode <= 7:
+                if hasattr(self.channel_renderers[channel], 'set_part_mode'):
+                    self.channel_renderers[channel].set_part_mode(mode)
+                    print(f"🎹 XG Part Mode: Channel {channel} set to mode {mode}")
+                    return True
+            return False
+
     def send_midi_message(self, message: MIDIMessage):
         """
         Send MIDI message to synthesizer with XG receive channel mapping.
@@ -586,6 +416,12 @@ class OptimizedXGSynthesizer:
                         unit_index = message.control - 200
                         active = message.value >= 64  # 64 = halfway point, values >= 64 enable
                         self.effects_coordinator.set_effect_unit_activation(unit_index, active)
+                    elif message.control == 84:
+                        # XG Part Mode Control (CC 84) - set part mode for this channel
+                        # Map 0-127 to part modes 0-7 (XG specification)
+                        part_mode = min(message.value // 18, 7)  # Divide range evenly across 8 modes
+                        if hasattr(channel_renderer, 'set_part_mode'):
+                            channel_renderer.set_part_mode(part_mode)
                     elif message.control in (98, 99, 6, 38):
                         # NRPN messages - route to NRPN controller
                         self._handle_nrpn_message(message.control, message.value)
@@ -674,11 +510,19 @@ class OptimizedXGSynthesizer:
             except Exception as e:
                 print(f"XG SYSEX: Error processing message: {e}")
 
-        # Fallback: Basic XG receive channel handling if SYSEX controller not available
-        if len(data) >= 8 and data[3] == 0x4C and data[4] == 0x08:  # XG Receive Channel
-            part_id = data[5] if len(data) > 5 else 0
-            midi_channel = data[6] if len(data) > 6 else 0
-            print(f"🎹 XG SYSEX: Part {part_id} receive channel set to MIDI CH {midi_channel}")
+        # Fallback: Basic XG parameter handling if SYSEX controller not available
+        if len(data) >= 8 and data[3] == 0x4C:  # XG Parameter Change
+            if data[4] == 0x00:  # Part Mode
+                part_id = data[5] if len(data) > 5 else 0
+                part_mode = data[6] if len(data) > 6 else 0
+                if 0 <= part_id < len(self.channel_renderers) and 0 <= part_mode <= 7:
+                    if hasattr(self.channel_renderers[part_id], 'set_part_mode'):
+                        self.channel_renderers[part_id].set_part_mode(part_mode)
+                        print(f"🎹 XG SYSEX: Part {part_id} mode set to {part_mode}")
+            elif data[4] == 0x08:  # Receive Channel
+                part_id = data[5] if len(data) > 5 else 0
+                midi_channel = data[6] if len(data) > 6 else 0
+                print(f"🎹 XG SYSEX: Part {part_id} receive channel set to MIDI CH {midi_channel}")
 
     def _handle_nrpn_message(self, cc_number: int, value: int):
         """
@@ -835,7 +679,7 @@ class OptimizedXGSynthesizer:
 
         with self.lock:
             if self.out_buffer is None:
-                self.out_buffer = self.memory_pool.get_stereo_buffer(False)
+                self.out_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
 
             at_time = self._current_time
             at_index = self._current_message_index
@@ -888,13 +732,17 @@ class OptimizedXGSynthesizer:
 
                 # Process through new XG effects coordinator (zero-allocation processing)
                 effects_start = time.perf_counter()
-                final_stereo_segment = np.zeros((segment_length, 2), dtype=np.float32)
+                # Use buffer from XGBufferPool to maintain zero-allocation principle
+                final_stereo_segment = self.memory_pool.get_stereo_buffer(segment_length)
                 self.effects_coordinator.process_channels_to_stereo_zero_alloc(
                     channel_audio, final_stereo_segment, segment_length
                 )
                 effect_processing_time += time.perf_counter() - effects_start
 
-                self.out_buffer[block_offset : block_offset + segment_length] = final_stereo_segment
+                self.out_buffer[block_offset : block_offset + segment_length] = final_stereo_segment[:segment_length]
+
+                # Return buffer to pool to maintain zero-allocation
+                self.memory_pool.return_stereo_buffer(final_stereo_segment)
 
                 # Advance time by the segment length
                 block_offset += segment_length
@@ -936,7 +784,7 @@ class OptimizedXGSynthesizer:
         each channel needs to have insertion effects applied individually
         before mixing channels together.
 
-        Uses memory pool for buffer allocation and smart zeroing.
+        Uses XGBufferPool for buffer allocation and smart zeroing.
 
         Returns:
             List of channels, each containing stereo numpy array (block_size x 2)
@@ -959,7 +807,7 @@ class OptimizedXGSynthesizer:
                     print(f"Warning: Channel {channel_idx} audio generation failed: {e}")
                     channel_left, channel_right = channel_renderer.generate_silence(block_size)
             else:
-                # Inactive channel - get zero buffer from ultra-fast pool
+                # Inactive channel - get zero buffer from XGBufferPool
                 channel_left, channel_right = channel_renderer.generate_silence(block_size)
 
             # Convert to stereo numpy array format expected by effect processor
@@ -1030,7 +878,7 @@ class OptimizedXGSynthesizer:
                 except:
                     pass
 
-            # Return main audio buffers to memory pool
+            # Return main audio buffers to XGBufferPool
             if hasattr(self, 'out_buffer') and self.out_buffer is not None:
                 self.memory_pool.return_stereo_buffer(self.out_buffer)
                 self.out_buffer = None
@@ -1060,7 +908,8 @@ class OptimizedXGSynthesizer:
 
             # Clear references
             self.channel_renderers.clear()
-            self._message_sequence.clear()
+            if hasattr(self, '_message_sequence'):
+                self._message_sequence.clear()
 
     def reset(self):
         """Full synthesizer reset."""
@@ -1083,7 +932,8 @@ class OptimizedXGSynthesizer:
             self.drum_manager.reset_all_drum_parameters()
 
             # Reset effects coordinator to XG defaults
-            self.effects_coordinator.reset_all_effects()
+            if hasattr(self.effects_coordinator, 'reset_all_effects'):
+                self.effects_coordinator.reset_all_effects()
 
             # Reset message sequence and consumption state
             self._message_sequence.clear()
@@ -1092,9 +942,6 @@ class OptimizedXGSynthesizer:
 
             # Reinitialize XG
             self._initialize_xg()
-
-            # Set up drum channel enhancements
-            self._setup_drum_channel_enhancements()
 
     def _log_comprehensive_performance_stats(self, total_time, midi_processing_time, envelope_processing_time,
                                            lfo_processing_time, filter_processing_time, wavetable_rendering_time,
@@ -1418,13 +1265,13 @@ class OptimizedXGSynthesizer:
                         if hasattr(channel_note, 'generate_sample_block'):
                             # Get appropriately sized buffers for this block
                             if block_size == self.block_size:
-                                # Use pool buffers for standard size
-                                note_left = self.memory_pool.get_mono_buffer(zero_buffer=True)
-                                note_right = self.memory_pool.get_mono_buffer(zero_buffer=True)
+                                # Use XGBufferPool buffers for standard size
+                                note_left = self.memory_pool.get_mono_buffer(block_size)
+                                note_right = self.memory_pool.get_mono_buffer(block_size)
                             else:
                                 # Get variable-sized buffers for smaller blocks
-                                note_left = self.memory_pool.get_buffer(block_size, 1, dtype=np.float32)
-                                note_right = self.memory_pool.get_buffer(block_size, 1, dtype=np.float32)
+                                note_left = self.memory_pool.get_mono_buffer(block_size)
+                                note_right = self.memory_pool.get_mono_buffer(block_size)
 
                             try:
                                 channel_note.generate_sample_block(
@@ -1446,13 +1293,9 @@ class OptimizedXGSynthesizer:
                                 self.audio_writers[writer_key].write(note_stereo)
 
                             finally:
-                                # Return buffers to pool - handle both fixed and variable sizes
-                                if block_size == self.block_size:
-                                    self.memory_pool.return_mono_buffer(note_left)
-                                    self.memory_pool.return_mono_buffer(note_right)
-                                else:
-                                    self.memory_pool.return_buffer(note_left)
-                                    self.memory_pool.return_buffer(note_right)
+                                # Return buffers to XGBufferPool - updated to use new API
+                                self.memory_pool.return_mono_buffer(note_left)
+                                self.memory_pool.return_mono_buffer(note_right)
 
     def _finalize_audio_logging(self):
         """Finalize and close all audio logging streams."""

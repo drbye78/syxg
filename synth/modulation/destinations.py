@@ -45,6 +45,8 @@ class ModulationDestination:
     TREMOLO_RATE = "tremolo_rate"
     COARSE_TUNE = "coarse_tune"
     FINE_TUNE = "fine_tune"
+    DETUNE = "detune"
+    PHASER_DEPTH = "phaser_depth"
 
     @staticmethod
     def get_all_destinations():
@@ -81,5 +83,7 @@ class ModulationDestination:
             ModulationDestination.TREMOLO_DEPTH,
             ModulationDestination.TREMOLO_RATE,
             ModulationDestination.COARSE_TUNE,
-            ModulationDestination.FINE_TUNE
+            ModulationDestination.FINE_TUNE,
+            ModulationDestination.DETUNE,
+            ModulationDestination.PHASER_DEPTH
         ]

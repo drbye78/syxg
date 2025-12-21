@@ -348,7 +348,7 @@ class UltraFastXGLFO:
         self.pitch_fade_in_samples = int(self.pitch_fade_in * sample_rate)
         self.phase_step = self._calculate_phase_step()
 
-        # Memory pool integration
+        # XGBufferPool integration
         self.memory_pool = memory_pool
         self.is_pooled = memory_pool is not None
 
@@ -358,9 +358,9 @@ class UltraFastXGLFO:
 
         # Pre-allocate temp buffers for zero-allocation processing
         if self.is_pooled:
-            # Use memory pool for better heap management and consistency
-            self.pool_buffer1 = self.memory_pool.get_mono_buffer(zero_buffer=True)
-            self.pool_buffer2 = self.memory_pool.get_mono_buffer(zero_buffer=True)
+            # Use XGBufferPool for better heap management and consistency
+            self.pool_buffer1 = self.memory_pool.get_mono_buffer(self.block_size)
+            self.pool_buffer2 = self.memory_pool.get_mono_buffer(self.block_size)
             # Use views of the pool buffers, assuming pool buffer >= block_size
             self.temp_phase_buffer = self.pool_buffer1[:self.block_size]
             self.temp_modulated_depth = self.pool_buffer2[:self.block_size]
@@ -495,7 +495,7 @@ class UltraFastXGLFO:
         """Generate next LFO sample with XG pitch modulation delay/fade-in - backward compatibility."""
         # For backward compatibility, use the block processing approach
         if self.memory_pool:
-            temp_buffer = self.memory_pool.get_mono_buffer(zero_buffer=True)
+            temp_buffer = self.memory_pool.get_mono_buffer(1)
         else:
             temp_buffer = np.zeros(1, dtype=np.float32)
 

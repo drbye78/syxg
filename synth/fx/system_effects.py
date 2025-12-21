@@ -138,6 +138,9 @@ class XGSystemReverbProcessor:
 
     def _ensure_convolution_buffers(self, num_samples: int) -> None:
         """Ensure we have adequate convolution buffers for processing."""
+        if self.current_ir is None:
+            return
+
         # We maintain a circular buffer history for convolution
         required_size = num_samples + len(self.current_ir) - 1
         if len(self.convolution_buffers) == 0 or self.convolution_buffers[0].shape[0] < required_size:
@@ -164,6 +167,9 @@ class XGSystemReverbProcessor:
 
     def _apply_direct_convolution(self, stereo_mix: np.ndarray, num_samples: int) -> None:
         """Apply direct convolution for shorter impulse responses."""
+        if self.current_ir is None:
+            return
+
         ir_length = len(self.current_ir)
 
         # Process left channel
@@ -207,6 +213,9 @@ class XGSystemReverbProcessor:
 
     def _apply_fft_convolution(self, stereo_mix: np.ndarray, num_samples: int) -> None:
         """Apply FFT-based convolution for longer impulse responses."""
+        if self.current_ir is None:
+            return
+
         try:
             from scipy.signal import fftconvolve
 
@@ -241,14 +250,61 @@ class XGSystemReverbProcessor:
         ir_length = min(int(self.sample_rate * self.params['time'] * 1.5), self.max_ir_length)
         self.current_ir = np.zeros(ir_length, dtype=np.float32)
 
-        # XG reverb type determines characteristics
+        # XG reverb type determines characteristics - implement all 24 XG types
         reverb_type = self.params['reverb_type']
-        if 1 <= reverb_type <= 8:  # Hall types
-            self._generate_hall_ir()
-        elif 9 <= reverb_type <= 16:  # Room types
-            self._generate_room_ir()
-        elif 17 <= reverb_type <= 24:  # Plate types
-            self._generate_plate_ir()
+        if reverb_type == 1:  # Hall 1 (Small Hall)
+            self._generate_xg_hall(1.8, 0.4, 0.6)  # time, density, hf_damping
+        elif reverb_type == 2:  # Hall 2 (Medium Hall)
+            self._generate_xg_hall(2.2, 0.5, 0.5)
+        elif reverb_type == 3:  # Hall 3 (Large Hall)
+            self._generate_xg_hall(2.8, 0.6, 0.4)
+        elif reverb_type == 4:  # Hall 4 (Large Hall +)
+            self._generate_xg_hall(3.2, 0.7, 0.35)
+        elif reverb_type == 5:  # Hall 5 (Large Hall ++)
+            self._generate_xg_hall(3.6, 0.75, 0.3)
+        elif reverb_type == 6:  # Hall 6 (Large Hall +++])
+            self._generate_xg_hall(4.0, 0.8, 0.25)
+        elif reverb_type == 7:  # Hall 7 (Large Hall +++])
+            self._generate_xg_hall(4.5, 0.85, 0.2)
+        elif reverb_type == 8:  # Hall 8 (Large Hall +++++)
+            self._generate_xg_hall(5.0, 0.9, 0.15)
+
+        elif reverb_type == 9:  # Room 1 (Small Room)
+            self._generate_xg_room(0.8, 0.7, 0.8)  # time, density, hf_damping
+        elif reverb_type == 10:  # Room 2 (Medium Room)
+            self._generate_xg_room(1.2, 0.75, 0.7)
+        elif reverb_type == 11:  # Room 3 (Large Room)
+            self._generate_xg_room(1.6, 0.8, 0.6)
+        elif reverb_type == 12:  # Room 4 (Large Room +)
+            self._generate_xg_room(2.0, 0.85, 0.5)
+        elif reverb_type == 13:  # Room 5 (Large Room ++)
+            self._generate_xg_room(2.4, 0.9, 0.4)
+        elif reverb_type == 14:  # Room 6 (Large Room +++])
+            self._generate_xg_room(2.8, 0.95, 0.35)
+        elif reverb_type == 15:  # Room 7 (Large Room +++])
+            self._generate_xg_room(3.2, 1.0, 0.3)
+        elif reverb_type == 16:  # Room 8 (Large Room +++++)
+            self._generate_xg_room(3.6, 1.0, 0.25)
+
+        elif reverb_type == 17:  # Plate 1
+            self._generate_xg_plate(1.0, 0.8, 0.9)  # time, density, hf_damping
+        elif reverb_type == 18:  # Plate 2
+            self._generate_xg_plate(1.2, 0.85, 0.85)
+        elif reverb_type == 19:  # Plate 3
+            self._generate_xg_plate(1.4, 0.9, 0.8)
+        elif reverb_type == 20:  # Plate 4
+            self._generate_xg_plate(1.6, 0.95, 0.75)
+        elif reverb_type == 21:  # Plate 5
+            self._generate_xg_plate(1.8, 1.0, 0.7)
+        elif reverb_type == 22:  # Plate 6
+            self._generate_xg_plate(2.0, 1.0, 0.65)
+        elif reverb_type == 23:  # Plate 7
+            self._generate_xg_plate(2.2, 1.0, 0.6)
+        elif reverb_type == 24:  # Plate 8
+            self._generate_xg_plate(2.5, 1.0, 0.55)
+        else:
+            # Default to Hall 1 for unknown types
+            self._generate_xg_hall(1.8, 0.4, 0.6)
 
         # Normalize
         max_val = np.max(np.abs(self.current_ir))
@@ -256,7 +312,86 @@ class XGSystemReverbProcessor:
             self.current_ir /= max_val
 
         # Cache the impulse response
-        self.ir_cache[cache_key] = self.current_ir
+        if self.current_ir is not None:
+            self.ir_cache[cache_key] = self.current_ir
+
+    def _generate_xg_hall(self, time: float, density: float, hf_damping: float) -> None:
+        """Generate XG hall-type impulse response with specific characteristics."""
+        if self.current_ir is None:
+            return
+
+        # XG Hall characteristics: lush, spacious with rich early reflections
+        ir_length = min(int(self.sample_rate * time * 1.5), self.max_ir_length)
+        self.current_ir = np.zeros(ir_length, dtype=np.float32)
+
+        # XG Hall early reflections pattern (more complex than basic hall)
+        early_positions = [0.018, 0.032, 0.048, 0.072, 0.105, 0.155, 0.220, 0.310, 0.420, 0.550]
+        early_gains = [1.0, 0.85, -0.65, 0.45, -0.35, 0.25, -0.18, 0.12, -0.08, 0.05]
+
+        for pos, gain in zip(early_positions, early_gains):
+            sample_pos = int(pos * self.sample_rate)
+            if sample_pos < len(self.current_ir):
+                self.current_ir[sample_pos] += gain * density
+
+        # Dense late reverberation with proper decay
+        for i in range(int(0.4 * self.sample_rate), len(self.current_ir)):
+            decay_factor = math.exp(-(i / self.sample_rate) / time)
+            damping_factor = math.exp(-hf_damping * (i / self.sample_rate) * 1.8)
+            noise = (np.random.random() - 0.5) * 2.0
+            self.current_ir[i] += noise * decay_factor * damping_factor * density * 0.8
+
+    def _generate_xg_room(self, time: float, density: float, hf_damping: float) -> None:
+        """Generate XG room-type impulse response with specific characteristics."""
+        if self.current_ir is None:
+            return
+
+        # XG Room characteristics: intimate, warm with focused early reflections
+        ir_length = min(int(self.sample_rate * time * 1.3), self.max_ir_length)
+        self.current_ir = np.zeros(ir_length, dtype=np.float32)
+
+        # XG Room early reflections (fewer but more focused)
+        early_positions = [0.012, 0.022, 0.036, 0.052, 0.078, 0.110, 0.150]
+        early_gains = [1.0, 0.75, -0.50, 0.35, -0.25, 0.15, -0.10]
+
+        for pos, gain in zip(early_positions, early_gains):
+            sample_pos = int(pos * self.sample_rate)
+            if sample_pos < len(self.current_ir):
+                self.current_ir[sample_pos] += gain * density
+
+        # Controlled late reverb for room character
+        for i in range(int(0.08 * self.sample_rate), len(self.current_ir)):
+            decay_factor = math.exp(-(i / self.sample_rate) / (time * 0.9))
+            damping_factor = math.exp(-hf_damping * (i / self.sample_rate) * 1.3)
+            noise = (np.random.random() - 0.5) * 2.0
+            self.current_ir[i] += noise * decay_factor * damping_factor * density * 0.6
+
+    def _generate_xg_plate(self, time: float, density: float, hf_damping: float) -> None:
+        """Generate XG plate-type impulse response with specific characteristics."""
+        if self.current_ir is None:
+            return
+
+        # XG Plate characteristics: bright, metallic, smooth decay
+        ir_length = min(int(self.sample_rate * time * 1.2), self.max_ir_length)
+        self.current_ir = np.zeros(ir_length, dtype=np.float32)
+
+        # XG Plate early reflections (metallic character)
+        early_positions = [0.003, 0.008, 0.015, 0.024, 0.035, 0.050, 0.070]
+        early_gains = [1.0, 0.95, -0.80, 0.60, -0.45, 0.30, -0.20]
+
+        for pos, gain in zip(early_positions, early_gains):
+            sample_pos = int(pos * self.sample_rate)
+            if sample_pos < len(self.current_ir):
+                self.current_ir[sample_pos] += gain
+
+        # Smooth, bright late reverb
+        for i in range(int(0.03 * self.sample_rate), len(self.current_ir)):
+            decay_factor = math.exp(-(i / self.sample_rate) / (time * 0.95))
+            damping_factor = math.exp(-hf_damping * (i / self.sample_rate) * 0.8)  # Less HF damping for brightness
+            noise = (np.random.random() - 0.5) * 2.0
+
+            # Add metallic character with high-frequency emphasis
+            hf_boost = 1.0 + (i / self.sample_rate) * 0.3  # Slight HF boost over time
+            self.current_ir[i] += noise * decay_factor * damping_factor * density * hf_boost * 0.4
 
     def _generate_hall_ir(self) -> None:
         """Generate hall-type impulse response."""
@@ -351,7 +486,7 @@ class XGSystemChorusProcessor:
 
     def __init__(self, sample_rate: int, max_delay_samples: int = 8192):
         """
-        Initialize XG chorus processor.
+        Initialize XG chorus processor with all 6 XG chorus types.
 
         Args:
             sample_rate: Sample rate in Hz
@@ -359,6 +494,34 @@ class XGSystemChorusProcessor:
         """
         self.sample_rate = sample_rate
         self.max_delay_samples = max_delay_samples
+
+        # XG chorus type definitions with default parameters
+        self.chorus_type_presets = {
+            0: {  # Chorus 1
+                'rate': 1.0, 'depth': 0.5, 'feedback': 0.3, 'delay': 0.012,
+                'cross_feedback': 0.0, 'lfo_waveform': 0, 'phase_diff': 90.0
+            },
+            1: {  # Chorus 2
+                'rate': 0.8, 'depth': 0.6, 'feedback': 0.4, 'delay': 0.015,
+                'cross_feedback': 0.1, 'lfo_waveform': 0, 'phase_diff': 120.0
+            },
+            2: {  # Celeste 1
+                'rate': 0.5, 'depth': 0.7, 'feedback': 0.2, 'delay': 0.008,
+                'cross_feedback': 0.0, 'lfo_waveform': 1, 'phase_diff': 180.0  # Triangle wave
+            },
+            3: {  # Celeste 2
+                'rate': 0.3, 'depth': 0.8, 'feedback': 0.3, 'delay': 0.010,
+                'cross_feedback': 0.2, 'lfo_waveform': 1, 'phase_diff': 150.0
+            },
+            4: {  # Flanger 1
+                'rate': 0.2, 'depth': 0.9, 'feedback': 0.7, 'delay': 0.002,
+                'cross_feedback': 0.0, 'lfo_waveform': 0, 'phase_diff': 0.0
+            },
+            5: {  # Flanger 2
+                'rate': 0.15, 'depth': 1.0, 'feedback': 0.8, 'delay': 0.003,
+                'cross_feedback': 0.3, 'lfo_waveform': 2, 'phase_diff': 45.0  # Square wave
+            }
+        }
 
         # XG chorus parameters
         self.params = {
@@ -374,9 +537,25 @@ class XGSystemChorusProcessor:
             'enabled': True,
         }
 
+        # Apply initial type settings
+        self._apply_chorus_type_preset(XGChorusType.CHORUS_1.value)
+
+    def _apply_chorus_type_preset(self, chorus_type: int) -> None:
+        """
+        Apply XG chorus type preset parameters.
+
+        Args:
+            chorus_type: XG chorus type (0-5)
+        """
+        if chorus_type in self.chorus_type_presets:
+            preset = self.chorus_type_presets[chorus_type]
+            for param, value in preset.items():
+                self.params[param] = value
+            self.param_updated = True
+
         # Delay lines for stereo processing
-        self.left_delay_line = np.zeros(max_delay_samples, dtype=np.float32)
-        self.right_delay_line = np.zeros(max_delay_samples, dtype=np.float32)
+        self.left_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
+        self.right_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
         self.left_write_pos = 0
         self.right_write_pos = 0
 
@@ -405,9 +584,31 @@ class XGSystemChorusProcessor:
         with self.lock:
             if param not in self.params:
                 return False
+
+            # Special handling for chorus_type - apply preset
+            if param == 'chorus_type':
+                chorus_type = int(value)
+                if 0 <= chorus_type <= 5:
+                    self._apply_chorus_type_preset(chorus_type)
+                    return True
+                return False
+
             self.params[param] = value
             self.param_updated = True
             return True
+
+    def set_chorus_type(self, chorus_type: int) -> bool:
+        """
+        Set XG chorus type (0-5).
+
+        Args:
+            chorus_type: XG chorus type (0=Chorus 1, 1=Chorus 2, 2=Celeste 1,
+                           3=Celeste 2, 4=Flanger 1, 5=Flanger 2)
+
+        Returns:
+            True if type was set successfully
+        """
+        return self.set_parameter('chorus_type', chorus_type)
 
     def _generate_lfo_tables(self) -> Dict[str, np.ndarray]:
         """Pre-compute LFO waveform tables for better performance."""

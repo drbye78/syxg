@@ -28,7 +28,7 @@ import threading
 import time
 
 # Import our effect processors
-from .buffer_pool import XGBufferPool, XGBufferManager
+from ..core.buffer_pool import XGBufferPool, XGBufferManager
 from .system_effects import XGSystemEffectsProcessor
 from .variation_effects import XGVariationEffectsProcessor
 from .insertion_pro import ProductionXGInsertionEffectsProcessor

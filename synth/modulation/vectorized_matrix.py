@@ -1,12 +1,12 @@
 """
-VECTORIZED MODULATION MATRIX - PHASE 2 PERFORMANCE
+Vectorized Modulation Matrix
 
-This module provides a vectorized modulation matrix implementation with
-NumPy-based operations for maximum performance.
+Provides efficient, vectorized modulation routing for XG synthesizer.
+Optimized for real-time audio processing with minimal memory allocations.
 """
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+from typing import Dict, List, Optional, Tuple
 
 
 class VectorizedModulationRoute:
@@ -64,204 +64,154 @@ class VectorizedModulationRoute:
 
 
 class VectorizedModulationMatrix:
-    """Vectorized XG modulation matrix with support up to 16 routes"""
-    def __init__(self, num_routes=16):
+    """
+    Vectorized XG modulation matrix with support for up to 16 routes.
+
+    Optimized for real-time audio processing with pre-allocated destination arrays
+    to minimize memory allocations during processing.
+
+    Args:
+        num_routes: Maximum number of modulation routes (default: 16)
+    """
+    def __init__(self, num_routes: int = 16):
+        if not isinstance(num_routes, int) or num_routes < 1 or num_routes > 32:
+            raise ValueError("num_routes must be between 1 and 32")
+
         self.routes: List[Optional[VectorizedModulationRoute]] = [None] * num_routes
         self.num_routes = num_routes
 
-        # Performance optimization: Pre-computed coefficient cache
-        self.coefficient_cache = {}
-        self.cache_version = 0
-        self.last_sources_hash = None
+        # Pre-allocated destination arrays to avoid allocations during processing
+        self._dest_arrays: Dict[str, np.ndarray] = {}
+        self._max_block_size = 0  # Track max block size for array sizing
 
-    def set_route(self, index, source, destination, amount=0.0, polarity=1.0,
-                  velocity_sensitivity=0.0, key_scaling=0.0):
+    def set_route(self, index: int, source: str, destination: str,
+                  amount: float = 0.0, polarity: float = 1.0,
+                  velocity_sensitivity: float = 0.0, key_scaling: float = 0.0) -> None:
         """
-        Setting modulation route
-        
+        Set a modulation route at the specified index.
+
         Args:
-            index: route index (0-15)
-            source: modulation source
-            destination: modulation destination
-            amount: modulation depth
-            polarity: polarity (1.0 or -1.0)
-            velocity_sensitivity: velocity sensitivity
-            key_scaling: note height dependency
+            index: Route index (0 to num_routes-1)
+            source: Source parameter name
+            destination: Destination parameter name
+            amount: Modulation amount (0.0-1.0)
+            polarity: Modulation polarity (1.0 or -1.0)
+            velocity_sensitivity: Velocity sensitivity (0.0-1.0)
+            key_scaling: Key scaling amount (-1.0-1.0)
+
+        Raises:
+            ValueError: If index is out of range
+            TypeError: If parameters have invalid types
         """
-        if 0 <= index < self.num_routes:
-            self.routes[index] = VectorizedModulationRoute(
-                source, destination, amount, polarity,
-                velocity_sensitivity, key_scaling
-            )
+        if not isinstance(index, int) or not (0 <= index < self.num_routes):
+            raise ValueError(f"Route index must be between 0 and {self.num_routes-1}")
 
-    def clear_route(self, index):
-        """Clearing modulation route"""
-        if 0 <= index < self.num_routes:
-            self.routes[index] = None
+        if not isinstance(source, str) or not isinstance(destination, str):
+            raise TypeError("Source and destination must be strings")
 
-    def process_vectorized(self, sources: Dict[str, np.ndarray], 
+        self.routes[index] = VectorizedModulationRoute(
+            source, destination, amount, polarity,
+            velocity_sensitivity, key_scaling
+        )
+
+        # Initialize destination array for this route if not already present
+        if destination not in self._dest_arrays:
+            self._dest_arrays[destination] = np.zeros(self._max_block_size or 1024, dtype=np.float32)
+
+    def clear_route(self, index: int) -> None:
+        """
+        Clear a modulation route at the specified index.
+
+        Args:
+            index: Route index to clear
+
+        Raises:
+            ValueError: If index is out of range
+        """
+        if not isinstance(index, int) or not (0 <= index < self.num_routes):
+            raise ValueError(f"Route index must be between 0 and {self.num_routes-1}")
+
+        self.routes[index] = None
+
+    def process_vectorized(self, sources: Dict[str, np.ndarray],
                           velocities: np.ndarray, notes: np.ndarray) -> Dict[str, np.ndarray]:
         """
-        Processing modulation matrix in vectorized form
-        
+        Process modulation matrix in vectorized form.
+
         Args:
-            sources: dictionary with arrays of current source values
-            velocities: array of key press velocities (0-127)
-            notes: array of MIDI notes (0-127)
+            sources: Dictionary mapping source names to value arrays
+            velocities: Array of key velocities (0-127)
+            notes: Array of MIDI note numbers (0-127)
 
         Returns:
-            dictionary with arrays of modulating values for destinations
+            Dictionary mapping destination names to modulation value arrays
+
+        Raises:
+            ValueError: If input arrays have mismatched sizes
         """
-        # Determining array size
-        if len(velocities) == 0:
-            return {}
-            
+        # Input validation
+        if len(velocities) != len(notes):
+            raise ValueError("Velocities and notes arrays must have the same length")
+
         block_size = len(velocities)
+        if block_size == 0:
+            return {}
+
+        # Resize destination arrays if block size changed
+        if block_size > self._max_block_size:
+            self._resize_destination_arrays(block_size)
+            self._max_block_size = block_size
+
         modulation_values: Dict[str, np.ndarray] = {}
-        
-        # Processing all routes in vectorized form
-        for route in self.routes:
-            if route is None:
-                continue
-                
-            if route.source in sources:
-                source_values = sources[route.source]
-                
-                # Checking source array size
-                if len(source_values) != block_size:
-                    # Interpolation or replication of values to match block size
-                    if len(source_values) == 1:
-                        source_values = np.full(block_size, source_values[0], dtype=np.float32)
-                    else:
-                        # Linear interpolation
-                        indices = np.linspace(0, len(source_values) - 1, block_size)
-                        source_values = np.interp(indices, 
-                                                np.arange(len(source_values)), 
-                                                source_values).astype(np.float32)
-                
-                # Getting modulation values in vectorized form
-                mod_values = route.get_modulation_value_vectorized(source_values, velocities, notes)
-                
-                # Accumulating modulation values for each target
-                if route.destination not in modulation_values:
-                    modulation_values[route.destination] = np.zeros(block_size, dtype=np.float32)
-                modulation_values[route.destination] += mod_values
-        
-        return modulation_values
 
-    def process(self, sources: Dict[str, float], velocity: int, note: int) -> Dict[str, float]:
-        """
-        Processing modulation matrix for single sample (compatibility with original version)
-
-        Args:
-            sources: dictionary with current source values
-            velocity: key press velocity (0-127)
-            note: MIDI note (0-127)
-
-        Returns:
-            dictionary with modulating values for destinations
-        """
-        modulation_values = {}
-
-        for route in self.routes:
-            if route is None:
-                continue
-
-            if route.source in sources:
-                source_value = sources[route.source]
-                # Creating scalar arrays for compatibility
-                mod_value = route.get_modulation_value_vectorized(
-                    np.array([source_value], dtype=np.float32),
-                    np.array([velocity], dtype=np.float32),
-                    np.array([note], dtype=np.float32)
-                )[0]  # Get scalar value
-
-                if route.destination not in modulation_values:
-                    modulation_values[route.destination] = 0.0
-                modulation_values[route.destination] += mod_value
-
-        return modulation_values
-
-    def process_optimized(self, sources: Dict[str, float], velocity: int, note: int) -> Dict[str, float]:
-        """
-        Optimized modulation processing with pre-computed coefficients
-
-        Args:
-            sources: dictionary with current source values
-            velocity: key press velocity (0-127)
-            note: MIDI note (0-127)
-
-        Returns:
-            dictionary with modulating values for destinations
-        """
-        # Check if we can use cached coefficients
-        sources_hash = hash(tuple(sorted(sources.items())))
-        if sources_hash == self.last_sources_hash and self.coefficient_cache:
-            return self._apply_cached_modulation(sources, velocity, note)
-
-        # Compute fresh modulation values
-        modulation_values = {}
-
+        # Process all routes
         for route in self.routes:
             if route is None or route.source not in sources:
                 continue
 
-            source_value = sources[route.source]
+            source_values = sources[route.source]
 
-            # Pre-compute modulation coefficient to avoid repeated calculations
-            cache_key = (route.source, route.destination, velocity, note)
-            if cache_key not in self.coefficient_cache:
-                # Calculate and cache the coefficient
-                coeff = self._calculate_modulation_coefficient(route, source_value, velocity, note)
-                self.coefficient_cache[cache_key] = coeff
-            else:
-                coeff = self.coefficient_cache[cache_key]
+            # Ensure source array size matches block size
+            if len(source_values) != block_size:
+                if len(source_values) == 1:
+                    # Broadcast scalar to array
+                    source_values = np.full(block_size, source_values[0], dtype=np.float32)
+                else:
+                    raise ValueError(f"Source array size {len(source_values)} doesn't match block size {block_size}")
 
+            # Calculate modulation values
+            mod_values = route.get_modulation_value_vectorized(source_values, velocities, notes)
+
+            # Accumulate to destination (reuse pre-allocated array)
             if route.destination not in modulation_values:
-                modulation_values[route.destination] = 0.0
-            modulation_values[route.destination] += coeff
+                dest_array = self._dest_arrays[route.destination]
+                dest_array.fill(0.0)  # Clear the array
+                modulation_values[route.destination] = dest_array
 
-        self.last_sources_hash = sources_hash
-        return modulation_values
-
-    def _calculate_modulation_coefficient(self, route, source_value: float, velocity: int, note: int) -> float:
-        """Calculate modulation coefficient with optimized operations"""
-        # Apply polarity and amount
-        value = source_value * route.polarity * route.amount
-
-        # Apply velocity sensitivity
-        if route.velocity_sensitivity != 0.0:
-            velocity_factor = (velocity / 127.0) ** (1.0 + route.velocity_sensitivity)
-            value *= velocity_factor
-
-        # Apply key scaling
-        if route.key_scaling != 0.0:
-            note_factor = (note - 60) / 60.0
-            key_factor = 1.0 + note_factor * route.key_scaling
-            key_factor = max(0.1, key_factor)  # Prevent zero or negative values
-            value *= key_factor
-
-        return value
-
-    def _apply_cached_modulation(self, sources: Dict[str, float], velocity: int, note: int) -> Dict[str, float]:
-        """Apply modulation using cached coefficients for better performance"""
-        modulation_values = {}
-
-        for route in self.routes:
-            if route is None or route.source not in sources:
-                continue
-
-            cache_key = (route.source, route.destination, velocity, note)
-            if cache_key in self.coefficient_cache:
-                coeff = self.coefficient_cache[cache_key]
-
-                if route.destination not in modulation_values:
-                    modulation_values[route.destination] = 0.0
-                modulation_values[route.destination] += coeff
+            modulation_values[route.destination] += mod_values
 
         return modulation_values
 
-    def clear_cache(self):
-        """Clear the modulation coefficient cache"""
-        self.coefficient_cache.clear()
-        self.last_sources_hash = None
+    def _resize_destination_arrays(self, new_size: int) -> None:
+        """Resize all destination arrays to accommodate larger block sizes."""
+        for dest_name in self._dest_arrays:
+            # Create new larger array and copy existing data if any
+            new_array = np.zeros(new_size, dtype=np.float32)
+            old_array = self._dest_arrays[dest_name]
+            if len(old_array) > 0:
+                copy_size = min(len(old_array), new_size)
+                new_array[:copy_size] = old_array[:copy_size]
+            self._dest_arrays[dest_name] = new_array
+
+    def get_active_routes(self) -> List[int]:
+        """
+        Get list of indices for active (non-None) routes.
+
+        Returns:
+            List of active route indices
+        """
+        return [i for i, route in enumerate(self.routes) if route is not None]
+
+    def clear_all_routes(self) -> None:
+        """Clear all modulation routes."""
+        self.routes = [None] * self.num_routes

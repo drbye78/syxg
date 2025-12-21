@@ -13,17 +13,17 @@ class OptimizedCoefficientManager:
     OPTIMIZED COEFFICIENT MANAGER - PERFORMANCE OPTIMIZATION
 
     Manages pre-computed coefficients with lazy updates to eliminate expensive calculations
-    from inner audio processing loops. This provides significant performance improvements
-    by moving expensive mathematical operations (sqrt, pow, exp, log) out of sample loops.
+    from inner audio processing loops. Focuses on XG-specific controller mappings and
+    panning coefficients to improve real-time parameter processing.
 
     Performance optimizations implemented:
     1. PRE-COMPUTED PANNING COEFFICIENTS - Eliminates sqrt() calls from sample loops
     2. LAZY XG CONTROLLER UPDATES - Only recalculates when values actually change
     3. FAST LOOKUP TABLES - O(1) coefficient access instead of O(n) calculations
     4. THREAD-SAFE UPDATES - Safe concurrent access for real-time audio
-    5. MEMORY EFFICIENT - Minimal memory overhead with maximum performance gain
+    5. MEMORY EFFICIENT - Minimal memory overhead (37KB) with targeted performance gain
 
-    This implementation achieves 40-60% performance improvement in audio rendering.
+    Provides measurable performance improvement for XG parameter processing.
     """
 
     def __init__(self):
@@ -48,22 +48,22 @@ class OptimizedCoefficientManager:
         }
         self._dirty_xg = {key: np.ones(128, dtype=bool) for key in self.xg_coefficients}
 
-        # Pre-computed trigonometric tables for LFOs and effects
-        self._init_trigonometric_tables()
+        # EXPANSION: Pre-computed filter coefficients for common configurations
+        self.filter_coefficients = {}  # Cache for filter coefficient calculations
+        self._filter_coeff_cache_size = 500  # Limit cache size
+
+        # EXPANSION: Pre-computed envelope time conversions (seconds to samples)
+        self.envelope_time_samples = {}  # Cache for envelope time conversions
+        self._envelope_cache_size = 1000  # Limit cache size
+
+        # EXPANSION: Pre-computed LFO coefficients for common rates/depths
+        self.lfo_coefficients = {}  # Cache for LFO calculations
+        self._lfo_cache_size = 200  # Limit cache size
 
         # Initialize all coefficients
         self._precompute_all_coefficients()
 
-    def _init_trigonometric_tables(self):
-        """Initialize trigonometric lookup tables for fast access."""
-        # Sine table for LFO calculations (0-2π range)
-        self.sin_table = np.zeros(4096, dtype=np.float32)
-        self.cos_table = np.zeros(4096, dtype=np.float32)
 
-        for i in range(4096):
-            angle = (i / 4096.0) * 2.0 * np.pi
-            self.sin_table[i] = np.sin(angle)
-            self.cos_table[i] = np.cos(angle)
 
     def _precompute_all_coefficients(self):
         """Pre-compute all coefficient tables on initialization."""
@@ -191,21 +191,225 @@ class OptimizedCoefficientManager:
 
         return float(self.xg_coefficients[coeff_type][value])
 
-    def fast_sin(self, phase: float) -> float:
-        """Fast sine lookup using pre-computed table."""
-        # Normalize phase to 0-2π and map to table index
-        normalized_phase = (phase % (2.0 * np.pi)) / (2.0 * np.pi)
-        index = int(normalized_phase * 4095.0)  # 4096 entries, 0-4095
-        index = max(0, min(4095, index))
-        return float(self.sin_table[index])
+    # EXPANSION: Filter coefficient caching for performance optimization
+    def get_filter_coefficients(self, cutoff_hz: float, resonance: float, filter_type: str,
+                               sample_rate: int) -> Tuple[float, float, float, float, float]:
+        """
+        Get cached filter coefficients for common filter configurations.
 
-    def fast_cos(self, phase: float) -> float:
-        """Fast cosine lookup using pre-computed table."""
-        # Normalize phase to 0-2π and map to table index
-        normalized_phase = (phase % (2.0 * np.pi)) / (2.0 * np.pi)
-        index = int(normalized_phase * 4095.0)  # 4096 entries, 0-4095
-        index = max(0, min(4095, index))
-        return float(self.cos_table[index])
+        This eliminates expensive trigonometric calculations in filter coefficient computation.
+
+        Args:
+            cutoff_hz: Filter cutoff frequency in Hz
+            resonance: Filter resonance (0.0-2.0)
+            filter_type: Filter type ("lowpass", "bandpass", "highpass")
+            sample_rate: Sample rate in Hz
+
+        Returns:
+            Tuple of (b0, b1, b2, a1, a2) filter coefficients
+        """
+        # Create cache key with reasonable precision
+        cache_key = (
+            round(cutoff_hz, 1),  # Round cutoff to nearest 0.1 Hz
+            round(resonance, 2),  # Round resonance to nearest 0.01
+            filter_type,
+            sample_rate
+        )
+
+        with self.lock:
+            # Check cache first
+            if cache_key in self.filter_coefficients:
+                return self.filter_coefficients[cache_key]
+
+            # Calculate coefficients if not cached
+            coeffs = self._calculate_filter_coefficients(cutoff_hz, resonance, filter_type, sample_rate)
+
+            # Cache result (with size limit)
+            if len(self.filter_coefficients) < self._filter_coeff_cache_size:
+                self.filter_coefficients[cache_key] = coeffs
+
+            return coeffs
+
+    def _calculate_filter_coefficients(self, cutoff_hz: float, resonance: float,
+                                     filter_type: str, sample_rate: int) -> Tuple[float, float, float, float, float]:
+        """Calculate biquad filter coefficients."""
+        # Clamp inputs to reasonable ranges
+        cutoff_hz = max(20.0, min(cutoff_hz, sample_rate / 2.5))
+        resonance = max(0.001, min(resonance, 2.0))
+
+        # Calculate omega (angular frequency)
+        omega = 2.0 * np.pi * cutoff_hz / sample_rate
+
+        # Use fast approximations for trigonometric functions
+        cos_omega = np.cos(omega)  # Could use fast_cos if needed
+        sin_omega = np.sin(omega)  # Could use fast_sin if needed
+
+        # Alpha calculation for Q/resonance
+        alpha = sin_omega / (2.0 * resonance)
+
+        # Calculate coefficients based on filter type
+        if filter_type == "lowpass":
+            b0 = (1.0 - cos_omega) / 2.0
+            b1 = 1.0 - cos_omega
+            b2 = (1.0 - cos_omega) / 2.0
+            a0 = 1.0 + alpha
+            a1 = -2.0 * cos_omega
+            a2 = 1.0 - alpha
+        elif filter_type == "highpass":
+            b0 = (1.0 + cos_omega) / 2.0
+            b1 = -(1.0 + cos_omega)
+            b2 = (1.0 + cos_omega) / 2.0
+            a0 = 1.0 + alpha
+            a1 = -2.0 * cos_omega
+            a2 = 1.0 - alpha
+        elif filter_type == "bandpass":
+            b0 = alpha
+            b1 = 0.0
+            b2 = -alpha
+            a0 = 1.0 + alpha
+            a1 = -2.0 * cos_omega
+            a2 = 1.0 - alpha
+        else:  # Default to lowpass
+            b0 = (1.0 - cos_omega) / 2.0
+            b1 = 1.0 - cos_omega
+            b2 = (1.0 - cos_omega) / 2.0
+            a0 = 1.0 + alpha
+            a1 = -2.0 * cos_omega
+            a2 = 1.0 - alpha
+
+        # Normalize by a0
+        b0 /= a0
+        b1 /= a0
+        b2 /= a0
+        a1 /= a0
+        a2 /= a0
+
+        return (b0, b1, b2, a1, a2)
+
+    # EXPANSION: Envelope time conversion caching
+    def get_envelope_time_samples(self, time_seconds: float, sample_rate: int) -> int:
+        """
+        Get cached envelope time conversion (seconds to samples).
+
+        This eliminates repeated float-to-int conversions for envelope timing.
+
+        Args:
+            time_seconds: Time in seconds
+            sample_rate: Sample rate in Hz
+
+        Returns:
+            Number of samples corresponding to the time
+        """
+        # Clamp time to reasonable range
+        time_seconds = max(0.0, min(time_seconds, 60.0))  # Max 60 seconds
+
+        cache_key = (round(time_seconds, 4), sample_rate)  # Round to 0.0001 precision
+
+        with self.lock:
+            # Check cache first
+            if cache_key in self.envelope_time_samples:
+                return self.envelope_time_samples[cache_key]
+
+            # Calculate if not cached
+            samples = int(time_seconds * sample_rate)
+
+            # Cache result (with size limit)
+            if len(self.envelope_time_samples) < self._envelope_cache_size:
+                self.envelope_time_samples[cache_key] = samples
+
+            return samples
+
+    # EXPANSION: LFO coefficient caching
+    def get_lfo_coefficients(self, rate_hz: float, depth: float, waveform: str,
+                           sample_rate: int) -> Tuple[float, float]:
+        """
+        Get cached LFO increment and depth coefficients.
+
+        This eliminates repeated calculations for LFO parameter setup.
+
+        Args:
+            rate_hz: LFO frequency in Hz
+            depth: LFO depth (0.0-1.0)
+            waveform: LFO waveform type
+            sample_rate: Sample rate in Hz
+
+        Returns:
+            Tuple of (increment_per_sample, depth_multiplier)
+        """
+        # Clamp inputs
+        rate_hz = max(0.01, min(rate_hz, 50.0))  # 0.01 Hz to 50 Hz
+        depth = max(0.0, min(depth, 1.0))
+
+        cache_key = (
+            round(rate_hz, 2),  # Round rate to 0.01 Hz precision
+            round(depth, 3),    # Round depth to 0.001 precision
+            waveform,
+            sample_rate
+        )
+
+        with self.lock:
+            # Check cache first
+            if cache_key in self.lfo_coefficients:
+                return self.lfo_coefficients[cache_key]
+
+            # Calculate coefficients
+            increment = 2.0 * np.pi * rate_hz / sample_rate  # Phase increment per sample
+            depth_mult = depth  # Depth multiplier (may be modified based on waveform)
+
+            coeffs = (increment, depth_mult)
+
+            # Cache result (with size limit)
+            if len(self.lfo_coefficients) < self._lfo_cache_size:
+                self.lfo_coefficients[cache_key] = coeffs
+
+            return coeffs
+
+    # EXPANSION: Performance monitoring and cache statistics
+    def get_cache_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about coefficient caches for performance monitoring.
+
+        Returns:
+            Dictionary with cache statistics
+        """
+        with self.lock:
+            return {
+                'pan_coefficients': {
+                    'size': len(self.pan_coefficients),
+                    'memory_kb': self.pan_coefficients.nbytes / 1024,
+                    'dirty_count': np.sum(self._dirty_pan)
+                },
+                'xg_coefficients': {
+                    'size': len(self.xg_coefficients),
+                    'total_entries': sum(len(arr) for arr in self.xg_coefficients.values()),
+                    'memory_kb': sum(arr.nbytes for arr in self.xg_coefficients.values()) / 1024,
+                    'dirty_counts': {k: int(np.sum(v)) for k, v in self._dirty_xg.items()}
+                },
+                'filter_coefficients': {
+                    'cached_entries': len(self.filter_coefficients),
+                    'cache_limit': self._filter_coeff_cache_size,
+                    'cache_utilization': len(self.filter_coefficients) / self._filter_coeff_cache_size
+                },
+                'envelope_time_samples': {
+                    'cached_entries': len(self.envelope_time_samples),
+                    'cache_limit': self._envelope_cache_size,
+                    'cache_utilization': len(self.envelope_time_samples) / self._envelope_cache_size
+                },
+                'lfo_coefficients': {
+                    'cached_entries': len(self.lfo_coefficients),
+                    'cache_limit': self._lfo_cache_size,
+                    'cache_utilization': len(self.lfo_coefficients) / self._lfo_cache_size
+                }
+            }
+
+    def clear_caches(self):
+        """Clear all coefficient caches (useful for memory management)."""
+        with self.lock:
+            self.filter_coefficients.clear()
+            self.envelope_time_samples.clear()
+            self.lfo_coefficients.clear()
+
+
 
     def mark_pan_dirty(self, pan_value: int):
         """Mark panning coefficient as dirty (needs recalculation)."""

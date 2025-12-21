@@ -397,7 +397,7 @@ class UltraFastADSREnvelope:
         self.delay_counter = 0
         self.hold_counter = 0
 
-        # Memory pool integration
+        # XGBufferPool integration
         self.memory_pool = memory_pool
         self.is_pooled = memory_pool is not None
 
@@ -679,7 +679,7 @@ class UltraFastADSREnvelope:
         """Process one sample for backward compatibility."""
         # For single sample processing, create temporary buffer
         if self.memory_pool:
-            temp_buffer = self.memory_pool.get_mono_buffer(zero_buffer=True)
+            temp_buffer = self.memory_pool.get_mono_buffer(self.block_size)
         else:
             temp_buffer = np.zeros(1, dtype=np.float32)
 

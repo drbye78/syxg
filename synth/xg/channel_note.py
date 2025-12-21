@@ -1,21 +1,8 @@
 """
-XG Channel Note Implementation - Production XG-Compliant
+XG channel note implementation.
 
-This module implements the XG Channel Note concept, representing an active note
-on a MIDI channel with full XG specification compliance.
-
-XG Specification Compliance:
-- Up to 8 partials per note (extended from XG standard of 4)
-- Note-level LFO modulation (XG enhancement)
-- Independent modulation matrix per note
-- Proper XG envelope and filter parameter handling
-- Support for both melodic and drum modes
-
-Key Features:
-- Multi-partial synthesis with exclusive note/velocity ranges
-- Per-note LFO modulation sources
-- XG-compliant modulation matrix routing
-- Optimized for real-time performance
+Provides classes for managing active notes on MIDI channels,
+including partial synthesis and modulation routing.
 """
 
 import math
@@ -35,16 +22,10 @@ from .partial_generator import XGPartialGenerator  # XG-compliant partial genera
 
 class PartialGeneratorPool:
     """
-    HIGH-PERFORMANCE PARTIAL GENERATOR POOL
+    Object pool for XGPartialGenerator instances.
 
-    Optimized object pool for XGPartialGenerator instances to eliminate
-    allocation overhead during real-time audio synthesis.
-
-    Key Features:
-    - Pre-allocated partial generators for zero-allocation note triggering
-    - Smart caching based on partial parameters
-    - Automatic cleanup and resource management
-    - Thread-safe operation for concurrent access
+    Manages reusable partial generators to reduce allocation overhead
+    during real-time audio synthesis. Thread-safe for concurrent access.
     """
 
     def __init__(self, max_size: int = 256):
@@ -182,23 +163,20 @@ class PartialGeneratorPool:
 
 class ChannelNote:
     """
-    XG Channel Note - Represents an active note on a MIDI channel.
+    Represents an active note on a MIDI channel.
 
-    This class encapsulates all state and processing for a single active note
-    in the XG synthesizer architecture. Each note can have up to 8 partials,
-    independent modulation, and note-level LFO sources.
+    Manages partial synthesis, modulation routing, and LFO processing
+    for a single note. Supports up to 8 partials per note.
 
     Attributes:
-        note (int): MIDI note number (0-127)
-        velocity (int): Note velocity (0-127)
-        program (int): Program number (0-127)
-        bank (int): Bank number (0-16383)
-        is_drum (bool): True for drum mode, False for melodic
-        active (bool): True if note is still producing sound
-        partials (List[XGPartialGenerator]): List of up to 8 partial generators
-        channel_lfos (List[XGLFO]): Reference to channel-level LFOs
-        note_lfos (List[XGLFO]): Note-level LFOs (XG enhancement)
-        mod_matrix (ModulationMatrix): Per-note modulation routing
+        note: MIDI note number (0-127)
+        velocity: Note velocity (0-127)
+        program: Program number (0-127)
+        bank: Bank number (0-16383)
+        is_drum: True for drum mode, False for melodic
+        active: True if note is still producing sound
+        partials: List of partial generators
+        mod_matrix: Per-note modulation routing
     """
 
     def __init__(
@@ -235,21 +213,13 @@ class ChannelNote:
         self.detune = 0.0
         self.phaser_depth = 0.0
 
-        # Store reference to channel-level LFOs (XG architecture)
         self.channel_lfos = channel.lfos
-
-        # Initialize parameters for this note
         self.params = self._get_parameters(program, bank, note, velocity, is_drum)
-
-        # Initialize note-level LFOs (XG specification allows per-note LFOs)
         self.note_lfos = []
         self._initialize_note_lfos()
-
-        # Initialize modulation matrix
         self.mod_matrix = ModulationMatrix(num_routes=16)
         self._setup_default_modulation_matrix()
 
-        # Pre-allocate modulation sources dict to avoid allocation on every block
         self.modulation_sources = {
             "velocity": 0.0,
             "after_touch": 0.0,
@@ -293,8 +263,8 @@ class ChannelNote:
 
         # Initialize envelopes
         self._initialize_envelopes()
-        self.temp_left = channel.memory_pool.get_mono_buffer(zero_buffer=True)
-        self.temp_right = channel.memory_pool.get_mono_buffer(zero_buffer=True)
+        self.temp_left = channel.memory_pool.get_mono_buffer(channel.synth.block_size)
+        self.temp_right = channel.memory_pool.get_mono_buffer(channel.synth.block_size)
 
     def _get_parameters(
         self,
@@ -306,287 +276,15 @@ class ChannelNote:
     ):
         """Get parameters for this note"""
         wavetable: WavetableManager = self.channel.synth.sf2_manager.get_manager()
-        # If no wavetable is available, use default parameters
-        if wavetable is None:
-            pass  # Fall through to default parameters
+        if is_drum:
+            params = wavetable.get_drum_parameters(note, program, bank)
         else:
-            try:
-                if is_drum:
-                    params = wavetable.get_drum_parameters(note, program, bank)
-                else:
-                    params = wavetable.get_program_parameters(
-                        program, bank, note, velocity
-                    )
-                if params:
-                    return params
-            except Exception as e:
-                pass
-
-        # Default parameters (XG specification)
-        return {
-            "amp_envelope": {
-                "delay": 0.0,
-                "attack": 0.01,
-                "hold": 0.0,
-                "decay": 0.3,
-                "sustain": 0.7,
-                "release": 0.5,
-                "velocity_sense": 1.0,
-                "key_scaling": 0.0,
-            },
-            "filter_envelope": {
-                "delay": 0.0,
-                "attack": 0.1,
-                "hold": 0.0,
-                "decay": 0.5,
-                "sustain": 0.6,
-                "release": 0.8,
-                "key_scaling": 0.0,
-            },
-            "pitch_envelope": {
-                "delay": 0.0,
-                "attack": 0.05,
-                "hold": 0.0,
-                "decay": 0.1,
-                "sustain": 0.0,
-                "release": 0.05,
-            },
-            "filter": {
-                "cutoff": 1000.0,
-                "resonance": 0.7,
-                "type": "lowpass",
-                "key_follow": 0.5,
-            },
-            "lfo1": {"waveform": "sine", "rate": 5.0, "depth": 0.5, "delay": 0.0},
-            "lfo2": {"waveform": "triangle", "rate": 2.0, "depth": 0.3, "delay": 0.0},
-            "lfo3": {"waveform": "sawtooth", "rate": 0.5, "depth": 0.1, "delay": 0.5},
-            "modulation": {
-                "lfo1_to_pitch": 50.0,  # in cents
-                "lfo2_to_pitch": 30.0,  # in cents
-                "lfo3_to_pitch": 10.0,  # in cents
-                "env_to_pitch": 30.0,  # in cents
-                "aftertouch_to_pitch": 20.0,  # in cents
-                "lfo_to_filter": 0.3,
-                "env_to_filter": 0.5,
-                "aftertouch_to_filter": 0.2,
-                "tremolo_depth": 0.3,
-                "vibrato_depth": 50.0,  # in cents
-                "vibrato_rate": 5.0,
-                "vibrato_delay": 0.0,
-                # Note-level LFO parameters (XG enhancement)
-                "note_lfo1_rate": 5.0,
-                "note_lfo1_depth": 0.0,  # Disabled by default for compatibility
-                "note_lfo1_delay": 0.0,
-                "note_lfo2_rate": 2.0,
-                "note_lfo2_depth": 0.0,
-                "note_lfo2_delay": 0.0,
-                "note_lfo3_rate": 0.5,
-                "note_lfo3_depth": 0.0,
-                "note_lfo3_delay": 0.5,
-                # Note-level LFO modulation amounts
-                "note_lfo1_to_pitch": 0.0,
-                "note_lfo2_to_filter": 0.0,
-                "note_lfo3_to_amp": 0.0,
-            },
-            "partials": [
-                # Partial 0: Main partial (fundamental)
-                {
-                    "level": 1.0,
-                    "pan": 0.5,
-                    "key_range_low": 0,
-                    "key_range_high": 127,
-                    "velocity_range_low": 0,
-                    "velocity_range_high": 127,
-                    "key_scaling": 0.0,
-                    "velocity_sense": 1.0,
-                    "crossfade_velocity": True,
-                    "crossfade_note": True,
-                    "use_filter_env": True,
-                    "use_pitch_env": True,
-                    "amp_envelope": {
-                        "delay": 0.0,
-                        "attack": 0.01,
-                        "hold": 0.0,
-                        "decay": 0.3,
-                        "sustain": 0.7,
-                        "release": 0.5,
-                        "key_scaling": 0.0,
-                    },
-                    "filter_envelope": {
-                        "delay": 0.0,
-                        "attack": 0.1,
-                        "hold": 0.0,
-                        "decay": 0.5,
-                        "sustain": 0.6,
-                        "release": 0.8,
-                        "key_scaling": 0.0,
-                    },
-                    "pitch_envelope": {
-                        "delay": 0.0,
-                        "attack": 0.05,
-                        "hold": 0.0,
-                        "decay": 0.1,
-                        "sustain": 0.0,
-                        "release": 0.05,
-                    },
-                    "filter": {"cutoff": 1000.0, "resonance": 0.7, "type": "lowpass"},
-                    "coarse_tune": 0,
-                    "fine_tune": 0,
-                    "initial_attenuation": 0,  # in dB
-                    "scale_tuning": 100,  # in cents
-                    "overriding_root_key": -1,
-                },
-                # Partial 1: Octave above (disabled by default for compatibility)
-                {
-                    "level": 0.0,  # Disabled by default
-                    "pan": 0.3,
-                    "key_range_low": 0,
-                    "key_range_high": 127,
-                    "velocity_range_low": 0,
-                    "velocity_range_high": 127,
-                    "key_scaling": 0.0,
-                    "velocity_sense": 1.0,
-                    "crossfade_velocity": True,
-                    "crossfade_note": True,
-                    "use_filter_env": True,
-                    "use_pitch_env": True,
-                    "amp_envelope": {
-                        "delay": 0.0,
-                        "attack": 0.01,
-                        "hold": 0.0,
-                        "decay": 0.3,
-                        "sustain": 0.7,
-                        "release": 0.5,
-                        "key_scaling": 0.0,
-                    },
-                    "filter_envelope": {
-                        "delay": 0.0,
-                        "attack": 0.1,
-                        "hold": 0.0,
-                        "decay": 0.5,
-                        "sustain": 0.6,
-                        "release": 0.8,
-                        "key_scaling": 0.0,
-                    },
-                    "pitch_envelope": {
-                        "delay": 0.0,
-                        "attack": 0.05,
-                        "hold": 0.0,
-                        "decay": 0.1,
-                        "sustain": 0.0,
-                        "release": 0.05,
-                    },
-                    "filter": {"cutoff": 1000.0, "resonance": 0.7, "type": "lowpass"},
-                    "coarse_tune": 12,  # Octave above
-                    "fine_tune": 0,
-                    "initial_attenuation": 0,
-                    "scale_tuning": 100,
-                    "overriding_root_key": -1,
-                },
-                # Partial 2: Fifth above (disabled by default)
-                {
-                    "level": 0.0,  # Disabled by default
-                    "pan": 0.7,
-                    "key_range_low": 0,
-                    "key_range_high": 127,
-                    "velocity_range_low": 0,
-                    "velocity_range_high": 127,
-                    "key_scaling": 0.0,
-                    "velocity_sense": 1.0,
-                    "crossfade_velocity": True,
-                    "crossfade_note": True,
-                    "use_filter_env": True,
-                    "use_pitch_env": True,
-                    "amp_envelope": {
-                        "delay": 0.0,
-                        "attack": 0.01,
-                        "hold": 0.0,
-                        "decay": 0.3,
-                        "sustain": 0.7,
-                        "release": 0.5,
-                        "key_scaling": 0.0,
-                    },
-                    "filter_envelope": {
-                        "delay": 0.0,
-                        "attack": 0.1,
-                        "hold": 0.0,
-                        "decay": 0.5,
-                        "sustain": 0.6,
-                        "release": 0.8,
-                        "key_scaling": 0.0,
-                    },
-                    "pitch_envelope": {
-                        "delay": 0.0,
-                        "attack": 0.05,
-                        "hold": 0.0,
-                        "decay": 0.1,
-                        "sustain": 0.0,
-                        "release": 0.05,
-                    },
-                    "filter": {"cutoff": 1000.0, "resonance": 0.7, "type": "lowpass"},
-                    "coarse_tune": 7,  # Perfect fifth
-                    "fine_tune": 0,
-                    "initial_attenuation": 0,
-                    "scale_tuning": 100,
-                    "overriding_root_key": -1,
-                },
-                # Partials 3-7: Additional partials (all disabled by default)
-                *[
-                    {
-                        "level": 0.0,
-                        "pan": 0.5,
-                        "key_range_low": 0,
-                        "key_range_high": 127,
-                        "velocity_range_low": 0,
-                        "velocity_range_high": 127,
-                        "key_scaling": 0.0,
-                        "velocity_sense": 1.0,
-                        "crossfade_velocity": True,
-                        "crossfade_note": True,
-                        "use_filter_env": True,
-                        "use_pitch_env": True,
-                        "amp_envelope": {
-                            "delay": 0.0,
-                            "attack": 0.01,
-                            "hold": 0.0,
-                            "decay": 0.3,
-                            "sustain": 0.7,
-                            "release": 0.5,
-                            "key_scaling": 0.0,
-                        },
-                        "filter_envelope": {
-                            "delay": 0.0,
-                            "attack": 0.1,
-                            "hold": 0.0,
-                            "decay": 0.5,
-                            "sustain": 0.6,
-                            "release": 0.8,
-                            "key_scaling": 0.0,
-                        },
-                        "pitch_envelope": {
-                            "delay": 0.0,
-                            "attack": 0.05,
-                            "hold": 0.0,
-                            "decay": 0.1,
-                            "sustain": 0.0,
-                            "release": 0.05,
-                        },
-                        "filter": {
-                            "cutoff": 1000.0,
-                            "resonance": 0.7,
-                            "type": "lowpass",
-                        },
-                        "coarse_tune": 0,
-                        "fine_tune": 0,
-                        "initial_attenuation": 0,
-                        "scale_tuning": 100,
-                        "overriding_root_key": -1,
-                    }
-                    for _ in range(5)
-                ],  # 5 more partials to reach 8 total
-            ],
-        }
-
+            params = wavetable.get_program_parameters(
+                program, bank, note, velocity
+            )
+            
+        return params
+        
     def _setup_partials(self):
         """Setup partial structures for this note using optimized pooling"""
         partials_params = self.params.get("partials", [])
@@ -607,18 +305,25 @@ class ChannelNote:
                 key_scaling = partial_params["keynum_to_mod_env_decay"] / 1200.0
                 partial_params["filter_envelope"]["key_scaling"] = key_scaling
 
-            # Apply coarseTune and fineTune
+            # Apply coarseTune and fineTune (pass channel-level tuning to partials)
             self.coarse_tune = partial_params.get("coarse_tune", 0)
             self.fine_tune = partial_params.get("fine_tune", 0)
 
-            # Acquire partial generator from pool
+            # Merge channel-level tuning parameters with partial parameters
+            merged_partial_params = {
+                **partial_params,
+                'coarse_tune': self.coarse_tune,
+                'fine_tune': self.fine_tune,
+            }
+
+            # Acquire partial generator from pool with merged parameters
             partial = self.synth.partial_pool.acquire(
                 synth=self.synth,
                 note=self.note,
                 velocity=self.velocity,
                 program=self.program,
                 partial_id=i,
-                partial_params=partial_params,
+                partial_params=merged_partial_params,
                 is_drum=self.is_drum,
                 sample_rate=self.sample_rate,
                 bank=self.bank,
@@ -627,7 +332,15 @@ class ChannelNote:
             self.partials.append(partial)
 
     def _setup_default_modulation_matrix(self):
-        """Setup default modulation matrix for this note"""
+        """Setup default modulation matrix for this note.
+
+        XG Standard Routes (0-8):
+        - Routes 0-8 follow MIDI XG specification defaults
+
+        Extended Routes (9-14):
+        - Additional controller and note-level LFO routes for enhanced functionality
+        - Note-level LFO routes default to 0.0 for backward compatibility
+        """
         # Clear existing routes
         for i in range(16):
             self.mod_matrix.clear_route(i)
@@ -635,6 +348,7 @@ class ChannelNote:
         # Get modulation parameters or use defaults
         modulation_params = self.params.get("modulation", {})
 
+        # === XG STANDARD ROUTES (0-8) ===
         # LFO1 -> Pitch
         self.mod_matrix.set_route(
             0,
@@ -690,7 +404,7 @@ class ChannelNote:
             6, "note_number", "pitch", amount=1.0, key_scaling=1.0
         )
 
-        # Vibrato Depth
+        # Vibrato -> Pitch
         self.mod_matrix.set_route(
             7,
             "vibrato",
@@ -699,7 +413,7 @@ class ChannelNote:
             polarity=1.0,
         )
 
-        # Tremolo Depth
+        # Tremolo Depth -> Amp
         self.mod_matrix.set_route(
             8,
             "tremolo_depth",
@@ -708,87 +422,73 @@ class ChannelNote:
             polarity=1.0,
         )
 
-        # PAN CONTROL - Route mod wheel to pan for stereo positioning
+        # === EXTENDED ROUTES (9-14) ===
+        # Controller-based modulation for enhanced expressiveness
         self.mod_matrix.set_route(
             9,
             "mod_wheel",
             "pan",
             amount=1.0,
             polarity=1.0,
-        )
+        )  # Mod wheel -> Pan
 
-        # VELOCITY CROSSFADE - Route velocity to crossfade for dynamic layering
         self.mod_matrix.set_route(
             10,
             "velocity",
             "velocity_crossfade",
             amount=1.0,
             velocity_sensitivity=0.5,
-        )
+        )  # Velocity -> Crossfade
 
-        # NOTE CROSSFADE - Route note number to crossfade for keyboard splitting
         self.mod_matrix.set_route(
             11,
             "note_number",
             "note_crossfade",
             amount=1.0,
             key_scaling=0.0,
-        )
+        )  # Note number -> Crossfade
 
-        # STEREO WIDTH - Route breath controller to stereo width
         self.mod_matrix.set_route(
             12,
             "breath_controller",
             "stereo_width",
             amount=1.0,
             polarity=1.0,
-        )
+        )  # Breath controller -> Stereo width
 
-        # TREMOLO RATE - Route foot controller to tremolo rate
         self.mod_matrix.set_route(
             13,
             "foot_controller",
             "tremolo_rate",
             amount=1.0,
             polarity=1.0,
-        )
+        )  # Foot controller -> Tremolo rate
 
-        # TREMOLO DEPTH - Route expression to tremolo depth (alternative to amp modulation)
         self.mod_matrix.set_route(
             14,
             "volume_cc",
             "tremolo_depth",
             amount=0.5,
             polarity=1.0,
-        )
+        )  # Volume CC -> Tremolo depth
 
-        # Note-level LFO routes (XG enhancement)
-        # Note LFO1 -> Pitch (additional vibrato per note)
+        # === NOTE-LEVEL LFO ROUTES (15) ===
+        # Note-level LFOs provide per-note modulation (XG enhancement)
+        # Default to 0.0 for backward compatibility
+        # Note: Only 1 route available, prioritizing pitch modulation
         self.mod_matrix.set_route(
-            9,
+            15,
             "note_lfo1",
             "pitch",
             amount=modulation_params.get("note_lfo1_to_pitch", 0.0),
             polarity=1.0,
-        )
+        )  # Note LFO1 -> Pitch (additional vibrato per note)
 
-        # Note LFO2 -> Filter (per-note filter modulation)
-        self.mod_matrix.set_route(
-            10,
-            "note_lfo2",
-            "filter_cutoff",
-            amount=modulation_params.get("note_lfo2_to_filter", 0.0),
-            polarity=1.0,
-        )
-
-        # Note LFO3 -> Amplitude (per-note tremolo)
-        self.mod_matrix.set_route(
-            11,
-            "note_lfo3",
-            "amp",
-            amount=modulation_params.get("note_lfo3_to_amp", 0.0),
-            polarity=1.0,
-        )
+        # === NOTE-LEVEL TUNING AND EFFECTS ===
+        # Routes for note-level detune and phaser effects
+        # These provide per-note control over pitch and phasing
+        # Detune: Global pitch offset for the entire note (±100 cents range)
+        # Phaser: Note-level phasing effect (0.0-1.0 range)
 
     def _initialize_envelopes(self):
         """Initialize envelopes for all partials"""
@@ -901,14 +601,13 @@ class ChannelNote:
         modulation_filter: float = 0.0,
         modulation_amplitude: float = 1.0,
     ) -> None:
-        """Generate a block of samples for this note with vectorized processing and XG LFO modulation"""
+        """Generate a block of samples for this note."""
 
         left_buffer[:block_size].fill(0.0)
         right_buffer[:block_size].fill(0.0)
         if not self.is_active():
             return
 
-        # Update channel LFOs with cached values (XG architecture: LFOs are channel-level)
         if self.channel_lfos:
             for lfo in self.channel_lfos:
                 lfo.set_mod_wheel(mod_wheel)
@@ -919,7 +618,6 @@ class ChannelNote:
                 lfo.set_channel_aftertouch(channel_pressure_value)
                 lfo.set_key_aftertouch(key_pressure)
 
-        # Update note-level LFOs (XG enhancement: per-note LFO modulation)
         for lfo in self.note_lfos:
             lfo.set_mod_wheel(mod_wheel)
             lfo.set_breath_controller(breath_controller)
@@ -929,7 +627,6 @@ class ChannelNote:
             lfo.set_channel_aftertouch(channel_pressure_value)
             lfo.set_key_aftertouch(key_pressure)
 
-        # Update pre-allocated modulation sources dict (zero-allocation)
         sources = self.modulation_sources
         sources["velocity"] = self.velocity / 127.0
         sources["after_touch"] = channel_pressure_value / 127.0
@@ -983,6 +680,17 @@ class ChannelNote:
         pitch_mod = global_pitch_mod + modulation_pitch
         if "pitch" in synthesis_modulation:
             pitch_mod += synthesis_modulation["pitch"]
+
+        # Apply note-level detune (global pitch offset for entire note)
+        # Detune is stored as a modulation destination (±100 cents range)
+        detune_mod = modulation_values.get("detune", 0.0)
+        self.detune = detune_mod * 100.0  # Convert to cents (±100 cents range)
+        pitch_mod += self.detune / 1200.0  # Convert cents to semitones
+
+        # Apply note-level phaser effect
+        # Phaser depth controls the intensity of the phasing effect
+        phaser_mod = modulation_values.get("phaser_depth", 0.0)
+        self.phaser_depth = max(0.0, min(1.0, phaser_mod))  # Clamp to 0.0-1.0 range
 
         # Get additional modulation values for per-partial application
         filter_mod = modulation_filter
@@ -1041,6 +749,10 @@ class ChannelNote:
             left_buffer[:block_size] *= volume_scale
             right_buffer[:block_size] *= volume_scale
 
+            # Apply note-level phaser effect if depth > 0
+            if self.phaser_depth > 0.0:
+                self._apply_note_phaser(left_buffer, right_buffer, block_size)
+
     def _calculate_correct_volume_scale(
         self, volume_cc: int, expression_cc: int, active_partials: int
     ) -> float:
@@ -1083,6 +795,94 @@ class ChannelNote:
         # Limit to reasonable range to prevent clipping
         max_allowed = 3.0  # +9.5dB maximum
         return np.clip(combined_volume, 0.0, max_allowed)
+
+    def _apply_note_phaser(self, left_buffer: np.ndarray, right_buffer: np.ndarray, block_size: int):
+        """
+        Apply note-level phaser effect.
+
+        A simple phaser implementation using a few all-pass filters to create
+        moving notches in the frequency spectrum.
+
+        Args:
+            left_buffer: Left channel audio buffer (modified in-place)
+            right_buffer: Right channel audio buffer (modified in-place)
+            block_size: Number of samples to process
+        """
+        if not hasattr(self, '_phaser_state'):
+            # Initialize phaser state on first use
+            self._phaser_state = {
+                'phase': 0.0,
+                'lfo_phase': 0.0,
+                'delay1': 0.0,
+                'delay2': 0.0,
+                'delay3': 0.0,
+                'delay4': 0.0,
+            }
+
+        state = self._phaser_state
+
+        # Phaser parameters based on depth
+        lfo_rate = 0.5 + self.phaser_depth * 2.0  # 0.5-2.5 Hz
+        depth = self.phaser_depth * 0.8  # Max depth of 0.8
+
+        # Simple all-pass filter phaser
+        for i in range(block_size):
+            # Generate LFO for phaser sweep
+            lfo = math.sin(state['lfo_phase']) * depth
+            state['lfo_phase'] += lfo_rate * 2.0 * math.pi / self.sample_rate
+            if state['lfo_phase'] > 2.0 * math.pi:
+                state['lfo_phase'] -= 2.0 * math.pi
+
+            # Calculate all-pass filter coefficient (frequency sweep)
+            # Map LFO to frequency range (200-2000 Hz)
+            freq = 200.0 + (2000.0 - 200.0) * (lfo + 1.0) * 0.5
+            coeff = math.tan(math.pi * freq / self.sample_rate) - 1.0
+            coeff = max(-0.99, min(0.99, coeff))  # Stability limit
+
+            # Get input samples
+            input_left = left_buffer[i]
+            input_right = right_buffer[i]
+
+            # Apply 4-stage all-pass filter chain for left channel
+            # Stage 1
+            output1_left = state['delay1'] + coeff * input_left
+            state['delay1'] = input_left - coeff * output1_left
+
+            # Stage 2
+            output2_left = state['delay2'] + coeff * output1_left
+            state['delay2'] = output1_left - coeff * output2_left
+
+            # Stage 3
+            output3_left = state['delay3'] + coeff * output2_left
+            state['delay3'] = output2_left - coeff * output3_left
+
+            # Stage 4
+            output4_left = state['delay4'] + coeff * output3_left
+            state['delay4'] = output3_left - coeff * output4_left
+
+            # Mix original with phased signal
+            mix = self.phaser_depth
+            left_buffer[i] = input_left * (1.0 - mix) + output4_left * mix
+
+            # Apply same processing to right channel (slightly different for stereo)
+            # Stage 1
+            output1_right = state['delay1'] + coeff * input_right
+            state['delay1'] = input_right - coeff * output1_right
+
+            # Stage 2
+            output2_right = state['delay2'] + coeff * output1_right
+            state['delay2'] = output1_right - coeff * output2_right
+
+            # Stage 3
+            output3_right = state['delay3'] + coeff * output2_right
+            state['delay3'] = output2_right - coeff * output3_right
+
+            # Stage 4
+            output4_right = state['delay4'] + coeff * output3_right
+            state['delay4'] = output3_right - coeff * output4_right
+
+            # Mix original with phased signal
+            right_buffer[i] = input_right * (1.0 - mix) + output4_right * mix
 
     def cleanup(self):
         """Clean up all resources and return to pools for reuse."""

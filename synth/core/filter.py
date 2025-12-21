@@ -151,10 +151,11 @@ class FilterPool:
     - Fast acquire/release operations with zero allocation during processing
     - Configurable pool size based on expected concurrent filters
     - Memory pool integration for buffer management
+    - OptimizedCoefficientManager integration for instant filter coefficients
     """
 
     def __init__(self, max_filters: int = 1000, block_size: int = 1024,
-                 memory_pool=None, sample_rate: int = 48000):
+                 memory_pool=None, sample_rate: int = 48000, coeff_manager=None):
         """
         Initialize ultra-fast filter pool.
 
@@ -163,11 +164,13 @@ class FilterPool:
             block_size: Fixed block size for filter processing
             memory_pool: Optional memory pool for buffer management
             sample_rate: Sample rate in Hz
+            coeff_manager: Optional OptimizedCoefficientManager for instant coefficients
         """
         self.max_filters = max_filters
         self.block_size = block_size
         self.memory_pool = memory_pool
         self.sample_rate = sample_rate
+        self.coeff_manager = coeff_manager
 
         # Ultra-fast filter pool - no maxlen limit for flexibility
         self.pool = deque()
@@ -263,7 +266,8 @@ class UltraFastResonantFilter:
                  'sample_rate', 'block_size', 'brightness_mod', 'harmonic_content_mod',
                  'modulated_stereo_width', 'coeffs_dirty', '_coeff_cache',
                  'b0_l', 'b1_l', 'b2_l', 'a1_l', 'a2_l', 'b0_r', 'b1_r', 'b2_r', 'a1_r', 'a2_r',
-                 'x_l', 'y_l', 'x_r', 'y_r', 'memory_pool', 'is_pooled')
+                 'x_l', 'y_l', 'x_r', 'y_r', 'memory_pool', 'is_pooled',
+                 'coeff_manager', 'use_coeff_manager')
 
     # Global coefficient cache for performance
     _global_coeff_cache = {}
@@ -271,7 +275,7 @@ class UltraFastResonantFilter:
 
     def __init__(self, cutoff=1000.0, resonance=0.7, filter_type="lowpass",
                  key_follow=0.5, stereo_width=0.5, sample_rate=48000,
-                 block_size=1024, memory_pool=None):
+                 block_size=1024, memory_pool=None, coeff_manager=None):
         self.cutoff = cutoff
         self.resonance = resonance
         self.filter_type = filter_type
@@ -286,9 +290,13 @@ class UltraFastResonantFilter:
         # Support for stereo width modulation
         self.modulated_stereo_width = stereo_width
 
-        # Memory pool integration
+        # XGBufferPool integration
         self.memory_pool = memory_pool
         self.is_pooled = memory_pool is not None
+
+        # OPTIMIZED COEFFICIENT MANAGER INTEGRATION
+        self.coeff_manager = coeff_manager
+        self.use_coeff_manager = coeff_manager is not None
 
         # Phase 2 optimization: Dirty flag for coefficients
         self.coeffs_dirty = True
@@ -307,7 +315,37 @@ class UltraFastResonantFilter:
 
 
     def _calculate_coefficients(self, channel):
-        """Calculate filter coefficients for the specified channel with caching"""
+        """Calculate filter coefficients for the specified channel with OptimizedCoefficientManager integration"""
+        # Use OptimizedCoefficientManager if available (HIGH PERFORMANCE PATH)
+        if self.use_coeff_manager and self.coeff_manager:
+            # Calculate effective parameters accounting for modulation
+            stereo_width = self.modulated_stereo_width
+
+            # Account for stereo effects - only apply for stereo processing
+            if stereo_width > 0.0:  # Only apply stereo effects when stereo width > 0
+                if channel == 0:  # Left channel
+                    stereo_factor = 1.0 - stereo_width * 0.5  # Reduce left channel frequency
+                else:  # Right channel
+                    stereo_factor = 1.0 + stereo_width * 0.5  # Increase right channel frequency
+            else:
+                stereo_factor = 1.0  # No stereo effect for mono
+
+            # Account for brightness and harmonic content with bounds checking
+            brightness_factor = 1 + self.brightness_mod * 0.5
+            harmonic_factor = 1 + self.harmonic_content_mod * 0.3
+            brightness_factor = max(0.5, min(2.0, brightness_factor))
+            harmonic_factor = max(0.5, min(2.0, harmonic_factor))
+            effective_cutoff = self.cutoff * brightness_factor * stereo_factor
+            effective_resonance = self.resonance * harmonic_factor
+            effective_cutoff = max(20.0, min(20000.0, effective_cutoff))
+            effective_resonance = max(0.001, min(2.0, effective_resonance))
+
+            # Use OptimizedCoefficientManager for instant coefficient lookup
+            return self.coeff_manager.get_filter_coefficients(
+                effective_cutoff, effective_resonance, self.filter_type, self.sample_rate
+            )
+
+        # FALLBACK: Original calculation method (for backward compatibility)
         # Create cache key from all parameters that affect coefficients
         cache_key = (
             round(self.cutoff, 1),  # Round to reduce cache misses
@@ -577,26 +615,25 @@ class UltraFastResonantFilter:
 
         # Update coefficients if dirty
         if self.coeffs_dirty:
-            left_coeffs = self._calculate_coefficients(0)
-            right_coeffs = self._calculate_coefficients(1)
-            self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = left_coeffs
-            self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = right_coeffs
+            coeffs_l = self._calculate_coefficients(0)
+            coeffs_r = self._calculate_coefficients(1)
+            self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l = coeffs_l
+            self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r = coeffs_r
             self.coeffs_dirty = False
-
-        # Convert delay buffers to numpy arrays for Numba
-        x_l_arr = np.array([self.x_l[0], self.x_l[1]], dtype=np.float32)
-        y_l_arr = np.array([self.y_l[0], self.y_l[1]], dtype=np.float32)
-        x_r_arr = np.array([self.x_r[0], self.x_r[1]], dtype=np.float32)
-        y_r_arr = np.array([self.y_r[0], self.y_r[1]], dtype=np.float32)
 
         if num_samples is None:
             num_samples = len(input_left)
 
         # Process block with Numba-compiled function
+        x_l_arr = np.array(self.x_l, dtype=np.float32)
+        y_l_arr = np.array(self.y_l, dtype=np.float32)
+        x_r_arr = np.array(self.x_r, dtype=np.float32)
+        y_r_arr = np.array(self.y_r, dtype=np.float32)
+
         (x_l_arr, y_l_arr, x_r_arr, y_r_arr) = _numba_process_filter_block(
             input_left, input_right, output_left, output_right,
-            self.b0_l, self.b1_l, self.b2_l, self.a1_l, self.a2_l,
-            self.b0_r, self.b1_r, self.b2_r, self.a1_r, self.a2_r,
+            float(self.b0_l), float(self.b1_l), float(self.b2_l), float(self.a1_l), float(self.a2_l),
+            float(self.b0_r), float(self.b1_r), float(self.b2_r), float(self.a1_r), float(self.a2_r),
             x_l_arr, y_l_arr, x_r_arr, y_r_arr, num_samples
         )
 

@@ -86,6 +86,9 @@ class XGNRPNController:
             (1, 8): self._handle_chorus_lfo_waveform,
             (1, 9): self._handle_chorus_phase_diff,
 
+            # System Variation (MSB 3) - Add basic variation type control
+            (3, 0): self._handle_variation_type,
+
             # System Variation (MSB 3)
             (3, 0): self._handle_variation_type,
 
@@ -104,6 +107,19 @@ class XGNRPNController:
 
             # Part Selection (MSB 32)
             (32, 0): self._handle_part_select,
+
+            # Insertion Effects (MSB 33-35, one per slot)
+            (33, 0): lambda v, l: self._handle_insertion_param(0, "type", v, l),  # Slot 0 type
+            (33, 1): lambda v, l: self._handle_insertion_param(0, "bypass", v, l),  # Slot 0 bypass
+            # Slot 0 parameters (2-127) handled dynamically
+
+            (34, 0): lambda v, l: self._handle_insertion_param(1, "type", v, l),  # Slot 1 type
+            (34, 1): lambda v, l: self._handle_insertion_param(1, "bypass", v, l),  # Slot 1 bypass
+            # Slot 1 parameters (2-127) handled dynamically
+
+            (35, 0): lambda v, l: self._handle_insertion_param(2, "type", v, l),  # Slot 2 type
+            (35, 1): lambda v, l: self._handle_insertion_param(2, "bypass", v, l),  # Slot 2 bypass
+            # Slot 2 parameters (2-127) handled dynamically
 
             # Part Send Levels (MSB 37)
             (37, 0): self._handle_part_reverb_send,
@@ -346,6 +362,70 @@ class XGNRPNController:
         """Handle part variation send NRPN (MSB 37, LSB 2)."""
         level = value / 127.0  # 0.0-1.0
         return self.coordinator.set_effect_send_level(self.selected_part, 'variation', level)
+
+    # ===== INSERTION EFFECTS HANDLERS (MSB 33-35) =====
+
+    def _handle_insertion_param(self, slot: int, param_type: str, value: int, lsb: int) -> bool:
+        """
+        Handle insertion effect parameters NRPN (MSB 33-35).
+
+        Args:
+            slot: Insertion slot (0-2)
+            param_type: Parameter type ('type', 'bypass', or parameter name)
+            value: Parameter value
+            lsb: NRPN LSB (parameter index within slot)
+
+        Returns:
+            True if parameter was set successfully
+        """
+        try:
+            # Handle special parameters
+            if param_type == 'type':
+                # Set effect type for slot (0-17)
+                effect_type = min(max(value, 0), 17)
+                return self.coordinator.set_channel_insertion_effect(self.selected_part, slot, effect_type)
+
+            elif param_type == 'bypass':
+                # Set bypass state (0=enabled, 127=bypassed)
+                bypass = value >= 64
+                return self.coordinator.set_channel_insertion_bypass(self.selected_part, slot, bypass)
+
+            else:
+                # Handle individual effect parameters
+                # LSB maps to parameter index within the effect
+                param_index = lsb - 2  # LSB 0-1 are type/bypass, 2+ are parameters
+
+                if param_index >= 0:
+                    # Get parameter name from effect type
+                    effect_type = self.coordinator.insertion_effects[self.selected_part].insertion_types[slot]
+                    param_info = self.coordinator.insertion_effects[self.selected_part].get_xg_parameter_info(effect_type)
+
+                    if param_info:
+                        param_names = list(param_info.keys())
+                        if param_index < len(param_names):
+                            param_name = param_names[param_index]
+
+                            # Convert MIDI value to parameter range
+                            param_def = param_info[param_name]
+                            min_val, max_val = param_def['range']
+
+                            if isinstance(min_val, int) and isinstance(max_val, int):
+                                # Integer parameter
+                                param_value = min_val + (value / 127.0) * (max_val - min_val)
+                            else:
+                                # Float parameter - scale appropriately
+                                param_value = min_val + (value / 127.0) * (max_val - min_val)
+
+                            # Set the parameter
+                            return self.coordinator.insertion_effects[self.selected_part].set_xg_parameter(
+                                slot, param_name, param_value
+                            )
+
+            return False
+
+        except Exception as e:
+            print(f"XG NRPN: Error handling insertion parameter slot={slot}, type={param_type}: {e}")
+            return False
 
     def get_current_state(self) -> Dict[str, Any]:
         """Get current NRPN controller state."""

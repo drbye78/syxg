@@ -1,22 +1,13 @@
 """
-ULTRA-FAST XG PARTIAL GENERATOR - SIMD-OPTIMIZED BLOCK PROCESSING
+XG partial generator for wavetable synthesis.
 
-High-performance XG-compliant partial generator with vectorized block processing.
-Optimized for 100+ concurrent partials at 48000 Hz with 1024-sample blocks.
+Generates audio for individual partials within an XG voice using SF2-compatible
+wavetable synthesis. Supports mono and stereo samples with SF2 loop modes,
+time-varying pitch modulation, envelopes (amplitude/filter/pitch), resonant
+filtering, and XG-compliant modulation matrix routing.
 
-Key Features:
-- SIMD-friendly vectorized waveform generation using Numba JIT compilation
-- Block-based envelope processing with zero temporary allocations
-- Pre-calculated phase stepping for ultra-fast wavetable synthesis
-- Memory pool integration for buffer management
-- XG-compliant parameter scaling and modulation
-- Support for SF2 loop modes with optimized boundary handling
-
-Performance Targets:
-- 100+ concurrent partials at 48000 Hz
-- 1024-sample block processing
-- Zero allocations during audio generation
-- SIMD acceleration for mathematical operations
+Uses Numba-compiled functions for efficient block-based processing of waveform
+generation, envelope application, and filtering with bilinear transform.
 """
 
 import math
@@ -167,14 +158,10 @@ def _numba_apply_time_varying_filter(
     block_size, sample_rate, filter_state=None
 ):
     """
-    PRODUCTION-GRADE NUMBA-COMPILED: Apply time-varying second-order low-pass filter with accurate bilinear transform.
+    Apply time-varying second-order low-pass filter with bilinear transform.
 
-    This implementation uses a proper digital state variable filter topology with:
-    - Accurate bilinear transform coefficient calculation
-    - State preservation across blocks (requires filter_state buffer)
-    - Proper DC response (no DC offset)
-    - Resonance limiting to prevent instability
-    - Time-varying cutoff with smooth interpolation
+    Uses digital state variable filter topology with state preservation across blocks
+    and resonance limiting to prevent instability.
 
     Args:
         left_block: Left channel buffer (modified in-place)
@@ -428,15 +415,13 @@ def _numba_apply_envelope_and_modulation(
 
 class XGPartialGenerator:
     """
-    XG-compliant partial generator implementing XG Partial Structure concept.
-    Supports up to 8 partials per program with proper XG parameter mappings.
+    Generates audio for individual partials within an XG voice.
 
-    XG Specification Compliance:
-    - Up to 8 partial structures per program (extended from XG standard 4)
-    - Exclusive note ranges per partial (no overlap)
-    - Independent envelopes, filters, and modulation per partial
-    - Proper XG controller parameter mappings (71-78)
-    - XG-compliant envelope curves and scaling
+    Handles wavetable synthesis with SF2 loop modes, time-varying pitch modulation,
+    ADSR envelopes (amplitude/filter/pitch), resonant low-pass filtering with bilinear
+    transform, and XG modulation matrix routing.
+
+    Supports up to 8 simultaneous partials per program with independent parameters.
     """
 
     # XG Standard Constants
@@ -520,18 +505,19 @@ class XGPartialGenerator:
                   partial_id: int, partial_params: Dict, is_drum: bool = False,
                   sample_rate: int = 44100, bank: int = 0, use_modulation_matrix: bool = False):
         """
-        XG-compliant partial generator initialization.
+        Initialize XG partial generator.
 
         Args:
-            wavetable: XG wavetable manager for sample access
+            synth: Parent synthesizer instance
             note: MIDI note number (0-127)
-            velocity: Velocity value (0-127)
-            program: Program number (can be extended for drum kits)
+            velocity: MIDI velocity value (0-127)
+            program: Program number
             partial_id: Partial identifier (0-7 for up to 8 partials)
             partial_params: XG partial parameters dictionary
             is_drum: True for drum mode (affects envelope/filter behavior)
-            sample_rate: Audio sample rate
+            sample_rate: Audio sample rate in Hz
             bank: Bank number (MSB 0-127)
+            use_modulation_matrix: Enable XG modulation matrix routing
         """
         self.synth = synth
         self.wavetable: Optional[WavetableManager] = synth.sf2_manager.get_manager()
@@ -928,10 +914,10 @@ class XGPartialGenerator:
             velocity_sense=self._calculate_velocity_sense(),  # XG formula
             key_scaling=0.0  # XG envelope key scaling handled separately
         )
-        self.amp_buffer = self.synth.memory_pool.get_mono_buffer()
-        self.work_buffer = self.synth.memory_pool.get_mono_buffer()
-        self.acc_buffer = self.synth.memory_pool.get_mono_buffer()
-        self.item_buffer = self.synth.memory_pool.get_mono_buffer()
+        self.amp_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
+        self.work_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
+        self.acc_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
+        self.item_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
 
         # XG Filter Envelope - optional for drums - use envelope pool
         if self.use_filter_env:
@@ -945,7 +931,7 @@ class XGPartialGenerator:
                 velocity_sense=0.0,  # XG filter env typically not velocity-sensitive
                 key_scaling=0.0
             )
-            self.filter_buffer = self.synth.memory_pool.get_mono_buffer()
+            self.filter_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
         else:
             self.filter_envelope = None
             self.filter_buffer = None
@@ -962,7 +948,7 @@ class XGPartialGenerator:
                 velocity_sense=0.0,  # XG pitch env typically not velocity-sensitive
                 key_scaling=0.0
             )
-            self.pitch_buffer = self.synth.memory_pool.get_mono_buffer()
+            self.pitch_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
         else:
             self.pitch_envelope = None
             self.pitch_buffer = None
