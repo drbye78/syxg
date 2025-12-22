@@ -5,26 +5,28 @@ Provides the Channel class that manages MIDI channel state and voice assignment
 using the new Voice abstraction layer.
 """
 
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 import numpy as np
 
 from .channel_note import ChannelNote
 from ..voice.voice_factory import VoiceFactory
+from ..voice.voice_instance import VoiceInstance
 
 
 class Channel:
     """
-    XG MIDI Channel - manages voice assignment and channel-level state.
+    XG MIDI Channel - manages polyphonic voice instances and channel-level state.
 
-    A Channel represents a single MIDI channel (0-15) that can play voices.
-    It handles program changes, bank selection, controller processing, and
-    routes MIDI events to the appropriate voice.
+    A Channel represents a single MIDI channel (0-15) that can play multiple
+    simultaneous voices (true polyphony). It handles program changes, bank selection,
+    controller processing, and routes MIDI events to appropriate voice instances.
 
     XG Specification Compliance:
     - Channel key range and transposition
     - Bank/program selection with XG bank mapping
     - Controller processing and NRPN/RPN support
     - Multi-timbral operation
+    - True polyphony with multiple simultaneous notes
     """
 
     def __init__(self, channel_number: int, voice_factory: VoiceFactory, sample_rate: int):
@@ -40,12 +42,18 @@ class Channel:
         self.voice_factory = voice_factory
         self.sample_rate = sample_rate
 
-        # Voice management
-        self.current_voice = None
+        # Polyphonic voice management - multiple simultaneous voices
+        self.active_voices: Dict[int, VoiceInstance] = {}  # note -> VoiceInstance
         self.program = 0
         self.bank_msb = 0
         self.bank_lsb = 0
         self.bank = 0
+
+        # Current instrument/program (for region selection)
+        self.current_program = None
+
+        # Legacy compatibility - maintain current_voice for backward compatibility
+        self.current_voice = None
 
         # Channel state
         self.active = True
@@ -119,7 +127,10 @@ class Channel:
 
     def note_on(self, note: int, velocity: int) -> bool:
         """
-        Handle note-on event.
+        Handle note-on event with polyphony support.
+
+        Creates a new VoiceInstance for each note, allowing multiple
+        simultaneous notes per channel (true polyphony).
 
         Args:
             note: MIDI note number (0-127)
@@ -128,7 +139,7 @@ class Channel:
         Returns:
             True if note was accepted, False otherwise
         """
-        if not self.current_voice or self.muted:
+        if self.muted:
             return False
 
         # Apply channel transposition
@@ -138,30 +149,61 @@ class Channel:
         if not (self.key_range_low <= transposed_note <= self.key_range_high):
             return False
 
-        # Check voice key range
-        if not self.current_voice.is_note_supported(transposed_note):
+        # Check if we already have a voice instance for this note
+        if transposed_note in self.active_voices:
+            # Retrigger existing voice (for monophonic instruments)
+            existing_voice = self.active_voices[transposed_note]
+            existing_voice.note_on(velocity, transposed_note)
+            return True
+
+        # Create new VoiceInstance for this note
+        voice_instance = VoiceInstance(transposed_note, velocity, self.channel_number, self.sample_rate)
+
+        # Get regions for this note/velocity from current program
+        if self.current_program:
+            regions = self.current_program.get_regions_for_note(transposed_note, velocity)
+            for region in regions:
+                voice_instance.add_region(region)
+
+        # Check if we have any regions to play
+        if not voice_instance.regions:
+            # Fallback to legacy single voice if no regions
+            if self.current_voice and self.current_voice.is_note_supported(transposed_note):
+                self.current_voice.note_on(transposed_note, velocity)
+                return True
             return False
 
-        # Send note-on to voice
-        self.current_voice.note_on(transposed_note, velocity)
+        # Trigger note-on for the voice instance
+        voice_instance.note_on(velocity, transposed_note)
+
+        # Store the active voice instance
+        self.active_voices[transposed_note] = voice_instance
+
         return True
 
     def note_off(self, note: int, velocity: int = 64):
         """
-        Handle note-off event.
+        Handle note-off event with polyphony support.
 
         Args:
             note: MIDI note number (0-127)
             velocity: Note-off velocity (0-127)
         """
-        if not self.current_voice:
-            return
-
         # Apply channel transposition
         transposed_note = note + self.transpose
 
-        # Send note-off to voice
-        self.current_voice.note_off(transposed_note)
+        # Check if we have a voice instance for this note
+        if transposed_note in self.active_voices:
+            voice_instance = self.active_voices[transposed_note]
+            voice_instance.note_off(velocity)
+
+            # Note: We don't remove the voice instance here - it will be
+            # removed in generate_samples() when it's no longer active
+            # This allows for proper release phase handling
+        else:
+            # Fallback to legacy single voice
+            if self.current_voice:
+                self.current_voice.note_off(transposed_note)
 
     def control_change(self, controller: int, value: int):
         """
@@ -285,16 +327,26 @@ class Channel:
 
     def all_notes_off(self):
         """Turn off all notes on this channel."""
+        # Send note-off to all active voice instances
+        for voice_instance in list(self.active_voices.values()):
+            voice_instance.note_off()
+
+        # Fallback to legacy single voice
         if self.current_voice:
-            # This would need to be implemented in the Voice class
-            # For now, we'll iterate through a reasonable note range
             for note in range(128):
                 self.current_voice.note_off(note)
 
     def all_sound_off(self):
         """Immediately silence all sounds on this channel."""
+        # Immediately silence all active voice instances
+        for voice_instance in list(self.active_voices.values()):
+            voice_instance.all_notes_off()
+
+        # Clear active voices
+        self.active_voices.clear()
+
+        # Fallback to legacy single voice
         if self.current_voice:
-            # Force all partials to stop immediately
             for note in range(128):
                 self.current_voice.note_off(note)
 
@@ -307,49 +359,61 @@ class Channel:
 
     def generate_samples(self, block_size: int) -> np.ndarray:
         """
-        Generate audio samples for this channel.
+        Generate audio samples for this channel with true polyphony.
 
-        Note: This is a simplified implementation. The voice architecture needs
-        significant rework to properly handle polyphony. Currently it only
-        supports monophonic playback per channel.
+        Supports multiple simultaneous VoiceInstance objects, each handling
+        their own note with multiple regions (velocity layers, round robin, etc.).
 
         Args:
             block_size: Number of samples to generate
 
         Returns:
-            Stereo audio buffer (block_size * 2,)
+            Stereo audio buffer (block_size, 2)
         """
-        if not self.current_voice or not self.current_voice.is_active():
-            return np.zeros(block_size * 2, dtype=np.float32)
+        # Start with silence
+        output = np.zeros((block_size, 2), dtype=np.float32)
 
-        # Collect modulation values from controllers
-        modulation = self._collect_modulation_values()
-
-        # For now, use a fixed note/velocity since the voice architecture
-        # doesn't properly handle multiple simultaneous notes yet.
-        # TODO: Implement proper polyphony with multiple active voices
-        audio = self.current_voice.generate_samples(
-            note=60,  # Fixed note - should be dynamic
-            velocity=64,  # Fixed velocity - should be dynamic
-            modulation=modulation,
-            block_size=block_size
-        )
-
-        # Apply channel-level processing
         if self.muted:
-            audio.fill(0.0)
-        else:
-            # Apply master level and pan
-            audio *= self.master_level
+            return output
 
-            # Apply pan (simple implementation)
+        # Generate samples from all active voice instances
+        active_voice_count = 0
+        for voice_instance in list(self.active_voices.values()):
+            if voice_instance.is_active():
+                # Get samples from this voice instance
+                voice_audio = voice_instance.generate_samples(block_size)
+
+                # Mix voice into channel output
+                output += voice_audio
+                active_voice_count += 1
+
+                # Remove inactive voices to prevent accumulation
+                if not voice_instance.is_active():
+                    del self.active_voices[voice_instance.note]
+            else:
+                # Remove inactive voices
+                del self.active_voices[voice_instance.note]
+
+        # Apply channel-level processing if we have active voices
+        if active_voice_count > 0:
+            # Collect modulation values from controllers
+            modulation = self._collect_modulation_values()
+
+            # Apply master level
+            output *= self.master_level
+
+            # Apply pan
             if self.pan != 0.0:
                 left_gain = 1.0 - max(0.0, self.pan)
                 right_gain = 1.0 - max(0.0, -self.pan)
-                audio[0::2] *= left_gain   # Left channel
-                audio[1::2] *= right_gain  # Right channel
+                output[:, 0] *= left_gain   # Left channel
+                output[:, 1] *= right_gain  # Right channel
 
-        return audio
+            # Update modulation for all active voices
+            for voice_instance in self.active_voices.values():
+                voice_instance.update_modulation(modulation)
+
+        return output
 
     def _collect_modulation_values(self) -> Dict[str, float]:
         """

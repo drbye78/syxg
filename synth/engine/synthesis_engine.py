@@ -120,6 +120,36 @@ class SynthesisEngine(ABC):
         """
         pass
 
+    def create_region(self, region_params: Dict[str, Any], sample_rate: int) -> 'Region':
+        """
+        Create a region instance for this engine.
+
+        Args:
+            region_params: Parameters for the region
+            sample_rate: Audio sample rate
+
+        Returns:
+            Region instance configured for this engine
+        """
+        # Default implementation - engines should override for region support
+        raise NotImplementedError(f"{self.__class__.__name__} does not support regions")
+
+    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> List['Region']:
+        """
+        Get all regions that should play for a given note/velocity/program.
+
+        Args:
+            note: MIDI note number (0-127)
+            velocity: MIDI velocity (0-127)
+            program: MIDI program number (0-127)
+            bank: MIDI bank number
+
+        Returns:
+            List of Region instances that should play
+        """
+        # Default implementation - engines should override for region support
+        return []
+
     def get_supported_formats(self) -> List[str]:
         """
         Get list of supported file formats.

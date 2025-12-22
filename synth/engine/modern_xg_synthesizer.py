@@ -281,6 +281,21 @@ class ModernXGSynthesizer:
         self.engine_registry = SynthesisEngineRegistry()
         self._register_engines()
 
+        # SFZ Engine for advanced sample playback
+        from ..sfz.sfz_engine import SFZEngine
+        sfz_engine = SFZEngine(sample_rate=self.sample_rate, block_size=1024)
+        self.engine_registry.register_engine(sfz_engine, 'sfz', priority=9)  # High priority after SF2
+
+        # Wavetable Engine for classic synthesis
+        from .wavetable_engine import WavetableEngine
+        wavetable_engine = WavetableEngine(sample_rate=self.sample_rate, block_size=1024)
+        self.engine_registry.register_engine(wavetable_engine, 'wavetable', priority=7)  # Medium priority
+
+        # Spectral Engine for advanced sound design
+        from .spectral_engine import SpectralEngine
+        spectral_engine = SpectralEngine(sample_rate=self.sample_rate, block_size=1024)
+        self.engine_registry.register_engine(spectral_engine, 'spectral', priority=3)  # Advanced priority
+
         # Voice factory
         from ..voice.voice_factory import VoiceFactory
         self.voice_factory = VoiceFactory(self.engine_registry)
@@ -317,9 +332,15 @@ class ModernXGSynthesizer:
 
     def _register_engines(self):
         """Register synthesis engines with priority system"""
-        # SF2 Engine - highest priority
+        # Enhanced SF2 Engine with stereo and multi-partial support
+        from ..sf2.enhanced_sf2_manager import EnhancedSF2Manager
         from .sf2_engine import SF2Engine
-        sf2_engine = SF2Engine(sample_rate=self.sample_rate, block_size=1024)
+
+        # Create enhanced SF2 manager with PyAV sample support
+        self.enhanced_sf2_manager = EnhancedSF2Manager(self.buffer_pool.sample_manager if hasattr(self.buffer_pool, 'sample_manager') else None)
+
+        # Create SF2 engine with enhanced manager
+        sf2_engine = SF2Engine(sf2_manager=self.enhanced_sf2_manager, sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(sf2_engine, 'sf2', priority=10)
 
         # FM Engine - high priority
