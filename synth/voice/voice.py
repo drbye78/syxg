@@ -11,6 +11,7 @@ import numpy as np
 from ..engine.synthesis_engine import SynthesisEngine
 from ..partial.partial import SynthesisPartial
 from ..modulation.matrix import ModulationMatrix
+from ..effects.system_effects import XGSystemEffectsProcessor
 
 
 class Voice:
@@ -63,10 +64,56 @@ class Voice:
         self.modulation_matrix = ModulationMatrix(num_routes=16)
         self._setup_voice_modulation(voice_params)
 
-        # Voice-level effects (placeholders for future implementation)
+        # Voice-level effects sends (XG compliant)
         self.chorus_send = voice_params.get('chorus_send', 0.0)
         self.reverb_send = voice_params.get('reverb_send', 0.0)
         self.delay_send = voice_params.get('delay_send', 0.0)
+
+        # Voice-level effect processors
+        self._voice_effects = self._initialize_voice_effects()
+
+    def _initialize_voice_effects(self) -> Dict[str, Any]:
+        """
+        Initialize voice-level effect processors.
+
+        Returns:
+            Dictionary of voice effect processors
+        """
+        # Create dedicated voice-level effect processors
+        # These are separate from global system effects for per-voice processing
+        voice_effects = {}
+
+        try:
+            # Voice-level chorus processor (scaled down for per-voice use)
+            voice_effects['chorus'] = XGSystemEffectsProcessor(
+                sample_rate=self.sample_rate,
+                block_size=1024,
+                dsp_units=None,
+                max_reverb_delay=int(0.5 * self.sample_rate),  # Shorter for voice-level
+                max_chorus_delay=int(0.05 * self.sample_rate)
+            )
+
+            # Configure chorus for voice-level use
+            voice_effects['chorus'].set_system_effect_parameter('chorus', 'level', 0.3)
+
+            # Voice-level reverb processor (scaled down)
+            voice_effects['reverb'] = XGSystemEffectsProcessor(
+                sample_rate=self.sample_rate,
+                block_size=1024,
+                dsp_units=None,
+                max_reverb_delay=int(0.5 * self.sample_rate),  # Shorter reverb
+                max_chorus_delay=int(0.05 * self.sample_rate)
+            )
+
+            # Configure reverb for voice-level use
+            voice_effects['reverb'].set_system_effect_parameter('reverb', 'level', 0.2)
+            voice_effects['reverb'].set_system_effect_parameter('reverb', 'time', 0.5)
+
+        except Exception as e:
+            print(f"Warning: Failed to initialize voice effects: {e}")
+            # Continue without voice effects
+
+        return voice_effects
 
     def _create_partials(self, voice_params: Dict) -> None:
         """
@@ -79,7 +126,13 @@ class Voice:
 
         # Ensure at least one partial exists
         if not partials_config:
-            partials_config = [self.synthesis_engine.get_default_partial_params()]
+            # Create a default partial configuration
+            partials_config = [{
+                'level': 1.0,
+                'waveform': 'sine',
+                'frequency': 440.0,
+                'amplitude': 1.0
+            }]
 
         for i, partial_config in enumerate(partials_config):
             # Only create partials with non-zero level
@@ -251,10 +304,52 @@ class Voice:
             audio[0::2] *= pan_left   # Left channel
             audio[1::2] *= pan_right  # Right channel
 
-        # Voice-level effects would be applied here
-        # (Chorus, reverb, delay sends to system effects)
+        # Apply voice-level effects based on send levels
+        processed_audio = audio.copy()
 
-        return audio
+        # Apply chorus send
+        if self.chorus_send > 0.0 and 'chorus' in self._voice_effects:
+            try:
+                # Create wet/dry mix based on send level
+                dry_level = 1.0 - self.chorus_send
+                wet_level = self.chorus_send
+
+                # Apply chorus effect
+                chorus_wet = processed_audio.copy()
+                self._voice_effects['chorus'].apply_system_effects_to_mix_zero_alloc(
+                    chorus_wet, block_size
+                )
+
+                # Mix dry and wet signals
+                processed_audio = (processed_audio * dry_level +
+                                 chorus_wet * wet_level)
+
+            except Exception as e:
+                print(f"Warning: Voice chorus processing failed: {e}")
+
+        # Apply reverb send
+        if self.reverb_send > 0.0 and 'reverb' in self._voice_effects:
+            try:
+                # Create wet/dry mix based on send level
+                dry_level = 1.0 - self.reverb_send
+                wet_level = self.reverb_send
+
+                # Apply reverb effect
+                reverb_wet = processed_audio.copy()
+                self._voice_effects['reverb'].apply_system_effects_to_mix_zero_alloc(
+                    reverb_wet, block_size
+                )
+
+                # Mix dry and wet signals
+                processed_audio = (processed_audio * dry_level +
+                                 reverb_wet * wet_level)
+
+            except Exception as e:
+                print(f"Warning: Voice reverb processing failed: {e}")
+
+        # Note: Delay send could be implemented similarly if a delay processor is added
+
+        return processed_audio
 
     def note_on(self, note: int, velocity: int) -> None:
         """

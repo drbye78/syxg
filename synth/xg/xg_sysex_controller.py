@@ -467,26 +467,92 @@ class XGSystemExclusiveController:
             'led_state': led_state
         }
 
-    # Placeholder handlers for bulk operations (to be implemented)
     def _handle_xg_dump_request(self, data: List[int]) -> Optional[Dict[str, Any]]:
-        """Handle XG dump request."""
-        return {'type': 'dump_request', 'status': 'not_implemented'}
+        """Handle XG dump request - returns all XG parameters."""
+        # Generate comprehensive XG parameter dump
+        dump_data = self._generate_xg_parameter_dump()
+
+        return {
+            'type': 'dump_request',
+            'status': 'completed',
+            'data': dump_data,
+            'data_length': len(dump_data)
+        }
 
     def _handle_xg_bulk_dump(self, data: List[int]) -> Optional[Dict[str, Any]]:
-        """Handle XG bulk dump."""
-        return {'type': 'bulk_dump', 'status': 'not_implemented'}
+        """Handle XG bulk dump - processes XG parameter data."""
+        if len(data) < 2:
+            return {'type': 'bulk_dump', 'status': 'error', 'error': 'insufficient_data'}
+
+        # XG bulk dump format: [address_msb] [address_lsb] [data...]
+        address_msb = data[0]
+        address_lsb = data[1]
+        parameter_data = data[2:]
+
+        success = self._process_xg_bulk_dump_data(address_msb, address_lsb, parameter_data)
+
+        return {
+            'type': 'bulk_dump',
+            'status': 'completed' if success else 'error',
+            'address': (address_msb << 8) | address_lsb,
+            'data_length': len(parameter_data)
+        }
 
     def _handle_xg_dump(self, data: List[int]) -> Optional[Dict[str, Any]]:
-        """Handle XG dump."""
-        return {'type': 'dump', 'status': 'not_implemented'}
+        """Handle XG dump - similar to bulk dump but XG-specific format."""
+        # For XG dump, we handle it the same as bulk dump
+        return self._handle_xg_bulk_dump(data)
 
     def _handle_bulk_dump(self, data: List[int]) -> Optional[Dict[str, Any]]:
-        """Handle bulk dump."""
-        return {'type': 'bulk_dump', 'status': 'not_implemented'}
+        """Handle general bulk dump - processes parameter data."""
+        if len(data) < 1:
+            return {'type': 'bulk_dump', 'status': 'error', 'error': 'no_data'}
+
+        # Determine dump type from first byte
+        dump_type = data[0]
+        dump_data = data[1:]
+
+        if dump_type == 0x00:  # System parameters
+            success = self._process_system_bulk_dump(dump_data)
+        elif dump_type == 0x01:  # Effect parameters
+            success = self._process_effect_bulk_dump(dump_data)
+        elif dump_type == 0x02:  # Multi-part parameters
+            success = self._process_multipart_bulk_dump(dump_data)
+        else:
+            return {'type': 'bulk_dump', 'status': 'error', 'error': 'unknown_dump_type'}
+
+        return {
+            'type': 'bulk_dump',
+            'dump_type': dump_type,
+            'status': 'completed' if success else 'error',
+            'data_length': len(dump_data)
+        }
 
     def _handle_bulk_dump_request(self, data: List[int]) -> Optional[Dict[str, Any]]:
-        """Handle bulk dump request."""
-        return {'type': 'bulk_dump_request', 'status': 'not_implemented'}
+        """Handle bulk dump request - returns requested parameter data."""
+        if len(data) < 1:
+            return {'type': 'bulk_dump_request', 'status': 'error', 'error': 'no_request_type'}
+
+        request_type = data[0]
+
+        if request_type == 0x00:  # All system parameters
+            dump_data = self._generate_system_bulk_dump()
+        elif request_type == 0x01:  # All effect parameters
+            dump_data = self._generate_effect_bulk_dump()
+        elif request_type == 0x02:  # All multi-part parameters
+            dump_data = self._generate_multipart_bulk_dump()
+        elif request_type == 0x7F:  # All parameters (XG dump)
+            dump_data = self._generate_xg_parameter_dump()
+        else:
+            return {'type': 'bulk_dump_request', 'status': 'error', 'error': 'unknown_request_type'}
+
+        return {
+            'type': 'bulk_dump_request',
+            'request_type': request_type,
+            'status': 'completed',
+            'data': dump_data,
+            'data_length': len(dump_data)
+        }
 
     def _handle_special_message(self, data: List[int]) -> Optional[Dict[str, Any]]:
         """Handle special message."""
@@ -602,3 +668,268 @@ class XGSystemExclusiveController:
                 'display': self.display_callback is not None
             }
         }
+
+    # Bulk Dump Data Processing and Generation Methods
+
+    def _generate_xg_parameter_dump(self) -> List[int]:
+        """
+        Generate comprehensive XG parameter dump data.
+
+        Returns:
+            List of parameter data bytes for XG dump
+        """
+        dump_data = []
+
+        # System effect parameters (MSB 1-2)
+        for address, param_name in self.XG_PARAMETER_ADDRESSES.items():
+            if address >= 0x0100 and address <= 0x02FF:  # System effects
+                value = self.parameters.get(param_name, 0)
+                # Convert to 7-bit if needed
+                dump_data.extend([address >> 8, address & 0xFF, value & 0x7F])
+
+        # Multi-part parameters (MSB 42-45)
+        for part in range(16):
+            for base_address in [0x2A00, 0x2B00, 0x2C00, 0x2D00]:  # Voice reserve, mode, level, pan
+                address = base_address + part
+                param_name = f'{self.XG_PARAMETER_ADDRESSES.get(base_address, "unknown")}_part_{part}'
+                value = self.parameters.get(param_name, 0)
+                dump_data.extend([address >> 8, address & 0xFF, value & 0x7F])
+
+        return dump_data
+
+    def _process_xg_bulk_dump_data(self, address_msb: int, address_lsb: int,
+                                  parameter_data: List[int]) -> bool:
+        """
+        Process XG bulk dump parameter data.
+
+        Args:
+            address_msb: Parameter address MSB
+            address_lsb: Parameter address LSB
+            parameter_data: Parameter values
+
+        Returns:
+            True if processed successfully
+        """
+        try:
+            base_address = (address_msb << 8) | address_lsb
+
+            # Process based on address range
+            if base_address >= 0x0100 and base_address <= 0x02FF:  # System effects
+                for i, value in enumerate(parameter_data):
+                    address = base_address + i
+                    param_name = self.XG_PARAMETER_ADDRESSES.get(address)
+                    if param_name:
+                        self.parameters[param_name] = value
+                        if self.parameter_change_callback:
+                            self.parameter_change_callback(param_name, value)
+
+            elif base_address >= 0x2A00 and base_address <= 0x2DFF:  # Multi-part
+                for i, value in enumerate(parameter_data):
+                    part = (base_address + i) & 0x0F  # Extract part number
+                    base_param = base_address & 0xFF00
+                    param_name = f'{self.XG_PARAMETER_ADDRESSES.get(base_param, "unknown")}_part_{part}'
+                    self.parameters[param_name] = value
+                    if self.parameter_change_callback:
+                        self.parameter_change_callback(param_name, value)
+
+            return True
+
+        except Exception as e:
+            print(f"❌ XG SYSEX: Error processing bulk dump data: {e}")
+            return False
+
+    def _generate_system_bulk_dump(self) -> List[int]:
+        """
+        Generate system parameter bulk dump data.
+
+        Returns:
+            System parameter dump data
+        """
+        dump_data = [0x00]  # System parameters type
+
+        # Add system effect parameters
+        for param_name in ['reverb_type', 'reverb_time', 'reverb_hf_damping',
+                          'reverb_balance', 'reverb_level', 'chorus_type',
+                          'chorus_lfo_freq', 'chorus_depth', 'chorus_feedback',
+                          'chorus_send_level']:
+            value = self.parameters.get(param_name, 0)
+            dump_data.append(value & 0x7F)
+
+        return dump_data
+
+    def _generate_effect_bulk_dump(self) -> List[int]:
+        """
+        Generate effect parameter bulk dump data.
+
+        Returns:
+            Effect parameter dump data
+        """
+        dump_data = [0x01]  # Effect parameters type
+
+        # Add all effect-related parameters
+        effect_params = [
+            'reverb_type', 'reverb_time', 'reverb_hf_damping', 'reverb_balance', 'reverb_level',
+            'chorus_type', 'chorus_lfo_freq', 'chorus_depth', 'chorus_feedback', 'chorus_send_level'
+        ]
+
+        for param_name in effect_params:
+            value = self.parameters.get(param_name, 0)
+            dump_data.append(value & 0x7F)
+
+        return dump_data
+
+    def _generate_multipart_bulk_dump(self) -> List[int]:
+        """
+        Generate multi-part parameter bulk dump data.
+
+        Returns:
+            Multi-part parameter dump data
+        """
+        dump_data = [0x02]  # Multi-part parameters type
+
+        # Add parameters for all 16 parts (voice reserve, mode, level, pan)
+        for part in range(16):
+            # Voice reserve (MSB 42)
+            reserve = self.parameters.get(f'voice_reserve_part_{part}', 8)
+            dump_data.append(reserve & 0x7F)
+
+            # Part mode (MSB 43)
+            mode = self.parameters.get(f'part_mode_part_{part}', 1)
+            dump_data.append(mode & 0x7F)
+
+            # Part level (MSB 44)
+            level = int(self.parameters.get(f'part_level_part_{part}', 1.0) * 127)
+            dump_data.append(level & 0x7F)
+
+            # Part pan (MSB 45)
+            pan = int((self.parameters.get(f'part_pan_part_{part}', 0.0) + 1.0) * 63.5)
+            dump_data.append(pan & 0x7F)
+
+        return dump_data
+
+    def _process_system_bulk_dump(self, dump_data: List[int]) -> bool:
+        """
+        Process system parameter bulk dump data.
+
+        Args:
+            dump_data: Bulk dump parameter data
+
+        Returns:
+            True if processed successfully
+        """
+        try:
+            expected_params = ['reverb_type', 'reverb_time', 'reverb_hf_damping',
+                              'reverb_balance', 'reverb_level', 'chorus_type',
+                              'chorus_lfo_freq', 'chorus_depth', 'chorus_feedback',
+                              'chorus_send_level']
+
+            if len(dump_data) < len(expected_params):
+                return False
+
+            for i, param_name in enumerate(expected_params):
+                self.parameters[param_name] = dump_data[i]
+                if self.parameter_change_callback:
+                    self.parameter_change_callback(param_name, dump_data[i])
+
+            return True
+
+        except Exception as e:
+            print(f"❌ XG SYSEX: Error processing system bulk dump: {e}")
+            return False
+
+    def _process_effect_bulk_dump(self, dump_data: List[int]) -> bool:
+        """
+        Process effect parameter bulk dump data.
+
+        Args:
+            dump_data: Bulk dump parameter data
+
+        Returns:
+            True if processed successfully
+        """
+        # For now, handle the same as system bulk dump
+        return self._process_system_bulk_dump(dump_data)
+
+    def _process_multipart_bulk_dump(self, dump_data: List[int]) -> bool:
+        """
+        Process multi-part parameter bulk dump data.
+
+        Args:
+            dump_data: Bulk dump parameter data
+
+        Returns:
+            True if processed successfully
+        """
+        try:
+            # Expect 64 bytes (4 parameters × 16 parts)
+            if len(dump_data) < 64:
+                return False
+
+            for part in range(16):
+                base_idx = part * 4
+
+                # Voice reserve
+                self.parameters[f'voice_reserve_part_{part}'] = dump_data[base_idx]
+                if self.parameter_change_callback:
+                    self.parameter_change_callback(f'voice_reserve_part_{part}', dump_data[base_idx])
+
+                # Part mode
+                self.parameters[f'part_mode_part_{part}'] = dump_data[base_idx + 1]
+                if self.parameter_change_callback:
+                    self.parameter_change_callback(f'part_mode_part_{part}', dump_data[base_idx + 1])
+
+                # Part level (convert from 0-127 to 0.0-1.0)
+                level_norm = dump_data[base_idx + 2] / 127.0
+                self.parameters[f'part_level_part_{part}'] = level_norm
+                if self.parameter_change_callback:
+                    self.parameter_change_callback(f'part_level_part_{part}', level_norm)
+
+                # Part pan (convert from 0-127 to -1.0 to +1.0)
+                pan_norm = (dump_data[base_idx + 3] - 64) / 64.0
+                self.parameters[f'part_pan_part_{part}'] = pan_norm
+                if self.parameter_change_callback:
+                    self.parameter_change_callback(f'part_pan_part_{part}', pan_norm)
+
+            return True
+
+        except Exception as e:
+            print(f"❌ XG SYSEX: Error processing multipart bulk dump: {e}")
+            return False
+
+    # Bulk Dump Creation Methods
+
+    def create_bulk_dump_message(self, dump_type: int = 0x7F) -> bytes:
+        """
+        Create a complete XG bulk dump SYSEX message.
+
+        Args:
+            dump_type: Type of bulk dump (0x7F = all parameters)
+
+        Returns:
+            Complete SYSEX message bytes
+        """
+        if dump_type == 0x7F:  # All parameters
+            dump_data = self._generate_xg_parameter_dump()
+        elif dump_type == 0x00:  # System parameters
+            dump_data = self._generate_system_bulk_dump()
+        elif dump_type == 0x01:  # Effect parameters
+            dump_data = self._generate_effect_bulk_dump()
+        elif dump_type == 0x02:  # Multi-part parameters
+            dump_data = self._generate_multipart_bulk_dump()
+        else:
+            return b''  # Invalid dump type
+
+        # Create SYSEX message with command 0x07 (XG Bulk Dump)
+        return self.create_sysex_message(0x07, dump_data)
+
+    def create_bulk_dump_request_message(self, request_type: int = 0x7F) -> bytes:
+        """
+        Create XG bulk dump request SYSEX message.
+
+        Args:
+            request_type: Type of data to request
+
+        Returns:
+            Complete SYSEX message bytes
+        """
+        return self.create_sysex_message(0x0C, [request_type])

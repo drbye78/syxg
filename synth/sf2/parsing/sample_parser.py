@@ -11,7 +11,8 @@ from typing import List, Optional, BinaryIO, Dict, Tuple, Union, Any
 from ..types import SF2SampleHeader
 
 try:
-    import vorbis  # For Vorbis decompression (optional dependency)
+    import av  # PyAV for audio decoding
+    import io
     VORBIS_AVAILABLE = True
 except ImportError:
     VORBIS_AVAILABLE = False
@@ -321,7 +322,7 @@ class SampleParser:
 
     def _decompress_vorbis(self, compressed_data: bytes, sample_header: SF2SampleHeader) -> Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]]:
         """
-        Decompress Vorbis-compressed sample data.
+        Decompress Vorbis-compressed sample data using PyAV.
 
         Args:
             compressed_data: Vorbis-compressed data
@@ -334,26 +335,136 @@ class SampleParser:
             return None
 
         try:
-            # Decode Vorbis data
-            # This is a simplified implementation - real Vorbis decoding is complex
-            # In a production system, you'd use a proper Vorbis decoder
+            # Method 1: Try to decode as complete OGG file
+            try:
+                # Create a BytesIO object to simulate a file
+                audio_stream = io.BytesIO(compressed_data)
 
-            # For now, return a placeholder (this would need proper Vorbis implementation)
-            sample_length = sample_header.end - sample_header.start
+                # Open with PyAV as if it were a complete OGG file
+                container = av.open(audio_stream, format='ogg')
 
-            if sample_header.stereo:
-                # Create stereo placeholder data
-                left_data = np.zeros(sample_length, dtype=np.float32)
-                right_data = np.zeros(sample_length, dtype=np.float32)
+                # Find audio stream
+                stream = None
+                for s in container.streams:
+                    if s.type == 'audio':
+                        stream = s
+                        break
 
-                # Fill with silence (placeholder - real decompression needed)
-                sample_header.data = (left_data, right_data)
+                if stream is None:
+                    raise ValueError("No audio stream in Vorbis data")
+
+                # Decode all frames
+                frames = []
+                for frame in container.decode(stream):
+                    # Convert to numpy array and transpose to (samples, channels)
+                    frame_data = frame.to_ndarray().astype(np.float32).T
+                    frames.append(frame_data)
+
+                container.close()
+
+                if not frames:
+                    raise ValueError("No frames decoded from Vorbis data")
+
+                # Concatenate all frames
+                audio_data = np.concatenate(frames, axis=0)
+
+                # Normalize to [-1, 1] range (PyAV outputs float32 in this range)
+                audio_data = np.clip(audio_data, -1.0, 1.0)
+
+                # Format output based on channels
+                if sample_header.stereo:
+                    if audio_data.shape[1] >= 2:
+                        # Extract left and right channels
+                        left_channel = audio_data[:, 0]
+                        right_channel = audio_data[:, 1]
+                        sample_header.data = (left_channel, right_channel)
+                    else:
+                        # Mono data for stereo header - duplicate channel
+                        mono_data = audio_data[:, 0]
+                        sample_header.data = (mono_data, mono_data)
+                else:
+                    # Mono output
+                    if audio_data.shape[1] >= 1:
+                        sample_header.data = audio_data[:, 0]
+                    else:
+                        raise ValueError("No audio data in decoded frames")
+
                 return sample_header.data
-            else:
-                # Create mono placeholder data
-                mono_data = np.zeros(sample_length, dtype=np.float32)
-                sample_header.data = mono_data
-                return sample_header.data
+
+            except Exception as e1:
+                # Method 1 failed, try Method 2: Raw Vorbis packet decoding
+                # This is more complex and may require manual OGG/Vorbis parsing
+                print(f"Complete OGG decoding failed: {e1}, trying raw Vorbis decoding...")
+
+                # For raw Vorbis data (not in OGG container), we would need to:
+                # 1. Parse OGG page structure manually
+                # 2. Extract Vorbis packets
+                # 3. Decode Vorbis packets using av.codec
+                # This is quite complex, so for now we fall back to a simpler approach
+
+                # Method 2: Use PyAV codec directly (experimental)
+                try:
+                    codec = av.codec.Codec('vorbis', 'r')
+                    codec_context = av.codec.CodecContext.create(codec, 'r')
+
+                    # Set codec parameters based on sample header
+                    codec_context.sample_rate = sample_header.sample_rate
+                    codec_context.channels = 2 if sample_header.stereo else 1
+
+                    # Open codec
+                    codec_context.open()
+
+                    # Feed compressed data
+                    packet = av.Packet(compressed_data)
+                    codec_context.send_packet(packet)
+
+                    # Receive frames
+                    frames = []
+                    while True:
+                        try:
+                            frame = codec_context.receive_frame()
+                            frames.append(frame)
+                        except av.error.EOFError:
+                            break
+
+                    if frames:
+                        # Process first frame (simplified - assumes single frame)
+                        frame = frames[0]
+                        audio_data = frame.to_ndarray().astype(np.float32).T
+
+                        # Normalize and format output
+                        audio_data = np.clip(audio_data, -1.0, 1.0)
+
+                        if sample_header.stereo:
+                            if audio_data.shape[1] >= 2:
+                                left_channel = audio_data[:, 0]
+                                right_channel = audio_data[:, 1]
+                                sample_header.data = (left_channel, right_channel)
+                            else:
+                                mono_data = audio_data[:, 0]
+                                sample_header.data = (mono_data, mono_data)
+                        else:
+                            sample_header.data = audio_data[:, 0]
+
+                        codec_context.close()
+                        return sample_header.data
+
+                except Exception as e2:
+                    print(f"Raw Vorbis decoding also failed: {e2}")
+
+                # Final fallback: return silence with proper length
+                print(f"Vorbis decompression failed, returning silence. Compressed size: {len(compressed_data)} bytes")
+
+                sample_length = sample_header.end - sample_header.start
+                if sample_header.stereo:
+                    left_data = np.zeros(sample_length, dtype=np.float32)
+                    right_data = np.zeros(sample_length, dtype=np.float32)
+                    sample_header.data = (left_data, right_data)
+                    return sample_header.data
+                else:
+                    mono_data = np.zeros(sample_length, dtype=np.float32)
+                    sample_header.data = mono_data
+                    return sample_header.data
 
         except Exception as e:
             print(f"Vorbis decompression failed: {e}")

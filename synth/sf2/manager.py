@@ -121,23 +121,320 @@ class SF2Manager:
 
     def get_program_parameters(self, program: int, bank: int = 0) -> Optional[Dict[str, Any]]:
         """
-        Get program parameters for XG synthesizer.
+        Get program parameters for XG synthesizer with enhanced error handling and fallback.
+
+        This method provides production-grade parameter retrieval with:
+        - Comprehensive error handling and logging
+        - Parameter validation and range checking
+        - Fallback to default parameters when SF2 data is unavailable
+        - Integration with XG parameter system
 
         Args:
             program: Program number (0-127)
             bank: Bank number (0-16383)
 
         Returns:
-            Program parameters dictionary or None if not found
+            Program parameters dictionary with guaranteed structure, or None only on critical errors
         """
-        if not self.sf2_manager:
+        # Validate input parameters
+        if not (0 <= program <= 127):
+            print(f"[SF2] Invalid program number: {program} (must be 0-127)")
             return None
 
-        try:
-            return self.sf2_manager.get_program_parameters(program, bank)
-        except Exception as e:
-            print(f"Error getting program parameters: {e}")
+        if not (0 <= bank <= 16383):
+            print(f"[SF2] Invalid bank number: {bank} (must be 0-16383)")
             return None
+
+        # If no SF2 manager is available, return default XG program parameters
+        if not self.sf2_manager:
+            return self._get_default_xg_program_parameters(program, bank)
+
+        try:
+            # Attempt to get SF2 parameters
+            sf2_params = self.sf2_manager.get_program_parameters(program, bank)
+
+            if sf2_params is None:
+                # SF2 doesn't have this program, fall back to XG defaults
+                print(f"[SF2] Program {program} not found in SF2, using XG defaults")
+                return self._get_default_xg_program_parameters(program, bank)
+
+            # Validate and enhance SF2 parameters with XG compliance
+            enhanced_params = self._enhance_sf2_params_with_xg(sf2_params, program, bank)
+
+            # Ensure all required XG parameters are present
+            enhanced_params = self._ensure_xg_parameter_completeness(enhanced_params, program, bank)
+
+            return enhanced_params
+
+        except Exception as e:
+            print(f"[SF2] Error getting program parameters for program {program}, bank {bank}: {e}")
+            # On error, fall back to default XG parameters instead of returning None
+            print(f"[SF2] Falling back to default XG parameters due to error")
+            return self._get_default_xg_program_parameters(program, bank)
+
+    def _get_default_xg_program_parameters(self, program: int, bank: int) -> Dict[str, Any]:
+        """
+        Get default XG program parameters when SF2 data is unavailable.
+
+        XG provides default parameters for all 128 programs across 16 banks,
+        ensuring the synthesizer always has valid parameters to work with.
+
+        Args:
+            program: Program number (0-127)
+            bank: Bank number (0-16383)
+
+        Returns:
+            Complete XG program parameter dictionary
+        """
+        # XG program categories (approximate)
+        program_categories = {
+            range(0, 8): "Piano",
+            range(8, 16): "Chromatic Percussion",
+            range(16, 24): "Organ",
+            range(24, 32): "Guitar",
+            range(32, 40): "Bass",
+            range(40, 48): "Strings",
+            range(48, 56): "Ensemble",
+            range(56, 64): "Brass",
+            range(64, 72): "Reed",
+            range(72, 80): "Pipe",
+            range(80, 88): "Synth Lead",
+            range(88, 96): "Synth Pad",
+            range(96, 104): "Synth Effects",
+            range(104, 112): "Ethnic",
+            range(112, 120): "Percussive",
+            range(120, 128): "Sound Effects"
+        }
+
+        # Determine program category
+        category = "Unknown"
+        for prog_range, cat_name in program_categories.items():
+            if program in prog_range:
+                category = cat_name
+                break
+
+        # XG default parameters based on program category
+        base_params = {
+            "program": program,
+            "bank": bank,
+            "category": category,
+            "name": f"XG {category} {program % 8 + 1}",
+
+            # Amplitude envelope (XG defaults)
+            "amp_envelope": {
+                "attack": 0.0,      # Instant attack
+                "decay": 0.0,       # No decay
+                "sustain": 1.0,     # Full sustain
+                "release": 0.5,     # Medium release
+                "hold": 0.0         # No hold
+            },
+
+            # Filter (XG defaults - neutral)
+            "filter": {
+                "type": "lowpass_2p",
+                "cutoff": 20000.0,    # Full range
+                "resonance": 0.0,     # No resonance
+                "key_track": 0.0      # No key tracking
+            },
+
+            # Pitch envelope (XG defaults - neutral)
+            "pitch_envelope": {
+                "attack": 0.0,
+                "decay": 0.0,
+                "sustain": 0.0,
+                "release": 0.0
+            },
+
+            # LFO parameters (XG defaults)
+            "lfo": {
+                "speed": 1.0,       # 1 Hz
+                "depth": 0.0,       # No modulation
+                "waveform": "triangle",
+                "sync": False
+            },
+
+            # Portamento (XG defaults)
+            "portamento": {
+                "time": 0.0,        # Instant
+                "mode": "linear"
+            },
+
+            # XG voice parameters
+            "xg_params": {
+                "element_switch": 127,     # All elements on
+                "velocity_sensitivity": 64, # Medium sensitivity
+                "velocity_curve": 0,       # Curve 1
+                "level": 100,              # Full level
+                "pan": 64,                 # Center
+                "reverb_send": 40,         # Medium reverb
+                "chorus_send": 0,          # No chorus
+                "variation_send": 0,       # No variation
+                "filter_cutoff_offset": 64, # No offset
+                "filter_resonance_offset": 64, # No offset
+                "attack_offset": 64,       # No offset
+                "decay_offset": 64,        # No offset
+                "release_offset": 64,      # No offset
+                "detune": 0,               # No detuning
+                "fine_tune": 0,            # No fine tuning
+                "coarse_tune": 0,          # No coarse tuning
+                "pitch_bend_range": 2,     # 2 semitones
+                "portamento_switch": 0,    # Off
+                "portamento_time": 0,      # Instant
+                "mono_mode": 0,            # Polyphonic
+                "assign_mode": 0,          # Poly1
+                "voice_reserve": 0,        # No reserve
+            },
+
+            # Partials structure (simplified - single partial for basic XG compatibility)
+            "partials": [
+                {
+                    "partial_id": 0,
+                    "sample_path": None,  # No sample - use oscillator
+                    "oscillator_type": "sine",
+                    "amplitude": 1.0,
+                    "pan": 0.0,
+                    "tuning_coarse": 0,
+                    "tuning_fine": 0.0,
+                    "filter_cutoff": 20000.0,
+                    "filter_resonance": 0.0,
+                    "amp_envelope": {
+                        "attack": 0.0,
+                        "decay": 0.0,
+                        "sustain": 1.0,
+                        "release": 0.5
+                    }
+                }
+            ],
+
+            # Empty modulation matrix (XG default)
+            "modulation_matrix": [],
+
+            # Metadata
+            "source": "XG_Default",
+            "sf2_path": None,
+            "is_drum": False
+        }
+
+        # Apply category-specific defaults
+        if category == "Piano":
+            base_params["filter"]["cutoff"] = 8000.0  # Soften high frequencies
+            base_params["amp_envelope"]["attack"] = 0.002  # Slight attack
+        elif category == "Organ":
+            base_params["lfo"]["depth"] = 0.3  # Add some tremolo
+            base_params["lfo"]["speed"] = 6.0  # Fast tremolo
+        elif category == "Strings":
+            base_params["filter"]["cutoff"] = 12000.0
+            base_params["amp_envelope"]["attack"] = 0.1  # Slower attack
+        elif category == "Brass":
+            base_params["amp_envelope"]["attack"] = 0.05
+            base_params["filter"]["cutoff"] = 6000.0
+        elif category == "Synth Lead":
+            base_params["filter"]["resonance"] = 0.2
+            base_params["filter"]["cutoff"] = 4000.0
+        elif category == "Synth Pad":
+            base_params["amp_envelope"]["attack"] = 0.3
+            base_params["filter"]["cutoff"] = 3000.0
+        elif category == "Percussive":
+            base_params["amp_envelope"]["attack"] = 0.0
+            base_params["amp_envelope"]["decay"] = 0.3
+            base_params["amp_envelope"]["sustain"] = 0.0
+            base_params["amp_envelope"]["release"] = 0.1
+
+        return base_params
+
+    def _enhance_sf2_params_with_xg(self, sf2_params: Dict[str, Any], program: int, bank: int) -> Dict[str, Any]:
+        """
+        Enhance SF2 parameters with XG compliance and additional features.
+
+        Args:
+            sf2_params: Raw SF2 parameters
+            program: Program number
+            bank: Bank number
+
+        Returns:
+            Enhanced parameter dictionary with XG compliance
+        """
+        enhanced = sf2_params.copy()
+
+        # Ensure XG parameter structure exists
+        if "xg_params" not in enhanced:
+            enhanced["xg_params"] = {
+                "element_switch": 127,
+                "velocity_sensitivity": 64,
+                "velocity_curve": 0,
+                "level": 100,
+                "pan": 64,
+                "reverb_send": 40,
+                "chorus_send": 0,
+                "variation_send": 0,
+                "filter_cutoff_offset": 64,
+                "filter_resonance_offset": 64,
+                "attack_offset": 64,
+                "decay_offset": 64,
+                "release_offset": 64,
+                "detune": 0,
+                "fine_tune": 0,
+                "coarse_tune": 0,
+                "pitch_bend_range": 2,
+                "portamento_switch": 0,
+                "portamento_time": 0,
+                "mono_mode": 0,
+                "assign_mode": 0,
+                "voice_reserve": 0,
+            }
+
+        # Add metadata
+        enhanced["program"] = program
+        enhanced["bank"] = bank
+        enhanced["source"] = "SF2_Enhanced"
+        enhanced["is_drum"] = bank == 128
+
+        return enhanced
+
+    def _ensure_xg_parameter_completeness(self, params: Dict[str, Any], program: int, bank: int) -> Dict[str, Any]:
+        """
+        Ensure all required XG parameters are present with valid values.
+
+        Args:
+            params: Parameter dictionary to validate
+            program: Program number
+            bank: Bank number
+
+        Returns:
+            Parameter dictionary with all required XG parameters
+        """
+        # Required top-level keys
+        required_keys = [
+            "program", "bank", "name", "amp_envelope", "filter",
+            "pitch_envelope", "lfo", "portamento", "xg_params", "partials"
+        ]
+
+        for key in required_keys:
+            if key not in params:
+                print(f"[SF2] Missing required parameter '{key}' for program {program}, providing default")
+
+                if key == "program":
+                    params[key] = program
+                elif key == "bank":
+                    params[key] = bank
+                elif key == "name":
+                    params[key] = f"Program {program}"
+                elif key == "amp_envelope":
+                    params[key] = {"attack": 0.0, "decay": 0.0, "sustain": 1.0, "release": 0.5}
+                elif key == "filter":
+                    params[key] = {"type": "lowpass_2p", "cutoff": 20000.0, "resonance": 0.0}
+                elif key == "pitch_envelope":
+                    params[key] = {"attack": 0.0, "decay": 0.0, "sustain": 0.0, "release": 0.0}
+                elif key == "lfo":
+                    params[key] = {"speed": 1.0, "depth": 0.0, "waveform": "triangle"}
+                elif key == "portamento":
+                    params[key] = {"time": 0.0, "mode": "linear"}
+                elif key == "xg_params":
+                    params[key] = self._get_default_xg_program_parameters(program, bank)["xg_params"]
+                elif key == "partials":
+                    params[key] = [{"partial_id": 0, "amplitude": 1.0, "pan": 0.0}]
+
+        return params
 
     def get_drum_parameters(self, note: int, program: int = 0, bank: int = 128) -> Optional[Dict[str, Any]]:
         """

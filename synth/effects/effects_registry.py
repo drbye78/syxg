@@ -628,10 +628,38 @@ class XGEffectFactory:
         max_ir_length = 44100 * 2  # 2 seconds max at 44.1kHz
         return XGSystemReverbProcessor(self.sample_rate, max_ir_length)
 
-    def _create_system_chorus(self, **params) -> XGSystemChorusProcessor:
-        """Create system chorus processor with XG defaults."""
-        max_delay_samples = int(0.05 * self.sample_rate)  # 50ms max delay
-        return XGSystemChorusProcessor(self.sample_rate, max_delay_samples)
+    def _create_system_chorus(self, **params) -> Optional[XGSystemChorusProcessor]:
+        """
+        Create system chorus processor with XG-compliant parameters.
+
+        Args:
+            **params: XG chorus parameters (rate, depth, feedback, delay, level)
+
+        Returns:
+            Configured XGSystemChorusProcessor or None if creation failed
+        """
+        try:
+            max_delay_samples = int(0.05 * self.sample_rate)  # 50ms max delay
+            processor = XGSystemChorusProcessor(self.sample_rate, max_delay_samples)
+
+            # Apply XG default parameters if not specified
+            chorus_params = {
+                'rate': params.get('rate', 1.0),  # 1 Hz default
+                'depth': params.get('depth', 0.5),  # 50% depth
+                'feedback': params.get('feedback', 0.3),  # 30% feedback
+                'delay': params.get('delay', 0.012),  # 12ms delay
+                'level': params.get('level', 0.4),  # 40% level
+            }
+
+            # Configure processor with parameters
+            if hasattr(processor, 'set_parameters'):
+                processor.set_parameters(chorus_params)
+
+            return processor
+
+        except Exception as e:
+            print(f"Failed to create system chorus processor: {e}")
+            return None
 
 
 class XGParameterManager:

@@ -337,40 +337,83 @@ class VoiceManager:
 
     def allocate_voice(self, note: int, velocity: int, channel_note: ChannelNote,
                       priority: int = VoicePriority.NORMAL) -> Optional[int]:
+        """
+        Allocate a voice with comprehensive voice management.
+
+        This method implements production-grade voice allocation with:
+        - Polyphony limit enforcement
+        - Voice stealing based on allocation mode
+        - Monophonic mode handling
+        - Proper voice lifecycle management
+
+        Args:
+            note: MIDI note number (0-127)
+            velocity: Note velocity (0-127)
+            channel_note: Associated ChannelNote object
+            priority: Voice priority level
+
+        Returns:
+            Allocated note number or None if allocation failed
+        """
         import time
         alloc_start = time.perf_counter()
-        """Allocate a voice, potentially stealing an existing one"""
+
+        # Validate input parameters
+        if not (0 <= note <= 127) or not (0 <= velocity <= 127):
+            return None
+
         if not self.can_allocate_voice(note, velocity, priority):
             return None
 
-        # Handle mono modes - clear all existing voices
+        # Handle monophonic modes - clear all existing voices
         if self.voice_allocation_mode in [3, 4, 5]:  # Monophonic modes
-            for voice_note in list(self.active_voices.keys()):
-                self.deallocate_voice(voice_note)
+            self._clear_monophonic_voices()
 
-        # If at polyphony limit, steal a voice
+        # If at polyphony limit, attempt voice stealing
         elif len(self.active_voices) >= self.polyphony_limit:
             stolen_note = self._steal_voice(note, velocity, priority)
             if stolen_note is None:
+                # Voice stealing failed - cannot allocate
                 return None
 
         # Allocate new voice from pool (ULTRA-FAST)
-        voice_info = self.voice_pool.acquire_voice_info(note, velocity, channel_note, priority)
-        self.active_voices[note] = voice_info
+        try:
+            voice_info = self.voice_pool.acquire_voice_info(note, velocity, channel_note, priority)
+            self.active_voices[note] = voice_info
+        except Exception as e:
+            print(f"[VOICE] Failed to allocate voice info for note {note}: {e}")
+            return None
 
+        # Performance monitoring
         duration = time.perf_counter() - alloc_start
-        if duration > 0.001:
-            print(f"[VOICE] Allocation took {duration*1000:.2f}ms for note {note}")
+        if duration > 0.001:  # Log slow allocations (>1ms)
+            print(f"[VOICE] Slow allocation: {duration*1000:.2f}ms for note {note}")
 
         return note
 
     def _steal_voice(self, new_note: int, new_velocity: int, new_priority: int) -> Optional[int]:
-        """Steal a voice using the current allocation strategy"""
+        """
+        Steal a voice using the configured allocation strategy.
+
+        Implements different voice stealing algorithms based on allocation mode:
+        - Mode 1: Priority-based stealing
+        - Mode 2: Advanced XG-compliant stealing
+
+        Args:
+            new_note: Note number for the new voice
+            new_velocity: Velocity for the new voice
+            new_priority: Priority for the new voice
+
+        Returns:
+            Note number of stolen voice, or None if no voice could be stolen
+        """
         if self.voice_allocation_mode == 1:  # Priority-based
             return self._steal_by_priority(new_note, new_velocity, new_priority)
-        elif self.voice_allocation_mode == 2:  # Advanced
+        elif self.voice_allocation_mode == 2:  # Advanced XG
             return self._steal_by_advanced_criteria(new_note, new_velocity, new_priority)
-        return None
+        else:
+            # Mode 0 (Basic) doesn't support stealing
+            return None
 
     def _steal_by_priority(self, new_note: int, new_velocity: int, new_priority: int) -> Optional[int]:
         """Steal voice with lowest priority score"""

@@ -120,7 +120,7 @@ class SynthesisEngine(ABC):
         """
         pass
 
-    def create_region(self, region_params: Dict[str, Any], sample_rate: int) -> 'Region':
+    def create_region(self, region_params: Dict[str, Any], sample_rate: int) -> Optional['Region']:
         """
         Create a region instance for this engine.
 
@@ -129,10 +129,10 @@ class SynthesisEngine(ABC):
             sample_rate: Audio sample rate
 
         Returns:
-            Region instance configured for this engine
+            Region instance configured for this engine, or None if regions not supported
         """
-        # Default implementation - engines should override for region support
-        raise NotImplementedError(f"{self.__class__.__name__} does not support regions")
+        # Default implementation returns None - engines should override for region support
+        return None
 
     def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> List['Region']:
         """
@@ -407,3 +407,4 @@ class SynthesisEngineRegistry:
 
 # Import here to avoid circular imports
 from ..partial.partial import SynthesisPartial
+from ..partial.region import Region

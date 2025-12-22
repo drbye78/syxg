@@ -21,7 +21,7 @@ class BinaryMIDIParser:
 
     def __init__(self):
         """Initialize the binary MIDI parser."""
-        pass
+        self.last_status = 0x00  # For running status support
 
     def parse_message(self, message_bytes: bytes, timestamp: float = 0.0) -> Optional[MIDIMessage]:
         """
@@ -34,14 +34,31 @@ class BinaryMIDIParser:
         Returns:
             MIDIMessage object or None if invalid message
         """
-        if len(message_bytes) < 2:
+        if not message_bytes:
             return None
+
+        # Handle running status
+        if message_bytes[0] < 0x80:
+            # This is a data byte, use running status
+            if self.last_status == 0x00:
+                return None  # No previous status to use
+            # Prepend the last status byte
+            message_bytes = bytes([self.last_status]) + message_bytes
 
         status_byte = message_bytes[0]
 
-        # Handle running status (not implemented yet - assume status byte present)
-        if status_byte < 0x80:
-            return None  # Invalid message
+        # Update running status for channel messages (not system messages)
+        if status_byte >= 0x80 and status_byte < 0xF0:
+            self.last_status = status_byte
+
+        # System Real-Time messages (0xF8-0xFF) don't affect running status
+        # System Common messages (0xF0-0xF7) reset running status
+        if status_byte >= 0xF0:
+            if status_byte < 0xF8:  # System Common (resets running status)
+                self.last_status = 0x00
+
+        if len(message_bytes) < 2:
+            return None
 
         message_type = status_byte >> 4
         channel = status_byte & 0x0F

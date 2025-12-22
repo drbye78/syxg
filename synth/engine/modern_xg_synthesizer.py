@@ -296,6 +296,16 @@ class ModernXGSynthesizer:
         spectral_engine = SpectralEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(spectral_engine, 'spectral', priority=3)  # Advanced priority
 
+        # Convolution Reverb Engine for high-quality spatial processing
+        from .convolution_reverb_engine import ConvolutionReverbEngine
+        convolution_reverb_engine = ConvolutionReverbEngine(sample_rate=self.sample_rate, block_size=1024)
+        self.engine_registry.register_engine(convolution_reverb_engine, 'convolution_reverb', priority=1)  # Effect priority
+
+        # Advanced Physical Modeling Engine for realistic acoustic simulation
+        from .advanced_physical_engine import AdvancedPhysicalEngine
+        physical_engine = AdvancedPhysicalEngine(sample_rate=self.sample_rate, block_size=1024)
+        self.engine_registry.register_engine(physical_engine, 'advanced_physical', priority=5)  # Physical modeling priority
+
         # Voice factory
         from ..voice.voice_factory import VoiceFactory
         self.voice_factory = VoiceFactory(self.engine_registry)

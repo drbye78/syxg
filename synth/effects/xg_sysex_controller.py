@@ -100,8 +100,12 @@ class XGSYSEXController:
         command_data = data[4:] if len(data) > 4 else []
 
         # Find and execute handler
-        if command in self.sysex_handlers:
-            return self.sysex_handlers[command](command_data)
+        try:
+            cmd_enum = XGSYSEXCommand(command)
+            if cmd_enum in self.sysex_handlers:
+                return self.sysex_handlers[cmd_enum](command_data)
+        except ValueError:
+            pass  # Invalid command, continue to unknown command message
 
         # Unknown command
         print(f"XG SYSEX: Unknown command 0x{command:02X}")
@@ -446,19 +450,145 @@ class XGSYSEXController:
         message = [0xF0, 0x43, self.device_id, 0x4C, command] + data + [0xF7]
         return message
 
-    # ===== STUB METHODS (for future expansion) =====
+    # ===== IMPLEMENTED SYSEX EFFECT CONTROL METHODS =====
 
     def _handle_effect_enable_disable(self, data: List[int]) -> Optional[List[int]]:
-        """Handle effect enable/disable commands."""
-        print("XG SYSEX: Effect enable/disable not implemented")
+        """
+        Handle effect enable/disable commands (F0 43 [dev] 4C 10 00 [data] F7).
+
+        Format: [command] [effect_unit] [enable_flag]
+        - command: 0x00 (enable/disable)
+        - effect_unit: 0-9 (XG effect units CC 200-209)
+        - enable_flag: 0=disable, 1=enable
+        """
+        if len(data) < 3:
+            return None
+
+        command = data[0]
+        effect_unit = data[1]
+        enable_flag = data[2]
+
+        if command != 0x00:
+            return None
+
+        if 0 <= effect_unit <= 9:
+            enabled = (enable_flag != 0)
+            if self.coordinator.set_effect_unit_activation(effect_unit, enabled):
+                print(f"XG SYSEX: Effect unit {effect_unit} {'enabled' if enabled else 'disabled'}")
+                return None
+
+        print(f"XG SYSEX: Invalid effect unit {effect_unit} or enable flag {enable_flag}")
         return None
 
     def _handle_effect_chain_config(self, data: List[int]) -> Optional[List[int]]:
-        """Handle effect chain configuration."""
-        print("XG SYSEX: Effect chain configuration not implemented")
+        """
+        Handle effect chain configuration (F0 43 [dev] 4C 10 01 [data] F7).
+
+        Format: [command] [chain_type] [param_count] [params...]
+        - command: 0x01 (chain config)
+        - chain_type: 0=insertion, 1=variation, 2=system
+        - param_count: number of parameters
+        - params: parameter data
+        """
+        if len(data) < 3:
+            return None
+
+        command = data[0]
+        chain_type = data[1]
+        param_count = data[2]
+
+        if command != 0x01 or len(data) < 3 + param_count:
+            return None
+
+        params = data[3:3 + param_count]
+
+        if chain_type == 0:  # Insertion chain
+            # Configure insertion effect routing
+            if len(params) >= 2:
+                channel = params[0]
+                effect_type = params[1]
+                if self.coordinator.set_channel_insertion_effect(channel, 0, effect_type):
+                    print(f"XG SYSEX: Set insertion effect for channel {channel} to type {effect_type}")
+                    return None
+
+        elif chain_type == 1:  # Variation chain
+            # Configure variation effect type
+            if len(params) >= 1:
+                variation_type = params[0]
+                if self.coordinator.set_variation_effect_type(variation_type):
+                    print(f"XG SYSEX: Set variation effect to type {variation_type}")
+                    return None
+
+        elif chain_type == 2:  # System chain
+            # Configure system effect parameters
+            if len(params) >= 3:
+                effect_type = params[0]  # 0=reverb, 1=chorus
+                param_id = params[1]
+                param_value = params[2]
+
+                effect_name = 'reverb' if effect_type == 0 else 'chorus'
+                param_names = {
+                    0: ('reverb', 'type') if effect_type == 0 else ('chorus', 'type'),
+                    1: ('reverb', 'time') if effect_type == 0 else ('chorus', 'rate'),
+                    2: ('reverb', 'level') if effect_type == 0 else ('chorus', 'depth'),
+                    3: ('reverb', 'hf_damping') if effect_type == 0 else ('chorus', 'feedback'),
+                }
+
+                if param_id in param_names:
+                    effect, param = param_names[param_id]
+                    if self.coordinator.set_system_effect_parameter(effect, param, param_value):
+                        print(f"XG SYSEX: Set {effect} {param} to {param_value}")
+                        return None
+
+        print(f"XG SYSEX: Unknown chain configuration type {chain_type}")
         return None
 
     def _handle_global_effect_settings(self, data: List[int]) -> Optional[List[int]]:
-        """Handle global effect settings."""
-        print("XG SYSEX: Global effect settings not implemented")
+        """
+        Handle global effect settings (F0 43 [dev] 4C 10 02 [data] F7).
+
+        Format: [command] [setting_type] [value_msb] [value_lsb]
+        - command: 0x02 (global settings)
+        - setting_type: 0=master level, 1=wet/dry mix, 2=processing enable
+        - value: 14-bit parameter value
+        """
+        if len(data) < 4:
+            return None
+
+        command = data[0]
+        setting_type = data[1]
+        value_msb = data[2]
+        value_lsb = data[3]
+        value_14bit = (value_msb << 7) | value_lsb
+        value_norm = value_14bit / 16383.0  # Normalize to 0.0-1.0
+
+        if command != 0x02:
+            return None
+
+        if setting_type == 0:  # Master level
+            master_level = value_norm * 2.0  # 0-2.0 range
+            if self.coordinator.set_master_controls(level=master_level):
+                print(f"XG SYSEX: Set master level to {master_level:.2f}")
+                return None
+
+        elif setting_type == 1:  # Wet/dry mix
+            wet_dry_mix = value_norm
+            if self.coordinator.set_master_controls(wet_dry=wet_dry_mix):
+                print(f"XG SYSEX: Set wet/dry mix to {wet_dry_mix:.2f}")
+                return None
+
+        elif setting_type == 2:  # Processing enable/disable
+            enabled = (value_14bit > 0)
+            # Note: Coordinator doesn't have a direct enable/disable method
+            # This would need to be implemented at a higher level
+            print(f"XG SYSEX: Processing {'enabled' if enabled else 'disabled'} (not yet implemented)")
+            return None
+
+        elif setting_type == 3:  # Master EQ type
+            eq_type = min(4, int(value_norm * 5))  # 0-4 range
+            if self.coordinator.set_master_eq_type(eq_type):
+                print(f"XG SYSEX: Set master EQ type to {eq_type}")
+                return None
+
+        print(f"XG SYSEX: Unknown global setting type {setting_type}")
         return None

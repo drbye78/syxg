@@ -9,6 +9,11 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
 
+# Import core synthesis components
+from ..core.envelope import UltraFastADSREnvelope
+from ..core.filter import UltraFastResonantFilter
+from ..modulation.matrix import ModulationMatrix
+
 
 class Region(ABC):
     """
@@ -115,18 +120,83 @@ class Region(ABC):
 
     def _create_envelope(self, env_type: str, params: Dict[str, float]):
         """Create envelope for this region"""
-        # Placeholder - will be implemented by subclasses
-        return None
+        try:
+            # Extract envelope parameters
+            delay = params.get('delay', 0.0)
+            attack = params.get('attack', 0.01)
+            hold = params.get('hold', 0.0)
+            decay = params.get('decay', 0.3)
+            sustain = params.get('sustain', 0.7)
+            release = params.get('release', 0.5)
+
+            # Create UltraFastADSREnvelope
+            return UltraFastADSREnvelope(
+                delay=delay,
+                attack=attack,
+                hold=hold,
+                decay=decay,
+                sustain=sustain,
+                release=release,
+                sample_rate=44100  # Default sample rate, can be overridden
+            )
+        except Exception as e:
+            print(f"Failed to create {env_type} envelope: {e}")
+            return None
 
     def _create_filter(self, filter_type: str, cutoff: float, resonance: float):
         """Create filter for this region"""
-        # Placeholder - will be implemented by subclasses
-        return None
+        try:
+            # Map filter type strings to internal types
+            filter_type_map = {
+                'lpf_1p': 'lowpass',
+                'lpf_2p': 'lowpass',
+                'hpf_1p': 'highpass',
+                'hpf_2p': 'highpass',
+                'bpf_2p': 'bandpass',
+                'notch_2p': 'notch_2p',
+                'apf_1p': 'allpass_1p',
+                'peq': 'peaking_eq',
+                'lsh': 'low_shelf',
+                'hsh': 'high_shelf'
+            }
+
+            internal_type = filter_type_map.get(filter_type, 'lowpass')
+
+            # Create UltraFastResonantFilter
+            return UltraFastResonantFilter(
+                cutoff=cutoff,
+                resonance=resonance,
+                filter_type=internal_type,
+                sample_rate=44100  # Default sample rate, can be overridden
+            )
+        except Exception as e:
+            print(f"Failed to create {filter_type} filter: {e}")
+            return None
 
     def _create_modulation_matrix(self):
         """Create modulation matrix for this region"""
-        # Placeholder - will be implemented by subclasses
-        return None
+        try:
+            # Create a basic modulation matrix for this region
+            matrix = ModulationMatrix(num_routes=8)  # Smaller matrix for regions
+
+            # Add default routes based on region's modulation_routes parameter
+            route_index = 0
+            for route in self.modulation_routes:
+                try:
+                    source = route.get('source')
+                    destination = route.get('destination')
+                    amount = route.get('amount', 1.0)
+
+                    if source and destination and route_index < 8:
+                        matrix.set_route(route_index, source, destination, amount)
+                        route_index += 1
+                except Exception as e:
+                    print(f"Failed to add modulation route: {e}")
+
+            return matrix
+        except Exception as e:
+            print(f"Failed to create modulation matrix: {e}")
+            return None
 
     @abstractmethod
     def generate_samples(self, block_size: int, modulation: Dict[str, float]) -> np.ndarray:
@@ -157,9 +227,9 @@ class Region(ABC):
 
         # Trigger envelopes
         if self.amp_env:
-            self.amp_env.note_on()
+            self.amp_env.note_on(velocity, note)
         if self.filter_env:
-            self.filter_env.note_on()
+            self.filter_env.note_on(velocity, note)
 
     def note_off(self) -> None:
         """
@@ -179,8 +249,9 @@ class Region(ABC):
             modulation: Dictionary of modulation parameter updates
         """
         # Update modulation matrix
-        if hasattr(self.modulation_matrix, 'update_sources'):
-            self.modulation_matrix.update_sources(modulation)
+        if self.modulation_matrix:
+            # Process modulation matrix with current sources and note info
+            self.modulation_matrix.process(modulation, self.current_velocity, self.current_note)
 
     def is_active(self) -> bool:
         """
@@ -189,7 +260,13 @@ class Region(ABC):
         Returns:
             True if region is still producing sound
         """
-        return self.active and (self.amp_env is None or not self.amp_env.is_finished())
+        # Check if envelope is still active (not in IDLE state)
+        envelope_active = True
+        if self.amp_env:
+            # Envelope is active if not in IDLE state (0)
+            envelope_active = self.amp_env.state != 0
+
+        return self.active and envelope_active
 
     def should_play_for_note(self, note: int, velocity: int) -> bool:
         """
