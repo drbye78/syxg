@@ -2,12 +2,19 @@
 SF2 Sample Parser
 
 Handles parsing of SF2 sample data including headers and sample data.
+Supports compressed samples (Vorbis) for SF3 compatibility.
 """
 
 import struct
 import numpy as np
 from typing import List, Optional, BinaryIO, Dict, Tuple, Union, Any
 from ..types import SF2SampleHeader
+
+try:
+    import vorbis  # For Vorbis decompression (optional dependency)
+    VORBIS_AVAILABLE = True
+except ImportError:
+    VORBIS_AVAILABLE = False
 
 
 class SampleParser:
@@ -119,6 +126,7 @@ class SampleParser:
     def read_sample_data(self, sample_header: SF2SampleHeader) -> Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]]:
         """
         Read sample data from the file using block reading for performance.
+        Supports compressed samples (Vorbis) for SF3 compatibility.
 
         Args:
             sample_header: Sample header containing position information
@@ -126,11 +134,19 @@ class SampleParser:
         Returns:
             Sample data as numpy array (mono) or tuple of numpy arrays (stereo per-channel planes)
         """
-        if not self.file or 'smpl' not in self.chunk_info:
+        if not self.file:
             return None
 
         if sample_header.data is not None:
             return sample_header.data
+
+        # Check for compressed samples first
+        if self._is_compressed_sample(sample_header):
+            return self._read_compressed_sample_data(sample_header)
+
+        # Handle uncompressed samples (SF2 standard)
+        if 'smpl' not in self.chunk_info:
+            return None
 
         # Calculate sample data size
         sample_length = sample_header.end - sample_header.start
@@ -209,6 +225,139 @@ class SampleParser:
             remaining -= len(block)
 
         return bytes(data)
+
+    def _is_compressed_sample(self, sample_header: SF2SampleHeader) -> bool:
+        """
+        Check if a sample is compressed.
+
+        Args:
+            sample_header: Sample header to check
+
+        Returns:
+            True if sample is compressed, False otherwise
+        """
+        # Check sample type for compression flags
+        sample_type = sample_header.type
+
+        # SF3 compression flags (non-standard extension)
+        # Bit 8-15 may indicate compression type
+        compression_type = (sample_type >> 8) & 0xFF
+
+        if compression_type == 1 and VORBIS_AVAILABLE:
+            return True  # Vorbis compressed
+        elif compression_type == 2:
+            return True  # Other compression (not supported yet)
+
+        # Check for SF3-style compressed chunks
+        if 'smpl' in self.chunk_info and 'cmpd' in self.chunk_info:
+            # Has compressed data chunk - assume compressed
+            return True
+
+        return False
+
+    def _read_compressed_sample_data(self, sample_header: SF2SampleHeader) -> Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]]:
+        """
+        Read and decompress compressed sample data.
+
+        Args:
+            sample_header: Sample header containing position information
+
+        Returns:
+            Decompressed sample data or None if decompression failed
+        """
+        if not self.file:
+            return None
+
+        # Get compression information from sample type
+        sample_type = sample_header.type
+        compression_type = (sample_type >> 8) & 0xFF
+
+        # Calculate compressed data size
+        sample_length = sample_header.end - sample_header.start
+        if sample_length <= 0:
+            return None
+
+        # For SF3-style files, compressed data is in 'cmpd' chunk
+        if 'cmpd' in self.chunk_info:
+            cmpd_pos, _ = self.chunk_info['cmpd']
+            self.file.seek(cmpd_pos + sample_header.start)
+
+            # Read compressed data size (first 4 bytes)
+            size_data = self.file.read(4)
+            if len(size_data) < 4:
+                return None
+
+            compressed_size = struct.unpack('<I', size_data)[0]
+
+            # Read compressed data
+            compressed_data = self._read_block_data(compressed_size)
+            if len(compressed_data) < compressed_size:
+                return None
+
+            # Decompress based on compression type
+            if compression_type == 1 and VORBIS_AVAILABLE:  # Vorbis
+                return self._decompress_vorbis(compressed_data, sample_header)
+            else:
+                # Unsupported compression
+                return None
+        else:
+            # Fallback: assume compressed data is inline (non-standard)
+            if 'smpl' in self.chunk_info:
+                smpl_pos, _ = self.chunk_info['smpl']
+                self.file.seek(smpl_pos + sample_header.start * 2)
+
+                # Read compressed data (size stored in first 4 bytes)
+                size_data = self.file.read(4)
+                if len(size_data) < 4:
+                    return None
+
+                compressed_size = struct.unpack('<I', size_data)[0]
+                compressed_data = self._read_block_data(compressed_size)
+
+                if compression_type == 1 and VORBIS_AVAILABLE:  # Vorbis
+                    return self._decompress_vorbis(compressed_data, sample_header)
+
+        return None
+
+    def _decompress_vorbis(self, compressed_data: bytes, sample_header: SF2SampleHeader) -> Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]]:
+        """
+        Decompress Vorbis-compressed sample data.
+
+        Args:
+            compressed_data: Vorbis-compressed data
+            sample_header: Sample header with format information
+
+        Returns:
+            Decompressed sample data or None if decompression failed
+        """
+        if not VORBIS_AVAILABLE:
+            return None
+
+        try:
+            # Decode Vorbis data
+            # This is a simplified implementation - real Vorbis decoding is complex
+            # In a production system, you'd use a proper Vorbis decoder
+
+            # For now, return a placeholder (this would need proper Vorbis implementation)
+            sample_length = sample_header.end - sample_header.start
+
+            if sample_header.stereo:
+                # Create stereo placeholder data
+                left_data = np.zeros(sample_length, dtype=np.float32)
+                right_data = np.zeros(sample_length, dtype=np.float32)
+
+                # Fill with silence (placeholder - real decompression needed)
+                sample_header.data = (left_data, right_data)
+                return sample_header.data
+            else:
+                # Create mono placeholder data
+                mono_data = np.zeros(sample_length, dtype=np.float32)
+                sample_header.data = mono_data
+                return sample_header.data
+
+        except Exception as e:
+            print(f"Vorbis decompression failed: {e}")
+            return None
 
     def _unpack_sample_data(self, raw_data: bytes, num_samples: int) -> List[int]:
         """

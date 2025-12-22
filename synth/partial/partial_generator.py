@@ -30,9 +30,9 @@ def _numba_generate_waveform_block_stereo_time_varying_numpy(
     loop_mode: int, loop_start: int, loop_end: int, block_size: int, loop_direction: int
 ):
     """
-    NUMBA-COMPILED: Time-varying SIMD waveform generation for stereo NumPy arrays (per-plane format).
+    Numba-compiled time-varying waveform generation for stereo NumPy arrays.
 
-    Processes stereo sample tables (separate left/right arrays) with time-varying pitch modulation.
+    Processes stereo sample tables with time-varying pitch modulation.
     Preserves stereo information from SF2 samples.
 
     Args:
@@ -272,9 +272,9 @@ def _numba_generate_waveform_block_mono_time_varying_numpy(
     loop_mode: int, loop_start: int, loop_end: int, block_size: int, loop_direction: int
 ):
     """
-    NUMBA-COMPILED: Time-varying SIMD waveform generation for mono NumPy arrays.
+    Numba-compiled time-varying waveform generation for mono NumPy arrays.
 
-    Processes mono sample tables (NumPy float32 arrays) with time-varying pitch modulation.
+    Processes mono sample tables with time-varying pitch modulation.
     Supports SF2 loop handling with per-sample pitch modulation.
 
     Args:
@@ -387,7 +387,7 @@ def _numba_apply_envelope_and_modulation(
     crossfade_factor, pan_left, pan_right, block_size
 ):
     """
-    NUMBA-COMPILED: Apply envelope, level, crossfade, and panning in SIMD fashion.
+    Numba-compiled envelope, level, crossfade, and panning application.
 
     Args:
         left_block: Left channel buffer (modified in-place)
@@ -520,7 +520,11 @@ class XGPartialGenerator:
             use_modulation_matrix: Enable XG modulation matrix routing
         """
         self.synth = synth
-        self.wavetable: Optional[WavetableManager] = synth.sf2_manager.get_manager()
+        # Handle case where synth is None (for testing)
+        if synth is not None and hasattr(synth, 'sf2_manager') and synth.sf2_manager is not None:
+            self.wavetable: Optional[WavetableManager] = synth.sf2_manager.get_manager()
+        else:
+            self.wavetable = None
         self.partial_id = partial_id
         self.note = note
         self.velocity = velocity
@@ -606,6 +610,11 @@ class XGPartialGenerator:
         # Filter state for time-varying filter (4 elements: left_z1, left_z2, right_z1, right_z2)
         self.filter_state = np.zeros(4, dtype=np.float32)
 
+        # Initialize modulation cache values
+        self.last_pitch_mod = 0.0
+        self.last_filter_mod = 0.0
+        self.last_amp_mod = 1.0  # Default to 1.0 (no modulation)
+
     def _calculate_antialiasing_cutoff(self) -> float:
         """
         Calculate the appropriate antialiasing filter cutoff for the current note.
@@ -689,6 +698,15 @@ class XGPartialGenerator:
         self.last_pitch_mod = 0.0
         self.last_filter_mod = 0.0
         self.last_amp_mod = 1.0  # Default to 1.0 (no modulation)
+
+        # Base values for modulation
+        self.base_velocity_crossfade = 0.0
+        self.base_note_crossfade = 0.0
+        self.base_stereo_width = 1.0
+        self.base_pan = self.pan  # Store original pan for modulation
+
+        # Initialize work buffer for modulation processing
+        self.work_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
 
     def _update_loop_parameters(self):
         """Pre-calculate optimized loop parameters for performance."""

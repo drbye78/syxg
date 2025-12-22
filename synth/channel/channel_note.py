@@ -17,7 +17,8 @@ from synth.sf2.core.wavetable_manager import WavetableManager
 from ..core.oscillator import XGLFO  # For note-level LFOs
 from ..core.envelope import ADSREnvelope  # For note-level envelopes
 from ..modulation.matrix import ModulationMatrix
-from .partial_generator import XGPartialGenerator  # XG-compliant partial generator
+# Import XGPartialGenerator dynamically to avoid circular imports
+import importlib
 
 
 class PartialGeneratorPool:
@@ -58,7 +59,7 @@ class PartialGeneratorPool:
         sample_rate: int = 44100,
         bank: int = 0,
         use_modulation_matrix: bool = False,
-    ) -> XGPartialGenerator:
+    ):
         """
         Acquire a partial generator from the pool or create new one.
 
@@ -102,6 +103,10 @@ class PartialGeneratorPool:
             self._stats["pool_misses"] += 1
             self._stats["created"] += 1
 
+            # Dynamic import to avoid circular import
+            partial_generator_module = importlib.import_module('synth.partial.partial_generator')
+            XGPartialGenerator = partial_generator_module.XGPartialGenerator
+
             return XGPartialGenerator(
                 synth=synth,
                 note=note,
@@ -115,7 +120,7 @@ class PartialGeneratorPool:
                 use_modulation_matrix=use_modulation_matrix,
             )
 
-    def release(self, partial: XGPartialGenerator) -> None:
+    def release(self, partial) -> None:
         """
         Return a partial generator to the pool for reuse.
 
@@ -254,7 +259,7 @@ class ChannelNote:
         self.combined_lfos = self.channel_lfos + self.note_lfos
 
         # Initialize partials
-        self.partials: List[XGPartialGenerator] = []
+        self.partials = []
         self._setup_partials()
 
         # If still no active partials, mark as inactive
@@ -754,7 +759,7 @@ class ChannelNote:
                 self._apply_note_phaser(left_buffer, right_buffer, block_size)
 
     def _calculate_correct_volume_scale(
-        self, volume_cc: int, expression_cc: int, active_partials: int
+        self, volume_cc: float, expression_cc: float, active_partials: int
     ) -> float:
         """
         Calculate correct volume scaling to fix inaudible output.

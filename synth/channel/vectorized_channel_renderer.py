@@ -6,7 +6,7 @@ Supports XG specification features including voice allocation, modulation, and e
 """
 
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import math
 
 # Import internal modules
@@ -14,8 +14,9 @@ from ..core.constants import DEFAULT_CONFIG
 from ..engine.optimized_coefficient_manager import get_global_coefficient_manager
 from ..core.oscillator import XGLFO  # XG-compliant LFO
 from ..modulation.vectorized_matrix import VectorizedModulationMatrix
-from .partial_generator import XGPartialGenerator
-from ..voice.voice_manager import VoiceManager
+from ..partial.partial_generator import XGPartialGenerator
+# Import VoiceManager dynamically to avoid circular imports
+import importlib
 from ..voice.voice_priority import VoicePriority
 from .channel_note import ChannelNote
 
@@ -55,7 +56,9 @@ class VectorizedChannelRenderer:
         self.bank = 0
         self.is_drum = False  # Default to melodic mode
 
-        # XG voice management system
+        # XG voice management system (dynamic import to avoid circular imports)
+        voice_manager_module = importlib.import_module('synth.voice.voice_manager')
+        VoiceManager = voice_manager_module.VoiceManager
         self.voice_manager = VoiceManager(synth.max_polyphony)
         self.polyphony_limit = synth.max_polyphony
 

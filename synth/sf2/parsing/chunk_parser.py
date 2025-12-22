@@ -25,10 +25,10 @@ class ChunkParser:
 
     def parse_file_header(self) -> bool:
         """
-        Parse the RIFF header of the SF2 file.
+        Parse the RIFF header of the SF2/SF3 file.
 
         Returns:
-            True if valid SF2 file, False otherwise
+            True if valid SF2/SF3 file, False otherwise
         """
         try:
             # Read RIFF header
@@ -40,11 +40,21 @@ class ChunkParser:
             file_size = struct.unpack('<I', header[4:8])[0]
             form_type = header[8:12]
 
-            # Check for valid SF2 format
-            if riff_id != b'RIFF' or form_type != b'sfbk':
+            # Check for valid SF2/SF3 format
+            if riff_id != b'RIFF':
                 return False
 
-            return True
+            # SF2 standard format
+            if form_type == b'sfbk':
+                self.file_format = 'sf2'
+                return True
+            # SF3 compressed format (non-standard extension)
+            elif form_type == b'sf3k':
+                self.file_format = 'sf3'
+                return True
+            else:
+                return False
+
         except Exception:
             return False
 

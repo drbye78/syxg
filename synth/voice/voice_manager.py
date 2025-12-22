@@ -22,7 +22,7 @@ from collections import deque
 import threading
 from .voice_priority import VoicePriority
 from .voice_info import VoiceInfo
-from ..xg.channel_note import ChannelNote
+from ..channel.channel_note import ChannelNote
 
 
 class VoiceInfoPool:

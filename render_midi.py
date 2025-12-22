@@ -23,11 +23,10 @@ import time
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from synth.audio.writer import AudioWriter
+from synth.audio.converter import AudioConverter
+from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
 from synth.engine.optimized_xg_synthesizer import OptimizedXGSynthesizer
-from synth.midi.parser import MIDIParser, MIDIMessage
-from synth.xgml import XGMLParser, XGMLToMIDITranslator
 from synth.utils.keyboard import KeyboardListener
-from synth.utils.progress import ProgressReporter
 
 
 def parse_arguments():
@@ -67,6 +66,10 @@ Examples:
     parser.add_argument("--format", choices=list(AudioWriter.SUPPORTED_FORMATS.keys()), default="ogg", help="Output audio format")
     parser.add_argument("--render-log-level", type=int, choices=[0, 1, 2], default=0,
                        help="Audio rendering logging level: 0=no logging, 1=log combined channel audio before effects, 2=log each channel renderer output")
+    parser.add_argument("--architecture", choices=["legacy", "voice"], default="legacy",
+                       help="Synthesizer architecture: legacy=existing XG implementation, voice=new Voice-based architecture")
+    parser.add_argument("--synth", choices=["modern", "optimized"], default="modern",
+                       help="XG synthesizer engine: modern=ModernXGSynthesizer, optimized=OptimizedXGSynthesizer")
 
     return parser.parse_args()
 
@@ -180,190 +183,6 @@ def get_output_path(input_file: str, output: Optional[str], format: str, multipl
             return str(output_path.with_suffix(f".{format}"))
 
 
-def parse_audio_file(file_path: str) -> Tuple[Optional[List[MIDIMessage]], Optional[float]]:
-    """
-    Parse audio file (MIDI or XGML) and return MIDI messages and duration.
-
-    Args:
-        file_path: Path to audio file (MIDI or XGML)
-
-    Returns:
-        Tuple of (midi_messages, duration_seconds) or (None, None) on error
-    """
-    file_ext = file_path.lower().split('.')[-1]
-
-    if file_ext in ['mid', 'midi']:
-        # Parse as MIDI file
-        try:
-            parser = MIDIParser(file_path)
-            total_duration_seconds = parser.get_total_duration()
-            all_messages = parser.get_all_messages()
-            return all_messages, total_duration_seconds
-        except Exception as e:
-            print(f"Error parsing MIDI file {file_path}: {e}")
-            return None, None
-
-    elif file_ext in ['xgml', 'yaml', 'yml'] or file_path.lower().endswith(('.xgml', '.yaml', '.yml')):
-        # Parse as XGML file
-        try:
-            # Parse XGML
-            parser = XGMLParser()
-            document = parser.parse_file(file_path)
-
-            if document is None:
-                if not parser.has_errors():
-                    print(f"Warning: No XGML content found in {file_path}")
-                else:
-                    print(f"Error parsing XGML {file_path}:")
-                    for error in parser.get_errors():
-                        print(f"  - {error}")
-                return None, None
-
-            if parser.has_warnings():
-                print(f"XGML warnings in {file_path}:")
-                for warning in parser.get_warnings():
-                    print(f"  - {warning}")
-
-            # Translate to MIDI
-            translator = XGMLToMIDITranslator()
-            midi_messages = translator.translate_document(document)
-
-            if translator.has_errors():
-                print(f"XGML translation errors in {file_path}:")
-                for error in translator.get_errors():
-                    print(f"  - {error}")
-                return None, None
-
-            if translator.has_warnings():
-                print(f"XGML translation warnings in {file_path}:")
-                for warning in translator.get_warnings():
-                    print(f"  - {warning}")
-
-            # Calculate duration from sequences
-            duration = 0.0
-            sequences = document.get_section('sequences')
-            if sequences:
-                for seq_name, seq_data in sequences.items():
-                    # Check for explicit duration or calculate from events
-                    if 'duration' in seq_data:
-                        duration = max(duration, seq_data['duration'])
-                    else:
-                        # Calculate from last event time
-                        for track in seq_data.get('tracks', []):
-                            for event in track.get('events', []):
-                                if 'at' in event:
-                                    event_time = event['at'].get('time', 0)
-                                    if isinstance(event_time, (int, float)):
-                                        duration = max(duration, float(event_time))
-
-            # Minimum duration fallback
-            if duration == 0.0:
-                duration = 10.0  # Default 10 seconds
-
-            return midi_messages, duration
-
-        except Exception as e:
-            print(f"Error processing XGML file {file_path}: {e}")
-            return None, None
-
-    else:
-        print(f"Unsupported file format: {file_path}")
-        return None, None
-
-
-def convert_audio_to_audio_buffered(
-    input_file: str,
-    output_file: str,
-    synthesizer: OptimizedXGSynthesizer,
-    audio_writer: AudioWriter,
-    format: str,
-    tempo: float = 1.0,
-    volume: float = 0.8,
-    silent: bool = False,
-    render_limit: Optional[float] = None,
-    abort_event: Optional[threading.Event] = None,
-    timeout_seconds: Optional[float] = None
-) -> bool:
-    """Convert a single audio file (MIDI or XGML) to audio using buffered processing mode."""
-    try:
-        if not silent:
-            print(f"Converting {input_file} -> {output_file}")
-
-        # Parse input file (MIDI or XGML)
-        midi_messages, duration = parse_audio_file(input_file)
-
-        if midi_messages is None or duration is None:
-            return False
-
-        file_type = "XGML" if input_file.lower().endswith(('.xgml', '.yaml', '.yml')) else "MIDI"
-        if not silent:
-            print(f"{file_type} parsed: {len(midi_messages)} MIDI messages, duration: {duration:.2f} seconds")
-
-        synthesizer.reset()
-
-        # Apply tempo scaling if needed (only affects MIDI timing)
-        if tempo == 1.0:
-            synthesizer.send_midi_message_block(midi_messages)
-        else:
-            scaled_messages = [msg.with_tempo(tempo) for msg in midi_messages if hasattr(msg, 'with_tempo')]
-            synthesizer.send_midi_message_block(scaled_messages)
-
-        # For XGML files, we don't adjust start time as sequences are already properly timed
-        if file_type == "MIDI":
-            # Find first note-on time for MIDI files
-            first_note_time = None
-            for msg in midi_messages:
-                if msg.type == 'note_on' and msg.time is not None:
-                    if first_note_time is None or msg.time < first_note_time:
-                        first_note_time = msg.time
-                    break
-            if first_note_time:
-                synthesizer.set_current_time(first_note_time / tempo)
-
-        # Create audio writer
-        writer = audio_writer.create_writer(output_file, format)
-
-        # Set synthesizer volume
-        synthesizer.set_master_volume(volume)
-
-        # Initialize progress reporter
-        adjusted_duration = duration / tempo if file_type == "MIDI" and tempo != 1.0 else (duration if not render_limit else min(duration, render_limit))
-        progress_reporter = ProgressReporter(silent=silent)
-        progress_reporter.start(adjusted_duration)
-        abort_at = time.time() + timeout_seconds if timeout_seconds else None
-
-        # Buffer processing
-        with writer:
-            while synthesizer.get_current_time() < adjusted_duration:
-                # Check for abort signal
-                if abort_event and abort_event.is_set():
-                    if not silent:
-                        print("\nConversion aborted by user.")
-                    return False
-
-                # Check for timeout
-                if abort_at and time.time() > abort_at:
-                    if not silent:
-                        print(f"\nConversion timed out after {timeout_seconds} seconds.")
-                    return True
-
-                out_buffer = synthesizer.generate_audio_block()
-                writer.write(out_buffer)
-
-                # Update progress
-                progress_reporter.progress(synthesizer.get_current_time())
-
-        # Finalize audio logging after conversion is complete
-        synthesizer.finalize_audio_logging()
-
-        if not silent:
-            print(f"Conversion complete: {output_file}")
-
-        return True
-
-    except Exception as e:
-        print(f"Error converting {input_file}: {e}")
-        return False
 
 
 def main():
@@ -381,6 +200,8 @@ def main():
     max_polyphony = args.max_polyphony or config.get("polyphony", 64)
     master_volume = args.master_volume or config.get("volume", 0.8)
     sf2_files = args.sf2_files or config.get("sf2_files", [])
+    architecture = args.architecture
+    synth_choice = args.synth
 
     format = args.format
     tempo = args.tempo
@@ -404,15 +225,39 @@ def main():
 
     # Initialize synthesizer
     synth_start = time.time()
-    synthesizer = OptimizedXGSynthesizer(
-        sample_rate=sample_rate,
-        max_polyphony=max_polyphony,
-        sf2_files=sf2_files,
-        render_log_level=render_log_level
-    )
+
+    if synth_choice == "optimized":
+        # Calculate block size for OptimizedXGSynthesizer
+        block_size = int(sample_rate * chunk_size_ms / 1000)
+        synthesizer = OptimizedXGSynthesizer(
+            sample_rate=sample_rate,
+            max_polyphony=max_polyphony,
+            block_size=block_size,
+            sf2_files=sf2_files if sf2_files else None,
+            render_log_level=render_log_level,
+            architecture=architecture
+        )
+        if not silent:
+            print(f"Using OptimizedXGSynthesizer engine")
+    else:  # modern
+        synthesizer = ModernXGSynthesizer(
+            sample_rate=sample_rate,
+            max_channels=max_polyphony,  # ModernXGSynthesizer uses max_channels instead of max_polyphony
+            xg_enabled=True,
+            device_id=0x10
+        )
+        # Load SoundFonts if provided
+        if sf2_files:
+            for sf2_file in sf2_files:
+                synthesizer.load_soundfont(sf2_file)
+        if not silent:
+            print(f"Using ModernXGSynthesizer engine")
 
     # Initialize audio writer
     audio_writer = AudioWriter(sample_rate, chunk_size_ms)
+
+    # Initialize audio converter
+    converter = AudioConverter(synthesizer, audio_writer)
 
     # Ensure output directory exists if needed
     if args.output:
@@ -453,11 +298,9 @@ def main():
 
             output_file = get_output_path(input_file, args.output, format, multiple_files)
 
-            if convert_audio_to_audio_buffered(
+            if converter.convert_audio_to_audio_buffered(
                 input_file=input_file,
                 output_file=output_file,
-                synthesizer=synthesizer,
-                audio_writer=audio_writer,
                 format=format,
                 tempo=tempo,
                 volume=master_volume,

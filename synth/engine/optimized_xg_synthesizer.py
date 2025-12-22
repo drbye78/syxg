@@ -32,7 +32,7 @@ from synth.core.filter import FilterPool
 from synth.core.oscillator import OscillatorPool
 from synth.core.panner import PannerPool
 from synth.core.buffer_pool import XGBufferPool
-from synth.xg.vectorized_channel_renderer import VectorizedChannelRenderer
+from synth.channel.vectorized_channel_renderer import VectorizedChannelRenderer
 
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -44,7 +44,7 @@ from .optimized_coefficient_manager import (
 )
 from ..sf2.manager import SF2Manager
 from ..xg.drum_manager import DrumManager
-from ..xg.channel_note import PartialGeneratorPool
+from ..channel.channel_note import PartialGeneratorPool
 from ..xg.xg_receive_channel_manager import XGReceiveChannelManager
 from ..xg.xg_rpn_controller import XGRPNController
 from ..midi.parser import MIDIMessage
@@ -62,12 +62,12 @@ MSG_TYPE_SYSEX = "sysex"
 from ..audio.writer import AudioWriter
 
 # XG Effects System Integration - Production-Ready Effects Coordinator
-from ..fx import (
+from ..effects import (
     XGEffectsCoordinator,          # Main coordinator (production-ready)
     XGReverbType, XGChorusType, XGVariationType,  # Core XG types
 )
-from ..fx.xg_nrpn_controller import XGNRPNController
-from ..fx.xg_sysex_controller import XGSYSEXController
+from ..effects.xg_nrpn_controller import XGNRPNController
+from ..effects.xg_sysex_controller import XGSYSEXController
 
 
 class OptimizedXGSynthesizer:
@@ -106,6 +106,7 @@ class OptimizedXGSynthesizer:
         memory_pool_mono_multiplier: int = 4,
         minimum_time_slice: float = 0.002,  # Configurable timing parameters
         sysex_response_callback: Optional[Callable] = None,  # Callback for SYSEX responses
+        architecture: str = "legacy",  # "legacy" or "voice" - NEW: Architecture selection
     ):
         """
         Initialize optimized XG synthesizer with performance enhancements.
@@ -127,6 +128,7 @@ class OptimizedXGSynthesizer:
         self.render_log_level = render_log_level
         self.voice_allocation_mode = voice_allocation_mode
         self.sysex_response_callback = sysex_response_callback
+        self.architecture = architecture  # NEW: Architecture selection
 
         # Thread safety lock
         self.lock = threading.RLock()
@@ -157,7 +159,8 @@ class OptimizedXGSynthesizer:
             self.sf2_manager.set_sf2_files(sf2_files)
 
         # Per-channel renderers owned by synthesizer (one per MIDI channel)
-        self.channel_renderers: List[VectorizedChannelRenderer] = []
+        # Can be VectorizedChannelRenderer (legacy) or Channel (voice)
+        self.channel_renderers: List[Any] = []
         self._create_channel_renderers()
 
         # NEW XG Effects System - Zero-allocation, XG-compliant effects coordinator
@@ -218,12 +221,34 @@ class OptimizedXGSynthesizer:
         self.channel_renderers = [None] * self.num_channels
         self.channel_buffers = [None] * self.num_channels
 
-        for channel in range(self.num_channels):
-            # Create renderer with synthesizer-owned resources
-            renderer = VectorizedChannelRenderer(channel=channel, synth=self)
-            # Set voice allocation mode from synthesizer parameter
-            renderer.voice_manager.set_allocation_mode(self.voice_allocation_mode)
-            self.channel_renderers[channel] = renderer
+        # NEW: Architecture selection
+        if self.architecture == "voice":
+            # Use new Voice architecture
+            from ..voice.voice_factory import VoiceFactory
+            from ..engine.synthesis_engine import SynthesisEngineRegistry
+
+            # Initialize voice architecture components
+            self.engine_registry = SynthesisEngineRegistry()
+            from .sf2_engine import SF2Engine
+            sf2_engine = SF2Engine()
+            self.engine_registry.register_engine(sf2_engine)
+
+            self.voice_factory = VoiceFactory(self.engine_registry)
+
+            for channel in range(self.num_channels):
+                # Create Voice-based channel
+                from ..channel.channel import Channel
+                voice_channel = Channel(channel, self.voice_factory, self.sample_rate)
+                self.channel_renderers[channel] = voice_channel
+
+        else:  # legacy architecture
+            # Use existing legacy architecture
+            for channel in range(self.num_channels):
+                # Create renderer with synthesizer-owned resources
+                renderer = VectorizedChannelRenderer(channel=channel, synth=self)
+                # Set voice allocation mode from synthesizer parameter
+                renderer.voice_manager.set_allocation_mode(self.voice_allocation_mode)
+                self.channel_renderers[channel] = renderer
 
     def _initialize_audio_buffers(self):
         """Initialize pre-allocated audio buffers for performance using XGBufferPool."""

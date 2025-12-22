@@ -6,7 +6,7 @@ Contains information about active voices for allocation decisions.
 import time
 from typing import Optional
 from .voice_priority import VoicePriority
-from ..xg.channel_note import ChannelNote
+from ..channel.channel_note import ChannelNote
 
 
 class VoiceInfo:

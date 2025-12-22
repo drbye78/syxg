@@ -1,19 +1,8 @@
 """
-XG Effects Processing System - Synthesis Core
+Audio effects processing for XG synthesizer.
 
-A complete, high-performance XG effects processing system with:
-- Zero-allocation realtime processing
-- 118 XG effect types (full specification coverage)
-- Factory-based architecture for extensibility
-- Thread-safe operations with performance monitoring
-- Full MIDI NRPN/CC control interface
-
-Architecture:
-- XGEffectsCoordinator: Main coordination and processing engine
-- Effect Processors: Individual algorithm implementations
-- Factory System: XGEffectFactory and XGEffectRegistry
-- MIDI Control: XGNRPNController and XGMIDIController
-- Monitoring: XGPerformanceMonitor with real-time quality scoring
+Provides reverb, chorus, delay, distortion, EQ, and other audio effects
+with XG specification compliance and MIDI control support.
 """
 
 # Core System Imports
