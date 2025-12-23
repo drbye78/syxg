@@ -50,7 +50,7 @@ class XGEffectsCoordinator:
     5. Master finalization (EQ, stereo enhancement, limiting, wet/dry)
     """
 
-    def __init__(self, sample_rate: int, block_size: int = 1024, max_channels: int = 16):
+    def __init__(self, sample_rate: int, block_size: int = 1024, max_channels: int = 16, synthesizer=None):
         """
         Initialize XG effects coordinator.
 
@@ -58,7 +58,9 @@ class XGEffectsCoordinator:
             sample_rate: Sample rate in Hz
             block_size: Maximum processing block size
             max_channels: Maximum number of channels to support
+            synthesizer: Reference to parent synthesizer for GS parameter access
         """
+        self.synthesizer = synthesizer  # Reference to parent synthesizer
         self.sample_rate = sample_rate
         self.block_size = block_size
         self.max_channels = max_channels
@@ -401,24 +403,42 @@ class XGEffectsCoordinator:
         # Start with variation output
         np.copyto(system_output, variation_output)
 
+        # Check if we should use GS system effects
+        use_gs_effects = self._should_use_gs_system_effects()
+
         # Apply system reverb if active
         if self.effect_units_active[1] and np.max(np.abs(reverb_accumulate)) > 0:  # Reverb unit
-            reverb_wet = self._apply_system_reverb_optimized(reverb_accumulate, temp_buffers[0], num_samples)
+            reverb_wet = self._apply_system_reverb_optimized(reverb_accumulate, temp_buffers[0], num_samples, use_gs_effects)
             if reverb_wet is not None:
                 system_output += reverb_wet
 
         # Apply system chorus if active
         if self.effect_units_active[2] and np.max(np.abs(chorus_accumulate)) > 0:  # Chorus unit
-            chorus_wet = self._apply_system_chorus_optimized(chorus_accumulate, temp_buffers[1], num_samples)
+            chorus_wet = self._apply_system_chorus_optimized(chorus_accumulate, temp_buffers[1], num_samples, use_gs_effects)
             if chorus_wet is not None:
                 system_output += chorus_wet
 
+    def _should_use_gs_system_effects(self) -> bool:
+        """Check if GS system effects should be used instead of XG."""
+        if self.synthesizer and hasattr(self.synthesizer, 'parameter_priority'):
+            return self.synthesizer.parameter_priority.is_gs_active()
+        return False
+
     def _apply_system_reverb_optimized(self, reverb_send: np.ndarray, temp_buffer: np.ndarray,
-                                     num_samples: int) -> Optional[np.ndarray]:
+                                     num_samples: int, use_gs_effects: bool = False) -> Optional[np.ndarray]:
         """Optimized system reverb processing using pre-allocated temp buffer."""
         try:
             # Use pre-allocated temp buffer
             np.copyto(temp_buffer[:num_samples], reverb_send[:num_samples])
+
+            if use_gs_effects and self.synthesizer and hasattr(self.synthesizer, 'gs_components'):
+                # Use GS reverb parameters
+                gs_system = self.synthesizer.gs_components.get_component('system_params')
+                if gs_system:
+                    # Apply GS reverb parameters to the system effects processor
+                    # This would need integration with the actual effect processors
+                    # For now, use XG effects but with GS parameters where possible
+                    pass
 
             # Apply convolution reverb using the production processor
             self.system_effects.reverb_processor.apply_system_effects_to_mix_zero_alloc(
@@ -430,11 +450,20 @@ class XGEffectsCoordinator:
             return None
 
     def _apply_system_chorus_optimized(self, chorus_send: np.ndarray, temp_buffer: np.ndarray,
-                                     num_samples: int) -> Optional[np.ndarray]:
+                                     num_samples: int, use_gs_effects: bool = False) -> Optional[np.ndarray]:
         """Optimized system chorus processing using pre-allocated temp buffer."""
         try:
             # Use pre-allocated temp buffer
             np.copyto(temp_buffer[:num_samples], chorus_send[:num_samples])
+
+            if use_gs_effects and self.synthesizer and hasattr(self.synthesizer, 'gs_components'):
+                # Use GS chorus parameters
+                gs_system = self.synthesizer.gs_components.get_component('system_params')
+                if gs_system:
+                    # Apply GS chorus parameters to the system effects processor
+                    # This would need integration with the actual effect processors
+                    # For now, use XG effects but with GS parameters where possible
+                    pass
 
             # Apply stereo chorus using the production processor
             self.system_effects.chorus_processor.apply_system_effects_to_mix_zero_alloc(

@@ -319,6 +319,114 @@ class GSStateManager:
         }
 
 
+class ParameterPrioritySystem:
+    """
+    GS/XG Parameter Priority System
+
+    Manages parameter precedence between GS and XG protocols,
+    allowing seamless switching between modes while preserving
+    parameter relationships.
+    """
+
+    def __init__(self):
+        self.active_protocol = 'auto'  # 'xg', 'gs', or 'auto'
+        self.parameter_sources = {}  # param_key -> {'xg': value, 'gs': value, 'timestamp': time}
+
+        # Parameter mappings between GS and XG
+        self.parameter_mappings = {
+            # Volume mappings
+            'master_volume': {'gs': 'system_params.master_volume', 'xg': 'system.master_volume'},
+            'part_volume': {'gs': 'multipart.parts.{channel}.volume', 'xg': 'channels.{channel}.xg_config.part_level'},
+
+            # Pan mappings
+            'part_pan': {'gs': 'multipart.parts.{channel}.pan', 'xg': 'channels.{channel}.xg_config.part_pan'},
+
+            # Effects send mappings
+            'reverb_send': {'gs': 'multipart.parts.{channel}.reverb_send', 'xg': 'channels.{channel}.xg_config.effects_sends.reverb'},
+            'chorus_send': {'gs': 'multipart.parts.{channel}.chorus_send', 'xg': 'channels.{channel}.xg_config.effects_sends.chorus'},
+            'variation_send': {'gs': 'multipart.parts.{channel}.delay_send', 'xg': 'channels.{channel}.xg_config.effects_sends.variation'},
+
+            # System effects
+            'system_reverb_type': {'gs': 'system_params.reverb_type', 'xg': 'effects.system_reverb_type'},
+            'system_chorus_type': {'gs': 'system_params.chorus_type', 'xg': 'effects.system_chorus_type'},
+        }
+
+        self.lock = threading.RLock()
+
+    def set_active_protocol(self, protocol: str):
+        """Set active protocol: 'xg', 'gs', or 'auto'"""
+        with self.lock:
+            if protocol in ['xg', 'gs', 'auto']:
+                self.active_protocol = protocol
+
+    def update_parameter(self, param_key: str, value: Any, source: str, channel: int = None):
+        """Update parameter from specific source (gs or xg)"""
+        with self.lock:
+            if source not in ['gs', 'xg']:
+                return
+
+            # Create parameter key with channel if specified
+            full_key = f"{param_key}_ch{channel}" if channel is not None else param_key
+
+            if full_key not in self.parameter_sources:
+                self.parameter_sources[full_key] = {}
+
+            self.parameter_sources[full_key][source] = value
+            self.parameter_sources[full_key]['timestamp'] = time.time()
+
+    def get_active_value(self, param_key: str, channel: int = None) -> Optional[Any]:
+        """Get parameter value based on active protocol"""
+        with self.lock:
+            full_key = f"{param_key}_ch{channel}" if channel is not None else param_key
+
+            if full_key not in self.parameter_sources:
+                return None
+
+            sources = self.parameter_sources[full_key]
+
+            if self.active_protocol == 'xg':
+                return sources.get('xg')
+            elif self.active_protocol == 'gs':
+                return sources.get('gs')
+            else:  # auto - use most recently set
+                return self._get_most_recent_value(sources)
+
+    def _get_most_recent_value(self, sources: Dict[str, Any]) -> Optional[Any]:
+        """Get most recently set value from available sources"""
+        xg_time = sources.get('timestamp_xg', 0)
+        gs_time = sources.get('timestamp_gs', 0)
+
+        if xg_time > gs_time and 'xg' in sources:
+            return sources['xg']
+        elif gs_time > xg_time and 'gs' in sources:
+            return sources['gs']
+        elif 'xg' in sources:
+            return sources['xg']
+        elif 'gs' in sources:
+            return sources['gs']
+
+        return None
+
+    def is_gs_active(self) -> bool:
+        """Check if GS protocol is currently active"""
+        return self.active_protocol in ['gs', 'auto']
+
+    def is_xg_active(self) -> bool:
+        """Check if XG protocol is currently active"""
+        return self.active_protocol in ['xg', 'auto']
+
+    def get_parameter_status(self) -> Dict[str, Any]:
+        """Get parameter system status"""
+        with self.lock:
+            return {
+                'active_protocol': self.active_protocol,
+                'total_parameters': len(self.parameter_sources),
+                'gs_parameters': sum(1 for p in self.parameter_sources.values() if 'gs' in p),
+                'xg_parameters': sum(1 for p in self.parameter_sources.values() if 'xg' in p),
+                'parameter_mappings': self.parameter_mappings.copy()
+            }
+
+
 class PerformanceMonitor:
     """Production performance monitoring"""
 
@@ -362,7 +470,8 @@ class ModernXGSynthesizer:
                  xg_enabled: bool = True,
                  gs_enabled: bool = True,
                  mpe_enabled: bool = True,
-                 device_id: int = 0x10):
+                 device_id: int = 0x10,
+                 gs_mode: str = 'auto'):
         """
         Initialize Enhanced Modern XG/GS/MPE Synthesizer
 
@@ -373,6 +482,7 @@ class ModernXGSynthesizer:
             gs_enabled: Enable GS features
             mpe_enabled: Enable MPE features
             device_id: XG/GS/MPE device ID
+            gs_mode: GS/XG mode ('xg', 'gs', or 'auto')
         """
         self.sample_rate = sample_rate
         self.max_channels = max_channels
@@ -380,15 +490,26 @@ class ModernXGSynthesizer:
         self.gs_enabled = gs_enabled
         self.mpe_enabled = mpe_enabled
         self.device_id = device_id
+        self.gs_mode = gs_mode
+
+        # Initialize parameter priority system
+        self.parameter_priority = ParameterPrioritySystem()
 
         # Determine active protocol based on configuration
         from ..core.config import midi_config
-        if midi_config.gs_mode == 'gs':
+        if gs_mode == 'gs':
+            self.active_protocol = 'gs'
+        elif gs_mode == 'xg':
+            self.active_protocol = 'xg'
+        elif midi_config.gs_mode == 'gs':
             self.active_protocol = 'gs'
         elif midi_config.gs_mode == 'xg':
             self.active_protocol = 'xg'
         else:  # 'auto' or other
             self.active_protocol = 'xg' if xg_enabled else 'gs'
+
+        # Set active protocol in parameter priority system
+        self.parameter_priority.set_active_protocol(self.active_protocol)
 
         # Set default block size
         self.block_size = 1024
@@ -470,16 +591,21 @@ class ModernXGSynthesizer:
         from ..voice.voice_factory import VoiceFactory
         self.voice_factory = VoiceFactory(self.engine_registry)
 
+        # Voice manager for GS voice reserve integration
+        from ..voice.voice_manager import VoiceManager
+        self.voice_manager = VoiceManager(max_voices=128)  # GS supports up to 128 voices
+
         # Create channels
         self.channels = []
         self._create_channels()
 
-        # Effects coordinator
+        # Effects coordinator with GS integration
         from ..effects import XGEffectsCoordinator
         self.effects_coordinator = XGEffectsCoordinator(
             sample_rate=self.sample_rate,
             block_size=1024,
-            max_channels=self.max_channels
+            max_channels=self.max_channels,
+            synthesizer=self  # Pass self for GS parameter access
         )
 
     def _preallocate_buffers(self):
@@ -538,7 +664,7 @@ class ModernXGSynthesizer:
         from ..channel.channel import Channel
 
         for channel_num in range(self.max_channels):
-            channel = Channel(channel_num, self.voice_factory, self.sample_rate)
+            channel = Channel(channel_num, self.voice_factory, self.sample_rate, self)
 
             # Add XG configuration if enabled
             if self.xg_enabled:
@@ -616,6 +742,137 @@ class ModernXGSynthesizer:
         self.arpeggiator_engine.note_off_callback = self._handle_arpeggiator_note_off
 
         print("🎹 Arpeggiator system initialized and connected to MIDI processing")
+
+    def _init_mpe_system(self):
+        """Initialize MPE (Microtonal Expression) system"""
+        # Import MPE manager
+        from ..mpe.mpe_manager import MPEManager
+
+        # Create MPE manager
+        self.mpe_manager = MPEManager(max_channels=self.max_channels)
+
+        print("🎹 MPE (Microtonal Expression) system initialized")
+
+    def _process_note_on_mpe(self, channel: int, note: int, velocity: int):
+        """Process note-on event with MPE support"""
+        if self.mpe_enabled and hasattr(self, 'mpe_manager'):
+            # Create MPE note
+            mpe_note = self.mpe_manager.process_note_on(channel, note, velocity)
+            if mpe_note:
+                # Send to voice allocation with MPE parameters
+                self._allocate_voice_with_mpe(mpe_note)
+                return
+
+        # Fallback to regular note processing
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].note_on(note, velocity)
+
+    def _process_note_off_mpe(self, channel: int, note: int, velocity: int = 0):
+        """Process note-off event with MPE support"""
+        if self.mpe_enabled and hasattr(self, 'mpe_manager'):
+            # Release MPE note
+            released_note = self.mpe_manager.process_note_off(channel, note, velocity)
+            if released_note and hasattr(released_note, 'voice_id'):
+                # Release voice
+                self._release_voice_mpe(released_note.voice_id)
+                return
+
+        # Fallback to regular note processing
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].note_off(note)
+
+    def _process_pitch_bend_mpe(self, channel: int, bend_value: int) -> bool:
+        """Process pitch bend with MPE support"""
+        if self.mpe_enabled and hasattr(self, 'mpe_manager'):
+            # Process MPE pitch bend
+            self.mpe_manager.process_pitch_bend(channel, bend_value)
+            # Update all active voices on this channel
+            self._update_channel_voices_mpe(channel)
+            return True  # MPE handled it
+
+        return False  # Not handled by MPE
+
+    def _process_poly_pressure_mpe(self, channel: int, note: int, pressure: int):
+        """Process polyphonic pressure with MPE support"""
+        if self.mpe_enabled and hasattr(self, 'mpe_manager'):
+            # Process MPE per-note pressure
+            self.mpe_manager.process_poly_pressure(channel, note, pressure)
+            # Update specific voice
+            self._update_note_voice_mpe(channel, note)
+            return
+
+        # Fallback to regular poly pressure
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].key_pressure(note, pressure)
+
+    def _process_mpe_controller(self, channel: int, controller: int, value: int) -> bool:
+        """Process MPE controllers (timbre, slide, lift)"""
+        if not self.mpe_enabled or not hasattr(self, 'mpe_manager'):
+            return False
+
+        # Check for MPE timbre control (CC74)
+        if controller == 74:
+            self.mpe_manager.process_timbre(channel, value)
+            self._update_channel_voices_mpe(channel)
+            return True
+
+        # Check for MPE slide control
+        if controller == 75:
+            self.mpe_manager.process_slide(channel, value)
+            self._update_channel_voices_mpe(channel)
+            return True
+
+        # Check for MPE lift control
+        if controller == 76:
+            self.mpe_manager.process_lift(channel, value)
+            self._update_channel_voices_mpe(channel)
+            return True
+
+        return False  # Not an MPE controller
+
+    def _allocate_voice_with_mpe(self, mpe_note):
+        """Allocate voice with MPE parameters"""
+        # This would integrate with the voice allocation system
+        # For now, use regular channel allocation but store MPE reference
+        if 0 <= mpe_note.channel < len(self.channels):
+            voice_id = self.channels[mpe_note.channel].note_on(mpe_note.note_number, mpe_note.velocity)
+            if voice_id:
+                mpe_note.voice_id = voice_id
+                # Update voice with MPE parameters
+                self._apply_mpe_to_voice(voice_id, mpe_note)
+
+    def _release_voice_mpe(self, voice_id):
+        """Release voice by ID (MPE version)"""
+        # This would need to be implemented based on voice management system
+        # For now, this is a placeholder
+        pass
+
+    def _update_channel_voices_mpe(self, channel: int):
+        """Update all voices on channel with current MPE parameters"""
+        if not self.mpe_enabled or not hasattr(self, 'mpe_manager'):
+            return
+
+        active_notes = self.mpe_manager.get_channel_mpe_notes(channel)
+        for mpe_note in active_notes:
+            if hasattr(mpe_note, 'voice_id') and mpe_note.voice_id:
+                self._apply_mpe_to_voice(mpe_note.voice_id, mpe_note)
+
+    def _update_note_voice_mpe(self, channel: int, note: int):
+        """Update specific note's voice with MPE parameters"""
+        if not self.mpe_enabled or not hasattr(self, 'mpe_manager'):
+            return
+
+        mpe_note = self.mpe_manager.active_notes.get((channel, note))
+        if mpe_note and hasattr(mpe_note, 'voice_id') and mpe_note.voice_id:
+            self._apply_mpe_to_voice(mpe_note.voice_id, mpe_note)
+
+    def _apply_mpe_to_voice(self, voice_id, mpe_note):
+        """Apply MPE parameters to voice"""
+        # This would update the voice's frequency, timbre, etc.
+        # Implementation depends on voice architecture
+        # For now, this is a placeholder that would need integration
+        # with the actual voice rendering system
+        pass
 
     def _handle_arpeggiator_note_on(self, channel: int, note: int, velocity: int):
         """Handle note-on events from arpeggiator engine"""
@@ -780,19 +1037,23 @@ class ModernXGSynthesizer:
     def _process_message_on_channel(self, target_channel, midi_message):
         """Process a MIDI message on a specific channel"""
         msg_type = midi_message.type
+        midi_channel = midi_message.channel
 
         if msg_type == 'note_off':
-            target_channel.note_off(midi_message.note)
+            self._process_note_off_mpe(midi_channel, midi_message.note, midi_message.velocity)
         elif msg_type == 'note_on':
             if midi_message.velocity == 0:
-                target_channel.note_off(midi_message.note)
+                self._process_note_off_mpe(midi_channel, midi_message.note, midi_message.velocity)
             else:
-                # Note: XG micro tuning is handled at the voice synthesis level
-                target_channel.note_on(midi_message.note, midi_message.velocity)
+                self._process_note_on_mpe(midi_channel, midi_message.note, midi_message.velocity)
         elif msg_type == 'poly_pressure':
-            target_channel.key_pressure(midi_message.note, midi_message.pressure)
+            self._process_poly_pressure_mpe(midi_channel, midi_message.note, midi_message.pressure)
         elif msg_type == 'control_change':
             controller, value = midi_message.control, midi_message.value
+
+            # MPE controller processing (highest priority)
+            if self.mpe_enabled and self._process_mpe_controller(midi_channel, controller, value):
+                return  # MPE controller handled it
 
             # Arpeggiator NRPN processing (Yamaha Motif style - highest priority)
             if hasattr(self, 'arpeggiator_nrpn_controller') and self.arpeggiator_nrpn_controller:
@@ -819,13 +1080,8 @@ class ModernXGSynthesizer:
             target_channel.set_channel_pressure(midi_message.pressure)
         elif msg_type == 'pitch_bend':
             # Check for MPE pitch bend first
-            if hasattr(self, 'mpe_manager') and self.mpe_manager.mpe_enabled:
-                zone = self.mpe_manager.get_zone_for_channel(midi_channel)
-                if zone:
-                    # Process as MPE pitch bend (14-bit resolution)
-                    bend_value = midi_message.pitch
-                    self.mpe_manager.process_pitch_bend(midi_channel, bend_value)
-                    return  # MPE handled it
+            if self.mpe_enabled and self._process_pitch_bend_mpe(midi_channel, midi_message.pitch):
+                return  # MPE handled it
 
             # Convert pitch bend value to LSB/MSB for regular processing
             pitch_value = midi_message.pitch
@@ -1440,6 +1696,14 @@ class ModernXGSynthesizer:
                 'temperaments': len(self.xg_components.get_component('micro_tuning').temperament_system.get_available_temperaments()),
             })
 
+        if self.mpe_enabled:
+            info.update({
+                'mpe_enabled': True,
+                'mpe_zones': len(self.mpe_manager.zones),
+                'mpe_active_notes': len(self.mpe_manager.active_notes),
+                'mpe_pitch_bend_range': self.mpe_manager.global_pitch_bend_range,
+            })
+
         return info
 
     def reset(self):
@@ -1452,6 +1716,10 @@ class ModernXGSynthesizer:
             # Reset XG components
             if self.xg_enabled:
                 self.xg_components.reset_all()
+
+            # Reset MPE system
+            if self.mpe_enabled:
+                self.reset_mpe()
 
             # Reset effects
             self.effects_coordinator.reset_all_effects()
@@ -1493,13 +1761,95 @@ class ModernXGSynthesizer:
             'bulk_operations': 'complete'
         }
 
+    # GS-specific API methods
+    def set_gs_mode(self, mode: str):
+        """Set GS/XG mode: 'xg', 'gs', or 'auto'"""
+        self.gs_mode = mode
+        self.parameter_priority.set_active_protocol(mode)
+        self._update_all_channel_parameters()
+        print(f"🎹 GS/XG mode set to: {mode.upper()}")
+
+    def get_gs_system_info(self) -> Dict[str, Any]:
+        """Get GS system status"""
+        if self.gs_enabled and self.gs_components:
+            return self.gs_components.get_system_info()
+        return {'status': 'GS disabled'}
+
+    def set_gs_part_parameter(self, part_number: int, param_id: int, value: int) -> bool:
+        """Set GS part parameter via API"""
+        if self.gs_components:
+            result = self.gs_components.process_parameter_change(
+                bytes([0x10 + part_number, param_id]), value
+            )
+            if result:
+                # Update parameter priority system
+                self.parameter_priority.update_parameter(
+                    f'part_{param_id}', value, 'gs', part_number
+                )
+                # Update channel parameters if needed
+                self._update_channel_gs_parameters(part_number)
+            return result
+        return False
+
+    def reset_gs_system(self):
+        """Reset GS system to defaults"""
+        if self.gs_components:
+            self.gs_components.reset_all_components()
+            self.parameter_priority = ParameterPrioritySystem()  # Reset parameter tracking
+            self.parameter_priority.set_active_protocol(self.gs_mode)
+            self._update_all_channel_parameters()
+
+    # MPE-specific API methods
+    def get_mpe_info(self) -> Dict[str, Any]:
+        """Get MPE system information"""
+        if self.mpe_enabled and hasattr(self, 'mpe_manager'):
+            return self.mpe_manager.get_mpe_info()
+        return {'enabled': False, 'status': 'MPE disabled'}
+
+    def set_mpe_enabled(self, enabled: bool):
+        """Enable or disable MPE"""
+        self.mpe_enabled = enabled
+        if hasattr(self, 'mpe_manager'):
+            self.mpe_manager.set_mpe_enabled(enabled)
+
+    def reset_mpe(self):
+        """Reset MPE system"""
+        if hasattr(self, 'mpe_manager'):
+            self.mpe_manager.reset_all_notes()
+
+    def _update_all_channel_parameters(self):
+        """Update all channel parameters based on current GS/XG mode"""
+        for channel_num in range(len(self.channels)):
+            self._update_channel_gs_parameters(channel_num)
+
+    def _update_channel_gs_parameters(self, channel_num: int):
+        """Update a specific channel's GS parameters"""
+        if not self.gs_enabled or not hasattr(self, 'gs_components'):
+            return
+
+        # Get GS part for this channel
+        gs_part = self.gs_components.get_component('multipart').get_part(channel_num)
+        if not gs_part:
+            return
+
+        # Update channel with GS part reference for parameter access
+        self.channels[channel_num].gs_part = gs_part
+
+        # Update parameter priority system with GS part parameters
+        self.parameter_priority.update_parameter('part_volume', gs_part.volume, 'gs', channel_num)
+        self.parameter_priority.update_parameter('part_pan', gs_part.pan, 'gs', channel_num)
+        self.parameter_priority.update_parameter('reverb_send', gs_part.reverb_send, 'gs', channel_num)
+        self.parameter_priority.update_parameter('chorus_send', gs_part.chorus_send, 'gs', channel_num)
+        self.parameter_priority.update_parameter('variation_send', gs_part.delay_send, 'gs', channel_num)
+
     def __str__(self) -> str:
         """String representation"""
         info = self.get_synthesizer_info()
         xg_status = f", XG {info.get('xg_compliance', 'disabled')}" if self.xg_enabled else ""
+        mpe_status = f", MPE {info.get('mpe_zones', 0)} zones" if self.mpe_enabled else ""
         return (f"EnhancedModernXGSynthesizer(channels={info['max_channels']}, "
                 f"active={info['active_channels']}, voices={info['total_active_voices']}"
-                f"{xg_status})")
+                f"{xg_status}{mpe_status})")
 
     def __repr__(self) -> str:
         return self.__str__()

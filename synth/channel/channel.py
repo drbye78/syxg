@@ -29,7 +29,7 @@ class Channel:
     - True polyphony with multiple simultaneous notes
     """
 
-    def __init__(self, channel_number: int, voice_factory: VoiceFactory, sample_rate: int):
+    def __init__(self, channel_number: int, voice_factory: VoiceFactory, sample_rate: int, synthesizer=None):
         """
         Initialize XG Channel.
 
@@ -37,10 +37,12 @@ class Channel:
             channel_number: MIDI channel number (0-15)
             voice_factory: Factory for creating voices
             sample_rate: Audio sample rate in Hz
+            synthesizer: Reference to parent synthesizer for parameter access
         """
         self.channel_number = channel_number
         self.voice_factory = voice_factory
         self.sample_rate = sample_rate
+        self.synthesizer = synthesizer  # Reference to parent synthesizer
 
         # Polyphonic voice management - multiple simultaneous voices
         self.active_voices: Dict[int, VoiceInstance] = {}  # note -> VoiceInstance
@@ -99,6 +101,9 @@ class Channel:
         }
         self.xg_part_mode = 'normal'  # 'normal', 'single', 'layer'
         self.xg_voice_reserve = None  # Voice limit for this channel
+
+        # GS integration
+        self.gs_part = None  # Reference to GS part when in GS mode
 
     def update_xg_state_from_message(self, xg_metadata: Dict[str, Any]):
         """
@@ -438,20 +443,14 @@ class Channel:
             # Collect modulation values from controllers
             modulation = self._collect_modulation_values()
 
-            # Apply master level
-            output *= self.master_level
+            # Apply master level - check GS parameters first
+            master_level = self._get_master_level()
+            output *= master_level
 
-            # Apply pan - use XG pan gains if available, otherwise use regular pan
-            if self.xg_pan_left_gain != 1.0 or self.xg_pan_right_gain != 1.0:
-                # Use XG pan gains (constant power panning)
-                output[:, 0] *= self.xg_pan_left_gain   # Left channel
-                output[:, 1] *= self.xg_pan_right_gain  # Right channel
-            elif self.pan != 0.0:
-                # Fallback to regular pan
-                left_gain = 1.0 - max(0.0, self.pan)
-                right_gain = 1.0 - max(0.0, -self.pan)
-                output[:, 0] *= left_gain   # Left channel
-                output[:, 1] *= right_gain  # Right channel
+            # Apply pan - check GS parameters first, then XG, then regular
+            pan_gains = self._get_pan_gains()
+            output[:, 0] *= pan_gains[0]  # Left channel
+            output[:, 1] *= pan_gains[1]  # Right channel
 
             # Update modulation for all active voices
             for voice_instance in self.active_voices.values():
@@ -594,3 +593,64 @@ class Channel:
     def channel_pressure(self, value: int):
         """Set channel pressure value."""
         self._channel_pressure = value
+
+    def _get_master_level(self) -> float:
+        """
+        Get master level from GS part, XG config, or default.
+
+        Priority: GS part volume -> XG part level -> default master_level
+
+        Returns:
+            Master level (0.0-1.0)
+        """
+        if self.synthesizer and self.synthesizer.parameter_priority.is_gs_active():
+            # Check GS part volume
+            if self.gs_part:
+                return self.gs_part.volume / 127.0
+
+        # Check XG part level
+        if hasattr(self, 'xg_config') and self.xg_config and 'part_level' in self.xg_config:
+            return self.xg_config['part_level'] / 100.0
+
+        # Default to regular master level
+        return self.master_level
+
+    def _get_pan_gains(self) -> tuple[float, float]:
+        """
+        Get pan gains from GS part, XG config, or default.
+
+        Priority: GS part pan -> XG pan gains -> regular pan
+
+        Returns:
+            Tuple of (left_gain, right_gain)
+        """
+        if self.synthesizer and self.synthesizer.parameter_priority.is_gs_active():
+            # Check GS part pan
+            if self.gs_part:
+                pan_value = self.gs_part.pan
+                # Convert GS pan (0-127, center=64) to -1.0 to 1.0
+                pan_position = (pan_value - 64) / 64.0
+                # Apply constant power pan law
+                if pan_position < -1.0:
+                    pan_position = -1.0
+                elif pan_position > 1.0:
+                    pan_position = 1.0
+
+                import math
+                angle = pan_position * (math.pi / 4.0)  # 45 degrees max
+                left_gain = math.cos(angle + math.pi / 4.0)
+                right_gain = math.sin(angle + math.pi / 4.0)
+                return (left_gain, right_gain)
+
+        # Check XG pan gains
+        if self.xg_pan_left_gain != 1.0 or self.xg_pan_right_gain != 1.0:
+            return (self.xg_pan_left_gain, self.xg_pan_right_gain)
+
+        # Default to regular pan
+        if self.pan != 0.0:
+            left_gain = 1.0 - max(0.0, self.pan)
+            right_gain = 1.0 - max(0.0, -self.pan)
+            return (left_gain, right_gain)
+
+        # Center pan (no change)
+        return (1.0, 1.0)
