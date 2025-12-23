@@ -119,9 +119,9 @@ class XGBufferPool:
 
     def _initialize_pool(self):
         """Initialize buffer pool with pre-allocated buffers."""
-        # Calculate pool size based on configuration
+        # Calculate pool size based on configuration and instance parameters
         max_buffer_size = audio_config.max_buffer_size
-        max_channels = audio_config.max_channels
+        max_channels = self.max_channels  # Use instance parameter instead of config
 
         # Pre-allocate common buffer sizes
         common_sizes = [256, 512, 1024, 2048, 4096, max_buffer_size]
@@ -149,7 +149,16 @@ class XGBufferPool:
             if size > max_buffer_size:
                 continue
 
-            num_buffers = max(2, min(8, max_buffer_size // size))
+            # Allocate more buffers for commonly used sizes
+            if size <= 2048:
+                # For commonly used sizes, allocate enough for all channels plus overhead
+                base_allocation = max(16, min(64, max_buffer_size // size * 4))
+                # Ensure we have enough for max_channels usage
+                channel_overhead = max(0, max_channels - base_allocation + 10)  # +10 for temp buffers
+                num_buffers = base_allocation + channel_overhead
+            else:
+                # For larger sizes, allocate more buffers for fallback usage
+                num_buffers = max(16, min(64, max_buffer_size // size * 16))
 
             for _ in range(num_buffers):
                 buffer = self._allocate_aligned_buffer(size, 2)
@@ -171,7 +180,7 @@ class XGBufferPool:
                 total_allocated += buffer.nbytes
 
         total_mb = total_allocated / (1024 * 1024)
-        print(".1f"
+        print(f"Total allocated: {total_mb:.1f} MB")
         self.stats.total_allocated = total_allocated
 
     def _allocate_aligned_buffer(self, size: int, channels: int) -> np.ndarray:
@@ -187,7 +196,8 @@ class XGBufferPool:
         offset = (self.SIMD_ALIGNMENT - (buffer.ctypes.data % self.SIMD_ALIGNMENT)) % self.SIMD_ALIGNMENT
         aligned_buffer = np.frombuffer(
             buffer.data[offset:offset + total_samples * bytes_per_sample],
-            dtype=np.float32
+            dtype=np.float32,
+            count=total_samples
         ).reshape(size, channels)
 
         return aligned_buffer
@@ -308,33 +318,34 @@ class XGBufferPool:
                             key: Any, channels: int, pool_name: str) -> np.ndarray:
         """Get buffer from specific pool."""
         with self.lock:
-            if key not in pool or not pool[key]:
-                # Try to find a larger buffer that can accommodate the request
-                available_sizes = [k for k in pool.keys() if k >= (key if isinstance(key, int) else key[0])]
-                if available_sizes:
-                    best_size = min(available_sizes)
-                    if best_size in pool and pool[best_size]:
-                        buffer = pool[best_size].pop(0)
+            # First try exact match
+            if key in pool and pool[key]:
+                buffer = pool[key].pop(0)
+                self._track_buffer_usage(buffer, pool_name)
+                self.stats.cache_hits += 1
+                return buffer
+
+            # Try to find a larger buffer that can accommodate the request
+            # Only do fallback for mono/stereo pools (int keys), not multi-channel pools (tuple keys)
+            if isinstance(key, int):
+                available_sizes = sorted([k for k in pool.keys() if isinstance(k, int) and k >= key])
+                for size in available_sizes:
+                    if pool[size]:
+                        buffer = pool[size].pop(0)
                         # Return extra space to pool if it's a larger buffer
-                        if best_size > (key if isinstance(key, int) else key[0]):
-                            extra_size = best_size - (key if isinstance(key, int) else key[0])
+                        if size > key:
+                            extra_size = size - key
                             if extra_size > 64:  # Only if meaningfully larger
                                 # Could implement buffer splitting here
                                 pass
                         self._track_buffer_usage(buffer, f"{pool_name}_adapted")
                         return buffer
 
-                # Pool exhausted - this should not happen in production
-                raise BufferPoolExhaustedError(
-                    f"Buffer pool exhausted for {pool_name} size {key}. "
-                    f"Available pools: {list(pool.keys())}"
-                )
-
-            # Get buffer from pool
-            buffer = pool[key].pop(0)
-            self._track_buffer_usage(buffer, pool_name)
-            self.stats.cache_hits += 1
-            return buffer
+            # Pool exhausted - this should not happen in production
+            raise BufferPoolExhaustedError(
+                f"Buffer pool exhausted for {pool_name} size {key}. "
+                f"Available pools: {list(pool.keys())}"
+            )
 
     def _track_buffer_usage(self, buffer: np.ndarray, context: str):
         """Track buffer usage for leak detection."""
@@ -512,3 +523,70 @@ class XGBufferPool:
 
     def __repr__(self) -> str:
         return self.__str__()
+
+
+class XGBufferManager:
+    """
+    XG Buffer Manager - Context manager for zero-allocation buffer handling.
+
+    Provides context-managed buffer allocation and automatic cleanup for
+    the XG effects processing chain.
+    """
+
+    def __init__(self, buffer_pool: XGBufferPool):
+        """
+        Initialize buffer manager.
+
+        Args:
+            buffer_pool: XGBufferPool instance to manage
+        """
+        self.buffer_pool = buffer_pool
+        self.allocated_buffers = []
+        self.active = False
+
+    def __enter__(self):
+        """Enter context manager."""
+        self.active = True
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager and clean up buffers."""
+        self.active = False
+        # Return all allocated buffers to pool
+        for buffer in self.allocated_buffers:
+            self.buffer_pool.return_buffer(buffer)
+        self.allocated_buffers.clear()
+
+    def get_stereo(self, size: int) -> np.ndarray:
+        """
+        Get a stereo buffer from the pool.
+
+        Args:
+            size: Buffer size in samples
+
+        Returns:
+            Stereo audio buffer
+        """
+        if not self.active:
+            raise RuntimeError("XGBufferManager must be used as context manager")
+
+        buffer = self.buffer_pool.get_stereo_buffer(size)
+        self.allocated_buffers.append(buffer)
+        return buffer
+
+    def get_mono(self, size: int) -> np.ndarray:
+        """
+        Get a mono buffer from the pool.
+
+        Args:
+            size: Buffer size in samples
+
+        Returns:
+            Mono audio buffer
+        """
+        if not self.active:
+            raise RuntimeError("XGBufferManager must be used as context manager")
+
+        buffer = self.buffer_pool.get_mono_buffer(size)
+        self.allocated_buffers.append(buffer)
+        return buffer

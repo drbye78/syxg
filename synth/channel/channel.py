@@ -89,6 +89,45 @@ class Channel:
         self.data_msb = 0
         self.data_msb_received = False
 
+        # XG channel state (updated from message metadata)
+        self.xg_pan_left_gain = 1.0
+        self.xg_pan_right_gain = 1.0
+        self.xg_effects_routing = {
+            'reverb_send': 0.0,
+            'chorus_send': 0.0,
+            'variation_send': 0.0
+        }
+        self.xg_part_mode = 'normal'  # 'normal', 'single', 'layer'
+        self.xg_voice_reserve = None  # Voice limit for this channel
+
+    def update_xg_state_from_message(self, xg_metadata: Dict[str, Any]):
+        """
+        Update XG channel state from message metadata.
+
+        Args:
+            xg_metadata: XG metadata dictionary from MIDI message
+        """
+        if not xg_metadata:
+            return
+
+        # Update pan gains
+        if 'pan_left_gain' in xg_metadata:
+            self.xg_pan_left_gain = xg_metadata['pan_left_gain']
+        if 'pan_right_gain' in xg_metadata:
+            self.xg_pan_right_gain = xg_metadata['pan_right_gain']
+
+        # Update effects routing
+        if 'effects_routing' in xg_metadata:
+            self.xg_effects_routing.update(xg_metadata['effects_routing'])
+
+        # Update part mode
+        if 'part_mode' in xg_metadata:
+            self.xg_part_mode = xg_metadata['part_mode']
+
+        # Update voice reserve
+        if 'voice_reserve' in xg_metadata:
+            self.xg_voice_reserve = xg_metadata['voice_reserve']
+
     def _initialize_default_controllers(self):
         """Initialize default controller values per GM/XG specification."""
         # GM/XG default values
@@ -402,8 +441,13 @@ class Channel:
             # Apply master level
             output *= self.master_level
 
-            # Apply pan
-            if self.pan != 0.0:
+            # Apply pan - use XG pan gains if available, otherwise use regular pan
+            if self.xg_pan_left_gain != 1.0 or self.xg_pan_right_gain != 1.0:
+                # Use XG pan gains (constant power panning)
+                output[:, 0] *= self.xg_pan_left_gain   # Left channel
+                output[:, 1] *= self.xg_pan_right_gain  # Right channel
+            elif self.pan != 0.0:
+                # Fallback to regular pan
                 left_gain = 1.0 - max(0.0, self.pan)
                 right_gain = 1.0 - max(0.0, -self.pan)
                 output[:, 0] *= left_gain   # Left channel

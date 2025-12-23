@@ -27,6 +27,7 @@ from typing import Dict, List, Optional, Any, Tuple, Callable
 import numpy as np
 import threading
 import time
+import math
 
 
 class XGComponentManager:
@@ -189,6 +190,135 @@ class XGStateManager:
         }
 
 
+class GSMIDIProcessor:
+    """Efficient GS MIDI message processing with SYSEX and NRPN support"""
+
+    def __init__(self, component_manager):
+        self.components = component_manager
+        # Pre-compiled routing for performance
+        self._init_routing()
+
+    def _init_routing(self):
+        """Initialize fast routing tables"""
+        # GS SYSEX commands (Roland ID 0x41)
+        self.sysex_routes = {
+            0x42: self._process_gs_reset,              # GS Reset
+            0x40: self._process_gs_data_set,           # Data Set
+            0x41: self._process_gs_data_request,       # Data Request
+        }
+
+    def process_message(self, message_bytes: bytes) -> bool:
+        """Process MIDI message - return True if GS handled it"""
+        if self._is_sysex(message_bytes):
+            return self._process_sysex(message_bytes)
+        return False
+
+    def _is_sysex(self, data: bytes) -> bool:
+        """Check if message is SYSEX"""
+        return len(data) >= 3 and data[0] == 0xF0 and data[-1] == 0xF7
+
+    def _process_sysex(self, data: bytes) -> bool:
+        """Process GS SYSEX message"""
+        if len(data) < 8:
+            return False
+
+        # Check Roland manufacturer ID (0x41)
+        if data[1] != 0x41:
+            return False
+
+        # Check device ID (usually 0x10 or 0x00 for all devices)
+        device_id = data[2]
+        if device_id not in [0x00, 0x10]:
+            return False
+
+        # Check model ID (0x42 for GS)
+        if data[3] != 0x42:
+            return False
+
+        command = data[4]
+        handler = self.sysex_routes.get(command)
+
+        if handler:
+            return handler(data)
+        else:
+            print(f"Unknown GS SYSEX command: {command:02X}")
+            return False
+
+    def _process_gs_reset(self, data: bytes) -> bool:
+        """Process GS Reset SYSEX"""
+        # GS Reset: F0 41 [dev] 42 12 00 00 [sum] F7
+        if len(data) >= 9 and data[4] == 0x12 and data[5] == 0x00 and data[6] == 0x00:
+            # Reset GS system to defaults
+            if hasattr(self.components, 'reset_all_components'):
+                self.components.reset_all_components()
+                print("GS: System reset to defaults")
+                return True
+        return False
+
+    def _process_gs_data_set(self, data: bytes) -> bool:
+        """Process GS Data Set SYSEX"""
+        if len(data) < 10:
+            return False
+
+        # Address: bytes 5-7 (3 bytes)
+        address = (data[5] << 16) | (data[6] << 8) | data[7]
+
+        # Data: bytes 8 onwards (until checksum)
+        data_bytes = data[8:-2]  # Exclude checksum and F7
+
+        # Process parameter change
+        return self.components.process_parameter_change(bytes([data[5], data[6], data[7]]), data_bytes[0] if data_bytes else 0)
+
+    def _process_gs_data_request(self, data: bytes) -> bool:
+        """Process GS Data Request SYSEX"""
+        # GS doesn't typically respond to data requests in synthesizers
+        # This would be for editors requesting parameter values
+        return True
+
+    def process_nrpn(self, controller: int, value: int) -> bool:
+        """Process NRPN controller messages"""
+        if hasattr(self.components, 'nrpn_controller') and self.components.nrpn_controller:
+            return self.components.nrpn_controller.process_nrpn_message(controller, value)
+        return False
+
+
+class GSStateManager:
+    """GS parameter state management with caching"""
+
+    def __init__(self, component_manager):
+        self.components = component_manager
+        # Cached parameter getters for performance
+        self._init_parameter_cache()
+
+    def _init_parameter_cache(self):
+        """Initialize parameter cache for fast access"""
+        self.parameter_cache = {
+            'master_volume': lambda: self.components.get_component('system_params').master_volume,
+            'reverb_level': lambda: self.components.get_component('system_params').reverb_send_level,
+            'chorus_level': lambda: self.components.get_component('system_params').chorus_send_level,
+        }
+
+        # Part parameter cache
+        for part_num in range(16):
+            self.parameter_cache[f'part_{part_num}_volume'] = lambda p=part_num: (
+                self.components.get_component('multipart').get_part(p).volume if
+                self.components.get_component('multipart').get_part(p) else 100
+            )
+
+    def get_parameter(self, param_name: str):
+        """Get parameter value from cache"""
+        getter = self.parameter_cache.get(param_name)
+        return getter() if getter else None
+
+    def get_effects_config(self) -> Dict[str, Any]:
+        """Get effects configuration for audio processing"""
+        return {
+            'reverb_enabled': self.get_parameter('reverb_level') > 0,
+            'chorus_enabled': self.get_parameter('chorus_level') > 0,
+            'master_volume': self.get_parameter('master_volume') or 100,
+        }
+
+
 class PerformanceMonitor:
     """Production performance monitoring"""
 
@@ -230,20 +360,35 @@ class ModernXGSynthesizer:
                  sample_rate: int = 44100,
                  max_channels: int = 16,
                  xg_enabled: bool = True,
+                 gs_enabled: bool = True,
+                 mpe_enabled: bool = True,
                  device_id: int = 0x10):
         """
-        Initialize Enhanced Modern XG Synthesizer
+        Initialize Enhanced Modern XG/GS/MPE Synthesizer
 
         Args:
             sample_rate: Audio sample rate in Hz
             max_channels: Maximum MIDI channels
             xg_enabled: Enable XG features
-            device_id: XG device ID
+            gs_enabled: Enable GS features
+            mpe_enabled: Enable MPE features
+            device_id: XG/GS/MPE device ID
         """
         self.sample_rate = sample_rate
         self.max_channels = max_channels
         self.xg_enabled = xg_enabled
-        self.device_id = device_id if xg_enabled else 0
+        self.gs_enabled = gs_enabled
+        self.mpe_enabled = mpe_enabled
+        self.device_id = device_id
+
+        # Determine active protocol based on configuration
+        from ..core.config import midi_config
+        if midi_config.gs_mode == 'gs':
+            self.active_protocol = 'gs'
+        elif midi_config.gs_mode == 'xg':
+            self.active_protocol = 'xg'
+        else:  # 'auto' or other
+            self.active_protocol = 'xg' if xg_enabled else 'gs'
 
         # Set default block size
         self.block_size = 1024
@@ -254,9 +399,10 @@ class ModernXGSynthesizer:
         # Performance monitoring
         self.performance_monitor = PerformanceMonitor()
 
-        print("🎹 ENHANCED MODERN XG SYNTHESIZER: Initializing...")
+        print("🎹 ENHANCED MODERN XG/GS SYNTHESIZER: Initializing...")
         print(f"   Sample Rate: {sample_rate}Hz, Channels: {max_channels}")
-        print(f"   XG Enabled: {xg_enabled}, Device ID: {self.device_id:02X}")
+        print(f"   XG Enabled: {xg_enabled}, GS Enabled: {gs_enabled}")
+        print(f"   Active Protocol: {self.active_protocol.upper()}, Device ID: {self.device_id:02X}")
 
         # Initialize core synthesis system
         self._init_core_synthesis()
@@ -265,13 +411,27 @@ class ModernXGSynthesizer:
         if self.xg_enabled:
             self._init_xg_system()
 
-        print("🎹 ENHANCED MODERN XG SYNTHESIZER: Initialization complete!")
+        # Initialize GS system if enabled
+        if self.gs_enabled:
+            self._init_gs_system()
+
+        # Initialize Arpeggiator system (Yamaha Motif compatible)
+        self._init_arpeggiator_system()
+
+        # Initialize MPE (Microtonal Expression) system
+        if self.mpe_enabled:
+            self._init_mpe_system()
+
+        print("🎹 ENHANCED MODERN XG/GS/MPE SYNTHESIZER: Initialization complete!")
+        print(f"   Arpeggiator: {len(self.arpeggiator_engine.patterns)} patterns loaded")
+        if self.mpe_enabled:
+            print(f"   MPE: {len(self.mpe_manager.zones)} zones configured")
 
     def _init_core_synthesis(self):
         """Initialize core synthesis system with modern architecture"""
         # Zero-allocation buffer pool
         from ..core.buffer_pool import XGBufferPool
-        self.buffer_pool = XGBufferPool(self.sample_rate, max_block_size=2048)
+        self.buffer_pool = XGBufferPool(self.sample_rate, max_block_size=2048, max_channels=self.max_channels)
 
         # Pre-allocate all buffers
         self._preallocate_buffers()
@@ -418,8 +578,60 @@ class ModernXGSynthesizer:
         self._current_time: float = 0.0
         self._minimum_time_slice = 0.002  # Minimum time slice for processing (2ms)
 
+    def _init_gs_system(self):
+        """Initialize GS system with clean integration"""
+        # GS Component Manager
+        from ..gs.jv2080_component_manager import JV2080ComponentManager
+        self.gs_components = JV2080ComponentManager()
+
+        # GS MIDI Processor
+        self.gs_midi_processor = GSMIDIProcessor(self.gs_components)
+
+        # GS NRPN Controller
+        self.gs_nrpn_controller = self.gs_components.get_component('nrpn_controller')
+
+        # GS State Manager
+        self.gs_state = GSStateManager(self.gs_components)
+
+        # GS components are ready for use in MIDI/audio processing
+
+    def _init_arpeggiator_system(self):
+        """Initialize Yamaha Motif Arpeggiator system"""
+        # Import arpeggiator components
+        from ..xg.xg_arpeggiator_engine import YamahaArpeggiatorEngine
+        from ..xg.xg_arpeggiator_sysex_controller import YamahaArpeggiatorSysexController
+        from ..xg.xg_arpeggiator_nrpn_controller import YamahaArpeggiatorNRPNController
+
+        # Create arpeggiator engine
+        self.arpeggiator_engine = YamahaArpeggiatorEngine()
+
+        # Create SYSEX controller
+        self.arpeggiator_sysex_controller = YamahaArpeggiatorSysexController(self.arpeggiator_engine)
+
+        # Create NRPN controller
+        self.arpeggiator_nrpn_controller = YamahaArpeggiatorNRPNController(self.arpeggiator_engine)
+
+        # Connect arpeggiator to MIDI processing pipeline
+        self.arpeggiator_engine.note_on_callback = self._handle_arpeggiator_note_on
+        self.arpeggiator_engine.note_off_callback = self._handle_arpeggiator_note_off
+
+        print("🎹 Arpeggiator system initialized and connected to MIDI processing")
+
+    def _handle_arpeggiator_note_on(self, channel: int, note: int, velocity: int):
+        """Handle note-on events from arpeggiator engine"""
+        # Convert arpeggiator output to actual MIDI note events
+        # This will trigger the normal channel processing
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].note_on(note, velocity)
+
+    def _handle_arpeggiator_note_off(self, channel: int, note: int):
+        """Handle note-off events from arpeggiator engine"""
+        # Convert arpeggiator output to actual MIDI note events
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].note_off(note)
+
     def process_midi_message(self, message_bytes: bytes):
-        """Process MIDI message with XG integration using structured MIDIMessage objects"""
+        """Process MIDI message with XG/GS integration using structured MIDIMessage objects"""
         self.performance_monitor.update(midi_messages_processed=1)
 
         with self.lock:
@@ -428,6 +640,10 @@ class ModernXGSynthesizer:
                 self._handle_receive_channel_sysex(message_bytes)
                 self.performance_monitor.update(xg_messages_processed=1)
                 return
+
+            # GS processing if enabled (GS SYSEX)
+            if self.gs_enabled and self.gs_midi_processor.process_message(message_bytes):
+                return  # GS handled it
 
             # Parse raw bytes to MIDIMessage using synth/midi package
             from ..midi.binary_parser import parse_binary_message
@@ -486,10 +702,49 @@ class ModernXGSynthesizer:
                   f"{'MIDI CH ' + str(midi_channel) if midi_channel < 16 else 'ALL' if midi_channel == 255 else 'OFF'}")
 
     def _process_standard_midi(self, midi_message):
-        """Process standard MIDI messages using structured MIDIMessage objects with XG receive channel mapping"""
-        midi_channel = midi_message.channel
+        """Process standard MIDI messages using structured MIDIMessage objects with XG/GS receive channel mapping"""
+        # Handle SYSEX and other system messages that don't have channels
+        if midi_message.type == 'sysex':
+            # Reconstruct SYSEX bytes from parsed message
+            sysex_data = [midi_message.status] + midi_message.sysex_data
 
-        if not (0 <= midi_channel <= 15):  # MIDI channels 0-15
+            # Process Arpeggiator SYSEX messages first (Yamaha Motif)
+            if hasattr(self, 'arpeggiator_sysex_controller'):
+                result = self.arpeggiator_sysex_controller.process_sysex_message(bytes(sysex_data))
+                if result:
+                    return  # Arpeggiator SYSEX handled it
+
+            # Process GS SYSEX messages
+            if self.gs_enabled and self.gs_midi_processor.process_message(bytes(sysex_data)):
+                return  # GS handled it
+
+            # Process XG SYSEX messages
+            if self.xg_enabled:
+                # Check for XG receive channel SYSEX first
+                if self._is_receive_channel_sysex(bytes(sysex_data)):
+                    self._handle_receive_channel_sysex(bytes(sysex_data))
+                    return
+
+                # Process through XG MIDI processor
+                if self.xg_midi_processor.process_message(bytes(sysex_data)):
+                    return
+
+            # If not handled by GS or XG, SYSEX is ignored in standard MIDI processing
+            return
+
+        # For all other messages, check if they have valid channels
+        midi_channel = midi_message.channel
+        if midi_channel is None or not (0 <= midi_channel <= 15):  # MIDI channels 0-15
+            return
+
+        # Arpeggiator processing first (Yamaha Motif style)
+        if hasattr(self, 'arpeggiator_engine') and midi_message.type in ['note_on', 'note_off']:
+            # Route note messages through arpeggiator
+            if midi_message.type == 'note_on':
+                self.arpeggiator_engine.process_note_on(midi_channel, midi_message.note, midi_message.velocity)
+            else:  # note_off
+                self.arpeggiator_engine.process_note_off(midi_channel, midi_message.note)
+            # Arpeggiator will generate its own note events via callbacks
             return
 
         # XG receive channel mapping - route message to appropriate parts
@@ -508,6 +763,10 @@ class ModernXGSynthesizer:
 
                 # Apply XG modifications if enabled
                 modified_message = self._apply_xg_channel_modifications(part_id, midi_message)
+
+                # Update channel XG state from message metadata
+                if hasattr(modified_message, '_xg_metadata'):
+                    target_channel.update_xg_state_from_message(modified_message._xg_metadata)
 
                 # Process message based on type
                 self._process_message_on_channel(target_channel, modified_message)
@@ -535,10 +794,20 @@ class ModernXGSynthesizer:
         elif msg_type == 'control_change':
             controller, value = midi_message.control, midi_message.value
 
+            # Arpeggiator NRPN processing (Yamaha Motif style - highest priority)
+            if hasattr(self, 'arpeggiator_nrpn_controller') and self.arpeggiator_nrpn_controller:
+                if self.arpeggiator_nrpn_controller.process_nrpn_message(controller, value):
+                    return  # Arpeggiator NRPN handled it
+
+            # GS NRPN processing (GS uses NRPN for parameter control)
+            if self.gs_enabled and self.gs_nrpn_controller:
+                if self.gs_nrpn_controller.process_nrpn_message(controller, value):
+                    return  # GS NRPN handled it
+
             # XG controller processing
             if self.xg_enabled:
                 applied = self.xg_components.get_component('controllers').apply_controller_value(
-                    target_channel.channel_num, controller, value
+                    target_channel.channel_number, controller, value
                 )
                 if applied:
                     return  # XG controller handled it
@@ -549,7 +818,16 @@ class ModernXGSynthesizer:
         elif msg_type == 'channel_pressure':
             target_channel.set_channel_pressure(midi_message.pressure)
         elif msg_type == 'pitch_bend':
-            # Convert pitch bend value to LSB/MSB
+            # Check for MPE pitch bend first
+            if hasattr(self, 'mpe_manager') and self.mpe_manager.mpe_enabled:
+                zone = self.mpe_manager.get_zone_for_channel(midi_channel)
+                if zone:
+                    # Process as MPE pitch bend (14-bit resolution)
+                    bend_value = midi_message.pitch
+                    self.mpe_manager.process_pitch_bend(midi_channel, bend_value)
+                    return  # MPE handled it
+
+            # Convert pitch bend value to LSB/MSB for regular processing
             pitch_value = midi_message.pitch
             lsb = pitch_value & 0x7F
             msb = (pitch_value >> 7) & 0x7F
@@ -557,9 +835,128 @@ class ModernXGSynthesizer:
 
     def _apply_xg_channel_modifications(self, channel: int, midi_message):
         """Apply XG channel modifications to MIDIMessage"""
-        # Could modify message based on XG channel settings
-        # For now, return unchanged
-        return midi_message
+        if not self.xg_enabled or not hasattr(self.channels[channel], 'xg_config'):
+            return midi_message
+
+        xg_config = self.channels[channel].xg_config
+
+        # Create a copy of the message for modification
+        from ..midi.parser import MIDIMessage
+        modified_message = MIDIMessage(**{k: getattr(midi_message, k) for k in midi_message.__slots__ if getattr(midi_message, k) is not None})
+
+        # Initialize XG metadata as a separate attribute
+        xg_metadata = {}
+
+        # Apply part level (volume scaling)
+        if 'part_level' in xg_config and xg_config['part_level'] != 100:
+            level_scale = xg_config['part_level'] / 100.0
+            if modified_message.type == 'note_on':
+                # Scale velocity by part level
+                modified_velocity = max(1, int(modified_message.velocity * level_scale))
+                modified_message.velocity = modified_velocity
+                xg_metadata['velocity_scaled'] = True
+                xg_metadata['original_velocity'] = midi_message.velocity
+
+        # Apply part pan (calculate pan gains for stereo output)
+        if 'part_pan' in xg_config and xg_config['part_pan'] != 64:
+            pan_position = (xg_config['part_pan'] - 64) / 63.0  # Convert to -1.0 to +1.0
+            left_gain, right_gain = self._calculate_pan_gains(pan_position)
+            xg_metadata['pan_left_gain'] = left_gain
+            xg_metadata['pan_right_gain'] = right_gain
+            xg_metadata['pan_position'] = pan_position
+
+        # Handle drum kit assignments for percussion channel
+        if channel == 9 and 'drum_kit' in xg_config:  # Channel 10 (0-indexed as 9)
+            kit_number = xg_config['drum_kit']
+            if modified_message.type in ['note_on', 'note_off']:
+                # Apply drum kit note remapping
+                remapped_note = self._remap_drum_note(modified_message.note, kit_number)
+                if remapped_note != modified_message.note:
+                    xg_metadata['original_note'] = modified_message.note
+                    xg_metadata['drum_kit_applied'] = kit_number
+                    modified_message.note = remapped_note
+
+        # Apply effects sends (store routing information for channel processing)
+        if 'effects_sends' in xg_config:
+            effects_sends = xg_config['effects_sends']
+            xg_metadata['effects_routing'] = {
+                'reverb_send': effects_sends.get('reverb', 40) / 127.0,  # Normalize to 0.0-1.0
+                'chorus_send': effects_sends.get('chorus', 0) / 127.0,
+                'variation_send': effects_sends.get('variation', 0) / 127.0
+            }
+
+        # Apply part mode modifications
+        if 'part_mode' in xg_config:
+            part_mode = xg_config['part_mode']
+            if part_mode == 0:  # Normal mode - polyphonic
+                xg_metadata['part_mode'] = 'normal'
+            elif part_mode == 1:  # Single mode - monophonic
+                xg_metadata['part_mode'] = 'single'
+                xg_metadata['monophonic'] = True
+            elif part_mode == 2:  # Layer mode - allow layering
+                xg_metadata['part_mode'] = 'layer'
+                xg_metadata['layered'] = True
+
+        # Apply voice reserve information
+        if 'voice_reserve' in xg_config:
+            voice_reserve = xg_config['voice_reserve']
+            xg_metadata['voice_reserve'] = voice_reserve
+
+        # Attach metadata to message (using setattr to avoid type checker issues)
+        if xg_metadata:
+            setattr(modified_message, '_xg_metadata', xg_metadata)
+
+        return modified_message
+
+    def _calculate_pan_gains(self, pan_position: float) -> Tuple[float, float]:
+        """
+        Calculate left and right channel gains for pan position using constant power pan law.
+
+        Args:
+            pan_position: Pan position from -1.0 (full left) to +1.0 (full right)
+
+        Returns:
+            Tuple of (left_gain, right_gain)
+        """
+        # Constant power pan law: -3dB at center, -6dB at edges
+        if pan_position < -1.0:
+            pan_position = -1.0
+        elif pan_position > 1.0:
+            pan_position = 1.0
+
+        # Convert to angle (in radians)
+        angle = pan_position * (math.pi / 4.0)  # 45 degrees max
+
+        # Calculate gains using trig functions
+        left_gain = math.cos(angle + math.pi / 4.0)
+        right_gain = math.sin(angle + math.pi / 4.0)
+
+        return left_gain, right_gain
+
+    def _remap_drum_note(self, note: int, kit_number: int) -> int:
+        """
+        Remap drum note based on XG drum kit assignments.
+
+        Args:
+            note: Original MIDI note number
+            kit_number: XG drum kit number
+
+        Returns:
+            Remapped note number (may be same if no remapping needed)
+        """
+        if not self.xg_enabled:
+            return note
+
+        # Get drum kit configuration from XG components
+        drum_setup = self.xg_components.get_component('drum_setup')
+        if drum_setup and hasattr(drum_setup, 'get_drum_kit_mapping'):
+            # Get note mapping for this kit
+            kit_mapping = drum_setup.get_drum_kit_mapping(kit_number)
+            if kit_mapping and note in kit_mapping:
+                return kit_mapping[note]
+
+        # Return original note if no remapping available
+        return note
 
     def send_midi_message_block(self, messages: List[Any]):
         """
@@ -719,7 +1116,13 @@ class ModernXGSynthesizer:
             return self._message_sequence[-1].time
 
     def generate_audio_block(self, block_size: Optional[int] = None) -> np.ndarray:
-        """Generate audio block with zero-allocation processing"""
+        """
+        Generate audio block with buffered MIDI message processing support.
+
+        This method processes buffered MIDI messages with sample-perfect timing
+        when available, falling back to real-time generation when no buffered
+        messages are present.
+        """
         self.performance_monitor.update(audio_blocks_generated=1)
 
         with self.lock:
@@ -727,37 +1130,130 @@ class ModernXGSynthesizer:
             if block_size is None:
                 block_size = self.block_size
 
-            # Ensure correct buffer size
-            if block_size != self.output_buffer.shape[0]:
-                self.output_buffer = self.buffer_pool.get_stereo_buffer(block_size)
+            # Check if we have buffered messages to process
+            if hasattr(self, '_message_sequence') and self._message_sequence:
+                # Use sample-perfect buffered processing
+                return self._generate_audio_block_buffered(block_size)
+            else:
+                # Use real-time generation (fallback for compatibility)
+                return self._generate_audio_block_realtime(block_size)
 
-            # Clear output buffer (SIMD optimized)
-            self.output_buffer.fill(0.0)
+    def _generate_audio_block_buffered(self, block_size: int) -> np.ndarray:
+        """
+        Generate audio block with sample-perfect buffered MIDI message processing.
 
-            # Generate channel audio
-            active_voices = 0
+        Processes MIDI messages at their exact sample positions within the block
+        for perfect timing accuracy.
+        """
+        # Ensure output buffer is correctly sized
+        if self.output_buffer.shape[0] != block_size:
+            self.output_buffer = self.buffer_pool.get_stereo_buffer(block_size)
+
+        # Clear output buffer (SIMD optimized)
+        self.output_buffer.fill(0.0)
+
+        # Track active voices for performance monitoring
+        active_voices = 0
+
+        # Process buffered messages sample-perfectly
+        at_time = self._current_time
+        at_index = self._current_message_index
+        block_offset = 0
+
+        # Process messages in segments to reduce per-sample overhead
+        while block_offset < block_size:
+            # Process all messages that occur at or before the minimum time slice
+            messages_in_segment = 0
+            while (
+                at_index < len(self._message_sequence)
+                and self._message_sequence[at_index].time <= at_time + self._minimum_time_slice
+            ):
+                message = self._message_sequence[at_index]
+                at_index += 1
+                messages_in_segment += 1
+
+                # Process the MIDI message (same as real-time processing)
+                self._process_buffered_midi_message(message)
+
+            # Determine the segment length until the next MIDI message
+            if at_index < len(self._message_sequence):
+                next_time = self._message_sequence[at_index].time
+                segment_length = int((next_time - at_time) * self.sample_rate)
+                # Clamp to remaining block size
+                segment_length = min(segment_length, block_size - block_offset)
+            else:
+                # No more messages, process to end of block
+                segment_length = block_size - block_offset
+
+            # Generate individual channel audio for this segment
             for i, channel in enumerate(self.channels):
                 if channel.is_active():
-                    # Get pre-allocated channel buffer
-                    channel_buffer = self.channel_buffers[i][:block_size]
+                    # Get pre-allocated channel buffer for this segment
+                    channel_buffer = self.channel_buffers[i][block_offset:block_offset + segment_length]
 
-                    # Generate channel audio
-                    channel.generate_samples(channel_buffer[:block_size])
+                    # Generate channel audio for this time segment
+                    channel.generate_samples(channel_buffer)
 
                     # Mix to output (SIMD addition)
-                    np.add(self.output_buffer[:block_size], channel_buffer[:block_size],
-                          out=self.output_buffer[:block_size])
+                    np.add(self.output_buffer[block_offset:block_offset + segment_length],
+                          channel_buffer, out=self.output_buffer[block_offset:block_offset + segment_length])
 
                     active_voices += channel.get_active_voice_count()
 
-            # Update performance metrics
-            self.performance_monitor.update(active_voices=active_voices)
+            # Advance time by the segment length
+            block_offset += segment_length
+            at_time = at_time + (segment_length / self.sample_rate)
 
-            # Apply XG effects if enabled
-            if self.xg_enabled and active_voices > 0:
-                self._apply_xg_effects(block_size)
+        # Update message index and time to reflect current position
+        self._current_message_index = at_index
+        self._current_time = at_time
 
-            return self.output_buffer
+        # Update performance metrics
+        self.performance_monitor.update(active_voices=active_voices)
+
+        # Apply XG effects if enabled and there are active voices
+        if self.xg_enabled and active_voices > 0:
+            self._apply_xg_effects(block_size)
+
+        return self.output_buffer
+
+    def _generate_audio_block_realtime(self, block_size: int) -> np.ndarray:
+        """
+        Generate audio block for real-time use (no buffered messages).
+
+        This is the fallback method when no buffered MIDI sequence is available.
+        """
+        # Ensure correct buffer size
+        if block_size != self.output_buffer.shape[0]:
+            self.output_buffer = self.buffer_pool.get_stereo_buffer(block_size)
+
+        # Clear output buffer (SIMD optimized)
+        self.output_buffer.fill(0.0)
+
+        # Generate channel audio
+        active_voices = 0
+        for i, channel in enumerate(self.channels):
+            if channel.is_active():
+                # Get pre-allocated channel buffer
+                channel_buffer = self.channel_buffers[i][:block_size]
+
+                # Generate channel audio
+                channel.generate_samples(channel_buffer[:block_size])
+
+                # Mix to output (SIMD addition)
+                np.add(self.output_buffer[:block_size], channel_buffer[:block_size],
+                      out=self.output_buffer[:block_size])
+
+                active_voices += channel.get_active_voice_count()
+
+        # Update performance metrics
+        self.performance_monitor.update(active_voices=active_voices)
+
+        # Apply XG effects if enabled
+        if self.xg_enabled and active_voices > 0:
+            self._apply_xg_effects(block_size)
+
+        return self.output_buffer
 
     def _apply_xg_effects(self, block_size: int):
         """Apply XG effects processing"""
