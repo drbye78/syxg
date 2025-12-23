@@ -9,5 +9,5 @@ from .parser import XGMLParser
 from .translator import XGMLToMIDITranslator
 from .constants import XGML_VERSION
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __all__ = ['XGMLParser', 'XGMLToMIDITranslator', 'XGML_VERSION']

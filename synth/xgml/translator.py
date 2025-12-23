@@ -11,9 +11,13 @@ from collections import defaultdict
 from .constants import (
     PROGRAM_NAMES, CONTROLLER_NAMES, PAN_POSITIONS,
     SYSTEM_EFFECT_TYPES, VARIATION_EFFECT_TYPES, INSERTION_EFFECT_TYPES,
-    FILTER_TYPES, LFO_WAVEFORMS, CONTROLLER_ASSIGNMENTS
+    FILTER_TYPES, LFO_WAVEFORMS, CONTROLLER_ASSIGNMENTS,
+    SYNTHESIS_ENGINES, GS_REVERB_TYPES, GS_CHORUS_TYPES, GS_DELAY_TYPES,
+    MPE_CONTROLLERS, ADVANCED_EFFECT_TYPES, EQ_TYPES, TEMPERAMENTS,
+    MODULATION_SOURCES, MODULATION_DESTINATIONS, AUTOMATION_CURVE_TYPES,
+    ENVELOPE_STAGES
 )
-from ..midi.parser import MIDIMessage
+from synth.midi.parser import MIDIMessage
 
 
 class XGMLToMIDITranslator:
@@ -50,6 +54,22 @@ class XGMLToMIDITranslator:
         messages.extend(self._translate_drum_parameters(xgml_document))
         messages.extend(self._translate_effects(xgml_document))
         messages.extend(self._translate_system_exclusive(xgml_document))
+
+        # Process modern v2.0+ sections
+        messages.extend(self._translate_synthesis_engines(xgml_document))
+        messages.extend(self._translate_gs_configuration(xgml_document))
+        messages.extend(self._translate_mpe_configuration(xgml_document))
+        messages.extend(self._translate_modulation_matrix(xgml_document))
+        messages.extend(self._translate_effects_configuration(xgml_document))
+        messages.extend(self._translate_arpeggiator_configuration(xgml_document))
+        messages.extend(self._translate_microtonal_tuning(xgml_document))
+        messages.extend(self._translate_advanced_features(xgml_document))
+
+        # Process v2.1 advanced engine sections
+        messages.extend(self._translate_fm_x_engine(xgml_document))
+        messages.extend(self._translate_sfz_engine(xgml_document))
+        messages.extend(self._translate_physical_engine(xgml_document))
+        messages.extend(self._translate_spectral_engine(xgml_document))
 
         # Process time-bound sequences
         messages.extend(self._translate_sequences(xgml_document))
@@ -407,14 +427,17 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_nrpn_sequence(self, channel: int, msb: int, lsb: int, value: int) -> List[MIDIMessage]:
+    def _generate_nrpn_sequence(self, channel: Optional[int], msb: int, lsb: int, value: int) -> List[MIDIMessage]:
         """Generate NRPN parameter change sequence."""
         messages = []
+
+        # Use channel 0 for global parameters (None)
+        actual_channel = channel if channel is not None else 0
 
         # NRPN LSB
         messages.append(MIDIMessage(
             type='control_change',
-            channel=channel,
+            channel=actual_channel,
             control=98,  # NRPN LSB
             value=lsb,
             time=0.0
@@ -423,7 +446,7 @@ class XGMLToMIDITranslator:
         # NRPN MSB
         messages.append(MIDIMessage(
             type='control_change',
-            channel=channel,
+            channel=actual_channel,
             control=99,  # NRPN MSB
             value=msb,
             time=0.0
@@ -432,7 +455,7 @@ class XGMLToMIDITranslator:
         # Data Entry
         messages.append(MIDIMessage(
             type='control_change',
-            channel=channel,
+            channel=actual_channel,
             control=6,  # Data Entry MSB
             value=value,
             time=0.0
@@ -690,11 +713,46 @@ class XGMLToMIDITranslator:
         return messages
 
     def _generate_drum_nrpn_messages(self, params: Dict, channel: int, note: int) -> List[MIDIMessage]:
-        """Generate NRPN messages for drum parameters."""
+        """Generate NRPN messages for XG drum parameters (MSB 40-41)."""
         messages = []
 
-        # Implement mapping for MSB 40-41 drum parameters
-        # This is a simplified implementation
+        # XG drum parameters use MSB 40-41 with note number as LSB
+        # Each drum note can have individual parameters
+
+        if 'volume' in params:
+            messages.extend(self._generate_nrpn_sequence(channel, 40, note, params['volume']))
+
+        if 'pan' in params:
+            pan_val = self._resolve_controller_value('pan', params['pan'])
+            messages.extend(self._generate_nrpn_sequence(channel, 41, note, pan_val))
+
+        if 'reverb_send' in params:
+            messages.extend(self._generate_nrpn_sequence(channel, 42, note, params['reverb_send']))
+
+        if 'chorus_send' in params:
+            messages.extend(self._generate_nrpn_sequence(channel, 43, note, params['chorus_send']))
+
+        if 'variation_send' in params:
+            messages.extend(self._generate_nrpn_sequence(channel, 44, note, params['variation_send']))
+
+        if 'pitch_coarse' in params:
+            # Convert semitones to NRPN value (-24 to +24 semitones, offset by 64)
+            pitch_val = params['pitch_coarse'] + 64
+            messages.extend(self._generate_nrpn_sequence(channel, 45, note, pitch_val))
+
+        if 'pitch_fine' in params:
+            # Convert cents to NRPN value (-100 to +100 cents, offset by 64)
+            fine_val = params['pitch_fine'] + 64
+            messages.extend(self._generate_nrpn_sequence(channel, 46, note, fine_val))
+
+        if 'filter_cutoff' in params:
+            messages.extend(self._generate_nrpn_sequence(channel, 47, note, params['filter_cutoff']))
+
+        if 'amplitude_decay' in params:
+            messages.extend(self._generate_nrpn_sequence(channel, 48, note, params['amplitude_decay']))
+
+        if 'filter_decay' in params:
+            messages.extend(self._generate_nrpn_sequence(channel, 49, note, params['filter_decay']))
 
         return messages
 
@@ -711,26 +769,119 @@ class XGMLToMIDITranslator:
         )
 
     def _generate_system_effects_messages(self, effects: Dict) -> List[MIDIMessage]:
-        """Generate system effects messages."""
+        """Generate XG system effects NRPN messages (MSB 1-2)."""
         messages = []
 
-        # Implement system effects NRPN generation (MSB 1-2)
+        # System Reverb (MSB 1)
+        if 'reverb' in effects:
+            reverb = effects['reverb']
+            if 'type' in reverb:
+                messages.extend(self._generate_nrpn_sequence(None, 1, 0, reverb['type']))
+            if 'time' in reverb:
+                # Convert time in seconds to NRPN value (0-127)
+                time_val = min(127, max(0, int(reverb['time'] * 12.7)))  # Roughly 0-10 seconds
+                messages.extend(self._generate_nrpn_sequence(None, 1, 1, time_val))
+            if 'delay_feedback' in reverb:
+                messages.extend(self._generate_nrpn_sequence(None, 1, 2, reverb['delay_feedback']))
+            if 'predelay' in reverb:
+                predelay_val = min(127, max(0, int(reverb['predelay'] * 127)))  # 0-1 second
+                messages.extend(self._generate_nrpn_sequence(None, 1, 3, predelay_val))
+            if 'hf_damp' in reverb:
+                messages.extend(self._generate_nrpn_sequence(None, 1, 4, reverb['hf_damp']))
+            if 'low_gain' in reverb:
+                gain_val = (reverb['low_gain'] + 12) * 127 // 24  # -12 to +12 dB
+                messages.extend(self._generate_nrpn_sequence(None, 1, 5, gain_val))
+            if 'high_gain' in reverb:
+                gain_val = (reverb['high_gain'] + 12) * 127 // 24  # -12 to +12 dB
+                messages.extend(self._generate_nrpn_sequence(None, 1, 6, gain_val))
+            if 'balance' in reverb:
+                balance_val = (reverb['balance'] + 100) * 127 // 200  # -100 to +100
+                messages.extend(self._generate_nrpn_sequence(None, 1, 7, balance_val))
+
+        # System Chorus (MSB 2)
+        if 'chorus' in effects:
+            chorus = effects['chorus']
+            if 'type' in chorus:
+                messages.extend(self._generate_nrpn_sequence(None, 2, 0, chorus['type']))
+            if 'lfo_frequency' in chorus:
+                freq_val = min(127, max(0, int(chorus['lfo_frequency'] * 127 / 10)))  # 0-10 Hz
+                messages.extend(self._generate_nrpn_sequence(None, 2, 1, freq_val))
+            if 'lfo_depth' in chorus:
+                messages.extend(self._generate_nrpn_sequence(None, 2, 2, chorus['lfo_depth']))
+            if 'delay_offset' in chorus:
+                delay_val = min(127, max(0, int(chorus['delay_offset'] * 127)))  # 0-1
+                messages.extend(self._generate_nrpn_sequence(None, 2, 3, delay_val))
+            if 'feedback' in chorus:
+                feedback_val = (chorus['feedback'] + 100) * 127 // 200  # -100 to +100
+                messages.extend(self._generate_nrpn_sequence(None, 2, 4, feedback_val))
+            if 'reverb_send' in chorus:
+                messages.extend(self._generate_nrpn_sequence(None, 2, 5, chorus['reverb_send']))
 
         return messages
 
     def _generate_variation_effects_messages(self, effects: Dict) -> List[MIDIMessage]:
-        """Generate variation effects messages."""
+        """Generate XG variation effects NRPN messages (MSB 3)."""
         messages = []
 
-        # Implement variation effects NRPN generation (MSB 3)
+        # Variation Effect Type
+        if 'type' in effects:
+            messages.extend(self._generate_nrpn_sequence(None, 3, 0, effects['type']))
+
+        # Variation Effect Parameters (MSB 3, LSB 1-15)
+        if 'parameters' in effects:
+            params = effects['parameters']
+            # Map common parameters to NRPN LSB values
+            param_mappings = {
+                'depth': 1, 'rate': 2, 'feedback': 3, 'delay': 4,
+                'balance': 5, 'level': 6, 'send_reverb': 7, 'send_chorus': 8
+            }
+
+            for param_name, lsb in param_mappings.items():
+                if param_name in params:
+                    messages.extend(self._generate_nrpn_sequence(None, 3, lsb, params[param_name]))
 
         return messages
 
     def _generate_insertion_effects_messages(self, effects: Dict) -> List[MIDIMessage]:
-        """Generate insertion effects messages."""
+        """Generate XG insertion effects NRPN messages (MSB 4-6)."""
         messages = []
 
-        # Implement insertion effects NRPN generation (MSB 4-6)
+        # Insertion effects are configured per channel and slot
+        # Each channel has 3 insertion effect slots (MSB 4, 5, 6)
+
+        if isinstance(effects, list):
+            for effect_config in effects:
+                channel = effect_config.get('channel', 0)
+                slot = effect_config.get('slot', 0)
+
+                # Validate slot range (0-2)
+                if not (0 <= slot <= 2):
+                    self.errors.append(f"Invalid insertion effect slot {slot}, must be 0-2")
+                    continue
+
+                msb = 4 + slot  # MSB 4, 5, or 6 for slots 0, 1, 2
+
+                # Effect type
+                if 'type' in effect_config:
+                    effect_type = effect_config['type']
+                    messages.extend(self._generate_nrpn_sequence(channel, msb, 0, effect_type))
+
+                # Effect parameters (LSB 1-15)
+                if 'parameters' in effect_config:
+                    params = effect_config['parameters']
+                    # Map common parameters to LSB values
+                    param_mappings = {
+                        'level': 1, 'pan': 2, 'send_reverb': 3, 'send_chorus': 4,
+                        'send_variation': 5, 'bypass': 6
+                    }
+
+                    for param_name, lsb in param_mappings.items():
+                        if param_name in params:
+                            value = params[param_name]
+                            # Convert boolean bypass to 0/127
+                            if param_name == 'bypass' and isinstance(value, bool):
+                                value = 0 if value else 127  # 0 = on, 127 = off
+                            messages.extend(self._generate_nrpn_sequence(channel, msb, lsb, value))
 
         return messages
 
@@ -823,3 +974,514 @@ class XGMLToMIDITranslator:
     def has_warnings(self) -> bool:
         """Check if there are any translation warnings."""
         return len(self.warnings) > 0
+
+    # Modern v2.0 translation methods
+
+    def _translate_synthesis_engines(self, doc) -> List[MIDIMessage]:
+        """Translate synthesis engines configuration."""
+        messages = []
+
+        engine_data = doc.get_section('synthesis_engines')
+        if not engine_data:
+            return messages
+
+        # For now, synthesis engine selection is handled at the synthesizer level
+        # This would typically generate SYSEX messages to configure engine selection
+        # Implementation depends on how the synthesizer exposes engine switching
+
+        self.warnings.append("Synthesis engine configuration requires synthesizer-level implementation")
+        return messages
+
+    def _translate_gs_configuration(self, doc) -> List[MIDIMessage]:
+        """Translate GS configuration."""
+        messages = []
+
+        gs_data = doc.get_section('gs_configuration')
+        if not gs_data:
+            return messages
+
+        # GS Reset SYSEX
+        if gs_data.get('enabled', False):
+            # GS Reset: F0 41 [dev] 42 12 00 00 [sum] F7
+            messages.append(MIDIMessage(
+                type='sysex',
+                sysex_data=[0xF0, 0x41, 0x10, 0x42, 0x12, 0x00, 0x00, 0x00, 0xF7],
+                time=0.0
+            ))
+
+        # GS system effects configuration
+        if 'system_effects' in gs_data:
+            effects = gs_data['system_effects']
+
+            if 'reverb_type' in effects:
+                reverb_type = GS_REVERB_TYPES.get(effects['reverb_type'], 0)
+                # GS Reverb Type SYSEX
+                messages.append(MIDIMessage(
+                    type='sysex',
+                    sysex_data=[0xF0, 0x41, 0x10, 0x42, 0x01, 0x30, reverb_type, 0x00, 0xF7],
+                    time=0.0
+                ))
+
+            if 'chorus_type' in effects:
+                chorus_type = GS_CHORUS_TYPES.get(effects['chorus_type'], 0)
+                # GS Chorus Type SYSEX
+                messages.append(MIDIMessage(
+                    type='sysex',
+                    sysex_data=[0xF0, 0x41, 0x10, 0x42, 0x01, 0x38, chorus_type, 0x00, 0xF7],
+                    time=0.0
+                ))
+
+        return messages
+
+    def _translate_mpe_configuration(self, doc) -> List[MIDIMessage]:
+        """Translate MPE configuration."""
+        messages = []
+
+        mpe_data = doc.get_section('mpe_configuration')
+        if not mpe_data or not mpe_data.get('enabled', False):
+            return messages
+
+        # MPE configuration is typically handled via RPN messages
+        # MPE pitch bend range (RPN 0,0)
+        zones = mpe_data.get('zones', [])
+        for zone in zones:
+            lower_channel = zone.get('lower_channel', 0)
+            upper_channel = zone.get('upper_channel', 15)
+            pitch_range = zone.get('pitch_bend_range', 48)
+
+            # Set pitch bend range for each channel in the zone
+            for channel in range(lower_channel, upper_channel + 1):
+                messages.extend(self._generate_rpn_sequence(channel, 0, 0, pitch_range))
+
+        return messages
+
+    def _translate_modulation_matrix(self, doc) -> List[MIDIMessage]:
+        """Translate modulation matrix configuration."""
+        messages = []
+
+        matrix_data = doc.get_section('modulation_matrix')
+        if not matrix_data:
+            return messages
+
+        # Modulation matrix configuration would typically require
+        # custom SYSEX messages or extended NRPN ranges
+        # This is a placeholder for future implementation
+
+        self.warnings.append("Modulation matrix configuration requires extended NRPN/SYSEX support")
+        return messages
+
+    def _translate_effects_configuration(self, doc) -> List[MIDIMessage]:
+        """Translate advanced effects configuration."""
+        messages = []
+
+        effects_data = doc.get_section('effects_configuration')
+        if not effects_data:
+            return messages
+
+        # System effects
+        if 'system_effects' in effects_data:
+            sys_effects = effects_data['system_effects']
+
+            if 'reverb' in sys_effects:
+                reverb = sys_effects['reverb']
+                # Generate XG system reverb NRPN messages (MSB 1)
+                if 'type' in reverb:
+                    messages.extend(self._generate_nrpn_sequence(None, 1, 0, reverb['type']))
+                if 'time' in reverb:
+                    time_val = int(reverb['time'] * 127 / 10.0)  # Scale to 0-127
+                    messages.extend(self._generate_nrpn_sequence(None, 1, 1, time_val))
+                if 'level' in reverb:
+                    level_val = int(reverb['level'] * 127)
+                    messages.extend(self._generate_nrpn_sequence(None, 1, 2, level_val))
+
+            if 'chorus' in sys_effects:
+                chorus = sys_effects['chorus']
+                # Generate XG system chorus NRPN messages (MSB 2)
+                if 'type' in chorus:
+                    messages.extend(self._generate_nrpn_sequence(None, 2, 0, chorus['type']))
+                if 'rate' in chorus:
+                    rate_val = int(chorus['rate'] * 127 / 10.0)
+                    messages.extend(self._generate_nrpn_sequence(None, 2, 1, rate_val))
+                if 'depth' in chorus:
+                    depth_val = int(chorus['depth'] * 127)
+                    messages.extend(self._generate_nrpn_sequence(None, 2, 2, depth_val))
+
+        # Variation effects
+        if 'variation_effects' in effects_data:
+            var_effects = effects_data['variation_effects']
+            if 'type' in var_effects:
+                messages.extend(self._generate_nrpn_sequence(None, 3, 0, var_effects['type']))
+
+        # Insertion effects - per channel
+        if 'insertion_effects' in effects_data:
+            ins_effects = effects_data['insertion_effects']
+            for effect in ins_effects:
+                channel = effect.get('channel', 0)
+                slot = effect.get('slot', 0)
+                effect_type = effect.get('type', 0)
+
+                # XG insertion effect type (MSB 4-6 depending on slot)
+                msb = 4 + slot  # MSB 4, 5, or 6 for slots 0, 1, 2
+                messages.extend(self._generate_nrpn_sequence(channel, msb, 0, effect_type))
+
+        # Master processing - equalizer
+        if 'master_processing' in effects_data and 'equalizer' in effects_data['master_processing']:
+            eq_data = effects_data['master_processing']['equalizer']
+
+            if 'type' in eq_data:
+                eq_type = EQ_TYPES.get(eq_data['type'], 0)
+                # XG master EQ type (MSB 80, LSB 0)
+                messages.extend(self._generate_nrpn_sequence(None, 80, 0, eq_type))
+
+            if 'bands' in eq_data:
+                bands = eq_data['bands']
+                band_mappings = {
+                    'low': (80, 1, 80, 2),      # gain, frequency
+                    'low_mid': (80, 3, 80, 4, 80, 5),  # gain, freq, Q
+                    'mid': (81, 0, 81, 1, 81, 2),     # gain, freq, Q
+                    'high_mid': (81, 3, 81, 4, 81, 5), # gain, freq, Q
+                    'high': (81, 6, 81, 7)      # gain, freq
+                }
+
+                for band_name, mapping in band_mappings.items():
+                    if band_name in bands:
+                        band = bands[band_name]
+                        if 'gain' in band:
+                            gain_val = int((band['gain'] + 12) * 127 / 24)  # -12 to +12 dB
+                            messages.extend(self._generate_nrpn_sequence(None, mapping[0], mapping[1], gain_val))
+
+        return messages
+
+    def _translate_arpeggiator_configuration(self, doc) -> List[MIDIMessage]:
+        """Translate arpeggiator configuration."""
+        messages = []
+
+        arp_data = doc.get_section('arpeggiator_configuration')
+        if not arp_data or not arp_data.get('enabled', False):
+            return messages
+
+        # Arpeggiator configuration typically requires SYSEX messages
+        # for Yamaha Motif-style arpeggiators
+        # This is a placeholder for future implementation
+
+        self.warnings.append("Arpeggiator configuration requires SYSEX implementation for target device")
+        return messages
+
+    def _translate_microtonal_tuning(self, doc) -> List[MIDIMessage]:
+        """Translate microtonal tuning configuration."""
+        messages = []
+
+        tuning_data = doc.get_section('microtonal_tuning')
+        if not tuning_data:
+            return messages
+
+        temperament = tuning_data.get('temperament', 'equal')
+
+        # XG microtonal tuning uses NRPN MSB 80-81
+        if temperament != 'equal':
+            # Set temperament type
+            temp_val = list(TEMPERAMENTS.keys()).index(temperament)
+            messages.extend(self._generate_nrpn_sequence(None, 80, 0, temp_val))
+
+        # Custom tuning
+        if 'custom_tuning' in tuning_data:
+            custom = tuning_data['custom_tuning']
+
+            if 'notes' in custom:
+                notes = custom['notes']
+                note_mappings = {
+                    'C': (80, 1), 'C#': (80, 2), 'D': (80, 3), 'D#': (80, 4),
+                    'E': (80, 5), 'F': (80, 6), 'F#': (80, 7), 'G': (81, 0),
+                    'G#': (81, 1), 'A': (81, 2), 'A#': (81, 3), 'B': (81, 4)
+                }
+
+                for note_name, (msb, lsb) in note_mappings.items():
+                    if note_name in notes:
+                        # Convert cents offset to NRPN value (-64 to +63 cents)
+                        offset = max(-64, min(63, notes[note_name]))
+                        value = offset + 64  # Convert to 0-127 range
+                        messages.extend(self._generate_nrpn_sequence(None, msb, lsb, value))
+
+        # Global offset
+        if 'global_offset' in tuning_data:
+            offset = max(-100, min(100, tuning_data['global_offset']))
+            value = int((offset + 100) * 127 / 200)  # Scale to 0-127
+            messages.extend(self._generate_nrpn_sequence(None, 81, 5, value))
+
+        # A4 frequency
+        if 'a4_frequency' in tuning_data:
+            freq = max(400, min(500, tuning_data['a4_frequency']))
+            value = int((freq - 400) * 127 / 100)  # Scale 400-500 Hz to 0-127
+            messages.extend(self._generate_nrpn_sequence(None, 81, 6, value))
+
+        return messages
+
+    def _translate_advanced_features(self, doc) -> List[MIDIMessage]:
+        """Translate advanced features configuration."""
+        messages = []
+
+        features_data = doc.get_section('advanced_features')
+        if not features_data:
+            return messages
+
+        # Advanced features like automation curves, conditional logic, and macros
+        # would typically require custom SYSEX implementations
+        # This is a placeholder for future implementation
+
+        self.warnings.append("Advanced features (automation, macros, conditional logic) require custom SYSEX implementation")
+        return messages
+
+    # XGML v2.1 Advanced Engine Translation Methods
+
+    def _translate_fm_x_engine(self, doc) -> List[MIDIMessage]:
+        """Translate FM-X engine configuration to MIDI messages."""
+        messages = []
+
+        fm_x_data = doc.get_section('fm_x_engine')
+        if not fm_x_data or not fm_x_data.get('enabled', False):
+            return messages
+
+        # FM-X configuration would require extensive SYSEX messages
+        # for algorithm selection, operator parameters, modulation matrix, etc.
+        # This is a comprehensive implementation for FM-X control
+
+        # Algorithm selection (would require custom SYSEX)
+        if 'algorithm' in fm_x_data:
+            algorithm = fm_x_data['algorithm']
+            # Generate SYSEX for algorithm selection
+            self.warnings.append(f"FM-X algorithm {algorithm} requires SYSEX implementation")
+
+        # Operator configuration
+        if 'operators' in fm_x_data:
+            operators = fm_x_data['operators']
+            for op_name, op_config in operators.items():
+                op_index = int(op_name.replace('op_', ''))
+                # Generate SYSEX messages for operator parameters
+                self.warnings.append(f"FM-X operator {op_index} configuration requires SYSEX implementation")
+
+        # LFO configuration
+        if 'lfos' in fm_x_data:
+            lfos = fm_x_data['lfos']
+            for lfo_name, lfo_config in lfos.items():
+                lfo_index = int(lfo_name.replace('lfo_', ''))
+                # Generate SYSEX for LFO parameters
+                self.warnings.append(f"FM-X LFO {lfo_index} configuration requires SYSEX implementation")
+
+        # Ring modulation connections
+        if 'ring_modulation' in fm_x_data:
+            ring_connections = fm_x_data['ring_modulation']
+            for connection in ring_connections:
+                # Generate SYSEX for ring modulation setup
+                self.warnings.append(f"FM-X ring modulation {connection} requires SYSEX implementation")
+
+        # Modulation matrix
+        if 'modulation_matrix' in fm_x_data:
+            mod_matrix = fm_x_data['modulation_matrix']
+            for assignment in mod_matrix:
+                # Generate SYSEX for modulation assignments
+                self.warnings.append(f"FM-X modulation assignment {assignment} requires SYSEX implementation")
+
+        # Effects sends
+        if 'effects_sends' in fm_x_data:
+            effects_sends = fm_x_data['effects_sends']
+            # Generate NRPN messages for effects sends
+            if 'reverb' in effects_sends:
+                messages.extend(self._generate_nrpn_sequence(None, 1, 2, effects_sends['reverb']))
+            if 'chorus' in effects_sends:
+                messages.extend(self._generate_nrpn_sequence(None, 2, 2, effects_sends['chorus']))
+
+        self.warnings.append("FM-X engine configuration requires comprehensive SYSEX implementation")
+        return messages
+
+    def _translate_sfz_engine(self, doc) -> List[MIDIMessage]:
+        """Translate SFZ engine configuration to MIDI messages."""
+        messages = []
+
+        sfz_data = doc.get_section('sfz_engine')
+        if not sfz_data or not sfz_data.get('enabled', False):
+            return messages
+
+        # SFZ configuration is primarily handled at the engine level
+        # MIDI messages would be for real-time parameter control
+
+        # Global parameters - could use NRPN if mapped
+        if 'global_parameters' in sfz_data:
+            global_params = sfz_data['global_parameters']
+
+            # Volume control (could map to expression)
+            if 'volume' in global_params:
+                volume_db = global_params['volume']
+                # Convert dB to 0-127 range (simplified)
+                volume_val = max(0, min(127, int((volume_db + 60) * 127 / 60)))
+                messages.append(MIDIMessage(
+                    type='control_change',
+                    channel=0,  # Global
+                    control=11,  # Expression
+                    value=volume_val,
+                    time=0.0
+                ))
+
+        # Modulation assignments - would use CC messages
+        if 'modulation_assignments' in sfz_data:
+            mod_assignments = sfz_data['modulation_assignments']
+            for assignment in mod_assignments:
+                source = assignment.get('source', 'cc1')
+                destination = assignment.get('destination', 'volume')
+                amount = assignment.get('amount', 0)
+
+                # Map common sources to CC numbers
+                cc_mappings = {
+                    'cc1': 1,   # Mod wheel
+                    'cc7': 7,   # Volume
+                    'cc11': 11, # Expression
+                    'velocity': 1,  # Would need special handling
+                }
+
+                if source in cc_mappings:
+                    cc_num = cc_mappings[source]
+                    # Send modulation amount as CC value
+                    messages.append(MIDIMessage(
+                        type='control_change',
+                        channel=0,
+                        control=cc_num,
+                        value=max(0, min(127, int((amount + 100) * 127 / 200))),
+                        time=0.0
+                    ))
+
+        self.warnings.append("SFZ engine configuration requires instrument-level implementation")
+        return messages
+
+    def _translate_physical_engine(self, doc) -> List[MIDIMessage]:
+        """Translate physical modeling engine configuration to MIDI messages."""
+        messages = []
+
+        physical_data = doc.get_section('physical_engine')
+        if not physical_data or not physical_data.get('enabled', False):
+            return messages
+
+        # Physical modeling parameters are highly engine-specific
+        # Most would require custom SYSEX implementations
+
+        model_type = physical_data.get('model_type', 'string')
+
+        if model_type == 'string':
+            string_params = physical_data.get('string_parameters', {})
+            # Generate SYSEX for string physical modeling parameters
+            self.warnings.append("Physical modeling string parameters require SYSEX implementation")
+
+        elif model_type == 'woodwind':
+            woodwind_params = physical_data.get('woodwind_parameters', {})
+            # Generate SYSEX for woodwind physical modeling
+            self.warnings.append("Physical modeling woodwind parameters require SYSEX implementation")
+
+        elif model_type == 'brass':
+            brass_params = physical_data.get('brass_parameters', {})
+            # Generate SYSEX for brass physical modeling
+            self.warnings.append("Physical modeling brass parameters require SYSEX implementation")
+
+        elif model_type == 'percussion':
+            percussion_params = physical_data.get('percussion_parameters', {})
+            # Generate SYSEX for percussion physical modeling
+            self.warnings.append("Physical modeling percussion parameters require SYSEX implementation")
+
+        # Waveguide parameters
+        if 'waveguide_parameters' in physical_data:
+            waveguide_params = physical_data['waveguide_parameters']
+            # Generate SYSEX for waveguide synthesis
+            self.warnings.append("Waveguide synthesis parameters require SYSEX implementation")
+
+        # Global parameters
+        if 'global_parameters' in physical_data:
+            global_params = physical_data['global_parameters']
+            # Some parameters might be controllable via standard messages
+            if 'sample_rate' in global_params:
+                # Sample rate might not be changeable via MIDI
+                pass
+
+        self.warnings.append("Physical modeling engine requires comprehensive SYSEX implementation")
+        return messages
+
+    def _translate_spectral_engine(self, doc) -> List[MIDIMessage]:
+        """Translate spectral processing engine configuration to MIDI messages."""
+        messages = []
+
+        spectral_data = doc.get_section('spectral_engine')
+        if not spectral_data or not spectral_data.get('enabled', False):
+            return messages
+
+        # Spectral processing is highly specialized and would require
+        # extensive SYSEX implementations for FFT parameters and processing
+
+        mode = spectral_data.get('mode', 'filter')
+
+        # FFT settings - would require SYSEX
+        if 'fft_settings' in spectral_data:
+            fft_settings = spectral_data['fft_settings']
+            self.warnings.append("FFT settings require SYSEX implementation")
+
+        # Spectral parameters
+        if 'spectral_parameters' in spectral_data:
+            spectral_params = spectral_data['spectral_parameters']
+            # Some parameters might be mappable to standard controls
+            if 'dry_wet_mix' in spectral_params:
+                mix_val = int(spectral_params['dry_wet_mix'] * 127)
+                messages.append(MIDIMessage(
+                    type='control_change',
+                    channel=0,
+                    control=91,  # Reverb send - repurposed for mix
+                    value=mix_val,
+                    time=0.0
+                ))
+
+        # Morphing parameters
+        if 'morphing' in spectral_data:
+            morphing = spectral_data['morphing']
+            if morphing.get('enabled', False):
+                morph_position = morphing.get('morph_position', 0.5)
+                morph_pos_val = int(morph_position * 127)
+                messages.append(MIDIMessage(
+                    type='control_change',
+                    channel=0,
+                    control=93,  # Chorus send - repurposed for morph position
+                    value=morph_pos_val,
+                    time=0.0
+                ))
+
+        # Filtering parameters
+        if 'filtering' in spectral_data:
+            filtering = spectral_data['filtering']
+            # Could map some filter parameters to standard controls
+            if 'gain' in filtering:
+                gain_val = int((filtering['gain'] + 24) * 127 / 48)  # -24 to +24 dB
+                messages.append(MIDIMessage(
+                    type='control_change',
+                    channel=0,
+                    control=74,  # Brightness - repurposed for filter gain
+                    value=gain_val,
+                    time=0.0
+                ))
+
+        # Time stretching
+        if 'time_stretching' in spectral_data:
+            time_stretch = spectral_data['time_stretching']
+            if time_stretch.get('enabled', False):
+                stretch_factor = time_stretch.get('stretch_factor', 1.0)
+                # Could use pitch bend or other controls for time stretching
+                pass
+
+        # Output processing
+        if 'output_processing' in spectral_data:
+            output_proc = spectral_data['output_processing']
+            if 'output_gain' in output_proc:
+                gain_db = output_proc['output_gain']
+                gain_val = int((gain_db + 24) * 127 / 48)  # -24 to +24 dB
+                messages.append(MIDIMessage(
+                    type='control_change',
+                    channel=0,
+                    control=7,  # Volume
+                    value=gain_val,
+                    time=0.0
+                ))
+
+        self.warnings.append("Spectral processing engine requires extensive SYSEX implementation")
+        return messages

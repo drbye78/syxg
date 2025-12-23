@@ -115,12 +115,13 @@ class XGMLParser:
 
         # Validate version
         version = data.get('xg_dsl_version', XGML_VERSION)
-        if version != XGML_VERSION:
+        if version not in [XGML_VERSION, "1.0"]:  # Support both v1.0 and v2.0
             self.warnings.append(f"XGML version {version} may not be fully compatible with parser version {XGML_VERSION}")
 
-        # Check for required structure
-        if not any(section in data for section in XGML_SECTIONS):
-            self.warnings.append("No XGML sections found in document")
+        # Check for required structure (allow documents with just metadata)
+        has_content = any(section in data for section in XGML_SECTIONS if section != 'xg_dsl_version' and section != 'description' and section != 'timestamp')
+        if not has_content:
+            self.warnings.append("No XGML content sections found in document")
 
         # Validate timestamp if present
         timestamp = data.get('timestamp')

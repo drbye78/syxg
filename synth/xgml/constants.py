@@ -4,10 +4,16 @@ XGML Constants and Definitions
 Contains all constants, mappings, and definitions used by the XGML parser and translator.
 """
 
-XGML_VERSION = "1.0"
+XGML_VERSION = "2.1"
 
-# XGML Document Sections
+# XGML Document Sections (v2.1)
 XGML_SECTIONS = [
+    # Metadata
+    'xg_dsl_version',
+    'description',
+    'timestamp',
+
+    # Legacy v1.0 sections
     'basic_messages',
     'rpn_parameters',
     'channel_parameters',
@@ -17,7 +23,22 @@ XGML_SECTIONS = [
     'effects',
     'presets',
     'advanced_features',
-    'sequences'
+    'sequences',
+
+    # Modern v2.0 sections
+    'synthesis_engines',
+    'gs_configuration',
+    'mpe_configuration',
+    'modulation_matrix',
+    'effects_configuration',
+    'arpeggiator_configuration',
+    'microtonal_tuning',
+
+    # Advanced Engine Configurations (v2.1)
+    'fm_x_engine',
+    'sfz_engine',
+    'physical_engine',
+    'spectral_engine'
 ]
 
 # XGML Sequence Types
@@ -364,4 +385,171 @@ CONTROLLER_ASSIGNMENTS = {
     'pitch_modulation': 10,
     'portamento_time': 11,
     'pitch_bend_range': 12
+}
+
+# Modern Synthesis Engine Types (v2.0)
+SYNTHESIS_ENGINES = {
+    'sf2': 'sf2',
+    'sfz': 'sfz',
+    'fm': 'fm',
+    'additive': 'additive',
+    'wavetable': 'wavetable',
+    'physical': 'physical',
+    'granular': 'granular',
+    'spectral': 'spectral',
+    'convolution_reverb': 'convolution_reverb',
+    'advanced_physical': 'advanced_physical'
+}
+
+# GS Reverb Types
+GS_REVERB_TYPES = {
+    'off': 0,
+    'small_room': 1,
+    'medium_room': 2,
+    'large_room': 3,
+    'medium_hall': 4,
+    'large_hall': 5,
+    'plate': 6
+}
+
+# GS Chorus Types
+GS_CHORUS_TYPES = {
+    'off': 0,
+    'chorus1': 1,
+    'chorus2': 2,
+    'celeste1': 3,
+    'celeste2': 4,
+    'flanger1': 5,
+    'flanger2': 6
+}
+
+# GS Delay Types
+GS_DELAY_TYPES = {
+    'off': 0,
+    'delay1': 1,
+    'delay2': 2,
+    'delay3': 3,
+    'delay4': 4,
+    'pan_delay1': 5,
+    'pan_delay2': 6
+}
+
+# MPE Controller Numbers
+MPE_CONTROLLERS = {
+    'timbre': 74,
+    'slide': 75,
+    'lift': 76
+}
+
+# Advanced Effect Types
+ADVANCED_EFFECT_TYPES = {
+    # System Reverb Types
+    'hall_1': 0, 'hall_2': 1, 'hall_3': 2, 'hall_4': 3,
+    'room_1': 4, 'room_2': 5, 'room_3': 6, 'room_4': 7,
+    'stage_1': 8, 'stage_2': 9, 'stage_3': 10, 'stage_4': 11,
+    'plate': 12,
+
+    # System Chorus Types
+    'chorus_1': 0, 'chorus_2': 1, 'celeste_1': 2, 'celeste_2': 3,
+    'flanger_1': 4, 'flanger_2': 5,
+
+    # Variation Effect Types (62 types)
+    'chorus1': 0, 'chorus2': 1, 'chorus3': 2, 'chorus4': 3,
+    'celeste1': 4, 'celeste2': 5, 'flanger1': 6, 'flanger2': 7,
+    'phaser1': 8, 'phaser2': 9, 'auto_wah': 10, 'rotary_speaker': 11,
+    'tremolo': 12, 'delay_lcr': 13, 'delay_lr': 14,
+
+    # Insertion Effect Types (17 types)
+    'thru': 0, 'stereo_eq': 1, 'spectrum': 2, 'enhancer': 3,
+    'overdrive': 4, 'distortion': 5, 'phaser': 6, 'auto_wah': 7,
+    'rotary': 8, 'stereo_flanger': 9, 'step_flanger': 10, 'tremolo': 11,
+    'auto_pan': 12, 'amp_simulator': 13, 'compressor': 14,
+    'limiter': 15, 'delay_lcr': 16
+}
+
+# EQ Types
+EQ_TYPES = {
+    'flat': 0,
+    'jazz': 1,
+    'pops': 2,
+    'rock': 3,
+    'concert': 4
+}
+
+# Temperament Types
+TEMPERAMENTS = {
+    'equal': 'equal',
+    'just': 'just',
+    'pythagorean': 'pythagorean',
+    'meantone': 'meantone',
+    'werckmeister': 'werckmeister',
+    'kirnberger': 'kirnberger',
+    'custom': 'custom'
+}
+
+# Modulation Sources
+MODULATION_SOURCES = {
+    'lfo1': 'lfo1',
+    'lfo2': 'lfo2',
+    'envelope': 'envelope',
+    'velocity': 'velocity',
+    'aftertouch': 'aftertouch',
+    'mod_wheel': 'mod_wheel',
+    'pitch_bend': 'pitch_bend',
+    'expression': 'expression',
+    'breath': 'breath',
+    'foot': 'foot',
+    'timbre': 'timbre',
+    'slide': 'slide',
+    'lift': 'lift',
+    'note_number': 'note_number',
+    'random': 'random',
+    'alternate': 'alternate'
+}
+
+# Modulation Destinations
+MODULATION_DESTINATIONS = {
+    'pitch': 'pitch',
+    'volume': 'volume',
+    'pan': 'pan',
+    'filter_cutoff': 'filter_cutoff',
+    'filter_resonance': 'filter_resonance',
+    'filter_envelope': 'filter_envelope',
+    'amp_envelope': 'amp_envelope',
+    'lfo_rate': 'lfo_rate',
+    'lfo_depth': 'lfo_depth',
+    'timbre': 'timbre',
+    'brightness': 'brightness',
+    'harmonic_content': 'harmonic_content',
+    'release_time': 'release_time',
+    'attack_time': 'attack_time',
+    'decay_time': 'decay_time',
+    'sustain': 'sustain',
+    'vibrato_rate': 'vibrato_rate',
+    'vibrato_depth': 'vibrato_depth',
+    'tremolo_rate': 'tremolo_rate',
+    'tremolo_depth': 'tremolo_depth',
+    'effect_send': 'effect_send',
+    'effect_param': 'effect_param'
+}
+
+# Automation Curve Types
+AUTOMATION_CURVE_TYPES = {
+    'linear': 'linear',
+    'exponential': 'exponential',
+    'sine': 'sine',
+    'triangle': 'triangle',
+    'sawtooth': 'sawtooth',
+    'square': 'square',
+    'custom': 'custom'
+}
+
+# Envelope Stages
+ENVELOPE_STAGES = {
+    'attack': 'attack',
+    'decay': 'decay',
+    'sustain': 'sustain',
+    'release': 'release',
+    'hold': 'hold',
+    'delay': 'delay'
 }
