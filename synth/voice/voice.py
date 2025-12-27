@@ -201,6 +201,22 @@ class Voice:
         """
         return self.key_range_low <= note <= self.key_range_high
 
+    def get_regions_for_note(self, note: int, velocity: int) -> List[Any]:
+        """
+        Get regions for a specific note and velocity.
+
+        Voice objects use partials, not regions, so this returns an empty list
+        to allow fallback to the legacy voice system.
+
+        Args:
+            note: MIDI note number (0-127)
+            velocity: MIDI velocity (0-127)
+
+        Returns:
+            Empty list (no regions for partial-based voices)
+        """
+        return []
+
     def generate_samples(self, note: int, velocity: int,
                         modulation: Dict, block_size: int) -> np.ndarray:
         """
@@ -420,6 +436,63 @@ class Voice:
             # Try to update in voice parameters
             # This allows dynamic parameter updates
             pass
+
+    def apply_global_parameters(self, global_params: Dict) -> None:
+        """
+        Apply global synthesizer parameters to this voice.
+
+        Args:
+            global_params: Global synthesizer parameters
+        """
+        # Apply global parameters to voice-level settings
+        if 'master_volume' in global_params:
+            master_volume = global_params['master_volume']
+            self.master_level *= master_volume
+
+        if 'master_tune' in global_params:
+            # This would affect pitch, but voice-level tuning is usually handled per-partial
+            pass
+
+        if 'master_transpose' in global_params:
+            # This would affect transposition, but usually handled per-partial
+            pass
+
+        # Apply global parameters to all partials
+        for partial in self.partials:
+            if hasattr(partial, 'apply_global_parameters'):
+                partial.apply_global_parameters(global_params)
+
+    def apply_channel_parameters(self, channel_params: Dict) -> None:
+        """
+        Apply XG channel parameters to this voice.
+
+        Args:
+            channel_params: XG channel parameters
+        """
+        # Apply channel parameters to voice-level settings
+        if 'part_level' in channel_params:
+            part_level = channel_params['part_level'] / 100.0  # Convert from 0-100 to 0.0-1.0
+            self.master_level *= part_level
+
+        if 'part_pan' in channel_params:
+            # XG pan is -64 to +63, convert to -1.0 to +1.0
+            xg_pan = channel_params['part_pan']
+            self.pan = xg_pan / 63.0  # Normalize to -1.0 to +1.0
+
+        if 'effects_sends' in channel_params:
+            channel_sends = channel_params['effects_sends']
+            self.reverb_send = channel_sends.get('reverb', 40) / 127.0
+            self.chorus_send = channel_sends.get('chorus', 0) / 127.0
+            # Note: delay_send not used in current implementation
+
+        if 'drum_kit' in channel_params:
+            # Store drum kit info for drum channel (channel 9)
+            self._drum_kit = channel_params['drum_kit']
+
+        # Apply channel parameters to all partials
+        for partial in self.partials:
+            if hasattr(partial, 'apply_channel_parameters'):
+                partial.apply_channel_parameters(channel_params)
 
     def reset(self) -> None:
         """Reset voice to initial state."""

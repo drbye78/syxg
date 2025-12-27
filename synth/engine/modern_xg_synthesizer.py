@@ -554,6 +554,8 @@ class ModernXGSynthesizer:
         from ..core.buffer_pool import XGBufferPool
         self.buffer_pool = XGBufferPool(self.sample_rate, max_block_size=2048, max_channels=self.max_channels)
 
+
+
         # Pre-allocate all buffers
         self._preallocate_buffers()
 
@@ -587,7 +589,7 @@ class ModernXGSynthesizer:
         physical_engine = AdvancedPhysicalEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(physical_engine, 'advanced_physical', priority=5)  # Physical modeling priority
 
-        # Voice factory
+        # Voice factory with SF2 support
         from ..voice.voice_factory import VoiceFactory
         self.voice_factory = VoiceFactory(self.engine_registry)
 
@@ -628,15 +630,21 @@ class ModernXGSynthesizer:
 
     def _register_engines(self):
         """Register synthesis engines with priority system"""
-        # Enhanced SF2 Engine with stereo and multi-partial support
-        from ..sf2.enhanced_sf2_manager import EnhancedSF2Manager
+        # Enhanced SF2 Engine with progressive loading and mip-mapping
+        from ..sf2.core.manager import SF2Manager, MipMapCache
+
+        # Create new modular SF2 manager with progressive loading
+        self.sf2_manager = SF2Manager()
+
+        # Enable progressive loading for large SoundFonts
+        self.sf2_manager.enable_lazy_loading(sample_cache_size_mb=256)
+
+        # Initialize mip-map cache for high-pitch quality
+        self.sf2_manager.mip_map_cache = MipMapCache(max_memory_mb=128)
+
+        # Create SF2 engine with new modular manager
         from .sf2_engine import SF2Engine
-
-        # Create enhanced SF2 manager with PyAV sample support
-        self.enhanced_sf2_manager = EnhancedSF2Manager(self.buffer_pool.sample_manager if hasattr(self.buffer_pool, 'sample_manager') else None)
-
-        # Create SF2 engine with enhanced manager
-        sf2_engine = SF2Engine(sf2_manager=self.enhanced_sf2_manager, sample_rate=self.sample_rate, block_size=1024)
+        sf2_engine = SF2Engine(sf2_manager=self.sf2_manager, sample_rate=self.sample_rate, block_size=1024, synth=self)
         self.engine_registry.register_engine(sf2_engine, 'sf2', priority=10)
 
         # FM Engine - high priority
@@ -996,37 +1004,44 @@ class ModernXGSynthesizer:
 
         # Arpeggiator processing first (Yamaha Motif style)
         if hasattr(self, 'arpeggiator_engine') and midi_message.type in ['note_on', 'note_off']:
-            # Route note messages through arpeggiator
-            if midi_message.type == 'note_on':
-                self.arpeggiator_engine.process_note_on(midi_channel, midi_message.note, midi_message.velocity)
-            else:  # note_off
-                self.arpeggiator_engine.process_note_off(midi_channel, midi_message.note)
-            # Arpeggiator will generate its own note events via callbacks
-            return
+            arpeggiator = self.arpeggiator_engine.get_arpeggiator(midi_channel)
+            if arpeggiator and arpeggiator.enabled and arpeggiator.current_pattern:
+                # Arpeggiator is active - let it handle the note
+                if midi_message.type == 'note_on':
+                    self.arpeggiator_engine.process_note_on(midi_channel, midi_message.note, midi_message.velocity)
+                else:  # note_off
+                    self.arpeggiator_engine.process_note_off(midi_channel, midi_message.note)
+                # Arpeggiator will generate its own note events via callbacks
+                return
+            # Arpeggiator is inactive - continue with normal processing
 
         # XG receive channel mapping - route message to appropriate parts
         if self.xg_enabled and hasattr(self, 'receive_channel_manager'):
             target_parts = self.receive_channel_manager.get_parts_for_midi_channel(midi_channel)
 
-            if not target_parts:
-                return  # No parts receive from this MIDI channel
+            if target_parts:
+                # Route message to all target parts
+                for part_id in target_parts:
+                    if not (0 <= part_id < len(self.channels)):
+                        continue  # Invalid part ID
 
-            # Route message to all target parts
-            for part_id in target_parts:
-                if not (0 <= part_id < len(self.channels)):
-                    continue  # Invalid part ID
+                    target_channel = self.channels[part_id]
 
-                target_channel = self.channels[part_id]
+                    # Apply XG modifications if enabled
+                    modified_message = self._apply_xg_channel_modifications(part_id, midi_message)
 
-                # Apply XG modifications if enabled
-                modified_message = self._apply_xg_channel_modifications(part_id, midi_message)
+                    # Update channel XG state from message metadata
+                    if hasattr(modified_message, '_xg_metadata'):
+                        target_channel.update_xg_state_from_message(modified_message._xg_metadata)
 
-                # Update channel XG state from message metadata
-                if hasattr(modified_message, '_xg_metadata'):
-                    target_channel.update_xg_state_from_message(modified_message._xg_metadata)
-
-                # Process message based on type
-                self._process_message_on_channel(target_channel, modified_message)
+                    # Process message based on type
+                    self._process_message_on_channel(target_channel, modified_message)
+            else:
+                # No specific mapping, use default 1:1
+                if midi_channel < len(self.channels):
+                    target_channel = self.channels[midi_channel]
+                    modified_message = self._apply_xg_channel_modifications(midi_channel, midi_message)
+                    self._process_message_on_channel(target_channel, modified_message)
         else:
             # Fallback to direct 1:1 mapping when XG is disabled or manager not available
             if midi_channel < len(self.channels):
@@ -1444,15 +1459,13 @@ class ModernXGSynthesizer:
             # Generate individual channel audio for this segment
             for i, channel in enumerate(self.channels):
                 if channel.is_active():
-                    # Get pre-allocated channel buffer for this segment
-                    channel_buffer = self.channel_buffers[i][block_offset:block_offset + segment_length]
-
                     # Generate channel audio for this time segment
-                    channel.generate_samples(channel_buffer)
+                    # Channel.generate_samples() returns a stereo buffer, copy it to our pre-allocated buffer
+                    channel_audio = channel.generate_samples(segment_length)
 
                     # Mix to output (SIMD addition)
                     np.add(self.output_buffer[block_offset:block_offset + segment_length],
-                          channel_buffer, out=self.output_buffer[block_offset:block_offset + segment_length])
+                          channel_audio, out=self.output_buffer[block_offset:block_offset + segment_length])
 
                     active_voices += channel.get_active_voice_count()
 
@@ -1642,9 +1655,15 @@ class ModernXGSynthesizer:
     # Standard synthesizer API
     def load_soundfont(self, sf2_path: str):
         """Load SoundFont file"""
-        sf2_engine = self.engine_registry.get_engine('sf2')
-        if sf2_engine and hasattr(sf2_engine, 'load_soundfont'):
-            sf2_engine.load_soundfont(sf2_path)
+        # Use the SF2 manager to load the SoundFont
+        if hasattr(self, 'sf2_manager') and self.sf2_manager:
+            result = self.sf2_manager.load_sf2_file(sf2_path)
+            if result:
+                print(f"✅ Loaded SoundFont: {sf2_path}")
+            else:
+                print(f"❌ Failed to load SoundFont: {sf2_path}")
+        else:
+            print("⚠️  SF2 manager not available")
 
     def set_channel_program(self, channel: int, bank: int, program: int):
         """Set program for channel"""

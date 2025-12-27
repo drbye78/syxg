@@ -4,27 +4,38 @@ Voice factory for XG synthesizer.
 Provides factory pattern for creating Voice instances using appropriate synthesis engines.
 """
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from .voice import Voice
 from ..engine.synthesis_engine import SynthesisEngineRegistry
+
+if TYPE_CHECKING:
+    from ..voice.voice_manager import VoiceManager
+    from ..engine.modern_xg_synthesizer import ModernXGSynthesizer
 
 
 class VoiceFactory:
     """
-    Factory for creating Voice instances.
+    Factory for creating Voice instances with global voice management integration.
 
     Uses synthesis engine registry to determine appropriate engine for each voice
-    and creates Voice objects with proper synthesis engine integration.
+    and creates Voice objects with proper synthesis engine integration and
+    unified voice allocation, stealing, and polyphony management.
     """
 
-    def __init__(self, engine_registry: SynthesisEngineRegistry):
+    def __init__(self, engine_registry: SynthesisEngineRegistry,
+                 voice_manager: Optional['VoiceManager'] = None,
+                 synth: Optional['ModernXGSynthesizer'] = None):
         """
-        Initialize voice factory.
+        Initialize voice factory with global integration.
 
         Args:
             engine_registry: Registry of available synthesis engines
+            voice_manager: Global voice manager for allocation coordination
+            synth: ModernXGSynthesizer instance for infrastructure access
         """
         self.engine_registry = engine_registry
+        self.voice_manager = voice_manager
+        self.synth = synth
 
     def create_voice(self, bank: int, program: int, channel: int, sample_rate: int) -> Voice:
         """
@@ -163,5 +174,45 @@ class VoiceFactory:
                         }
                 except Exception:
                     continue
+
+        return None
+
+    def create_sf2_voice(self, partial_params: dict, channel: int) -> Optional[Voice]:
+        """
+        Create an SF2 voice with global voice management integration.
+
+        This method creates SF2 voices that participate in the unified voice
+        allocation system instead of using isolated SF2 voice management.
+
+        Args:
+            partial_params: SF2 partial parameters from zone processing
+            channel: MIDI channel number (0-15)
+
+        Returns:
+            SF2 Voice instance with global voice management, or None if allocation fails
+        """
+        if not self.synth or not self.voice_manager:
+            # Fallback to regular voice creation if no global integration
+            sf2_engine = self.engine_registry.get_engine('sf2')
+            if sf2_engine:
+                voice_params = {'name': 'SF2 Voice', 'partials': [partial_params]}
+                return Voice(sf2_engine, voice_params, channel, sf2_engine.sample_rate)
+            return None
+
+        # Create SF2 voice with global voice management
+        try:
+            # Use SF2 manager's voice creation method
+            sf2_manager = getattr(self.synth, 'sf2_manager', None)
+            if sf2_manager and hasattr(sf2_manager, 'create_sf2_voice'):
+                voice = sf2_manager.create_sf2_voice(partial_params, self.voice_manager, self.synth)
+                return voice
+        except Exception as e:
+            print(f"Failed to create SF2 voice with global management: {e}")
+
+        # Fallback to regular voice creation
+        sf2_engine = self.engine_registry.get_engine('sf2')
+        if sf2_engine:
+            voice_params = {'name': 'SF2 Voice', 'partials': [partial_params]}
+            return Voice(sf2_engine, voice_params, channel, sf2_engine.sample_rate)
 
         return None

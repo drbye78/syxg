@@ -205,10 +205,6 @@ class SystemConfig:
     sfz_path: Optional[str] = None
     impulse_responses_path: Optional[str] = None
 
-    # Hot reload
-    enable_hot_reload: bool = True
-    config_watch_interval: float = 2.0  # seconds
-
 
 class ConfigManager:
     """
@@ -241,10 +237,6 @@ class ConfigManager:
 
         # Load initial configuration
         self.load_config()
-
-        # Start hot reload if enabled
-        if self.system.enable_hot_reload:
-            self._start_hot_reload()
 
     def _find_default_config_file(self) -> str:
         """Find default configuration file."""
@@ -574,29 +566,6 @@ class ConfigManager:
             result = self._merge_results(result, param_result)
 
         return result
-
-    def _start_hot_reload(self):
-        """Start configuration hot reload thread."""
-        def watch_config():
-            while True:
-                try:
-                    if Path(self.config_file).exists():
-                        current_modified = Path(self.config_file).stat().st_mtime
-                        if current_modified > self._last_modified:
-                            print(f"Configuration file changed, reloading: {self.config_file}")
-                            result = self.load_config()
-                            if result.is_valid():
-                                print("Configuration reloaded successfully")
-                            else:
-                                print(f"Configuration reload failed: {result.errors}")
-
-                    threading.Event().wait(self.system.config_watch_interval)
-                except Exception as e:
-                    print(f"Config watch error: {e}")
-                    threading.Event().wait(5.0)  # Wait longer on error
-
-        thread = threading.Thread(target=watch_config, daemon=True, name="ConfigWatcher")
-        thread.start()
 
     def get_config_summary(self) -> Dict[str, Any]:
         """Get configuration summary."""

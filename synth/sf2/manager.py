@@ -5,8 +5,7 @@ Handles SoundFont 2.0 file management and integration.
 """
 
 from typing import List, Dict, Tuple, Optional, Union, Any
-from ..core.constants import DEFAULT_CONFIG
-from .core import WavetableManager
+from .core.sf2_manager_v2 import SF2ManagerV2 as CoreSF2Manager
 
 
 class SF2Manager:
@@ -53,16 +52,22 @@ class SF2Manager:
 
             # Create SF2 manager if we have valid paths
             if sf2_paths:
-                self.sf2_manager = WavetableManager(sf2_paths, param_cache=self.param_cache)
+                self.sf2_manager = CoreSF2Manager()
 
-                # Apply existing configurations
+                # Enable progressive loading for large SoundFonts
+                self.sf2_manager.enable_lazy_loading()
+
+                # Note: Mip-map cache removed in new implementation
+                # for simplicity and memory efficiency
+
+                # Load the SF2 files
                 for sf2_path in sf2_paths:
-                    if sf2_path in self.bank_blacklists:
-                        self.sf2_manager.set_bank_blacklist(sf2_path, self.bank_blacklists[sf2_path])
-                    if sf2_path in self.preset_blacklists:
-                        self.sf2_manager.set_preset_blacklist(sf2_path, self.preset_blacklists[sf2_path])
-                    if sf2_path in self.bank_mappings:
-                        self.sf2_manager.set_bank_mapping(sf2_path, self.bank_mappings[sf2_path])
+                    if not self.sf2_manager.load_sf2_file(sf2_path):
+                        print(f"Failed to load SF2 file: {sf2_path}")
+                        return False
+
+                # Note: The new modular SF2 system doesn't use the old bank/preset blacklists
+                # and mappings. These would need to be reimplemented if still needed.
 
                 return True
             else:
@@ -74,12 +79,36 @@ class SF2Manager:
             self.sf2_manager = None
             return False
 
-    def get_manager(self) -> Optional[WavetableManager]:
+    def load_sf2_file(self, filename: str) -> bool:
+        """
+        Load a single SF2 file.
+
+        Args:
+            filename: Path to SF2 file
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Create SF2 manager if not already created
+            if not self.sf2_manager:
+                self.sf2_manager = CoreSF2Manager()
+                self.sf2_manager.enable_lazy_loading()
+                self.sf2_manager.mip_map_cache = MipMapCache(max_memory_mb=128)
+
+            # Load the SF2 file
+            return self.sf2_manager.load_sf2_file(filename)
+
+        except Exception as e:
+            print(f"Error loading SF2 file {filename}: {e}")
+            return False
+
+    def get_manager(self) -> Optional[CoreSF2Manager]:
         """
         Get the underlying SF2 manager instance.
 
         Returns:
-            WavetableManager instance or None
+            CoreSF2Manager instance or None
         """
         return self.sf2_manager
 

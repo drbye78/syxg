@@ -169,6 +169,9 @@ class Channel:
             sample_rate=self.sample_rate
         )
 
+        # Set current program for region-based playback (fallback to voice for now)
+        self.current_program = self.current_voice
+
     def note_on(self, note: int, velocity: int) -> bool:
         """
         Handle note-on event with polyphony support.
@@ -562,7 +565,20 @@ class Channel:
         Returns:
             True if channel has active voices
         """
-        return self.current_voice is not None and self.current_voice.is_active()
+        return len(self.active_voices) > 0 or (self.current_voice is not None and self.current_voice.is_active())
+
+    def get_active_voice_count(self) -> int:
+        """
+        Get the number of active voices on this channel.
+
+        Returns:
+            Number of active voices
+        """
+        count = len(self.active_voices)
+        # Also count legacy single voice if active
+        if self.current_voice and self.current_voice.is_active():
+            count += 1
+        return count
 
     @property
     def muted(self) -> bool:

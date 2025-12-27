@@ -5,12 +5,15 @@ Implements the SynthesisEngine interface for SoundFont 2 (SF2) wavetable synthes
 providing sample playback with loop modes, pitch modulation, and filter envelopes.
 """
 
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, TYPE_CHECKING
 import numpy as np
 
 from .synthesis_engine import SynthesisEngine
 from ..partial.sf2_partial import SF2Partial
 from ..sf2.manager import SF2Manager
+
+if TYPE_CHECKING:
+    from ..engine.modern_xg_synthesizer import ModernXGSynthesizer
 
 
 class SF2Engine(SynthesisEngine):
@@ -24,7 +27,7 @@ class SF2Engine(SynthesisEngine):
     - Key scaling and velocity sensitivity
     """
 
-    def __init__(self, sf2_manager: Optional[SF2Manager] = None, sample_rate: int = 44100, block_size: int = 1024):
+    def __init__(self, sf2_manager: Optional[SF2Manager] = None, sample_rate: int = 44100, block_size: int = 1024, synth: Optional['ModernXGSynthesizer'] = None):
         """
         Initialize SF2 synthesis engine.
 
@@ -32,9 +35,11 @@ class SF2Engine(SynthesisEngine):
             sf2_manager: SoundFont manager instance (created if None)
             sample_rate: Audio sample rate in Hz
             block_size: Processing block size in samples
+            synth: ModernXGSynthesizer instance for pooled resources (optional)
         """
         super().__init__(sample_rate, block_size)
         self.sf2_manager = sf2_manager or SF2Manager()
+        self.synth = synth  # Store synth reference for pooled resources
         self._engine_info = None
 
     def get_engine_type(self) -> str:
@@ -43,16 +48,24 @@ class SF2Engine(SynthesisEngine):
 
     def create_partial(self, partial_params: Dict, sample_rate: int) -> SF2Partial:
         """
-        Create an SF2 partial.
+        Create an SF2 partial with modern synth integration.
 
         Args:
             partial_params: SF2-specific partial parameters
             sample_rate: Audio sample rate in Hz
 
         Returns:
-            SF2Partial instance
+            SF2Partial instance with pooled resource integration
+
+        Raises:
+            RuntimeError: If synth instance not provided for pooled resources
         """
-        return SF2Partial(partial_params, sample_rate, self.sf2_manager)
+        if self.synth is None:
+            raise RuntimeError("SF2Engine requires synth instance for pooled resources. "
+                             "Please provide synth parameter to SF2Engine constructor.")
+
+        # SF2Partial requires synth instance for pooled resources (buffer pools, envelope pools, etc.)
+        return SF2Partial(partial_params, self.synth)
 
     def get_voice_parameters(self, program: int, bank: int = 0) -> Optional[Dict]:
         """

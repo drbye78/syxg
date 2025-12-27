@@ -177,7 +177,7 @@ class MIDIMessage:
         'time', 'type', 'group', 'ump', 'status', 'channel', 'data', 'note', 'velocity',
         'control', 'value', 'program', 'pitch', 'pressure', 'meta_type', 'tempo_us_per_beat',
         'smpte_offset_seconds', 'sysex_data', 'form', 'mds_id', 'num_chunks', 'is_last',
-        'data_bytes', 'address', 'subtype', 'message_type', 'raw_data', 'data_words'
+        'data_bytes', 'address', 'subtype', 'message_type', 'raw_data', 'data_words', '_xg_metadata'
     )
 
     def __init__(self, **kwargs):

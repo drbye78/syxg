@@ -17,7 +17,8 @@ import numba as nb
 from numba import jit, float32, int32, boolean
 
 from synth.core.oscillator import XGLFO
-from synth.sf2.core.wavetable_manager import WavetableManager
+# Import removed - wavetable functionality moved to new modular SF2 system
+# The new system uses SF2Manager from synth.sf2.core.manager
 from ..core.envelope import UltraFastADSREnvelope, EnvelopeState
 from ..core.filter import ResonantFilter
 from ..core.panner import StereoPanner
@@ -2128,29 +2129,21 @@ class XGPartialGenerator:
         This method contains the common resource cleanup logic used by both
         cleanup() and _cleanup_for_reconfigure() methods.
         """
-        # Return envelope buffers
-        if hasattr(self, 'amp_buffer') and self.amp_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.amp_buffer)
+        # Note: XGBufferPool handles its own memory management automatically
+        # We don't need to manually return buffers to it
+
+        # Clear buffer references (they will be garbage collected when XGBufferPool is cleaned up)
+        if hasattr(self, 'amp_buffer'):
             self.amp_buffer = None
-
-        if hasattr(self, 'work_buffer') and self.work_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.work_buffer)
+        if hasattr(self, 'work_buffer'):
             self.work_buffer = None
-
-        if hasattr(self, 'acc_buffer') and self.acc_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.acc_buffer)
+        if hasattr(self, 'acc_buffer'):
             self.acc_buffer = None
-
-        if hasattr(self, 'item_buffer') and self.item_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.item_buffer)
+        if hasattr(self, 'item_buffer'):
             self.item_buffer = None
-
-        if hasattr(self, 'filter_buffer') and self.filter_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.filter_buffer)
+        if hasattr(self, 'filter_buffer'):
             self.filter_buffer = None
-
-        if hasattr(self, 'pitch_buffer') and self.pitch_buffer is not None:
-            self.synth.memory_pool.return_mono_buffer(self.pitch_buffer)
+        if hasattr(self, 'pitch_buffer'):
             self.pitch_buffer = None
 
         # Return dedicated LFOs to LFO pool (CRITICAL: prevent resource leaks)

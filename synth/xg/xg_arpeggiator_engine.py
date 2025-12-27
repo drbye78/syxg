@@ -332,6 +332,10 @@ class ArpeggiatorInstance:
         self.chord_detector.note_on(note, velocity)
 
         if not self.enabled or not self.current_pattern:
+            # Arpeggiator is inactive - pass note through to normal synthesis
+            # This ensures notes aren't dropped when arpeggiator is disabled
+            if self.note_on_callback:
+                self.note_on_callback(self.channel, note, velocity)
             return
 
         # Generate arpeggio notes

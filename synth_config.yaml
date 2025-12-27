@@ -80,8 +80,6 @@ midi:
   xg_device_id: 16
   xg_enabled: true
 system:
-  config_watch_interval: 2.0
-  enable_hot_reload: true
   enable_profiling: false
   fail_on_warnings: false
   impulse_responses_path: null
