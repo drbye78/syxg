@@ -1503,14 +1503,11 @@ class ModernXGSynthesizer:
         active_voices = 0
         for i, channel in enumerate(self.channels):
             if channel.is_active():
-                # Get pre-allocated channel buffer
-                channel_buffer = self.channel_buffers[i][:block_size]
-
-                # Generate channel audio
-                channel.generate_samples(channel_buffer[:block_size])
+                # Generate channel audio - this returns the audio buffer
+                channel_audio = channel.generate_samples(block_size)
 
                 # Mix to output (SIMD addition)
-                np.add(self.output_buffer[:block_size], channel_buffer[:block_size],
+                np.add(self.output_buffer[:block_size], channel_audio,
                       out=self.output_buffer[:block_size])
 
                 active_voices += channel.get_active_voice_count()
@@ -1660,10 +1657,31 @@ class ModernXGSynthesizer:
             result = self.sf2_manager.load_sf2_file(sf2_path)
             if result:
                 print(f"✅ Loaded SoundFont: {sf2_path}")
+
+                # Update the SF2 engine instance in the registry with the loaded soundfont
+                sf2_engine = self.engine_registry.get_engine('sf2')
+                if sf2_engine and hasattr(sf2_engine, 'soundfont'):
+                    # Find the loaded soundfont from the manager
+                    for filename, sf2_file in self.sf2_manager.sf2_files.items():
+                        if sf2_file:  # LazySF2SoundFont is the soundfont itself
+                            sf2_engine.soundfont = sf2_file
+                            sf2_engine.sf2_file_path = filename
+                            print(f"✅ Updated SF2 engine with SoundFont: {filename}")
+
+                            # Reload current programs on all channels to use the new SF2 soundfont
+                            self._reload_all_channel_programs()
+                            break
             else:
                 print(f"❌ Failed to load SoundFont: {sf2_path}")
         else:
             print("⚠️  SF2 manager not available")
+
+    def _reload_all_channel_programs(self):
+        """Reload current programs on all channels to use newly loaded SF2 soundfont."""
+        for channel_num, channel in enumerate(self.channels):
+            # Reload the current program to use the new SF2 engine
+            channel.load_program(channel.program, channel.bank_msb, channel.bank_lsb)
+            print(f"✅ Reloaded program {channel.program} on channel {channel_num}")
 
     def set_channel_program(self, channel: int, bank: int, program: int):
         """Set program for channel"""

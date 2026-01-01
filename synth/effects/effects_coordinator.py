@@ -385,15 +385,15 @@ class XGEffectsCoordinator:
         """Optimized variation effects processing using pre-allocated buffers."""
         # Check if variation effects are active (XG CC 200-209)
         if not self.effect_units_active[0]:  # Variation unit
-            np.copyto(variation_output, main_mix)  # Just copy input to output
+            np.copyto(variation_output[:num_samples], main_mix[:num_samples])  # Just copy input to output
             return
 
         # Copy input to output buffer
-        np.copyto(variation_output, main_mix)
+        np.copyto(variation_output[:num_samples], main_mix[:num_samples])
 
         # Apply variation effect to the mix
         self.variation_effects.apply_variation_effect_zero_alloc(
-            variation_output, num_samples
+            variation_output[:num_samples], num_samples
         )
 
     def _apply_system_effects_with_sends_optimized(self, variation_output: np.ndarray, system_output: np.ndarray,
@@ -401,7 +401,7 @@ class XGEffectsCoordinator:
                                                  temp_buffers: List[np.ndarray], num_samples: int) -> None:
         """Optimized system effects processing using pre-allocated buffers."""
         # Start with variation output
-        np.copyto(system_output, variation_output)
+        np.copyto(system_output[:num_samples], variation_output[:num_samples])
 
         # Check if we should use GS system effects
         use_gs_effects = self._should_use_gs_system_effects()
@@ -410,13 +410,13 @@ class XGEffectsCoordinator:
         if self.effect_units_active[1] and np.max(np.abs(reverb_accumulate)) > 0:  # Reverb unit
             reverb_wet = self._apply_system_reverb_optimized(reverb_accumulate, temp_buffers[0], num_samples, use_gs_effects)
             if reverb_wet is not None:
-                system_output += reverb_wet
+                system_output[:num_samples] += reverb_wet[:num_samples]
 
         # Apply system chorus if active
         if self.effect_units_active[2] and np.max(np.abs(chorus_accumulate)) > 0:  # Chorus unit
             chorus_wet = self._apply_system_chorus_optimized(chorus_accumulate, temp_buffers[1], num_samples, use_gs_effects)
             if chorus_wet is not None:
-                system_output += chorus_wet
+                system_output[:num_samples] += chorus_wet[:num_samples]
 
     def _should_use_gs_system_effects(self) -> bool:
         """Check if GS system effects should be used instead of XG."""
@@ -505,7 +505,19 @@ class XGEffectsCoordinator:
         self._apply_stereo_enhancement(eq_processed, num_samples)
 
         # Copy the final processed result back to output buffer
-        np.copyto(output_stereo[:num_samples], eq_processed[:num_samples])
+        # Handle potential shape mismatches safely
+        copy_samples = min(num_samples, eq_processed.shape[0], output_stereo.shape[0])
+        copy_channels = min(output_stereo.shape[1] if output_stereo.ndim > 1 else 1,
+                           eq_processed.shape[1] if eq_processed.ndim > 1 else 1)
+
+        # Ensure output buffer has correct shape for copying
+        if eq_processed.ndim == 1 and output_stereo.ndim == 2:
+            # Mono to stereo conversion if needed
+            output_stereo[:copy_samples, 0] = eq_processed[:copy_samples]
+            output_stereo[:copy_samples, 1] = eq_processed[:copy_samples]
+        else:
+            # Standard stereo copy
+            output_stereo[:copy_samples, :copy_channels] = eq_processed[:copy_samples, :copy_channels]
 
         # Brickwall limiting to prevent clipping
         np.clip(output_stereo[:num_samples], -0.99, 0.99, out=output_stereo[:num_samples])

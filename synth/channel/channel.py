@@ -221,7 +221,7 @@ class Channel:
             return False
 
         # Trigger note-on for the voice instance
-        voice_instance.note_on(velocity, transposed_note)
+        voice_instance.note_on(velocity)
 
         # Store the active voice instance
         self.active_voices[transposed_note] = voice_instance

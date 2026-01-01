@@ -56,7 +56,8 @@ class BufferStatistics:
             'deallocation_count': self.deallocation_count,
             'cache_hit_rate': self.cache_hits / max(1, self.cache_hits + self.cache_misses),
             'contention_count': self.contention_count,
-            'efficiency': self.total_used / max(1, self.total_allocated)
+            'efficiency': self.total_used / max(1, self.total_allocated),
+            'cache_misses': self.cache_misses
         }
 
 
@@ -80,7 +81,7 @@ class XGBufferPool:
     MIN_POOL_SIZE_MB = 16   # Minimum pool size for startup
 
     def __init__(self, sample_rate: int = 44100, max_block_size: int = 8192,
-                 max_channels: int = 16):
+                 max_channels: int = 16, memory_budget_mb: Optional[float] = None):
         """
         Initialize XG Buffer Pool.
 
@@ -88,10 +89,15 @@ class XGBufferPool:
             sample_rate: Audio sample rate
             max_block_size: Maximum audio block size
             max_channels: Maximum audio channels
+            memory_budget_mb: Maximum memory budget in MB for dynamic buffer allocation.
+                            If None, uses MAX_POOL_SIZE_MB as default.
         """
         self.sample_rate = sample_rate
         self.max_block_size = max_block_size
         self.max_channels = max_channels
+        self.memory_budget_mb = memory_budget_mb if memory_budget_mb is not None else self.MAX_POOL_SIZE_MB
+        self.memory_budget_bytes = int(self.memory_budget_mb * 1024 * 1024)
+        self.total_memory_used = 0  # Track total memory used by allocated buffers
 
         # Thread safety
         self.lock = threading.RLock()
@@ -113,9 +119,6 @@ class XGBufferPool:
 
         # Initialize pool
         self._initialize_pool()
-
-        # Start background maintenance
-        self._start_maintenance_thread()
 
     def _initialize_pool(self):
         """Initialize buffer pool with pre-allocated buffers."""
@@ -181,7 +184,15 @@ class XGBufferPool:
 
         total_mb = total_allocated / (1024 * 1024)
         print(f"Total allocated: {total_mb:.1f} MB")
+        print(f"Memory budget: {self.memory_budget_mb:.1f} MB")
+
+        # Check if initial allocation exceeds budget
+        if total_allocated > self.memory_budget_bytes:
+            print(f"⚠️  Initial pool allocation ({total_mb:.1f} MB) exceeds memory budget ({self.memory_budget_mb:.1f} MB)")
+            print(f"   This may limit dynamic allocation capabilities")
+
         self.stats.total_allocated = total_allocated
+        self.total_memory_used = total_allocated
 
     def _allocate_aligned_buffer(self, size: int, channels: int) -> np.ndarray:
         """Allocate SIMD-aligned buffer."""
@@ -201,63 +212,6 @@ class XGBufferPool:
         ).reshape(size, channels)
 
         return aligned_buffer
-
-    def _start_maintenance_thread(self):
-        """Start background maintenance thread."""
-        def maintenance_worker():
-            while True:
-                try:
-                    self._perform_maintenance()
-                    threading.Event().wait(10.0)  # Run every 10 seconds
-                except Exception as e:
-                    print(f"Buffer pool maintenance error: {e}")
-                    threading.Event().wait(30.0)  # Wait longer on error
-
-        thread = threading.Thread(target=maintenance_worker, daemon=True, name="BufferPoolMaintenance")
-        thread.start()
-
-    def _perform_maintenance(self):
-        """Perform background maintenance tasks."""
-        # Check memory pressure
-        memory_usage = psutil.virtual_memory()
-        memory_pressure = memory_usage.percent / 100.0
-
-        if memory_pressure > self._memory_pressure_threshold:
-            # Force garbage collection under memory pressure
-            current_time = threading.get_ident()  # Use thread ID as time approximation
-            if current_time - self._last_gc_time > self._gc_interval:
-                gc.collect()
-                self._last_gc_time = current_time
-
-        # Validate buffer integrity (sample check)
-        self._validate_buffer_integrity()
-
-        # Update statistics
-        self._update_statistics()
-
-    def _validate_buffer_integrity(self):
-        """Validate buffer pool integrity."""
-        # Check for obvious corruption in a few buffers
-        sample_checks = min(5, len(self._mono_pools.get(1024, [])))
-
-        for i in range(sample_checks):
-            if 1024 in self._mono_pools and i < len(self._mono_pools[1024]):
-                buffer = self._mono_pools[1024][i]
-                if not np.isfinite(buffer).all():
-                    raise BufferPoolCorruptionError(f"Buffer corruption detected in mono pool")
-
-    def _update_statistics(self):
-        """Update pool statistics."""
-        # Calculate current usage
-        total_used = 0
-
-        # Count active buffers
-        with self.lock:
-            active_count = len(self._active_buffers)
-
-        # Estimate based on pool sizes and active buffers
-        self.stats.total_used = active_count * 1024 * 4  # Rough estimate
-        self.stats.peak_usage = max(self.stats.peak_usage, self.stats.total_used)
 
     def get_mono_buffer(self, size: int) -> np.ndarray:
         """
@@ -303,16 +257,8 @@ class XGBufferPool:
         Raises:
             BufferPoolExhaustedError: If no suitable buffer available
         """
-        # Try exact match first
         key = (size, channels)
-        if key in self._multi_channel_pools and self._multi_channel_pools[key]:
-            return self._get_buffer_from_pool(self._multi_channel_pools, key, channels, f"multi_{channels}ch")
-
-        # Fall back to allocating new buffer (not ideal but better than failure)
-        print(f"⚠️  Buffer pool miss for {size}x{channels}, allocating new buffer")
-        buffer = self._allocate_aligned_buffer(size, channels)
-        self.stats.allocation_count += 1
-        return buffer
+        return self._get_buffer_from_pool(self._multi_channel_pools, key, channels, f"multi_{channels}ch")
 
     def _get_buffer_from_pool(self, pool: Dict[Any, List[np.ndarray]],
                             key: Any, channels: int, pool_name: str) -> np.ndarray:
@@ -341,11 +287,48 @@ class XGBufferPool:
                         self._track_buffer_usage(buffer, f"{pool_name}_adapted")
                         return buffer
 
-            # Pool exhausted - this should not happen in production
-            raise BufferPoolExhaustedError(
-                f"Buffer pool exhausted for {pool_name} size {key}. "
-                f"Available pools: {list(pool.keys())}"
-            )
+            # Pool exhausted - check if we can allocate new buffer within budget
+            self.stats.cache_misses += 1
+            if isinstance(key, int):
+                # Calculate memory needed for new buffer
+                buffer_size = key * channels * 4  # float32 = 4 bytes
+                if self.total_memory_used + buffer_size <= self.memory_budget_bytes:
+                    print(f"🔄 Dynamic allocation for {pool_name} size {key}, "
+                          f"within budget ({self.total_memory_used + buffer_size}/{self.memory_budget_bytes} bytes)")
+                    buffer = self._allocate_aligned_buffer(key, channels)
+                    self.total_memory_used += buffer.nbytes
+                    pool[key].append(buffer)  # Add to pool for future reuse
+                    buffer = pool[key].pop(0)  # Get it back immediately
+                    self._track_buffer_usage(buffer, f"{pool_name}_dynamic")
+                    self.stats.allocation_count += 1
+                    return buffer
+                else:
+                    # Budget exceeded
+                    raise BufferPoolExhaustedError(
+                        f"Buffer pool exhausted for {pool_name} size {key}. "
+                        f"Memory budget exceeded: {self.total_memory_used}/{self.memory_budget_bytes} bytes. "
+                        f"Available pools: {list(pool.keys())}"
+                    )
+            else:
+                # For multi-channel (tuple keys), try dynamic allocation
+                size, ch = key
+                buffer_size = size * ch * 4
+                if self.total_memory_used + buffer_size <= self.memory_budget_bytes:
+                    print(f"🔄 Dynamic allocation for {pool_name} size {key}, "
+                          f"within budget ({self.total_memory_used + buffer_size}/{self.memory_budget_bytes} bytes)")
+                    buffer = self._allocate_aligned_buffer(size, ch)
+                    self.total_memory_used += buffer.nbytes
+                    pool[key].append(buffer)
+                    buffer = pool[key].pop(0)
+                    self._track_buffer_usage(buffer, f"{pool_name}_dynamic")
+                    self.stats.allocation_count += 1
+                    return buffer
+                else:
+                    raise BufferPoolExhaustedError(
+                        f"Buffer pool exhausted for {pool_name} size {key}. "
+                        f"Memory budget exceeded: {self.total_memory_used}/{self.memory_budget_bytes} bytes. "
+                        f"Available pools: {list(pool.keys())}"
+                    )
 
     def _track_buffer_usage(self, buffer: np.ndarray, context: str):
         """Track buffer usage for leak detection."""
@@ -481,7 +464,10 @@ class XGBufferPool:
                 'multi_channel_pools': {f"{size}x{ch}": len(buffers)
                                       for (size, ch), buffers in self._multi_channel_pools.items()},
                 'active_buffers': len(self._active_buffers),
-                'total_pools': len(self._mono_pools) + len(self._stereo_pools) + len(self._multi_channel_pools)
+                'total_pools': len(self._mono_pools) + len(self._stereo_pools) + len(self._multi_channel_pools),
+                'memory_budget_mb': self.memory_budget_mb,
+                'total_memory_used_mb': self.total_memory_used / (1024 * 1024),
+                'memory_utilization': self.total_memory_used / max(1, self.memory_budget_bytes)
             })
 
             return stats

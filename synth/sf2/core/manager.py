@@ -575,6 +575,10 @@ class LazySF2SoundFont:
 
         return preset
 
+    def get_preset(self, bank: int, preset: int):
+        """Get preset - alias for get_preset_lazy for compatibility."""
+        return self.get_preset_lazy(bank, preset)
+
     def get_instrument_lazy(self, index: int):
         """Load instrument on-demand using persistent file handle."""
         if index in self.loaded_instruments:
@@ -1986,15 +1990,16 @@ class SF2Manager:
             self.chunk_cache = ChunkDataCache(max_memory_mb=50)  # 50MB cache
 
     def load_sf2_file(self, filename: str) -> bool:
-        """Load SF2 file with lazy loading (exclusive loading method).
-           Only loads metadata initially, samples loaded on-demand.
+        """Load SF2 file with new production-quality architecture.
+           Uses modern SF2SoundFont with complete lazy loading and mip-mapping.
         """
         try:
-            sf2 = LazySF2SoundFont(filename, self)
+            from .soundfont import SF2SoundFont
+            sf2 = SF2SoundFont(filename, max_memory_mb=self.sample_cache_size_mb)
             self.sf2_files[filename] = sf2
             return True
         except Exception as e:
-            print(f"Failed to load SF2 file progressively {filename}: {e}")
+            print(f"Failed to load SF2 file {filename}: {e}")
             return False
 
     def get_program_parameters(self, program: int, bank: int = 0, note: int = 60, velocity: int = 64) -> Optional[Dict[str, Any]]:

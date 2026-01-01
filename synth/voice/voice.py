@@ -14,6 +14,42 @@ from ..modulation.matrix import ModulationMatrix
 from ..effects.system_effects import XGSystemEffectsProcessor
 
 
+class VoicePartialRegion:
+    """
+    Simple region wrapper for Voice partials.
+
+    Adapts a SynthesisPartial to work as a region for VoiceInstance compatibility.
+    """
+
+    def __init__(self, partial: SynthesisPartial, note: int, velocity: int):
+        self.partial = partial
+        self.note = note
+        self.velocity = velocity
+
+    def generate_samples(self, block_size: int, modulation: Dict = None) -> np.ndarray:
+        """Generate samples from the wrapped partial."""
+        if modulation is None:
+            modulation = {}
+
+        # The partial's generate_samples method expects (block_size, modulation_dict)
+        # but we need to return the audio data
+        return self.partial.generate_samples(block_size, modulation)
+
+    def note_on(self, velocity: int, note: int):
+        """Handle note-on for the partial."""
+        self.velocity = velocity
+        self.note = note
+        self.partial.note_on(velocity, note)
+
+    def note_off(self):
+        """Handle note-off for the partial."""
+        self.partial.note_off()
+
+    def is_active(self) -> bool:
+        """Check if the partial is active."""
+        return self.partial.is_active()
+
+
 class Voice:
     """
     XG Voice - coordinates multiple partials and handles voice-level parameters.
@@ -205,17 +241,25 @@ class Voice:
         """
         Get regions for a specific note and velocity.
 
-        Voice objects use partials, not regions, so this returns an empty list
-        to allow fallback to the legacy voice system.
+        Creates regions from partials for compatibility with VoiceInstance system.
 
         Args:
             note: MIDI note number (0-127)
             velocity: MIDI velocity (0-127)
 
         Returns:
-            Empty list (no regions for partial-based voices)
+            List of regions (one per partial)
         """
-        return []
+        if not self.is_note_supported(note):
+            return []
+
+        regions = []
+        for partial in self.partials:
+            # Create a simple region wrapper for each partial
+            region = VoicePartialRegion(partial, note, velocity)
+            regions.append(region)
+
+        return regions
 
     def generate_samples(self, note: int, velocity: int,
                         modulation: Dict, block_size: int) -> np.ndarray:
