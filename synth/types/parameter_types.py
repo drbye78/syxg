@@ -13,9 +13,22 @@ from enum import Enum
 class ParameterScope(Enum):
     """Parameter scope levels in the synthesizer hierarchy"""
     GLOBAL = "global"      # Affects entire synthesizer (reverb, master volume)
+    SYNTHESIZER = "synthesizer"  # Affects specific synthesizer type (XG, GS, Jupiter-X)
     CHANNEL = "channel"    # Affects specific MIDI channel (pan, volume, effects sends)
     VOICE = "voice"        # Affects specific note/voice (pitch bend, aftertouch)
     PARTIAL = "partial"    # Affects individual synthesis partial (filter, envelope)
+
+
+class SynthesizerType(Enum):
+    """Supported synthesizer types for unified parameter management"""
+    MODERN = "modern"      # Modern XG synthesizer (base implementation)
+    XG = "xg"              # Yamaha XG specification
+    GS = "gs"              # Roland GS specification
+    JUPITER_X = "jupiter_x"  # Roland Jupiter-X specification
+    MOTIF = "motif"        # Yamaha Motif series
+    FANTOM = "fantom"      # Roland Fantom series
+    KORG = "korg"          # Korg synthesizers
+    NORD = "nord"          # Clavia Nord series
 
 
 class ParameterSource(Enum):
@@ -41,6 +54,7 @@ class ParameterUpdate:
     scope: ParameterScope              # Scope level (global/channel/voice/partial)
     channel: Optional[int]             # MIDI channel (0-15) for channel-scoped parameters
     source: ParameterSource            # Source of the parameter update
+    synthesizer_type: Optional[SynthesizerType] = None  # Target synthesizer type
     metadata: Optional[Dict[str, Any]] = None  # Additional context information
 
     def __post_init__(self):
@@ -50,6 +64,9 @@ class ParameterUpdate:
 
         if self.scope == ParameterScope.GLOBAL and self.channel is not None:
             raise ValueError("Global-scoped parameters should not specify a channel")
+
+        if self.scope == ParameterScope.SYNTHESIZER and self.synthesizer_type is None:
+            raise ValueError("Synthesizer-scoped parameters must specify a synthesizer type")
 
 
 # Parameter name constants for consistency

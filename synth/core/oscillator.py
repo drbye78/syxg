@@ -27,11 +27,40 @@ from collections import deque
 import numba as nb
 from numba import jit, float32, int32, boolean
 
-# Pre-computed LFO lookup tables for ultra-fast processing - ENHANCED FOR 4.57x SPEEDUP
-_LFO_TABLE_SIZE = 16384  # Larger table for better precision and performance
+# Pre-computed LFO lookup tables for ultra-fast processing - ENHANCED FOR HIGH-FREQUENCY PERFORMANCE
+_LFO_TABLE_SIZE = 32768  # Doubled size for better precision at high frequencies (cache-friendly)
 _SINE_LUT = np.sin(np.linspace(0, 2 * np.pi, _LFO_TABLE_SIZE, dtype=np.float32))
 _TRIANGLE_LUT = np.linspace(-1.0, 1.0, _LFO_TABLE_SIZE, dtype=np.float32)
 _TRIANGLE_LUT[_LFO_TABLE_SIZE//2:] = np.linspace(1.0, -1.0, _LFO_TABLE_SIZE//2, dtype=np.float32)
+
+# PERFORMANCE OPTIMIZATION: Pre-compute additional lookup tables for Jupiter-X waveforms
+_RANDOM_SH_LUT = np.zeros(_LFO_TABLE_SIZE, dtype=np.float32)
+_TRAPEZOID_LUT = np.zeros(_LFO_TABLE_SIZE, dtype=np.float32)
+
+# Initialize Jupiter-X optimized lookup tables
+for i in range(_LFO_TABLE_SIZE):
+    phase_norm = i / _LFO_TABLE_SIZE
+
+    # Random Sample & Hold: More complex pseudo-random pattern
+    cycle_index = int(phase_norm * 32)  # 32 steps per cycle for finer resolution
+    random_seed = ((cycle_index * 17 + 29) * 31) % 512
+    _RANDOM_SH_LUT[i] = (random_seed / 255.5) - 1.0  # Scale to -1 to 1
+
+    # Trapezoid wave: Optimized flat-topped triangle
+    if phase_norm < 0.25:  # Rise
+        _TRAPEZOID_LUT[i] = phase_norm * 4.0  # 0 to 1
+    elif phase_norm < 0.75:  # Flat top
+        _TRAPEZOID_LUT[i] = 1.0
+    else:  # Fall
+        _TRAPEZOID_LUT[i] = (1.0 - phase_norm) * 4.0  # 1 to 0
+    # Convert to bipolar (-1 to 1)
+    _TRAPEZOID_LUT[i] = _TRAPEZOID_LUT[i] * 2.0 - 1.0
+
+# PERFORMANCE OPTIMIZATION: Ensure memory alignment for SIMD operations
+_SINE_LUT = np.ascontiguousarray(_SINE_LUT, dtype=np.float32)
+_TRIANGLE_LUT = np.ascontiguousarray(_TRIANGLE_LUT, dtype=np.float32)
+_RANDOM_SH_LUT = np.ascontiguousarray(_RANDOM_SH_LUT, dtype=np.float32)
+_TRAPEZOID_LUT = np.ascontiguousarray(_TRAPEZOID_LUT, dtype=np.float32)
 
 # Keep legacy constant for backward compatibility
 _SINE_TABLE_SIZE = 8192  # Legacy size
@@ -43,8 +72,11 @@ WAVEFORM_TRIANGLE = 1
 WAVEFORM_SQUARE = 2
 WAVEFORM_SAWTOOTH = 3
 WAVEFORM_SAMPLE_AND_HOLD = 4
+# Jupiter-X specific waveforms
+WAVEFORM_RANDOM_SH = 5      # Random Sample & Hold
+WAVEFORM_TRAPEZOID = 6      # Trapezoid wave
 
-@jit(nopython=True, fastmath=True, cache=True)
+@jit(nopython=True, fastmath=True, cache=True, parallel=True)
 def _numba_process_lfo_block_critical_optimized(
     output_buffer: np.ndarray,
     temp_phase_buffer: np.ndarray,
@@ -118,8 +150,22 @@ def _numba_process_lfo_block_critical_optimized(
         saw_values = 2.0 * (phasor - np.floor(phasor + 0.5)).astype(np.float32)
         output_temp = saw_values * depth
     elif waveform == WAVEFORM_SAMPLE_AND_HOLD:
-        # For sample-and-hold we'll just use random noise, but for now, fallback to sine
-        output_temp = _SINE_LUT[phase_indices % _LFO_TABLE_SIZE] * depth
+        # Sample & Hold: Hold random values for each LFO cycle
+        # Use phase to determine when to change values (at cycle boundaries)
+        sh_values = np.zeros_like(phase_norm)
+        for i in range(len(phase_norm)):
+            # Simple pseudo-random based on phase quantization
+            cycle_index = int(phase_norm[i] * 16)  # 16 steps per cycle
+            # Use a simple hash-like function for pseudo-random values
+            random_seed = (cycle_index * 7 + 13) % 256
+            sh_values[i] = (random_seed / 127.5) - 1.0  # Scale to -1 to 1
+        output_temp = sh_values.astype(np.float32) * depth
+    elif waveform == WAVEFORM_RANDOM_SH:
+        # Jupiter-X Random Sample & Hold: Use pre-computed optimized table
+        output_temp = _RANDOM_SH_LUT[phase_indices] * depth
+    elif waveform == WAVEFORM_TRAPEZOID:
+        # Trapezoid wave: Use pre-computed optimized table
+        output_temp = _TRAPEZOID_LUT[phase_indices] * depth
     else:
         # Default to sine for invalid waveform
         output_temp = _SINE_LUT[phase_indices] * depth
@@ -269,8 +315,11 @@ class UltraFastXGLFO:
         '_last_output', '_dirty', 'memory_pool', 'is_pooled',
         'temp_phase_buffer', 'temp_modulated_depth',
         'pool_buffer1', 'pool_buffer2',
+        # Jupiter-X enhanced LFO features
+        'phase_offset', 'fade_in_time', 'fade_in_samples', 'key_sync',
         # XG modulation routing flags
         'modulates_pitch', 'modulates_filter', 'modulates_amplitude',
+        'modulates_pan', 'modulates_pwm', 'modulates_fm_amount',
         'pitch_depth_cents', 'filter_depth', 'amplitude_depth',
         # Dynamic modulation support
         'base_rate', 'base_depth', 'modulated_rate', 'modulated_depth',
@@ -302,7 +351,7 @@ class UltraFastXGLFO:
         self.id = id
         self.waveform = self._validate_waveform(waveform)
         self.waveform_int = self._waveform_to_int(waveform)  # Integer waveform for Numba
-        self.rate = max(0.1, min(20.0, rate))  # XG rate limits
+        self.rate = max(0.1, min(200.0, rate))  # Extended for Jupiter-X audio-rate LFOs
         self.depth = max(0.0, min(1.0, depth))
         self.delay = max(0.0, min(5.0, delay))
         self.sample_rate = sample_rate
@@ -318,6 +367,11 @@ class UltraFastXGLFO:
         self.modulates_pitch = (id == 0)  # LFO1 modulates pitch by default
         self.modulates_filter = False
         self.modulates_amplitude = False
+
+        # Jupiter-X extended modulation destinations
+        self.modulates_pan = False         # Stereo pan modulation
+        self.modulates_pwm = False         # Pulse width modulation (for square waves)
+        self.modulates_fm_amount = False   # FM modulation amount
 
         # XG modulation depths
         self.pitch_depth_cents = self.DEFAULT_PITCH_DEPTH if id == 0 else 0.0
@@ -348,6 +402,12 @@ class UltraFastXGLFO:
         self.pitch_fade_in_samples = int(self.pitch_fade_in * sample_rate)
         self.phase_step = self._calculate_phase_step()
 
+        # Jupiter-X enhanced LFO features
+        self.phase_offset = 0.0      # Phase offset in degrees (0-360)
+        self.fade_in_time = 0.0      # Fade-in time in seconds (0-5.0)
+        self.fade_in_samples = 0     # Fade-in duration in samples
+        self.key_sync = False        # Key synchronization (reset on note-on)
+
         # XGBufferPool integration
         self.memory_pool = memory_pool
         self.is_pooled = memory_pool is not None
@@ -372,8 +432,8 @@ class UltraFastXGLFO:
             self.temp_modulated_depth = np.zeros(self.block_size, dtype=np.float32)
 
     def _validate_waveform(self, waveform: str) -> str:
-        """Validate and return supported XG waveform types."""
-        valid_waveforms = ["sine", "triangle", "square", "sawtooth", "sample_and_hold"]
+        """Validate and return supported XG/Jupiter-X waveform types."""
+        valid_waveforms = ["sine", "triangle", "square", "sawtooth", "sample_and_hold", "random_sh", "trapezoid"]
         return waveform if waveform in valid_waveforms else "sine"
 
     def _waveform_to_int(self, waveform: str) -> int:
@@ -383,7 +443,9 @@ class UltraFastXGLFO:
             "triangle": WAVEFORM_TRIANGLE,
             "square": WAVEFORM_SQUARE,
             "sawtooth": WAVEFORM_SAWTOOTH,
-            "sample_and_hold": WAVEFORM_SAMPLE_AND_HOLD
+            "sample_and_hold": WAVEFORM_SAMPLE_AND_HOLD,
+            "random_sh": WAVEFORM_RANDOM_SH,
+            "trapezoid": WAVEFORM_TRAPEZOID
         }
         return waveform_map.get(waveform, WAVEFORM_SINE)
 
@@ -404,7 +466,7 @@ class UltraFastXGLFO:
         brightness_factor = ((self.brightness - 64) / 64.0) * 4.0  # ±4 semitones
         rate_multiplier = 2.0 ** (brightness_factor / 12.0)
 
-        modulated_rate = max(0.1, min(20.0, base_rate * rate_multiplier * (1.0 + rate_modulation)))
+        modulated_rate = max(0.1, min(200.0, base_rate * rate_multiplier * (1.0 + rate_modulation)))
 
         # Convert frequency to phase step
         return modulated_rate * 2.0 * math.pi / self.sample_rate
@@ -518,11 +580,25 @@ class UltraFastXGLFO:
         """Get tremolo (amplitude) modulation."""
         return self.step() * self.tremolo_depth
 
-    def set_modulation_routing(self, pitch: bool = False, filter: bool = False, amplitude: bool = False):
-        """Set XG modulation routing for this LFO."""
+    def set_modulation_routing(self, pitch: bool = False, filter: bool = False, amplitude: bool = False,
+                              pan: bool = False, pwm: bool = False, fm_amount: bool = False):
+        """
+        Set modulation routing for this LFO including Jupiter-X extended destinations.
+
+        Args:
+            pitch: Enable pitch modulation
+            filter: Enable filter modulation
+            amplitude: Enable amplitude modulation
+            pan: Enable stereo pan modulation (Jupiter-X)
+            pwm: Enable pulse width modulation (Jupiter-X, for square waves)
+            fm_amount: Enable FM modulation amount (Jupiter-X)
+        """
         self.modulates_pitch = pitch
         self.modulates_filter = filter
         self.modulates_amplitude = amplitude
+        self.modulates_pan = pan
+        self.modulates_pwm = pwm
+        self.modulates_fm_amount = fm_amount
 
     def set_modulation_depths(self, pitch_cents: float = 0.0, filter_depth: float = 0.0, amplitude_depth: float = 0.0):
         """Set XG modulation depths for this LFO."""
@@ -571,13 +647,82 @@ class UltraFastXGLFO:
         self.delay_counter = 0
         self._last_output = 0.0
 
+    # Jupiter-X Enhanced LFO Features
+
+    def set_phase_offset(self, offset_degrees: float):
+        """
+        Set LFO phase offset in degrees (0-360).
+
+        Jupiter-X allows precise phase control for creating complex modulation patterns.
+
+        Args:
+            offset_degrees: Phase offset in degrees (0-360)
+        """
+        self.phase_offset = max(0.0, min(360.0, offset_degrees))
+        # Convert degrees to radians and apply to current phase
+        phase_radians = (self.phase_offset / 360.0) * 2.0 * math.pi
+        self.phase = phase_radians
+        self._dirty = True
+
+    def set_fade_in_time(self, time_seconds: float):
+        """
+        Set LFO fade-in time in seconds (0-5.0).
+
+        Jupiter-X provides smooth fade-in to prevent abrupt modulation starts.
+
+        Args:
+            time_seconds: Fade-in time in seconds (0-5.0)
+        """
+        self.fade_in_time = max(0.0, min(5.0, time_seconds))
+        self.fade_in_samples = int(self.fade_in_time * self.sample_rate)
+        self._dirty = True
+
+    def set_key_sync(self, enabled: bool):
+        """
+        Enable/disable key synchronization.
+
+        When enabled, LFO phase resets on each note-on event.
+
+        Args:
+            enabled: Whether to enable key synchronization
+        """
+        self.key_sync = enabled
+
+    def reset_phase_for_key_sync(self):
+        """
+        Reset LFO phase for key synchronization.
+
+        Called when a new note is triggered if key_sync is enabled.
+        """
+        if self.key_sync:
+            # Reset to phase offset when key sync is enabled
+            phase_radians = (self.phase_offset / 360.0) * 2.0 * math.pi
+            self.phase = phase_radians
+            self.delay_counter = 0  # Also reset delay counter for fresh start
+
+    def get_jupiter_x_lfo_info(self) -> Dict[str, Any]:
+        """
+        Get Jupiter-X specific LFO information for debugging/monitoring.
+
+        Returns:
+            Dictionary with Jupiter-X LFO parameters
+        """
+        return {
+            'phase_offset_degrees': self.phase_offset,
+            'fade_in_time_seconds': self.fade_in_time,
+            'fade_in_samples': self.fade_in_samples,
+            'key_sync_enabled': self.key_sync,
+            'current_phase_radians': self.phase,
+            'jupiter_x_compatible': True
+        }
+
     def set_parameters(self, waveform: Optional[str] = None, rate: Optional[float] = None,
                       depth: Optional[float] = None, delay: Optional[float] = None):
         """Update LFO parameters dynamically."""
         if waveform is not None:
             self.waveform = self._validate_waveform(waveform)
         if rate is not None:
-            self.rate = max(0.1, min(20.0, rate))
+            self.rate = max(0.1, min(200.0, rate))
             self._dirty = True
         if depth is not None:
             self.depth = max(0.0, min(1.0, depth))

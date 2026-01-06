@@ -1,743 +1,598 @@
 """
-ULTRA-FAST VOICE MANAGER - HIGH-PERFORMANCE SYNTHESIS
+Voice Manager - Polyphony Management and Voice Allocation
 
-Key Features:
-- VoiceInfo object pooling supporting 1000+ voices/second lifecycle
-- Ultra-fast voice allocation with zero temporary allocations
-- Advanced voice stealing algorithms with priority-based decisions
-- Predictive voice allocation system for optimal performance
-- Memory pool integration for buffer management
-- XG specification compliant voice management modes
+Professional voice management system with intelligent allocation,
+polyphony control, and real-time voice state tracking.
 
-Architecture:
-- VoiceInfoPool for fast object reuse (1000+ voices/sec)
-- Priority caching system for allocation optimization
-- Predictive demand analysis for proactive voice management
-- Zero-allocation voice lifecycle management
+Part of S90/S70 compatibility - Core Infrastructure (Phase 1).
 """
 
-import time
-from typing import Dict, Optional, List, Any
-from collections import deque
+from typing import Dict, List, Any, Optional, Callable, Set
 import threading
-from .voice_priority import VoicePriority
-from .voice_info import VoiceInfo
-from ..channel.channel_note import ChannelNote
+import time
+from dataclasses import dataclass
+from enum import Enum
 
 
-class VoiceInfoPool:
-    """
-    ULTRA-FAST VOICE INFO OBJECT POOL FOR 1000+ VOICES/SECOND
+class VoiceState(Enum):
+    """Voice allocation states"""
+    FREE = "free"
+    ATTACK = "attack"
+    DECAY = "decay"
+    SUSTAIN = "sustain"
+    RELEASE = "release"
+    PENDING_RELEASE = "pending_release"
 
-    Specialized pool for VoiceInfo objects supporting high-frequency lifecycle management.
-    Optimized for real-time voice allocation in audio synthesis.
 
-    Key optimizations:
-    - Lock-free operation for single-threaded usage patterns
-    - Pre-allocated VoiceInfo arrays for maximum flexibility
-    - Fast acquire/release operations with zero allocation during processing
-    - Configurable pool size based on expected concurrent voices
-    - Automatic state reset for object reuse
-    """
+class VoiceStealingStrategy(Enum):
+    """Voice stealing strategies for polyphony management"""
+    OLDEST = "oldest"      # Steal oldest voice first
+    QUIETEST = "quietest"  # Steal quietest voice first
+    LOWEST = "lowest"      # Steal lowest note first
+    HIGHEST = "highest"    # Steal highest note first
+    PRIORITY = "priority"  # Priority-based stealing (engine-specific)
 
-    def __init__(self, max_voices: int = 1000):
-        """
-        Initialize ultra-fast VoiceInfo pool.
 
-        Args:
-            max_voices: Maximum number of VoiceInfo objects to pool
-        """
-        self.max_voices = max_voices
-
-        # Ultra-fast VoiceInfo pool - no maxlen limit for flexibility
-        self.pool = deque()
-        self.lock = threading.RLock()
-
-        # Pre-allocate common VoiceInfo objects for ultra-fast access
-        self._preallocate_voices()
-
-    def _preallocate_voices(self):
-        """Pre-allocate VoiceInfo objects for ultra-fast access."""
-        # Note: We don't pre-allocate VoiceInfo objects here because they require
-        # a valid ChannelNote. Instead, we rely on the pool growing during use.
-        pass
-
-    def acquire_voice_info(self, note: int, velocity: int, channel_note: ChannelNote,
-                          priority: int = VoicePriority.NORMAL) -> VoiceInfo:
-        """
-        ULTRA-FAST: Acquire VoiceInfo from pool or create new one.
-
-        Args:
-            note: MIDI note number
-            velocity: Note velocity (0-127)
-            channel_note: Associated ChannelNote object
-            priority: Voice priority level
-
-        Returns:
-            VoiceInfo instance ready for use
-        """
-        if self.pool:
-            try:
-                # Try to get from pool first (ultra-fast path)
-                voice_info = self.pool.popleft()
-                # Reset voice state for reuse
-                voice_info.reset(note, velocity, channel_note, priority)
-                return voice_info
-            except IndexError:
-                pass
-        # Pool empty - create new VoiceInfo (fallback path)
-        return VoiceInfo(note, velocity, channel_note, priority)
-
-    def release_voice_info(self, voice_info: VoiceInfo) -> None:
-        """
-        ULTRA-FAST: Return VoiceInfo to pool.
-
-        Args:
-            voice_info: VoiceInfo instance to return
-        """
-        if voice_info is None:
-            return
-
-        try:
-            # Reset voice before returning to pool
-            voice_info.reset(0, 0, None, VoicePriority.NORMAL)
-
-            # Only return if pool isn't full (maintain reasonable size)
-            if len(self.pool) < self.max_voices:
-                self.pool.append(voice_info)
-        except:
-            # Error during reset - just discard
-            pass
-
-    def get_pool_stats(self) -> Dict[str, int]:
-        """Get pool statistics for monitoring."""
-        return {
-            'pooled_voices': len(self.pool),
-            'max_voices': self.max_voices
-        }
+@dataclass
+class VoiceInfo:
+    """Information about an allocated voice"""
+    voice_id: int
+    channel: int
+    note: int
+    velocity: int
+    engine_type: str
+    state: VoiceState
+    start_time: float
+    priority: int = 0
+    effects_chain: Optional[List[str]] = None
+    modulation_data: Optional[Dict[str, Any]] = None
 
 
 class VoiceManager:
-    """XG Voice Management System with allocation modes and voice stealing"""
+    """
+    Voice Manager - Professional Polyphony Management
+
+    Intelligent voice allocation system with configurable stealing strategies,
+    real-time voice state tracking, and performance monitoring.
+    """
 
     def __init__(self, max_voices: int = 64):
-        self.max_voices = max_voices
-        self.active_voices: Dict[int, VoiceInfo] = {}  # note -> VoiceInfo
-        self.voice_allocation_mode = 0  # Default to basic polyphonic
-        self.polyphony_limit = 32  # Default polyphony limit
-
-        # ULTRA-FAST VoiceInfo pooling system
-        self.voice_pool = VoiceInfoPool(max_voices=max_voices)
-
-        # Performance optimization: Priority calculation caching
-        self.priority_cache = {}  # voice_id -> (priority_score, timestamp)
-        self.cache_ttl = 100  # Cache for 100 allocation cycles
-        self.cache_hits = 0
-        self.cache_misses = 0
-
-        # Predictive voice allocation system
-        self.voice_demand_history = {}  # channel -> list of recent demand
-        self.predicted_demand = {}  # channel -> predicted voice needs
-        self.allocation_prediction_window = 50  # Look ahead 50 messages
-
-        # ===== PHASE B: XG-COMPLIANT VOICE STEALING =====
-        # XG hysteresis prevents rapid voice stealing/reallocation
-        self.hysteresis_threshold = 1.1  # 10% hysteresis advantage for new voices
-        self.voice_stealing_hysteresis = True
-
-        # XG voice priority system with hysteresis memory
-        self.last_stolen_voices = deque(maxlen=10)  # Remember recently stolen voices
-        self.stealing_cooldown_ms = 50  # Cooldown period between steals of same voice
-
-        # XG release phase priority (envelopes in release have lower steal priority)
-        self.release_phase_penalty = 2.0  # Multiply priority score by 2.0 for voices in release
-
-    def set_allocation_mode(self, mode: int):
-        """Set voice allocation mode"""
-        self.voice_allocation_mode = mode
-
-    def set_polyphony_limit(self, limit: int):
-        """Set maximum polyphony limit"""
-        self.polyphony_limit = max(1, min(limit, self.max_voices))
-
-    def can_allocate_voice(self, note: int, velocity: int, priority: int = VoicePriority.NORMAL) -> bool:
-        """Check if a new voice can be allocated"""
-        current_voice_count = len(self.active_voices)
-
-        # If under polyphony limit, always allow
-        if current_voice_count < self.polyphony_limit:
-            return True
-
-        # Handle different allocation modes
-        if self.voice_allocation_mode == 0:  # Basic polyphonic
-            # Basic polyphonic - no stealing, just reject if at limit
-            return False
-        elif self.voice_allocation_mode == 1:  # Priority-based polyphonic
-            return self._can_steal_voice(note, velocity, priority)
-        elif self.voice_allocation_mode == 2:  # Advanced polyphonic
-            return self._can_steal_voice_advanced(note, velocity, priority)
-        elif self.voice_allocation_mode in [3, 4, 5]:  # Monophonic modes
-            # Monophonic modes - only one voice at a time
-            return current_voice_count == 0 or self._should_replace_mono_voice(note, velocity)
-
-        return False
-
-    def _can_steal_voice(self, note: int, velocity: int, priority: int) -> bool:
-        """Check if we can steal a voice using priority-based algorithm"""
-        if not self.active_voices:
-            return True
-
-        # Find the voice with lowest priority score
-        lowest_score = float('inf')
-        lowest_note = None
-
-        for voice_note, voice_info in self.active_voices.items():
-            score = voice_info.calculate_priority_score()
-            if score < lowest_score:
-                lowest_score = score
-                lowest_note = voice_note
-
-        # Calculate priority score for new voice
-        new_voice_score = self._calculate_new_voice_score(note, velocity, priority)
-
-        # Can steal if new voice has higher priority
-        return new_voice_score > lowest_score
-
-    def _can_steal_voice_advanced(self, note: int, velocity: int, priority: int) -> bool:
-        """Advanced voice stealing with multiple criteria"""
-        if not self.active_voices:
-            return True
-
-        # Criteria for stealing:
-        # 1. Voices in release phase (lowest priority)
-        # 2. Lowest velocity
-        # 3. Oldest voices
-        # 4. Lowest priority level
-
-        release_voices = [(n, v) for n, v in self.active_voices.items() if v.is_releasing]
-        if release_voices:
-            # Steal from release voices first
-            return True
-
-        # Find voice with lowest velocity
-        min_velocity = min(v.velocity for v in self.active_voices.values())
-        if velocity > min_velocity:
-            return True
-
-        # Find oldest voice
-        oldest_time = min(v.start_time for v in self.active_voices.values())
-        current_time = time.time()
-        if current_time - oldest_time > 1.0:  # Voices older than 1 second
-            return True
-
-        # Check priority levels
-        min_priority = min(v.priority for v in self.active_voices.values())
-        if priority > min_priority:
-            return True
-
-        return False
-
-    def _should_replace_mono_voice(self, note: int, velocity: int) -> bool:
-        """Check if we should replace the current mono voice"""
-        if not self.active_voices:
-            return True
-
-        # In mono modes, always replace with new note
-        # But consider velocity for some modes
-        if self.voice_allocation_mode == 4:  # Mono with portamento
-            # Consider if portamento is active
-            return True
-        elif self.voice_allocation_mode == 5:  # Mono with legato
-            # Only replace if different note
-            current_notes = list(self.active_voices.keys())
-            return len(current_notes) == 0 or note != current_notes[0]
-
-        return True  # Mono1 - always replace
-
-    def _calculate_new_voice_score(self, note: int, velocity: int, priority: int) -> float:
-        """Calculate priority score for a potential new voice"""
-        velocity_score = velocity / 127.0
-        priority_score = priority / VoicePriority.HIGHEST
-        return velocity_score * 0.6 + priority_score * 0.4
-
-    def get_cached_priority_score(self, voice_info) -> float:
-        """Get cached priority score to avoid recalculation"""
-        import time
-        voice_id = id(voice_info)
-
-        if voice_id in self.priority_cache:
-            score, timestamp = self.priority_cache[voice_id]
-            if timestamp > time.time() - self.cache_ttl:
-                self.cache_hits += 1
-                return score
-
-        # Cache miss - recalculate
-        self.cache_misses += 1
-        score = voice_info.calculate_priority_score()
-        self.priority_cache[voice_id] = (score, time.time())
-        return score
-
-    def clear_priority_cache(self):
-        """Clear the priority cache to free memory"""
-        self.priority_cache.clear()
-        self.cache_hits = 0
-        self.cache_misses = 0
-
-    def get_cache_stats(self) -> Dict[str, float]:
-        """Get cache performance statistics"""
-        total_requests = self.cache_hits + self.cache_misses
-        hit_rate = (self.cache_hits / total_requests * 100) if total_requests > 0 else 0.0
-        return {
-            "cache_hits": float(self.cache_hits),
-            "cache_misses": float(self.cache_misses),
-            "hit_rate_percent": hit_rate,
-            "cache_size": float(len(self.priority_cache))
-        }
-
-    def get_pool_stats(self) -> Dict[str, int]:
-        """Get VoiceInfo pool statistics"""
-        return self.voice_pool.get_pool_stats()
-
-    def predict_voice_needs(self, upcoming_messages: List[Any]) -> Dict[int, int]:
-        """Predict voice allocation needs based on upcoming MIDI messages"""
-        channel_demand = {}
-
-        for msg in upcoming_messages[:self.allocation_prediction_window]:
-            if hasattr(msg, 'type') and msg.type == 'note_on':
-                channel = getattr(msg, 'channel', 0)
-                if channel not in channel_demand:
-                    channel_demand[channel] = 0
-                channel_demand[channel] += 1
-
-        return channel_demand
-
-    def update_voice_demand_history(self, channel: int, demand: int):
-        """Update voice demand history for prediction"""
-        if channel not in self.voice_demand_history:
-            self.voice_demand_history[channel] = []
-
-        history = self.voice_demand_history[channel]
-        history.append(demand)
-
-        # Keep only recent history
-        if len(history) > 20:
-            history.pop(0)
-
-    def get_predicted_demand(self, channel: int) -> int:
-        """Get predicted voice demand for a channel"""
-        if channel not in self.voice_demand_history:
-            return 1
-
-        history = self.voice_demand_history[channel]
-        if not history:
-            return 1
-
-        # Simple moving average prediction
-        return sum(history[-5:]) // max(1, len(history[-5:]))
-
-    def allocate_voice(self, note: int, velocity: int, channel_note: ChannelNote,
-                      priority: int = VoicePriority.NORMAL) -> Optional[int]:
         """
-        Allocate a voice with comprehensive voice management.
-
-        This method implements production-grade voice allocation with:
-        - Polyphony limit enforcement
-        - Voice stealing based on allocation mode
-        - Monophonic mode handling
-        - Proper voice lifecycle management
+        Initialize voice manager.
 
         Args:
-            note: MIDI note number (0-127)
-            velocity: Note velocity (0-127)
-            channel_note: Associated ChannelNote object
-            priority: Voice priority level
-
-        Returns:
-            Allocated note number or None if allocation failed
+            max_voices: Maximum number of simultaneous voices
         """
-        import time
-        alloc_start = time.perf_counter()
+        self.max_voices = max_voices
+        self.active_voices: Dict[int, VoiceInfo] = {}
+        self.free_voice_ids: Set[int] = set(range(max_voices))
+        self.next_voice_id = max_voices
 
-        # Validate input parameters
-        if not (0 <= note <= 127) or not (0 <= velocity <= 127):
-            return None
-
-        if not self.can_allocate_voice(note, velocity, priority):
-            return None
-
-        # Handle monophonic modes - clear all existing voices
-        if self.voice_allocation_mode in [3, 4, 5]:  # Monophonic modes
-            self._clear_monophonic_voices()
-
-        # If at polyphony limit, attempt voice stealing
-        elif len(self.active_voices) >= self.polyphony_limit:
-            stolen_note = self._steal_voice(note, velocity, priority)
-            if stolen_note is None:
-                # Voice stealing failed - cannot allocate
-                return None
-
-        # Allocate new voice from pool (ULTRA-FAST)
-        try:
-            voice_info = self.voice_pool.acquire_voice_info(note, velocity, channel_note, priority)
-            self.active_voices[note] = voice_info
-        except Exception as e:
-            print(f"[VOICE] Failed to allocate voice info for note {note}: {e}")
-            return None
+        # Voice stealing configuration
+        self.stealing_strategy = VoiceStealingStrategy.PRIORITY
+        self.voice_priorities = {
+            'fdsp': 10,      # Highest priority (vocal synthesis)
+            'an': 9,         # Analog engines
+            'sf2': 8,        # Sample-based
+            'xg': 7,         # XG synthesis
+            'fm': 6,         # FM synthesis
+            'wavetable': 5,  # Wavetable
+            'additive': 4,   # Additive synthesis
+            'granular': 3,   # Granular
+            'physical': 2,   # Physical modeling
+        }
 
         # Performance monitoring
-        duration = time.perf_counter() - alloc_start
-        if duration > 0.001:  # Log slow allocations (>1ms)
-            print(f"[VOICE] Slow allocation: {duration*1000:.2f}ms for note {note}")
-
-        return note
-
-    def _steal_voice(self, new_note: int, new_velocity: int, new_priority: int) -> Optional[int]:
-        """
-        Steal a voice using the configured allocation strategy.
-
-        Implements different voice stealing algorithms based on allocation mode:
-        - Mode 1: Priority-based stealing
-        - Mode 2: Advanced XG-compliant stealing
-
-        Args:
-            new_note: Note number for the new voice
-            new_velocity: Velocity for the new voice
-            new_priority: Priority for the new voice
-
-        Returns:
-            Note number of stolen voice, or None if no voice could be stolen
-        """
-        if self.voice_allocation_mode == 1:  # Priority-based
-            return self._steal_by_priority(new_note, new_velocity, new_priority)
-        elif self.voice_allocation_mode == 2:  # Advanced XG
-            return self._steal_by_advanced_criteria(new_note, new_velocity, new_priority)
-        else:
-            # Mode 0 (Basic) doesn't support stealing
-            return None
-
-    def _steal_by_priority(self, new_note: int, new_velocity: int, new_priority: int) -> Optional[int]:
-        """Steal voice with lowest priority score"""
-        if not self.active_voices:
-            return None
-
-        lowest_score = float('inf')
-        lowest_note = None
-
-        for voice_note, voice_info in self.active_voices.items():
-            score = voice_info.calculate_priority_score()
-            if score < lowest_score:
-                lowest_score = score
-                lowest_note = voice_note
-
-        if lowest_note is not None:
-            self.deallocate_voice(lowest_note)
-            return lowest_note
-
-        return None
-
-    def _steal_by_advanced_criteria(self, new_note: int, new_velocity: int, new_priority: int) -> Optional[int]:
-        """Advanced voice stealing algorithm"""
-        # Priority order for stealing:
-        # 1. Voices in release phase
-        # 2. Lowest velocity
-        # 3. Oldest voices
-        # 4. Lowest priority
-
-        # 1. Try to steal from release voices first
-        release_voices = [(n, v) for n, v in self.active_voices.items() if v.is_releasing]
-        if release_voices:
-            stolen_note = release_voices[0][0]
-            self.deallocate_voice(stolen_note)
-            return stolen_note
-
-        # 2. Steal lowest velocity voice
-        min_velocity = min(v.velocity for v in self.active_voices.values())
-        lowest_velocity_notes = [n for n, v in self.active_voices.items() if v.velocity == min_velocity]
-        if lowest_velocity_notes:
-            stolen_note = lowest_velocity_notes[0]
-            self.deallocate_voice(stolen_note)
-            return stolen_note
-
-        # 3. Steal oldest voice
-        oldest_time = min(v.start_time for v in self.active_voices.values())
-        oldest_notes = [n for n, v in self.active_voices.items() if v.start_time == oldest_time]
-        if oldest_notes:
-            stolen_note = oldest_notes[0]
-            self.deallocate_voice(stolen_note)
-            return stolen_note
-
-        # 4. Steal lowest priority voice
-        min_priority = min(v.priority for v in self.active_voices.values())
-        lowest_priority_notes = [n for n, v in self.active_voices.items() if v.priority == min_priority]
-        if lowest_priority_notes:
-            stolen_note = lowest_priority_notes[0]
-            self.deallocate_voice(stolen_note)
-            return stolen_note
-
-        return None
-
-    def deallocate_voice(self, note: int):
-        """Deallocate a voice and return VoiceInfo to pool"""
-        if note in self.active_voices:
-            voice_info = self.active_voices[note]
-            voice_info.start_release()
-            # Note: VoiceInfo is kept in active_voices during release phase
-            # It will be returned to pool by cleanup_released_voices when release completes
-
-    def start_voice_release(self, note: int):
-        """Start release phase for a voice"""
-        if note in self.active_voices:
-            self.active_voices[note].start_release()
-
-    def get_active_voice_count(self) -> int:
-        """Get current number of active voices"""
-        return len(self.active_voices)
-
-    def get_voice_info(self, note: int) -> Optional[VoiceInfo]:
-        """Get voice information for a specific note"""
-        return self.active_voices.get(note)
-
-    def cleanup_released_voices(self):
-        """Clean up voices that have finished their release phase"""
-        # Check if envelopes have completed for each released voice
-        current_time = time.time()
-        to_remove = []
-
-        for note, voice_info in self.active_voices.items():
-            if voice_info.is_releasing:
-                # Check if the associated channel note is still active
-                # If the note is no longer active, it means envelopes have completed
-                if voice_info.channel_note and not voice_info.channel_note.is_active():
-                    to_remove.append(note)
-                # Also clean up voices that have been in release for too long (timeout)
-                elif voice_info.release_time and (current_time - voice_info.release_time > 2.0):
-                    to_remove.append(note)
-
-        for note in to_remove:
-            voice_info = self.active_voices[note]
-            del self.active_voices[note]
-            # Return VoiceInfo to pool for reuse (ULTRA-FAST)
-            self.voice_pool.release_voice_info(voice_info)
-
-    def get_allocation_mode_name(self) -> str:
-        """Get human-readable name for current allocation mode"""
-        mode_names = {
-            0: "Poly1 (Basic)",
-            1: "Poly2 (Priority)",
-            2: "Poly3 (Advanced XG)",
-            3: "Mono1 (Basic)",
-            4: "Mono2 (Portamento)",
-            5: "Mono3 (Legato)"
+        self.allocation_stats = {
+            'total_allocations': 0,
+            'total_deallocations': 0,
+            'voice_stealing_events': 0,
+            'peak_concurrent_voices': 0,
+            'allocation_failures': 0,
+            'average_voice_lifetime': 0.0
         }
-        return mode_names.get(self.voice_allocation_mode, "Unknown")
 
-    # ================ XG-COMPLIANT VOICE STEALING WITH HYSTERESIS (PHASE B) ================
+        # Voice lifetime tracking
+        self.voice_lifetimes: List[float] = []
+        self.max_lifetime_history = 1000
 
-    def _can_steal_voice_xg_hysteresis(self, note: int, velocity: int, priority: int) -> tuple[bool, Optional[int]]:
-        """XG-compliant voice stealing with hysteresis to prevent voice thrashing.
+        # Thread safety
+        self.lock = threading.RLock()
 
-        XG Specification Requirements:
-        - Hysteresis prevents rapid stealing of the same voice
-        - Voices in release phase are less likely to be stolen
-        - Newly started voices have priority advantage
-        - Consider voice age and activity level
+        # Callbacks
+        self.voice_allocated_callback: Optional[Callable[[VoiceInfo], None]] = None
+        self.voice_deallocated_callback: Optional[Callable[[int], None]] = None
+        self.voice_stolen_callback: Optional[Callable[[VoiceInfo, VoiceInfo], None]] = None
 
-        Returns:
-            Tuple of (can_steal, voice_to_steal_note)
+    def allocate_voice(self, channel: int, note: int, velocity: int,
+                      engine_type: str) -> Optional[int]:
         """
-        if not self.active_voices:
-            return False, None
-
-        current_time_ms = time.time() * 1000
-        best_steal_candidate = None
-        lowest_priority_score = float('inf')
-
-        for voice_note, voice_info in self.active_voices.items():
-            # Skip voices recently stolen (hysteresis protection)
-            if self._voice_recently_stolen(voice_note, current_time_ms):
-                continue
-
-            # Calculate XG priority score with hysteresis
-            priority_score = self._calculate_xg_voice_priority(voice_info, voice_note, current_time_ms)
-
-            # New voices get hysteresis advantage
-            if priority_score < lowest_priority_score:
-                lowest_priority_score = priority_score
-                best_steal_candidate = voice_note
-
-        # Apply hysteresis threshold - new voice needs to be significantly better
-        new_voice_score = self._calculate_new_voice_xg_priority(note, velocity, priority)
-
-        # XG hysteresis: new voice must be hysteresis_threshold times better
-        if self.voice_stealing_hysteresis:
-            can_steal = new_voice_score > (lowest_priority_score * self.hysteresis_threshold)
-        else:
-            can_steal = new_voice_score > lowest_priority_score
-
-        return can_steal, best_steal_candidate
-
-    def _calculate_xg_voice_priority(self, voice_info, note: int, current_time_ms: float) -> float:
-        """Calculate XG-compliant voice priority for stealing decisions.
-
-        XG Priority Factors:
-        1. Voice state (release phase = lower priority)
-        2. Voice age (older voices = slightly lower priority)
-        3. Velocity (higher velocity = higher priority)
-        4. Note priority (channel-specific note priorities)
+        Allocate a voice for note playback.
 
         Args:
-            voice_info: VoiceInfo object
-            note: MIDI note number
-            current_time_ms: Current time in milliseconds
+            channel: MIDI channel (0-15)
+            note: MIDI note number (0-127)
+            velocity: MIDI velocity (0-127)
+            engine_type: Synthesis engine type
 
         Returns:
-            Priority score (higher = more likely to steal)
+            Voice ID or None if allocation failed
         """
-        base_score = voice_info.calculate_priority_score()
+        with self.lock:
+            # Check if voice already exists for this note/channel
+            existing_voice = self.find_voice(channel, note)
+            if existing_voice is not None:
+                # Retrigger existing voice
+                self._update_voice(existing_voice, velocity)
+                return existing_voice
 
-        # XG: Voices in release phase get penalty (less likely to be stolen)
-        if voice_info.is_releasing:
-            base_score *= self.release_phase_penalty
+            # Try to allocate a free voice
+            voice_id = self._allocate_free_voice()
+            if voice_id is not None:
+                return self._initialize_voice(voice_id, channel, note, velocity, engine_type)
 
-        # XG: Older voices get slight penalty (encourage voice reuse)
-        voice_age_seconds = (current_time_ms / 1000.0) - voice_info.start_time
-        if voice_age_seconds > 2.0:  # Voices older than 2 seconds
-            age_penalty = min(1.5, 1.0 + (voice_age_seconds - 2.0) * 0.1)
-            base_score *= age_penalty
+            # No free voices, attempt stealing
+            stolen_voice_id = self._steal_voice(channel, note, velocity, engine_type)
+            if stolen_voice_id is not None:
+                return self._reallocate_voice(stolen_voice_id, channel, note, velocity, engine_type)
 
-        # XG: Higher velocity voices harder to steal
-        velocity_protection = 1.0 + (voice_info.velocity / 127.0) * 0.3
-        base_score *= velocity_protection
+            # Allocation failed
+            self.allocation_stats['allocation_failures'] += 1
+            return None
 
-        return base_score
+    def _allocate_free_voice(self) -> Optional[int]:
+        """Allocate a free voice if available"""
+        if self.free_voice_ids:
+            return self.free_voice_ids.pop()
+        return None
 
-    def _calculate_new_voice_xg_priority(self, note: int, velocity: int, priority: int) -> float:
-        """Calculate priority score for a potential new voice (XG-compliant)."""
-        velocity_score = velocity / 127.0  # 0.0 - 1.0
-        priority_score = priority / 4.0     # VoicePriority.HIGHEST = 4
+    def _initialize_voice(self, voice_id: int, channel: int, note: int,
+                         velocity: int, engine_type: str) -> int:
+        """Initialize a newly allocated voice"""
+        voice_info = VoiceInfo(
+            voice_id=voice_id,
+            channel=channel,
+            note=note,
+            velocity=velocity,
+            engine_type=engine_type,
+            state=VoiceState.ATTACK,
+            start_time=time.time(),
+            priority=self.voice_priorities.get(engine_type, 0)
+        )
 
-        # XG: Give advantage to newly triggered voices
-        recency_bonus = 1.2  # New voices get 20% priority advantage
+        self.active_voices[voice_id] = voice_info
+        self.allocation_stats['total_allocations'] += 1
+        self.allocation_stats['peak_concurrent_voices'] = max(
+            self.allocation_stats['peak_concurrent_voices'],
+            len(self.active_voices)
+        )
 
-        # XG: Legato notes get higher priority (depending on mode)
-        legato_bonus = 1.0
+        # Notify callback
+        if self.voice_allocated_callback:
+            self.voice_allocated_callback(voice_info)
 
-        return (velocity_score * 0.5 + priority_score * 0.5) * recency_bonus * legato_bonus
+        return voice_id
 
-    def _voice_recently_stolen(self, note: int, current_time_ms: float) -> bool:
-        """Check if a voice was recently stolen to prevent hysteresis."""
+    def _reallocate_voice(self, voice_id: int, channel: int, note: int,
+                         velocity: int, engine_type: str) -> int:
+        """Reallocate a stolen voice"""
+        old_voice_info = self.active_voices[voice_id]
 
-        # Check recent steals
-        for stolen_time, stolen_note in list(self.last_stolen_voices):
-            if stolen_note == note and (current_time_ms - stolen_time) < self.stealing_cooldown_ms:
+        # Create new voice info
+        new_voice_info = VoiceInfo(
+            voice_id=voice_id,
+            channel=channel,
+            note=note,
+            velocity=velocity,
+            engine_type=engine_type,
+            state=VoiceState.ATTACK,
+            start_time=time.time(),
+            priority=self.voice_priorities.get(engine_type, 0)
+        )
+
+        self.active_voices[voice_id] = new_voice_info
+        self.allocation_stats['voice_stealing_events'] += 1
+
+        # Notify callback
+        if self.voice_stolen_callback:
+            self.voice_stolen_callback(old_voice_info, new_voice_info)
+
+        return voice_id
+
+    def _steal_voice(self, channel: int, note: int, velocity: int,
+                    engine_type: str) -> Optional[int]:
+        """
+        Attempt to steal a voice using the configured strategy.
+
+        Returns:
+            Voice ID to steal or None
+        """
+        if not self.active_voices:
+            return None
+
+        requesting_priority = self.voice_priorities.get(engine_type, 0)
+
+        if self.stealing_strategy == VoiceStealingStrategy.PRIORITY:
+            return self._steal_by_priority(requesting_priority)
+        elif self.stealing_strategy == VoiceStealingStrategy.OLDEST:
+            return self._steal_oldest()
+        elif self.stealing_strategy == VoiceStealingStrategy.QUIETEST:
+            return self._steal_quietest()
+        elif self.stealing_strategy == VoiceStealingStrategy.LOWEST:
+            return self._steal_lowest()
+        elif self.stealing_strategy == VoiceStealingStrategy.HIGHEST:
+            return self._steal_highest()
+        else:
+            return self._steal_oldest()  # Default fallback
+
+    def _steal_by_priority(self, requesting_priority: int) -> Optional[int]:
+        """Steal voice with lowest priority"""
+        lowest_priority = requesting_priority + 1  # Only steal lower priority
+        candidate_voice = None
+
+        for voice_id, voice_info in self.active_voices.items():
+            if voice_info.priority < lowest_priority:
+                lowest_priority = voice_info.priority
+                candidate_voice = voice_id
+
+        return candidate_voice
+
+    def _steal_oldest(self) -> Optional[int]:
+        """Steal the oldest allocated voice"""
+        oldest_time = float('inf')
+        oldest_voice = None
+
+        for voice_id, voice_info in self.active_voices.items():
+            if voice_info.start_time < oldest_time:
+                oldest_time = voice_info.start_time
+                oldest_voice = voice_id
+
+        return oldest_voice
+
+    def _steal_quietest(self) -> Optional[int]:
+        """Steal the voice with lowest velocity"""
+        lowest_velocity = float('inf')
+        quietest_voice = None
+
+        for voice_id, voice_info in self.active_voices.items():
+            if voice_info.velocity < lowest_velocity:
+                lowest_velocity = voice_info.velocity
+                quietest_voice = voice_id
+
+        return quietest_voice
+
+    def _steal_lowest(self) -> Optional[int]:
+        """Steal the voice with lowest note"""
+        lowest_note = float('inf')
+        lowest_voice = None
+
+        for voice_id, voice_info in self.active_voices.items():
+            if voice_info.note < lowest_note:
+                lowest_note = voice_info.note
+                lowest_voice = voice_id
+
+        return lowest_voice
+
+    def _steal_highest(self) -> Optional[int]:
+        """Steal the voice with highest note"""
+        highest_note = float('-inf')
+        highest_voice = None
+
+        for voice_id, voice_info in self.active_voices.items():
+            if voice_info.note > highest_note:
+                highest_note = voice_info.note
+                highest_voice = voice_id
+
+        return highest_voice
+
+    def deallocate_voice(self, voice_id: int) -> bool:
+        """
+        Deallocate a voice.
+
+        Args:
+            voice_id: Voice to deallocate
+
+        Returns:
+            True if deallocated successfully
+        """
+        with self.lock:
+            if voice_id in self.active_voices:
+                voice_info = self.active_voices[voice_id]
+
+                # Record lifetime
+                lifetime = time.time() - voice_info.start_time
+                self.voice_lifetimes.append(lifetime)
+                if len(self.voice_lifetimes) > self.max_lifetime_history:
+                    self.voice_lifetimes.pop(0)
+
+                # Update statistics
+                self.allocation_stats['total_deallocations'] += 1
+                self.allocation_stats['average_voice_lifetime'] = sum(self.voice_lifetimes) / len(self.voice_lifetimes)
+
+                # Free the voice
+                del self.active_voices[voice_id]
+                self.free_voice_ids.add(voice_id)
+
+                # Notify callback
+                if self.voice_deallocated_callback:
+                    self.voice_deallocated_callback(voice_id)
+
                 return True
+            return False
+
+    def find_voice(self, channel: int, note: int) -> Optional[int]:
+        """
+        Find voice playing a specific note on a channel.
+
+        Args:
+            channel: MIDI channel
+            note: MIDI note number
+
+        Returns:
+            Voice ID or None if not found
+        """
+        with self.lock:
+            for voice_id, voice_info in self.active_voices.items():
+                if voice_info.channel == channel and voice_info.note == note:
+                    return voice_id
+            return None
+
+    def get_active_voices(self) -> List[VoiceInfo]:
+        """Get list of all active voices"""
+        with self.lock:
+            return list(self.active_voices.values())
+
+    def get_voice_info(self, voice_id: int) -> Optional[VoiceInfo]:
+        """Get information about a specific voice"""
+        with self.lock:
+            return self.active_voices.get(voice_id)
+
+    def update_voice_state(self, voice_id: int, new_state: VoiceState) -> bool:
+        """
+        Update the state of a voice.
+
+        Args:
+            voice_id: Voice to update
+            new_state: New voice state
+
+        Returns:
+            True if updated successfully
+        """
+        with self.lock:
+            if voice_id in self.active_voices:
+                self.active_voices[voice_id].state = new_state
+                return True
+            return False
+
+    def _update_voice(self, voice_id: int, new_velocity: int):
+        """Update an existing voice (retrigger)"""
+        if voice_id in self.active_voices:
+            voice_info = self.active_voices[voice_id]
+            voice_info.velocity = new_velocity
+            voice_info.state = VoiceState.ATTACK
+            voice_info.start_time = time.time()  # Reset lifetime
+
+    def clear_channel(self, channel: int):
+        """
+        Clear all voices on a specific channel.
+
+        Args:
+            channel: MIDI channel to clear
+        """
+        with self.lock:
+            voices_to_remove = []
+            for voice_id, voice_info in self.active_voices.items():
+                if voice_info.channel == channel:
+                    voices_to_remove.append(voice_id)
+
+            for voice_id in voices_to_remove:
+                self.deallocate_voice(voice_id)
+
+    def clear_all_voices(self):
+        """Clear all active voices"""
+        with self.lock:
+            voice_ids = list(self.active_voices.keys())
+            for voice_id in voice_ids:
+                self.deallocate_voice(voice_id)
+
+    def set_stealing_strategy(self, strategy: VoiceStealingStrategy) -> bool:
+        """
+        Set voice stealing strategy.
+
+        Args:
+            strategy: Voice stealing strategy
+
+        Returns:
+            True if strategy is valid
+        """
+        if isinstance(strategy, VoiceStealingStrategy):
+            self.stealing_strategy = strategy
+            return True
         return False
 
-    def _record_voice_steal(self, note: int):
-        """Record that a voice was stolen for hysteresis tracking."""
-
-        current_time_ms = time.time() * 1000
-        self.last_stolen_voices.append((current_time_ms, note))
-
-    # XG ADVANCED VOICE ALLOCATION MODES
-
-    def set_xg_allocation_mode(self, mode: int):
-        """Set XG-compliant voice allocation mode with enhanced features.
-
-        XG Allocation Modes:
-        0: Poly1 - Basic polyphonic (first-come, first-served)
-        1: Poly2 - Priority-based (velocity + priority)
-        2: Poly3 - Advanced XG (hysteresis + release protection)
-        3: Mono1 - Basic monophonic
-        4: Mono2 - Monophonic with portamento
-        5: Mono3 - Monophonic with legato
+    def set_voice_priority(self, engine_type: str, priority: int) -> bool:
         """
+        Set priority for an engine type.
 
-        self.voice_allocation_mode = max(0, min(5, mode))
+        Args:
+            engine_type: Engine type
+            priority: Priority level (higher = less likely to be stolen)
 
-        # Configure mode-specific parameters
-        if mode == 2:  # XG Advanced Polyphonic
-            # Enable full XG features
-            self.voice_stealing_hysteresis = True
-            self.hysteresis_threshold = 1.1
-            self.release_phase_penalty = 2.0
-        elif mode in [0, 1]:  # Basic polyphonic modes
-            # Disable advanced features for compatibility
-            self.voice_stealing_hysteresis = False
-            self.release_phase_penalty = 1.0
-        # Mono modes keep default settings
-
-    def allocate_voice_xg(self, note: int, velocity: int, channel_note, priority: int) -> Optional[int]:
-        """XG-compliant voice allocation with advanced stealing.
-
-        Enhanced Features:
-        - XG hysteresis voice stealing
-        - Release phase protection
-        - Priority-based allocation
-        - Monophonic mode support
+        Returns:
+            True if set successfully
         """
+        self.voice_priorities[engine_type] = priority
 
-        import time
-        alloc_start = time.perf_counter()
+        # Update priorities for existing voices
+        with self.lock:
+            for voice_info in self.active_voices.values():
+                if voice_info.engine_type == engine_type:
+                    voice_info.priority = priority
 
-        # Check basic allocation possibility
-        if not self.can_allocate_voice_xg(note, velocity, priority):
-            return None
+        return True
 
-        # Handle monophonic modes
-        if self.voice_allocation_mode in [3, 4, 5]:  # Monophonic modes
-            self._clear_monophonic_voices()
+    def get_voice_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive voice statistics"""
+        with self.lock:
+            active_count = len(self.active_voices)
+            free_count = len(self.free_voice_ids)
 
-        # If at polyphony limit, attempt XG-compliant voice stealing with hysteresis
-        elif len(self.active_voices) >= self.polyphony_limit:
-            stolen_note = self._steal_voice_xg(note, velocity, priority)
-            if stolen_note is None:
-                return None
+            # Voice distribution by engine
+            engine_counts = {}
+            for voice_info in self.active_voices.values():
+                engine = voice_info.engine_type
+                engine_counts[engine] = engine_counts.get(engine, 0) + 1
 
-        # Allocate new voice from pool
-        voice_info = self.voice_pool.acquire_voice_info(note, velocity, channel_note, priority)
-        self.active_voices[note] = voice_info
+            # Voice distribution by channel
+            channel_counts = {}
+            for voice_info in self.active_voices.values():
+                channel = voice_info.channel
+                channel_counts[channel] = channel_counts.get(channel, 0) + 1
 
-        duration = time.perf_counter() - alloc_start
-        if duration > 0.001:
-            print(f"[XG_VOICE] Allocation took {duration*1000:.2f}ms for note {note}")
+            return {
+                'active_voices': active_count,
+                'free_voices': free_count,
+                'total_capacity': self.max_voices,
+                'utilization_percent': (active_count / self.max_voices) * 100,
+                'by_engine': engine_counts,
+                'by_channel': channel_counts,
+                'allocation_stats': self.allocation_stats.copy(),
+                'stealing_strategy': self.stealing_strategy.value,
+                'voice_priorities': self.voice_priorities.copy()
+            }
 
-        return note
+    def get_channel_info(self, channel: int) -> Dict[str, Any]:
+        """
+        Get information about voices on a specific channel.
 
-    def can_allocate_voice_xg(self, note: int, velocity: int, priority: int) -> bool:
-        """XG-enhanced voice allocation check."""
+        Args:
+            channel: MIDI channel
 
-        current_voice_count = len(self.active_voices)
+        Returns:
+            Channel voice information
+        """
+        with self.lock:
+            channel_voices = []
+            for voice_info in self.active_voices.values():
+                if voice_info.channel == channel:
+                    channel_voices.append({
+                        'voice_id': voice_info.voice_id,
+                        'note': voice_info.note,
+                        'velocity': voice_info.velocity,
+                        'engine_type': voice_info.engine_type,
+                        'state': voice_info.state.value,
+                        'lifetime': time.time() - voice_info.start_time
+                    })
 
-        # If under polyphony limit, always allow
-        if current_voice_count < self.polyphony_limit:
+            return {
+                'channel': channel,
+                'active_voices': len(channel_voices),
+                'voices': channel_voices
+            }
+
+    def optimize_polyphony(self, target_utilization: float = 0.8) -> Dict[str, Any]:
+        """
+        Optimize polyphony settings based on usage patterns.
+
+        Args:
+            target_utilization: Target voice utilization (0.0-1.0)
+
+        Returns:
+            Optimization recommendations
+        """
+        stats = self.get_voice_statistics()
+
+        recommendations = []
+
+        current_utilization = stats['utilization_percent'] / 100.0
+
+        if current_utilization > target_utilization:
+            recommendations.append("Consider increasing max_voices for better headroom")
+
+        if stats['allocation_stats']['voice_stealing_events'] > 0:
+            recommendations.append("Voice stealing occurring - consider higher polyphony limit")
+
+        # Check for unbalanced engine usage
+        total_voices = sum(stats['by_engine'].values())
+        if total_voices > 0:
+            for engine, count in stats['by_engine'].items():
+                percentage = (count / total_voices) * 100
+                if percentage > 70:  # Engine using >70% of voices
+                    recommendations.append(f"Engine '{engine}' using {percentage:.1f}% of voices - consider load balancing")
+
+        return {
+            'current_utilization': current_utilization,
+            'target_utilization': target_utilization,
+            'recommendations': recommendations,
+            'statistics': stats
+        }
+
+    def set_max_voices(self, max_voices: int) -> bool:
+        """
+        Set maximum number of voices.
+
+        Args:
+            max_voices: New maximum voice count
+
+        Returns:
+            True if set successfully
+        """
+        if max_voices < 1 or max_voices > 256:
+            return False
+
+        with self.lock:
+            # If reducing max voices, deallocate excess voices
+            while len(self.active_voices) > max_voices:
+                # Find oldest voice to deallocate
+                oldest_voice = None
+                oldest_time = float('inf')
+                for voice_id, voice_info in self.active_voices.items():
+                    if voice_info.start_time < oldest_time:
+                        oldest_time = voice_info.start_time
+                        oldest_voice = voice_id
+
+                if oldest_voice is not None:
+                    self.deallocate_voice(oldest_voice)
+                else:
+                    break
+
+            # Update voice ID pool
+            self.free_voice_ids = set(range(max_voices))
+            for voice_id in self.active_voices:
+                if voice_id in self.free_voice_ids:
+                    self.free_voice_ids.remove(voice_id)
+
+            # Add new voice IDs if expanding
+            if max_voices > self.max_voices:
+                for voice_id in range(self.max_voices, max_voices):
+                    if voice_id not in self.active_voices:
+                        self.free_voice_ids.add(voice_id)
+
+            self.max_voices = max_voices
             return True
 
-        # Handle monophonic modes
-        if self.voice_allocation_mode in [3, 4, 5]:
-            return current_voice_count == 0
+    def reset_statistics(self):
+        """Reset allocation statistics"""
+        with self.lock:
+            self.allocation_stats = {
+                'total_allocations': 0,
+                'total_deallocations': 0,
+                'voice_stealing_events': 0,
+                'peak_concurrent_voices': 0,
+                'allocation_failures': 0,
+                'average_voice_lifetime': 0.0
+            }
+            self.voice_lifetimes.clear()
 
-        # For polyphonic modes, check if we can steal
-        can_steal, _ = self._can_steal_voice_xg_hysteresis(note, velocity, priority)
-        return can_steal
+    # Callback setters
+    def set_voice_allocated_callback(self, callback: Callable[[VoiceInfo], None]):
+        """Set callback for voice allocation events"""
+        self.voice_allocated_callback = callback
 
-    def _steal_voice_xg(self, new_note: int, new_velocity: int, new_priority: int) -> Optional[int]:
-        """XG-compliant voice stealing with hysteresis and advanced criteria."""
+    def set_voice_deallocated_callback(self, callback: Callable[[int], None]):
+        """Set callback for voice deallocation events"""
+        self.voice_deallocated_callback = callback
 
-        can_steal, best_candidate = self._can_steal_voice_xg_hysteresis(new_note, new_velocity, new_priority)
-
-        if can_steal and best_candidate is not None:
-            # Record the steal for hysteresis
-            self._record_voice_steal(best_candidate)
-
-            # Deallocate the stolen voice
-            self.deallocate_voice(best_candidate)
-
-            return best_candidate
-
-        return None
-
-    def _clear_monophonic_voices(self):
-        """Clear all voices for monophonic mode."""
-        for voice_note in list(self.active_voices.keys()):
-            self.deallocate_voice(voice_note)
+    def set_voice_stolen_callback(self, callback: Callable[[VoiceInfo, VoiceInfo], None]):
+        """Set callback for voice stealing events"""
+        self.voice_stolen_callback = callback

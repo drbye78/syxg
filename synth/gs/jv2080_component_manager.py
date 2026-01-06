@@ -118,14 +118,15 @@ class JV2080SystemParameters:
 
 class JV2080Part:
     """
-    Single JV-2080 Part Configuration
+    Single JV-2080 Part Configuration with Jupiter-X Integration
 
     Each of the 16 parts has comprehensive settings for instrument selection,
-    mixing, effects, and layering.
+    mixing, effects, layering, and now Jupiter-X synthesis features.
     """
 
-    def __init__(self, part_number: int):
+    def __init__(self, part_number: int, sample_rate: int = 44100):
         self.part_number = part_number
+        self.sample_rate = sample_rate
 
         # Basic Settings
         self.instrument_number = 0    # 0-895 (896 presets)
@@ -161,6 +162,93 @@ class JV2080Part:
         self.muted = False
         self.solo = False
         self.active = True
+
+        # ===== JUPITER-X INTEGRATION FEATURES =====
+
+        # Engine Selection (GS instrument or Jupiter-X engine)
+        self.engine_mode = 0  # 0=GS Instrument, 1=Jupiter-X Engines
+        self.jupiter_x_engine_type = 0  # 0=Analog, 1=Digital, 2=FM, 3=External
+
+        # Jupiter-X LFO (per-part, compatible with Jupiter-X architecture)
+        try:
+            from ...core.oscillator import UltraFastXGLFO
+            self.lfo = UltraFastXGLFO(id=part_number, waveform="sine", rate=5.0,
+                                    sample_rate=sample_rate)
+        except ImportError:
+            # Fallback if Jupiter-X not available
+            self.lfo = None
+
+        # Jupiter-X Envelope (per-part)
+        try:
+            from ...jupiter_x.part import JupiterXEnvelope
+            self.envelope = JupiterXEnvelope(sample_rate=sample_rate)
+        except ImportError:
+            # Fallback envelope implementation
+            self.envelope = None
+
+        # Jupiter-X Engine Instances (lazy-loaded)
+        self._jupiter_x_engines = {}
+
+        # Initialize Jupiter-X engines for this part
+        self._initialize_jupiter_x_engines()
+
+        # LFO Modulation Routing (Jupiter-X style)
+        self.lfo_to_pitch = 0.0      # LFO -> pitch modulation depth
+        self.lfo_to_filter = 0.0     # LFO -> filter modulation depth
+        self.lfo_to_amplitude = 0.0  # LFO -> amplitude modulation depth
+        self.lfo_to_pan = 0.0        # LFO -> pan modulation depth (Jupiter-X)
+
+        # Advanced Triggering (Jupiter-X style)
+        self.legato_mode = False     # Legato mode for smooth transitions
+        self.trigger_mode = 0        # 0=Single, 1=Multi, 2=Alternate
+
+        # Current note state for envelope/LFO management
+        self.current_note = None
+        self.current_velocity = 0
+        self.note_active = False
+
+    def _initialize_jupiter_x_engines(self):
+        """Initialize Jupiter-X engine instances for this part"""
+        try:
+            # Import base engines with Jupiter-X plugins (consolidated architecture)
+            from ..engine.additive_engine import AdditiveEngine
+            from ..engine.wavetable_engine import WavetableEngine
+            from ..engine.fm_engine import FMEngine
+            from ..engine.granular_engine import GranularEngine
+
+            # Create consolidated engine instances with Jupiter-X plugins
+            self._jupiter_x_engines = {
+                0: AdditiveEngine(max_partials=64, sample_rate=self.sample_rate),  # Analog (Additive)
+                1: WavetableEngine(sample_rate=self.sample_rate),                   # Digital (Wavetable)
+                2: FMEngine(num_operators=6, sample_rate=self.sample_rate),        # FM (with plugin)
+                3: GranularEngine(max_clouds=8, sample_rate=self.sample_rate),     # External (Granular)
+            }
+
+            # Load Jupiter-X plugins on engines that support them
+            self._jupiter_x_engines[2].load_plugin('jupiter_x.fm_extensions.JupiterXFMPlugin')  # FM plugin
+
+        except ImportError:
+            # Fallback if Jupiter-X modules not available
+            self._jupiter_x_engines = {}
+            print(f"Warning: Jupiter-X engines not available for part {self.part_number}")
+
+    def get_jupiter_x_engine(self, engine_type: int):
+        """Get Jupiter-X engine instance by type"""
+        return self._jupiter_x_engines.get(engine_type)
+
+    def set_jupiter_x_engine_parameter(self, engine_type: int, param_name: str, value: Any) -> bool:
+        """Set parameter on Jupiter-X engine"""
+        engine = self.get_jupiter_x_engine(engine_type)
+        if engine:
+            return engine.set_parameter(param_name, value)
+        return False
+
+    def get_jupiter_x_engine_parameter(self, engine_type: int, param_name: str) -> Any:
+        """Get parameter from Jupiter-X engine"""
+        engine = self.get_jupiter_x_engine(engine_type)
+        if engine:
+            return engine.get_parameter(param_name)
+        return None
 
     def reset_to_defaults(self):
         """Reset part to JV-2080 defaults"""

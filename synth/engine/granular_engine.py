@@ -12,6 +12,8 @@ import random
 
 from .synthesis_engine import SynthesisEngine
 from ..partial.granular_partial import GranularPartial
+from .plugins.plugin_registry import get_global_plugin_registry
+from .plugins.base_plugin import PluginLoadContext, SynthesisFeaturePlugin
 
 
 class Grain:
@@ -277,6 +279,19 @@ class GranularEngine(SynthesisEngine):
         # Active clouds tracking
         self.active_clouds = set()
 
+        # Plugin system
+        self._plugin_registry = get_global_plugin_registry()
+        self._loaded_plugins: Dict[str, SynthesisFeaturePlugin] = {}
+        self._plugin_integration_points = {
+            'pre_synthesis': [],      # Called before synthesis
+            'post_synthesis': [],     # Called after synthesis
+            'midi_processing': [],    # MIDI message handlers
+            'parameter_processing': [] # Parameter processing
+        }
+
+        # Auto-load Jupiter-X external plugin if available
+        self._auto_load_jupiter_x_plugin()
+
     def get_engine_info(self) -> Dict[str, Any]:
         """Get granular engine information."""
         return {
@@ -528,3 +543,199 @@ class GranularEngine(SynthesisEngine):
             'freeze': self.freeze,
             'source_length': self.source_length
         }
+
+    # Plugin System Methods
+
+    def _auto_load_jupiter_x_plugin(self):
+        """Automatically load Jupiter-X external plugin if available."""
+        try:
+            # Check if Jupiter-X external plugin is available
+            available_plugins = self._plugin_registry.get_plugins_for_engine('granular')
+            jupiter_external_plugin = 'jupiter_x.external_extensions.JupiterXExternalPlugin'
+
+            if jupiter_external_plugin in available_plugins:
+                success = self.load_plugin(jupiter_external_plugin)
+                if success:
+                    print("🎹 Granular Engine: Jupiter-X external extensions loaded automatically")
+                else:
+                    print("⚠️  Granular Engine: Failed to load Jupiter-X external extensions")
+            else:
+                print("ℹ️  Granular Engine: Jupiter-X external extensions not available")
+
+        except Exception as e:
+            print(f"⚠️  Granular Engine: Error during auto-loading Jupiter-X plugin: {e}")
+
+    def load_plugin(self, plugin_name: str) -> bool:
+        """
+        Load a plugin for this granular engine.
+
+        Args:
+            plugin_name: Name of the plugin to load
+
+        Returns:
+            True if loaded successfully, False otherwise
+        """
+        try:
+            # Load plugin using registry
+            success = self._plugin_registry.load_plugin(
+                plugin_name,
+                engine_instance=self,
+                sample_rate=self.sample_rate,
+                block_size=self.block_size
+            )
+
+            if success:
+                plugin = self._plugin_registry.get_plugin(plugin_name)
+                if plugin:
+                    self._loaded_plugins[plugin_name] = plugin
+
+                    # Register plugin integration points
+                    self._register_plugin_integration_points(plugin)
+
+                    print(f"✅ Granular Engine: Plugin '{plugin_name}' loaded successfully")
+                    return True
+
+            return False
+
+        except Exception as e:
+            print(f"❌ Granular Engine: Failed to load plugin '{plugin_name}': {e}")
+            return False
+
+    def unload_plugin(self, plugin_name: str) -> bool:
+        """
+        Unload a plugin from this granular engine.
+
+        Args:
+            plugin_name: Name of the plugin to unload
+
+        Returns:
+            True if unloaded successfully, False otherwise
+        """
+        try:
+            if plugin_name in self._loaded_plugins:
+                plugin = self._loaded_plugins[plugin_name]
+
+                # Unregister plugin integration points
+                self._unregister_plugin_integration_points(plugin)
+
+                # Unload from registry
+                success = self._plugin_registry.unload_plugin(plugin_name)
+
+                if success:
+                    del self._loaded_plugins[plugin_name]
+                    print(f"✅ Granular Engine: Plugin '{plugin_name}' unloaded successfully")
+                    return True
+
+            return False
+
+        except Exception as e:
+            print(f"❌ Granular Engine: Failed to unload plugin '{plugin_name}': {e}")
+            return False
+
+    def get_loaded_plugins(self) -> Dict[str, SynthesisFeaturePlugin]:
+        """Get all plugins loaded for this engine."""
+        return self._loaded_plugins.copy()
+
+    def _register_plugin_integration_points(self, plugin: SynthesisFeaturePlugin):
+        """
+        Register plugin integration points.
+
+        Args:
+            plugin: Plugin to register
+        """
+        # Register modulation sources
+        modulation_sources = plugin.get_modulation_sources()
+        for source_name, source_func in modulation_sources.items():
+            # Add to engine's modulation sources (would need modulation system)
+            pass
+
+        # Register modulation destinations
+        modulation_destinations = plugin.get_modulation_destinations()
+        for dest_name, dest_func in modulation_destinations.items():
+            # Add to engine's modulation destinations
+            pass
+
+        # Register MIDI processing
+        if hasattr(plugin, 'process_midi_message'):
+            self._plugin_integration_points['midi_processing'].append(plugin)
+
+        # Register parameter processing
+        if hasattr(plugin, 'set_parameter'):
+            self._plugin_integration_points['parameter_processing'].append(plugin)
+
+    def _unregister_plugin_integration_points(self, plugin: SynthesisFeaturePlugin):
+        """
+        Unregister plugin integration points.
+
+        Args:
+            plugin: Plugin to unregister
+        """
+        # Remove from integration points
+        for point_name, plugins in self._plugin_integration_points.items():
+            if plugin in plugins:
+                plugins.remove(plugin)
+
+    def process_plugin_midi(self, status: int, data1: int, data2: int) -> bool:
+        """
+        Process MIDI message through loaded plugins.
+
+        Args:
+            status: MIDI status byte
+            data1: MIDI data byte 1
+            data2: MIDI data byte 2
+
+        Returns:
+            True if any plugin handled the message
+        """
+        handled = False
+        for plugin in self._plugin_integration_points['midi_processing']:
+            if plugin.process_midi_message(status, data1, data2):
+                handled = True
+
+        return handled
+
+    def set_plugin_parameter(self, plugin_name: str, param_name: str, value: Any) -> bool:
+        """
+        Set parameter on a loaded plugin.
+
+        Args:
+            plugin_name: Name of the plugin
+            param_name: Parameter name
+            value: Parameter value
+
+        Returns:
+            True if parameter was set
+        """
+        if plugin_name in self._loaded_plugins:
+            plugin = self._loaded_plugins[plugin_name]
+            return plugin.set_parameter(param_name, value)
+        return False
+
+    def get_plugin_parameter(self, plugin_name: str, param_name: str) -> Any:
+        """
+        Get parameter value from a loaded plugin.
+
+        Args:
+            plugin_name: Name of the plugin
+            param_name: Parameter name
+
+        Returns:
+            Parameter value or None if not found
+        """
+        if plugin_name in self._loaded_plugins:
+            plugin = self._loaded_plugins[plugin_name]
+            params = plugin.get_parameters()
+            return params.get(param_name)
+        return None
+
+    def get_plugin_info(self, plugin_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get information about a loaded plugin.
+
+        Args:
+            plugin_name: Name of the plugin
+
+        Returns:
+            Plugin information dictionary or None
+        """
+        return self._plugin_registry.get_plugin_info(plugin_name)

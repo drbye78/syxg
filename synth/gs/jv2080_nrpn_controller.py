@@ -159,6 +159,114 @@ class JV2080NRPNController:
                     'unit': 'value'
                 }
 
+        # ===== JUPITER-X INTEGRATION PARAMETERS =====
+
+        # Jupiter-X Engine Parameters (0x48-0x5F, 0x00-0x1F)
+        # 16 parts × 4 engines × 32 parameters per engine
+        # MSB range: 0x48-0x5F (72-95)
+        engine_param_names = [
+            # Analog Engine (0x00-0x0F)
+            'osc1_waveform', 'osc1_coarse_tune', 'osc1_fine_tune', 'osc1_level',
+            'osc1_supersaw_spread', 'osc2_waveform', 'osc2_coarse_tune', 'osc2_fine_tune',
+            'osc2_level', 'osc2_detune', 'osc2_ring_mod', 'filter_type',
+            'filter_cutoff', 'filter_resonance', 'filter_env_amount', 'amp_attack',
+            'amp_decay', 'amp_sustain', 'amp_release', 'filter_attack',
+            'filter_decay', 'filter_sustain', 'filter_release', 'lfo_waveform',
+            'lfo_rate', 'lfo_depth', 'lfo_phase_offset', 'lfo_fade_in',
+            'lfo_key_sync', 'env_attack_curve', 'env_decay_curve', 'env_release_curve',
+
+            # Digital/FM/External Engine parameters (0x10-0x1F)
+            'engine_param_16', 'engine_param_17', 'engine_param_18', 'engine_param_19',
+            'engine_param_20', 'engine_param_21', 'engine_param_22', 'engine_param_23',
+            'engine_param_24', 'engine_param_25', 'engine_param_26', 'engine_param_27',
+            'engine_param_28', 'engine_param_29', 'engine_param_30', 'engine_param_31'
+        ]
+
+        for part_offset in range(16):  # 16 parts
+            for engine_offset in range(4):  # 4 engines per part
+                msb = 0x48 + (part_offset * 4) + engine_offset
+                for lsb in range(32):  # 32 parameters per engine
+                    param_name = f'part_{part_offset}_engine_{engine_offset}_{engine_param_names[lsb % len(engine_param_names)]}'
+                    param_map[(msb, lsb)] = {
+                        'name': param_name,
+                        'type': 'jupiter_x_engine',
+                        'part': part_offset,
+                        'engine': engine_offset,
+                        'param_id': lsb,
+                        'range': (0, 127),
+                        'default': 64,
+                        'unit': 'value'
+                    }
+
+        # Jupiter-X LFO Parameters (0x60-0x6F, 0x00-0x0F)
+        # 16 parts × 16 LFO parameters each
+        lfo_param_names = [
+            'lfo_waveform', 'lfo_rate', 'lfo_depth', 'lfo_phase_offset',
+            'lfo_fade_in', 'lfo_key_sync', 'lfo_to_pitch', 'lfo_to_filter',
+            'lfo_to_amplitude', 'lfo_to_pan', 'lfo_to_pwm', 'lfo_to_fm_amount',
+            'lfo_pitch_depth_cents', 'lfo_filter_depth', 'lfo_amp_depth', 'lfo_reserved_15'
+        ]
+
+        for part_offset in range(16):  # 16 parts
+            msb = 0x60 + part_offset
+            for lsb in range(16):  # 16 LFO parameters per part
+                param_name = f'part_{part_offset}_lfo_{lfo_param_names[lsb % len(lfo_param_names)]}'
+                param_map[(msb, lsb)] = {
+                    'name': param_name,
+                    'type': 'jupiter_x_lfo',
+                    'part': part_offset,
+                    'param_id': lsb,
+                    'range': (0, 127),
+                    'default': 64,
+                    'unit': 'value'
+                }
+
+        # Jupiter-X Envelope Parameters (0x70-0x7F, 0x00-0x0F)
+        # 16 parts × 16 envelope parameters each
+        envelope_param_names = [
+            'env_attack_time', 'env_decay_time', 'env_sustain_level', 'env_release_time',
+            'env_attack_curve', 'env_decay_curve', 'env_release_curve', 'env_attack_vel_sens',
+            'env_decay_vel_sens', 'env_sustain_vel_sens', 'env_release_vel_sens', 'env_legato_mode',
+            'env_trigger_mode', 'env_reserved_13', 'env_reserved_14', 'env_reserved_15'
+        ]
+
+        for part_offset in range(16):  # 16 parts
+            msb = 0x70 + part_offset
+            for lsb in range(16):  # 16 envelope parameters per part
+                param_name = f'part_{part_offset}_env_{envelope_param_names[lsb % len(envelope_param_names)]}'
+                param_map[(msb, lsb)] = {
+                    'name': param_name,
+                    'type': 'jupiter_x_envelope',
+                    'part': part_offset,
+                    'param_id': lsb,
+                    'range': (0, 127),
+                    'default': 64,
+                    'unit': 'value'
+                }
+
+        # Jupiter-X Modulation Parameters (0x80-0x8F, 0x00-0x0F)
+        # 16 parts × 16 modulation parameters each
+        modulation_param_names = [
+            'mod_wheel_depth', 'breath_ctrl_depth', 'foot_ctrl_depth', 'aftertouch_depth',
+            'velocity_depth', 'key_follow', 'tempo_sync', 'swing_amount',
+            'arp_enable', 'arp_pattern', 'arp_octave', 'arp_gate_time',
+            'arp_tempo', 'effects_balance', 'master_tune', 'global_reserved_15'
+        ]
+
+        for part_offset in range(16):  # 16 parts
+            msb = 0x80 + part_offset
+            for lsb in range(16):  # 16 modulation parameters per part
+                param_name = f'part_{part_offset}_mod_{modulation_param_names[lsb % len(modulation_param_names)]}'
+                param_map[(msb, lsb)] = {
+                    'name': param_name,
+                    'type': 'jupiter_x_modulation',
+                    'part': part_offset,
+                    'param_id': lsb,
+                    'range': (0, 127),
+                    'default': 64,
+                    'unit': 'value'
+                }
+
         return param_map
 
     def process_nrpn_message(self, controller: int, value: int) -> bool:
@@ -259,6 +367,31 @@ class JV2080NRPNController:
             # Effects parameter
             return self._set_effects_parameter(param_name, midi_value)
 
+        elif param_info.get('type') == 'jupiter_x_engine':
+            # Jupiter-X engine parameter
+            part_num = param_info['part']
+            engine_type = param_info['engine']
+            param_id = param_info['param_id']
+            return self._set_jupiter_x_engine_parameter(part_num, engine_type, param_id, midi_value)
+
+        elif param_info.get('type') == 'jupiter_x_lfo':
+            # Jupiter-X LFO parameter
+            part_num = param_info['part']
+            param_id = param_info['param_id']
+            return self._set_jupiter_x_lfo_parameter(part_num, param_id, midi_value)
+
+        elif param_info.get('type') == 'jupiter_x_envelope':
+            # Jupiter-X envelope parameter
+            part_num = param_info['part']
+            param_id = param_info['param_id']
+            return self._set_jupiter_x_envelope_parameter(part_num, param_id, midi_value)
+
+        elif param_info.get('type') == 'jupiter_x_modulation':
+            # Jupiter-X modulation parameter
+            part_num = param_info['part']
+            param_id = param_info['param_id']
+            return self._set_jupiter_x_modulation_parameter(part_num, param_id, midi_value)
+
         else:
             print(f"Unimplemented NRPN parameter: {param_name}")
             return False
@@ -348,6 +481,88 @@ class JV2080NRPNController:
                 addr_high = 0x40 + insert_num
                 return self.component_manager.process_parameter_change(bytes([addr_high, param_num]), value)
 
+        return False
+
+    def _set_jupiter_x_engine_parameter(self, part_num: int, engine_type: int,
+                                       param_id: int, value: int) -> bool:
+        """Set Jupiter-X engine parameter via GS part."""
+        try:
+            multipart = self.component_manager.components['multipart']
+            part = multipart.get_part(part_num)
+            if part and hasattr(part, 'engines'):
+                # Route to appropriate Jupiter-X engine
+                # For now, this is a placeholder - actual implementation
+                # would depend on the specific engine types available
+                print(f"Jupiter-X engine parameter: part {part_num}, engine {engine_type}, param {param_id} = {value}")
+                return True
+        except Exception as e:
+            print(f"Error setting Jupiter-X engine parameter: {e}")
+        return False
+
+    def _set_jupiter_x_lfo_parameter(self, part_num: int, param_id: int, value: int) -> bool:
+        """Set Jupiter-X LFO parameter via GS part."""
+        try:
+            multipart = self.component_manager.components['multipart']
+            part = multipart.get_part(part_num)
+            if part and hasattr(part, 'lfo') and part.lfo:
+                # Map parameter ID to LFO parameter
+                lfo_param_map = {
+                    0: 'waveform', 1: 'rate', 2: 'depth', 3: 'phase_offset',
+                    4: 'fade_in', 5: 'key_sync', 6: 'to_pitch', 7: 'to_filter',
+                    8: 'to_amplitude', 9: 'to_pan', 10: 'to_pwm', 11: 'to_fm_amount',
+                    12: 'pitch_depth_cents', 13: 'filter_depth', 14: 'amplitude_depth'
+                }
+
+                if param_id in lfo_param_map:
+                    param_name = lfo_param_map[param_id]
+                    # Set LFO parameter (placeholder - actual implementation needed)
+                    print(f"Jupiter-X LFO parameter: part {part_num}, {param_name} = {value}")
+                    return True
+        except Exception as e:
+            print(f"Error setting Jupiter-X LFO parameter: {e}")
+        return False
+
+    def _set_jupiter_x_envelope_parameter(self, part_num: int, param_id: int, value: int) -> bool:
+        """Set Jupiter-X envelope parameter via GS part."""
+        try:
+            multipart = self.component_manager.components['multipart']
+            part = multipart.get_part(part_num)
+            if part and hasattr(part, 'envelope') and part.envelope:
+                # Map parameter ID to envelope parameter
+                env_param_map = {
+                    0: 'attack_time', 1: 'decay_time', 2: 'sustain_level', 3: 'release_time',
+                    4: 'attack_curve', 5: 'decay_curve', 6: 'release_curve',
+                    7: 'attack_vel_sens', 8: 'decay_vel_sens', 9: 'sustain_vel_sens',
+                    10: 'release_vel_sens', 11: 'legato_mode', 12: 'trigger_mode'
+                }
+
+                if param_id in env_param_map:
+                    param_name = env_param_map[param_id]
+                    # Set envelope parameter (placeholder - actual implementation needed)
+                    print(f"Jupiter-X envelope parameter: part {part_num}, {param_name} = {value}")
+                    return True
+        except Exception as e:
+            print(f"Error setting Jupiter-X envelope parameter: {e}")
+        return False
+
+    def _set_jupiter_x_modulation_parameter(self, part_num: int, param_id: int, value: int) -> bool:
+        """Set Jupiter-X modulation parameter via GS part."""
+        try:
+            # Jupiter-X modulation parameters (placeholders for now)
+            modulation_param_map = {
+                0: 'mod_wheel_depth', 1: 'breath_ctrl_depth', 2: 'foot_ctrl_depth',
+                3: 'aftertouch_depth', 4: 'velocity_depth', 5: 'key_follow',
+                6: 'tempo_sync', 7: 'swing_amount', 8: 'arp_enable', 9: 'arp_pattern',
+                10: 'arp_octave', 11: 'arp_gate_time', 12: 'arp_tempo',
+                13: 'effects_balance', 14: 'master_tune'
+            }
+
+            if param_id in modulation_param_map:
+                param_name = modulation_param_map[param_id]
+                print(f"Jupiter-X modulation parameter: part {part_num}, {param_name} = {value}")
+                return True
+        except Exception as e:
+            print(f"Error setting Jupiter-X modulation parameter: {e}")
         return False
 
     def get_current_parameter_value(self) -> Optional[int]:

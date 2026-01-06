@@ -77,14 +77,21 @@ class SF2SoundFont:
             with self.chunk_parser as parser:
                 chunks = parser.parse_chunks()
 
-                # Load critical chunks for metadata (must be done inside context manager)
-                critical_chunks = ['phdr', 'inst', 'shdr']
-                for chunk_id in critical_chunks:
+                # Load all required SF2 chunks (metadata + zone data)
+                required_chunks = ['phdr', 'pbag', 'pgen', 'inst', 'ibag', 'igen', 'shdr']
+                for chunk_id in required_chunks:
                     if chunk_id in chunks:
                         chunk_data[chunk_id] = parser.get_chunk_data(chunk_id)
                         chunk_info[chunk_id] = chunks[chunk_id]
                     else:
-                        logger.warning(f"Critical chunk {chunk_id} not found in SF2 file")
+                        logger.warning(f"Required chunk {chunk_id} not found in SF2 file")
+
+                # Also load modulator chunks if present
+                optional_chunks = ['pmod', 'imod']
+                for chunk_id in optional_chunks:
+                    if chunk_id in chunks:
+                        chunk_data[chunk_id] = parser.get_chunk_data(chunk_id)
+                        chunk_info[chunk_id] = chunks[chunk_id]
 
                 # Validate structure
                 if not parser.validate_sf2_structure():

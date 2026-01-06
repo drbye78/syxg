@@ -285,3 +285,143 @@ XG_DRUM_NRPN_PARAMS = {
     # Drum Setup Channel (MSB 40 or 41, LSB 254)
     254: "drum_setup_channel",    # Channel 16 (0-based: 15) - drum setup channel
 }
+
+
+class SynthConstants:
+    """
+    XG Synthesizer Constants Class
+
+    Provides centralized access to all synthesizer constants and configuration values.
+    """
+
+    def __init__(self):
+        """Initialize constants access."""
+        pass
+
+    # MIDI Constants
+    @property
+    def midi_constants(self):
+        """Get MIDI system constants."""
+        return MIDI_CONSTANTS.copy()
+
+    @property
+    def note_off(self):
+        return MIDI_CONSTANTS["NOTE_OFF"]
+
+    @property
+    def note_on(self):
+        return MIDI_CONSTANTS["NOTE_ON"]
+
+    @property
+    def control_change(self):
+        return MIDI_CONSTANTS["CONTROL_CHANGE"]
+
+    @property
+    def program_change(self):
+        return MIDI_CONSTANTS["PROGRAM_CHANGE"]
+
+    @property
+    def pitch_bend(self):
+        return MIDI_CONSTANTS["PITCH_BEND"]
+
+    @property
+    def system_exclusive(self):
+        return MIDI_CONSTANTS["SYSTEM_EXCLUSIVE"]
+
+    # XG Constants
+    @property
+    def xg_constants(self):
+        """Get XG-specific constants."""
+        return XG_CONSTANTS.copy()
+
+    @property
+    def drum_setup_channel(self):
+        """Get drum setup channel (0-based)."""
+        return XG_CONSTANTS["DRUM_SETUP_CHANNEL"]
+
+    # Default Configuration
+    @property
+    def default_config(self):
+        """Get default configuration values."""
+        return DEFAULT_CONFIG.copy()
+
+    @property
+    def sample_rate(self):
+        """Get default sample rate."""
+        return DEFAULT_CONFIG["SAMPLE_RATE"]
+
+    @property
+    def block_size(self):
+        """Get default block size."""
+        return DEFAULT_CONFIG["BLOCK_SIZE"]
+
+    @property
+    def max_polyphony(self):
+        """Get default maximum polyphony."""
+        return DEFAULT_CONFIG["MAX_POLYPHONY"]
+
+    @property
+    def num_midi_channels(self):
+        """Get number of MIDI channels."""
+        return DEFAULT_CONFIG["NUM_MIDI_CHANNELS"]
+
+    # Voice Allocation
+    @property
+    def voice_allocation_modes(self):
+        """Get voice allocation modes."""
+        return VOICE_ALLOCATION_MODES.copy()
+
+    # XG Voice NRPN Parameters
+    @property
+    def xg_voice_nrpn_params(self):
+        """Get XG voice NRPN parameter mapping."""
+        return XG_VOICE_NRPN_PARAMS.copy()
+
+    @property
+    def xg_voice_nrpn_names(self):
+        """Get XG voice NRPN parameter names."""
+        return XG_VOICE_NRPN_NAMES.copy()
+
+    # XG System Effects NRPN
+    @property
+    def xg_system_effects_nrpn(self):
+        """Get XG system effects NRPN parameters."""
+        return XG_SYSTEM_EFFECTS_NRPN.copy()
+
+    # XG Drum Parameters
+    @property
+    def xg_drum_nrpn_params(self):
+        """Get XG drum NRPN parameters."""
+        return XG_DRUM_NRPN_PARAMS.copy()
+
+    @property
+    def default_drum_parameters(self):
+        """Get default drum kit parameters."""
+        return DEFAULT_DRUM_PARAMETERS.copy()
+
+    @property
+    def default_drum_kit_notes(self):
+        """Get default drum kit note numbers."""
+        return DEFAULT_DRUM_KIT_NOTES.copy()
+
+    # XG Drum Map
+    @property
+    def xg_drum_map(self):
+        """Get XG drum map (MIDI note -> instrument name)."""
+        return XG_CONSTANTS["XG_DRUM_MAP"].copy()
+
+    def get_drum_instrument_name(self, note: int) -> str:
+        """Get drum instrument name for MIDI note number."""
+        return XG_CONSTANTS["XG_DRUM_MAP"].get(note, f"Unknown ({note})")
+
+    def get_midi_constant(self, name: str):
+        """Get MIDI constant by name."""
+        return MIDI_CONSTANTS.get(name.upper())
+
+    def get_xg_constant(self, name: str):
+        """Get XG constant by name."""
+        return XG_CONSTANTS.get(name.upper())
+
+    def get_default_config_value(self, name: str):
+        """Get default configuration value by name."""
+        return DEFAULT_CONFIG.get(name.upper())

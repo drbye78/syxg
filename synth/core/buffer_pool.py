@@ -123,7 +123,7 @@ class XGBufferPool:
     def _initialize_pool(self):
         """Initialize buffer pool with pre-allocated buffers."""
         # Calculate pool size based on configuration and instance parameters
-        max_buffer_size = audio_config.max_buffer_size
+        max_buffer_size = audio_config().buffer_size * 8  # Allow up to 8x configured buffer size
         max_channels = self.max_channels  # Use instance parameter instead of config
 
         # Pre-allocate common buffer sizes
@@ -471,6 +471,10 @@ class XGBufferPool:
             })
 
             return stats
+
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get memory statistics (alias for get_pool_statistics for compatibility)."""
+        return self.get_pool_statistics()
 
     def optimize_pool(self):
         """Optimize pool by removing unused buffers and defragmenting."""

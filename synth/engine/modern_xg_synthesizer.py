@@ -466,12 +466,13 @@ class ModernXGSynthesizer:
 
     def __init__(self,
                  sample_rate: int = 44100,
-                 max_channels: int = 16,
+                 max_channels: int = 32,  # Expanded to 32 for S90/S70 compatibility
                  xg_enabled: bool = True,
                  gs_enabled: bool = True,
                  mpe_enabled: bool = True,
                  device_id: int = 0x10,
-                 gs_mode: str = 'auto'):
+                 gs_mode: str = 'auto',
+                 s90_mode: bool = False):  # Enable S90/S70 compatibility features
         """
         Initialize Enhanced Modern XG/GS/MPE Synthesizer
 
@@ -491,6 +492,7 @@ class ModernXGSynthesizer:
         self.mpe_enabled = mpe_enabled
         self.device_id = device_id
         self.gs_mode = gs_mode
+        self.s90_mode = s90_mode  # S90/S70 compatibility flag
 
         # Initialize parameter priority system
         self.parameter_priority = ParameterPrioritySystem()
@@ -536,17 +538,25 @@ class ModernXGSynthesizer:
         if self.gs_enabled:
             self._init_gs_system()
 
-        # Initialize Arpeggiator system (Yamaha Motif compatible)
-        self._init_arpeggiator_system()
+        # Initialize Multi-Arpeggiator system (Yamaha Motif compatible)
+        self._init_multi_arpeggiator_system()
 
         # Initialize MPE (Microtonal Expression) system
         if self.mpe_enabled:
             self._init_mpe_system()
 
+        # Initialize Jupiter-X integration (automatically included)
+        self._init_jupiter_x_integration()
+
         print("🎹 ENHANCED MODERN XG/GS/MPE SYNTHESIZER: Initialization complete!")
-        print(f"   Arpeggiator: {len(self.arpeggiator_engine.patterns)} patterns loaded")
+        if hasattr(self, 'arpeggiator_manager'):
+            arp_status = self.arpeggiator_manager.get_manager_status()
+            total_patterns = sum(arp_status['arpeggiators'][arp_id]['patterns']
+                               for arp_id in arp_status['arpeggiators']) // len(arp_status['arpeggiators'])
+            print(f"   Arpeggiator: {total_patterns}+ patterns loaded per arpeggiator")
         if self.mpe_enabled:
             print(f"   MPE: {len(self.mpe_manager.zones)} zones configured")
+        print("   Jupiter-X: Integrated as synthesis engine")
 
     def _init_core_synthesis(self):
         """Initialize core synthesis system with modern architecture"""
@@ -593,9 +603,16 @@ class ModernXGSynthesizer:
         from ..voice.voice_factory import VoiceFactory
         self.voice_factory = VoiceFactory(self.engine_registry)
 
-        # Voice manager for GS voice reserve integration
+        # Voice manager for GS voice reserve integration - enhanced for S90/S70
         from ..voice.voice_manager import VoiceManager
-        self.voice_manager = VoiceManager(max_voices=128)  # GS supports up to 128 voices
+        # Use enhanced voice management for S90/S70 compatibility
+        if self.s90_mode:
+            self.voice_manager = VoiceManager(max_voices=256)  # Increased for 32-channel support
+            # Set advanced XG allocation mode for S90/S70 compatibility
+            self.voice_manager.set_xg_allocation_mode(2)  # Advanced XG polyphonic
+            print("🎹 Voice Manager: Enhanced for S90/S70 compatibility (256 voices, 32 channels)")
+        else:
+            self.voice_manager = VoiceManager(max_voices=128)  # GS supports up to 128 voices
 
         # Create channels
         self.channels = []
@@ -609,6 +626,14 @@ class ModernXGSynthesizer:
             max_channels=self.max_channels,
             synthesizer=self  # Pass self for GS parameter access
         )
+
+        # Motif Effects Processor for workstation-grade effects
+        from ..xg.xg_motif_effects import MotifEffectsProcessor
+        self.motif_effects = MotifEffectsProcessor(sample_rate=self.sample_rate)
+
+        # User Sampling System for Motif-compatible recording and editing
+        from ..sampling.sampling_system import SampleManager
+        self.sample_manager = SampleManager(max_samples=1000, max_memory_mb=512)
 
     def _preallocate_buffers(self):
         """Pre-allocate all buffers - zero runtime allocations"""
@@ -666,6 +691,16 @@ class ModernXGSynthesizer:
         from .granular_engine import GranularEngine
         granular_engine = GranularEngine(max_clouds=8, sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(granular_engine, 'granular', priority=2)
+
+        # AN (Analog Physical Modeling) Engine - high priority for Motif compatibility
+        from .an_engine import ANEngine
+        an_engine = ANEngine(sample_rate=self.sample_rate, block_size=1024)
+        self.engine_registry.register_engine(an_engine, 'an', priority=14)
+
+        # FDSP (Formant Dynamic Synthesis Processor) Engine - vocal synthesis
+        from .fdsp_engine import FDSPSynthesisEngine
+        fdsp_engine = FDSPSynthesisEngine(sample_rate=self.sample_rate, block_size=1024)
+        self.engine_registry.register_engine(fdsp_engine, 'fdsp', priority=12)
 
     def _create_channels(self):
         """Create MIDI channels with modern architecture"""
@@ -751,6 +786,23 @@ class ModernXGSynthesizer:
 
         print("🎹 Arpeggiator system initialized and connected to MIDI processing")
 
+    def _init_multi_arpeggiator_system(self):
+        """Initialize Multi-Arpeggiator system (Yamaha Motif compatible)"""
+        # Import Multi-Arpeggiator Manager
+        from ..xg.xg_arpeggiator_manager import MotifArpeggiatorManager
+
+        # Create Multi-Arpeggiator Manager
+        self.arpeggiator_manager = MotifArpeggiatorManager()
+
+        # Load Motif-compatible patterns
+        self.arpeggiator_manager.load_motif_patterns()
+
+        # Connect callbacks
+        self.arpeggiator_manager.note_on_callback = self._handle_arpeggiator_note_on
+        self.arpeggiator_manager.note_off_callback = self._handle_arpeggiator_note_off
+
+        print("🎹 Multi-Arpeggiator system initialized with 4 arpeggiators and 128+ patterns")
+
     def _init_mpe_system(self):
         """Initialize MPE (Microtonal Expression) system"""
         # Import MPE manager
@@ -760,6 +812,31 @@ class ModernXGSynthesizer:
         self.mpe_manager = MPEManager(max_channels=self.max_channels)
 
         print("🎹 MPE (Microtonal Expression) system initialized")
+
+    def _init_jupiter_x_integration(self):
+        """Initialize Jupiter-X integration with the modern synthesizer"""
+        try:
+            # Import Jupiter-X engine integration
+            from ..jupiter_x.jupiter_x_engine import JupiterXEngineIntegration
+
+            # Create Jupiter-X engine instance
+            jupiter_x_engine = JupiterXEngineIntegration(
+                sample_rate=self.sample_rate,
+                block_size=self.block_size
+            )
+
+            # Register Jupiter-X engine with the engine registry (high priority)
+            self.engine_registry.register_engine(jupiter_x_engine, 'jupiter_x', priority=15)
+
+            # Store reference for direct access
+            self.jupiter_x_engine = jupiter_x_engine
+
+            print("🎹 Jupiter-X engine registered with modern synthesizer")
+
+        except ImportError as e:
+            print(f"⚠️  Jupiter-X integration not available: {e}")
+        except Exception as e:
+            print(f"⚠️  Failed to initialize Jupiter-X integration: {e}")
 
     def _process_note_on_mpe(self, channel: int, note: int, velocity: int):
         """Process note-on event with MPE support"""

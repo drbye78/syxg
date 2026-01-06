@@ -558,11 +558,11 @@ class SF2DataParser:
         if len(data) < 46:
             raise DataParseError("Sample header data too short")
 
-        # Format: 20s I I I I I h h H H (name, start, end, start_loop, end_loop,
-        #                               sample_rate, orig_pitch, pitch_corr, link, type)
+        # Format per SF2 spec: 20s I I I I I B b H H
+        # (name, start, end, start_loop, end_loop, sample_rate, orig_pitch, pitch_corr, link, type)
         name_bytes = data[0:20]
         start, end, start_loop, end_loop, sample_rate = struct.unpack('<IIIII', data[20:40])
-        orig_pitch, pitch_corr, link, sample_type = struct.unpack('<hhHH', data[40:46])
+        orig_pitch, pitch_corr, link, sample_type = struct.unpack('<BbHH', data[40:46])
 
         # Decode name
         name = name_bytes.decode('ascii', errors='ignore').rstrip('\x00')

@@ -504,6 +504,42 @@ class ProductionDistortionDynamicsProcessor:
             elif effect_type == 56:
                 self._process_multi_band_enhancer(stereo_mix, num_samples, params)
 
+    def _process_overdrive_1(self, stereo_mix: np.ndarray, num_samples: int,
+                           params: Dict[str, float]) -> None:
+        """Process Overdrive 1 effect - Clean tube overdrive."""
+        drive = params.get("parameter1", 0.5)
+        tone = params.get("parameter2", 0.5)
+        level = params.get("parameter4", 0.5)
+
+        # Standard tube settings for clean overdrive
+        original_mu = self.tube_saturation.mu
+        self.tube_saturation.mu = 80.0
+
+        for i in range(num_samples):
+            for ch in range(2):
+                stereo_mix[i, ch] = self.tube_saturation.process_sample(
+                    stereo_mix[i, ch], drive, tone, level)
+
+        self.tube_saturation.mu = original_mu
+
+    def _process_overdrive_2(self, stereo_mix: np.ndarray, num_samples: int,
+                           params: Dict[str, float]) -> None:
+        """Process Overdrive 2 effect - Medium tube overdrive."""
+        drive = params.get("parameter1", 0.5)
+        tone = params.get("parameter2", 0.5)
+        level = params.get("parameter4", 0.5)
+
+        # Medium gain settings
+        original_mu = self.tube_saturation.mu
+        self.tube_saturation.mu = 100.0
+
+        for i in range(num_samples):
+            for ch in range(2):
+                stereo_mix[i, ch] = self.tube_saturation.process_sample(
+                    stereo_mix[i, ch], drive * 1.1, tone, level)
+
+        self.tube_saturation.mu = original_mu
+
     def _process_overdrive_3(self, stereo_mix: np.ndarray, num_samples: int,
                            params: Dict[str, float]) -> None:
         """Process Overdrive 3 effect - High-gain tube overdrive."""
@@ -695,6 +731,280 @@ class ProductionDistortionDynamicsProcessor:
                 enhanced = self.peaking_enhancer.process_sample(sample, enhance * 0.7)
                 enhanced = self.shelving_enhancer.process_sample(enhanced, enhance * 0.3)
                 stereo_mix[i, ch] = enhanced * level
+
+    def _process_vcm_phaser(self, stereo_mix: np.ndarray, num_samples: int,
+                           params: Dict[str, float]) -> None:
+        """
+        Process VCM Phaser effect - Analog phaser simulation.
+        Multi-stage all-pass filters with LFO modulation.
+        """
+        rate = params.get("parameter1", 0.5) * 5.0  # 0-5 Hz
+        depth = params.get("parameter2", 0.5)       # 0-1
+        feedback = params.get("parameter3", 0.3)    # Feedback amount
+        level = params.get("parameter4", 0.5)
+
+        state = self._ensure_state('vcm_phaser', {
+            'lfo_phase': 0.0,
+            'allpass_states': [0.0] * 6,  # 6-stage phaser
+            'feedback_state': 0.0
+        })
+
+        # Phaser all-pass filter frequencies (spread across audio spectrum)
+        base_freqs = [200, 400, 800, 1600, 3200, 6400]
+
+        for i in range(num_samples):
+            # Update LFO
+            phase_increment = 2 * math.pi * rate / self.sample_rate
+            state['lfo_phase'] = (state['lfo_phase'] + phase_increment) % (2 * math.pi)
+
+            # Sine LFO for smooth modulation
+            lfo_value = math.sin(state['lfo_phase'])
+
+            # Process through all-pass filters
+            signal = (stereo_mix[i, 0] + stereo_mix[i, 1]) / 2.0  # Mono processing
+
+            for stage in range(6):
+                # Modulate frequency based on LFO
+                base_freq = base_freqs[stage]
+                modulated_freq = base_freq * (1.0 + lfo_value * depth * 0.5)
+
+                # All-pass filter coefficients
+                omega = 2 * math.pi * modulated_freq / self.sample_rate
+                alpha = math.sin(omega) / 2.0  # Simplified all-pass
+
+                # All-pass filter: y = (alpha * (x - y_prev) + x_prev) / (1 + alpha)
+                x0 = signal
+                y0 = alpha * (x0 - state['allpass_states'][stage]) + state['feedback_state']
+
+                # Normalize
+                y0 = y0 / (1.0 + alpha)
+
+                # Update state
+                state['allpass_states'][stage] = y0
+                state['feedback_state'] = y0 * feedback
+                signal = y0
+
+            # Apply to stereo with level control
+            output = signal * level
+            stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - level) + output
+            stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output
+
+    def _process_vcm_equalizer(self, stereo_mix: np.ndarray, num_samples: int,
+                              params: Dict[str, float]) -> None:
+        """
+        Process VCM Equalizer effect - Analog EQ curves.
+        3-band EQ with analog-style frequency response.
+        """
+        low_gain = (params.get("parameter1", 0.5) - 0.5) * 24.0  # -12 to +12 dB
+        mid_gain = (params.get("parameter2", 0.5) - 0.5) * 24.0  # -12 to +12 dB
+        high_gain = (params.get("parameter3", 0.5) - 0.5) * 24.0 # -12 to +12 dB
+        level = params.get("parameter4", 0.5)
+
+        state = self._ensure_state('vcm_equalizer', {
+            'low_filter': {'x1': 0.0, 'x2': 0.0, 'y1': 0.0, 'y2': 0.0},
+            'mid_filter': {'x1': 0.0, 'x2': 0.0, 'y1': 0.0, 'y2': 0.0},
+            'high_filter': {'x1': 0.0, 'x2': 0.0, 'y1': 0.0, 'y2': 0.0}
+        })
+
+        # EQ frequencies (analog style)
+        low_freq = 250.0   # Hz
+        mid_freq = 2500.0  # Hz
+        high_freq = 8000.0 # Hz
+        q = 1.0           # Q factor
+
+        for i in range(num_samples):
+            for ch in range(2):
+                sample = stereo_mix[i, ch]
+
+                # Low shelf filter
+                low_output = self._apply_biquad_low_shelf(
+                    sample, low_freq, q, low_gain, state['low_filter']
+                )
+
+                # Mid peaking filter
+                mid_output = self._apply_biquad_peaking(
+                    low_output, mid_freq, q, mid_gain, state['mid_filter']
+                )
+
+                # High shelf filter
+                high_output = self._apply_biquad_high_shelf(
+                    mid_output, high_freq, q, high_gain, state['high_filter']
+                )
+
+                stereo_mix[i, ch] = high_output * level + sample * (1.0 - level)
+
+    def _apply_biquad_low_shelf(self, x0: float, freq: float, q: float, gain_db: float,
+                               state: Dict[str, float]) -> float:
+        """Apply biquad low shelf filter."""
+        # Convert gain to linear
+        A = 10.0 ** (gain_db / 40.0)
+
+        omega = 2 * math.pi * freq / self.sample_rate
+        alpha = math.sin(omega) / (2 * q)
+
+        # Low shelf coefficients
+        a0 = (A + 1) + (A - 1) * math.cos(omega) + 2 * math.sqrt(A) * alpha
+        a1 = -2 * ((A - 1) + (A + 1) * math.cos(omega))
+        a2 = (A + 1) + (A - 1) * math.cos(omega) - 2 * math.sqrt(A) * alpha
+        b0 = A * ((A + 1) - (A - 1) * math.cos(omega) + 2 * math.sqrt(A) * alpha)
+        b1 = 2 * A * ((A - 1) - (A + 1) * math.cos(omega))
+        b2 = A * ((A + 1) - (A - 1) * math.cos(omega) - 2 * math.sqrt(A) * alpha)
+
+        # Normalize
+        norm = a0
+        a1 /= norm
+        a2 /= norm
+        b0 /= norm
+        b1 /= norm
+        b2 /= norm
+
+        # Process sample
+        y0 = b0 * x0 + b1 * state['x1'] + b2 * state['x2'] - a1 * state['y1'] - a2 * state['y2']
+
+        # Update state
+        state['x2'] = state['x1']
+        state['x1'] = x0
+        state['y2'] = state['y1']
+        state['y1'] = y0
+
+        return y0
+
+    def _apply_biquad_peaking(self, x0: float, freq: float, q: float, gain_db: float,
+                             state: Dict[str, float]) -> float:
+        """Apply biquad peaking filter."""
+        A = 10.0 ** (gain_db / 40.0)
+
+        omega = 2 * math.pi * freq / self.sample_rate
+        alpha = math.sin(omega) / (2 * q)
+
+        # Peaking coefficients
+        a0 = 1 + alpha / A
+        a1 = -2 * math.cos(omega)
+        a2 = 1 - alpha / A
+        b0 = 1 + alpha * A
+        b1 = -2 * math.cos(omega)
+        b2 = 1 - alpha * A
+
+        # Normalize
+        norm = a0
+        a1 /= norm
+        a2 /= norm
+        b0 /= norm
+        b1 /= norm
+        b2 /= norm
+
+        # Process sample
+        y0 = b0 * x0 + b1 * state['x1'] + b2 * state['x2'] - a1 * state['y1'] - a2 * state['y2']
+
+        # Update state
+        state['x2'] = state['x1']
+        state['x1'] = x0
+        state['y2'] = state['y1']
+        state['y1'] = y0
+
+        return y0
+
+    def _apply_biquad_high_shelf(self, x0: float, freq: float, q: float, gain_db: float,
+                                state: Dict[str, float]) -> float:
+        """Apply biquad high shelf filter."""
+        A = 10.0 ** (gain_db / 40.0)
+
+        omega = 2 * math.pi * freq / self.sample_rate
+        alpha = math.sin(omega) / (2 * q)
+
+        # High shelf coefficients
+        a0 = (A + 1) - (A - 1) * math.cos(omega) + 2 * math.sqrt(A) * alpha
+        a1 = 2 * ((A - 1) - (A + 1) * math.cos(omega))
+        a2 = (A + 1) - (A - 1) * math.cos(omega) - 2 * math.sqrt(A) * alpha
+        b0 = A * ((A + 1) + (A - 1) * math.cos(omega) + 2 * math.sqrt(A) * alpha)
+        b1 = -2 * A * ((A - 1) + (A + 1) * math.cos(omega))
+        b2 = A * ((A + 1) + (A - 1) * math.cos(omega) - 2 * math.sqrt(A) * alpha)
+
+        # Normalize
+        norm = a0
+        a1 /= norm
+        a2 /= norm
+        b0 /= norm
+        b1 /= norm
+        b2 /= norm
+
+        # Process sample
+        y0 = b0 * x0 + b1 * state['x1'] + b2 * state['x2'] - a1 * state['y1'] - a2 * state['y2']
+
+        # Update state
+        state['x2'] = state['x1']
+        state['x1'] = x0
+        state['y2'] = state['y1']
+        state['y1'] = y0
+
+        return y0
+
+    def _process_vcm_stereo_enhancer(self, stereo_mix: np.ndarray, num_samples: int,
+                                    params: Dict[str, float]) -> None:
+        """
+        Process VCM Stereo Enhancer effect - Analog stereo widening.
+        Enhances stereo field using analog-style processing.
+        """
+        width = params.get("parameter1", 0.5)       # Stereo width 0-1
+        center_focus = params.get("parameter2", 0.5) # Center focus 0-1
+        low_freq_boost = params.get("parameter3", 0.3) # Low freq boost
+        level = params.get("parameter4", 0.5)
+
+        state = self._ensure_state('vcm_stereo_enhancer', {
+            'low_filter_l': {'x1': 0.0, 'x2': 0.0, 'y1': 0.0, 'y2': 0.0},
+            'low_filter_r': {'x1': 0.0, 'x2': 0.0, 'y1': 0.0, 'y2': 0.0},
+            'delay_lines': [np.zeros(256, dtype=np.float32) for _ in range(2)],
+            'write_pos': [0, 0]
+        })
+
+        # Small delay for stereo enhancement (Haas effect)
+        delay_samples = int(0.001 * self.sample_rate * width)  # 0-1ms delay
+
+        for i in range(num_samples):
+            left = stereo_mix[i, 0]
+            right = stereo_mix[i, 1]
+
+            # Calculate mid and side signals
+            mid = (left + right) / 2.0
+            side = (left - right) / 2.0
+
+            # Apply center focus (reduce mid content)
+            mid_processed = mid * (1.0 - center_focus)
+
+            # Enhance side content
+            side_enhanced = side * (1.0 + width)
+
+            # Apply low frequency boost to side for more width
+            if low_freq_boost > 0:
+                # Simple low-pass filter for side enhancement
+                alpha = 0.1
+                side_low = alpha * side_enhanced + (1 - alpha) * state['low_filter_l']['y1']
+                state['low_filter_l']['y1'] = side_low
+
+                side_enhanced = side_enhanced + side_low * low_freq_boost
+
+            # Add small delay to one channel for Haas effect
+            if delay_samples > 0:
+                # Delay left channel slightly
+                delayed_left = state['delay_lines'][0][(state['write_pos'][0] - delay_samples) % 256]
+                state['delay_lines'][0][state['write_pos'][0]] = left
+                left = delayed_left * (1 - width * 0.5) + left * (width * 0.5)
+
+                # Delay right channel in opposite direction
+                delayed_right = state['delay_lines'][1][(state['write_pos'][1] - delay_samples) % 256]
+                state['delay_lines'][1][state['write_pos'][1]] = right
+                right = delayed_right * (1 - width * 0.5) + right * (width * 0.5)
+
+                state['write_pos'][0] = (state['write_pos'][0] + 1) % 256
+                state['write_pos'][1] = (state['write_pos'][1] + 1) % 256
+
+            # Reconstruct stereo from mid/side
+            new_left = mid_processed + side_enhanced
+            new_right = mid_processed - side_enhanced
+
+            # Mix original and enhanced
+            stereo_mix[i, 0] = left * (1.0 - level) + new_left * level
+            stereo_mix[i, 1] = right * (1.0 - level) + new_right * level
 
     def _process_auto_pan(self, stereo_mix: np.ndarray, num_samples: int,
                          params: Dict[str, float]) -> None:

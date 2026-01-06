@@ -3,11 +3,13 @@ Parameter routing system for hierarchical parameter distribution.
 
 This module implements the hierarchical parameter routing system that distributes
 parameters from the synthesizer level down to individual partials using the
-ParameterUpdate protocol.
+ParameterUpdate protocol. Now integrated with the unified parameter system
+for synthesizer-specific parameter handling.
 """
 
-from typing import Dict, List, Optional, TYPE_CHECKING
-from ..types.parameter_types import ParameterUpdate, ParameterScope, ParameterSource
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
+from ..types.parameter_types import ParameterUpdate, ParameterScope, ParameterSource, SynthesizerType
+from ..types.unified_parameters import get_unified_parameter_system
 
 if TYPE_CHECKING:
     from .modern_xg_synthesizer import ModernXGSynthesizer
@@ -22,12 +24,12 @@ class ParameterRouter:
     scoping and validation.
     """
 
-    def __init__(self, synthesizer: 'ModernXGSynthesizer'):
+    def __init__(self, synthesizer: Optional['ModernXGSynthesizer'] = None):
         """
         Initialize parameter router.
 
         Args:
-            synthesizer: Reference to the main synthesizer
+            synthesizer: Reference to the main synthesizer (optional for testing)
         """
         self.synthesizer = synthesizer
         self.parameter_cache: Dict[str, ParameterUpdate] = {}
@@ -328,9 +330,132 @@ class ParameterRouter:
             # Apply filters if specified
             if scope is not None and param_update.scope != scope:
                 return None
-            if channel is not None and param_update.channel != channel:
-                return None
 
-            return param_update.value
+    # Additional methods needed for synthesizer integration
+    def register_source(self, name: str, source) -> None:
+        """
+        Register a parameter source.
 
-        return None
+        Args:
+            name: Source name
+            source: Source object (must have process_control_message method)
+        """
+        if not hasattr(self, 'sources'):
+            self.sources: Dict[str, Any] = {}
+        self.sources[name] = source
+
+    def register_validator(self, name: str, validator_func) -> None:
+        """
+        Register a parameter validator.
+
+        Args:
+            name: Validator name
+            validator_func: Validation function
+        """
+        if not hasattr(self, 'validators'):
+            self.validators: Dict[str, Any] = {}
+        self.validators[name] = validator_func
+
+    def register_monitor(self, name: str, monitor) -> None:
+        """
+        Register a parameter monitor.
+
+        Args:
+            name: Monitor name
+            monitor: Monitor object
+        """
+        if not hasattr(self, 'monitors'):
+            self.monitors: Dict[str, Any] = {}
+        self.monitors[name] = monitor
+
+    def route_parameter(self, param_path: str, value: float, channel: int = None, part: int = None) -> bool:
+        """
+        Route a parameter change to the appropriate destination.
+
+        Args:
+            param_path: Parameter path (e.g., 'filter.cutoff')
+            value: New parameter value
+            channel: MIDI channel (for channel-specific parameters)
+            part: Part number (for XG multi-part parameters)
+
+        Returns:
+            True if parameter was routed successfully
+        """
+        try:
+            # Create parameter update
+            from ..types.parameter_types import ParameterUpdate, ParameterScope, ParameterSource
+
+            if channel is not None:
+                scope = ParameterScope.CHANNEL
+            else:
+                scope = ParameterScope.GLOBAL
+
+            param_update = ParameterUpdate(
+                name=param_path,
+                value=value,
+                scope=scope,
+                source=ParameterSource.INTERNAL,
+                channel=channel
+            )
+
+            # Route using existing routing system
+            return self.route_parameter_update(param_update)
+
+        except Exception as e:
+            print(f"Parameter routing error for {param_path}: {e}")
+            return False
+
+    def get_parameter_value(self, param_path: str, channel: int = None, part: int = None) -> float:
+        """
+        Get current value of a parameter.
+
+        Args:
+            param_path: Parameter path
+            channel: MIDI channel
+            part: Part number
+
+        Returns:
+            Current parameter value (default 0.0 if not set)
+        """
+        # Check parameter cache first
+        if param_path in self.parameter_cache:
+            return self.parameter_cache[param_path].value
+
+        # Return default value if not found
+        return 0.0
+
+    def validate_parameter(self, param_path: str, value: float) -> bool:
+        """
+        Validate a parameter value.
+
+        Args:
+            param_path: Parameter path
+            value: Value to validate
+
+        Returns:
+            True if value is valid
+        """
+        # Basic validation - could be extended
+        if not isinstance(value, (int, float)):
+            return False
+
+        # Check if we have specific validators
+        if hasattr(self, 'validators'):
+            for validator in self.validators.values():
+                if callable(validator):
+                    try:
+                        if not validator(param_path, value):
+                            return False
+                    except:
+                        pass  # Continue with other validators
+
+        return True
+
+    def _make_key(self, param_path: str, channel: int = None, part: int = None) -> str:
+        """Create a unique key for parameter storage"""
+        key = param_path
+        if channel is not None:
+            key += f"_ch{channel}"
+        if part is not None:
+            key += f"_pt{part}"
+        return key

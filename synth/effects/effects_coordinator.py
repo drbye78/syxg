@@ -22,7 +22,7 @@ ARCHITECTURE:
 """
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Dict, List, Tuple, Optional, Any, Union, Callable
 from enum import IntEnum
 import threading
 import time
@@ -117,6 +117,9 @@ class XGEffectsCoordinator:
         # Master EQ processor (XG Multi-Band Equalizer)
         self.master_eq = XGMultiBandEqualizer(sample_rate)
 
+        # Effects list for synthesizer info (compatibility)
+        self.effects = []  # Will be populated with active effects
+
         # Performance monitoring - comprehensive
         self.processing_stats = {
             'total_blocks_processed': 0,
@@ -132,8 +135,34 @@ class XGEffectsCoordinator:
         # Thread safety
         self.lock = threading.RLock()
 
+        # ===== JUPITER-X INTEGRATION =====
+        # Jupiter-X specific effects and processing modes
+        self.jupiter_x_mode = False  # Enable Jupiter-X specific processing
+        self.jupiter_x_effects = self._initialize_jupiter_x_effects()
+
+        # Jupiter-X modulation sources
+        self.jupiter_x_modulation = {
+            'lfo1': {'rate': 5.0, 'depth': 0.0, 'waveform': 'sine'},
+            'lfo2': {'rate': 3.0, 'depth': 0.0, 'waveform': 'triangle'},
+            'envelope': {'attack': 0.01, 'decay': 0.1, 'amount': 0.0},
+        }
+
+        # MPE support for Jupiter-X
+        self.mpe_enabled = False
+        self.mpe_channels = {}  # Channel -> MPE data
+
         # Initialize
         self._initialize_processing()
+
+    def _initialize_jupiter_x_effects(self):
+        """Initialize Jupiter-X specific effects (placeholder for future implementation)."""
+        # Placeholder for Jupiter-X specific effects initialization
+        # This would include Jupiter-X specific reverb algorithms, advanced chorus, etc.
+        return {
+            'distortion': None,  # Jupiter-X style distortion
+            'phaser': None,      # Jupiter-X style phaser
+            'enhancer': None,    # Jupiter-X style stereo enhancer
+        }
 
     def _initialize_processing(self):
         """Initialize processing context and allocate buffers."""
@@ -1196,3 +1225,376 @@ class XGEffectsCoordinator:
             self.processing_enabled = False
             self.buffer_manager = None
             # The buffer pool will clean up automatically
+
+    # VCM Effects Integration Methods (for synthesizer integration)
+
+    def register_effect(self, name: str, effect_func: Callable) -> bool:
+        """
+        Register a VCM effect with the coordinator.
+
+        Args:
+            name: Effect name (e.g., 'vcm_overdrive', 'vcm_phaser')
+            effect_func: Effect processing function
+
+        Returns:
+            True if registered successfully
+        """
+        with self.lock:
+            if not hasattr(self, 'vcm_effects'):
+                self.vcm_effects: Dict[str, Callable] = {}
+
+            self.vcm_effects[name] = effect_func
+            return True
+
+    def process_block(self, audio_block: np.ndarray) -> np.ndarray:
+        """
+        Process an audio block through VCM effects.
+
+        Args:
+            audio_block: Stereo audio block to process
+
+        Returns:
+            Processed audio block
+        """
+        with self.lock:
+            if not hasattr(self, 'vcm_effects') or not self.vcm_effects:
+                return audio_block
+
+            # Apply all registered VCM effects in sequence
+            processed = audio_block.copy()
+            for effect_name, effect_func in self.vcm_effects.items():
+                try:
+                    # Assume VCM effects take stereo block and return processed block
+                    processed = effect_func(processed)
+                except Exception as e:
+                    print(f"VCM effect {effect_name} failed: {e}")
+                    continue
+
+            return processed
+
+    def apply_effect(self, audio: np.ndarray, effect_name: str, params: Dict[str, float]) -> np.ndarray:
+        """
+        Apply a specific VCM effect to audio.
+
+        Args:
+            audio: Audio buffer to process
+            effect_name: Name of VCM effect to apply
+            params: Effect parameters
+
+        Returns:
+            Processed audio buffer
+        """
+        with self.lock:
+            if not hasattr(self, 'vcm_effects') or effect_name not in self.vcm_effects:
+                return audio
+
+            try:
+                effect_func = self.vcm_effects[effect_name]
+                # Assume VCM effects take audio and params, return processed audio
+                return effect_func(audio, params)
+            except Exception as e:
+                print(f"VCM effect {effect_name} failed: {e}")
+                return audio
+
+    def get_effect_info(self, effect_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get information about a registered effect.
+
+        Args:
+            effect_name: Name of effect
+
+        Returns:
+            Effect information or None if not found
+        """
+        with self.lock:
+            if not hasattr(self, 'vcm_effects'):
+                return None
+
+            if effect_name in self.vcm_effects:
+                return {
+                    'name': effect_name,
+                    'type': 'vcm',
+                    'registered': True,
+                    'callable': True
+                }
+
+            return None
+
+    def get_registered_vcm_effects(self) -> List[str]:
+        """Get list of registered VCM effects."""
+        with self.lock:
+            if not hasattr(self, 'vcm_effects'):
+                return []
+            return list(self.vcm_effects.keys())
+
+    def unregister_effect(self, name: str) -> bool:
+        """
+        Unregister a VCM effect.
+
+        Args:
+            name: Effect name to unregister
+
+        Returns:
+            True if unregistered successfully
+        """
+        with self.lock:
+            if hasattr(self, 'vcm_effects') and name in self.vcm_effects:
+                del self.vcm_effects[name]
+                return True
+            return False
+
+    def clear_vcm_effects(self) -> None:
+        """Clear all registered VCM effects."""
+        with self.lock:
+            if hasattr(self, 'vcm_effects'):
+                self.vcm_effects.clear()
+
+    # VCM Effect Processing Methods (Jupiter-X Compatible)
+
+    def _process_vcm_overdrive(self, audio: np.ndarray, params: Optional[Dict[str, Any]] = None) -> np.ndarray:
+        """
+        VCM overdrive processing - simulates analog overdrive circuits.
+
+        Args:
+            audio: Input audio
+            params: Effect parameters
+
+        Returns:
+            Processed audio
+        """
+        params = params or {}
+        drive = params.get('drive', 0.5)
+        tone = params.get('tone', 0.5)
+        level = params.get('level', 0.7)
+
+        # Simple analog-style overdrive simulation
+        # Soft clipping with asymmetric response
+        x = audio * (1.0 + drive * 3.0)
+
+        # Asymmetric soft clipping (like diode clipping)
+        processed = np.where(x > 0,
+                           np.tanh(x * 0.7) * 1.2,  # Positive clipping
+                           np.tanh(x * 0.5) * 0.8)  # Negative clipping
+
+        # Tone control (simple high-frequency rolloff)
+        if tone < 0.5:
+            # Darker tone - roll off highs
+            rolloff = 1.0 - (0.5 - tone) * 2.0
+            processed = self._apply_simple_filter(processed, rolloff, 'lowpass')
+
+        # Level control
+        processed *= level
+
+        return processed
+
+    def _process_vcm_distortion(self, audio: np.ndarray, params: Optional[Dict[str, Any]] = None) -> np.ndarray:
+        """
+        VCM distortion processing - simulates analog distortion circuits.
+
+        Args:
+            audio: Input audio
+            params: Effect parameters
+
+        Returns:
+            Processed audio
+        """
+        params = params or {}
+        drive = params.get('drive', 0.7)
+        tone = params.get('tone', 0.3)
+        level = params.get('level', 0.6)
+
+        # High-gain distortion simulation
+        x = audio * (1.0 + drive * 5.0)
+
+        # Hard clipping with some soft knees
+        threshold = 0.8
+        processed = np.where(np.abs(x) < threshold,
+                           x,  # Linear region
+                           np.sign(x) * (threshold + (np.abs(x) - threshold) * 0.3))  # Soft knee
+
+        # Add some harmonics (simple octave up mixing)
+        harmonics = np.sign(processed) * 0.1
+        processed += harmonics
+
+        # Tone shaping
+        if tone < 0.5:
+            # Darker - more low end
+            processed = self._apply_simple_filter(processed, 0.3 + tone, 'lowpass')
+        else:
+            # Brighter - more high end
+            processed = self._apply_simple_filter(processed, 0.5 + tone * 0.5, 'highpass')
+
+        # Level control
+        processed *= level
+
+        return processed
+
+    def _process_vcm_phaser(self, audio: np.ndarray, params: Optional[Dict[str, Any]] = None) -> np.ndarray:
+        """
+        VCM phaser processing - simulates analog phaser circuits.
+
+        Args:
+            audio: Input audio
+            params: Effect parameters
+
+        Returns:
+            Processed audio
+        """
+        params = params or {}
+        rate = params.get('rate', 0.5)
+        depth = params.get('depth', 0.6)
+        feedback = params.get('feedback', 0.3)
+        level = params.get('level', 0.8)
+
+        # Simple phaser implementation using all-pass filters
+        # This is a simplified version - real VCM phaser would be more complex
+
+        # Generate LFO for modulation
+        t = np.arange(len(audio)) / self.sample_rate
+        lfo = np.sin(2 * np.pi * (0.1 + rate * 2.0) * t) * depth
+
+        # Apply phaser effect (simplified)
+        # In a real implementation, this would use multiple all-pass filters
+        phase_shift = lfo * np.pi
+
+        # Simple phase shifting approximation
+        processed = audio * np.cos(phase_shift) + audio * np.sin(phase_shift) * 0.5
+
+        # Add feedback
+        feedback_signal = processed * feedback
+        processed += feedback_signal
+
+        # Level control
+        processed *= level
+
+        # Mix with dry signal
+        mix = params.get('mix', 1.0)
+        processed = audio * (1.0 - mix) + processed * mix
+
+        return processed
+
+    def _process_vcm_equalizer(self, audio: np.ndarray, params: Optional[Dict[str, Any]] = None) -> np.ndarray:
+        """
+        VCM equalizer processing - simulates analog EQ circuits.
+
+        Args:
+            audio: Input audio
+            params: Effect parameters
+
+        Returns:
+            Processed audio
+        """
+        params = params or {}
+        low_gain = params.get('low_gain', 0.0)
+        mid_gain = params.get('mid_gain', 0.0)
+        high_gain = params.get('high_gain', 0.0)
+        level = params.get('level', 1.0)
+
+        # Simple 3-band EQ simulation
+        processed = audio.copy()
+
+        # Low band (simple low shelf)
+        if low_gain != 0.0:
+            low_mult = 10 ** (low_gain / 20.0)  # Convert dB to linear
+            processed = self._apply_simple_filter(processed, 0.1, 'lowshelf', gain=low_mult)
+
+        # High band (simple high shelf)
+        if high_gain != 0.0:
+            high_mult = 10 ** (high_gain / 20.0)  # Convert dB to linear
+            processed = self._apply_simple_filter(processed, 0.4, 'highshelf', gain=high_mult)
+
+        # Mid band (simple peaking filter)
+        if mid_gain != 0.0:
+            mid_mult = 10 ** (mid_gain / 20.0)  # Convert dB to linear
+            processed = self._apply_simple_filter(processed, 0.25, 'peaking', gain=mid_mult)
+
+        # Level control
+        processed *= level
+
+        return processed
+
+    def _process_vcm_stereo_enhancer(self, audio: np.ndarray, params: Optional[Dict[str, Any]] = None) -> np.ndarray:
+        """
+        VCM stereo enhancer processing - simulates stereo widening circuits.
+
+        Args:
+            audio: Input audio (stereo)
+            params: Effect parameters
+
+        Returns:
+            Processed audio
+        """
+        params = params or {}
+        width = params.get('width', 0.5)
+        level = params.get('level', 1.0)
+
+        # Ensure stereo input
+        if audio.ndim == 1:
+            # Mono to stereo
+            left = audio.copy()
+            right = audio.copy()
+        else:
+            left = audio[:, 0].copy()
+            right = audio[:, 1].copy()
+
+        # Simple stereo widening
+        # Extract mono content
+        mono = (left + right) * 0.5
+
+        # Create stereo difference
+        diff = (left - right) * width
+
+        # Reconstruct stereo with enhanced width
+        processed_left = mono + diff
+        processed_right = mono - diff
+
+        # Create output array
+        if audio.ndim == 1:
+            # Return mono (no stereo enhancement possible)
+            return audio * level
+        else:
+            # Return stereo
+            result = np.column_stack([processed_left, processed_right])
+            return result * level
+
+    def _apply_simple_filter(self, audio: np.ndarray, freq: float, filter_type: str = 'lowpass',
+                           gain: float = 1.0) -> np.ndarray:
+        """
+        Apply simple filter for VCM effects.
+
+        Args:
+            audio: Input audio
+            freq: Normalized frequency (0-1)
+            filter_type: Filter type
+            gain: Gain multiplier
+
+        Returns:
+            Filtered audio
+        """
+        # Very simple filter implementation for VCM effects
+        # In a real implementation, this would use proper IIR/FIR filters
+
+        if filter_type == 'lowpass':
+            # Simple lowpass
+            alpha = freq
+            filtered = np.zeros_like(audio)
+            filtered[0] = audio[0]
+            for i in range(1, len(audio)):
+                filtered[i] = alpha * audio[i] + (1 - alpha) * filtered[i-1]
+            return filtered * gain
+
+        elif filter_type == 'highpass':
+            # Simple highpass
+            alpha = freq
+            filtered = np.zeros_like(audio)
+            filtered[0] = audio[0]
+            for i in range(1, len(audio)):
+                filtered[i] = alpha * (filtered[i-1] + audio[i] - audio[i-1])
+            return filtered * gain
+
+        elif filter_type in ['lowshelf', 'highshelf', 'peaking']:
+            # Simple shelving/peaking filter approximation
+            return audio * gain
+
+        else:
+            return audio * gain
