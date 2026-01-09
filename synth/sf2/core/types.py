@@ -3,39 +3,25 @@ SF2 Data Types and Structures
 
 Core data structures and type definitions for SF2 SoundFont processing.
 Contains NamedTuple classes and basic data structures used throughout the SF2 engine.
+
+Note: Main SF2 data classes are now in ..types.dataclasses. This module provides
+legacy compatibility and additional utility types.
 """
 
-from typing import NamedTuple, Tuple, Dict, List, Any, Optional
-import time
+from typing import NamedTuple, List, Any
+
+# Import master SF2 classes
+from ..types.dataclasses import SF2Modulator as SF2ModulatorMaster, SF2SampleHeader as SF2SampleHeaderMaster
+
+# Provide aliases for backward compatibility
+SF2Modulator = SF2ModulatorMaster
+SF2SampleHeader = SF2SampleHeaderMaster
 
 
 class SF2Generator(NamedTuple):
     """SF2 Generator parameter with type and amount."""
     type: int  # Generator type (0-60)
     amount: int  # Signed 16-bit value
-
-
-class SF2Modulator(NamedTuple):
-    """SF2 Modulator with source/destination and parameters."""
-    src_operator: int
-    dest_operator: int
-    mod_amount: int
-    amt_src_operator: int
-    mod_trans_operator: int
-
-
-class SF2SampleHeader(NamedTuple):
-    """SF2 Sample header with metadata and loop points."""
-    name: str
-    start: int  # Start offset in sample data (24-bit words)
-    end: int  # End offset in sample data (24-bit words)
-    start_loop: int  # Loop start point
-    end_loop: int  # Loop end point
-    sample_rate: int
-    original_pitch: int  # MIDI note number
-    pitch_correction: int  # Pitch correction in cents (-50 to +50)
-    sample_link: int  # For stereo samples
-    sample_type: int  # Loop types and other flags
 
 
 class RangeRectangle(NamedTuple):

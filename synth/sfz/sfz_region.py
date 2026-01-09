@@ -606,6 +606,26 @@ class SFZRegion(Region):
         })
         return info
 
+    def apply_channel_parameters(self, channel_params: Dict) -> None:
+        """
+        Apply channel-level parameters to this SFZ region.
+
+        Args:
+            channel_params: Dictionary of channel parameters
+        """
+        # Channel transpose affects pitch
+        if 'transpose' in channel_params:
+            # This would affect the region's pitch calculation
+            # For now, store it and apply in get_pitch_ratio
+            self._channel_transpose = channel_params['transpose']
+
+        # Drum kit information (affects sample selection for percussion)
+        if 'drum_kit' in channel_params:
+            self._drum_kit = channel_params['drum_kit']
+
+        # Other channel parameters could be applied here
+        # (volume, pan, effects sends are typically handled at higher levels)
+
     def reset(self):
         """Reset region to clean state."""
         super().reset()

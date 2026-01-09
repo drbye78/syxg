@@ -13,6 +13,10 @@ import os
 from ..engine.synthesis_engine import SynthesisEngine
 from .sfz_parser import SFZParser, SFZInstrument
 from .sfz_region import SFZRegion
+from .voice_effects import SFZVoiceEffectsProcessor
+from .voice_modulation import SFZVoiceModulationMatrix
+from .dynamic_modulation import SFZDynamicModulation
+from .controller_mapping import SFZControllerMapper
 from ..audio.sample_manager import PyAVSampleManager, SFZSample
 
 
@@ -50,6 +54,37 @@ class SFZEngine(SynthesisEngine):
 
         # Region cache for performance
         self.region_cache: Dict[str, List[SFZRegion]] = {}
+
+        # Channel-level parameters (XG/GS compatibility)
+        self._channel_transpose: int = 0
+        self._key_range_low: int = 0
+        self._key_range_high: int = 127
+        self._drum_kit: int = 0
+
+        # XG receive channel mapping
+        self.receive_channels: Dict[int, int] = {}
+
+        # GS part parameters
+        self._gs_volume: float = 1.0
+        self._gs_pan: float = 0.0
+        self._gs_reverb_send: float = 0.0
+        self._gs_chorus_send: float = 0.0
+
+        # Voice reserve system
+        self.voice_reserve: Optional[int] = None
+        self.active_voices: set = set()
+
+        # Voice-level effects processor
+        self.voice_effects = SFZVoiceEffectsProcessor(sample_rate)
+
+        # Voice-level modulation matrix
+        self.voice_modulation = SFZVoiceModulationMatrix()
+
+        # Dynamic modulation system
+        self.dynamic_modulation = SFZDynamicModulation(sample_rate)
+
+        # Controller mapping system
+        self.controller_mapper = SFZControllerMapper()
 
         # Engine configuration
         self._engine_info = None
@@ -124,6 +159,159 @@ class SFZEngine(SynthesisEngine):
             regions.append(region)
 
         self.region_cache[key] = regions
+
+    def apply_channel_parameters(self, channel_params: Dict) -> None:
+        """
+        Apply channel-level parameters to SFZ regions.
+
+        Args:
+            channel_params: Dictionary of channel parameters
+        """
+        # Channel transpose
+        if 'transpose' in channel_params:
+            self._channel_transpose = channel_params['transpose']
+
+        # Key range filtering
+        if 'key_range_low' in channel_params:
+            self._key_range_low = max(0, min(127, channel_params['key_range_low']))
+        if 'key_range_high' in channel_params:
+            self._key_range_high = max(0, min(127, channel_params['key_range_high']))
+
+        # XG drum kit
+        if 'drum_kit' in channel_params:
+            self._drum_kit = channel_params['drum_kit']
+
+        # Propagate to all regions in cache
+        for regions in self.region_cache.values():
+            for region in regions:
+                region.apply_channel_parameters(channel_params)
+
+    def set_receive_channel(self, part_id: int, midi_channel: int) -> bool:
+        """
+        Set XG receive channel mapping.
+
+        Args:
+            part_id: XG part ID (0-15)
+            midi_channel: MIDI channel (0-15, 254=OFF, 255=ALL)
+
+        Returns:
+            True if mapping was set successfully
+        """
+        if not (0 <= part_id <= 15):
+            return False
+        if midi_channel not in list(range(16)) + [254, 255]:
+            return False
+
+        self.receive_channels[part_id] = midi_channel
+        return True
+
+    def get_receive_channel(self, part_id: int) -> Optional[int]:
+        """
+        Get receive channel for a part.
+
+        Args:
+            part_id: XG part ID (0-15)
+
+        Returns:
+            MIDI channel or None
+        """
+        return self.receive_channels.get(part_id)
+
+    def apply_gs_part_parameters(self, part_params: Dict) -> None:
+        """
+        Apply GS part parameters.
+
+        Args:
+            part_params: GS part parameters
+        """
+        # GS volume (0-127)
+        if 'volume' in part_params:
+            self._gs_volume = part_params['volume'] / 127.0
+
+        # GS pan (-64 to +63)
+        if 'pan' in part_params:
+            self._gs_pan = part_params['pan'] / 64.0
+
+        # GS effects sends
+        if 'reverb_send' in part_params:
+            self._gs_reverb_send = part_params['reverb_send'] / 127.0
+        if 'chorus_send' in part_params:
+            self._gs_chorus_send = part_params['chorus_send'] / 127.0
+
+    def can_allocate_voice(self) -> bool:
+        """
+        Check if voice allocation is allowed based on reserve.
+
+        Returns:
+            True if voice can be allocated
+        """
+        if self.voice_reserve is None:
+            return True
+        return len(self.active_voices) < self.voice_reserve
+
+    def allocate_voice(self, note: int, velocity: int) -> Optional[SFZRegion]:
+        """
+        Allocate a voice with reserve checking.
+
+        Args:
+            note: MIDI note
+            velocity: MIDI velocity
+
+        Returns:
+            SFZRegion if allocation successful, None otherwise
+        """
+        if not self.can_allocate_voice():
+            return None
+
+        # Apply channel transpose to note
+        transposed_note = note + self._channel_transpose
+
+        # Check channel key range
+        if not (self._key_range_low <= transposed_note <= self._key_range_high):
+            return None
+
+        # Get regions for the transposed note
+        regions = self.get_regions_for_note(transposed_note, velocity)
+
+        if not regions:
+            return None
+
+        # For now, return first region (voice allocation logic would be more complex)
+        region = regions[0]
+
+        # Track active voice
+        self.active_voices.add(region)
+
+        return region
+
+    def release_voice(self, region: SFZRegion) -> None:
+        """
+        Release a voice.
+
+        Args:
+            region: SFZRegion to release
+        """
+        self.active_voices.discard(region)
+
+    def get_channel_info(self) -> Dict[str, Any]:
+        """
+        Get channel information.
+
+        Returns:
+            Dictionary with channel state
+        """
+        return {
+            'transpose': self._channel_transpose,
+            'key_range': (self._key_range_low, self._key_range_high),
+            'drum_kit': self._drum_kit,
+            'receive_channels': self.receive_channels.copy(),
+            'gs_volume': self._gs_volume,
+            'gs_pan': self._gs_pan,
+            'gs_reverb_send': self._gs_reverb_send,
+            'gs_chorus_send': self._gs_chorus_send,
+            'voice_reserve': self.voice_reserve,
+            'active_voices': len(self.active_voices)
+        }
 
     def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> List[SFZRegion]:
         """
