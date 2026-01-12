@@ -12,7 +12,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-from synth.sf2.core.wavetable_manager import WavetableManager
+# SF2 integration removed - will be replaced with new architecture
+# from synth.sf2.core.wavetable_manager import WavetableManager
 
 from ..core.oscillator import XGLFO  # For note-level LFOs
 from ..core.envelope import ADSREnvelope  # For note-level envelopes
