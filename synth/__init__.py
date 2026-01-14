@@ -47,7 +47,12 @@ from .s90_s70 import (
 from .effects.effects_coordinator import XGEffectsCoordinator as EffectsCoordinator
 
 # MIDI processing
-from .midi.parser import MIDIMessageParser
+from .midi.parser import (
+    MIDIMessageParser,
+    MIDIParser,
+    MIDIMessage,
+    MIDIMessageFile
+)
 from .midi.binary_parser import BinaryMIDIParser
 
 # Voice management
@@ -95,6 +100,9 @@ __all__ = [
 
     # MIDI processing
     'MIDIMessageParser',
+    'MIDIParser',
+    'MIDIMessage',
+    'MIDIMessageFile',
     'BinaryMIDIParser',
 
     # Voice management

@@ -11,7 +11,7 @@ from typing import List, Optional, Tuple
 
 from synth.audio.writer import AudioWriter
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-from synth.midi.parser import MIDIParser, MIDIMessage
+from synth.midi.parser import MIDIParser, MIDIMessageFile
 from synth.xgml import XGMLParser, XGMLToMIDITranslator
 from synth.utils.progress import ProgressReporter
 
@@ -30,7 +30,7 @@ class AudioConverter:
         self.synthesizer = synthesizer
         self.audio_writer = audio_writer
 
-    def parse_audio_file(self, file_path: str) -> Tuple[Optional[List[MIDIMessage]], Optional[float]]:
+    def parse_audio_file(self, file_path: str) -> Tuple[Optional[List], Optional[float]]:
         """
         Parse audio file (MIDI or XGML) and return MIDI messages and duration.
 

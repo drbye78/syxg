@@ -25,7 +25,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from synth.audio.writer import AudioWriter
 from synth.audio.converter import AudioConverter
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-from synth.engine.optimized_xg_synthesizer import OptimizedXGSynthesizer
+# Lazy import for OptimizedXGSynthesizer to avoid dependency issues
+# from synth.engine.optimized_xg_synthesizer import OptimizedXGSynthesizer
 from synth.utils.keyboard import KeyboardListener
 
 
@@ -244,6 +245,8 @@ def main():
             sample_rate=sample_rate,
             max_channels=max_polyphony,  # ModernXGSynthesizer uses max_channels instead of max_polyphony
             xg_enabled=True,
+            gs_enabled=True,
+            mpe_enabled=True,
             device_id=0x10
         )
         # Load SoundFonts if provided
@@ -251,7 +254,7 @@ def main():
             for sf2_file in sf2_files:
                 synthesizer.load_soundfont(sf2_file)
         if not silent:
-            print(f"Using ModernXGSynthesizer engine")
+            print(f"Using ModernXGSynthesizer engine (refactored modular architecture)")
 
     # Initialize audio writer
     audio_writer = AudioWriter(sample_rate, chunk_size_ms)
