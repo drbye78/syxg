@@ -23,7 +23,7 @@ import math
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from synth.midi.parser import MIDIParser, MIDIMessage
+from synth.midi import FileParser, MIDIMessage
 from synth.xgml.constants import (
     PROGRAM_NAMES, CONTROLLER_NAMES, PAN_POSITIONS,
     XGML_VERSION
@@ -54,8 +54,8 @@ class MIDItoXGMLConverter:
         """
         try:
             # Parse MIDI file
-            parser = MIDIParser(midi_file_path)
-            midi_messages = parser.get_all_messages()
+            parser = FileParser()
+            midi_messages = parser.parse_file(midi_file_path)
 
             if not midi_messages:
                 self.warnings.append("No MIDI messages found in file")

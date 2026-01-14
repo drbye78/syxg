@@ -17,7 +17,7 @@ from .constants import (
     MODULATION_SOURCES, MODULATION_DESTINATIONS, AUTOMATION_CURVE_TYPES,
     ENVELOPE_STAGES
 )
-from synth.midi.parser import MIDIMessage
+from synth.midi import MIDIMessage
 
 
 class XGMLToMIDITranslator:

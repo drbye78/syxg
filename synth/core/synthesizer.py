@@ -12,7 +12,7 @@ import time
 
 from ..engine.engine_registry import XGEngineRegistry, get_global_engine_registry
 from ..effects.effects_coordinator import XGEffectsCoordinator
-from ..midi.parser import MIDIMessageParser
+from ..midi import RealtimeParser, MIDIMessage
 from ..voice.voice_manager import VoiceManager
 from ..xg.xg_system import XGSystem
 from ..engine.parameter_router import ParameterRouter
@@ -112,7 +112,7 @@ class Synthesizer:
         self.effects_coordinator = XGEffectsCoordinator(sample_rate, buffer_size)
 
         # MIDI processing
-        self.midi_parser = MIDIMessageParser()
+        self.midi_parser = RealtimeParser()
 
         # Voice management
         self.voice_manager = VoiceManager(max_voices=128)
@@ -379,26 +379,19 @@ class Synthesizer:
         for event in events:
             self._handle_midi_event(event)
 
-    def _handle_midi_event(self, event: Dict[str, Any]):
-        """Handle a single MIDI event."""
+    def _handle_midi_event(self, message: MIDIMessage):
+        """Handle a single MIDI message."""
 
-        event_type = event.get('type')
-        channel = event.get('channel', 0)
-        note = event.get('note', 60)
-        velocity = event.get('velocity', 64)
-        controller = event.get('controller')
-        value = event.get('value')
-
-        if event_type == 'note_on' and velocity > 0:
-            self.note_on(channel, note, velocity)
-        elif event_type in ('note_off', 'note_on') and velocity == 0:
-            self.note_off(channel, note)
-        elif event_type == 'control_change':
-            self.control_change(channel, controller, value)
-        elif event_type == 'pitch_bend':
-            self.pitch_bend(channel, value)
-        elif event_type == 'program_change':
-            self.program_change(channel, value)
+        if message.is_note_on():
+            self.note_on(message.channel or 0, message.note or 60, message.velocity or 64)
+        elif message.is_note_off():
+            self.note_off(message.channel or 0, message.note or 60)
+        elif message.is_control_change():
+            self.control_change(message.channel or 0, message.controller or 0, message.value or 0)
+        elif message.is_pitch_bend():
+            self.pitch_bend(message.channel or 0, message.bend_value or 0)
+        elif message.is_program_change():
+            self.program_change(message.channel or 0, message.program or 0)
 
     def _generate_audio_block(self):
         """Generate one block of audio."""

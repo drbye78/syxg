@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .parser_v3 import XGMLConfigV3, ConfigurationSection
-from synth.midi.parser import MIDIMessage
+from synth.midi import MIDIMessage
 
 
 class TranslationError(Exception):

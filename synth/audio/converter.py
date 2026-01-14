@@ -11,7 +11,7 @@ from typing import List, Optional, Tuple
 
 from synth.audio.writer import AudioWriter
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-from synth.midi.parser import MIDIParser, MIDIMessageFile
+from synth.midi import FileParser, MIDIMessage
 from synth.xgml import XGMLParser, XGMLToMIDITranslator
 from synth.utils.progress import ProgressReporter
 
@@ -45,10 +45,16 @@ class AudioConverter:
         if file_ext in ['mid', 'midi']:
             # Parse as MIDI file
             try:
-                parser = MIDIParser(file_path)
-                total_duration_seconds = parser.get_total_duration()
-                all_messages = parser.get_all_messages()
-                return all_messages, total_duration_seconds
+                parser = FileParser()
+                all_messages = parser.parse_file(file_path)
+
+                # Calculate duration from message timestamps
+                if all_messages:
+                    duration = max(msg.timestamp for msg in all_messages) + 1.0  # Add 1 second padding
+                else:
+                    duration = 10.0  # Default duration
+
+                return all_messages, duration
             except Exception as e:
                 print(f"Error parsing MIDI file {file_path}: {e}")
                 return None, None
@@ -166,20 +172,29 @@ class AudioConverter:
             self.synthesizer.reset()
 
             # Apply tempo scaling if needed (only affects MIDI timing)
-            if tempo == 1.0:
-                self.synthesizer.send_midi_message_block(midi_messages)
-            else:
-                scaled_messages = [msg.with_tempo(tempo) for msg in midi_messages if hasattr(msg, 'with_tempo')]
-                self.synthesizer.send_midi_message_block(scaled_messages)
+            if tempo != 1.0 and file_type == "MIDI":
+                # Scale timestamps for tempo adjustment
+                scaled_messages = []
+                for msg in midi_messages:
+                    scaled_msg = MIDIMessage(
+                        type=msg.type,
+                        channel=msg.channel,
+                        data=msg.data.copy(),
+                        timestamp=msg.timestamp / tempo
+                    )
+                    scaled_messages.append(scaled_msg)
+                midi_messages = scaled_messages
+
+            self.synthesizer.send_midi_message_block(midi_messages)
 
             # For XGML files, we don't adjust start time as sequences are already properly timed
             if file_type == "MIDI":
                 # Find first note-on time for MIDI files
                 first_note_time = None
                 for msg in midi_messages:
-                    if msg.type == 'note_on' and msg.time is not None:
-                        if first_note_time is None or msg.time < first_note_time:
-                            first_note_time = msg.time
+                    if msg.type == 'note_on' and msg.timestamp is not None:
+                        if first_note_time is None or msg.timestamp < first_note_time:
+                            first_note_time = msg.timestamp
                         break
                 if first_note_time:
                     self.synthesizer.set_current_time(first_note_time / tempo)
