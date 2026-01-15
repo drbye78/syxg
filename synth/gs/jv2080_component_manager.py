@@ -171,7 +171,7 @@ class JV2080Part:
 
         # Jupiter-X LFO (per-part, compatible with Jupiter-X architecture)
         try:
-            from ...core.oscillator import UltraFastXGLFO
+            from ..core.oscillator import UltraFastXGLFO
             self.lfo = UltraFastXGLFO(id=part_number, waveform="sine", rate=5.0,
                                     sample_rate=sample_rate)
         except ImportError:
@@ -180,7 +180,7 @@ class JV2080Part:
 
         # Jupiter-X Envelope (per-part)
         try:
-            from ...jupiter_x.part import JupiterXEnvelope
+            from ..jupiter_x.part import JupiterXEnvelope
             self.envelope = JupiterXEnvelope(sample_rate=sample_rate)
         except ImportError:
             # Fallback envelope implementation

@@ -42,7 +42,7 @@ class SF2Engine(SynthesisEngine):
 
     def __init__(self, sf2_file_path: Optional[str] = None, sample_rate: int = 44100,
                  block_size: int = 1024, synth: Optional['ModernXGSynthesizer'] = None,
-                 max_memory_mb: int = 512, sf2_manager=None):
+                 max_memory_mb: int = 512):
         """
         Initialize SF2 synthesis engine with optimized architecture.
 
@@ -52,12 +52,10 @@ class SF2Engine(SynthesisEngine):
             block_size: Processing block size in samples
             synth: ModernXGSynthesizer instance for infrastructure access
             max_memory_mb: Maximum memory for SF2 caching
-            sf2_manager: Legacy SF2Manager instance (for compatibility)
         """
         super().__init__(sample_rate, block_size)
         self.synth = synth
         self.max_memory_mb = max_memory_mb
-        self.sf2_manager = sf2_manager  # Store for compatibility
 
         # New optimized SF2 architecture
         self.soundfont_manager = SF2SoundFontManager(
@@ -235,7 +233,7 @@ class SF2Engine(SynthesisEngine):
 
     def _cents_to_frequency(self, cents: int) -> float:
         """Convert SF2 cents to frequency in Hz."""
-        from ..sf2.core.constants import cents_to_frequency
+        from ..sf2.sf2_constants import cents_to_frequency
         return cents_to_frequency(cents)
 
     def supports_feature(self, feature: str) -> bool:
@@ -335,8 +333,7 @@ class SF2Engine(SynthesisEngine):
                     'level', 'pan', 'coarse_tune', 'fine_tune',
                     'filter_cutoff', 'filter_resonance', 'reverb_send', 'chorus_send'
                 ],
-                'soundfonts_loaded': len(self.soundfont_manager),
-                'soundfont_path': self.sf2_file_path
+                'soundfonts_loaded': len(self.soundfont_manager)
             }
         return self._engine_info
 

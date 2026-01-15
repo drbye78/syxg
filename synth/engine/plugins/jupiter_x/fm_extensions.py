@@ -27,6 +27,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
     """
 
     def __init__(self):
+        # Create metadata first before calling parent constructor
         metadata = PluginMetadata(
             name="Jupiter-X FM Extensions",
             version="1.0.0",

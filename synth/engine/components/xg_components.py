@@ -31,15 +31,15 @@ class XGComponentManager:
     def _init_components(self):
         """Initialize all XG components - production quality"""
         # Import XG components
-        from ..xg.xg_sysex_controller import XGSystemExclusiveController
-        from ..xg.xg_system_parameters import XGSystemEffectParameters
-        from ..xg.xg_multi_part_setup import XGMultiPartSetup
-        from ..xg.xg_controller_assignments import XGControllerAssignments
-        from ..xg.xg_effects_enhancement import XGSystemEffectsEnhancement
-        from ..xg.xg_drum_setup_parameters import XGDrumSetupParameters
-        from ..xg.xg_micro_tuning import XGMicroTuning
-        from ..xg.xg_realtime_control import XGRealtimeControl
-        from ..xg.xg_compatibility_modes import XGCompatibilityModes
+        from ...xg.xg_sysex_controller import XGSystemExclusiveController
+        from ...xg.xg_system_parameters import XGSystemEffectParameters
+        from ...xg.xg_multi_part_setup import XGMultiPartSetup
+        from ...xg.xg_controller_assignments import XGControllerAssignments
+        from ...xg.xg_effects_enhancement import XGSystemEffectsEnhancement
+        from ...xg.xg_drum_setup_parameters import XGDrumSetupParameters
+        from ...xg.xg_micro_tuning import XGMicroTuning
+        from ...xg.xg_realtime_control import XGRealtimeControl
+        from ...xg.xg_compatibility_modes import XGCompatibilityModes
 
         # Initialize all XG components
         self.components = {

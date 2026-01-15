@@ -270,21 +270,9 @@ class ModernXGSynthesizer:
 
     def _register_engines(self):
         """Register synthesis engines with priority system"""
-        # Enhanced SF2 Engine with progressive loading and mip-mapping
-        from ..sf2.core.manager import SF2Manager, MipMapCache
-
-        # Create new modular SF2 manager with progressive loading
-        self.sf2_manager = SF2Manager()
-
-        # Enable progressive loading for large SoundFonts
-        self.sf2_manager.enable_lazy_loading(sample_cache_size_mb=256)
-
-        # Initialize mip-map cache for high-pitch quality
-        self.sf2_manager.mip_map_cache = MipMapCache(max_memory_mb=128)
-
         # Create SF2 engine with new modular manager
         from .sf2_engine import SF2Engine
-        sf2_engine = SF2Engine(sf2_manager=self.sf2_manager, sample_rate=self.sample_rate, block_size=1024, synth=self)
+        sf2_engine = SF2Engine(sample_rate=self.sample_rate, block_size=1024, synth=self)
         self.engine_registry.register_engine(sf2_engine, 'sf2', priority=10)
 
         # FM Engine - high priority
@@ -399,12 +387,40 @@ class ModernXGSynthesizer:
             # Store reference for direct access
             self.jupiter_x_engine = jupiter_x_engine
 
+            # Initialize plugin system and discover Jupiter-X plugins
+            self._init_plugin_system()
+
             print("🎹 Jupiter-X engine registered with modern synthesizer")
 
         except ImportError as e:
             print(f"⚠️  Jupiter-X integration not available: {e}")
         except Exception as e:
             print(f"⚠️  Failed to initialize Jupiter-X integration: {e}")
+
+    def _init_plugin_system(self):
+        """Initialize plugin system and discover plugins"""
+        try:
+            from .plugins.plugin_registry import get_global_plugin_registry
+
+            # Get global plugin registry
+            self.plugin_registry = get_global_plugin_registry()
+
+            # Clear any existing plugins and discover new ones
+            self.plugin_registry.clear_registry()
+            discovered_count = self.plugin_registry.discover_plugins()
+
+            print(f"🔌 Plugin system initialized: {discovered_count} plugins discovered")
+
+            # Try to load Jupiter-X FM plugin
+            if 'jupiter_x.fm_extensions.JupiterXFMPlugin' in self.plugin_registry.get_available_plugins():
+                success = self.plugin_registry.load_plugin('jupiter_x.fm_extensions.JupiterXFMPlugin')
+                if success:
+                    print("✅ Jupiter-X FM plugin loaded successfully")
+                else:
+                    print("⚠️  Failed to load Jupiter-X FM plugin")
+
+        except Exception as e:
+            print(f"⚠️  Plugin system initialization failed: {e}")
 
 
 
