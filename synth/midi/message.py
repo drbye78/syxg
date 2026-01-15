@@ -25,7 +25,7 @@ class MIDIMessage:
         data (Dict[str, Any]): Type-specific message data
     """
 
-    __slots__ = ('timestamp', 'type', 'channel', 'data')
+    __slots__ = ('timestamp', 'type', 'channel', 'data', '_xg_metadata')
 
     def __init__(self, type: str, channel: Optional[int] = None,
                  data: Optional[Dict[str, Any]] = None,
@@ -44,6 +44,7 @@ class MIDIMessage:
         self.type = type
         self.channel = channel
         self.data = data or {}
+        self._xg_metadata = None
         # Merge any additional keyword arguments into data
         if kwargs:
             self.data.update(kwargs)

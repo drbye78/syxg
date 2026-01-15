@@ -50,7 +50,6 @@ from .effects.effects_coordinator import XGEffectsCoordinator as EffectsCoordina
 from .midi import (
     MIDIMessage,
     RealtimeParser,
-    BufferedProcessor,
     FileParser,
     MessageBuffer,
     MessageType,
@@ -103,7 +102,6 @@ __all__ = [
     # MIDI processing
     'MIDIMessage',
     'RealtimeParser',
-    'BufferedProcessor',
     'FileParser',
     'MessageBuffer',
     'MessageType',

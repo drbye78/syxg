@@ -9,7 +9,7 @@ Provides clean, consistent interfaces for all MIDI operations.
 from .message import MIDIMessage
 
 # Processing modules
-from .realtime import RealtimeParser, BufferedProcessor
+from .realtime import RealtimeParser
 from .file import FileParser
 from .buffer import MessageBuffer
 
@@ -26,7 +26,6 @@ __all__ = [
 
     # Processing
     "RealtimeParser",
-    "BufferedProcessor",
     "FileParser",
     "MessageBuffer",
 

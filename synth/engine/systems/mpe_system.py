@@ -47,7 +47,7 @@ class MPESystem:
     def _init_mpe_system(self):
         """Initialize MPE (Microtonal Expression) system"""
         # Import MPE manager
-        from ..mpe.mpe_manager import MPEManager
+        from ...mpe.mpe_manager import MPEManager
 
         # Create MPE manager
         self.mpe_manager = MPEManager(max_channels=self.max_channels)

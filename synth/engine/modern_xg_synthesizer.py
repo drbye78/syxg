@@ -136,8 +136,11 @@ class ModernXGSynthesizer:
         print(f"   XG Enabled: {xg_enabled}, GS Enabled: {gs_enabled}")
         print(f"   Active Protocol: {self.active_protocol.upper()}, Device ID: {self.device_id:02X}")
 
-        # Initialize core synthesis system
+        # Initialize core synthesis system first
         self._init_core_synthesis()
+
+        # Initialize Jupiter-X integration (requires engine registry)
+        self._init_jupiter_x_integration()
 
         # Initialize XG system if enabled
         if self.xg_enabled:
@@ -146,9 +149,6 @@ class ModernXGSynthesizer:
         # Initialize GS system if enabled
         if self.gs_enabled:
             self._init_gs_system()
-
-        # Initialize Jupiter-X integration (automatically included)
-        self._init_jupiter_x_integration()
 
         # Initialize workstation manager (XGML v3.0 workstation features)
         self._init_workstation_manager()
@@ -413,7 +413,9 @@ class ModernXGSynthesizer:
 
             # Try to load Jupiter-X FM plugin
             if 'jupiter_x.fm_extensions.JupiterXFMPlugin' in self.plugin_registry.get_available_plugins():
-                success = self.plugin_registry.load_plugin('jupiter_x.fm_extensions.JupiterXFMPlugin')
+                # Get the FM engine instance to pass to the plugin
+                fm_engine = self.engine_registry.get_engine('fm')
+                success = self.plugin_registry.load_plugin('jupiter_x.fm_extensions.JupiterXFMPlugin', fm_engine)
                 if success:
                     print("✅ Jupiter-X FM plugin loaded successfully")
                 else:
@@ -421,6 +423,15 @@ class ModernXGSynthesizer:
 
         except Exception as e:
             print(f"⚠️  Plugin system initialization failed: {e}")
+
+    def _init_workstation_manager(self):
+        """Initialize workstation manager for XGML v3.0 features"""
+        try:
+            # Workstation manager is initialized as part of Jupiter-X integration
+            # This is a placeholder for future XGML v3.0 workstation features
+            pass
+        except Exception as e:
+            print(f"⚠️  Workstation manager initialization failed: {e}")
 
 
 
@@ -722,13 +733,15 @@ class ModernXGSynthesizer:
                 'temperaments': len(self.xg_components.get_component('micro_tuning').temperament_system.get_available_temperaments()),
             })
 
-        if self.mpe_enabled:
-            info.update({
-                'mpe_enabled': True,
-                'mpe_zones': len(self.mpe_manager.zones),
-                'mpe_active_notes': len(self.mpe_manager.active_notes),
-                'mpe_pitch_bend_range': self.mpe_manager.global_pitch_bend_range,
-            })
+        if self.mpe_enabled and hasattr(self, 'mpe_system') and self.mpe_system:
+            mpe_info = self.mpe_system.get_mpe_info()
+            if mpe_info.get('enabled', False):
+                info.update({
+                    'mpe_enabled': True,
+                    'mpe_zones': mpe_info.get('zones', 0),
+                    'mpe_active_notes': mpe_info.get('active_notes', 0),
+                    'mpe_pitch_bend_range': mpe_info.get('pitch_bend_range', 48),
+                })
 
         return info
 
@@ -867,6 +880,113 @@ class ModernXGSynthesizer:
         self.parameter_priority.update_parameter('reverb_send', gs_part.reverb_send, 'gs', channel_num)
         self.parameter_priority.update_parameter('chorus_send', gs_part.chorus_send, 'gs', channel_num)
         self.parameter_priority.update_parameter('variation_send', gs_part.delay_send, 'gs', channel_num)
+
+    # MPE Processing Methods (called by MIDI processor)
+    def _process_note_off_mpe(self, channel: int, note: int, velocity: int):
+        """Process note-off event with MPE support"""
+        if hasattr(self, 'mpe_system') and self.mpe_system:
+            # Release MPE note
+            released_note = self.mpe_system.process_note_off(channel, note, velocity)
+            if released_note and hasattr(released_note, 'voice_id'):
+                # Release voice
+                self._release_voice_mpe(released_note.voice_id)
+                return
+
+        # Fallback to regular note processing
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].note_off(note, velocity)
+
+    def _process_note_on_mpe(self, channel: int, note: int, velocity: int):
+        """Process note-on event with MPE support"""
+        if hasattr(self, 'mpe_system') and self.mpe_system:
+            # Create MPE note
+            mpe_note = self.mpe_system.process_note_on(channel, note, velocity)
+            if mpe_note:
+                # Send to voice allocation with MPE parameters
+                self._allocate_voice_with_mpe(mpe_note)
+                return
+
+        # Fallback to regular note processing
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].note_on(note, velocity)
+
+    def _process_poly_pressure_mpe(self, channel: int, note: int, pressure: int):
+        """Process polyphonic pressure with MPE support"""
+        if hasattr(self, 'mpe_system') and self.mpe_system:
+            # Process MPE per-note pressure
+            self.mpe_system.process_poly_pressure(channel, note, pressure)
+            # Update specific voice
+            self._update_note_voice_mpe(channel, note)
+            return
+
+        # Fallback to regular poly pressure
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].key_pressure(note, pressure)
+
+    def _process_mpe_controller(self, channel: int, controller: int, value: int) -> bool:
+        """Process MPE controllers (timbre, slide, lift)"""
+        if not hasattr(self, 'mpe_system') or not self.mpe_system:
+            return False
+
+        # Use the MPE system's controller processing method
+        return self.mpe_system.process_mpe_controller(channel, controller, value)
+
+    def _process_pitch_bend_mpe(self, channel: int, bend_value: int) -> bool:
+        """Process pitch bend with MPE support"""
+        if hasattr(self, 'mpe_system') and self.mpe_system:
+            # Process MPE pitch bend
+            self.mpe_system.process_pitch_bend(channel, bend_value)
+            # Update all active voices on this channel
+            self._update_channel_voices_mpe(channel)
+            return True  # MPE handled it
+
+        return False  # Not handled by MPE
+
+    def _allocate_voice_with_mpe(self, mpe_note):
+        """Allocate voice with MPE parameters"""
+        # This would integrate with the voice allocation system
+        # For now, use regular channel allocation but store MPE reference
+        if 0 <= mpe_note.channel < len(self.channels):
+            voice_id = self.channels[mpe_note.channel].note_on(mpe_note.note_number, mpe_note.velocity)
+            if voice_id:
+                mpe_note.voice_id = voice_id
+                # Update voice with MPE parameters
+                self._apply_mpe_to_voice(voice_id, mpe_note)
+
+    def _release_voice_mpe(self, voice_id):
+        """Release voice by ID (MPE version)"""
+        # This would need to be implemented based on voice management system
+        # For now, this is a placeholder
+        pass
+
+    def _update_channel_voices_mpe(self, channel: int):
+        """Update all voices on channel with current MPE parameters"""
+        if not hasattr(self, 'mpe_system') or not self.mpe_system:
+            return
+
+        active_notes = self.mpe_system.get_active_mpe_notes(channel)
+        for mpe_note in active_notes:
+            if hasattr(mpe_note, 'voice_id') and mpe_note.voice_id:
+                self._apply_mpe_to_voice(mpe_note.voice_id, mpe_note)
+
+    def _update_note_voice_mpe(self, channel: int, note: int):
+        """Update specific note's voice with MPE parameters"""
+        if not hasattr(self, 'mpe_system') or not self.mpe_system:
+            return
+
+        # Find the specific MPE note
+        active_notes = self.mpe_system.get_active_mpe_notes(channel)
+        mpe_note = next((note for note in active_notes if note.note_number == note), None)
+        if mpe_note and hasattr(mpe_note, 'voice_id') and mpe_note.voice_id:
+            self._apply_mpe_to_voice(mpe_note.voice_id, mpe_note)
+
+    def _apply_mpe_to_voice(self, voice_id, mpe_note):
+        """Apply MPE parameters to voice"""
+        # This would update the voice's frequency, timbre, etc.
+        # Implementation depends on voice architecture
+        # For now, this is a placeholder that would need integration
+        # with the actual voice rendering system
+        pass
 
     def enable_config_hot_reloading(self, watch_paths: Optional[List[Union[str, Path]]] = None,
                                    check_interval: float = 1.0) -> bool:

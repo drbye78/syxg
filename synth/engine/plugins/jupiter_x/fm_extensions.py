@@ -26,6 +26,39 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
     - Extended operator routing options
     """
 
+    @classmethod
+    def get_plugin_metadata(cls) -> PluginMetadata:
+        """Get plugin metadata for registration."""
+        return PluginMetadata(
+            name="Jupiter-X FM Extensions",
+            version="1.0.0",
+            description="Advanced FM synthesis features from Roland Jupiter-X",
+            author="Jupiter-X Development Team",
+            plugin_type=PluginType.SYNTHESIS_FEATURE,
+            compatibility=PluginCompatibility.EXCLUSIVE,
+            target_engines=["fm"],
+            dependencies=[],
+            parameters={
+                "vocal_formants": {
+                    "type": "bool",
+                    "default": False,
+                    "description": "Enable vocal formant synthesis"
+                },
+                "ring_modulation": {
+                    "type": "bool",
+                    "default": True,
+                    "description": "Enable ring modulation between operators"
+                },
+                "feedback_enhancement": {
+                    "type": "float",
+                    "default": 1.0,
+                    "min": 0.0,
+                    "max": 2.0,
+                    "description": "Feedback enhancement factor"
+                }
+            }
+        )
+
     def __init__(self):
         # Create metadata first before calling parent constructor
         metadata = PluginMetadata(

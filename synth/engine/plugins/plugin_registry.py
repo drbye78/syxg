@@ -69,10 +69,24 @@ class PluginRegistry:
             self._plugin_classes[name] = plugin_class
 
             # Extract dependencies from class metadata if available
-            if hasattr(plugin_class, 'get_metadata'):
-                # Create temporary instance to get metadata
-                temp_instance = plugin_class.__new__(plugin_class)
-                if hasattr(temp_instance, 'get_metadata'):
+            if hasattr(plugin_class, 'get_plugin_metadata'):
+                try:
+                    # Use class method to get metadata
+                    metadata = plugin_class.get_plugin_metadata()
+                    self._plugin_dependencies[name] = set(metadata.dependencies)
+
+                    # Update reverse dependencies
+                    for dep in metadata.dependencies:
+                        if dep not in self._reverse_dependencies:
+                            self._reverse_dependencies[dep] = set()
+                        self._reverse_dependencies[dep].add(name)
+                except Exception as e:
+                    print(f"Warning: Could not extract metadata from plugin '{name}': {e}")
+                    self._plugin_dependencies[name] = set()
+            elif hasattr(plugin_class, 'get_metadata'):
+                try:
+                    # Fallback: Create temporary instance to get metadata
+                    temp_instance = plugin_class()
                     metadata = temp_instance.get_metadata()
                     self._plugin_dependencies[name] = set(metadata.dependencies)
 
@@ -81,6 +95,9 @@ class PluginRegistry:
                         if dep not in self._reverse_dependencies:
                             self._reverse_dependencies[dep] = set()
                         self._reverse_dependencies[dep].add(name)
+                except Exception as e:
+                    print(f"Warning: Could not extract metadata from plugin '{name}': {e}")
+                    self._plugin_dependencies[name] = set()
 
             return True
 
@@ -261,7 +278,17 @@ class PluginRegistry:
                 for name, obj in inspect.getmembers(module):
                     if (inspect.isclass(obj) and
                         issubclass(obj, BaseEnginePlugin) and
-                        obj != BaseEnginePlugin):
+                        obj != BaseEnginePlugin and
+                        obj.__name__ not in ['SynthesisFeaturePlugin', 'ModulationPlugin', 'EffectsPlugin', 'MIDIPlugin']):
+
+                        # Skip abstract base classes
+                        try:
+                            # Try to create a temporary instance to check if it's concrete
+                            temp_instance = obj.__new__(obj)
+                            # If we get here, it's not abstract
+                        except TypeError:
+                            # TypeError means it's abstract and can't be instantiated
+                            continue
 
                         # Register the plugin
                         plugin_name = f"{path.name}.{py_file.stem}.{name}"
@@ -323,23 +350,25 @@ class PluginRegistry:
         plugin_class = self._plugin_classes.get(name)
         if plugin_class:
             try:
-                # Create temporary instance to get metadata
-                temp_instance = plugin_class.__new__(plugin_class)
-                if hasattr(temp_instance, 'get_metadata'):
+                # Try class method first, then fallback to instance method
+                if hasattr(plugin_class, 'get_plugin_metadata'):
+                    metadata = plugin_class.get_plugin_metadata()
+                else:
+                    temp_instance = plugin_class()
                     metadata = temp_instance.get_metadata()
-                    return {
-                        'name': metadata.name,
-                        'version': metadata.version,
-                        'description': metadata.description,
-                        'type': metadata.plugin_type.value,
-                        'compatibility': metadata.compatibility.value,
-                        'target_engines': metadata.target_engines,
-                        'dependencies': list(metadata.dependencies),
-                        'loaded': False,
-                        'enabled': False,
-                        'active': False,
-                    }
-            except:
+                return {
+                    'name': metadata.name,
+                    'version': metadata.version,
+                    'description': metadata.description,
+                    'type': metadata.plugin_type.value,
+                    'compatibility': metadata.compatibility.value,
+                    'target_engines': metadata.target_engines,
+                    'dependencies': list(metadata.dependencies),
+                    'loaded': False,
+                    'enabled': False,
+                    'active': False,
+                }
+            except Exception:
                 pass
 
         return None
@@ -358,12 +387,15 @@ class PluginRegistry:
 
         for name, plugin_class in self._plugin_classes.items():
             try:
-                temp_instance = plugin_class.__new__(plugin_class)
-                if hasattr(temp_instance, 'get_metadata'):
+                # Try class method first, then fallback to instance method
+                if hasattr(plugin_class, 'get_plugin_metadata'):
+                    metadata = plugin_class.get_plugin_metadata()
+                else:
+                    temp_instance = plugin_class()
                     metadata = temp_instance.get_metadata()
-                    if metadata.plugin_type == plugin_type:
-                        matching_plugins.append(name)
-            except:
+                if metadata.plugin_type == plugin_type:
+                    matching_plugins.append(name)
+            except Exception:
                 continue
 
         return matching_plugins
@@ -382,13 +414,16 @@ class PluginRegistry:
 
         for name, plugin_class in self._plugin_classes.items():
             try:
-                temp_instance = plugin_class.__new__(plugin_class)
-                if hasattr(temp_instance, 'get_metadata'):
+                # Try class method first, then fallback to instance method
+                if hasattr(plugin_class, 'get_plugin_metadata'):
+                    metadata = plugin_class.get_plugin_metadata()
+                else:
+                    temp_instance = plugin_class()
                     metadata = temp_instance.get_metadata()
-                    if (engine_type in metadata.target_engines or
-                        metadata.compatibility == PluginCompatibility.UNIVERSAL):
-                        compatible_plugins.append(name)
-            except:
+                if (engine_type in metadata.target_engines or
+                    metadata.compatibility == PluginCompatibility.UNIVERSAL):
+                    compatible_plugins.append(name)
+            except Exception:
                 continue
 
         return compatible_plugins

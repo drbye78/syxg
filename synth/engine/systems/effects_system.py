@@ -44,7 +44,7 @@ class EffectsSystem:
     def _init_effects_system(self):
         """Initialize effects processing system"""
         # Effects coordinator with GS integration
-        from ..effects import XGEffectsCoordinator
+        from ...effects import XGEffectsCoordinator
         self.effects_coordinator = XGEffectsCoordinator(
             sample_rate=self.synthesizer.sample_rate,
             block_size=self.synthesizer.block_size,
@@ -53,7 +53,7 @@ class EffectsSystem:
         )
 
         # Motif Effects Processor for workstation-grade effects
-        from ..xg.xg_motif_effects import MotifEffectsProcessor
+        from ...xg.xg_motif_effects import MotifEffectsProcessor
         self.motif_effects = MotifEffectsProcessor(sample_rate=self.synthesizer.sample_rate)
 
         print("🎹 Effects system initialized with XG/GM2 compatibility")

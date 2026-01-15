@@ -68,7 +68,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
         self.morphing_type = "linear"
         self.formant_processing_enabled = False
         self.ring_modulation_enabled = True
-        self.dynamic_loading_enabled = True
+        self.dynamic_loading_enabled = False
 
         # Multi-timbral wavetable system
         self.multi_timbral_enabled = False

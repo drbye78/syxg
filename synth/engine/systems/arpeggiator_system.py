@@ -46,9 +46,9 @@ class ArpeggiatorSystem:
     def _init_arpeggiator_system(self):
         """Initialize Yamaha Motif Arpeggiator system"""
         # Import arpeggiator components
-        from ..xg.xg_arpeggiator_engine import YamahaArpeggiatorEngine
-        from ..xg.xg_arpeggiator_sysex_controller import YamahaArpeggiatorSysexController
-        from ..xg.xg_arpeggiator_nrpn_controller import YamahaArpeggiatorNRPNController
+        from ...xg.xg_arpeggiator_engine import YamahaArpeggiatorEngine
+        from ...xg.xg_arpeggiator_sysex_controller import YamahaArpeggiatorSysexController
+        from ...xg.xg_arpeggiator_nrpn_controller import YamahaArpeggiatorNRPNController
 
         # Create arpeggiator engine
         self.arpeggiator_engine = YamahaArpeggiatorEngine()
@@ -68,7 +68,7 @@ class ArpeggiatorSystem:
     def _init_multi_arpeggiator_system(self):
         """Initialize Multi-Arpeggiator system (Yamaha Motif compatible)"""
         # Import Multi-Arpeggiator Manager
-        from ..xg.xg_arpeggiator_manager import MotifArpeggiatorManager
+        from ...xg.xg_arpeggiator_manager import MotifArpeggiatorManager
 
         # Create Multi-Arpeggiator Manager
         self.arpeggiator_manager = MotifArpeggiatorManager()

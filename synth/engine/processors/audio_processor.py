@@ -114,7 +114,7 @@ class AudioProcessor:
                 messages_in_segment = 0
                 while (
                     at_index < len(self._message_sequence)
-                    and self._message_sequence[at_index].time <= at_time + self._minimum_time_slice
+                    and self._message_sequence[at_index].timestamp <= at_time + self._minimum_time_slice
                 ):
                     message = self._message_sequence[at_index]
                     at_index += 1
@@ -125,7 +125,7 @@ class AudioProcessor:
 
                 # Determine the segment length until the next MIDI message
                 if at_index < len(self._message_sequence):
-                    next_time = self._message_sequence[at_index].time
+                    next_time = self._message_sequence[at_index].timestamp
                     segment_length = int((next_time - at_time) * self.synthesizer.sample_rate)
                     # Clamp to remaining block size
                     segment_length = min(segment_length, block_size - block_offset)
@@ -200,7 +200,7 @@ class AudioProcessor:
             messages_in_segment = 0
             while (
                 at_index < len(self._message_sequence)
-                and self._message_sequence[at_index].time <= at_time + self._minimum_time_slice
+                and self._message_sequence[at_index].timestamp <= at_time + self._minimum_time_slice
             ):
                 message = self._message_sequence[at_index]
                 at_index += 1
@@ -211,7 +211,7 @@ class AudioProcessor:
 
             # Determine the segment length until the next MIDI message
             if at_index < len(self._message_sequence):
-                next_time = self._message_sequence[at_index].time
+                next_time = self._message_sequence[at_index].timestamp
                 segment_length = int((next_time - at_time) * self.synthesizer.sample_rate)
                 # Clamp to remaining block size
                 segment_length = min(segment_length, block_size - block_offset)
@@ -329,7 +329,7 @@ class AudioProcessor:
             # Add messages to the sequence and keep it sorted by time
             self._message_sequence.extend(messages)
             # Sort the entire sequence by time (only when new messages are added)
-            self._message_sequence.sort(key=lambda msg: msg.time)
+            self._message_sequence.sort(key=lambda msg: msg.timestamp)
 
     def rewind(self):
         """
@@ -373,7 +373,7 @@ class AudioProcessor:
             if not self._message_sequence:
                 return 0.0
             # Return the time of the last message
-            return self._message_sequence[-1].time
+            return self._message_sequence[-1].timestamp
 
     def get_message_sequence_length(self) -> int:
         """

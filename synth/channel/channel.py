@@ -200,7 +200,7 @@ class Channel:
         if transposed_note in self.active_voices:
             # Retrigger existing voice (for monophonic instruments)
             existing_voice = self.active_voices[transposed_note]
-            existing_voice.note_on(velocity, transposed_note)
+            existing_voice.note_on(velocity)
             return True
 
         # Create new VoiceInstance for this note
