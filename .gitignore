@@ -1,6 +1,9 @@
 # IDE settings folders
 .idea/
 .vscode/
+.qwen/
+.github/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

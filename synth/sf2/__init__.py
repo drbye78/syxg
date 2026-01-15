@@ -12,7 +12,4 @@ from .sf2_soundfont import *
 from .sf2_soundfont_manager import *
 from .sf2_zone_cache import *
 from .sf2_s90_s70 import *
-from .sf2_performance_test import *
 
-# Test suite (optional import - may have syntax issues)
-# from .sf2_comprehensive_test import run_sf2_compliance_tests
