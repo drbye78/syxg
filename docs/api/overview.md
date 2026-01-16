@@ -17,26 +17,32 @@ The XG Synthesizer API is organized into several key modules:
 
 ### ModernXGSynthesizer
 
-The main synthesizer class providing high-level control over all synthesis features.
+The main synthesizer class providing high-level control over all XG workstation synthesis features, including XG specification compliance, GS compatibility, MPE support, and advanced workstation capabilities.
 
 #### Constructor
 
 ```python
 ModernXGSynthesizer(
     sample_rate: int = 44100,
-    buffer_size: int = 1024,
-    max_polyphony: int = 256,
-    default_engine: str = "sf2",
-    real_time: bool = False
+    max_channels: int = 32,
+    xg_enabled: bool = True,
+    gs_enabled: bool = True,
+    mpe_enabled: bool = True,
+    device_id: int = 0x10,
+    gs_mode: str = 'auto',
+    s90_mode: bool = False
 )
 ```
 
 **Parameters:**
 - `sample_rate` (int): Audio sample rate in Hz (default: 44100)
-- `buffer_size` (int): Processing buffer size in samples (default: 1024)
-- `max_polyphony` (int): Maximum simultaneous voices (default: 256)
-- `default_engine` (str): Default synthesis engine (default: "sf2")
-- `real_time` (bool): Enable real-time processing (default: False)
+- `max_channels` (int): Maximum MIDI channels (default: 32, expanded for S90/S70 compatibility)
+- `xg_enabled` (bool): Enable XG specification features (default: True)
+- `gs_enabled` (bool): Enable GS compatibility mode (default: True)
+- `mpe_enabled` (bool): Enable MPE (Microtonal Pitch Expression) support (default: True)
+- `device_id` (int): MIDI device ID for XG/GS/MPE (default: 0x10)
+- `gs_mode` (str): GS/XG mode selection - 'xg', 'gs', or 'auto' (default: 'auto')
+- `s90_mode` (bool): Enable S90/S70 workstation compatibility features (default: False)
 
 #### Core Methods
 
@@ -229,40 +235,359 @@ Sets system chorus parameters.
 - `depth` (float): Modulation depth (0.0-1.0)
 - `feedback` (float): Feedback amount (-1.0 to 1.0)
 
-##### Performance Control
+##### Advanced Audio Processing
 
 ```python
-def set_max_polyphony(self, max_voices: int) -> None
+def generate_audio_block(self, block_size: Optional[int] = None) -> np.ndarray
 ```
 
-Sets the maximum number of simultaneous voices.
+Generates audio block with buffered MIDI message processing support.
 
 **Parameters:**
-- `max_voices` (int): Maximum polyphony (1-1024)
+- `block_size` (int, optional): Samples to generate (uses default if None)
+
+**Returns:** numpy.ndarray - Stereo audio array
 
 ```python
-def get_active_voices(self) -> int
+def generate_audio_block_sample_accurate(self) -> np.ndarray
 ```
 
-Returns the number of currently active voices.
+Generates audio block with true sample-perfect MIDI message processing.
 
-**Returns:** int - Number of active voices
+**Returns:** numpy.ndarray - Stereo audio array
 
 ```python
-def get_cpu_usage(self) -> float
+def send_midi_message_block(self, messages: List[Any]) -> None
 ```
 
-Returns current CPU usage percentage.
+Send block of MIDI messages for buffered processing.
 
-**Returns:** float - CPU usage (0.0-100.0)
+**Parameters:**
+- `messages` (List): MIDI message list
 
-#### Properties
+##### XG System Methods
 
 ```python
-sample_rate: int  # Current sample rate in Hz
-buffer_size: int  # Processing buffer size
-max_polyphony: int  # Maximum polyphony setting
-real_time: bool  # Real-time processing enabled
+def set_xg_reverb_type(self, reverb_type: int) -> bool
+```
+
+Set XG reverb type.
+
+**Parameters:**
+- `reverb_type` (int): Reverb type (0-12)
+
+**Returns:** bool - Success status
+
+```python
+def set_xg_chorus_type(self, chorus_type: int) -> bool
+```
+
+Set XG chorus type.
+
+**Parameters:**
+- `chorus_type` (int): Chorus type (0-17)
+
+**Returns:** bool - Success status
+
+```python
+def set_xg_variation_type(self, variation_type: int) -> bool
+```
+
+Set XG variation type.
+
+**Parameters:**
+- `variation_type` (int): Variation type (0-45)
+
+**Returns:** bool - Success status
+
+```python
+def set_drum_kit(self, channel: int, kit_number: int) -> bool
+```
+
+Set drum kit for channel.
+
+**Parameters:**
+- `channel` (int): MIDI channel (0-15)
+- `kit_number` (int): Drum kit number
+
+**Returns:** bool - Success status
+
+```python
+def apply_temperament(self, temperament_name: str) -> bool
+```
+
+Apply musical temperament.
+
+**Parameters:**
+- `temperament_name` (str): Temperament name
+
+**Returns:** bool - Success status
+
+```python
+def get_xg_compliance_report(self) -> Dict[str, Any]
+```
+
+Get XG compliance report.
+
+**Returns:** dict - Compliance information
+
+##### GS System Methods
+
+```python
+def set_gs_mode(self, mode: str) -> None
+```
+
+Set GS/XG mode.
+
+**Parameters:**
+- `mode` (str): Mode ('xg', 'gs', 'auto')
+
+```python
+def get_gs_system_info(self) -> Dict[str, Any]
+```
+
+Get GS system information.
+
+**Returns:** dict - GS system status
+
+```python
+def set_gs_part_parameter(self, part_number: int, param_id: int, value: int) -> bool
+```
+
+Set GS part parameter.
+
+**Parameters:**
+- `part_number` (int): Part number (0-15)
+- `param_id` (int): Parameter ID
+- `value` (int): Parameter value
+
+**Returns:** bool - Success status
+
+```python
+def reset_gs_system(self) -> None
+```
+
+Reset GS system to defaults.
+
+##### MPE System Methods
+
+```python
+def get_mpe_info(self) -> Dict[str, Any]
+```
+
+Get MPE system information.
+
+**Returns:** dict - MPE status and zones
+
+```python
+def set_mpe_enabled(self, enabled: bool) -> None
+```
+
+Enable or disable MPE.
+
+**Parameters:**
+- `enabled` (bool): MPE enabled state
+
+```python
+def reset_mpe(self) -> None
+```
+
+Reset MPE system.
+
+##### XGML v3.0 Integration
+
+```python
+def load_xgml_config(self, xgml_path: Union[str, Path]) -> bool
+```
+
+Load XGML v3.0 configuration from file.
+
+**Parameters:**
+- `xgml_path` (str/Path): XGML file path
+
+**Returns:** bool - Success status
+
+```python
+def load_xgml_string(self, xgml_string: str) -> bool
+```
+
+Load XGML v3.0 configuration from string.
+
+**Parameters:**
+- `xgml_string` (str): XGML YAML string
+
+**Returns:** bool - Success status
+
+```python
+def enable_config_hot_reloading(self, watch_paths: Optional[List[Union[str, Path]]] = None, check_interval: float = 1.0) -> bool
+```
+
+Enable configuration hot-reloading.
+
+**Parameters:**
+- `watch_paths` (List, optional): Paths to watch
+- `check_interval` (float): Check interval in seconds
+
+**Returns:** bool - Success status
+
+```python
+def disable_config_hot_reloading(self) -> bool
+```
+
+Disable configuration hot-reloading.
+
+**Returns:** bool - Success status
+
+```python
+def get_hot_reload_status(self) -> Dict[str, Any]
+```
+
+Get hot-reloading status.
+
+**Returns:** dict - Reload status information
+
+```python
+def trigger_manual_config_reload(self, path: Optional[Union[str, Path]] = None) -> bool
+```
+
+Manually trigger configuration reload.
+
+**Parameters:**
+- `path` (str/Path, optional): Specific path to reload
+
+**Returns:** bool - Success status
+
+##### Engine & Sound Management
+
+```python
+def load_soundfont(self, sf2_path: str) -> None
+```
+
+Load SoundFont file.
+
+**Parameters:**
+- `sf2_path` (str): SoundFont file path
+
+```python
+def set_channel_program(self, channel: int, bank: int, program: int) -> None
+```
+
+Set program for MIDI channel.
+
+**Parameters:**
+- `channel` (int): MIDI channel (0-15)
+- `bank` (int): Bank number (0-127)
+- `program` (int): Program number (0-127)
+
+```python
+def get_channel_info(self, channel: int) -> Optional[Dict[str, Any]]
+```
+
+Get channel information.
+
+**Parameters:**
+- `channel` (int): MIDI channel (0-15)
+
+**Returns:** dict - Channel information or None
+
+```python
+def get_synthesizer_info(self) -> Dict[str, Any]
+```
+
+Get comprehensive synthesizer information.
+
+**Returns:** dict - System information
+
+##### System Management
+
+```python
+def reset(self) -> None
+```
+
+Reset synthesizer to clean state.
+
+```python
+def cleanup(self) -> None
+```
+
+Clean up all resources.
+
+```python
+def set_master_volume(self, volume: float) -> None
+```
+
+Set master volume.
+
+**Parameters:**
+- `volume` (float): Volume (0.0-1.0)
+
+```python
+def finalize_audio_logging(self) -> None
+```
+
+Finalize audio logging.
+
+##### Receive Channel Management
+
+```python
+def set_receive_channel(self, part_id: int, midi_channel: int) -> bool
+```
+
+Set XG receive channel for part.
+
+**Parameters:**
+- `part_id` (int): XG part ID (0-15)
+- `midi_channel` (int): MIDI channel (0-15, 254=OFF, 255=ALL)
+
+**Returns:** bool - Success status
+
+```python
+def get_receive_channel(self, part_id: int) -> Optional[int]
+```
+
+Get XG receive channel for part.
+
+**Parameters:**
+- `part_id` (int): XG part ID (0-15)
+
+**Returns:** int - MIDI channel or None
+
+```python
+def get_parts_for_midi_channel(self, midi_channel: int) -> List[int]
+```
+
+Get parts receiving from MIDI channel.
+
+**Parameters:**
+- `midi_channel` (int): MIDI channel (0-15)
+
+**Returns:** List[int] - Part IDs
+
+```python
+def reset_receive_channels(self) -> None
+```
+
+Reset receive channels to XG defaults.
+
+```python
+def get_receive_channel_mapping(self) -> Dict[str, Any]
+```
+
+Get receive channel mapping status.
+
+**Returns:** dict - Channel mapping information
+
+#### Attributes
+
+```python
+sample_rate: int        # Current sample rate in Hz (read-only after initialization)
+max_channels: int       # Maximum MIDI channels (32 for S90/S70 compatibility)
+xg_enabled: bool        # XG system enabled (read-only after initialization)
+gs_enabled: bool        # GS system enabled (read-only after initialization)
+mpe_enabled: bool       # MPE system enabled (read-only after initialization)
+device_id: int          # MIDI device ID (0x10, read-only after initialization)
+gs_mode: str            # GS/XG mode ('auto', 'xg', 'gs')
+s90_mode: bool          # S90/S70 compatibility mode (read-only after initialization)
 ```
 
 ## 🎼 XGML API
