@@ -1,16 +1,22 @@
 """
-XG Synthesizer - Professional Workstation Implementation
+XG Synthesizer Package
 
-Complete software synthesizer with 98% S90/S70 compatibility,
-authentic XG specification support, and workstation-grade features.
+Python implementation of the Yamaha XG (eXtended General MIDI) synthesizer specification.
+Provides modular synthesis engine architecture with MIDI processing, effects, and voice management.
 
-Core Components:
-- 14 Synthesis Engines (AWM, AN, FDSP, FM, Additive, Granular, etc.)
-- Complete XG Effects (84 variations + VCM analog effects)
-- Professional Sequencing (Pattern-based with groove tools)
-- Sample Management (1000+ samples with intelligent caching)
-- S90/S70 Hardware Simulation (98% compatibility)
-- Real-time Performance (Optimized voice allocation)
+Package Structure:
+- core: Core synthesizer infrastructure (Synthesizer, Config, BufferPool, Constants)
+- engine: Synthesis engine implementations (SF2, FM, AN, FDSP, XG, etc.)
+- effects: Audio effects processing (XG effects, VCM effects, spatial processing)
+- voice: Polyphony management and voice allocation
+- xg: XG specification implementation (system, effects, controllers)
+- midi: MIDI message parsing and processing
+- audio: Audio I/O and sample management
+- sampling: Sample loading and manipulation
+- modulation: Parameter modulation and routing
+- sf2: SoundFont 2.0 file format support
+- sfz: SFZ sample format support
+- s90_s70: S90/S70 hardware compatibility layer
 """
 
 # Core synthesizer components

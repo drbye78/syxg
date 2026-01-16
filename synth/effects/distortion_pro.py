@@ -1,8 +1,8 @@
 """
-XG Distortion Effects - Production Implementation
+XG Distortion Effects
 
 This module implements XG distortion effects (types 43-56) with
-production-quality DSP algorithms using proper saturation modeling.
+DSP algorithms using saturation modeling.
 
 Effects implemented:
 - Overdrive 1-3 (43-45): Tube saturation modeling with asymmetric clipping
@@ -418,9 +418,9 @@ class DynamicEQEnhancer:
 
 class ProductionDistortionDynamicsProcessor:
     """
-    XG Distortion & Dynamics Effects Processor - Production Implementation
+    XG Distortion & Dynamics Effects Processor
 
-    Handles all distortion and dynamics effects with proper DSP algorithms.
+    Handles distortion and dynamics effects with DSP algorithms.
     """
 
     def __init__(self, sample_rate: int, max_delay_samples: int = 44100):

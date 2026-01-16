@@ -1,9 +1,8 @@
 """
 Yamaha Motif Effects System
 
-Complete implementation of Yamaha Motif effects processing with 40+ effect types,
-individual part processing, and professional workstation-grade algorithms.
-Provides authentic Motif effects compatibility with modern performance.
+Implementation of Yamaha Motif effects processing with multiple effect types
+and individual part processing.
 """
 
 import numpy as np
@@ -477,8 +476,7 @@ class MotifEffectsProcessor:
     """
     Yamaha Motif Effects Processor
 
-    Complete effects system with 40+ effect types, individual part processing,
-    and professional workstation-grade algorithms.
+    Effects system with multiple effect types and individual part processing.
     """
 
     def __init__(self, sample_rate: int = 44100):

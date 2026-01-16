@@ -1,10 +1,200 @@
 """
-Synthesizer Engine Registry - Complete Engine Management
+Engine Registry - Synthesis Engine Management Architecture
 
-Manages registration, discovery, and instantiation of all synthesis engines
-for the XG Synthesizer with 98% S90/S70 compatibility.
+ARCHITECTURAL OVERVIEW:
 
-Phase 2: Engine Registration - Complete engine integration.
+The XG Engine Registry implements a sophisticated synthesis engine management system
+designed for dynamic engine registration, priority-based selection, and capability-driven
+discovery in professional audio synthesis environments.
+
+ENGINE MANAGEMENT PHILOSOPHY:
+
+1. DYNAMIC REGISTRATION: Engines register themselves with the system at runtime
+2. PRIORITY-BASED SELECTION: Hierarchical priority system for engine selection
+3. CAPABILITY-DRIVEN DISCOVERY: Feature-based engine discovery and matching
+4. RESOURCE-AWARE OPTIMIZATION: System resource consideration for engine selection
+5. FAILURE-TOLERANT DESIGN: Graceful degradation when engines fail to register
+
+ENGINE PRIORITY HIERARCHY:
+
+The registry implements a sophisticated priority system that reflects synthesis quality
+and hardware compatibility requirements:
+
+S90/S70 COMPATIBILITY ENGINES (Highest Priority):
+- FDSP (10): Formant Dynamic Synthesis Processor - Vocal synthesis
+- AN (9): Analog Physical Modeling - RP-PR modeling
+- XG (7): XG AWM Synthesis - Core XG implementation
+
+PROFESSIONAL SYNTHESIS ENGINES (Medium Priority):
+- SF2 (8): SoundFont 2.0 - Professional sample playback
+- FM (6): Frequency Modulation - Algorithmic synthesis
+- WAVETABLE (5): Wavetable Synthesis - Modern wavetable techniques
+- ADDITIVE (4): Additive Synthesis - Harmonic synthesis
+
+ADVANCED/EXPERIMENTAL ENGINES (Lower Priority):
+- GRANULAR (3): Granular Synthesis - Time-based processing
+- PHYSICAL (2): Physical Modeling - Acoustic modeling
+- CONVOLUTION (1): Convolution Reverb - Spatial processing
+- SPECTRAL (1): Spectral Processing - Frequency domain synthesis
+
+ENGINE REGISTRATION ARCHITECTURE:
+
+REGISTRATION PROCESS:
+1. Engine Discovery: Automatic discovery of available engine implementations
+2. Instance Creation: Factory-based engine instantiation with configuration
+3. Capability Assessment: Feature analysis and capability tagging
+4. Priority Assignment: Automatic priority assignment based on engine type
+5. Validation: Interface compliance and functionality verification
+
+REGISTRATION LIFECYCLE:
+- Registration: Engine added to active registry with metadata
+- Activation: Engine becomes available for voice allocation
+- Monitoring: Performance tracking and health monitoring
+- Deactivation: Graceful engine shutdown and cleanup
+
+ENGINE DISCOVERY SYSTEM:
+
+FILE-BASED DISCOVERY:
+- Extension-based engine selection (.sf2 → SF2, .wav → various)
+- Content analysis for format detection
+- MIME-type mapping for advanced file types
+
+CAPABILITY-BASED DISCOVERY:
+- Feature requirement matching (e.g., 'formant_synthesis' → FDSP)
+- Compatibility checking (e.g., 'dx7_compatibility' → FM)
+- Resource requirement validation
+
+ENGINE CAPABILITY MAPPING:
+
+Each engine type maps to specific synthesis capabilities:
+
+FDSP Engine:
+- formant_synthesis: Vocal tract modeling
+- vocal_modeling: Human voice simulation
+- phoneme_transition: Speech synthesis transitions
+
+AN Engine:
+- physical_modeling: Physical acoustic modeling
+- analog_emulation: Analog circuit simulation
+- rp_pr_modeling: Roland Physical Modeling
+
+SF2 Engine:
+- sample_playback: Multi-sample playback
+- soundfont_support: SF2 specification compliance
+- multi_sample: Layered sample playback
+
+XG Engine:
+- awm_synthesis: Advanced Wave Memory synthesis
+- wave_rom: Internal wave ROM access
+- workstation_synthesis: Professional workstation features
+
+RESOURCE OPTIMIZATION ARCHITECTURE:
+
+SYSTEM RESOURCE ASSESSMENT:
+- CPU core count and utilization monitoring
+- Memory availability and allocation tracking
+- Real-time performance requirement analysis
+- Hardware capability detection (SIMD, AVX, etc.)
+
+ENGINE SELECTION OPTIMIZATION:
+- Automatic engine selection based on available resources
+- Priority adjustment for resource-constrained systems
+- Fallback engine selection for compatibility
+- Performance-based engine ranking
+
+RESOURCE REQUIREMENT PROFILING:
+
+CPU REQUIREMENTS (cores):
+- FDSP: 2 cores (complex vocal modeling)
+- AN: 2 cores (physical modeling complexity)
+- SF2: 1 core (sample playback optimized)
+- XG: 1 core (ROM-based synthesis)
+- FM: 1 core (algorithmic efficiency)
+- WAVETABLE: 1 core (scan-based synthesis)
+
+MEMORY REQUIREMENTS (MB):
+- FDSP: 100MB (formant data and models)
+- AN: 150MB (physical model state)
+- SF2: 200MB (sample data caching)
+- XG: 100MB (wave ROM and presets)
+- FM: 50MB (algorithm parameters)
+- SPECTRAL: 150MB (FFT buffers and analysis)
+
+PERFORMANCE MONITORING:
+
+REGISTRY STATISTICS:
+- Engine registration success/failure rates
+- Engine utilization patterns
+- Resource usage tracking
+- Performance bottleneck identification
+
+ENGINE HEALTH MONITORING:
+- Engine instantiation success rates
+- Runtime stability tracking
+- Memory leak detection
+- CPU usage profiling
+
+INTEGRATION ARCHITECTURE:
+
+SYNTHESIZER INTEGRATION:
+- Voice allocation engine selection
+- Program change engine routing
+- Parameter routing to active engines
+- Performance monitoring integration
+
+XG SYSTEM INTEGRATION:
+- XG program to engine mapping
+- Effect compatibility checking
+- Parameter range validation
+- System resource arbitration
+
+VOICE MANAGER INTEGRATION:
+- Engine priority communication
+- Voice stealing strategy coordination
+- Resource availability reporting
+- Performance optimization feedback
+
+ERROR HANDLING & RECOVERY:
+
+REGISTRATION FAILURE HANDLING:
+- Graceful degradation when engines fail to load
+- Fallback engine selection
+- User notification and logging
+- Automatic retry mechanisms
+
+RUNTIME ENGINE FAILURE:
+- Engine health monitoring
+- Automatic engine restart
+- Fallback to compatible engines
+- System stability preservation
+
+VALIDATION & COMPLIANCE:
+
+INTERFACE COMPLIANCE:
+- SynthesisEngine interface verification
+- Required method implementation checking
+- Parameter compatibility validation
+- Real-time capability assessment
+
+XG SPECIFICATION COMPLIANCE:
+- Engine feature set validation
+- Parameter range compliance
+- Performance requirement verification
+- Compatibility mode support
+
+EXTENSIBILITY ARCHITECTURE:
+
+PLUGIN ENGINE SUPPORT:
+- Dynamic engine loading from external modules
+- Third-party engine integration
+- Custom capability registration
+- Priority system extension
+
+ENGINE FACTORY PATTERN:
+- Engine instantiation abstraction
+- Configuration parameter passing
+- Resource allocation coordination
+- Lifecycle management integration
 """
 
 from typing import Dict, List, Any, Optional
@@ -24,10 +214,10 @@ from .spectral_engine import SpectralEngine
 
 class XGEngineRegistry:
     """
-    XG Engine Registry - Complete Engine Management System
+    Engine Registry
 
-    Provides centralized management of all synthesis engines with automatic
-    registration, priority-based selection, and capability discovery.
+    Provides centralized management of synthesis engines with registration,
+    priority-based selection, and capability discovery.
     """
 
     def __init__(self, sample_rate: int = 44100):

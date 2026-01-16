@@ -1,9 +1,177 @@
 """
-Zero-Allocation Buffer Pool
+Buffer Pool Management - Zero-Allocation Memory Architecture
 
-Production-ready buffer management system that guarantees zero runtime allocations
-in audio processing threads. Provides pre-allocated, reusable buffers with SIMD
-alignment and comprehensive memory management.
+ARCHITECTURAL OVERVIEW:
+
+The XG Buffer Pool implements a sophisticated zero-allocation memory management system
+designed specifically for real-time audio processing. It eliminates runtime memory
+allocation overhead through pre-allocation, pooling, and intelligent buffer reuse,
+ensuring deterministic performance in professional audio applications.
+
+MEMORY MANAGEMENT PHILOSOPHY:
+
+1. ZERO-ALLOCATION DESIGN: All buffers pre-allocated at startup, no runtime malloc/free
+2. POOL-BASED REUSE: Intelligent buffer categorization and reuse based on size/channel requirements
+3. SIMD ALIGNMENT: All buffers aligned for optimal SIMD (AVX/AVX2/AVX-512) performance
+4. MEMORY BUDGETING: Configurable memory limits with graceful degradation
+5. THREAD SAFETY: Lock-free operations for audio thread, thread-safe management operations
+
+POOL ORGANIZATION:
+
+The buffer pool is organized into three main categories:
+
+MONO BUFFERS (1 channel):
+- Optimized for single-channel processing (oscillators, effects sends)
+- Sizes: 256, 512, 1024, 2048, 4096, 8192 samples
+- Allocation: Pre-allocated based on expected usage patterns
+
+STEREO BUFFERS (2 channels):
+- Primary format for audio processing pipeline
+- Sizes: Same as mono buffers
+- Allocation: Highest allocation priority (most commonly used)
+- Special handling for channel mixing and effects processing
+
+MULTI-CHANNEL BUFFERS (3+ channels):
+- For surround sound and multi-channel effects
+- Configurations: (1024/2048 samples) × (4/6/8 channels)
+- Allocation: Minimal pre-allocation, dynamic allocation as needed
+
+BUFFER ALLOCATION STRATEGY:
+
+PRIMARY ALLOCATION (Zero-overhead):
+1. Exact size match from appropriate pool
+2. Immediate return if available
+3. O(1) lookup using dictionary-based pools
+
+FALLBACK ALLOCATION (Minimal overhead):
+1. Larger buffer allocation if exact size unavailable
+2. Dynamic allocation within memory budget
+3. Automatic pool expansion for new sizes
+
+EMERGENCY ALLOCATION (Last resort):
+1. Memory pressure detection and reporting
+2. Graceful degradation with smaller buffers
+3. Comprehensive error reporting and recovery
+
+SIMD ALIGNMENT ARCHITECTURE:
+
+ALIGNMENT REQUIREMENTS:
+- AVX-256: 32-byte alignment for optimal performance
+- AVX-512: 64-byte alignment for future-proofing
+- Cache line alignment: 64-byte boundaries for cache efficiency
+
+ALIGNMENT IMPLEMENTATION:
+1. Over-allocation: Allocate extra bytes for alignment
+2. Offset calculation: Find properly aligned memory region
+3. View creation: Create aligned numpy array view on aligned memory
+4. Memory tracking: Track original allocation for proper cleanup
+
+PERFORMANCE OPTIMIZATION:
+
+CACHE OPTIMIZATION:
+- Buffer size categorization minimizes cache misses
+- Sequential allocation patterns optimize memory locality
+- Pool organization reduces lookup overhead
+
+MEMORY EFFICIENCY:
+- Pre-allocation eliminates fragmentation
+- Buffer reuse maximizes memory utilization
+- Configurable memory budgets prevent over-allocation
+
+THREADING ARCHITECTURE:
+
+DUAL-THREADING MODEL:
+- AUDIO THREAD: Lock-free buffer operations during processing
+- MANAGEMENT THREAD: Thread-safe pool management and statistics
+
+SYNCHRONIZATION STRATEGY:
+- ReadWrite locks for pool access
+- Atomic operations for statistics
+- Context managers for automatic cleanup
+
+CONTEXT MANAGER PATTERN:
+
+ZERO-ALLOCATION USAGE:
+```python
+with buffer_pool.temporary_buffer(1024, 2) as buffer:
+    # Process audio - guaranteed zero allocation
+    process_audio(buffer)
+# Buffer automatically returned to pool
+```
+
+MANUAL MANAGEMENT:
+```python
+buffer = pool.get_stereo_buffer(1024)
+try:
+    process_audio(buffer)
+finally:
+    pool.return_buffer(buffer)  # Explicit return
+```
+
+MEMORY PRESSURE HANDLING:
+
+BUDGET MANAGEMENT:
+- Configurable memory limits (default 256MB)
+- Dynamic allocation within budget constraints
+- Automatic cleanup under memory pressure
+
+PRESSURE DETECTION:
+- Usage threshold monitoring (80% warning, 95% critical)
+- Automatic garbage collection under pressure
+- Emergency cleanup for critical situations
+
+LEAK DETECTION:
+- Active buffer tracking with stack traces
+- Thread-aware leak detection
+- Comprehensive debugging information
+
+INTEGRATION POINTS:
+
+SYNTHESIZER INTEGRATION:
+- Direct integration with XG synthesizer audio pipeline
+- Buffer pool initialization during synthesizer startup
+- Automatic buffer lifecycle management
+
+EFFECTS SYSTEM INTEGRATION:
+- XGBufferManager context manager for effects processing
+- Automatic buffer allocation/deallocation
+- Zero-overhead effects chaining
+
+VALIDATION & MONITORING:
+
+COMPREHENSIVE VALIDATION:
+- Pool integrity checking
+- Memory corruption detection
+- Buffer leak detection
+- Performance regression monitoring
+
+STATISTICS TRACKING:
+- Allocation/deallocation counters
+- Cache hit/miss ratios
+- Memory utilization metrics
+- Contention and performance statistics
+
+XG SPECIFICATION COMPLIANCE:
+
+PROFESSIONAL AUDIO STANDARDS:
+- Sample-accurate buffer management
+- Deterministic latency characteristics
+- Professional memory usage patterns
+- Real-time safety guarantees
+
+ERROR HANDLING:
+
+GRACEFUL DEGRADATION:
+- Buffer pool exhaustion handling
+- Memory budget exceeded recovery
+- Fallback to smaller buffer sizes
+- Comprehensive error reporting
+
+RECOVERY STRATEGIES:
+- Automatic pool optimization
+- Emergency cleanup procedures
+- Memory pressure relief mechanisms
+- Diagnostic information collection
 """
 
 from typing import Dict, List, Any, Optional, Tuple, Union
@@ -63,14 +231,10 @@ class BufferStatistics:
 
 class XGBufferPool:
     """
-    Zero-Allocation XG Buffer Pool
+    XG Buffer Pool
 
-    Production-ready buffer management system with the following guarantees:
-    - Zero runtime allocations in audio threads
-    - SIMD-aligned memory for optimal performance
-    - Comprehensive memory tracking and validation
-    - Automatic defragmentation and optimization
-    - Thread-safe operations with minimal contention
+    Buffer management system providing pre-allocated, reusable audio buffers
+    with SIMD alignment, memory tracking, and thread-safe operations.
     """
 
     # SIMD alignment requirements (bytes)

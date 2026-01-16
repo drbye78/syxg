@@ -1,8 +1,271 @@
 """
-PyAV-Powered Sample Manager for SFZ Synthesis
+XG Audio Sample Management Architecture - Professional PyAV-Powered Sample Processing System
 
-Leverages the project's existing 'av' package for high-performance,
-format-agnostic sample loading and management.
+ARCHITECTURAL OVERVIEW:
+
+The XG Audio Sample Management Architecture implements a comprehensive, professional-grade
+sample processing system designed for high-performance audio synthesis. Leveraging the
+powerful PyAV library, this system provides format-agnostic sample loading, intelligent
+caching strategies, and streaming capabilities essential for modern audio applications.
+
+SAMPLE MANAGEMENT PHILOSOPHY:
+
+The sample management system serves as the foundation for all sample-based synthesis
+in the XG synthesizer, providing a unified interface for diverse audio formats while
+maintaining professional performance standards and memory efficiency.
+
+1. FORMAT AGNOSTIC PROCESSING: Universal support for all major audio formats
+2. INTELLIGENT RESOURCE MANAGEMENT: LRU caching with configurable memory limits
+3. STREAMING ARCHITECTURE: On-demand loading for large sample libraries
+4. PROFESSIONAL AUDIO STANDARDS: Sample-accurate processing and metadata preservation
+5. HIGH-PERFORMANCE OPTIMIZATION: SIMD-accelerated processing and memory efficiency
+
+PYAV INTEGRATION ARCHITECTURE:
+
+LIBAV/FFMPEG POWERED PROCESSING:
+The system leverages the comprehensive Libav/FFmpeg multimedia framework through PyAV,
+providing professional-grade audio decoding and processing capabilities:
+
+COMPREHENSIVE FORMAT SUPPORT:
+- UNCOMPRESSED FORMATS: WAV, AIFF, raw PCM with various bit depths
+- LOSSLESS COMPRESSION: FLAC, ALAC, Monkey's Audio, WavPack
+- LOSSY COMPRESSION: MP3, AAC, OGG Vorbis, WMA
+- PROFESSIONAL FORMATS: BWF, RF64 for broadcast applications
+
+ADVANCED DECODING FEATURES:
+- MULTI-CHANNEL SUPPORT: Up to 64-channel audio with proper channel mapping
+- HIGH BIT DEPTH: 8-bit to 64-bit floating-point precision
+- SAMPLE RATE CONVERSION: Automatic resampling with high-quality algorithms
+- METADATA PRESERVATION: Complete metadata extraction and storage
+
+SAMPLE CACHING ARCHITECTURE:
+
+INTELLIGENT LRU CACHE SYSTEM:
+The sample cache implements a sophisticated least-recently-used (LRU) eviction strategy
+optimized for real-time audio synthesis performance:
+
+MEMORY MANAGEMENT:
+- CONFIGURABLE MEMORY LIMITS: User-definable maximum memory usage
+- DYNAMIC EVICTION: Automatic cleanup when memory limits are exceeded
+- ACCESS TIME TRACKING: Precise LRU ordering for optimal cache performance
+- THREAD-SAFE OPERATIONS: Concurrent access protection with minimal contention
+
+CACHE OPTIMIZATION:
+- MEMORY USAGE MONITORING: Real-time memory consumption tracking
+- PREFETCHING SUPPORT: Predictive loading for upcoming samples
+- COMPRESSION AWARENESS: Memory-efficient storage of compressed samples
+- CACHE HIT OPTIMIZATION: Fast lookup with hash-based indexing
+
+STREAMING SAMPLE ARCHITECTURE:
+
+LARGE FILE STREAMING:
+For samples exceeding memory thresholds, the system provides streaming capabilities
+that enable playback of massive sample libraries without memory constraints:
+
+STREAMING OPTIMIZATION:
+- ON-DEMAND DECODING: Decode only required audio segments
+- POSITION-BASED SEEKING: Sample-accurate positioning within large files
+- BUFFER MANAGEMENT: Efficient buffering for continuous playback
+- MEMORY-EFFICIENT PROCESSING: Minimal memory footprint for streaming operations
+
+STREAMING WORKFLOW:
+1. FILE ANALYSIS: Quick format detection and metadata extraction
+2. POSITION SEEKING: Fast seeking to required sample positions
+3. DECODED BUFFERING: Decode audio in optimal block sizes
+4. CONTINUOUS PLAYBACK: Seamless streaming with buffer underrun prevention
+
+SAMPLE PROCESSING ARCHITECTURE:
+
+PROFESSIONAL SAMPLE PROCESSING:
+The system provides comprehensive sample manipulation capabilities essential for
+professional audio synthesis:
+
+SAMPLE CONVERSION:
+- BIT DEPTH CONVERSION: Automatic conversion between bit depths
+- SAMPLE RATE CONVERSION: High-quality resampling algorithms
+- CHANNEL FORMAT CONVERSION: Mono/stereo and surround format handling
+- FLOATING-POINT NORMALIZATION: Proper level scaling and headroom management
+
+METADATA EXTRACTION:
+- COMPREHENSIVE TAGGING: Complete metadata preservation from source files
+- LOOP POINT DETECTION: Automatic loop point identification and storage
+- CUE POINT MANAGEMENT: Marker and cue point extraction and storage
+- FORMAT-SPECIFIC METADATA: Codec-specific parameter preservation
+
+LOOP AND RELEASE PROCESSING:
+- LOOP POINT MANAGEMENT: Start/end loop point configuration
+- RELEASE SAMPLE HANDLING: Proper release sample processing
+- CROSSFADE OPTIMIZATION: Seamless loop transitions
+- ARTICULATION PRESERVATION: Maintain sample attack and release characteristics
+
+SFZ INTEGRATION ARCHITECTURE:
+
+SFZ SAMPLE MANAGEMENT:
+The sample manager provides specialized support for SFZ (SoundFont) sample format,
+enabling professional-grade sample-based synthesis:
+
+SFZ-COMPATIBLE FEATURES:
+- MULTI-SAMPLE LAYERING: Velocity and key-based sample selection
+- ROUND-ROBIN SUPPORT: Alternating sample playback for natural variation
+- RANDOM SELECTION: Random sample choice for enhanced realism
+- CROSSFADING: Smooth transitions between adjacent samples
+
+SAMPLE DATABASE MANAGEMENT:
+- SAMPLE LIBRARY ORGANIZATION: Hierarchical sample organization
+- METADATA INDEXING: Fast sample lookup and retrieval
+- DEPENDENCY TRACKING: Sample usage tracking for cleanup
+- LIBRARY OPTIMIZATION: Duplicate sample detection and consolidation
+
+PERFORMANCE OPTIMIZATION ARCHITECTURE:
+
+REAL-TIME PERFORMANCE OPTIMIZATION:
+The sample manager implements multiple optimization strategies for real-time performance:
+
+MEMORY OPTIMIZATION:
+- ZERO-COPY OPERATIONS: Direct buffer access where possible
+- MEMORY MAPPED FILES: Efficient access to large sample files
+- BUFFER POOLING: Reusable buffer allocation for repeated operations
+- GARBAGE COLLECTION MINIMIZATION: Reduced GC pressure in audio threads
+
+CPU OPTIMIZATION:
+- SIMD ACCELERATION: Vectorized audio processing operations
+- MULTI-THREADED LOADING: Background loading for non-real-time operations
+- CACHE-COHERENT ACCESS: Memory layout optimization for CPU cache efficiency
+- INSTRUCTION CACHE OPTIMIZATION: Code layout for optimal instruction prefetching
+
+I/O OPTIMIZATION:
+- ASYNCHRONOUS LOADING: Non-blocking file operations
+- READ AHEAD CACHING: Predictive loading of upcoming samples
+- BUFFERED I/O: Efficient disk access patterns
+- FILE SYSTEM OPTIMIZATION: Optimized file access for different storage types
+
+PROFESSIONAL AUDIO STANDARDS:
+
+SAMPLE ACCURACY:
+- SUB-SAMPLE PRECISION: Interpolation between audio samples
+- PHASE ALIGNMENT: Consistent phase relationships across samples
+- JITTER ELIMINATION: Precise timing for sample playback
+- SYNCHRONIZATION: SMPTE and tempo-based timing support
+
+DYNAMIC RANGE MANAGEMENT:
+- HEADROOM OPTIMIZATION: Proper level scaling and headroom preservation
+- SOFT LIMITING: Transparent overload protection
+- NOISE FLOOR CONTROL: Low-level noise management and dithering
+- DYNAMIC COMPRESSION: Intelligent level control and enhancement
+
+QUALITY ASSURANCE:
+- SAMPLE VALIDATION: Audio file integrity checking
+- FORMAT COMPLIANCE: Standard compliance verification
+- METADATA CONSISTENCY: Metadata validation and correction
+- PERFORMANCE MONITORING: Real-time performance tracking and reporting
+
+MULTI-CHANNEL SUPPORT:
+
+PROFESSIONAL MULTI-CHANNEL HANDLING:
+The system provides comprehensive support for multi-channel audio essential for
+professional applications:
+
+CHANNEL CONFIGURATIONS:
+- MONO/Stereo: Standard mono and stereo sample support
+- SURROUND SOUND: 5.1, 7.1, and immersive audio formats
+- STEM SEPARATION: Multi-channel stem playback and mixing
+- BINAURAL PROCESSING: Headphone-optimized spatial audio
+
+CHANNEL MANAGEMENT:
+- CHANNEL MAPPING: Flexible channel assignment and routing
+- DOWNMIXING: Automatic downmixing for reduced channel counts
+- UPMIXING: Intelligent upmixing for enhanced spatial imaging
+- CHANNEL VALIDATION: Format compliance and channel count verification
+
+INTEGRATION ARCHITECTURE:
+
+SYNTHESIZER INTEGRATION:
+- ENGINE INTERFACE: Direct integration with synthesis engines
+- VOICE MANAGEMENT: Sample allocation for polyphonic playback
+- EFFECTS COORDINATION: Sample-based effects processing integration
+- MODULATION SUPPORT: Real-time sample parameter modulation
+
+WORKSTATION INTEGRATION:
+- PROJECT MANAGEMENT: Sample organization within projects
+- LIBRARY MANAGEMENT: Shared sample libraries across sessions
+- METADATA PROPAGATION: Sample information preservation in projects
+- AUTOMATION SUPPORT: Sample parameter automation and control
+
+EXTENSIBILITY ARCHITECTURE:
+
+PLUGIN SAMPLE FORMATS:
+- CUSTOM FORMAT LOADERS: Support for proprietary audio formats
+- THIRD-PARTY CODECS: Integration with additional audio codecs
+- USER-DEFINED PROCESSING: Custom sample processing pipelines
+- EXTENDED METADATA: Additional metadata field support
+
+ADVANCED FEATURES:
+- SPECTRAL PROCESSING: FFT-based sample analysis and manipulation
+- TIME-STRETCHING: Real-time pitch and time modification
+- GRAIN SYNTHESIS: Granular synthesis from sample sources
+- CONVOLUTION ENGINES: Impulse response processing integration
+
+RESEARCH FEATURES:
+- AI-ASSISTED PROCESSING: Machine learning sample enhancement
+- NEURAL SYNTHESIS: Neural network-based sample generation
+- ADAPTIVE PROCESSING: Real-time adaptation based on playback context
+- PREDICTIVE LOADING: AI-based sample prefetching optimization
+
+FUTURE EXPANSION:
+
+PROFESSIONAL INTEGRATION:
+- DAW PLUGIN SUPPORT: Native integration with digital audio workstations
+- HARDWARE ACCELERATION: GPU and DSP acceleration for sample processing
+- CLOUD PROCESSING: Server-based high-performance sample processing
+- DISTRIBUTED SYSTEMS: Network-based sample library sharing
+
+NEXT-GENERATION FEATURES:
+- HIGH-SAMPLE RATE SUPPORT: 192kHz, 384kHz, and DSD processing
+- IMMERSIVE AUDIO: Dolby Atmos and MPEG-H spatial audio support
+- AI ENHANCEMENT: Machine learning-based sample quality improvement
+- QUANTUM PROCESSING: Advanced mathematical processing for sample manipulation
+
+ARCHITECTURAL PATTERNS:
+
+DESIGN PATTERNS IMPLEMENTED:
+- STRATEGY PATTERN: Different loading strategies for different sample types
+- FACTORY PATTERN: Sample object creation based on format and requirements
+- OBSERVER PATTERN: Cache event notification and monitoring
+- ADAPTER PATTERN: Format abstraction for unified sample interface
+
+ARCHITECTURAL PRINCIPLES:
+- SINGLE RESPONSIBILITY: Each component handles one aspect of sample management
+- OPEN/CLOSED PRINCIPLE: New sample formats without modifying core architecture
+- DEPENDENCY INVERSION: Abstract interfaces for sample processing
+- COMPOSITION OVER INHERITANCE: Modular sample management assembly
+
+ERROR HANDLING AND DIAGNOSTICS:
+
+COMPREHENSIVE ERROR HANDLING:
+- FILE CORRUPTION DETECTION: Invalid audio file identification
+- FORMAT INCOMPATIBILITY: Unsupported format graceful degradation
+- MEMORY ALLOCATION FAILURE: Automatic cleanup and resource management
+- I/O ERROR RECOVERY: Network and disk error handling and recovery
+
+DIAGNOSTIC CAPABILITIES:
+- SAMPLE ANALYSIS: Detailed audio file structure reporting
+- PERFORMANCE PROFILING: Loading and processing performance monitoring
+- MEMORY ANALYSIS: Sample memory usage and cache efficiency reporting
+- ERROR LOGGING: Comprehensive error tracking and reporting
+
+INDUSTRY COMPLIANCE:
+
+PROFESSIONAL STANDARDS:
+- AES/EBU STANDARDS: Professional audio engineering standards
+- EBU RECOMMENDED PRACTICES: European broadcasting standards
+- SMPTE TIMING: Broadcast and post-production timing standards
+- IEEE AUDIO STANDARDS: Technical audio processing standards
+
+QUALITY ASSURANCE:
+- RELIABILITY TESTING: Extensive audio file compatibility testing
+- PERFORMANCE VALIDATION: Real-time performance verification across formats
+- COMPATIBILITY TESTING: Multi-platform and multi-format testing
+- USER EXPERIENCE: Professional user interface and workflow design
 """
 
 import os

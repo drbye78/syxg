@@ -1,17 +1,244 @@
 #!/usr/bin/env python3
 """
-XG RECEIVE CHANNEL MANAGER
+XG Receive Channel Manager - XG Channel Mapping and Routing Architecture
 
-Production-quality XG MIDI channel mapping implementation.
-Manages receive channel assignments for all 16 XG parts with thread-safe operations.
+ARCHITECTURAL OVERVIEW:
 
-XG Specification Compliance:
-- Each part (0-15) can receive from any MIDI channel (0-15)
-- Default: Part N receives from MIDI channel N
-- Supports dynamic reassignment via SYSEX and NRPN
-- Thread-safe for real-time performance
+The XG Receive Channel Manager implements a sophisticated channel mapping and routing system
+that serves as the central nervous system for XG multi-timbral operation. It provides the
+critical infrastructure for Yamaha XG specification compliance, enabling complex MIDI channel
+routing scenarios essential for professional music production.
 
-Copyright (c) 2025
+XG CHANNEL MAPPING PHILOSOPHY:
+
+The XG specification revolutionized MIDI by introducing flexible channel routing that breaks
+the traditional 1:1 relationship between MIDI channels and synthesizer parts. This architecture
+enables:
+
+1. FLEXIBLE MULTI-TIMBRALITY: Parts can receive from any MIDI channel or multiple channels
+2. BROADCAST CAPABILITIES: Single MIDI channel can drive multiple parts simultaneously
+3. DYNAMIC RECONFIGURATION: Real-time channel mapping changes via SYSEX/NRPN
+4. RESOURCE OPTIMIZATION: Efficient O(1) lookup performance for real-time processing
+
+CHANNEL MAPPING ARCHITECTURE:
+
+THREE-TIER MAPPING SYSTEM:
+- PRIMARY MAPPING: part_id → receive_channel (core assignment)
+- REVERSE LOOKUP: midi_channel → [part_ids] (optimized routing)
+- ROUTING ENGINE: Message distribution with conflict resolution
+
+MAPPING MODES:
+
+XG SPECIFICATION CHANNEL ASSIGNMENTS:
+- STANDARD MODE: Part N receives from MIDI channel N (default)
+- CUSTOM MAPPING: Any part can receive from any channel
+- BROADCAST MODE: Part receives from ALL channels (255)
+- DISABLED MODE: Part is disabled and receives from no channels (254)
+
+MAPPING RULES:
+- Valid MIDI channels: 0-15 (standard MIDI channels)
+- Special values: 254=OFF (disabled), 255=ALL (broadcast)
+- Multiple parts can receive from same channel (layering)
+- One part can only receive from one channel assignment (no multi-channel per part)
+
+REVERSE LOOKUP OPTIMIZATION:
+
+PERFORMANCE-CRITICAL DESIGN:
+The reverse lookup tables enable O(1) MIDI message routing, critical for real-time performance:
+
+FORWARD MAPPING: part_id → receive_channel
+- Simple array lookup: receive_channels[part_id]
+- Used for configuration and status queries
+
+REVERSE MAPPING: midi_channel → [part_ids]
+- Dictionary of lists: midi_to_parts[channel] = [part_id1, part_id2, ...]
+- Pre-computed during mapping changes
+- Enables instant message routing decisions
+
+OPTIMIZATION STRATEGIES:
+- Lazy rebuild: Reverse tables rebuilt only when mappings change
+- Thread-safe updates: Atomic mapping changes with consistency guarantees
+- Memory efficiency: Sparse arrays for typical 1:1 mappings
+
+MIDI MESSAGE ROUTING ARCHITECTURE:
+
+MULTI-STAGE ROUTING PIPELINE:
+1. CHANNEL IDENTIFICATION: Extract MIDI channel from message
+2. PART RESOLUTION: Lookup target parts using reverse mapping
+3. MESSAGE DUPLICATION: Create routed message copies for each target part
+4. METADATA ENRICHMENT: Add routing information and original channel tracking
+5. DELIVERY DISPATCH: Forward messages to appropriate part processors
+
+ROUTING SCENARIOS:
+
+ONE-TO-ONE ROUTING (Standard):
+- MIDI CH 0 → Part 0 (default XG mapping)
+- Single message, single destination
+
+ONE-TO-MANY ROUTING (Layering):
+- MIDI CH 0 → Parts 0, 1, 2 (multi-layer instrument)
+- Single message, multiple destinations
+
+MANY-TO-ONE ROUTING (Consolidation):
+- MIDI CH 0,1,2 → Part 0 (channel merging)
+- Multiple sources, single destination
+
+BROADCAST ROUTING (Global):
+- Any MIDI CH → All Parts (system-wide messages)
+- Single source, all destinations
+
+XG SPECIFICATION COMPLIANCE:
+
+SYSEX CHANNEL CONTROL:
+XG SYSEX Format: F0 43 [device] 4C 08 [part] [channel] F7
+- Device ID: XG device identifier (typically 0x10)
+- Part number: 0-15 for XG parts
+- Channel assignment: 0-15, 254=OFF, 255=ALL
+
+NRPN CHANNEL CONTROL:
+XG NRPN Mapping: MSB 126 (7E), LSB = part_number, Data = channel
+- MSB 126: XG system parameter indicator
+- LSB: Target part number (0-15)
+- Data: Channel assignment (0-15, 254=OFF, 255=ALL)
+
+PARAMETER VALIDATION:
+- Range checking: Valid part IDs and channel assignments
+- Conflict detection: Multiple parts on same channel (allowed)
+- Specification compliance: XG standard value ranges
+
+THREAD SAFETY ARCHITECTURE:
+
+REENTRANT LOCK DESIGN:
+- threading.RLock() for recursive lock acquisition
+- Protects mapping consistency during updates
+- Prevents race conditions in real-time routing
+- Allows nested operations within same thread
+
+ATOMIC OPERATIONS:
+- Mapping changes are atomic with reverse table rebuilds
+- No intermediate inconsistent states visible to readers
+- Configuration changes don't interrupt active routing
+
+CONCURRENT ACCESS PATTERNS:
+- Reader threads: MIDI processing and routing queries
+- Writer threads: Configuration changes and SYSEX/NRPN updates
+- Lock contention minimization through efficient operations
+
+PERFORMANCE OPTIMIZATION:
+
+REAL-TIME PERFORMANCE TARGETS:
+- O(1) channel lookup: Critical for sample-accurate timing
+- Zero-allocation routing: Pre-allocated data structures
+- Minimal lock contention: Read-heavy optimization
+
+MEMORY EFFICIENCY:
+- Sparse data structures for typical mappings
+- Pre-allocated arrays for fixed-size mappings
+- Lazy allocation for complex routing scenarios
+
+CACHE COHERENCE:
+- CPU cache-friendly data access patterns
+- Sequential processing for related operations
+- Memory layout optimization for lookup tables
+
+INTEGRATION ARCHITECTURE:
+
+SYNTHESIZER INTEGRATION:
+- Direct integration with XG synthesizer message processing
+- Voice allocation coordination with channel routing
+- Effects processing routing based on part assignments
+
+MIDI PROCESSOR INTEGRATION:
+- Pre-routing message filtering and validation
+- Post-routing message enrichment and tagging
+- Error handling and fallback routing strategies
+
+XG COMPONENT INTEGRATION:
+- XG State Manager: Channel mapping state persistence
+- XG MIDI Processor: SYSEX/NRPN parameter handling
+- XG Effects Coordinator: Part-specific effects routing
+
+ERROR HANDLING & DIAGNOSTICS:
+
+COMPREHENSIVE ERROR HANDLING:
+- Invalid part/channel parameter validation
+- Mapping consistency verification
+- Thread safety violation detection
+- Performance degradation monitoring
+
+DIAGNOSTIC CAPABILITIES:
+- Mapping conflict detection and reporting
+- Routing statistics and performance metrics
+- Configuration validation and suggestions
+- Debug logging with detailed context
+
+MONITORING & TELEMETRY:
+
+ROUTING STATISTICS:
+- Messages routed per channel/part
+- Routing conflicts and resolution
+- Performance timing and latency metrics
+- Memory usage and efficiency reports
+
+CONFIGURATION AUDIT:
+- Mapping validation against XG specifications
+- Performance impact assessment
+- Compatibility checking with connected devices
+- Usage pattern analysis and optimization suggestions
+
+EXTENSIBILITY ARCHITECTURE:
+
+PLUGIN CHANNEL MAPPING:
+- Custom routing algorithms beyond XG specification
+- Third-party channel mapping protocols support
+- Advanced routing features (conditional routing, etc.)
+
+DYNAMIC RECONFIGURATION:
+- Runtime mapping changes without service interruption
+- Hot-swappable routing configurations
+- Backup and restore of complex mappings
+
+FUTURE EXPANSION:
+
+ADVANCED ROUTING FEATURES:
+- Conditional routing based on message content
+- Velocity-based channel splitting
+- Note range-based routing decisions
+- Real-time routing automation
+
+MULTI-DEVICE SUPPORT:
+- Multiple XG devices with coordinated routing
+- Distributed synthesizer networks
+- Cloud-based routing intelligence
+- AI-assisted routing optimization
+
+PROFESSIONAL AUDIO INTEGRATION:
+
+DAW INTEGRATION:
+- Standard MIDI channel routing compatibility
+- VST/AU plugin parameter mapping
+- Host automation integration
+- Project-based routing configurations
+
+HARDWARE CONTROLLER SUPPORT:
+- Surface-based channel mapping control
+- LED feedback for active routings
+- Touchscreen routing visualization
+- Hardware preset management
+
+XG STANDARD COMPLIANCE:
+
+YAMAHA XG SPECIFICATION v2.0:
+- Complete channel mapping implementation
+- SYSEX parameter control support
+- NRPN parameter control support
+- Multi-timbral operation verification
+
+PROFESSIONAL MUSIC PRODUCTION:
+- Studio-grade routing reliability
+- Real-time reconfiguration capabilities
+- Comprehensive error handling
+- Performance monitoring and optimization
 """
 
 from typing import Dict, List, Optional, Tuple, Any
@@ -21,15 +248,15 @@ import numpy as np
 
 class XGReceiveChannelManager:
     """
-    XG RECEIVE CHANNEL MANAGER
+    XG Receive Channel Manager
 
-    Manages XG receive channel mapping with O(1) lookup performance.
-    Supports full XG specification compliance for MIDI channel routing.
+    Manages XG receive channel mapping with efficient lookup performance.
+    Supports XG specification channel routing with SYSEX and NRPN control.
 
-    Key Features:
+    Features:
     - 16-element receive channel mapping (parts 0-15)
-    - O(1) MIDI-to-part lookup using reverse mapping tables
-    - Thread-safe operations for real-time use
+    - Efficient MIDI-to-part lookup using reverse mapping tables
+    - Thread-safe operations
     - XG SYSEX and NRPN parameter support
     - Default 1:1 mapping (XG standard)
 

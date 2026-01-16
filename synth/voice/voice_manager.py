@@ -1,10 +1,87 @@
 """
-Voice Manager - Polyphony Management and Voice Allocation
+Voice Manager - Polyphony Management and Voice Allocation System
 
-Professional voice management system with intelligent allocation,
-polyphony control, and real-time voice state tracking.
+ARCHITECTURAL OVERVIEW:
 
-Part of S90/S70 compatibility - Core Infrastructure (Phase 1).
+The VoiceManager implements a sophisticated polyphony management system designed for
+real-time audio synthesis with complex voice allocation strategies. It serves as the
+central authority for voice lifecycle management in the XG synthesizer system.
+
+VOICE ALLOCATION ARCHITECTURE:
+
+The voice allocation system uses a two-phase approach:
+
+1. FREE VOICE ALLOCATION:
+   - Maintains a pool of pre-allocated voice IDs (0 to max_voices-1)
+   - Uses set-based lookup for O(1) free voice detection
+   - Immediate allocation for available voices
+
+2. VOICE STEALING (when polyphony limit exceeded):
+   - Priority-based stealing using configurable strategies
+   - Engine-specific priority weighting (FDSP > AN > SF2 > XG > FM > etc.)
+   - Multiple stealing algorithms: oldest, quietest, lowest, highest, priority
+
+VOICE STATE MANAGEMENT:
+
+Voice states follow ADSR envelope progression:
+- ATTACK: Initial note-on processing
+- DECAY: Transition to sustain level
+- SUSTAIN: Main note duration
+- RELEASE: Note-off decay
+- PENDING_RELEASE: Queued for release
+
+PERFORMANCE OPTIMIZATION:
+
+- Thread-safe operations using reentrant locks
+- Zero-allocation design for real-time paths
+- Efficient data structures (dicts, sets) for fast lookups
+- Configurable statistics tracking with bounded history
+- Callback system for external monitoring
+
+POLYPHONY CONTROL STRATEGIES:
+
+1. PRIORITY-BASED: Engine priority determines stealing order
+   - FDSP (vocal): Highest priority (10)
+   - AN (analog): High priority (9)
+   - SF2 (samples): Medium-high (8)
+   - XG (synthesis): Medium (7)
+   - FM (algorithms): Medium-low (6)
+
+2. TEMPORAL-BASED: Age-based voice stealing
+   - OLDEST: First-in, first-out replacement
+   - NEWEST: Last-in, first-out (less common)
+
+3. CONTENT-BASED: Voice content analysis
+   - QUIETEST: Replace lowest velocity voices
+   - LOWEST/HIGHEST: Note-based replacement
+
+MEMORY MANAGEMENT:
+
+- Pre-allocated voice ID pools prevent runtime allocation
+- Bounded lifetime history (max_lifetime_history) prevents unbounded growth
+- Automatic cleanup on voice deallocation
+- Statistics tracking with configurable retention
+
+CALLBACK SYSTEM:
+
+Three callback types for external integration:
+- voice_allocated_callback: New voice creation notification
+- voice_deallocated_callback: Voice release notification
+- voice_stolen_callback: Voice stealing event notification
+
+INTEGRATION POINTS:
+
+- Synthesizer: Main integration point for note_on/note_off
+- Engine Registry: Provides engine priority information
+- Performance Monitor: Receives allocation statistics
+- Effects Coordinator: May apply per-voice effects
+
+ERROR HANDLING:
+
+- Graceful degradation when allocation fails
+- Comprehensive statistics tracking for debugging
+- Thread-safe operations prevent race conditions
+- Validation of input parameters
 """
 
 from typing import Dict, List, Any, Optional, Callable, Set
@@ -50,10 +127,97 @@ class VoiceInfo:
 
 class VoiceManager:
     """
-    Voice Manager - Professional Polyphony Management
+    Voice Manager - Polyphony Management and Voice Allocation System
 
-    Intelligent voice allocation system with configurable stealing strategies,
-    real-time voice state tracking, and performance monitoring.
+    RESPONSIBILITIES:
+    ================
+    The VoiceManager serves as the central authority for voice lifecycle management in the XG synthesizer.
+    It implements sophisticated polyphony control algorithms that balance real-time performance with
+    musical expressiveness, ensuring optimal voice utilization while maintaining audio quality.
+
+    ARCHITECTURAL ROLE:
+    ===================
+    - Voice Lifecycle Manager: Controls allocation, deallocation, and state transitions
+    - Polyphony Arbiter: Enforces polyphony limits through configurable stealing strategies
+    - Resource Optimizer: Maximizes voice utilization while preventing audio artifacts
+    - Performance Monitor: Tracks allocation patterns and provides optimization recommendations
+    - State Coordinator: Maintains voice state consistency across the synthesis pipeline
+
+    VOICE ALLOCATION STRATEGY:
+    =========================
+    The voice allocation system operates with a hierarchical priority scheme:
+
+    1. ENGINE PRIORITY: Synthesis engines have inherent priorities (FDSP > AN > SF2 > XG > FM)
+    2. VOICE STEALING: When polyphony limit exceeded, voices are stolen based on strategy
+    3. STATE PRESERVATION: Voice states are maintained during allocation/deallocation
+    4. CALLBACK NOTIFICATION: External systems are notified of allocation events
+
+    STEALING ALGORITHMS:
+    ====================
+    - PRIORITY: Steals lowest-priority voices first (default for XG compliance)
+    - OLDEST: FIFO replacement (predictable but may cut sustained notes)
+    - QUIETEST: Replaces lowest-velocity voices (preserves loudest notes)
+    - LOWEST/HIGHEST: Note-based replacement (frequency-specific management)
+
+    PERFORMANCE OPTIMIZATION:
+    ========================
+    - Pre-allocated ID pools prevent runtime allocation overhead
+    - Set-based free voice tracking enables O(1) allocation
+    - Bounded statistics history prevents memory leaks
+    - Thread-safe operations with reentrant locking
+    - Callback system minimizes external polling
+
+    DATA STRUCTURES:
+    ===============
+    - active_voices: Dict[int, VoiceInfo] - O(1) voice lookup by ID
+    - free_voice_ids: Set[int] - O(1) free voice detection
+    - voice_lifetimes: List[float] - Bounded history for statistics
+    - allocation_stats: Dict - Real-time performance metrics
+
+    INTEGRATION CONTRACTS:
+    =====================
+    The VoiceManager defines clear interfaces for external integration:
+
+    Required Methods:
+    - allocate_voice(): Request voice allocation with parameters
+    - deallocate_voice(): Release voice by ID
+    - find_voice(): Locate voice by channel/note combination
+    - get_active_voices(): Enumerate all active voices
+
+    Optional Methods:
+    - set_stealing_strategy(): Configure voice stealing behavior
+    - set_voice_priority(): Adjust engine priority weighting
+    - optimize_polyphony(): Analyze and recommend settings
+
+    Callback Interface:
+    - voice_allocated_callback: Voice creation notification
+    - voice_deallocated_callback: Voice release notification
+    - voice_stolen_callback: Voice replacement notification
+
+    ERROR HANDLING:
+    ==============
+    - Allocation failures return None with statistics tracking
+    - Invalid parameters are validated and rejected
+    - Thread safety prevents race condition corruption
+    - Graceful degradation when voice limits exceeded
+
+    MONITORING & DIAGNOSTICS:
+    ========================
+    Comprehensive monitoring capabilities:
+    - Real-time allocation statistics (success/failure rates)
+    - Voice lifetime analysis (average, peak, distribution)
+    - Engine utilization breakdown (per-engine voice counts)
+    - Channel activity monitoring (per-channel statistics)
+    - Performance optimization recommendations
+
+    XG SPECIFICATION COMPLIANCE:
+    ===========================
+    Implements XG voice management requirements:
+    - 16 MIDI channels with independent voice allocation
+    - Engine-specific voice reserve capabilities
+    - Real-time parameter modulation support
+    - Note-on/note-off state tracking
+    - Voice stealing with minimal artifacts
     """
 
     def __init__(self, max_voices: int = 64):
