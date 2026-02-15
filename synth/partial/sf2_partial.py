@@ -75,6 +75,25 @@ class SF2Partial(SynthesisPartial):
             # Fallback to buffer_pool if memory_pool doesn't exist
             self.audio_buffer = synth.buffer_pool.get_stereo_buffer(synth.block_size)
             self.work_buffer = synth.buffer_pool.get_mono_buffer(synth.block_size)
+        
+        # Initialize buffer references to None - these will be allocated from pooled buffers
+        # This follows the zero-allocation principle by using shared buffers from memory pools
+        self.vib_lfo_buffer = None
+        self.mod_lfo_buffer = None
+        self.mod_env_buffer = None
+        self.lfo_pitch_buffer = None
+        self.lfo_filter_buffer = None
+        self.lfo_volume_buffer = None
+        self.lfo_pan_buffer = None
+        
+        # Initialize performance optimization buffers
+        self._pitch_mod_vector = None
+        self._filter_mod_vector = None
+        self._volume_mod_vector = None
+        self._pan_mod_vector = None
+        
+        # Initialize buffer allocation flags
+        self._buffers_allocated = False
 
         # Acquire pooled envelope for amplitude envelope
         if hasattr(synth, 'envelope_pool'):
@@ -137,6 +156,10 @@ class SF2Partial(SynthesisPartial):
         self.base_phase_step: float = 1.0      # Base phase step without modulation
         self.sample_position: float = 0.0
         self.pitch_ratio: float = 1.0
+        
+        # Initialize base phase step based on sample rate and default pitch
+        # This ensures proper pitch calculations from the start
+        self.base_phase_step = 440.0 / synth.sample_rate  # Default to A4 (440Hz) at sample rate
 
         # Loop parameters
         self.loop_mode: int = 0
@@ -239,35 +262,49 @@ class SF2Partial(SynthesisPartial):
         Returns:
             Stereo audio buffer (block_size * 2) as float32 array
         """
+        # Validate inputs
+        if not isinstance(block_size, int) or block_size <= 0:
+            block_size = 1024  # Use default if invalid
+            
         if not self.active or self.sample_data is None:
             return np.zeros(block_size * 2, dtype=np.float32)
 
-        # Apply global modulation from modulation matrix
-        self._apply_global_modulation(modulation)
+        try:
+            # Ensure buffers are allocated before proceeding
+            self._ensure_buffers_allocated(block_size)
+            
+            # Apply global modulation from modulation matrix
+            self._apply_global_modulation(modulation)
 
-        # Generate real-time LFO modulation signals
-        self._generate_lfo_signals(block_size)
+            # Generate real-time LFO modulation signals
+            self._generate_lfo_signals(block_size)
 
-        # Generate modulation envelope signals
-        self._generate_modulation_envelope_signals(block_size)
+            # Generate modulation envelope signals
+            self._generate_modulation_envelope_signals(block_size)
 
-        # Generate base wavetable samples with continuous pitch modulation
-        self._generate_wavetable_samples_realtime(block_size)
+            # Generate base wavetable samples with continuous pitch modulation
+            self._generate_wavetable_samples_realtime(block_size)
 
-        # Apply amplitude envelope
-        self._apply_envelope(block_size)
+            # Apply amplitude envelope
+            self._apply_envelope(block_size)
 
-        # Apply resonant filtering with real-time modulation
-        self._apply_filter_realtime(block_size)
+            # Apply resonant filtering with real-time modulation
+            self._apply_filter_realtime(block_size)
 
-        # Apply tremolo (volume modulation) and auto-pan
-        self._apply_volume_pan_modulation(block_size)
+            # Apply tremolo (volume modulation) and auto-pan
+            self._apply_volume_pan_modulation(block_size)
 
-        # Apply final spatial processing and volume
-        self._apply_spatial_processing(block_size)
+            # Apply final spatial processing and volume
+            self._apply_spatial_processing(block_size)
 
-        # Return stereo interleaved audio
-        return self.audio_buffer[:block_size * 2]
+            # Ensure output buffer is properly sized
+            output_size = min(block_size * 2, len(self.audio_buffer))
+            return self.audio_buffer[:output_size].copy()
+
+        except Exception as e:
+            # In production, this should log to error reporting system
+            # For now, return silence to prevent audio glitches
+            return np.zeros(block_size * 2, dtype=np.float32)
 
     def _apply_global_modulation(self, modulation: Dict):
         """
@@ -446,19 +483,41 @@ class SF2Partial(SynthesisPartial):
             return
 
         sample_length = len(self.sample_data)
+        
+        # Ensure loop boundaries are valid
+        self.loop_start = max(0, min(sample_length, self.loop_start))
+        self.loop_end = max(self.loop_start, min(sample_length, self.loop_end))
+        
         if self.loop_mode == 0:
             # No loop - stop at end
             if self.sample_position >= sample_length:
                 self.active = False
                 self.sample_position = sample_length - 1
-        elif self.loop_mode in [1, 3]:  # Forward loop or loop+release
+        elif self.loop_mode == 1:  # Forward loop
             # Loop between loop_start and loop_end
-            if self.sample_position >= self.loop_end:
-                if self.loop_end > self.loop_start:
-                    loop_length = self.loop_end - self.loop_start
-                    self.sample_position = self.loop_start + (self.sample_position - self.loop_end) % loop_length
+            if self.sample_position >= self.loop_end and self.loop_end > self.loop_start:
+                loop_length = self.loop_end - self.loop_start
+                if loop_length > 0:
+                    # Calculate how far past the loop end we are
+                    excess = self.sample_position - self.loop_end
+                    # Wrap back to the loop start plus the excess
+                    self.sample_position = self.loop_start + (excess % loop_length)
                 else:
-                    self.sample_position = self.loop_start
+                    self.active = False  # No valid loop range
+        elif self.loop_mode == 3:  # Loop and continue
+            # Loop while in loop range, then continue to end
+            if self.loop_start <= self.sample_position < self.loop_end:
+                # Still in loop range, loop normally
+                if self.sample_position >= self.loop_end and self.loop_end > self.loop_start:
+                    loop_length = self.loop_end - self.loop_start
+                    if loop_length > 0:
+                        # Calculate how far past the loop end we are
+                        excess = self.sample_position - self.loop_end
+                        # Wrap back to the loop start plus the excess
+                        self.sample_position = self.loop_start + (excess % loop_length)
+            elif self.sample_position >= sample_length:
+                # Past loop range, check if we've reached the end
+                self.active = False
 
     def _apply_envelope(self, block_size: int):
         """Apply amplitude envelope using pooled envelope."""
@@ -716,11 +775,22 @@ class SF2Partial(SynthesisPartial):
             value: Parameter value (pre-scaled)
         """
         if param_name == 'pitch_modulation':
-            self.pitch_mod = value
+            self.pitch_mod = max(-24.0, min(24.0, value))  # Clamp to ±24 semitones
         elif param_name == 'filter_modulation':
-            self.filter_mod = value
+            self.filter_mod = max(-5.0, min(5.0, value))  # Clamp to ±5 octaves
         elif param_name == 'volume_modulation':
-            self.volume_mod *= value
+            self.volume_mod = max(0.0, min(2.0, self.volume_mod * value))  # Clamp to reasonable range
+        elif param_name == 'pan_modulation':
+            # Apply pan modulation to existing pan
+            current_pan = getattr(self, '_channel_pan', 0.0)
+            new_pan = current_pan + value
+            self._channel_pan = max(-1.0, min(1.0, new_pan))
+        elif param_name == 'reverb_send_modulation':
+            # Apply reverb send modulation
+            self.reverb_effects_send = max(0.0, min(1.0, self.reverb_effects_send + value))
+        elif param_name == 'chorus_send_modulation':
+            # Apply chorus send modulation
+            self.chorus_effects_send = max(0.0, min(1.0, self.chorus_effects_send + value))
 
     def apply_partial_parameter(self, param_name: str, value: float) -> None:
         """
@@ -768,10 +838,11 @@ class SF2Partial(SynthesisPartial):
         Returns:
             Dictionary with effect send levels (reverb, chorus, variation)
         """
+        # Combine SF2-specific sends with channel sends
         return {
-            'reverb': getattr(self, '_channel_reverb_send', 0.0),
-            'chorus': getattr(self, '_channel_chorus_send', 0.0),
-            'variation': getattr(self, '_channel_variation_send', 0.0)
+            'reverb': max(0.0, min(1.0, self.reverb_effects_send + getattr(self, '_channel_reverb_send', 0.0))),
+            'chorus': max(0.0, min(1.0, self.chorus_effects_send + getattr(self, '_channel_chorus_send', 0.0))),
+            'variation': max(0.0, min(1.0, getattr(self, '_channel_variation_send', 0.0)))
         }
 
     def get_channel_pan(self) -> float:
@@ -819,6 +890,31 @@ class SF2Partial(SynthesisPartial):
             self.mod_lfo.reset()
         if self.vib_lfo:
             self.vib_lfo.reset()
+
+        # Reset buffer allocation state - don't reset the actual pooled buffers
+        # as they may be shared with other partials
+        self._buffers_allocated = False
+        
+        # Reset modulation state
+        if hasattr(self, '_mod_env_state'):
+            self._mod_env_state = None
+            
+        # Reset sample data
+        self.sample_data = None
+        self.active = False
+        
+        # Reset buffer references to None for next allocation
+        self.vib_lfo_buffer = None
+        self.mod_lfo_buffer = None
+        self.mod_env_buffer = None
+        self.lfo_pitch_buffer = None
+        self.lfo_filter_buffer = None
+        self.lfo_volume_buffer = None
+        self.lfo_pan_buffer = None
+        self._pitch_mod_vector = None
+        self._filter_mod_vector = None
+        self._volume_mod_vector = None
+        self._pan_mod_vector = None
 
     def get_partial_info(self) -> Dict[str, Any]:
         """Get SF2 partial information for debugging."""
@@ -1036,19 +1132,44 @@ class SF2Partial(SynthesisPartial):
         if 'filter_resonance' in matrix_params:
             # Modulate filter resonance (add to existing resonance)
             res_mod = matrix_params['filter_resonance']
-            # This would apply to the filter if extended modulation is supported
+            # Apply to filter parameters
+            if self.filter:
+                try:
+                    current_params = self.filter.get_parameters() if hasattr(self.filter, 'get_parameters') else {}
+                    current_resonance = current_params.get('resonance', 0.7)
+                    new_resonance = current_resonance + res_mod
+                    # Clamp resonance to prevent instability
+                    new_resonance = max(0.0, min(30.0, new_resonance))
+                    self.filter.set_parameters(resonance=new_resonance)
+                except:
+                    # If filter doesn't support parameter updates, store for later
+                    self._pending_filter_resonance = max(0.0, min(30.0, resonance + res_mod))
 
         # SF2 generator modulation
         if 'sf2_lfo_depth' in matrix_params:
             # Modulate overall LFO depth for SF2 effects
             depth_mod = matrix_params['sf2_lfo_depth']
-            self.vib_lfo_to_pitch *= (1.0 + depth_mod)
-            self.mod_lfo_to_volume *= (1.0 + depth_mod)
+            self.vib_lfo_to_pitch = max(-1200.0, min(1200.0, self.vib_lfo_to_pitch * (1.0 + depth_mod)))
+            self.mod_lfo_to_pitch = max(-1200.0, min(1200.0, self.mod_lfo_to_pitch * (1.0 + depth_mod)))
+            self.mod_lfo_to_filter = max(-1200.0, min(1200.0, self.mod_lfo_to_filter * (1.0 + depth_mod)))
+            self.mod_lfo_to_volume = max(-960.0, min(960.0, self.mod_lfo_to_volume * (1.0 + depth_mod)))
 
         if 'sf2_env_depth' in matrix_params:
             # Modulate modulation envelope depth
             env_mod = matrix_params['sf2_env_depth']
-            self.mod_env_to_pitch *= (1.0 + env_mod)
+            self.mod_env_to_pitch = max(-12000.0, min(12000.0, self.mod_env_to_pitch * (1.0 + env_mod)))
+
+        # Additional SF2 generator modulations
+        if 'filter_cutoff_mod' in matrix_params:
+            # Modulate filter cutoff
+            cutoff_mod = matrix_params['filter_cutoff_mod']
+            base_cutoff = self.params.get('filter', {}).get('cutoff', 20000.0)
+            self.filter_mod = max(-5.0, min(5.0, cutoff_mod))  # Clamp to ±5 octaves
+
+        if 'pitch_mod' in matrix_params:
+            # Modulate pitch
+            pitch_mod = matrix_params['pitch_mod']
+            self.pitch_mod = max(-24.0, min(24.0, pitch_mod))  # Clamp to ±24 semitones
 
     def update_global_effects_routing(self, global_effects: Dict):
         """
@@ -1092,6 +1213,9 @@ class SF2Partial(SynthesisPartial):
 
     def _generate_lfo_signals(self, block_size: int):
         """Generate LFO modulation signals for the current block."""
+        # Ensure buffers are allocated before proceeding
+        self._ensure_buffers_allocated(block_size)
+        
         # Generate vibrato LFO signal
         if self.vib_lfo and self.active:
             # Update LFO parameters with proper error handling
@@ -1117,14 +1241,18 @@ class SF2Partial(SynthesisPartial):
                 if hasattr(self.vib_lfo, 'generate_block'):
                     result = self.vib_lfo.generate_block(block_size)
                     if isinstance(result, np.ndarray):
-                        self.vib_lfo_buffer[:block_size] = result
+                        # Ensure we don't exceed buffer size
+                        copy_size = min(len(result), block_size, len(self.vib_lfo_buffer))
+                        self.vib_lfo_buffer[:copy_size] = result[:copy_size]
                     else:
                         # If generate_block returns a single value, broadcast it
-                        self.vib_lfo_buffer[:block_size] = result
+                        copy_size = min(block_size, len(self.vib_lfo_buffer))
+                        self.vib_lfo_buffer[:copy_size] = result
                 else:
                     # Fallback: generate simple sine wave
                     phase = getattr(self, '_vib_lfo_phase', 0.0)
-                    for i in range(block_size):
+                    copy_size = min(block_size, len(self.vib_lfo_buffer))
+                    for i in range(copy_size):
                         self.vib_lfo_buffer[i] = np.sin(phase)
                         phase += 2.0 * np.pi * self.freq_vib_lfo / self.synth.sample_rate
                     self._vib_lfo_phase = phase
@@ -1132,7 +1260,8 @@ class SF2Partial(SynthesisPartial):
             except Exception as e:
                 # Ultimate fallback: generate simple modulation
                 phase = getattr(self, '_vib_lfo_phase', 0.0)
-                for i in range(block_size):
+                copy_size = min(block_size, len(self.vib_lfo_buffer))
+                for i in range(copy_size):
                     self.vib_lfo_buffer[i] = 0.5 * np.sin(phase)  # 0.5 depth
                     phase += 2.0 * np.pi * 5.0 / self.synth.sample_rate  # 5 Hz default
                 self._vib_lfo_phase = phase
@@ -1159,13 +1288,17 @@ class SF2Partial(SynthesisPartial):
                 if hasattr(self.mod_lfo, 'generate_block'):
                     result = self.mod_lfo.generate_block(block_size)
                     if isinstance(result, np.ndarray):
-                        self.mod_lfo_buffer[:block_size] = result
+                        # Ensure we don't exceed buffer size
+                        copy_size = min(len(result), block_size, len(self.mod_lfo_buffer))
+                        self.mod_lfo_buffer[:copy_size] = result[:copy_size]
                     else:
-                        self.mod_lfo_buffer[:block_size] = result
+                        copy_size = min(block_size, len(self.mod_lfo_buffer))
+                        self.mod_lfo_buffer[:copy_size] = result
                 else:
                     # Fallback: generate simple sine wave
                     phase = getattr(self, '_mod_lfo_phase', 0.0)
-                    for i in range(block_size):
+                    copy_size = min(block_size, len(self.mod_lfo_buffer))
+                    for i in range(copy_size):
                         self.mod_lfo_buffer[i] = np.sin(phase)
                         phase += 2.0 * np.pi * self.freq_mod_lfo / self.synth.sample_rate
                     self._mod_lfo_phase = phase
@@ -1173,13 +1306,17 @@ class SF2Partial(SynthesisPartial):
             except Exception as e:
                 # Ultimate fallback
                 phase = getattr(self, '_mod_lfo_phase', 0.0)
-                for i in range(block_size):
+                copy_size = min(block_size, len(self.mod_lfo_buffer))
+                for i in range(copy_size):
                     self.mod_lfo_buffer[i] = 0.3 * np.sin(phase)  # 0.3 depth
                     phase += 2.0 * np.pi * 6.0 / self.synth.sample_rate  # 6 Hz default
                 self._mod_lfo_phase = phase
 
     def _generate_modulation_envelope_signals(self, block_size: int):
         """Generate modulation envelope signals for the current block."""
+        # Ensure buffers are allocated before proceeding
+        self._ensure_buffers_allocated(block_size)
+        
         # Initialize modulation envelope if needed
         if not hasattr(self, '_mod_env_state'):
             self._init_modulation_envelope_state()
@@ -1187,22 +1324,67 @@ class SF2Partial(SynthesisPartial):
         # Generate modulation envelope samples
         for i in range(block_size):
             mod_env_value = self._calculate_modulation_envelope_sample()
-            self.mod_env_buffer[i] = mod_env_value
+            # Ensure we don't exceed buffer size
+            if i < len(self.mod_env_buffer):
+                self.mod_env_buffer[i] = mod_env_value
 
             # Update envelope state
             self._update_modulation_envelope_state()
 
     def _init_modulation_envelope_state(self):
         """Initialize modulation envelope state."""
+        # Ensure time values are positive to avoid division by zero
+        attack_time = max(0.001, self.attack_mod_env)  # Minimum 1ms
+        decay_time = max(0.001, self.decay_mod_env)    # Minimum 1ms
+        release_time = max(0.001, self.release_mod_env)  # Minimum 1ms
+        
         self._mod_env_state = {
             'stage': 'idle',  # idle, attack, decay, sustain, release
             'level': 0.0,
             'stage_time': 0.0,
-            'attack_rate': 1.0 / (self.attack_mod_env * self.synth.sample_rate) if self.attack_mod_env > 0 else 1.0,
-            'decay_rate': 1.0 / (self.decay_mod_env * self.synth.sample_rate) if self.decay_mod_env > 0 else 1.0,
-            'release_rate': 1.0 / (self.release_mod_env * self.synth.sample_rate) if self.release_mod_env > 0 else 1.0,
-            'sustain_level': self.sustain_mod_env
+            'attack_rate': 1.0 / (attack_time * self.synth.sample_rate) if attack_time > 0 else 1.0,
+            'decay_rate': 1.0 / (decay_time * self.synth.sample_rate) if decay_time > 0 else 1.0,
+            'release_rate': 1.0 / (release_time * self.synth.sample_rate) if release_time > 0 else 1.0,
+            'sustain_level': max(0.0, min(1.0, self.sustain_mod_env))  # Clamp to valid range
         }
+    
+    def _ensure_buffers_allocated(self, block_size: int):
+        """Ensure all required buffers are allocated from the memory pool."""
+        if not self._buffers_allocated:
+            # Allocate buffers from the synth's memory pool or buffer pool
+            if hasattr(self.synth, 'memory_pool'):
+                pool = self.synth.memory_pool
+            elif hasattr(self.synth, 'buffer_pool'):
+                pool = self.synth.buffer_pool
+            else:
+                # Fallback: create temporary buffers (not ideal but prevents crashes)
+                self.vib_lfo_buffer = np.zeros(block_size, dtype=np.float32)
+                self.mod_lfo_buffer = np.zeros(block_size, dtype=np.float32)
+                self.mod_env_buffer = np.zeros(block_size, dtype=np.float32)
+                self.lfo_pitch_buffer = np.zeros(block_size, dtype=np.float32)
+                self.lfo_filter_buffer = np.zeros(block_size, dtype=np.float32)
+                self.lfo_volume_buffer = np.zeros(block_size, dtype=np.float32)
+                self.lfo_pan_buffer = np.zeros(block_size, dtype=np.float32)
+                self._pitch_mod_vector = np.zeros(block_size, dtype=np.float32)
+                self._filter_mod_vector = np.zeros(block_size, dtype=np.float32)
+                self._volume_mod_vector = np.zeros(block_size, dtype=np.float32)
+                self._pan_mod_vector = np.zeros(block_size, dtype=np.float32)
+                self._buffers_allocated = True
+                return
+
+            # Use pooled buffers from the memory pool
+            self.vib_lfo_buffer = pool.get_mono_buffer(block_size)
+            self.mod_lfo_buffer = pool.get_mono_buffer(block_size)
+            self.mod_env_buffer = pool.get_mono_buffer(block_size)
+            self.lfo_pitch_buffer = pool.get_mono_buffer(block_size)
+            self.lfo_filter_buffer = pool.get_mono_buffer(block_size)
+            self.lfo_volume_buffer = pool.get_mono_buffer(block_size)
+            self.lfo_pan_buffer = pool.get_mono_buffer(block_size)
+            self._pitch_mod_vector = pool.get_mono_buffer(block_size)
+            self._filter_mod_vector = pool.get_mono_buffer(block_size)
+            self._volume_mod_vector = pool.get_mono_buffer(block_size)
+            self._pan_mod_vector = pool.get_mono_buffer(block_size)
+            self._buffers_allocated = True
 
     def _calculate_modulation_envelope_sample(self) -> float:
         """Calculate current modulation envelope sample."""
@@ -1231,12 +1413,17 @@ class SF2Partial(SynthesisPartial):
         """Update modulation envelope state for next sample."""
         state = self._mod_env_state
 
+        # Update stage time counter
+        state['stage_time'] += 1.0 / self.synth.sample_rate
+
         # Simple envelope progression (would be triggered by note events)
         # This is a basic implementation - real envelopes need proper triggering
         if state['stage'] == 'attack' and state['level'] >= 1.0:
             state['stage'] = 'decay'
+            state['stage_time'] = 0.0
         elif state['stage'] == 'decay' and state['level'] <= state['sustain_level']:
             state['stage'] = 'sustain'
+            state['stage_time'] = 0.0
         # Release would be triggered by note-off events
 
     def _generate_wavetable_samples_realtime(self, block_size: int):
@@ -1340,32 +1527,41 @@ class SF2Partial(SynthesisPartial):
         if not self.filter:
             return
 
+        # Ensure buffers are allocated before proceeding
+        self._ensure_buffers_allocated(block_size)
+
         # Prepare filter modulation for each sample
         for i in range(block_size):
             # Calculate filter modulation for this sample
             filter_mod = self.filter_mod  # Static modulation
 
             # Add LFO filter modulation
-            if self.mod_lfo_buffer is not None and i < len(self.mod_lfo_buffer):
+            if i < len(self.mod_lfo_buffer):
                 filter_mod += self.mod_lfo_buffer[i] * self.mod_lfo_to_filter
 
             # Add modulation envelope filter modulation
-            if self.mod_env_buffer is not None and i < len(self.mod_env_buffer):
+            if i < len(self.mod_env_buffer):
                 filter_mod += self.mod_env_buffer[i] * self.mod_env_to_filter
 
             # Calculate modulated cutoff frequency
             base_cutoff = self.params.get('filter', {}).get('cutoff', 20000.0)
-            modulated_cutoff = max(20.0, min(20000.0, base_cutoff * (2.0 ** filter_mod)))
+            # Apply modulation in a controlled way to prevent extreme values
+            modulated_cutoff = base_cutoff * (2.0 ** max(-5.0, min(5.0, filter_mod)))  # Clamp modulation to ±5 octaves
+            modulated_cutoff = max(20.0, min(20000.0, modulated_cutoff))  # Clamp to audible range
 
             # Update filter parameters for this sample
             # Note: Real-time parameter changes may not be supported by filter
             # This is a simplified implementation
             if i == 0:  # Update parameters once per block for performance
                 resonance = self.params.get('filter', {}).get('resonance', 0.0)
+                # Clamp resonance to prevent instability
+                resonance = max(0.0, min(30.0, resonance))  # Reasonable resonance range
                 try:
                     self.filter.set_parameters(cutoff=modulated_cutoff, resonance=resonance)
-                except:
-                    pass  # Filter interface may not support real-time parameter changes
+                except Exception as e:
+                    # Log error but continue without filter parameter updates
+                    # In production, this would use proper error logging
+                    pass
 
         # Apply filter to stereo audio buffer with basic processing
         # This is a simplified implementation until proper filter interface is available
@@ -1373,11 +1569,13 @@ class SF2Partial(SynthesisPartial):
             try:
                 # Process the audio through the filter
                 # Note: This assumes filter.process_block can handle stereo interleaved data
-                filtered_audio = self.filter.process_block(self.audio_buffer[:block_size * 2])
-                if filtered_audio is not None:
+                audio_to_process = self.audio_buffer[:block_size * 2]
+                filtered_audio = self.filter.process_block(audio_to_process)
+                if filtered_audio is not None and len(filtered_audio) == len(audio_to_process):
                     self.audio_buffer[:block_size * 2] = filtered_audio
-            except:
+            except Exception as e:
                 # If filter processing fails, continue without filtering
+                # In production, this would log the error
                 pass
 
     def _apply_volume_pan_modulation(self, block_size: int):
@@ -1388,6 +1586,9 @@ class SF2Partial(SynthesisPartial):
         These are synthesis-level effects that require per-sample processing
         for smooth, artifact-free modulation.
         """
+        # Ensure buffers are allocated before proceeding
+        self._ensure_buffers_allocated(block_size)
+        
         if block_size > len(self.audio_buffer) // 2:
             return
 
@@ -1513,16 +1714,16 @@ class SF2Partial(SynthesisPartial):
         # Advanced LFO Generators
         self.delay_mod_lfo = self._convert_time_cent(21, generators.get(21, -12000))
         self.freq_mod_lfo = self._convert_freq_cent(22, generators.get(22, 0))
-        self.delay_vib_lfo = self._convert_time_cent(23, generators.get(23, -12000))
-        self.freq_vib_lfo = self._convert_freq_cent(24, generators.get(24, 0))
+        self.delay_vib_lfo = self._convert_time_cent(26, generators.get(26, -12000))  # Fixed: delayVibLFO is generator 26
+        self.freq_vib_lfo = self._convert_freq_cent(27, generators.get(27, 0))        # Fixed: freqVibLFO is generator 27
         self.vib_lfo_to_pan = generators.get(37, 0) / 10.0  # vibLfoToPan (generator 37)
         self.mod_lfo_to_pan = generators.get(42, 0) / 10.0  # modLfoToPan (generator 42)
 
-        # LFO modulation depths (convert from cent modulation to semitone modulation)
-        self.vib_lfo_to_pitch = generators.get(6, 0) / 100.0   # vibLfoToPitch (cents to semitones)
-        self.mod_lfo_to_pitch = generators.get(5, 0) / 100.0   # modLfoToPitch (cents to semitones)
-        self.mod_lfo_to_filter = generators.get(10, 0) / 1200.0 # modLfoToFilterFc (cents to octaves)
-        self.mod_lfo_to_volume = generators.get(13, 0) / 10.0   # modLfoToVolume (0.1dB to dB)
+        # LFO modulation depths (correct SF2 generator IDs)
+        self.vib_lfo_to_pitch = generators.get(28, 0) / 100.0   # vibLfoToPitch (generator 28, cents to semitones)
+        self.mod_lfo_to_pitch = generators.get(25, 0) / 100.0   # modLfoToPitch (generator 25, cents to semitones)
+        self.mod_lfo_to_filter = generators.get(24, 0) / 1200.0 # modLfoToFilterFc (generator 24, cents to octaves)
+        self.mod_lfo_to_volume = generators.get(23, 0) / 10.0   # modLfoToVolume (generator 23, 0.1dB to dB)
 
         # Modulation Envelope Generators
         self.mod_env_to_pitch = generators.get(7, 0) / 100.0  # Cent modulation

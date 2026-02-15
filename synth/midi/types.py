@@ -58,6 +58,46 @@ class MessageType(str, Enum):
     STREAM_MESSAGE = "stream_message"
     SYSTEM_MESSAGE = "system_message"
     UNKNOWN_UMP = "unknown_ump"
+    
+    # MIDI 2.0 Channel Voice Messages
+    MIDI_2_NOTE_ON = "midi2_note_on"
+    MIDI_2_NOTE_OFF = "midi2_note_off"
+    MIDI_2_POLY_KEY_PRESSURE = "midi2_poly_key_pressure"
+    MIDI_2_CONTROL_CHANGE = "midi2_control_change"
+    MIDI_2_PROGRAM_CHANGE = "midi2_program_change"
+    MIDI_2_CHANNEL_PRESSURE = "midi2_channel_pressure"
+    MIDI_2_PITCH_BEND = "midi2_pitch_bend"
+    MIDI_2_PER_NOTE_CONTROLLER = "midi2_per_note_controller"
+    MIDI_2_RELATIVE_PER_NOTE_CONTROLLER = "midi2_relative_per_note_controller"
+    MIDI_2_PER_NOTE_MANAGEMENT = "midi2_per_note_management"
+    
+    # MIDI 2.0 Registered and Assignable Parameter Numbers
+    MIDI_2_RPN = "midi2_rpn"
+    MIDI_2_NRPN = "midi2_nrpn"
+    MIDI_2_ASSIGNABLE_CONTROLLER = "midi2_assignable_controller"
+    
+    # MIDI 2.0 Utilities
+    MIDI_2_NOOP = "midi2_noop"
+    MIDI_2_JITTER_REDUCTION_TIMESTAMP = "midi2_jitter_reduction_timestamp"
+    
+    # MIDI 2.0 Property Exchange Messages
+    MIDI_2_PROPERTY_GET = "midi2_property_get"
+    MIDI_2_PROPERTY_SET = "midi2_property_set"
+    MIDI_2_PROPERTY_NOTIFY = "midi2_property_notify"
+    MIDI_2_PROPERTY_RESPONSE = "midi2_property_response"
+    
+    # MIDI 2.0 Mixed Data Set Messages
+    MIDI_2_MIXED_DATA_SET = "midi2_mixed_data_set"
+    MIDI_2_DATA_INCREMENT = "midi2_data_increment"
+    MIDI_2_DATA_DECREMENT = "midi2_data_decrement"
+    
+    # MIDI 2.0 128-bit Messages
+    MIDI_2_128_BIT_MESSAGE = "midi2_128_bit_message"
+    
+    # MIDI 2.0 Flex Data Messages
+    MIDI_2_FLEX_DATA_SIXTEEN = "midi2_flex_data_sixteen"
+    MIDI_2_FLEX_DATA_TWENTY_FOUR = "midi2_flex_data_twenty_four"
+    MIDI_2_FLEX_DATA_THIRTY_TWO = "midi2_flex_data_thirty_two"
 
 
 # Message type collections for validation and categorization
@@ -69,6 +109,34 @@ CHANNEL_MESSAGE_TYPES: Set[str] = {
     MessageType.PROGRAM_CHANGE,
     MessageType.CHANNEL_PRESSURE,
     MessageType.PITCH_BEND,
+    MessageType.MIDI_2_NOTE_ON,
+    MessageType.MIDI_2_NOTE_OFF,
+    MessageType.MIDI_2_POLY_KEY_PRESSURE,
+    MessageType.MIDI_2_CONTROL_CHANGE,
+    MessageType.MIDI_2_PROGRAM_CHANGE,
+    MessageType.MIDI_2_CHANNEL_PRESSURE,
+    MessageType.MIDI_2_PITCH_BEND,
+    MessageType.MIDI_2_PER_NOTE_CONTROLLER,
+    MessageType.MIDI_2_RELATIVE_PER_NOTE_CONTROLLER,
+    MessageType.MIDI_2_PER_NOTE_MANAGEMENT,
+}
+
+# System Real-time Messages (for synchronization)
+SYSTEM_REALTIME_MESSAGE_TYPES: Set[str] = {
+    MessageType.TIMING_CLOCK,
+    MessageType.START,
+    MessageType.CONTINUE,
+    MessageType.STOP,
+    MessageType.ACTIVE_SENSING,
+    MessageType.SYSTEM_RESET,
+}
+
+# System Common Messages
+SYSTEM_COMMON_MESSAGE_TYPES: Set[str] = {
+    MessageType.TIME_CODE,
+    MessageType.SONG_POSITION,
+    MessageType.SONG_SELECT,
+    MessageType.TUNE_REQUEST,
 }
 
 SYSTEM_MESSAGE_TYPES: Set[str] = {
@@ -101,6 +169,32 @@ MIDI_2_0_MESSAGE_TYPES: Set[str] = {
     MessageType.MIXED_DATA_SET,
     MessageType.FLEX_DATA,
     MessageType.STREAM_MESSAGE,
+    MessageType.MIDI_2_NOTE_ON,
+    MessageType.MIDI_2_NOTE_OFF,
+    MessageType.MIDI_2_POLY_KEY_PRESSURE,
+    MessageType.MIDI_2_CONTROL_CHANGE,
+    MessageType.MIDI_2_PROGRAM_CHANGE,
+    MessageType.MIDI_2_CHANNEL_PRESSURE,
+    MessageType.MIDI_2_PITCH_BEND,
+    MessageType.MIDI_2_PER_NOTE_CONTROLLER,
+    MessageType.MIDI_2_RELATIVE_PER_NOTE_CONTROLLER,
+    MessageType.MIDI_2_PER_NOTE_MANAGEMENT,
+    MessageType.MIDI_2_RPN,
+    MessageType.MIDI_2_NRPN,
+    MessageType.MIDI_2_ASSIGNABLE_CONTROLLER,
+    MessageType.MIDI_2_NOOP,
+    MessageType.MIDI_2_JITTER_REDUCTION_TIMESTAMP,
+    MessageType.MIDI_2_PROPERTY_GET,
+    MessageType.MIDI_2_PROPERTY_SET,
+    MessageType.MIDI_2_PROPERTY_NOTIFY,
+    MessageType.MIDI_2_PROPERTY_RESPONSE,
+    MessageType.MIDI_2_MIXED_DATA_SET,
+    MessageType.MIDI_2_DATA_INCREMENT,
+    MessageType.MIDI_2_DATA_DECREMENT,
+    MessageType.MIDI_2_128_BIT_MESSAGE,
+    MessageType.MIDI_2_FLEX_DATA_SIXTEEN,
+    MessageType.MIDI_2_FLEX_DATA_TWENTY_FOUR,
+    MessageType.MIDI_2_FLEX_DATA_THIRTY_TWO,
 }
 
 ALL_MESSAGE_TYPES: Set[str] = (
@@ -145,6 +239,15 @@ class MIDIStatus:
     # System Common Messages
     SYSTEM_COMMON_MASK = 0xF0
     SYSTEM_REALTIME_MASK = 0xF8
+    
+    # MIDI 2.0 Universal MIDI Packet (UMP) Status Types
+    UMP_STATUS_TYPE_OTHER = 0x0
+    UMP_STATUS_TYPE_MIDI_1_CHANNEL = 0x1
+    UMP_STATUS_TYPE_MIDI_2_CHANNEL = 0x2
+    UMP_STATUS_TYPE_SYSEX = 0x3
+    UMP_STATUS_TYPE_UTILITY = 0x4
+    UMP_STATUS_TYPE_MISC = 0x5
+    UMP_STATUS_TYPE_STREAM = 0xF
 
 
 # XG-Specific Constants

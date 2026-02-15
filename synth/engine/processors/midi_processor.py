@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any, Tuple, Callable, Union
 import threading
 import time
 import math
+import struct
 from pathlib import Path
 import os
 import hashlib
@@ -16,6 +17,7 @@ import weakref
 
 from ...midi.realtime import RealtimeParser
 from ...midi.message import MIDIMessage
+from ...midi.ump_packets import MIDI1ToMIDI2Converter
 
 
 class MIDIMessageProcessor:
@@ -41,11 +43,29 @@ class MIDIMessageProcessor:
     def process_midi_message(self, message_bytes: bytes):
         """
         Process MIDI message with XG/GS integration using RealtimeParser.
+        Supports both MIDI 1.0 and MIDI 2.0 formats.
 
         Args:
             message_bytes: Raw MIDI message bytes
         """
         with self.lock:
+            # Check if this looks like UMP data (starts with valid UMP message type)
+            if len(message_bytes) >= 4:
+                first_word = struct.unpack('>I', message_bytes[:4])[0]
+                ump_type = (first_word >> 28) & 0xF
+                
+                # If it's a valid UMP message type, treat as UMP
+                if ump_type in [0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0xF]:
+                    # Process as UMP packets
+                    ump_packets = self.parser.ump_parser.parse_packet_stream(message_bytes)
+                    for packet in ump_packets:
+                        # Convert UMP packet to MIDIMessage and process
+                        if hasattr(self.parser, '_convert_ump_to_midimessage'):
+                            midi_message = self.parser._convert_ump_to_midimessage(packet)
+                            if midi_message:
+                                self._process_standard_midi(midi_message)
+                    return
+
             # Check for XG receive channel SYSEX first
             if (self.synthesizer.xg_enabled and
                 self._is_receive_channel_sysex(message_bytes)):
@@ -56,6 +76,7 @@ class MIDIMessageProcessor:
 
             # GS processing if enabled (GS SYSEX)
             if (self.synthesizer.gs_enabled and
+                hasattr(self.synthesizer, 'gs_midi_processor') and
                 self.synthesizer.gs_midi_processor.process_message(message_bytes)):
                 return  # GS handled it
 
@@ -69,6 +90,7 @@ class MIDIMessageProcessor:
             for midi_message in midi_messages:
                 # XG processing first if enabled
                 if (self.synthesizer.xg_enabled and
+                    hasattr(self.synthesizer, 'xg_midi_processor') and
                     self.synthesizer.xg_midi_processor.process_message(message_bytes)):
                     if hasattr(self.synthesizer, 'performance_monitor'):
                         self.synthesizer.performance_monitor.update(xg_messages_processed=1)
@@ -87,20 +109,47 @@ class MIDIMessageProcessor:
         Returns:
             True if this is an XG receive channel SYSEX message
         """
-        # XG Receive Channel SYSEX format: F0 43 [device] 4C 08 [part] [channel] F7
-        if len(data) != 9 or data[0] != 0xF0 or data[-1] != 0xF7:
+        # Basic validation: must start with 0xF0 and end with 0xF7
+        if len(data) < 6 or data[0] != 0xF0 or data[-1] != 0xF7:
             return False
 
-        # Check Yamaha manufacturer ID and XG model ID
-        if data[1] != 0x43 or data[3] != 0x4C:
+        # Check Yamaha manufacturer ID (0x43 = Yamaha)
+        if len(data) < 2 or data[1] != 0x43:
             return False
 
-        # Check device ID matches our device
-        if data[2] != self.synthesizer.device_id:
+        # Check XG model ID (0x4C = XG model ID)
+        if len(data) < 4 or data[3] != 0x4C:
             return False
 
         # Check command is 0x08 (receive channel assignment)
-        return data[4] == 0x08
+        if len(data) < 5 or data[4] != 0x08:
+            return False
+
+        # Check that we have at least 2 more bytes for part and channel
+        if len(data) < 7:
+            return False
+
+        # Check that we have exactly the right number of bytes (9 total for this command)
+        if len(data) != 9:
+            return False
+
+        # Extract part and channel to validate ranges
+        part_id = data[5]
+        channel = data[6]
+
+        # Validate ranges
+        if not (0 <= part_id <= 15):  # Valid XG part numbers
+            return False
+
+        if not (0 <= channel <= 15 or channel == 254 or channel == 255):  # Valid channel numbers (0-15, 254=OFF, 255=ALL)
+            return False
+
+        # Check device ID matches our device (if synthesizer has device_id attribute)
+        if hasattr(self.synthesizer, 'device_id'):
+            if data[2] != self.synthesizer.device_id:
+                return False
+
+        return True
 
     def _handle_receive_channel_sysex(self, data: bytes):
         """

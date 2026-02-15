@@ -530,8 +530,9 @@ class SF2SoundFont:
             mod_start_local = mod_start - mod_start_global
             mod_end_local = mod_end - mod_start_global
 
-            # Validate ranges
-            if gen_start_local < 0 or gen_end_local > len(gen_data) or gen_start_local >= gen_end_local:
+            # Validate ranges with proper boundary checks
+            if (gen_start_local < 0 or gen_end_local > len(gen_data) or 
+                gen_start_local >= gen_end_local or gen_start_local >= len(gen_data)):
                 continue  # Invalid range, skip this zone
 
             # Create zone
@@ -725,8 +726,9 @@ class SF2SoundFont:
             mod_start_local = mod_start - mod_start_global
             mod_end_local = mod_end - mod_start_global
 
-            # Validate ranges
-            if gen_start_local < 0 or gen_end_local > len(gen_data) or gen_start_local >= gen_end_local:
+            # Validate ranges with proper boundary checks
+            if (gen_start_local < 0 or gen_end_local > len(gen_data) or 
+                gen_start_local >= gen_end_local or gen_start_local >= len(gen_data)):
                 continue  # Invalid range, skip this zone
 
             # Create zone

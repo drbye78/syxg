@@ -299,9 +299,53 @@ class SF2Engine(SynthesisEngine):
                 if sample_data is not None:
                     partial_params = partial_params.copy()  # Don't modify original
                     partial_params['sample_data'] = sample_data
+            else:
+                # If no sample index provided, try to get from other parameters
+                if 'sample_id' in partial_params:
+                    sample_data = self.soundfont_manager.get_sample_data(partial_params['sample_id'])
+                    if sample_data is not None:
+                        partial_params = partial_params.copy()
+                        partial_params['sample_data'] = sample_data
+
+        # Ensure required parameters are present with defaults
+        required_params = [
+            'sample_index', 'sample_id', 'note', 'velocity', 'generators',
+            'amp_attack', 'amp_decay', 'amp_sustain', 'amp_release',
+            'filter_cutoff', 'filter_resonance', 'pan', 'reverb_send', 'chorus_send'
+        ]
+        
+        for param in required_params:
+            if param not in partial_params:
+                # Set reasonable defaults based on parameter type
+                if param in ['amp_attack', 'amp_decay', 'amp_release']:
+                    partial_params[param] = 0.01  # Default to 10ms
+                elif param in ['amp_sustain']:
+                    partial_params[param] = 0.7   # Default to 70%
+                elif param in ['filter_cutoff']:
+                    partial_params[param] = 20000.0  # Default to 20kHz
+                elif param in ['filter_resonance']:
+                    partial_params[param] = 0.7   # Default resonance
+                elif param in ['pan']:
+                    partial_params[param] = 0.0   # Center
+                elif param in ['reverb_send', 'chorus_send']:
+                    partial_params[param] = 0.0   # No effects by default
+                elif param in ['note']:
+                    partial_params[param] = 60    # Middle C
+                elif param in ['velocity']:
+                    partial_params[param] = 100   # Medium velocity
+                elif param in ['generators']:
+                    partial_params[param] = {}    # Empty generators dict
 
         # Create partial with new architecture integration
-        return SF2Partial(partial_params, self.synth)
+        partial = SF2Partial(partial_params, self.synth)
+        
+        # Ensure the partial has access to the synth's memory pool for zero-allocation buffers
+        if hasattr(self.synth, 'memory_pool'):
+            partial.memory_pool = self.synth.memory_pool
+        elif hasattr(self.synth, 'buffer_pool'):
+            partial.memory_pool = self.synth.buffer_pool
+        
+        return partial
 
     def get_voice_parameters(self, program: int, bank: int = 0) -> Optional[Dict]:
         """
@@ -356,27 +400,27 @@ class SF2Engine(SynthesisEngine):
 
         # Override with zone-specific values
         if hasattr(zone, 'generators'):
-            # Volume envelope
-            params['amp_delay'] = zone.get_generator_value(32, 0) / 1200.0  # timecents to seconds
-            params['amp_attack'] = zone.get_generator_value(33, -12000) / 1200.0
-            params['amp_hold'] = zone.get_generator_value(34, -12000) / 1200.0
-            params['amp_decay'] = zone.get_generator_value(35, -12000) / 1200.0
-            params['amp_sustain'] = zone.get_generator_value(36, 0) / 1000.0  # 0-1000 to 0.0-1.0
-            params['amp_release'] = zone.get_generator_value(37, -12000) / 1200.0
+            # Volume envelope (correct SF2 generator IDs)
+            params['amp_delay'] = self._timecents_to_seconds(zone.get_generator_value(8, -12000))  # volEnvDelay
+            params['amp_attack'] = self._timecents_to_seconds(zone.get_generator_value(9, -12000))  # volEnvAttack
+            params['amp_hold'] = self._timecents_to_seconds(zone.get_generator_value(10, -12000))  # volEnvHold
+            params['amp_decay'] = self._timecents_to_seconds(zone.get_generator_value(11, -12000))  # volEnvDecay
+            params['amp_sustain'] = zone.get_generator_value(12, 0) / 1000.0  # volEnvSustain (0-1000 to 0.0-1.0)
+            params['amp_release'] = self._timecents_to_seconds(zone.get_generator_value(13, -12000))  # volEnvRelease
 
-            # Filter
-            params['filter_cutoff'] = self._cents_to_frequency(zone.get_generator_value(8, 13500))
-            params['filter_resonance'] = zone.get_generator_value(9, 0) / 10.0  # Q to resonance
+            # Filter (correct SF2 generator IDs)
+            params['filter_cutoff'] = self._cents_to_frequency(zone.get_generator_value(29, 13500))  # initialFilterFc
+            params['filter_resonance'] = zone.get_generator_value(30, 0) / 10.0  # initialFilterQ (Q to resonance)
 
-            # Pitch modulation
-            params['coarse_tune'] = zone.get_generator_value(50, 0)
-            params['fine_tune'] = zone.get_generator_value(51, 0) / 100.0  # cents to semitones
-            params['scale_tuning'] = zone.get_generator_value(55, 100)
+            # Pitch modulation (correct SF2 generator IDs)
+            params['coarse_tune'] = zone.get_generator_value(48, 0)  # coarseTune
+            params['fine_tune'] = zone.get_generator_value(49, 0) / 100.0  # fineTune (cents to semitones)
+            params['scale_tuning'] = zone.get_generator_value(52, 100)  # scaleTuning
 
-            # Effects sends
-            params['reverb_send'] = zone.get_generator_value(14, 0) / 10.0
-            params['chorus_send'] = zone.get_generator_value(15, 0) / 10.0
-            params['pan'] = zone.get_generator_value(16, 0) / 500.0  # -500/+500 to -1.0/+1.0
+            # Effects sends (correct SF2 generator IDs)
+            params['reverb_send'] = zone.get_generator_value(32, 0) / 1000.0  # reverbEffectsSend
+            params['chorus_send'] = zone.get_generator_value(33, 0) / 1000.0  # chorusEffectsSend
+            params['pan'] = zone.get_generator_value(34, 0) / 500.0  # pan (-500/+500 to -1.0/+1.0)
 
         return params
 
@@ -403,7 +447,13 @@ class SF2Engine(SynthesisEngine):
             'assign_mode': 1,  # Polyphonic
             'partials': [partial_params]
         }
-
+    
+    def _timecents_to_seconds(self, timecents: int) -> float:
+        """Convert SF2 timecents to seconds."""
+        if timecents == -12000:
+            return 0.0  # -inf means instant
+        return 2.0 ** (timecents / 1200.0)  # Convert timecents to seconds
+    
     def _cents_to_frequency(self, cents: int) -> float:
         """Convert SF2 cents to frequency in Hz."""
         from ..sf2.sf2_constants import cents_to_frequency

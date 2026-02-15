@@ -324,8 +324,11 @@ class MIDIFileHandler:
         """Read a variable-length quantity from MIDI data."""
         value = 0
         i = 0
+        
+        # Limit to maximum 4 bytes to prevent infinite loops with malformed data
+        max_bytes = 4
 
-        while True:
+        while i < max_bytes:
             if pos + i >= len(data):
                 break
 

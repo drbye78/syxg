@@ -285,8 +285,9 @@ class Channel:
         self.pan = 0.0
         self.transpose = 0
 
-        # Controller state
-        self.controllers = [0] * 128
+        # Controller state (support both MIDI 1.0 and MIDI 2.0)
+        self.controllers = [0] * 128  # MIDI 1.0 controllers (7-bit)
+        self.controllers_32bit = {}   # MIDI 2.0 controllers (32-bit)
         self._initialize_default_controllers()
 
         # Channel pressure and key pressure
@@ -468,15 +469,25 @@ class Channel:
             if self.current_voice:
                 self.current_voice.note_off(transposed_note)
 
-    def control_change(self, controller: int, value: int):
+    def control_change(self, controller: int, value: int, is_32bit: bool = False):
         """
         Handle control change event.
 
         Args:
             controller: Controller number (0-127)
-            value: Controller value (0-127)
+            value: Controller value (0-127 for MIDI 1.0, 0-4294967295 for MIDI 2.0)
+            is_32bit: Whether this is a 32-bit MIDI 2.0 value
         """
-        self.controllers[controller] = value
+        if is_32bit:
+            # Store 32-bit value for MIDI 2.0
+            self.controllers_32bit[controller] = value
+            # Convert to 7-bit equivalent for backward compatibility
+            self.controllers[controller] = self._convert_32bit_to_7bit(value)
+        else:
+            # Store 7-bit value for MIDI 1.0
+            self.controllers[controller] = value
+            # Also store as 32-bit for consistency
+            self.controllers_32bit[controller] = self._convert_7bit_to_32bit(value)
 
         # Handle special XG controllers
         if controller == 0:  # Bank Select MSB
@@ -486,9 +497,17 @@ class Channel:
             self.bank_lsb = value
             self.bank = (self.bank_msb << 7) | self.bank_lsb
         elif controller == 7:  # Volume
-            self.master_level = value / 127.0
+            if is_32bit:
+                # Use 32-bit value for higher resolution
+                self.master_level = self._normalize_32bit_value(value)
+            else:
+                self.master_level = value / 127.0
         elif controller == 10:  # Pan
-            self.pan = (value - 64) / 64.0  # Convert to -1.0 to 1.0
+            if is_32bit:
+                # Use 32-bit value for higher resolution
+                self.pan = self._normalize_32bit_pan(value)
+            else:
+                self.pan = (value - 64) / 64.0  # Convert to -1.0 to 1.0
         elif controller == 84:  # Portamento Control
             # Handle portamento control if needed
             pass
@@ -526,6 +545,63 @@ class Channel:
                 self._handle_rpn_complete(value)
                 self.rpn_active = False
 
+    def _convert_32bit_to_7bit(self, value_32: int) -> int:
+        """
+        Convert 32-bit MIDI 2.0 value to 7-bit MIDI 1.0 value.
+
+        Args:
+            value_32: 32-bit value (0-4294967295)
+
+        Returns:
+            7-bit value (0-127)
+        """
+        # Map 32-bit range to 7-bit range
+        return int((value_32 / 4294967295.0) * 127.0)
+
+    def _convert_7bit_to_32bit(self, value_7: int) -> int:
+        """
+        Convert 7-bit MIDI 1.0 value to 32-bit MIDI 2.0 value.
+
+        Args:
+            value_7: 7-bit value (0-127)
+
+        Returns:
+            32-bit value (0-4294967295)
+        """
+        # Map 7-bit range to 32-bit range
+        return int((value_7 / 127.0) * 4294967295.0)
+
+    def _normalize_32bit_value(self, value_32: int) -> float:
+        """
+        Normalize 32-bit value to 0.0-1.0 range.
+
+        Args:
+            value_32: 32-bit value (0-4294967295)
+
+        Returns:
+            Normalized value (0.0-1.0)
+        """
+        return value_32 / 4294967295.0
+
+    def _normalize_32bit_pan(self, value_32: int) -> float:
+        """
+        Normalize 32-bit pan value to -1.0 to 1.0 range.
+
+        Args:
+            value_32: 32-bit value (0-4294967295)
+
+        Returns:
+            Normalized pan value (-1.0 to 1.0)
+        """
+        # Map 32-bit range to -1.0 to 1.0 range, centered at 0x7FFFFFFF
+        center = 2147483647  # 0x7FFFFFFF
+        if value_32 <= center:
+            # Left side: 0 to center maps to -1.0 to 0.0
+            return -((center - value_32) / center)
+        else:
+            # Right side: center to max maps to 0.0 to 1.0
+            return (value_32 - center) / center
+
     def _handle_nrpn_complete(self, msb: int, lsb: int):
         """
         Handle complete NRPN message.
@@ -550,24 +626,250 @@ class Channel:
             self.pitch_bend_range = value
         # Other RPN parameters can be handled here
 
-    def pitch_bend(self, lsb: int, msb: int):
+    def pitch_bend(self, lsb: int, msb: int, pitch_32bit: Optional[int] = None):
         """
-        Handle pitch bend event.
+        Handle pitch bend event with support for both MIDI 1.0 and MIDI 2.0.
 
         Args:
-            lsb: Pitch bend LSB (0-127)
-            msb: Pitch bend MSB (0-127)
+            lsb: Pitch bend LSB (0-127) for MIDI 1.0
+            msb: Pitch bend MSB (0-127) for MIDI 1.0
+            pitch_32bit: 32-bit pitch bend value for MIDI 2.0 (optional)
         """
-        self.pitch_bend_value = (msb << 7) | lsb
+        if pitch_32bit is not None:
+            # MIDI 2.0 32-bit pitch bend
+            self.pitch_bend_value = pitch_32bit
+            self.pitch_bend_32bit = pitch_32bit
+        else:
+            # MIDI 1.0 14-bit pitch bend
+            self.pitch_bend_value = (msb << 7) | lsb
+            # Store as 32-bit equivalent for consistency
+            self.pitch_bend_32bit = self._convert_14bit_to_32bit(self.pitch_bend_value)
+
+    def _convert_14bit_to_32bit(self, value_14: int) -> int:
+        """
+        Convert 14-bit MIDI 1.0 pitch bend value to 32-bit MIDI 2.0 value.
+
+        Args:
+            value_14: 14-bit value (0-16383)
+
+        Returns:
+            32-bit value (0-4294967295)
+        """
+        # Center 14-bit value (8192) maps to center of 32-bit range (0x7FFFFFFF)
+        # Map 0-16383 to 0-4294967295
+        if value_14 <= 8192:
+            # Lower half: 0-8192 maps to 0x00000000 to 0x7FFFFFFF
+            return int((value_14 / 8192.0) * 2147483647.0)
+        else:
+            # Upper half: 8193-16383 maps to 0x80000000 to 0xFFFFFFFF
+            return 2147483647 + int(((value_14 - 8192) / 8191.0) * 2147483648.0)
+
+    def _convert_32bit_to_14bit(self, value_32: int) -> int:
+        """
+        Convert 32-bit MIDI 2.0 pitch bend value to 14-bit MIDI 1.0 value.
+
+        Args:
+            value_32: 32-bit value (0-4294967295)
+
+        Returns:
+            14-bit value (0-16383)
+        """
+        # Center 32-bit value (0x7FFFFFFF) maps to center of 14-bit range (8192)
+        # Map 0-4294967295 to 0-16383
+        center = 2147483647  # 0x7FFFFFFF
+        if value_32 <= center:
+            # Lower half: 0x00000000 to 0x7FFFFFFF maps to 0 to 8192
+            return int((value_32 / center) * 8192.0)
+        else:
+            # Upper half: 0x80000000 to 0xFFFFFFFF maps to 8193 to 16383
+            return 8192 + int(((value_32 - center) / (4294967295 - center)) * 8191.0)
 
     def set_channel_pressure(self, pressure: int):
         """
         Handle channel pressure (aftertouch).
-
-        Args:
-            pressure: Pressure value (0-127)
         """
         self.channel_pressure = pressure
+
+    def set_channel_pressure_32bit(self, pressure_32bit: int):
+        """
+        Handle 32-bit channel pressure (aftertouch) for MIDI 2.0.
+
+        Args:
+            pressure_32bit: 32-bit pressure value
+        """
+        self.channel_pressure_32bit = pressure_32bit
+        # Convert to 7-bit for backward compatibility
+        self.channel_pressure = self._convert_32bit_to_7bit(pressure_32bit)
+
+    def key_pressure(self, note: int, pressure: int, pressure_32bit: Optional[int] = None):
+        """
+        Handle polyphonic key pressure with support for MIDI 2.0.
+
+        Args:
+            note: MIDI note number (0-127)
+            pressure: 7-bit pressure value (0-127) for MIDI 1.0
+            pressure_32bit: 32-bit pressure value for MIDI 2.0 (optional)
+        """
+        if pressure_32bit is not None:
+            # Store 32-bit value for MIDI 2.0
+            if note not in self.key_pressure_32bit_values:
+                self.key_pressure_32bit_values[note] = {}
+            self.key_pressure_32bit_values[note] = pressure_32bit
+            # Convert to 7-bit for backward compatibility
+            self.key_pressure_values[note] = self._convert_32bit_to_7bit(pressure_32bit)
+        else:
+            # Store 7-bit value for MIDI 1.0
+            self.key_pressure_values[note] = pressure
+            # Store as 32-bit for consistency
+            if note not in self.key_pressure_32bit_values:
+                self.key_pressure_32bit_values[note] = {}
+            self.key_pressure_32bit_values[note] = self._convert_7bit_to_32bit(pressure)
+
+    def _collect_modulation_values(self) -> Dict[str, float]:
+        """
+        Collect modulation values from controllers and channel state.
+
+        Returns:
+            Dictionary of modulation values
+        """
+        # Convert pitch bend to modulation value
+        if hasattr(self, 'pitch_bend_32bit'):
+            # Use 32-bit pitch bend for higher resolution
+            pitch_bend_semitones = ((self.pitch_bend_32bit - 2147483647) / 2147483647.0) * self.pitch_bend_range
+        else:
+            # Use 14-bit pitch bend (MIDI 1.0)
+            pitch_bend_semitones = ((self.pitch_bend_value - 8192) / 8192.0) * self.pitch_bend_range
+
+        modulation = {
+            'pitch': pitch_bend_semitones * 100.0,  # Convert to cents
+            'filter_cutoff': 0.0,  # Could be mapped to controllers
+            'amp': 1.0,
+            'pan': self.pan,
+            'velocity_crossfade': 0.0,
+            'note_crossfade': 0.0,
+            'stereo_width': 1.0,
+            'tremolo_rate': 4.0,
+            'tremolo_depth': 0.3,
+            'mod_wheel': self.controllers[1] / 127.0,
+            'breath_controller': self.controllers[2] / 127.0,
+            'foot_controller': self.controllers[4] / 127.0,
+            'expression': self.controllers[11] / 127.0,
+            'brightness': self.controllers[72] / 127.0,
+            'harmonic_content': self.controllers[71] / 127.0,
+            'channel_aftertouch': self.channel_pressure / 127.0,
+            'volume_cc': self.controllers[7] / 127.0,
+        }
+
+        # Add 32-bit controller values if available
+        for controller, value_32bit in self.controllers_32bit.items():
+            if controller == 1:  # Mod wheel
+                modulation['mod_wheel'] = self._normalize_32bit_value(value_32bit)
+            elif controller == 2:  # Breath controller
+                modulation['breath_controller'] = self._normalize_32bit_value(value_32bit)
+            elif controller == 4:  # Foot controller
+                modulation['foot_controller'] = self._normalize_32bit_value(value_32bit)
+            elif controller == 7:  # Volume
+                modulation['volume_cc'] = self._normalize_32bit_value(value_32bit)
+            elif controller == 11:  # Expression
+                modulation['expression'] = self._normalize_32bit_value(value_32bit)
+            elif controller == 71:  # Harmonic Content
+                modulation['harmonic_content'] = self._normalize_32bit_value(value_32bit)
+            elif controller == 72:  # Brightness
+                modulation['brightness'] = self._normalize_32bit_value(value_32bit)
+
+        return modulation
+
+    def __init__(self, channel_number: int, voice_factory: VoiceFactory, sample_rate: int, synthesizer=None):
+        """
+        Initialize XG Channel.
+
+        Args:
+            channel_number: MIDI channel number (0-15)
+            voice_factory: Factory for creating voices
+            sample_rate: Audio sample rate in Hz
+            synthesizer: Reference to parent synthesizer for parameter access
+        """
+        self.channel_number = channel_number
+        self.voice_factory = voice_factory
+        self.sample_rate = sample_rate
+        self.synthesizer = synthesizer  # Reference to parent synthesizer
+
+        # Polyphonic voice management - multiple simultaneous voices
+        self.active_voices: Dict[int, VoiceInstance] = {}  # note -> VoiceInstance
+        self.program = 0
+        self.bank_msb = 0
+        self.bank_lsb = 0
+        self.bank = 0
+
+        # Current instrument/program (for region selection)
+        self.current_program = None
+
+        # Legacy compatibility - maintain current_voice for backward compatibility
+        self.current_voice = None
+
+        # Channel state
+        self.active = True
+        self._muted = False
+        self._solo = False
+
+        # XG channel parameters
+        self.key_range_low = 0
+        self.key_range_high = 127
+        self.master_level = 1.0
+        self.pan = 0.0
+        self.transpose = 0
+
+        # Controller state (support both MIDI 1.0 and MIDI 2.0)
+        self.controllers = [0] * 128  # MIDI 1.0 controllers (7-bit)
+        self.controllers_32bit = {}   # MIDI 2.0 controllers (32-bit)
+        self._initialize_default_controllers()
+
+        # Channel pressure and key pressure
+        self._channel_pressure = 0
+        self.channel_pressure_32bit = 0  # 32-bit channel pressure for MIDI 2.0
+        self.key_pressure_values: Dict[int, int] = {}
+        self.key_pressure_32bit_values: Dict[int, int] = {}  # 32-bit key pressure for MIDI 2.0
+
+        # Pitch bend state
+        self.pitch_bend_value = 8192  # Center position (14-bit)
+        self.pitch_bend_32bit = 2147483647  # Center position (32-bit)
+        self.pitch_bend_range = 2.0   # Default ±2 semitones
+
+        # NRPN/RPN state
+        self.nrpn_active = False
+        self.rpn_active = False
+        self.nrpn_msb = 0
+        self.nrpn_lsb = 0
+        self.rpn_msb = 0
+        self.rpn_lsb = 0
+        self.data_msb = 0
+        self.data_msb_received = False
+
+        # XG channel state (updated from message metadata)
+        self.xg_pan_left_gain = 1.0
+        self.xg_pan_right_gain = 1.0
+        self.xg_effects_routing = {
+            'reverb_send': 0.0,
+            'chorus_send': 0.0,
+            'variation_send': 0.0
+        }
+        self.xg_part_mode = 'normal'  # 'normal', 'single', 'layer'
+        self.xg_voice_reserve = None  # Voice limit for this channel
+
+        # GS integration
+        self.gs_part = None  # Reference to GS part when in GS mode
+        
+        # MPE+ Extensions (MIDI Polyphonic Expression Plus)
+        self.mpe_enabled = False
+        self.mpe_configuration = {
+            'master_channel': 0,      # Channel that controls pitch bend, pressure, etc.
+            'first_note_channel': 1,  # First channel for note data
+            'last_note_channel': 15,  # Last channel for note data
+            'channel_layout': 'horizontal'  # 'horizontal' or 'vertical'
+        }
+        
+        # MPE+ per-note parameters
+        self.mpe_per_note_parameters = {}  # note -> {param: value}
 
     def key_pressure(self, note: int, pressure: int):
         """
@@ -578,6 +880,89 @@ class Channel:
             pressure: Pressure value (0-127)
         """
         self.key_pressure_values[note] = pressure
+
+    def enable_mpe_plus(self, master_channel: int = 0, first_note_channel: int = 1, 
+                        last_note_channel: int = 15, layout: str = 'horizontal'):
+        """
+        Enable MPE+ (MIDI Polyphonic Expression Plus) mode for this channel.
+
+        Args:
+            master_channel: Channel that controls global parameters (pitch bend, pressure)
+            first_note_channel: First channel for note data
+            last_note_channel: Last channel for note data
+            layout: Channel layout ('horizontal' or 'vertical')
+        """
+        self.mpe_enabled = True
+        self.mpe_configuration.update({
+            'master_channel': master_channel,
+            'first_note_channel': first_note_channel,
+            'last_note_channel': last_note_channel,
+            'channel_layout': layout
+        })
+
+    def disable_mpe_plus(self):
+        """Disable MPE+ mode for this channel."""
+        self.mpe_enabled = False
+
+    def set_mpe_per_note_parameter(self, note: int, param_name: str, value: float):
+        """
+        Set a per-note parameter for MPE+.
+
+        Args:
+            note: MIDI note number (0-127)
+            param_name: Name of the parameter (e.g., 'timbre', 'position', 'pressure')
+            value: Parameter value (0.0-1.0)
+        """
+        if note not in self.mpe_per_note_parameters:
+            self.mpe_per_note_parameters[note] = {}
+        self.mpe_per_note_parameters[note][param_name] = value
+
+    def get_mpe_per_note_parameter(self, note: int, param_name: str) -> float:
+        """
+        Get a per-note parameter value for MPE+.
+
+        Args:
+            note: MIDI note number (0-127)
+            param_name: Name of the parameter
+
+        Returns:
+            Parameter value (0.0-1.0)
+        """
+        return self.mpe_per_note_parameters.get(note, {}).get(param_name, 0.0)
+
+    def process_mpe_note_on(self, note: int, velocity: int, channel_offset: int = 0):
+        """
+        Process MPE+ note-on event with channel offset.
+
+        Args:
+            note: MIDI note number (0-127)
+            velocity: Note velocity (0-127)
+            channel_offset: Channel offset for MPE+ processing
+        """
+        # In MPE+ mode, we might need to map to specific channels based on configuration
+        if self.mpe_enabled:
+            # Apply MPE+ specific processing
+            # For now, just call the regular note_on
+            return self.note_on(note, velocity)
+        else:
+            return self.note_on(note, velocity)
+
+    def process_mpe_note_off(self, note: int, velocity: int = 64, channel_offset: int = 0):
+        """
+        Process MPE+ note-off event with channel offset.
+
+        Args:
+            note: MIDI note number (0-127)
+            velocity: Note-off velocity (0-127)
+            channel_offset: Channel offset for MPE+ processing
+        """
+        # In MPE+ mode, we might need to map to specific channels based on configuration
+        if self.mpe_enabled:
+            # Apply MPE+ specific processing
+            # For now, just call the regular note_off
+            self.note_off(note, velocity)
+        else:
+            self.note_off(note, velocity)
 
     def program_change(self, program: int):
         """

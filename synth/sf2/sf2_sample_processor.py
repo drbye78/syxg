@@ -325,6 +325,9 @@ class Interpolator:
         except ImportError:
             # Fallback to linear
             return self._linear_interp(data, target_length)
+        except Exception:
+            # Additional fallback in case of other scipy errors
+            return self._linear_interp(data, target_length)
 
     def _sinc_interp(self, data: np.ndarray, target_length: int) -> np.ndarray:
         """Sinc interpolation for high quality."""
@@ -335,6 +338,9 @@ class Interpolator:
             return np.asarray(resampled, dtype=data.dtype)
         except ImportError:
             # Fallback to linear
+            return self._linear_interp(data, target_length)
+        except Exception:
+            # Additional fallback in case of other scipy errors
             return self._linear_interp(data, target_length)
 
 
@@ -485,6 +491,8 @@ class SF2SampleCache:
             # Evict least recently used
             evicted_key, (evicted_data, evicted_size) = self.cache.popitem(last=False)
             self.current_memory -= evicted_size
+            # Explicitly delete the evicted data to free memory
+            del evicted_data
 
     def clear(self) -> None:
         """Clear all cached samples."""
@@ -549,10 +557,12 @@ class SF2SampleProcessor:
         # Check cache first
         cached_data = self.sample_cache.get(cache_key)
         if cached_data is not None:
-            self.cache_hits += 1
+            with self.sample_cache.lock:  # Thread-safe increment
+                self.cache_hits += 1
             return cached_data
 
-        self.cache_misses += 1
+        with self.sample_cache.lock:  # Thread-safe increment
+            self.cache_misses += 1
 
         # Process sample data
         processed_data = self._process_sample_data(raw_data, sample_info, pitch_ratio, interpolation)
@@ -598,20 +608,26 @@ class SF2SampleProcessor:
 
     def _convert_16bit_data(self, data: bytes, is_stereo: bool) -> np.ndarray:
         """Convert 16-bit sample data."""
+        if len(data) == 0:
+            return np.array([], dtype=np.float32)
+            
         samples = np.frombuffer(data, dtype=np.int16)
 
         if is_stereo:
             # Reshape to (frames, 2) for stereo
-            if len(samples) % 2 == 0:
+            if len(samples) % 2 == 0 and len(samples) >= 2:
                 return samples.reshape(-1, 2).astype(np.float32) / 32768.0
             else:
-                # Handle odd length
+                # Handle odd length or insufficient data
                 return samples.astype(np.float32) / 32768.0
         else:
             return samples.astype(np.float32) / 32768.0
 
     def _convert_24bit_data(self, data: bytes, is_stereo: bool) -> np.ndarray:
         """Convert 24-bit sample data."""
+        if len(data) == 0:
+            return np.array([], dtype=np.float32)
+            
         samples = []
 
         if is_stereo:
@@ -636,7 +652,11 @@ class SF2SampleProcessor:
 
                 samples.extend([left_sample, right_sample])
 
-            return np.array(samples, dtype=np.float32).reshape(-1, 2)
+            # Only reshape if we have an even number of samples
+            if len(samples) % 2 == 0 and len(samples) >= 2:
+                return np.array(samples, dtype=np.float32).reshape(-1, 2)
+            else:
+                return np.array(samples, dtype=np.float32)
         else:
             # Process 3 bytes per mono sample
             for i in range(0, len(data), 3):
@@ -656,22 +676,45 @@ class SF2SampleProcessor:
                           pitch_ratio: float) -> np.ndarray:
         """Apply mip-mapping for high-pitch playback."""
         sample_name = sample_info.get('name', 'unknown')
+        sample_rate = sample_info.get('sample_rate', 44100)
 
         # Get or create mip-map
         if sample_name not in self.mip_maps:
-            self.mip_maps[sample_name] = SampleMipMap(sample_data, sample_info.get('sample_rate', 44100))
+            self.mip_maps[sample_name] = SampleMipMap(sample_data, sample_rate)
             self.mip_selectors[sample_name] = MipLevelSelector()
 
         mip_map = self.mip_maps[sample_name]
         selector = self.mip_selectors[sample_name]
 
-        # Select optimal mip level
+        # Select optimal mip level based on pitch ratio and sample rate considerations
         level = selector.select_stable_level(pitch_ratio)
 
         if level > 0:
             try:
                 mip_data = mip_map.get_level(level)
                 if mip_data is not None:
+                    # Ensure the returned data has the same shape and type as the original
+                    if mip_data.shape != sample_data.shape:
+                        # If shapes differ, we need to resample to match
+                        if len(sample_data.shape) == 1 and len(mip_data.shape) == 1:
+                            # Both are mono, just adjust length
+                            if len(mip_data) != len(sample_data):
+                                interpolator = Interpolator('linear')
+                                mip_data = interpolator.interpolate(mip_data, len(sample_data) / len(mip_data))
+                        elif len(sample_data.shape) > 1 and len(mip_data.shape) > 1:
+                            # Both are stereo, adjust both channels
+                            if mip_data.shape != sample_data.shape:
+                                interpolator = Interpolator('linear')
+                                if mip_data.shape[0] != sample_data.shape[0]:
+                                    # Adjust number of frames
+                                    new_data = np.zeros_like(sample_data)
+                                    for ch in range(min(mip_data.shape[1], sample_data.shape[1])):
+                                        channel_data = interpolator.interpolate(
+                                            mip_data[:, ch], 
+                                            sample_data.shape[0] / mip_data.shape[0]
+                                        )
+                                        new_data[:, ch] = channel_data[:sample_data.shape[0]]
+                                    mip_data = new_data
                     return mip_data
             except Exception:
                 pass  # Fall back to original

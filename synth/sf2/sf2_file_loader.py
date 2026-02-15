@@ -797,6 +797,10 @@ class SF2FileLoader:
         """
         Read and combine 24-bit sample data from both smpl and sm24 chunks directly from file.
 
+        According to SF2 specification:
+        - smpl chunk contains 16-bit samples (LSB)
+        - sm24 chunk contains MSB of 24-bit samples
+        
         Args:
             sample_start: Sample start index
             sample_end: Sample end index
@@ -819,7 +823,7 @@ class SF2FileLoader:
         combined_data = bytearray(num_samples * 3)
 
         try:
-            # Read smpl data (16-bit samples)
+            # Read smpl data (16-bit samples - LSB)
             smpl_data_start = smpl_offset + 8 + (sample_start * 2)  # Skip header + offset to sample
             smpl_data_size = num_samples * 2
 
@@ -829,7 +833,7 @@ class SF2FileLoader:
             if len(smpl_bytes) < smpl_data_size:
                 return None
 
-            # Read sm24 data (8-bit extensions)
+            # Read sm24 data (MSB of 24-bit samples)
             sm24_data_start = sm24_offset + 8 + sample_start  # Skip header + offset to sample
             sm24_data_size = num_samples
 
@@ -839,26 +843,43 @@ class SF2FileLoader:
             if len(sm24_bytes) < sm24_data_size:
                 return None
 
-            # Combine the data
+            # Combine the data correctly: sm24_byte is MSB, smpl_word is LSB
             for i in range(num_samples):
-                # Get 16-bit data from smpl
-                smpl_word = int.from_bytes(smpl_bytes[i*2:i*2+2], byteorder='little', signed=True)
+                # Get 16-bit data from smpl (LSB of 24-bit sample)
+                lsb_word = int.from_bytes(smpl_bytes[i*2:i*2+2], byteorder='little', signed=True)
+                
+                # Get 8-bit MSB from sm24
+                msb_byte = sm24_bytes[i]
+                
+                # Sign-extend the MSB byte if it's negative
+                if msb_byte & 0x80:  # If MSB is set, it's negative
+                    msb_extended = msb_byte | 0xFFFFFF00  # Sign extend to 32-bit
+                else:
+                    msb_extended = msb_byte
+                
+                # Combine: shift MSB to upper 8 bits and combine with LSB
+                # The 24-bit value is: (msb << 16) | (lsb & 0xFFFF)
+                sample_24bit = (msb_extended << 16) | (lsb_word & 0xFFFF)
 
-                # Get 8-bit extension from sm24
-                sm24_value = sm24_bytes[i]
+                # Convert to 3-byte signed 24-bit representation
+                # We need to handle the sign correctly for 24-bit
+                if sample_24bit & 0x800000:  # If MSB of 24-bit is set, it's negative
+                    sample_24bit = sample_24bit | 0xFF000000  # Sign extend to 32-bit for proper conversion
 
-                # Handle sign extension for 24-bit sample
-                if sm24_value & 0x80:  # If MSB is set, it's negative
-                    sm24_value |= 0xFFFFFF00  # Sign extend to 32-bit
+                # Convert to 3-byte signed representation
+                try:
+                    combined_bytes = sample_24bit.to_bytes(3, byteorder='little', signed=True)
+                    combined_data[i*3:(i+1)*3] = combined_bytes
+                except OverflowError:
+                    # Handle overflow by clamping to valid 24-bit range
+                    if sample_24bit > 0x7FFFFF:
+                        sample_24bit = 0x7FFFFF
+                    elif sample_24bit < -0x800000:
+                        sample_24bit = -0x800000
+                    combined_bytes = sample_24bit.to_bytes(3, byteorder='little', signed=True)
+                    combined_data[i*3:(i+1)*3] = combined_bytes
 
-                # Combine: upper 8 bits from sm24, lower 16 bits from smpl
-                sample_24bit = (sm24_value << 16) | (smpl_word & 0xFFFF)
-
-                # Convert back to 3 bytes (24-bit)
-                combined_bytes = sample_24bit.to_bytes(3, byteorder='little', signed=True)
-                combined_data[i*3:(i+1)*3] = combined_bytes
-
-            return bytes(combined_data[:len(combined_data)//3*3])  # Ensure complete samples
+            return bytes(combined_data)
 
         except Exception as e:
             print(f"Error reading 24-bit sample data from file: {e}")

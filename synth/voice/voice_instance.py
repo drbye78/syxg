@@ -70,6 +70,20 @@ class VoiceInstance:
             'tremolo_rate': 4.0,       # Hz
             'tremolo_depth': 0.0,      # 0.0-1.0
         }
+        
+        # Per-note controller state for MIDI 2.0 (per-note control)
+        self.per_note_modulation = {
+            'per_note_pitch_bend': 0.0,      # Per-note pitch bend (semitones)
+            'per_note_mod_wheel': 0.0,       # Per-note modulation wheel
+            'per_note_expression': 1.0,      # Per-note expression
+            'per_note_brightness': 0.5,      # Per-note brightness
+            'per_note_harmonic_content': 0.5, # Per-note harmonic content
+            'per_note_pan': 0.0,             # Per-note pan (-1.0 to 1.0)
+            'per_note_pressure': 0.0,        # Per-note pressure (aftertouch)
+            'per_note_timbre': 0.0,          # Per-note timbre
+            'per_note_custom_1': 0.0,        # Custom per-note parameter 1
+            'per_note_custom_2': 0.0,        # Custom per-note parameter 2
+        }
 
         # Voice-level parameters
         self.master_volume = 1.0
@@ -134,6 +148,45 @@ class VoiceInstance:
             if hasattr(region, 'update_modulation'):
                 region.update_modulation(self.modulation_state)
 
+    def update_per_note_modulation(self, per_note_updates: Dict[str, float]) -> None:
+        """
+        Update per-note modulation state for this voice instance.
+
+        Args:
+            per_note_updates: Dictionary of per-note modulation parameter updates
+        """
+        self.per_note_modulation.update(per_note_updates)
+
+        # Propagate per-note modulation to all regions
+        for region in self.active_regions:
+            if hasattr(region, 'update_per_note_modulation'):
+                region.update_per_note_modulation(self.per_note_modulation)
+
+    def set_per_note_controller(self, controller_name: str, value: float) -> None:
+        """
+        Set a specific per-note controller value.
+
+        Args:
+            controller_name: Name of the per-note controller
+            value: Value to set (0.0-1.0 for most controllers)
+        """
+        if controller_name in self.per_note_modulation:
+            self.per_note_modulation[controller_name] = value
+        else:
+            raise ValueError(f"Unknown per-note controller: {controller_name}")
+
+    def get_per_note_controller(self, controller_name: str) -> float:
+        """
+        Get the current value of a per-note controller.
+
+        Args:
+            controller_name: Name of the per-note controller
+
+        Returns:
+            Current value of the controller
+        """
+        return self.per_note_modulation.get(controller_name, 0.0)
+
     def generate_samples(self, block_size: int) -> np.ndarray:
         """
         Generate audio samples for this voice instance.
@@ -154,7 +207,11 @@ class VoiceInstance:
         for region in self.active_regions[:]:  # Copy list to allow modification
             if hasattr(region, 'generate_samples'):
                 try:
-                    region_audio = region.generate_samples(block_size, self.modulation_state)
+                    # Combine modulation states for this region
+                    combined_modulation = self.modulation_state.copy()
+                    combined_modulation.update(self.per_note_modulation)
+                    
+                    region_audio = region.generate_samples(block_size, combined_modulation)
 
                     # Handle different region output formats
                     if region_audio.ndim == 1:

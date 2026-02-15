@@ -412,14 +412,24 @@ class SF2Sample:
         return bool(self.sample_type & 0x0001) or bool(self.sample_type & 0x0002) or bool(self.sample_type & 0x0004)
 
     def _get_loop_mode(self) -> int:
-        """Get loop mode from sample type."""
-        type_flags = self.sample_type & 0x7FFF  # Mask out 24-bit flag
-        if type_flags == 1:
-            return 0  # No loop
-        elif type_flags in [2, 4, 8]:
-            return 1  # Forward loop
-        else:
-            return 0  # Default to no loop
+        """Get loop mode from sample type according to SF2 specification."""
+        # According to SF2 spec, sample type flags:
+        # Bit 0: 0=mono, 1=right (for stereo)
+        # Bit 1: 1=left (for stereo)
+        # Bit 2: 1=linked sample
+        # Bit 3: 1=ROM sample (not used for loop mode)
+        # Loop mode is determined by the sample mode generator (gen_type 51)
+        # But we can infer from sample_type if needed:
+        
+        # Extract sample type without 24-bit flag
+        type_flags = self.sample_type & 0x7FFF
+        
+        # For loop mode, we should rely on sample_modes generator (51) instead
+        # But if we must determine from sample_type:
+        # 1 = mono, 2 = right, 4 = left, 8 = linked
+        # Loop mode is usually indicated by sample_modes generator
+        # Default to no loop
+        return 0
 
     def load_data(self, sample_data: bytes) -> bool:
         """

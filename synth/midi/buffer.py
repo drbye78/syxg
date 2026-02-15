@@ -113,7 +113,7 @@ class MessageBuffer:
         with self.lock:
             messages = []
 
-            # Collect messages in range without removing them
+            # Collect messages in range without removing them from heap
             for time_val, _, message in self.message_heap:
                 if start_time <= time_val <= end_time:
                     messages.append(message)

@@ -1,4 +1,12 @@
 {
-  "autoccept": true,
-  "$version": 2
+  "tools": {
+    "approvalMode": "auto-edit",
+    "useRipgrep": true
+  },
+  "general": {
+    "checkpointing": {
+      "enabled": true
+    }
+  },
+  "$version": 3
 }

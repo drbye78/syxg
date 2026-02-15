@@ -140,9 +140,13 @@ class SF2GeneratorProcessor:
         Returns:
             Time in seconds
         """
+        if timecent <= -32768:  # Handle extended negative values as -inf
+            return 0.0  # -inf means instant
         if timecent == -12000:
             return 0.0  # -inf means instant
-        return 2.0 ** (timecent / 1200.0)  # timecent to linear conversion
+        # Convert timecents to seconds using the correct formula
+        # Timecents represent logarithmic time intervals in 1/1200 octave units
+        return 0.001 * (2.0 ** (timecent / 1200.0))  # Corrected formula with proper scaling
 
     def _cent_to_frequency(self, cent: int) -> float:
         """
