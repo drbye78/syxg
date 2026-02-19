@@ -63,6 +63,7 @@ target_include_directories(${PROJECT_NAME}
 # Link libraries
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
+        juce::juce_core
         juce::juce_audio_utils
         juce::juce_audio_processors
         juce::juce_gui_basics
@@ -143,6 +144,7 @@ if(BUILD_AAX)
     # AAX-specific link libraries
     target_link_libraries(${AAX_PROJECT_NAME}
         PRIVATE
+            juce::juce_core
             juce::juce_audio_utils
             juce::juce_audio_processors
             juce::juce_gui_basics

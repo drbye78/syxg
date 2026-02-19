@@ -80,8 +80,28 @@ class ParameterRouter:
         if param_update.scope == ParameterScope.GLOBAL and param_update.channel is not None:
             return False
 
-        # Check parameter value ranges (basic validation)
-        # TODO: Implement comprehensive parameter validation
+        # Parameter value ranges validation
+        value = param_update.value
+        if not isinstance(value, (int, float)):
+            return False
+        
+        # Validate based on parameter type
+        param_name = param_update.name.lower()
+        
+        # Volume/pan parameters: 0-127 or 0.0-1.0
+        if 'volume' in param_name or 'pan' in param_name or 'gain' in param_name:
+            if not (0 <= value <= 127 or 0.0 <= value <= 1.0):
+                return False
+        
+        # Pitch/tune parameters: cents or semitones
+        if 'tune' in param_name or 'pitch' in param_name or 'transpose' in param_name:
+            if not (-8192 <= value <= 8191 or -12 <= value <= 12):
+                return False
+        
+        # Rate/depth parameters
+        if 'rate' in param_name or 'depth' in param_name or 'speed' in param_name:
+            if not (0 <= value <= 127 or 0.0 <= value <= 1.0):
+                return False
 
         return True
 
@@ -200,7 +220,24 @@ class ParameterRouter:
         # Log routing
         self._log_parameter_route(param_update, f"partial_channel_{param_update.channel}")
 
-        # TODO: Implement specific partial routing logic
+        # Implement partial routing - find target partial
+        if hasattr(self.synthesizer, 'channels') and param_update.channel in self.synthesizer.channels:
+            channel = self.synthesizer.channels[param_update.channel]
+            
+            # Get partial index from parameter update if available
+            partial_idx = getattr(param_update, 'partial_index', None)
+            
+            if partial_idx is not None:
+                # Route to specific partial
+                if hasattr(channel, 'partials') and partial_idx < len(channel.partials):
+                    partial = channel.partials[partial_idx]
+                    partial.apply_partial_parameter(param_update)
+            else:
+                # Route to all partials in the channel
+                if hasattr(channel, 'partials'):
+                    for partial in channel.partials:
+                        partial.apply_partial_parameter(param_update)
+
         return True
 
     def _should_propagate_to_channels(self, param_name: str) -> bool:
@@ -311,27 +348,7 @@ class ParameterRouter:
         self.parameter_cache.clear()
         self.route_history.clear()
 
-    def get_parameter_value(self, param_name: str, scope: ParameterScope = None,
-                          channel: int = None) -> Optional[float]:
-        """
-        Get current cached parameter value.
-
-        Args:
-            param_name: Parameter name
-            scope: Parameter scope (optional filter)
-            channel: Channel number (optional filter)
-
-        Returns:
-            Current parameter value or None if not found
-        """
-        if param_name in self.parameter_cache:
-            param_update = self.parameter_cache[param_name]
-
-            # Apply filters if specified
-            if scope is not None and param_update.scope != scope:
-                return None
-
-    # Additional methods needed for synthesizer integration
+        # Additional methods needed for synthesizer integration
     def register_source(self, name: str, source) -> None:
         """
         Register a parameter source.
@@ -446,7 +463,7 @@ class ParameterRouter:
                     try:
                         if not validator(param_path, value):
                             return False
-                    except:
+                    except Exception:
                         pass  # Continue with other validators
 
         return True

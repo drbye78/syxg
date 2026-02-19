@@ -2016,3 +2016,81 @@ sequences:
 - Full MIDI XG specification compliance
 
 This comprehensive specification provides complete coverage of all MIDI controllers, RPNs, NRPNs, drum parameters, effect parameters, and constructs supported by the XG MIDI DSL. The language provides an intuitive, human-readable interface while maintaining full compatibility with the sophisticated XG synthesizer infrastructure.
+---
+
+## S.Art2 Articulation System
+
+### Overview
+
+S.Art2 (Super Articulation 2) is Yamaha's advanced articulation system that simulates natural playing techniques. This section extends XGML to support S.Art2 articulations.
+
+### Supported Articulations (50+ types)
+
+**Basic Articulations:**
+- normal, legato, staccato, bend, vibrato, breath
+- gliss, growl, flutter, trill, pizzicato, grace
+- shake, fall, doit, tongue_slap, harmonics
+
+**String Techniques:**
+- sul_ponticello, scoop, rip, swell, accented
+- bow_up, bow_down, col_legno, tasto, punto
+- tambora, arpeggiato, battuto, flageolet
+
+**Vocal Effects:**
+- wail, moan, cry, sob, whisper, sing, talk
+- scream, howl, yowl, chirp, twitter
+
+**Guitar Techniques:**
+- tapped, slapped, popped, finger_picked, flam
+- rimshot, cross_stick, buzz_roll, press_roll
+
+**Extended:**
+- smear, flip, straight, tumble, ripple, stroke, roll
+- mordent_upper, mordent_lower, turn, inverted_turn
+
+### NRPN Articulation Mapping
+
+| MSB | LSB | Articulation |
+|-----|-----|--------------|
+| 1 | 0 | normal |
+| 1 | 1 | legato |
+| 1 | 2 | staccato |
+| 1 | 3 | bend |
+| 1 | 4 | vibrato |
+| 1 | 5 | gliss |
+| 1 | 6 | growl |
+| ... | ... | ... |
+
+### Usage in XGML
+
+```yaml
+# Note with S.Art2 articulation
+note_on:
+  note: "E4"
+  velocity: 85
+  duration: 2.0
+  articulation: "sul_ponticello"  # Full S.Art2 support
+
+# Channel with default articulation
+channel_parameters:
+  channel_1:
+    articulation: "harmonics"
+    articulation_strength: 0.7
+
+# Playing styles
+playing_styles:
+  jazz_swing:
+    articulation: "legato"
+    velocity_curve: "jazz"
+  classical:
+    articulation: "normal"
+```
+
+### Articulation Parameters
+
+```yaml
+articulation_params:
+  vibrato_depth: 0.5        # 0.0-1.0
+  vibrato_rate: 5.0        # Hz
+  decay_rate: 0.8          # 0.0-1.0
+  attack_mod: 0.3          # 0.0-1.0
