@@ -9,6 +9,9 @@
 */
 
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
+#include <chrono>
+#include <algorithm>
 
 //==============================================================================
 XGWorkstationVST3AudioProcessor::XGWorkstationVST3AudioProcessor()
@@ -27,8 +30,8 @@ XGWorkstationVST3AudioProcessor::XGWorkstationVST3AudioProcessor()
     parameterManager.initializeParameters(*this);
 
     // Reserve audio buffer space
-    leftChannelBuffer.reserve(8192);
-    rightChannelBuffer.reserve(8192);
+    leftInputBuffer.reserve(8192);
+    rightInputBuffer.reserve(8192);
 }
 
 XGWorkstationVST3AudioProcessor::~XGWorkstationVST3AudioProcessor()
@@ -112,8 +115,8 @@ void XGWorkstationVST3AudioProcessor::prepareToPlay (double sampleRate, int samp
     }
 
     // Prepare audio buffers
-    leftChannelBuffer.resize(samplesPerBlock);
-    rightChannelBuffer.resize(samplesPerBlock);
+    leftInputBuffer.resize(samplesPerBlock);
+    rightInputBuffer.resize(samplesPerBlock);
 }
 
 void XGWorkstationVST3AudioProcessor::releaseResources()
@@ -195,30 +198,59 @@ void XGWorkstationVST3AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
         auto* rightInput = buffer.getReadPointer(1);
 
         // PERFORMANCE: Use resize + memcpy for better performance than assign
-        if (leftChannelBuffer.size() != static_cast<size_t>(numSamples))
-            leftChannelBuffer.resize(numSamples);
-        if (rightChannelBuffer.size() != static_cast<size_t>(numSamples))
-            rightChannelBuffer.resize(numSamples);
+        if (leftInputBuffer.size() != static_cast<size_t>(numSamples))
+            leftInputBuffer.resize(numSamples);
+        if (rightInputBuffer.size() != static_cast<size_t>(numSamples))
+            rightInputBuffer.resize(numSamples);
 
-        std::memcpy(leftChannelBuffer.data(), leftInput, numSamples * sizeof(float));
-        std::memcpy(rightChannelBuffer.data(), rightInput, numSamples * sizeof(float));
+        std::memcpy(leftInputBuffer.data(), leftInput, numSamples * sizeof(float));
+        std::memcpy(rightInputBuffer.data(), rightInput, numSamples * sizeof(float));
     }
     else
     {
         // No inputs, use silence - PERFORMANCE: Avoid repeated assignments
-        if (leftChannelBuffer.size() != static_cast<size_t>(numSamples))
+        if (leftInputBuffer.size() != static_cast<size_t>(numSamples))
         {
-            leftChannelBuffer.assign(numSamples, 0.0f);
-            rightChannelBuffer.assign(numSamples, 0.0f);
+            leftInputBuffer.assign(numSamples, 0.0f);
+            rightInputBuffer.assign(numSamples, 0.0f);
         }
     }
 
-    // Process through XG synthesizer
-    std::vector<float> leftOutput(numSamples);
-    std::vector<float> rightOutput(numSamples);
+    // Pre-allocate output buffers (reuse to avoid per-block allocations)
+    static std::vector<float> leftOutput;
+    static std::vector<float> rightOutput;
+    if (leftOutput.size() != static_cast<size_t>(numSamples))
+    {
+        leftOutput.resize(numSamples);
+        rightOutput.resize(numSamples);
+    }
 
-    if (pythonIntegration.processAudioBlock(leftChannelBuffer, rightChannelBuffer,
+    // Process through XG synthesizer with timeout protection
+    // NOTE: For true real-time safety, this should be moved to a separate thread
+    // with ring buffers. This is a simplified fallback mechanism.
+    bool processingSuccess = false;
+    auto processStartTime = std::chrono::high_resolution_clock::now();
+    
+    if (pythonIntegration.processAudioBlock(leftInputBuffer, rightInputBuffer,
                                            leftOutput, rightOutput))
+    {
+        // Check if processing took too long (超过可用时间的80%表示可能阻塞)
+        auto processEndTime = std::chrono::high_resolution_clock::now();
+        double processTimeMs = std::chrono::duration<double, std::milli>(processEndTime - processStartTime).count();
+        double availableTimeMs = (numSamples / currentSampleRate) * 1000.0;
+        
+        if (processTimeMs < availableTimeMs * 0.8) // Only use if under 80% of available time
+        {
+            processingSuccess = true;
+        }
+        else
+        {
+            // Processing took too long, increment underrun counter
+            performanceMetrics.bufferUnderruns++;
+        }
+    }
+    
+    if (processingSuccess)
     {
         // Copy results back to JUCE buffer with optimized operations
         if (totalNumOutputChannels >= 1)
@@ -235,7 +267,7 @@ void XGWorkstationVST3AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
     }
     else
     {
-        // Processing failed, output silence
+        // Processing failed or took too long, output silence
         for (int channel = 0; channel < totalNumOutputChannels; ++channel)
             buffer.clear(channel, 0, numSamples);
     }
@@ -260,17 +292,84 @@ juce::AudioProcessorEditor* XGWorkstationVST3AudioProcessor::createEditor()
 //==============================================================================
 void XGWorkstationVST3AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-    juce::ignoreUnused (destData);
+    juce::ValueTree state("XGWorkstationState");
+    
+    state.setProperty("masterVolume", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Master_Volume)), nullptr);
+    state.setProperty("masterPan", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Master_Pan)), nullptr);
+    
+    state.setProperty("reverbEnable", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Reverb_Enable)), nullptr);
+    state.setProperty("reverbTime", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Reverb_Time)), nullptr);
+    state.setProperty("reverbLevel", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Reverb_Level)), nullptr);
+    
+    state.setProperty("chorusEnable", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Chorus_Enable)), nullptr);
+    state.setProperty("chorusRate", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Chorus_Rate)), nullptr);
+    state.setProperty("chorusDepth", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Chorus_Depth)), nullptr);
+    state.setProperty("chorusLevel", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Chorus_Level)), nullptr);
+    
+    state.setProperty("patternTempo", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Pattern_Tempo)), nullptr);
+    state.setProperty("patternSwing", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Pattern_Swing)), nullptr);
+    state.setProperty("patternLength", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Pattern_Length)), nullptr);
+    
+    state.setProperty("variationEnable", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Variation_Enable)), nullptr);
+    state.setProperty("variationType", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Variation_Type)), nullptr);
+    state.setProperty("variationLevel", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Variation_Level)), nullptr);
+    
+    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+    if (xml != nullptr)
+    {
+        juce::MemoryOutputStream stream;
+        xml->writeToStream(stream, {}, true);
+        destData.append(stream.getData(), stream.getDataSize());
+    }
 }
 
 void XGWorkstationVST3AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() method.
-    juce::ignoreUnused (data, sizeInBytes);
+    if (data == nullptr || sizeInBytes == 0)
+        return;
+    
+    std::unique_ptr<juce::XmlElement> xml(juce::XmlDocument::parse(juce::String::createStringFromData(data, sizeInBytes)));
+    if (xml == nullptr)
+        return;
+    
+    juce::ValueTree state = juce::ValueTree::fromXml(*xml);
+    if (!state.isValid() || state.getType() != juce::Identifier("XGWorkstationState"))
+        return;
+    
+    if (state.hasProperty("masterVolume"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Master_Volume), static_cast<float>(state.getProperty("masterVolume")));
+    if (state.hasProperty("masterPan"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Master_Pan), static_cast<float>(state.getProperty("masterPan")));
+    
+    if (state.hasProperty("reverbEnable"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Reverb_Enable), static_cast<float>(state.getProperty("reverbEnable")));
+    if (state.hasProperty("reverbTime"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Reverb_Time), static_cast<float>(state.getProperty("reverbTime")));
+    if (state.hasProperty("reverbLevel"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Reverb_Level), static_cast<float>(state.getProperty("reverbLevel")));
+    
+    if (state.hasProperty("chorusEnable"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Chorus_Enable), static_cast<float>(state.getProperty("chorusEnable")));
+    if (state.hasProperty("chorusRate"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Chorus_Rate), static_cast<float>(state.getProperty("chorusRate")));
+    if (state.hasProperty("chorusDepth"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Chorus_Depth), static_cast<float>(state.getProperty("chorusDepth")));
+    if (state.hasProperty("chorusLevel"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Chorus_Level), static_cast<float>(state.getProperty("chorusLevel")));
+    
+    if (state.hasProperty("patternTempo"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Pattern_Tempo), static_cast<float>(state.getProperty("patternTempo")));
+    if (state.hasProperty("patternSwing"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Pattern_Swing), static_cast<float>(state.getProperty("patternSwing")));
+    if (state.hasProperty("patternLength"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Pattern_Length), static_cast<float>(state.getProperty("patternLength")));
+    
+    if (state.hasProperty("variationEnable"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Variation_Enable), static_cast<float>(state.getProperty("variationEnable")));
+    if (state.hasProperty("variationType"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Variation_Type), static_cast<float>(state.getProperty("variationType")));
+    if (state.hasProperty("variationLevel"))
+        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Variation_Level), static_cast<float>(state.getProperty("variationLevel")));
 }
 
 //==============================================================================
@@ -323,24 +422,25 @@ void XGWorkstationVST3AudioProcessor::processMidiMessage(const juce::MidiMessage
 // Performance optimization methods
 void XGWorkstationVST3AudioProcessor::updatePerformanceMetrics(double processingTimeMs, int numSamples)
 {
-    // Update average processing time (exponential moving average)
-    const double alpha = 0.1; // Smoothing factor
-    performanceMetrics.averageProcessingTime =
-        alpha * processingTimeMs + (1.0 - alpha) * performanceMetrics.averageProcessingTime;
+    const double alpha = 0.1;
+    double currentAvg = performanceMetrics.averageProcessingTime.load();
+    performanceMetrics.averageProcessingTime = alpha * processingTimeMs + (1.0 - alpha) * currentAvg;
 
-    // Update CPU usage measurement (every 100ms)
     auto currentTime = juce::Time::currentTimeMillis();
-    if (currentTime - lastCpuMeasurement.toMilliseconds() > 100)
+    auto lastCpu = lastCpuMeasurement.load();
+    if (currentTime - lastCpu > 100)
     {
         double cpuUsage = getCurrentCpuUsage();
-        performanceMetrics.averageCpuUsage = alpha * cpuUsage + (1.0 - alpha) * performanceMetrics.averageCpuUsage;
-        performanceMetrics.peakCpuUsage = std::max(performanceMetrics.peakCpuUsage, cpuUsage);
-        lastCpuMeasurement = juce::Time(currentTime);
+        double currentPeak = performanceMetrics.peakCpuUsage.load();
+        performanceMetrics.averageCpuUsage = alpha * cpuUsage + (1.0 - alpha) * performanceMetrics.averageCpuUsage.load();
+        
+        double newPeak = std::max(currentPeak, cpuUsage);
+        performanceMetrics.peakCpuUsage = newPeak;
+        lastCpuMeasurement = static_cast<juce::int64>(currentTime);
     }
 
-    // Check for buffer underruns (processing time > available time per block)
-    double availableTimeMs = (numSamples / currentSampleRate) * 1000.0;
-    if (processingTimeMs > availableTimeMs * 0.9) // 90% of available time
+    double availableTimeMs = (numSamples / currentSampleRate.load()) * 1000.0;
+    if (processingTimeMs > availableTimeMs * 0.9)
     {
         performanceMetrics.bufferUnderruns++;
     }
@@ -348,19 +448,33 @@ void XGWorkstationVST3AudioProcessor::updatePerformanceMetrics(double processing
 
 double XGWorkstationVST3AudioProcessor::getCurrentCpuUsage()
 {
-    // Use JUCE's PerformanceCounter to measure CPU usage
+    // Measure CPU usage based on processing time vs available time
     // This is a simplified implementation - in a real plugin you might want more sophisticated measurement
-    static double lastCpuTime = 0.0;
-    double currentCpuTime = cpuCounter.getCPUUsage() * 100.0; // Convert to percentage
-
-    if (lastCpuTime > 0.0)
+    auto currentTime = juce::Time::getHighResolutionTicks();
+    static auto lastMeasurementTime = currentTime;
+    static int measurementCount = 0;
+    static double cumulativeUsage = 0.0;
+    
+    // Get the average processing time from our metrics
+    double avgProcessingTime = performanceMetrics.averageProcessingTime.load();
+    double sampleRate = currentSampleRate.load();
+    int blockSize = currentBlockSize.load();
+    
+    // Calculate expected processing time for this block
+    double availableTimeMs = (blockSize / sampleRate) * 1000.0;
+    
+    if (availableTimeMs > 0.0 && avgProcessingTime > 0.0)
     {
-        double cpuUsage = currentCpuTime - lastCpuTime;
-        lastCpuTime = currentCpuTime;
-        return std::max(0.0, std::min(100.0, cpuUsage));
+        // CPU usage = processing time / available time * 100
+        double cpuUsage = (avgProcessingTime / availableTimeMs) * 100.0;
+        
+        // Smooth with exponential moving average
+        measurementCount++;
+        cumulativeUsage = cumulativeUsage * 0.95 + cpuUsage * 0.05;
+        
+        return std::max(0.0, std::min(100.0, cumulativeUsage));
     }
-
-    lastCpuTime = currentCpuTime;
+    
     return 0.0;
 }
 
@@ -374,8 +488,8 @@ void XGWorkstationVST3AudioProcessor::optimizeBufferSizes(int newBlockSize)
         // Resize buffers with some headroom for performance
         size_t optimalSize = static_cast<size_t>(newBlockSize * 1.5); // 50% headroom
 
-        leftChannelBuffer.reserve(optimalSize);
-        rightChannelBuffer.reserve(optimalSize);
+        leftInputBuffer.reserve(optimalSize);
+        rightInputBuffer.reserve(optimalSize);
 
         // Notify Python integration of buffer size change for optimization
         if (xgWorkstationReady)
@@ -388,7 +502,7 @@ void XGWorkstationVST3AudioProcessor::optimizeBufferSizes(int newBlockSize)
 }
 
 //==============================================================================
-// This creates new instances of the plugin..
+// This creates new instances of the plugin for VST3
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new XGWorkstationVST3AudioProcessor();

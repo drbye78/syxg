@@ -45,32 +45,36 @@ def main():
     # Create synthesizer instance
     synth = ModernXGSynthesizer(
         sample_rate=44100,      # Audio sample rate
-        buffer_size=1024        # Processing buffer size
+        xg_enabled=True,        # Enable XG features
+        gs_enabled=True,        # Enable GS features
+        mpe_enabled=False       # Disable MPE
     )
 
-    # Load XGML configuration (optional)
-    # synth.load_xgml_config("examples/simple_piano.xgdsl")
+    # Load SoundFont (optional)
+    # synth.load_soundfont("path/to/soundfont.sf2")
 
-    # Method 1: Render MIDI file directly
-    print("Rendering MIDI file...")
-    synth.render_midi_file(
-        midi_file="input.mid",
-        output_file="output.wav",
-        normalize=True
-    )
+    # Set channel program (bank, program)
+    synth.set_channel_program(channel=0, bank=0, program=0)  # Acoustic Grand Piano
 
-    # Method 2: Generate audio programmatically
-    print("Generating test tone...")
-    # Note: C4 = 60, velocity = 100, duration = 2 seconds
-    audio = synth.generate_note_audio(
-        note=60,           # MIDI note number
-        velocity=100,      # Note velocity
-        duration=2.0       # Duration in seconds
-    )
+    # Method 1: Generate audio block programmatically
+    print("Generating audio block...")
+    block_size = 1024
+    audio = synth.generate_audio_block(block_size)
+    # audio shape: (block_size, 2) for stereo
+
+    # Method 2: Process MIDI messages and generate audio
+    print("Processing MIDI...")
+    # Send a note on message (example using mido)
+    import mido
+    msg = mido.Message('note_on', channel=0, note=60, velocity=100)
+    synth.process_midi_message(msg.bytes())
+    
+    # Generate audio after MIDI input
+    audio = synth.generate_audio_block(block_size)
 
     # Save the generated audio
     import soundfile as sf
-    sf.write('test_note.wav', audio, 44100)
+    sf.write('test_note.wav', audio, synth.sample_rate)
     print("✅ Audio generated successfully!")
 
 if __name__ == "__main__":
@@ -79,7 +83,7 @@ if __name__ == "__main__":
 
 ### Step 3: Real-time Synthesis
 
-For real-time playback:
+For real-time playback, use MIDI message processing:
 
 ```python
 #!/usr/bin/env python3
@@ -89,32 +93,42 @@ Real-time XG Synthesizer example
 
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
 import time
+import mido
 
 def main():
     # Create synthesizer with real-time settings
     synth = ModernXGSynthesizer(
         sample_rate=44100,
-        buffer_size=512,  # Smaller buffer for lower latency
-        real_time=True
+        xg_enabled=True,
+        gs_enabled=True,
+        mpe_enabled=False
     )
 
-    # Load configuration
-    synth.load_xgml_config("examples/simple_piano.xgdsl")
+    # Set channel program
+    synth.set_channel_program(channel=0, bank=0, program=0)  # Piano
 
-    # Play a sequence of notes
+    # Play a sequence of notes using MIDI messages
     notes = [60, 62, 64, 65, 67, 69, 71, 72]  # C major scale
 
     print("🎹 Playing C major scale...")
 
     for note in notes:
-        # Note on
-        synth.note_on(channel=0, note=note, velocity=100)
+        # Note on - send MIDI message
+        msg = mido.Message('note_on', channel=0, note=note, velocity=100)
+        synth.process_midi_message(msg.bytes())
         time.sleep(0.5)  # Hold for 500ms
 
         # Note off
-        synth.note_off(channel=0, note=note)
+        msg = mido.Message('note_off', channel=0, note=note, velocity=64)
+        synth.process_midi_message(msg.bytes())
         time.sleep(0.1)  # Brief pause between notes
 
+    # Generate final audio block
+    audio = synth.generate_audio_block(1024)
+    
+    # Save output
+    import soundfile as sf
+    sf.write('scale_output.wav', audio, synth.sample_rate)
     print("✅ Scale playback complete!")
 
 if __name__ == "__main__":
@@ -323,8 +337,8 @@ synth = ModernXGSynthesizer(
 
 - **Documentation**: Check [User Guide](user-guide.md) and [XGML Reference](../../XGML_README.md)
 - **Examples**: Browse `examples/` directory for working code
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/roger/syxg/issues)
-- **Discussions**: Ask questions on [GitHub Discussions](https://github.com/roger/syxg/discussions)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/drbye78/syxg/issues)
+- **Discussions**: Ask questions on [GitHub Discussions](https://github.com/drbye78/syxg/discussions)
 
 ## 🎯 Next Steps
 

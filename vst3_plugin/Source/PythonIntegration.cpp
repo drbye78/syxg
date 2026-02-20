@@ -366,18 +366,15 @@ bool PythonIntegration::createXGSynthesizer(double sampleRate)
     {
         GilLock gil;
 
-        // Import and create XG synthesizer
-        // This will need to match the actual XG synthesizer API
         py::module xgModule = py::module::import("engine.modern_xg_synthesizer");
         auto synthesizerClass = xgModule.attr("ModernXGSynthesizer");
 
-        // Create synthesizer instance with appropriate parameters
         xgSynthesizer = synthesizerClass(
-            "sample_rate"_a = sampleRate,
-            "max_channels"_a = 16,
-            "xg_enabled"_a = true,
-            "gs_enabled"_a = true,
-            "mpe_enabled"_a = true
+            py::arg("sample_rate") = sampleRate,
+            py::arg("max_channels") = 16,
+            py::arg("xg_enabled") = true,
+            py::arg("gs_enabled") = true,
+            py::arg("mpe_enabled") = true
         );
 
         DBG("XG synthesizer created successfully");

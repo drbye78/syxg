@@ -45,7 +45,7 @@ A **high-performance, vectorized XG (eXtended General MIDI) synthesizer** implem
 
 ```bash
 # Install from source
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 pip install -e .
 
@@ -238,7 +238,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 ### Development Setup
 ```bash
 # Clone repository
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 
 # Install development dependencies
@@ -271,8 +271,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/roger/syxg/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/roger/syxg/discussions)
+- **Issues**: [GitHub Issues](https://github.com/drbye78/syxg/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/drbye78/syxg/discussions)
 - **Documentation**: [Full Documentation](docs/)
 
 ---

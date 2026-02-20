@@ -1,6 +1,6 @@
 # 🔧 Troubleshooting Guide - XG Synthesizer
 
-This guide helps you resolve common issues and problems when using the XG Synthesizer. If you can't find a solution here, check the [GitHub Issues](https://github.com/roger/syxg/issues) or ask on [GitHub Discussions](https://github.com/roger/syxg/discussions).
+This guide helps you resolve common issues and problems when using the XG Synthesizer. If you can't find a solution here, check the [GitHub Issues](https://github.com/drbye78/syxg/issues) or ask on [GitHub Discussions](https://github.com/drbye78/syxg/discussions).
 
 ## 📋 Quick Reference
 
@@ -756,8 +756,8 @@ print(f"Generated {len(audio)} samples")
 
 ### Community Support
 
-- **GitHub Issues**: [Report bugs](https://github.com/roger/syxg/issues)
-- **GitHub Discussions**: [Ask questions](https://github.com/roger/syxg/discussions)
+- **GitHub Issues**: [Report bugs](https://github.com/drbye78/syxg/issues)
+- **GitHub Discussions**: [Ask questions](https://github.com/drbye78/syxg/discussions)
 - **Stack Overflow**: Tag with `xg-synthesizer` and `python`
 
 ### Commercial Support

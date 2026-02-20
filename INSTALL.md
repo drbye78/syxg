@@ -39,7 +39,7 @@ sudo apt install ffmpeg libsndfile1 -y
 sudo apt install portaudio19-dev -y
 
 # Clone and install XG Synthesizer
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 pip3 install -e .
 ```
@@ -56,7 +56,7 @@ sudo yum install python3 python3-pip -y  # CentOS 7
 sudo dnf install ffmpeg ffmpeg-devel -y
 
 # Clone and install
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 pip3 install -e .
 ```
@@ -68,7 +68,7 @@ pip3 install -e .
 sudo pacman -S python python-pip ffmpeg
 
 # Clone and install
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 pip install -e .
 ```
@@ -88,7 +88,7 @@ brew install python@3.9
 brew install ffmpeg
 
 # Clone and install XG Synthesizer
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 pip3 install -e .
 ```
@@ -102,7 +102,7 @@ pip3 install -e .
 sudo port install python39 py39-pip ffmpeg
 
 # Clone and install
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 pip-3.9 install -e .
 ```
@@ -127,7 +127,7 @@ pip-3.9 install -e .
 
 4. **Install XG Synthesizer**
    ```cmd
-   git clone https://github.com/roger/syxg.git
+   git clone https://github.com/drbye78/syxg.git
    cd syxg
    pip install -e .
    ```
@@ -142,7 +142,7 @@ conda create -n xg-synth python=3.9
 conda activate xg-synth
 
 # Clone and install
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 pip install -e .
 ```
@@ -153,12 +153,12 @@ pip install -e .
 
 ```bash
 # Pull the image
-docker pull roger/xg-synthesizer:latest
+docker pull drbye78/xg-synthesizer:latest
 
 # Run container
 docker run -it --rm \
   -v $(pwd):/workspace \
-  roger/xg-synthesizer:latest \
+  drbye78/xg-synthesizer:latest \
   render-midi input.mid output.wav
 ```
 
@@ -166,7 +166,7 @@ docker run -it --rm \
 
 ```bash
 # Clone repository
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 
 # Build Docker image
@@ -185,7 +185,7 @@ docker run -it --rm \
 
 ```bash
 # Clone repository
-git clone https://github.com/roger/syxg.git
+git clone https://github.com/drbye78/syxg.git
 cd syxg
 
 # Install with development dependencies
@@ -279,12 +279,19 @@ import numpy as np
 # Create synthesizer
 synth = ModernXGSynthesizer()
 
-# Generate test tone
-audio = synth.generate_test_tone(frequency=440, duration=1.0)
+# Set a program
+synth.set_channel_program(channel=0, bank=0, program=0)
+
+# Generate audio block (1 second of audio at 44100Hz)
+block_size = 44100
+audio = synth.generate_audio_block(block_size)
+
+# audio shape should be (block_size, 2) for stereo
+print(f"Generated audio shape: {audio.shape}")
 
 # Save to file
 import soundfile as sf
-sf.write('test_tone.wav', audio, 44100)
+sf.write('test_tone.wav', audio, synth.sample_rate)
 
 print("✅ XG Synthesizer installed successfully!")
 print(f"Generated {len(audio)} samples")
@@ -407,8 +414,8 @@ export SDL_AUDIODRIVER=alsa  # Linux
 - **[API Reference](docs/api/)** - Developer documentation
 
 ### Getting Help
-- **Issues**: [GitHub Issues](https://github.com/roger/syxg/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/roger/syxg/discussions)
+- **Issues**: [GitHub Issues](https://github.com/drbye78/syxg/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/drbye78/syxg/discussions)
 - **Documentation**: [Full Docs](docs/)
 
 ---

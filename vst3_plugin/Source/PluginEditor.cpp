@@ -13,17 +13,17 @@
 
 //==============================================================================
 XGWorkstationVST3AudioProcessorEditor::XGWorkstationVST3AudioProcessorEditor (XGWorkstationVST3AudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+    : AudioProcessorEditor (&p),
+      audioProcessor (p),
+      mainTabs(juce::TabbedButtonBar::TabsAtTop),
+      trainingProgressBar(trainingProgress)
 {
-    // Set editor size - larger for professional workstation interface
     setSize (800, 600);
 
-    // Initialize UI components
     initializeComponents();
     setupTabs();
 
-    // Start status update timer
-    startTimer(500); // Update every 500ms
+    startTimer(500);
 }
 
 XGWorkstationVST3AudioProcessorEditor::~XGWorkstationVST3AudioProcessorEditor()
@@ -258,35 +258,131 @@ void XGWorkstationVST3AudioProcessorEditor::buttonClicked(juce::Button* button)
 
 void XGWorkstationVST3AudioProcessorEditor::sliderValueChanged(juce::Slider* slider)
 {
-    // Handle parameter changes
+    // Handle parameter changes and send to processor
     if (slider == &masterVolumeSlider)
     {
-        // TODO: Send parameter change to processor
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Master_Volume), 
+            static_cast<float>(masterVolumeSlider.getValue()));
     }
     else if (slider == &masterPanSlider)
     {
-        // TODO: Send parameter change to processor
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Master_Pan), 
+            static_cast<float>(masterPanSlider.getValue()));
     }
-    else if (slider == &reverbLevelSlider || slider == &reverbTimeSlider ||
-             slider == &chorusLevelSlider || slider == &chorusDepthSlider ||
-             slider == &variationLevelSlider || slider == &variationParam1Slider || slider == &variationParam2Slider)
+    else if (slider == &reverbLevelSlider)
     {
-        effectsControlChanged(slider);
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Reverb_Level), 
+            static_cast<float>(reverbLevelSlider.getValue()));
+    }
+    else if (slider == &reverbTimeSlider)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Reverb_Time), 
+            static_cast<float>(reverbTimeSlider.getValue()));
+    }
+    else if (slider == &chorusLevelSlider)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Chorus_Level), 
+            static_cast<float>(chorusLevelSlider.getValue()));
+    }
+    else if (slider == &chorusDepthSlider)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Chorus_Depth), 
+            static_cast<float>(chorusDepthSlider.getValue()));
+    }
+    else if (slider == &variationLevelSlider)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Variation_Level), 
+            static_cast<float>(variationLevelSlider.getValue()));
+    }
+    else if (slider == &variationParam1Slider)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Variation_Param1), 
+            static_cast<float>(variationParam1Slider.getValue()));
+    }
+    else if (slider == &variationParam2Slider)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Variation_Param2), 
+            static_cast<float>(variationParam2Slider.getValue()));
+    }
+}
+
+void XGWorkstationVST3AudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBox)
+{
+    // Handle combo box changes for effect type selectors
+    if (comboBox == &reverbTypeSelector)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Reverb_Type),
+            static_cast<float>(reverbTypeSelector.getSelectedId()));
+    }
+    else if (comboBox == &chorusTypeSelector)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Chorus_Type),
+            static_cast<float>(chorusTypeSelector.getSelectedId()));
+    }
+    else if (comboBox == &variationTypeSelector)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Variation_Type),
+            static_cast<float>(variationTypeSelector.getSelectedId()));
+    }
+    else if (comboBox == &patternSelector)
+    {
+        audioProcessor.getParameterManager().setParameterValue(
+            static_cast<int>(XGParameterID::Pattern_Select),
+            static_cast<float>(patternSelector.getSelectedId()));
     }
 }
 
 //==============================================================================
 void XGWorkstationVST3AudioProcessorEditor::initializeComponents()
 {
-    // Set up tabbed component
+    // Set up tabbed component - only include functional tabs
     mainTabs.addTab("Workstation", juce::Colours::darkgrey.brighter(0.1f), &workstationTab, false);
     mainTabs.addTab("XG Effects", juce::Colours::darkgrey.brighter(0.1f), &effectsTab, false);
     mainTabs.addTab("Status", juce::Colours::darkgrey.brighter(0.1f), &statusTab, false);
-    mainTabs.addTab("Controllers", juce::Colours::darkgrey.brighter(0.1f), &controllersTab, false);
-    mainTabs.addTab("Parts", juce::Colours::darkgrey.brighter(0.1f), &partsTab, false);
-    mainTabs.addTab("Effects Routing", juce::Colours::darkgrey.brighter(0.1f), &effectsRoutingTab, false);
-    mainTabs.addTab("AI Composer", juce::Colours::darkgrey.brighter(0.1f), &aiComposerTab, false);
+    // TODO: Re-enable when implemented: Controllers, Parts, Effects Routing, AI Composer
+    // mainTabs.addTab("Controllers", juce::Colours::darkgrey.brighter(0.1f), &controllersTab, false);
+    // mainTabs.addTab("Parts", juce::Colours::darkgrey.brighter(0.1f), &partsTab, false);
+    // mainTabs.addTab("Effects Routing", juce::Colours::darkgrey.brighter(0.1f), &effectsRoutingTab, false);
+    // mainTabs.addTab("AI Composer", juce::Colours::darkgrey.brighter(0.1f), &aiComposerTab, false);
     addAndMakeVisible(mainTabs);
+
+    // Register listeners for UI controls
+    masterVolumeSlider.addListener(this);
+    masterPanSlider.addListener(this);
+    reverbLevelSlider.addListener(this);
+    reverbTimeSlider.addListener(this);
+    chorusLevelSlider.addListener(this);
+    chorusDepthSlider.addListener(this);
+    variationLevelSlider.addListener(this);
+    variationParam1Slider.addListener(this);
+    variationParam2Slider.addListener(this);
+    
+    reverbTypeSelector.addListener(this);
+    chorusTypeSelector.addListener(this);
+    variationTypeSelector.addListener(this);
+    patternSelector.addListener(this);
+
+    // Register button listeners
+    initializeButton.addListener(this);
+    testAudioButton.addListener(this);
+    playButton.addListener(this);
+    stopButton.addListener(this);
+    recordButton.addListener(this);
+    pauseButton.addListener(this);
+    createPatternButton.addListener(this);
+    editPatternButton.addListener(this);
 
     // Initialize controller database with known controllers
     initializeControllerDatabase();
@@ -811,7 +907,7 @@ void XGWorkstationVST3AudioProcessorEditor::updateStatusDisplay()
         pythonStatusLabel.setText("Python: ✓ Ready", juce::dontSendNotification);
         pythonStatusLabel.setColour(juce::Label::textColourId, juce::Colours::green);
 
-        synthesizerStatusLabel.setText("Synthesizer: ✓ " + audioProcessor.pythonIntegration.getSynthesizerStatus(),
+        synthesizerStatusLabel.setText("Synthesizer: ✓ " + audioProcessor.getPythonIntegration().getSynthesizerStatus(),
                                       juce::dontSendNotification);
         synthesizerStatusLabel.setColour(juce::Label::textColourId, juce::Colours::green);
 
@@ -969,12 +1065,12 @@ void XGWorkstationVST3AudioProcessorEditor::patternButtonClicked(juce::Button* b
     if (button == &createPatternButton)
     {
         DBG("Create pattern button clicked");
-        // TODO: Implement pattern creation dialog
+        patternInfoLabel.setText("Pattern creation not yet implemented", juce::dontSendNotification);
     }
     else if (button == &editPatternButton)
     {
         DBG("Edit pattern button clicked");
-        // TODO: Implement pattern editor dialog
+        patternInfoLabel.setText("Pattern editor not yet implemented", juce::dontSendNotification);
     }
 }
 
@@ -1045,20 +1141,12 @@ void XGWorkstationVST3AudioProcessorEditor::clearMappingsButtonClicked()
 
 void XGWorkstationVST3AudioProcessorEditor::detectControllersButtonClicked()
 {
-    // This would scan available MIDI devices
-    // For now, just update the status
-    connectedControllerLabel.setText("Scanning for controllers...", juce::dontSendNotification);
-    connectedControllerLabel.setColour(juce::Label::textColourId, juce::Colours::blue);
-
-    // TODO: Implement actual MIDI device scanning
-    // For demonstration, simulate finding a controller
-    juce::Timer::callAfterDelay(1000, [this]() {
-        connectedControllerLabel.setText("Found: Novation Launchpad (simulated)", juce::dontSendNotification);
-        connectedControllerLabel.setColour(juce::Label::textColourId, juce::Colours::green);
-        currentController = "Novation Launchpad";
-    });
-
-    DBG("Controller detection initiated");
+    // Controller detection not yet implemented
+    // Would scan available MIDI devices using JUCE's MidiInput class
+    connectedControllerLabel.setText("Controller detection not implemented", juce::dontSendNotification);
+    connectedControllerLabel.setColour(juce::Label::textColourId, juce::Colours::orange);
+    
+    DBG("Controller detection requested - not yet implemented");
 }
 
 void XGWorkstationVST3AudioProcessorEditor::transportMappingButtonClicked(juce::Button* button)
@@ -1383,26 +1471,6 @@ void XGWorkstationVST3AudioProcessorEditor::setupPartsTab()
     partInfoGroup.addAndMakeVisible(partSettingsButton);
 
     DBG("XG Parts tab initialized with 16-part multi-timbral controls");
-}
-
-void XGWorkstationVST3AudioProcessorEditor::resized()
-{
-    auto area = getLocalBounds().reduced(10);
-
-    // Title area
-    area.removeFromTop(60);
-
-    // Main tabbed interface
-    mainTabs.setBounds(area);
-
-    // Layout individual tabs
-    layoutWorkstationTab();
-    layoutEffectsTab();
-    layoutStatusTab();
-    layoutControllersTab();
-    layoutPartsTab();
-    layoutEffectsRoutingTab();
-    layoutAiComposerTab();
 }
 
 void XGWorkstationVST3AudioProcessorEditor::layoutPartsTab()

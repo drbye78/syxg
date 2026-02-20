@@ -26,7 +26,6 @@ void XGParameterManager::initializeParameters(juce::AudioProcessor& audioProcess
 {
     processor = &audioProcessor;
 
-    // Add parameters to the processor
     initializeTransportParameters();
     initializePatternParameters();
     initializeSynthesizerParameters();
@@ -37,8 +36,6 @@ void XGParameterManager::initializeParameters(juce::AudioProcessor& audioProcess
 
 void XGParameterManager::syncWithPython()
 {
-    // This will be called to synchronize parameter values with Python
-    // Implementation will be added when Python integration is complete
 }
 
 //==============================================================================
@@ -46,21 +43,16 @@ void XGParameterManager::parameterChanged(int parameterIndex, float newValue)
 {
     parameterValues[parameterIndex] = newValue;
 
-    // Handle parameter changes based on parameter ID
     auto paramId = static_cast<XGParameterID>(parameterIndex);
 
     switch (paramId)
     {
         case XGParameterID::Transport_Play:
-            // Handle play button
             break;
         case XGParameterID::Transport_Stop:
-            // Handle stop button
             break;
         case XGParameterID::Pattern_Tempo:
-            // Handle tempo change
             break;
-        // Add more parameter handling as needed
         default:
             break;
     }
@@ -78,7 +70,10 @@ void XGParameterManager::setParameterValue(int parameterIndex, float value)
 
     if (processor)
     {
-        processor->setParameterNotifyingHost(parameterIndex, value);
+        if (auto* param = processor->getParameters()[parameterIndex])
+        {
+            param->setValueNotifyingHost(value);
+        }
     }
 }
 
@@ -89,9 +84,23 @@ void XGParameterManager::registerParameterCallback(XGParameterID paramId,
     parameterCallbacks[static_cast<int>(paramId)] = callback;
 }
 
-const juce::AudioProcessorParameter* XGParameterManager::getParameter(int index) const
+void XGParameterManager::registerParameterCallback(int paramIndex,
+                                                   std::function<void(float)> callback)
 {
-    if (processor)
+    parameterCallbacks[paramIndex] = callback;
+}
+
+//==============================================================================
+const XGParameterInfo& XGParameterManager::getParameterInfo(int index) const
+{
+    static XGParameterInfo defaultInfo;
+    auto it = parameterInfos.find(index);
+    return it != parameterInfos.end() ? it->second : defaultInfo;
+}
+
+juce::AudioProcessorParameter* XGParameterManager::getParameter(int index) const
+{
+    if (processor && index >= 0 && index < processor->getParameters().size())
     {
         return processor->getParameters()[index];
     }
@@ -99,105 +108,103 @@ const juce::AudioProcessorParameter* XGParameterManager::getParameter(int index)
 }
 
 //==============================================================================
-juce::AudioProcessorParameter* XGParameterManager::createParameter(int index,
-                                                                  const juce::String& name,
-                                                                  const juce::String& label,
-                                                                  float minValue,
-                                                                  float maxValue,
-                                                                  float defaultValue,
-                                                                  float step)
+void XGParameterManager::createParameter(int index, const XGParameterInfo& info)
 {
     if (!processor)
-        return nullptr;
+        return;
 
     auto* parameter = new juce::AudioParameterFloat(
-        juce::String(index),
-        name,
-        juce::NormalisableRange<float>(minValue, maxValue, step),
-        defaultValue,
-        label,
-        juce::AudioProcessorParameter::genericParameter,
-        [](float value, int) { return juce::String(value, 2); },
-        [](const juce::String& text) { return text.getFloatValue(); }
+        juce::ParameterID(info.id, 1),
+        info.name,
+        juce::NormalisableRange<float>(info.minValue, info.maxValue, info.step),
+        info.defaultValue,
+        info.label
     );
 
     processor->addParameter(parameter);
-    parameterValues[index] = defaultValue;
-
-    return parameter;
+    parameterValues[index] = info.defaultValue;
+    parameterInfos[index] = info;
 }
 
 //==============================================================================
 void XGParameterManager::initializeTransportParameters()
 {
-    // Transport control parameters (boolean style)
-    createParameter(static_cast<int>(XGParameterID::Transport_Play),
-                   "Transport Play", "", 0.0f, 1.0f, 0.0f);
+    XGParameterInfo info;
 
-    createParameter(static_cast<int>(XGParameterID::Transport_Stop),
-                   "Transport Stop", "", 0.0f, 1.0f, 0.0f);
+    info.id = "TransportPlay"; info.name = "Transport Play"; info.defaultValue = 0.0f;
+    createParameter(static_cast<int>(XGParameterID::Transport_Play), info);
 
-    createParameter(static_cast<int>(XGParameterID::Transport_Record),
-                   "Transport Record", "", 0.0f, 1.0f, 0.0f);
+    info.id = "TransportStop"; info.name = "Transport Stop"; info.defaultValue = 0.0f;
+    createParameter(static_cast<int>(XGParameterID::Transport_Stop), info);
 
-    createParameter(static_cast<int>(XGParameterID::Transport_Pause),
-                   "Transport Pause", "", 0.0f, 1.0f, 0.0f);
+    info.id = "TransportRecord"; info.name = "Transport Record"; info.defaultValue = 0.0f;
+    createParameter(static_cast<int>(XGParameterID::Transport_Record), info);
+
+    info.id = "TransportPause"; info.name = "Transport Pause"; info.defaultValue = 0.0f;
+    createParameter(static_cast<int>(XGParameterID::Transport_Pause), info);
 }
 
 void XGParameterManager::initializePatternParameters()
 {
-    // Pattern sequencer parameters
-    createParameter(static_cast<int>(XGParameterID::Pattern_Select),
-                   "Pattern Select", "", 0.0f, 127.0f, 0.0f);
+    XGParameterInfo info;
 
-    createParameter(static_cast<int>(XGParameterID::Pattern_Tempo),
-                   "Pattern Tempo", "BPM", 60.0f, 200.0f, 120.0f);
+    info.id = "PatternSelect"; info.name = "Pattern Select"; info.minValue = 0.0f; info.maxValue = 127.0f; info.defaultValue = 0.0f;
+    createParameter(static_cast<int>(XGParameterID::Pattern_Select), info);
 
-    createParameter(static_cast<int>(XGParameterID::Pattern_Swing),
-                   "Pattern Swing", "%", 0.0f, 100.0f, 0.0f);
+    info.id = "PatternTempo"; info.name = "Pattern Tempo"; info.label = "BPM"; info.minValue = 60.0f; info.maxValue = 200.0f; info.defaultValue = 120.0f;
+    createParameter(static_cast<int>(XGParameterID::Pattern_Tempo), info);
 
-    createParameter(static_cast<int>(XGParameterID::Pattern_Length),
-                   "Pattern Length", "beats", 1.0f, 16.0f, 16.0f);
+    info.id = "PatternSwing"; info.name = "Pattern Swing"; info.label = "%"; info.minValue = 0.0f; info.maxValue = 100.0f; info.defaultValue = 0.0f;
+    createParameter(static_cast<int>(XGParameterID::Pattern_Swing), info);
+
+    info.id = "PatternLength"; info.name = "Pattern Length"; info.label = "beats"; info.minValue = 1.0f; info.maxValue = 16.0f; info.defaultValue = 16.0f;
+    createParameter(static_cast<int>(XGParameterID::Pattern_Length), info);
 }
 
 void XGParameterManager::initializeSynthesizerParameters()
 {
-    // Master synthesizer parameters
-    createParameter(static_cast<int>(XGParameterID::Master_Volume),
-                   "Master Volume", "dB", -60.0f, 12.0f, 0.0f);
+    XGParameterInfo info;
 
-    createParameter(static_cast<int>(XGParameterID::Master_Pan),
-                   "Master Pan", "", -1.0f, 1.0f, 0.0f);
+    info.id = "MasterVolume"; info.name = "Master Volume"; info.label = "dB"; info.minValue = -60.0f; info.maxValue = 12.0f; info.defaultValue = 0.0f;
+    createParameter(static_cast<int>(XGParameterID::Master_Volume), info);
+
+    info.id = "MasterPan"; info.name = "Master Pan"; info.label = ""; info.minValue = -1.0f; info.maxValue = 1.0f; info.defaultValue = 0.0f;
+    createParameter(static_cast<int>(XGParameterID::Master_Pan), info);
 }
 
 void XGParameterManager::initializeEffectsParameters()
 {
-    // XG Effects parameters
-    createParameter(static_cast<int>(XGParameterID::Reverb_Enable),
-                   "Reverb Enable", "", 0.0f, 1.0f, 1.0f);
+    XGParameterInfo info;
+    info.minValue = 0.0f; info.maxValue = 1.0f;
 
-    createParameter(static_cast<int>(XGParameterID::Reverb_Time),
-                   "Reverb Time", "s", 0.1f, 10.0f, 2.5f);
+    info.id = "ReverbEnable"; info.name = "Reverb Enable"; info.defaultValue = 1.0f;
+    createParameter(static_cast<int>(XGParameterID::Reverb_Enable), info);
 
-    createParameter(static_cast<int>(XGParameterID::Reverb_Level),
-                   "Reverb Level", "", 0.0f, 1.0f, 0.6f);
+    info.id = "ReverbTime"; info.name = "Reverb Time"; info.label = "s"; info.minValue = 0.1f; info.maxValue = 10.0f; info.defaultValue = 2.5f;
+    createParameter(static_cast<int>(XGParameterID::Reverb_Time), info);
 
-    createParameter(static_cast<int>(XGParameterID::Chorus_Enable),
-                   "Chorus Enable", "", 0.0f, 1.0f, 1.0f);
+    info.id = "ReverbLevel"; info.name = "Reverb Level"; info.label = ""; info.minValue = 0.0f; info.maxValue = 1.0f; info.defaultValue = 0.6f;
+    createParameter(static_cast<int>(XGParameterID::Reverb_Level), info);
 
-    createParameter(static_cast<int>(XGParameterID::Chorus_Rate),
-                   "Chorus Rate", "Hz", 0.1f, 10.0f, 0.8f);
+    info.id = "ChorusEnable"; info.name = "Chorus Enable"; info.defaultValue = 1.0f;
+    createParameter(static_cast<int>(XGParameterID::Chorus_Enable), info);
 
-    createParameter(static_cast<int>(XGParameterID::Chorus_Depth),
-                   "Chorus Depth", "", 0.0f, 1.0f, 0.5f);
+    info.id = "ChorusRate"; info.name = "Chorus Rate"; info.label = "Hz"; info.minValue = 0.1f; info.maxValue = 10.0f; info.defaultValue = 0.8f;
+    createParameter(static_cast<int>(XGParameterID::Chorus_Rate), info);
 
-    createParameter(static_cast<int>(XGParameterID::Chorus_Level),
-                   "Chorus Level", "", 0.0f, 1.0f, 0.4f);
+    info.id = "ChorusDepth"; info.name = "Chorus Depth"; info.label = ""; info.minValue = 0.0f; info.maxValue = 1.0f; info.defaultValue = 0.5f;
+    createParameter(static_cast<int>(XGParameterID::Chorus_Depth), info);
+
+    info.id = "ChorusLevel"; info.name = "Chorus Level"; info.defaultValue = 0.4f;
+    createParameter(static_cast<int>(XGParameterID::Chorus_Level), info);
+}
+
+void XGParameterManager::initializePartParameters()
+{
 }
 
 void XGParameterManager::setupParameterMetadata()
 {
-    // Set up parameter names and labels for display
     parameterNames[static_cast<int>(XGParameterID::Transport_Play)] = "Play";
     parameterNames[static_cast<int>(XGParameterID::Transport_Stop)] = "Stop";
     parameterNames[static_cast<int>(XGParameterID::Transport_Record)] = "Record";
@@ -219,10 +226,92 @@ void XGParameterManager::setupParameterMetadata()
     parameterNames[static_cast<int>(XGParameterID::Chorus_Depth)] = "Chorus Depth";
     parameterNames[static_cast<int>(XGParameterID::Chorus_Level)] = "Chorus Level";
 
-    // Set labels
     parameterLabels[static_cast<int>(XGParameterID::Pattern_Tempo)] = "BPM";
     parameterLabels[static_cast<int>(XGParameterID::Pattern_Swing)] = "%";
     parameterLabels[static_cast<int>(XGParameterID::Pattern_Length)] = "beats";
     parameterLabels[static_cast<int>(XGParameterID::Master_Volume)] = "dB";
     parameterLabels[static_cast<int>(XGParameterID::Reverb_Time)] = "s";
+}
+
+void XGParameterManager::triggerCallback(int index, float value)
+{
+    auto it = parameterCallbacks.find(index);
+    if (it != parameterCallbacks.end())
+    {
+        it->second(value);
+    }
+}
+
+juce::ValueTree XGParameterManager::saveState() const
+{
+    juce::ValueTree state("Parameters");
+    for (const auto& kv : parameterValues)
+    {
+        state.setProperty(juce::String(kv.first), kv.second, nullptr);
+    }
+    return state;
+}
+
+void XGParameterManager::loadState(const juce::ValueTree& state)
+{
+    for (int i = 0; i < state.getNumProperties(); ++i)
+    {
+        auto propName = state.getPropertyName(i);
+        int index = propName.toString().getIntValue();
+        float value = static_cast<float>(state.getProperty(propName));
+        setParameterValue(index, value);
+    }
+}
+
+std::map<int, float> XGParameterManager::getAllParameterValues() const
+{
+    return parameterValues;
+}
+
+void XGParameterManager::setParameterValues(const std::map<int, float>& values)
+{
+    for (const auto& kv : values)
+    {
+        setParameterValue(kv.first, kv.second);
+    }
+}
+
+juce::String XGParameterManager::getParameterName(int index) const
+{
+    auto it = parameterNames.find(index);
+    return it != parameterNames.end() ? it->second : juce::String(index);
+}
+
+juce::String XGParameterManager::getParameterValueAsText(int index) const
+{
+    if (auto* param = getParameter(index))
+    {
+        return param->getCurrentValueAsText();
+    }
+    return juce::String(getParameterValue(index));
+}
+
+float XGParameterManager::normalizeParameterValue(int index, float value) const
+{
+    const auto& info = getParameterInfo(index);
+    if (info.maxValue > info.minValue)
+    {
+        return (value - info.minValue) / (info.maxValue - info.minValue);
+    }
+    return 0.0f;
+}
+
+float XGParameterManager::denormalizeParameterValue(int index, float normalized) const
+{
+    const auto& info = getParameterInfo(index);
+    return info.minValue + normalized * (info.maxValue - info.minValue);
+}
+
+void XGParameterManager::setPythonIntegration(PythonIntegration* integration)
+{
+    pythonIntegration = integration;
+}
+
+void XGParameterManager::syncParameter(int parameterIndex)
+{
 }

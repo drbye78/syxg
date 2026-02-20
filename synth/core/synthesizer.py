@@ -173,16 +173,20 @@ class Synthesizer:
     - Adaptive parameter routing based on system load
     """
 
-    def __init__(self, sample_rate: int = 44100, buffer_size: int = 1024):
+    def __init__(self, sample_rate: int = 44100, buffer_size: int = 1024,
+                 enable_audio_output: bool = False):
         """
         Initialize the synthesizer.
 
         Args:
             sample_rate: Audio sample rate in Hz
             buffer_size: Processing buffer size in samples
+            enable_audio_output: Enable real-time audio output via sounddevice
         """
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
+        self.enable_audio_output = enable_audio_output
+        self.audio_output = None
 
         # Core components
         self.config = SynthConfig()
@@ -260,6 +264,10 @@ class Synthesizer:
 
         # Setup S90/S70 compatibility
         self._initialize_s90_s70_compatibility()
+
+        # Initialize real-time audio output if enabled
+        if self.enable_audio_output:
+            self._initialize_audio_output()
 
     def _register_engines(self):
         """Register all available synthesis engines."""
@@ -397,6 +405,27 @@ class Synthesizer:
         self._setup_control_assignments()
 
         print("S90/S70 compatibility layer initialized")
+
+    def _initialize_audio_output(self):
+        """Initialize real-time audio output via sounddevice."""
+        try:
+            from synth.xg.sart.audio import SoundDeviceOutput
+            
+            def audio_callback(outdata, frames, time_info, status):
+                if status:
+                    print(f"Audio callback status: {status}")
+                # Use render_block for the audio thread
+                self.render_block(outdata)
+            
+            self.audio_output = SoundDeviceOutput(
+                sample_rate=self.sample_rate,
+                buffer_size=self.buffer_size,
+                callback=audio_callback
+            )
+            print("Real-time audio output initialized")
+        except ImportError:
+            print("Warning: sounddevice not available for real-time audio output")
+            self.audio_output = None
 
     def _setup_control_assignments(self):
         """Setup default control surface assignments."""
@@ -563,6 +592,60 @@ class Synthesizer:
         # Apply master limiting
         # Apply dithering if needed
         pass
+
+    def render_block(self, out: np.ndarray) -> None:
+        """
+        Render one block of audio through the complete synthesis pipeline.
+
+        This is the unified render entry point that orchestrates:
+        1. Clear output buffer
+        2. Render channel audio via VectorizedChannelRenderer
+        3. Apply insertion effects per channel
+        4. Accumulate send levels to reverb/chorus buses
+        5. Apply system effects to bus returns
+        6. Apply master EQ + compressor
+        7. Write to output buffer
+
+        Args:
+            out: Output buffer (num_samples, 2) - modified in-place
+        """
+        with self.lock:
+            num_samples = min(len(out), self.buffer_size)
+
+            # Step 1: Clear output buffer
+            out.fill(0.0)
+
+            # Step 2: Collect channel audio from all active channels
+            # For now, use the existing voice manager path
+            active_voices = self.voice_manager.get_active_voices()
+            channel_buffers = {}
+
+            for voice_info in active_voices:
+                channel = voice_info.get('channel', 0)
+                if channel not in channel_buffers:
+                    # Allocate channel buffer if needed
+                    channel_buffers[channel] = np.zeros((num_samples, 2), dtype=np.float32)
+
+                # Generate voice audio
+                voice_audio = self._generate_voice_audio(voice_info)
+                if voice_audio is not None:
+                    # Mix into channel buffer
+                    channel_buffers[channel] += voice_audio[:num_samples]
+
+            # Step 3-5: Process through effects coordinator
+            # Convert channel dict to list for effects coordinator
+            channel_list = []
+            for ch in range(16):  # XG has 16 channels
+                if ch in channel_buffers:
+                    channel_list.append(channel_buffers[ch])
+                else:
+                    # Empty channel
+                    channel_list.append(np.zeros((num_samples, 2), dtype=np.float32))
+
+            # Process through effects chain (insertion → variation → system → master)
+            self.effects_coordinator.process_channels_to_stereo_zero_alloc(
+                channel_list, out, num_samples
+            )
 
     def _update_performance_stats(self):
         """Update performance statistics."""

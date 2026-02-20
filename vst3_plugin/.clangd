@@ -1,0 +1,22 @@
+CompileFlags:
+  Add:
+    - "-xc++"
+    - "-std=c++17"
+    - "-I/mnt/c/Work/guga/syxg/vst3_plugin/Source"
+    - "-I/mnt/c/Work/guga/syxg/vst3_plugin/JUCE/modules"
+    - "-I/mnt/c/Work/guga/syxg/vst3_plugin/JUCE"
+    - "-I/usr/include/python3.11"
+    - "-DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1"
+    - "-DJUCE_LINUX=1"
+    - "-DJucePlugin_Name=XGWorkstation"
+    - "-DJucePlugin_ManufacturerCode=XGSy"
+    - "-DJucePlugin_Code=XGWS"
+    - "-DJucePlugin_IsSynth=1"
+    - "-DJucePlugin_WantsMidiInput=1"
+    - "-DJucePlugin_ProducesMidiOutput=1"
+    - "-DJucePlugin_IsMidiEffect=0"
+
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes

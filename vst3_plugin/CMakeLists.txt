@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.22)
 
 project(XGWorkstationVST3 VERSION 1.0.0)
 
@@ -6,9 +6,22 @@ project(XGWorkstationVST3 VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# JUCE global settings - required for manual CMake builds
+add_compile_definitions(JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1)
+
+# Disable JUCE features that require additional dependencies
+set(JUCE_WEB_BROWSER OFF CACHE BOOL "Disable web browser" FORCE)
+set(JUCE_USE_CURL OFF CACHE BOOL "Disable CURL" FORCE)
+
+# Generate compile_commands.json for IDE support
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Find Python and pybind11
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(pybind11 REQUIRED)
+
+# Set JUCE modules directory for the embedded JUCE submodule
+set(JUCE_MODULES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/modules" CACHE PATH "Path to JUCE modules")
 
 # JUCE options - minimal configuration to avoid pkg-config issues
 option(JUCE_BUILD_EXTRAS "Build JUCE extras" OFF)
@@ -20,8 +33,10 @@ set(JUCE_USE_JACK OFF CACHE BOOL "Disable JACK support")
 set(JUCE_USE_PULSEAUDIO OFF CACHE BOOL "Disable PulseAudio support")
 set(JUCE_USE_COREAUDIO OFF CACHE BOOL "Disable CoreAudio support")
 set(JUCE_USE_WINRT_MIDI OFF CACHE BOOL "Disable WinRT MIDI support")
+set(JUCE_USE_WEBSOCKET OFF CACHE BOOL "Disable WebSocket support")
+set(JUCE_USE_CURL OFF CACHE BOOL "Disable CURL support")
 
-# Add JUCE
+# Add JUCE - use the embedded submodule
 add_subdirectory(JUCE)
 
 # Create plugin target
@@ -69,6 +84,14 @@ target_link_libraries(${PROJECT_NAME}
         juce::juce_gui_basics
         pybind11::embed
         ${Python3_LIBRARIES}
+)
+
+# Disable JUCE features that require additional dependencies
+target_compile_definitions(${PROJECT_NAME}
+    PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
 # Compiler flags

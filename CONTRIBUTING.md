@@ -177,7 +177,7 @@ refactor/engine-architecture
 
 ### 1. Choose an Issue
 
-- Check [GitHub Issues](https://github.com/roger/syxg/issues) for open tasks
+- Check [GitHub Issues](https://github.com/drbye78/syxg/issues) for open tasks
 - Look for `good first issue` or `help wanted` labels
 - Comment on the issue to indicate you're working on it
 

@@ -39,15 +39,22 @@ XG Synthesizer supports 8 different synthesis engines, each optimized for specif
 
 #### Basic Engine Selection
 
+The ModernXGSynthesizer uses engines internally based on XG part configuration.
+Engines are registered automatically. Use XGML configuration to select engines:
+
 ```python
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
 
-# Create synthesizer with specific engine
-synth = ModernXGSynthesizer(default_engine="fm")
+# Create synthesizer - engines are auto-registered
+synth = ModernXGSynthesizer(
+    sample_rate=44100,
+    xg_enabled=True,
+    gs_enabled=True
+)
 
-# Switch engine per part
-synth.set_engine_for_part(part=0, engine="fm")
-synth.set_engine_for_part(part=1, engine="sfz")
+# List available engines
+info = synth.get_synthesizer_info()
+print("Available engines:", info.get('engines', {}))
 ```
 
 #### XGML Engine Configuration
@@ -81,17 +88,12 @@ Professional sample playback with velocity layers and crossfading.
 # Load SoundFont
 synth.load_soundfont("path/to/soundfont.sf2")
 
-# Configure preset
-synth.select_preset(bank=0, program=0)  # Piano
+# Configure preset using channel program
+synth.set_channel_program(channel=0, bank=0, program=0)  # Piano
 
-# Advanced configuration
-sf2_config = {
-    "soundfont_path": "piano.sf2",
-    "preset": [0, 0],  # bank, program
-    "velocity_curve": "concave",
-    "tuning": 0.0      # cents
-}
-synth.configure_sf2_engine(sf2_config)
+# Get channel info
+info = synth.get_channel_info(0)
+print(f"Channel 0 program: {info.get('program', 'N/A')}")
 ```
 
 ### SFZ Engine
@@ -400,16 +402,22 @@ modulation_matrix:
 
 ```python
 # Real-time MIDI processing
-synth = ModernXGSynthesizer(real_time=True)
+import mido
+from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+
+synth = ModernXGSynthesizer(
+    sample_rate=44100,
+    xg_enabled=True,
+    gs_enabled=True
+)
+
+# Set a program
+synth.set_channel_program(channel=0, bank=0, program=0)
 
 # MIDI event handling
 def midi_callback(message):
-    if message.type == 'note_on':
-        synth.note_on(message.channel, message.note, message.velocity)
-    elif message.type == 'note_off':
-        synth.note_off(message.channel, message.note)
-    elif message.type == 'control_change':
-        synth.control_change(message.channel, message.control, message.value)
+    # Convert mido message to bytes and process
+    synth.process_midi_message(message.bytes())
 
 # Connect to MIDI input
 midi_input = mido.open_input()

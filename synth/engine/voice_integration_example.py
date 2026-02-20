@@ -36,7 +36,7 @@ class VoiceIntegrationLayer:
         # Register SF2 engine
         from .sf2_engine import SF2Engine
         sf2_engine = SF2Engine()
-        self.engine_registry.register_engine(sf2_engine)
+        self.engine_registry.register_engine(sf2_engine, 'sf2')
 
         # Create voice factory
         self.voice_factory = VoiceFactory(self.engine_registry)
