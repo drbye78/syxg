@@ -400,6 +400,7 @@ class SF2Sample:
         self.loop_length = self.end_loop - self.start_loop
         self.is_stereo = self._is_stereo_sample()
         self.bit_depth = 24 if (self.sample_type & 0x8000) else 16
+        self.is_24bit = bool(self.sample_type & 0x8000)  # 24-bit flag from sample_type
         self.loop_mode = self._get_loop_mode()
 
         # Sample data (loaded on demand)
@@ -409,7 +410,10 @@ class SF2Sample:
     def _is_stereo_sample(self) -> bool:
         """Determine if this is a stereo sample."""
         # Bit 0 = mono(0)/stereo(1), Bit 15 = 16-bit(0)/24-bit(1)
-        return bool(self.sample_type & 0x0001) or bool(self.sample_type & 0x0002) or bool(self.sample_type & 0x0004)
+        # SF2 spec: stereo samples have sample_type 2 (right) or 4 (left)
+        # Mask off the 24-bit flag (bit 15) before checking
+        sample_type_base = self.sample_type & 0x7FFF
+        return sample_type_base in [2, 4]
 
     def _get_loop_mode(self) -> int:
         """Get loop mode from sample type according to SF2 specification."""

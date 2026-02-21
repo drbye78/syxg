@@ -178,7 +178,6 @@ from typing import Dict, List, Any, Optional, Tuple, Union
 import numpy as np
 import threading
 import math
-import psutil
 import gc
 from collections import defaultdict
 from contextlib import contextmanager

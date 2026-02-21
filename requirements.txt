@@ -15,8 +15,17 @@ av>=9.0.0,<12.0.0
 # Performance optimization
 numba>=0.56.0,<0.60.0
 
+# System monitoring
+psutil>=5.9.0,<6.0.0
+
+# MIDI handling
+mido>=2.0.0,<3.0.0
+
 # Configuration
 PyYAML>=6.0,<7.0.0
 
 # Type hints support
 typing-extensions>=4.0.0,<5.0.0
+
+# JSON Schema validation
+jsonschema>=4.0.0,<5.0.0

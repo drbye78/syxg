@@ -673,7 +673,7 @@ class SF2FileLoader:
             sample_name = header_data[:20].decode('ascii', errors='ignore').rstrip('\x00')
 
             start, end, start_loop, end_loop, sample_rate, orig_pitch, pitch_corr, sample_link, sample_type = struct.unpack(
-                '<IIIIIIHHH', header_data[20:46]
+                '<IIIIIbbHH', header_data[20:46]
             )
 
             samples.append({
@@ -715,7 +715,7 @@ class SF2FileLoader:
         sample_name = header_data[:20].decode('ascii', errors='ignore').rstrip('\x00')
 
         start, end, start_loop, end_loop, sample_rate, orig_pitch, pitch_corr, sample_link, sample_type = struct.unpack(
-            '<IIIIIIHHH', header_data[20:46]
+            '<IIIIIbbHH', header_data[20:46]
         )
 
         return {

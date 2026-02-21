@@ -930,31 +930,46 @@ class ModernXGSynthesizer:
             pass
 
     # Standard synthesizer API
-    def load_soundfont(self, sf2_path: str):
-        """Load SoundFont file"""
-        # Use the SF2 manager to load the SoundFont
-        if hasattr(self, 'sf2_manager') and self.sf2_manager:
-            result = self.sf2_manager.load_sf2_file(sf2_path)
-            if result:
-                print(f"✅ Loaded SoundFont: {sf2_path}")
+    def load_soundfont(self, sf2_path: str, priority: int = 0):
+        """Load SoundFont file with optional priority"""
 
-                # Update the SF2 engine instance in the registry with the loaded soundfont
-                sf2_engine = self.engine_registry.get_engine('sf2')
-                if sf2_engine and hasattr(sf2_engine, 'soundfont'):
-                    # Find the loaded soundfont from the manager
-                    for filename, sf2_file in self.sf2_manager.sf2_files.items():
-                        if sf2_file:  # LazySF2SoundFont is the soundfont itself
-                            sf2_engine.soundfont = sf2_file
-                            sf2_engine.sf2_file_path = filename
-                            print(f"✅ Updated SF2 engine with SoundFont: {filename}")
-
-                            # Reload current programs on all channels to use the new SF2 soundfont
-                            self._reload_all_channel_programs()
-                            break
-            else:
-                print(f"❌ Failed to load SoundFont: {sf2_path}")
+        sf2_engine = self.engine_registry.get_engine('sf2')
+        if sf2_engine.load_soundfont(sf2_path, priority):
+            # Reload current programs on all channels to use the new SF2 soundfont
+            self._reload_all_channel_programs()
+            print(f"✅ Loaded SoundFont: {sf2_path}")
+            return True
         else:
-            print("⚠️  SF2 manager not available")
+            print(f"❌ Failed to load SoundFont: {sf2_path}")
+            return False
+    
+    def blacklist_program(self, bank: int, program: int):
+        """Blacklist a program from all loaded soundfonts"""
+        sf2_engine = self.engine_registry.get_engine('sf2')
+        if sf2_engine and hasattr(sf2_engine, 'soundfont_manager'):
+            sf2_engine.soundfont_manager.blacklist_program(bank, program)
+            print(f"🚫 Blacklisted program: bank={bank}, program={program}")
+    
+    def unblacklist_program(self, bank: int, program: int):
+        """Remove a program from blacklist"""
+        sf2_engine = self.engine_registry.get_engine('sf2')
+        if sf2_engine and hasattr(sf2_engine, 'soundfont_manager'):
+            sf2_engine.soundfont_manager.unblacklist_program(bank, program)
+            print(f"✅ Unblacklisted program: bank={bank}, program={program}")
+    
+    def remap_program(self, from_bank: int, from_program: int, to_bank: int, to_program: int):
+        """Remap a program to different bank/program numbers"""
+        sf2_engine = self.engine_registry.get_engine('sf2')
+        if sf2_engine and hasattr(sf2_engine, 'soundfont_manager'):
+            sf2_engine.soundfont_manager.remap_program(from_bank, from_program, to_bank, to_program)
+            print(f"🔄 Remapped program: bank={from_bank}, prog={from_program} -> bank={to_bank}, prog={to_program}")
+    
+    def clear_remapping(self, bank: int, program: int):
+        """Clear remapping for a specific program"""
+        sf2_engine = self.engine_registry.get_engine('sf2')
+        if sf2_engine and hasattr(sf2_engine, 'soundfont_manager'):
+            sf2_engine.soundfont_manager.clear_remapping(bank, program)
+            print(f"✅ Cleared remapping for: bank={bank}, program={program}")
 
     def _reload_all_channel_programs(self):
         """Reload current programs on all channels to use newly loaded SF2 soundfont."""
@@ -1412,3 +1427,260 @@ class ModernXGSynthesizer:
 
     def __repr__(self) -> str:
         return self.__str__()
+
+    # ============================================================
+    # Configuration System
+    # ============================================================
+    
+    def configure_from_config(self, config: 'ConfigManager'):
+        """
+        Apply configuration from ConfigManager to synthesizer.
+        
+        Args:
+            config: ConfigManager instance with loaded configuration
+        """
+        # Apply audio settings
+        self.sample_rate = config.get_sample_rate()
+        self.block_size = config.get_block_size()
+        
+        # Apply voice management settings
+        if hasattr(self, 'voice_manager'):
+            max_poly = config.get_max_polyphony()
+            self.voice_manager.max_voices = max_poly
+            
+            # Apply voice reserve
+            voice_reserve = config.get_voice_reserve()
+            if hasattr(self.voice_manager, 'voice_reserve'):
+                self.voice_manager.voice_reserve = voice_reserve
+        
+        # Apply engine priorities
+        engine_priorities = config.get_engine_priorities()
+        if hasattr(self, 'engine_registry') and self.engine_registry:
+            for engine_name, priority in engine_priorities.items():
+                try:
+                    self.engine_registry.set_priority(engine_name, priority)
+                except:
+                    pass  # Engine might not exist
+        
+        # Apply per-part configuration
+        parts_config = config.get_parts_config()
+        for part_num in range(16):
+            part_key = f'part_{part_num}'
+            if part_key in parts_config:
+                part_cfg = parts_config[part_key]
+                self._configure_part_from_config(part_num, part_cfg)
+        
+        # Apply FM engine configuration
+        fm_config = config.get_fm_config()
+        if fm_config:
+            self._configure_fm_from_config(fm_config)
+        
+        # Apply effects configuration
+        effects_config = config.get_effects_config()
+        if effects_config:
+            self._configure_effects_from_config(effects_config)
+        
+        # Apply arpeggiator configuration
+        arp_config = config.get_arpeggiator_config()
+        if arp_config and hasattr(self, 'arpeggiator_system'):
+            self._configure_arpeggiator_from_config(arp_config)
+        
+        # Apply MPE configuration
+        mpe_config = config.get_mpe_config()
+        if mpe_config:
+            self._configure_mpe_from_config(mpe_config)
+        
+        # Apply tuning configuration
+        tuning_config = config.get_tuning_config()
+        if tuning_config and self.xg_enabled:
+            self._configure_tuning_from_config(tuning_config)
+        
+        # Load SoundFont if path specified
+        sf2_path = config.get_sf2_path()
+        if sf2_path and os.path.exists(sf2_path):
+            self.load_soundfont(sf2_path)
+        
+        print(f"✅ Configuration applied from {config.config_path}")
+    
+    def _configure_part_from_config(self, part_num: int, part_config: dict):
+        """Configure a specific part from config"""
+        if part_num >= len(self.channels):
+            return
+            
+        channel = self.channels[part_num]
+        
+        # Set program
+        program = part_config.get('program', 0)
+        bank_msb = part_config.get('bank_msb', 0)
+        bank_lsb = part_config.get('bank_lsb', 0)
+        bank = (bank_msb << 7) | bank_lsb
+        channel.load_program(program, bank_msb, bank_lsb)
+        
+        # Set volume
+        volume = part_config.get('volume', 100)
+        channel.set_volume(volume)
+        
+        # Set pan
+        pan = part_config.get('pan', 64)
+        channel.set_pan(pan)
+        
+        # Set effects sends
+        reverb_send = part_config.get('reverb_send', 0)
+        chorus_send = part_config.get('chorus_send', 0)
+        variation_send = part_config.get('variation_send', 0)
+        
+        if hasattr(channel, 'set_reverb_send'):
+            channel.set_reverb_send(reverb_send)
+        if hasattr(channel, 'set_chorus_send'):
+            channel.set_chorus_send(chorus_send)
+        
+        # Apply XG-specific configuration if enabled
+        if self.xg_enabled and hasattr(channel, 'xg_config'):
+            xg_cfg = channel.xg_config
+            xg_cfg['part_level'] = volume
+            xg_cfg['part_pan'] = pan
+            xg_cfg['effects_sends'] = {
+                'reverb': reverb_send,
+                'chorus': chorus_send,
+                'variation': variation_send
+            }
+            
+            # Filter settings
+            filter_cfg = part_config.get('filter', {})
+            if filter_cfg:
+                xg_cfg['filter'] = filter_cfg
+                
+            # LFO settings
+            lfo_cfg = part_config.get('lfo', {})
+            if lfo_cfg:
+                xg_cfg['lfo'] = lfo_cfg
+    
+    def _configure_fm_from_config(self, fm_config: dict):
+        """Configure FM engine from config"""
+        # Get FM engine
+        fm_engine = None
+        if hasattr(self, 'engine_registry'):
+            fm_engine = self.engine_registry.get_engine('fm')
+        
+        if not fm_engine:
+            return
+            
+        # Set algorithm
+        algorithm = fm_config.get('algorithm', 1)
+        algorithm_name = fm_config.get('algorithm_name', 'basic')
+        fm_engine.set_algorithm(algorithm_name)
+        
+        # Set master volume
+        master_volume = fm_config.get('master_volume', 0.8)
+        fm_engine.master_volume = master_volume
+        
+        # Set pitch bend range
+        pitch_bend_range = fm_config.get('pitch_bend_range', 2)
+        fm_engine.pitch_bend_range = pitch_bend_range
+        
+        # Configure operators
+        operators = fm_config.get('operators', {})
+        for op_idx in range(8):
+            op_key = f'op_{op_idx}'
+            if op_key in operators:
+                op_params = operators[op_key]
+                fm_engine.set_operator_parameters(op_idx, op_params)
+        
+        # Configure LFOs
+        lfos = fm_config.get('lfos', {})
+        for lfo_idx, lfo_key in enumerate(['lfo_1', 'lfo_2', 'lfo_3']):
+            if lfo_key in lfos:
+                lfo_params = lfos[lfo_key]
+                fm_engine.set_lfo_parameters(
+                    lfo_idx,
+                    lfo_params.get('frequency', 1.0),
+                    lfo_params.get('waveform', 'sine'),
+                    lfo_params.get('depth', 0.5)
+                )
+        
+        # Configure modulation matrix
+        modulation = fm_config.get('modulation', [])
+        fm_engine.clear_modulation_matrix()
+        for mod in modulation:
+            source = mod.get('source', '')
+            dest = mod.get('destination', '')
+            amount = mod.get('amount', 0.0)
+            fm_engine.add_modulation_assignment(source, dest, amount)
+        
+        # Set effects sends
+        effects_sends = fm_config.get('effects_sends', {})
+        fm_engine.set_effects_sends(
+            effects_sends.get('reverb', 0.0),
+            effects_sends.get('chorus', 0.0),
+            effects_sends.get('delay', 0.0)
+        )
+    
+    def _configure_effects_from_config(self, effects_config: dict):
+        """Configure effects system from config"""
+        if not hasattr(self, 'effects_system') or not self.effects_system:
+            return
+            
+        # Configure reverb
+        reverb = effects_config.get('reverb', {})
+        if reverb.get('enabled', True):
+            reverb_type = reverb.get('type', 4)
+            self.effects_system.set_system_reverb(reverb_type, reverb)
+        
+        # Configure chorus
+        chorus = effects_config.get('chorus', {})
+        if chorus.get('enabled', True):
+            chorus_type = chorus.get('type', 1)
+            self.effects_system.set_system_chorus(chorus_type, chorus)
+        
+        # Configure variation
+        variation = effects_config.get('variation', {})
+        if variation.get('enabled', True):
+            variation_type = variation.get('type', 12)
+            self.effects_system.set_system_variation(variation_type, variation)
+    
+    def _configure_arpeggiator_from_config(self, arp_config: dict):
+        """Configure arpeggiator from config"""
+        if not hasattr(self, 'arpeggiator_system') or not self.arpeggiator_system:
+            return
+            
+        # Enable/disable arpeggiator globally
+        enabled = arp_config.get('enabled', False)
+        
+        # Set tempo
+        tempo = arp_config.get('tempo', 120)
+        
+        # Configure channel patterns
+        channel_patterns = arp_config.get('channel_patterns', {})
+        for channel_num in range(16):
+            channel_key = f'channel_{channel_num}'
+            if channel_key in channel_patterns:
+                pattern_name = channel_patterns[channel_key]
+                # Would need to look up pattern ID from name
+                # This is simplified - actual implementation would need pattern registry
+    
+    def _configure_mpe_from_config(self, mpe_config: dict):
+        """Configure MPE from config"""
+        if not hasattr(self, 'mpe_system') or not self.mpe_system:
+            return
+            
+        enabled = mpe_config.get('enabled', True)
+        self.mpe_enabled = enabled
+        self.mpe_system.set_mpe_enabled(enabled)
+        
+        # Configure zones
+        zones = mpe_config.get('zones', [])
+        # MPE zone configuration would be applied here
+    
+    def _configure_tuning_from_config(self, tuning_config: dict):
+        """Configure tuning from config"""
+        if not self.xg_enabled or not hasattr(self, 'xg_components'):
+            return
+            
+        temperament = tuning_config.get('temperament', 'equal')
+        a4_freq = tuning_config.get('a4_frequency', 440.0)
+        
+        # Apply temperament
+        if hasattr(self.xg_components, 'micro_tuning'):
+            micro_tuning = self.xg_components.get_component('micro_tuning')
+            if micro_tuning and hasattr(micro_tuning, 'apply_temperament'):
+                micro_tuning.apply_temperament(temperament)

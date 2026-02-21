@@ -28,6 +28,7 @@ from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
 # Lazy import for OptimizedXGSynthesizer to avoid dependency issues
 # from synth.engine.optimized_xg_synthesizer import OptimizedXGSynthesizer
 from synth.utils.keyboard import KeyboardListener
+from synth.core.config_manager import ConfigManager, get_config_manager
 
 
 def parse_arguments():
@@ -55,7 +56,9 @@ Examples:
     parser.add_argument("input_files", nargs="+", help="Input MIDI/XGML file(s) or patterns to convert (supports wildcards)")
     parser.add_argument("output", nargs="?", default=None, help="Output file or directory (optional)")
     parser.add_argument("-c", "--config", help="Path to YAML configuration file", default="config.yaml")
-    parser.add_argument("--sf2", action="append", dest="sf2_files", help="SoundFont (.sf2) file paths")
+    parser.add_argument("--sf2", action="append", dest="sf2_files", 
+                       help="SoundFont (.sf2) file paths (can be specified multiple times). "
+                            "For advanced options (priority, blacklist, remap), use config.yaml")
     parser.add_argument("--sample-rate", type=int, dest="sample_rate", help="Audio sample rate in Hz")
     parser.add_argument("--chunk-size-ms", type=float, dest="chunk_size_ms", help="Audio processing chunk size in milliseconds")
     parser.add_argument("--polyphony", type=int, dest="max_polyphony", help="Maximum polyphony")
@@ -73,25 +76,6 @@ Examples:
                        help="XG synthesizer engine: modern=ModernXGSynthesizer, optimized=OptimizedXGSynthesizer")
 
     return parser.parse_args()
-
-
-def load_config(config_path: str) -> dict:
-    """Load configuration from YAML file."""
-    default_config = {
-        "sample_rate": 48000,
-        "chunk_size_ms": 512 / 48000 * 1000,  # Convert to ms
-        "polyphony": 64,
-        "volume": 0.8,
-        "sf2_files": []
-    }
-
-    if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            user_config = yaml.safe_load(f) or {}
-        default_config.update(user_config)
-
-    return default_config
-
 
 def expand_file_patterns(patterns: List[str], recursive: bool = False) -> List[str]:
     """Expand file patterns and optionally recurse into subdirectories for MIDI and XGML files."""
@@ -192,15 +176,53 @@ def main():
     # Parse arguments
     args = parse_arguments()
 
-    # Load configuration
-    config = load_config(args.config)
-
-    # Get configuration values (command line overrides config file)
-    sample_rate = args.sample_rate or config.get("sample_rate", 48000)
-    chunk_size_ms = args.chunk_size_ms or config.get("chunk_size_ms", 50)
-    max_polyphony = args.max_polyphony or config.get("polyphony", 64)
-    master_volume = args.master_volume or config.get("volume", 0.8)
-    sf2_files = args.sf2_files or config.get("sf2_files", [])
+    # Load unified configuration using ConfigManager
+    config_manager = ConfigManager(args.config)
+    config_manager.load()
+    
+    # Get configuration values from ConfigManager
+    sample_rate = args.sample_rate or config_manager.get_sample_rate()
+    chunk_size_ms = args.chunk_size_ms or (config_manager.get_block_size() / config_manager.get_sample_rate() * 1000)
+    max_polyphony = args.max_polyphony or config_manager.get_polyphony()
+    master_volume = args.master_volume or config_manager.get_volume()
+    
+    # Process SoundFont configurations
+    # Priority: command line --sf2 > config.yaml soundfonts > config.yaml sf2_path
+    soundfont_configs = []
+    
+    # Add from config.yaml soundfonts (highest priority from config)
+    config_soundfonts = config_manager.get_soundfonts()
+    for sf_config in config_soundfonts:
+        sf_path = sf_config.get('path')
+        if sf_path:
+            soundfont_configs.append(sf_config)
+    
+    # Add simple --sf2 paths with default priority (these override config if specified)
+    if args.sf2_files:
+        for sf2_path in args.sf2_files:
+            # Check if this path is already added from config
+            if not any(c.get('path') == sf2_path for c in soundfont_configs):
+                soundfont_configs.append({
+                    'path': sf2_path,
+                    'priority': 0,
+                    'blacklist': [],
+                    'remap': {}
+                })
+    
+    # Fallback to legacy sf2_path if no soundfonts configured
+    if not soundfont_configs:
+        legacy_path = config_manager.get_sf2_path()
+        if legacy_path:
+            soundfont_configs.append({
+                'path': legacy_path,
+                'priority': 0,
+                'blacklist': [],
+                'remap': {}
+            })
+    
+    # Extract just the paths for synthesizers that need them
+    sf2_files = [c['path'] for c in soundfont_configs if c.get('path')]
+    
     architecture = args.architecture
     synth_choice = args.synth
 
@@ -220,6 +242,8 @@ def main():
 
     if not silent:
         print(f"Found {len(input_files)} audio file(s) to convert")
+        if soundfont_configs:
+            print(f"Configuring {len(soundfont_configs)} SoundFont(s)")
 
     # Determine if we have multiple files
     multiple_files = len(input_files) > 1
@@ -249,10 +273,25 @@ def main():
             mpe_enabled=True,
             device_id=0x10
         )
-        # Load SoundFonts if provided
-        if sf2_files:
-            for sf2_file in sf2_files:
-                synthesizer.load_soundfont(sf2_file)
+        
+        # Load SoundFonts with their configurations (including blacklist/remap from config)
+        for sf_config in soundfont_configs:
+            sf_path = sf_config.get('path')
+            if sf_path and os.path.exists(sf_path):
+                priority = sf_config.get('priority', 0)
+                success = synthesizer.load_soundfont(sf_path, priority=priority)
+                if success:
+                    # Apply blacklisting if specified in config
+                    for bank, prog in sf_config.get('blacklist', []):
+                        synthesizer.blacklist_program(bank, prog)
+                    
+                    # Apply remapping if specified in config
+                    for (from_bank, from_prog), (to_bank, to_prog) in sf_config.get('remap', {}).items():
+                        synthesizer.remap_program(from_bank, from_prog, to_bank, to_prog)
+        
+        # Apply full configuration from config.yaml
+        synthesizer.configure_from_config(config_manager)
+        
         if not silent:
             print(f"Using ModernXGSynthesizer engine (refactored modular architecture)")
 

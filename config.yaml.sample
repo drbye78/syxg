@@ -55,7 +55,6 @@ sf2_path: ""
 
 # Multiple soundfonts with full configuration
 soundfonts:
-  - path: "tests/ref.sf2"
   # Example 1: Primary soundfont with high priority
   # - path: "/path/to/primary.sf2"
   #   priority: 10

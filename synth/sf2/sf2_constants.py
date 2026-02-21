@@ -11,7 +11,7 @@ from typing import Dict, List, Tuple, Any
 # SF2 Generator Types (SF2.01 Specification Section 8.1)
 SF2_GENERATORS: Dict[int, Dict[str, Any]] = {
     # Volume Envelope
-    7: {"name": "endAddrsCoarseOffset", "default": 0, "range": (-32768, 32767)},
+    7: {"name": "startAddrsCoarseOffset", "default": 0, "range": (-32768, 32767)},
     8: {"name": "volEnvDelay", "default": -12000, "range": (-12000, 5000)},
     9: {"name": "volEnvAttack", "default": -12000, "range": (-12000, 8000)},
     10: {"name": "volEnvHold", "default": -12000, "range": (-12000, 5000)},
