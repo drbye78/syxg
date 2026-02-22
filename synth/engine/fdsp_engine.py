@@ -523,6 +523,42 @@ class FDSPEngine:
             'available_phonemes': self.vocal_database.get_phoneme_names()
         }
 
+    # ========== NEW REGION-BASED METHODS (STUBS) ==========
+    
+    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+        """Get preset info (stub)."""
+        from .preset_info import PresetInfo
+        from .region_descriptor import RegionDescriptor
+        
+        descriptor = RegionDescriptor(
+            region_id=0,
+            engine_type=self.get_engine_type(),
+            key_range=(0, 127),
+            velocity_range=(0, 127),
+            algorithm_params={}
+        )
+        
+        return PresetInfo(
+            bank=bank, program=program,
+            name=f'{self.get_engine_type().title()} {bank}:{program}',
+            engine_type=self.get_engine_type(),
+            region_descriptors=[descriptor]
+        )
+    
+    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+        preset_info = self.get_preset_info(bank, program)
+        return preset_info.region_descriptors if preset_info else []
+    
+    def create_region(self, descriptor: 'RegionDescriptor', sample_rate: int) -> 'IRegion':
+        """Create FDSP region with full implementation."""
+        from ..partial.fdsp_region import FDSPRegion
+        return FDSPRegion(descriptor, sample_rate)
+    
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        return True
+
+
+
 
 class FDSPSynthesisEngine(SynthesisEngine):
     """
@@ -627,6 +663,40 @@ class FDSPSynthesisEngine(SynthesisEngine):
                 'vibrato_depth', 'breath_level', 'phoneme', 'excitation_type'
             ]
         }
+
+    # ========== NEW REGION-BASED METHODS (STUBS) ==========
+    
+    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+        """Get FDSP preset info (stub)."""
+        from .preset_info import PresetInfo
+        from .region_descriptor import RegionDescriptor
+        
+        descriptor = RegionDescriptor(
+            region_id=0,
+            engine_type='fdsp',
+            key_range=(0, 127),
+            velocity_range=(0, 127),
+            algorithm_params={}
+        )
+        
+        return PresetInfo(
+            bank=bank, program=program,
+            name=f'FDSP {bank}:{program}',
+            engine_type='fdsp',
+            region_descriptors=[descriptor]
+        )
+    
+    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+        preset_info = self.get_preset_info(bank, program)
+        return preset_info.region_descriptors if preset_info else []
+    
+    def create_region(self, descriptor: 'RegionDescriptor', sample_rate: int) -> 'IRegion':
+        """Create FDSP region with full implementation."""
+        from ..partial.fdsp_region import FDSPRegion
+        return FDSPRegion(descriptor, sample_rate)
+    
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        return True
 
     def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> 'SynthesisPartial':
         """Create a partial instance for FDSP synthesis."""

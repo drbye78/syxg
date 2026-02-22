@@ -1,545 +1,438 @@
 """
-XG Voice implementation for synthesizer.
+XG Voice - Refactored with lazy region selection.
 
-Provides the Voice class that coordinates multiple synthesis partials and handles
-voice-level XG parameters, modulation, and audio mixing.
+Part of the unified region-based synthesis architecture.
+Voice stores preset definition (all region descriptors) and creates
+region instances at note-on time based on note/velocity matching.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
+import logging
 
+from ..engine.preset_info import PresetInfo
+from ..engine.region_descriptor import RegionDescriptor
 from ..engine.synthesis_engine import SynthesisEngine
-from ..partial.partial import SynthesisPartial
-from ..modulation.matrix import ModulationMatrix
-from ..effects.system_effects import XGSystemEffectsProcessor
+from ..partial.region import IRegion, RegionState
 
-
-class VoicePartialRegion:
-    """
-    Simple region wrapper for Voice partials.
-
-    Adapts a SynthesisPartial to work as a region for VoiceInstance compatibility.
-    """
-
-    def __init__(self, partial: SynthesisPartial, note: int, velocity: int):
-        self.partial = partial
-        self.note = note
-        self.velocity = velocity
-
-    def generate_samples(self, block_size: int, modulation: Dict = None) -> np.ndarray:
-        """Generate samples from the wrapped partial."""
-        if modulation is None:
-            modulation = {}
-
-        # The partial's generate_samples method expects (block_size, modulation_dict)
-        # but we need to return the audio data
-        return self.partial.generate_samples(block_size, modulation)
-
-    def note_on(self, velocity: int, note: int):
-        """Handle note-on for the partial."""
-        self.velocity = velocity
-        self.note = note
-        self.partial.note_on(velocity, note)
-
-    def note_off(self):
-        """Handle note-off for the partial."""
-        self.partial.note_off()
-
-    def is_active(self) -> bool:
-        """Check if the partial is active."""
-        return self.partial.is_active()
+logger = logging.getLogger(__name__)
 
 
 class Voice:
     """
-    XG Voice - coordinates multiple partials and handles voice-level parameters.
-
-    A Voice represents a complete instrument sound that can be assigned to
-    a MIDI channel. It manages multiple synthesis partials, applies voice-level
-    modulation and effects, and provides the audio output for all notes played
-    with this voice.
-
-    XG Specification Compliance:
-    - Voice-level parameters (key range, master level, pan, assign mode)
-    - Partial coordination and mixing
-    - Voice-level modulation matrix
-    - Multi-timbral operation support
+    Refactored Voice with lazy region selection.
+    
+    Stores preset definition (all region descriptors).
+    Creates region instances at note-on time based on note/velocity.
+    
+    This is the KEY class that fixes multi-zone presets:
+    - Old: Voice created with fixed partials for note 60 only
+    - New: Voice stores ALL regions, selects at note-on time
+    
+    Attributes:
+        preset_info: Preset metadata with all region descriptors
+        engine: Synthesis engine for this voice
+        channel: MIDI channel number
+        sample_rate: Audio sample rate
     """
-
-    def __init__(self, synthesis_engine: SynthesisEngine,
-                 voice_params: Dict, channel: int, sample_rate: int):
+    
+    __slots__ = [
+        'preset_info', 'engine', 'channel', 'sample_rate',
+        '_active_instances', '_region_cache', '_round_robin_state',
+        '_master_level', '_master_pan', '_reverb_send', '_chorus_send'
+    ]
+    
+    def __init__(
+        self, 
+        preset_info: PresetInfo, 
+        engine: SynthesisEngine,
+        channel: int, 
+        sample_rate: int
+    ):
         """
-        Initialize XG Voice.
-
+        Initialize Voice with preset definition.
+        
         Args:
-            synthesis_engine: Engine providing synthesis implementation
-            voice_params: Voice definition parameters
+            preset_info: Preset metadata with all region descriptors
+            engine: Synthesis engine for this voice
             channel: MIDI channel number (0-15)
             sample_rate: Audio sample rate in Hz
         """
-        self.synthesis_engine = synthesis_engine
+        self.preset_info = preset_info
+        self.engine = engine
         self.channel = channel
         self.sample_rate = sample_rate
-
-        # Voice-level XG parameters
-        self.name = voice_params.get('name', 'Untitled Voice')
-        self.key_range_low = voice_params.get('key_range_low', 0)
-        self.key_range_high = voice_params.get('key_range_high', 127)
-        self.master_level = voice_params.get('master_level', 1.0)
-        self.pan = voice_params.get('pan', 0.0)
-        self.assign_mode = voice_params.get('assign_mode', 1)  # Polyphonic
-
-        # Voice state
-        self.active = True
-        self.partials: List[SynthesisPartial] = []
-
-        # Create partials from voice definition
-        self._create_partials(voice_params)
-
-        # Voice-level modulation
-        self.modulation_matrix = ModulationMatrix(num_routes=16)
-        self._setup_voice_modulation(voice_params)
-
-        # Voice-level effects sends (XG compliant)
-        self.chorus_send = voice_params.get('chorus_send', 0.0)
-        self.reverb_send = voice_params.get('reverb_send', 0.0)
-        self.delay_send = voice_params.get('delay_send', 0.0)
-
-        # Voice-level effect processors
-        self._voice_effects = self._initialize_voice_effects()
-
-    def _initialize_voice_effects(self) -> Dict[str, Any]:
+        
+        # Active region instances for current note
+        self._active_instances: List[IRegion] = []
+        
+        # Optional: cache of recently used region instances
+        self._region_cache: Dict[int, IRegion] = {}
+        
+        # Round-robin state per group
+        self._round_robin_state: Dict[int, int] = {}
+        
+        # Voice-level parameters (from preset)
+        self._master_level = preset_info.master_level
+        self._master_pan = preset_info.master_pan
+        self._reverb_send = preset_info.reverb_send
+        self._chorus_send = preset_info.chorus_send
+    
+    # ========== REGION SELECTION (KEY METHOD) ==========
+    
+    def get_regions_for_note(
+        self, 
+        note: int, 
+        velocity: int
+    ) -> List[IRegion]:
         """
-        Initialize voice-level effect processors.
-
-        Returns:
-            Dictionary of voice effect processors
-        """
-        # Create dedicated voice-level effect processors
-        # These are separate from global system effects for per-voice processing
-        voice_effects = {}
-
-        try:
-            # Voice-level chorus processor (scaled down for per-voice use)
-            voice_effects['chorus'] = XGSystemEffectsProcessor(
-                sample_rate=self.sample_rate,
-                block_size=1024,
-                dsp_units=None,
-                max_reverb_delay=int(0.5 * self.sample_rate),  # Shorter for voice-level
-                max_chorus_delay=int(0.05 * self.sample_rate)
-            )
-
-            # Configure chorus for voice-level use
-            voice_effects['chorus'].set_system_effect_parameter('chorus', 'level', 0.3)
-
-            # Voice-level reverb processor (scaled down)
-            voice_effects['reverb'] = XGSystemEffectsProcessor(
-                sample_rate=self.sample_rate,
-                block_size=1024,
-                dsp_units=None,
-                max_reverb_delay=int(0.5 * self.sample_rate),  # Shorter reverb
-                max_chorus_delay=int(0.05 * self.sample_rate)
-            )
-
-            # Configure reverb for voice-level use
-            voice_effects['reverb'].set_system_effect_parameter('reverb', 'level', 0.2)
-            voice_effects['reverb'].set_system_effect_parameter('reverb', 'time', 0.5)
-
-        except Exception as e:
-            print(f"Warning: Failed to initialize voice effects: {e}")
-            # Continue without voice effects
-
-        return voice_effects
-
-    def _create_partials(self, voice_params: Dict) -> None:
-        """
-        Create synthesis partials for this voice.
-
-        Args:
-            voice_params: Voice parameters containing partial definitions
-        """
-        partials_config = voice_params.get('partials', [])
-
-        # Ensure at least one partial exists
-        if not partials_config:
-            # Create a default partial configuration
-            partials_config = [{
-                'level': 1.0,
-                'waveform': 'sine',
-                'frequency': 440.0,
-                'amplitude': 1.0
-            }]
-
-        for i, partial_config in enumerate(partials_config):
-            # Only create partials with non-zero level
-            if partial_config.get('level', 0.0) > 0.0:
-                # Merge voice and partial parameters
-                merged_params = {**voice_params, **partial_config}
-                merged_params['partial_id'] = i
-
-                # Create partial using synthesis engine
-                partial = self.synthesis_engine.create_partial(merged_params, self.sample_rate)
-                self.partials.append(partial)
-
-    def _setup_voice_modulation(self, voice_params: Dict) -> None:
-        """
-        Set up voice-level modulation matrix.
-
-        Args:
-            voice_params: Voice parameters containing modulation settings
-        """
-        modulation_params = voice_params.get('modulation', {})
-
-        # Clear existing routes
-        for i in range(16):
-            self.modulation_matrix.clear_route(i)
-
-        # Set up basic XG voice modulation routes
-        # These are voice-level routes that can affect all partials
-
-        # Velocity -> Master Level
-        self.modulation_matrix.set_route(
-            0, "velocity", "master_level",
-            amount=modulation_params.get("velocity_to_level", 0.0),
-            polarity=1.0
-        )
-
-        # Aftertouch -> Pan
-        self.modulation_matrix.set_route(
-            1, "after_touch", "pan",
-            amount=modulation_params.get("aftertouch_to_pan", 0.0),
-            polarity=1.0
-        )
-
-        # Mod Wheel -> Chorus Send
-        self.modulation_matrix.set_route(
-            2, "mod_wheel", "chorus_send",
-            amount=modulation_params.get("modwheel_to_chorus", 0.0),
-            polarity=1.0
-        )
-
-        # Breath Controller -> Reverb Send
-        self.modulation_matrix.set_route(
-            3, "breath_controller", "reverb_send",
-            amount=modulation_params.get("breath_to_reverb", 0.0),
-            polarity=1.0
-        )
-
-    def is_note_supported(self, note: int) -> bool:
-        """
-        Check if this voice responds to the given note.
-
-        Args:
-            note: MIDI note number (0-127)
-
-        Returns:
-            True if voice can play this note
-        """
-        return self.key_range_low <= note <= self.key_range_high
-
-    def get_regions_for_note(self, note: int, velocity: int) -> List[Any]:
-        """
-        Get regions for a specific note and velocity.
-
-        Creates regions from partials for compatibility with VoiceInstance system.
-
+        Get region instances for a specific note/velocity.
+        
+        This is the KEY method that fixes multi-zone presets.
+        Called at note-on time, not at Voice creation time.
+        
         Args:
             note: MIDI note number (0-127)
             velocity: MIDI velocity (0-127)
-
+        
         Returns:
-            List of regions (one per partial)
+            List of region instances that should play for this note/velocity
         """
-        if not self.is_note_supported(note):
+        # Get matching descriptors from preset info
+        matching_descriptors = self.preset_info.get_matching_descriptors(
+            note, velocity
+        )
+        
+        if not matching_descriptors:
             return []
-
+        
+        # Apply round-robin selection
+        selected_descriptors = self._apply_round_robin(
+            matching_descriptors, note, velocity
+        )
+        
+        # Create region instances
         regions = []
-        for partial in self.partials:
-            # Create a simple region wrapper for each partial
-            region = VoicePartialRegion(partial, note, velocity)
+        for descriptor in selected_descriptors:
+            region = self._get_or_create_region(descriptor)
             regions.append(region)
-
+        
         return regions
-
-    def generate_samples(self, note: int, velocity: int,
-                        modulation: Dict, block_size: int) -> np.ndarray:
+    
+    def _apply_round_robin(
+        self, 
+        descriptors: List[RegionDescriptor],
+        note: int,
+        velocity: int
+    ) -> List[RegionDescriptor]:
         """
-        Generate voice audio for a note.
-
+        Apply round-robin selection to descriptors.
+        
         Args:
-            note: MIDI note number (0-127)
-            velocity: MIDI velocity (0-127)
-            modulation: Current modulation values
-            block_size: Number of samples to generate
-
+            descriptors: Matching region descriptors
+            note: MIDI note number
+            velocity: MIDI velocity
+        
         Returns:
-            Stereo audio buffer (block_size * 2,)
+            Selected descriptors after round-robin
         """
-        if not self.active or not self.partials:
-            return np.zeros(block_size * 2, dtype=np.float32)
-
-        # Process voice-level modulation
-        voice_modulation = self._process_voice_modulation(modulation, velocity, note)
-
-        # Generate samples from all partials
-        output = np.zeros(block_size * 2, dtype=np.float32)
-        active_partials = 0
-
-        for partial in self.partials:
-            if partial.is_active():
-                # Apply voice modulation to partial modulation
-                partial_mod = {**voice_modulation, **modulation}
-
-                # Generate partial samples - each partial should use the same note/velocity
-                # since they are all part of the same voice playing the same note
-                partial_samples = partial.generate_samples(block_size, partial_mod)
-
-                # Mix partial into voice output
-                output += partial_samples
-                active_partials += 1
-
-        # Apply voice-level processing
-        if active_partials > 0:
-            output = self._apply_voice_processing(output, block_size, voice_modulation)
-
-        return output
-
-    def _process_voice_modulation(self, modulation: Dict, velocity: int, note: int) -> Dict:
+        # Group by round-robin group
+        rr_groups: Dict[int, List[RegionDescriptor]] = {}
+        for d in descriptors:
+            rr_id = d.round_robin_group
+            if rr_id not in rr_groups:
+                rr_groups[rr_id] = []
+            rr_groups[rr_id].append(d)
+        
+        # Select one from each round-robin group
+        selected = []
+        for group_id, group_descriptors in rr_groups.items():
+            if len(group_descriptors) == 1:
+                selected.append(group_descriptors[0])
+            else:
+                # Round-robin selection
+                current_pos = self._round_robin_state.get(group_id, 0)
+                selected.append(group_descriptors[current_pos])
+                
+                # Advance position for next note
+                next_pos = (current_pos + 1) % len(group_descriptors)
+                self._round_robin_state[group_id] = next_pos
+        
+        return selected
+    
+    def _get_or_create_region(self, descriptor: RegionDescriptor) -> IRegion:
         """
-        Process voice-level modulation matrix.
-
+        Get region from cache or create new instance.
+        
         Args:
-            modulation: Incoming modulation values
-            velocity: Current note velocity
-            note: Current note number
-
+            descriptor: Region descriptor
+        
         Returns:
-            Processed modulation values
+            Region instance ready for initialization
         """
-        # Prepare modulation sources
-        sources = {
-            "velocity": velocity / 127.0,
-            "note_number": note / 127.0,
-            **modulation
-        }
-
-        # Process through modulation matrix
-        processed_modulation = self.modulation_matrix.process(sources, velocity, note)
-
-        # Apply voice-level parameter modulation
-        if "master_level" in processed_modulation:
-            self.master_level = processed_modulation["master_level"]
-
-        if "pan" in processed_modulation:
-            self.pan = processed_modulation["pan"]
-
-        if "chorus_send" in processed_modulation:
-            self.chorus_send = processed_modulation["chorus_send"]
-
-        if "reverb_send" in processed_modulation:
-            self.reverb_send = processed_modulation["reverb_send"]
-
-        return processed_modulation
-
-    def _apply_voice_processing(self, audio: np.ndarray, block_size: int,
-                               modulation: Dict) -> np.ndarray:
+        # Try cache first (optional optimization)
+        if descriptor.region_id in self._region_cache:
+            region = self._region_cache[descriptor.region_id]
+            # Reset region state for reuse
+            region.reset()
+            return region
+        
+        # Create new region using engine
+        try:
+            region = self.engine.create_region(descriptor, self.sample_rate)
+            
+            # Optional: cache for reuse
+            # self._region_cache[descriptor.region_id] = region
+            
+            return region
+            
+        except Exception as e:
+            logger.error(f"Failed to create region: {e}")
+            # Return a silent dummy region
+            return _create_silent_region(descriptor, self.sample_rate)
+    
+    # ========== PLAYBACK ==========
+    
+    def note_on(self, note: int, velocity: int) -> List[IRegion]:
         """
-        Apply voice-level audio processing.
-
-        Args:
-            audio: Input audio buffer
-            block_size: Number of samples
-            modulation: Current modulation values
-
-        Returns:
-            Processed audio buffer
-        """
-        # Apply master level
-        audio *= self.master_level
-
-        # Apply pan (simplified - could be enhanced with pan law)
-        if self.pan != 0.0:
-            pan_left = 1.0 - max(0.0, self.pan)  # pan > 0 reduces left
-            pan_right = 1.0 - max(0.0, -self.pan)  # pan < 0 reduces right
-            audio[0::2] *= pan_left   # Left channel
-            audio[1::2] *= pan_right  # Right channel
-
-        # Apply voice-level effects based on send levels
-        processed_audio = audio.copy()
-
-        # Apply chorus send
-        if self.chorus_send > 0.0 and 'chorus' in self._voice_effects:
-            try:
-                # Create wet/dry mix based on send level
-                dry_level = 1.0 - self.chorus_send
-                wet_level = self.chorus_send
-
-                # Apply chorus effect
-                chorus_wet = processed_audio.copy()
-                self._voice_effects['chorus'].apply_system_effects_to_mix_zero_alloc(
-                    chorus_wet, block_size
-                )
-
-                # Mix dry and wet signals
-                processed_audio = (processed_audio * dry_level +
-                                 chorus_wet * wet_level)
-
-            except Exception as e:
-                print(f"Warning: Voice chorus processing failed: {e}")
-
-        # Apply reverb send
-        if self.reverb_send > 0.0 and 'reverb' in self._voice_effects:
-            try:
-                # Create wet/dry mix based on send level
-                dry_level = 1.0 - self.reverb_send
-                wet_level = self.reverb_send
-
-                # Apply reverb effect
-                reverb_wet = processed_audio.copy()
-                self._voice_effects['reverb'].apply_system_effects_to_mix_zero_alloc(
-                    reverb_wet, block_size
-                )
-
-                # Mix dry and wet signals
-                processed_audio = (processed_audio * dry_level +
-                                 reverb_wet * wet_level)
-
-            except Exception as e:
-                print(f"Warning: Voice reverb processing failed: {e}")
-
-        # Note: Delay send could be implemented similarly if a delay processor is added
-
-        return processed_audio
-
-    def note_on(self, note: int, velocity: int) -> None:
-        """
-        Handle note-on event for this voice.
-
+        Trigger note-on for all matching regions.
+        
         Args:
             note: MIDI note number
             velocity: MIDI velocity
+        
+        Returns:
+            List of activated regions
         """
-        for partial in self.partials:
-            partial.note_on(velocity, note)
-
+        # Get regions for this note/velocity
+        regions = self.get_regions_for_note(note, velocity)
+        
+        if not regions:
+            return []
+        
+        # Trigger note-on for all regions
+        activated = []
+        for region in regions:
+            try:
+                if region.note_on(velocity, note):
+                    activated.append(region)
+            except Exception as e:
+                logger.error(f"Region note_on failed: {e}")
+        
+        self._active_instances = activated
+        return activated
+    
     def note_off(self, note: int) -> None:
         """
-        Handle note-off event for this voice.
-
+        Trigger note-off for active regions.
+        
         Args:
             note: MIDI note number
         """
-        for partial in self.partials:
-            partial.note_off()
-
+        for region in self._active_instances:
+            try:
+                region.note_off()
+            except Exception as e:
+                logger.error(f"Region note_off failed: {e}")
+    
+    def generate_samples(
+        self, 
+        block_size: int, 
+        modulation: Dict[str, float]
+    ) -> np.ndarray:
+        """
+        Generate samples from all active regions.
+        
+        Args:
+            block_size: Number of samples to generate
+            modulation: Current modulation values
+        
+        Returns:
+            Stereo audio buffer (block_size * 2,) as float32
+        """
+        if not self._active_instances:
+            return np.zeros(block_size * 2, dtype=np.float32)
+        
+        output = np.zeros(block_size * 2, dtype=np.float32)
+        
+        for region in self._active_instances:
+            if region.is_active():
+                try:
+                    # Update modulation
+                    region.update_modulation(modulation)
+                    
+                    # Generate samples
+                    samples = region.generate_samples(block_size, modulation)
+                    
+                    # Apply region gain (crossfades, velocity scaling)
+                    gain = self._calculate_region_gain(region)
+                    if gain != 1.0:
+                        samples *= gain
+                    
+                    output += samples
+                    
+                except Exception as e:
+                    logger.error(f"Region sample generation failed: {e}")
+        
+        # Clean up inactive regions
+        self._active_instances = [
+            r for r in self._active_instances if r.is_active()
+        ]
+        
+        # Apply master level
+        if self._master_level != 1.0:
+            output *= self._master_level
+        
+        return output
+    
+    def _calculate_region_gain(self, region: IRegion) -> float:
+        """
+        Calculate gain for region (crossfades, velocity scaling).
+        
+        Args:
+            region: Region instance
+        
+        Returns:
+            Gain multiplier (0.0 to 1.0)
+        """
+        # Default implementation returns 1.0
+        # Can be overridden for crossfade support
+        return 1.0
+    
+    # ========== PARAMETER UPDATES ==========
+    
+    def set_master_level(self, level: float) -> None:
+        """Set master output level (0.0-1.0)."""
+        self._master_level = max(0.0, min(1.0, level))
+    
+    def set_master_pan(self, pan: float) -> None:
+        """Set master pan position (-1.0 to 1.0)."""
+        self._master_pan = max(-1.0, min(1.0, pan))
+    
+    def set_effects_sends(
+        self, 
+        reverb: Optional[float] = None,
+        chorus: Optional[float] = None
+    ) -> None:
+        """Set effects send levels."""
+        if reverb is not None:
+            self._reverb_send = max(0.0, min(1.0, reverb))
+        if chorus is not None:
+            self._chorus_send = max(0.0, min(1.0, chorus))
+    
+    def update_modulation(self, modulation: Dict[str, float]) -> None:
+        """
+        Update modulation for all active regions.
+        
+        Args:
+            modulation: Modulation parameter updates
+        """
+        for region in self._active_instances:
+            region.update_modulation(modulation)
+    
+    # ========== UTILITY METHODS ==========
+    
     def is_active(self) -> bool:
-        """
-        Check if voice is still active.
-
-        Returns:
-            True if any partial is still producing sound
-        """
-        return self.active and any(partial.is_active() for partial in self.partials)
-
-    def get_voice_info(self) -> Dict[str, Any]:
-        """
-        Get voice information and status.
-
-        Returns:
-            Dictionary with voice metadata
-        """
-        return {
-            'name': self.name,
-            'channel': self.channel,
-            'key_range': (self.key_range_low, self.key_range_high),
-            'master_level': self.master_level,
-            'pan': self.pan,
-            'assign_mode': self.assign_mode,
-            'active': self.is_active(),
-            'num_partials': len(self.partials),
-            'active_partials': sum(1 for p in self.partials if p.is_active()),
-            'engine_type': self.synthesis_engine.get_engine_type(),
-            'effects_sends': {
-                'chorus': self.chorus_send,
-                'reverb': self.reverb_send,
-                'delay': self.delay_send
-            }
-        }
-
-    def update_parameter(self, param_name: str, value: Any) -> None:
-        """
-        Update a voice parameter.
-
-        Args:
-            param_name: Parameter name
-            value: New parameter value
-        """
-        if hasattr(self, param_name):
-            setattr(self, param_name, value)
-        else:
-            # Try to update in voice parameters
-            # This allows dynamic parameter updates
-            pass
-
-    def apply_global_parameters(self, global_params: Dict) -> None:
-        """
-        Apply global synthesizer parameters to this voice.
-
-        Args:
-            global_params: Global synthesizer parameters
-        """
-        # Apply global parameters to voice-level settings
-        if 'master_volume' in global_params:
-            master_volume = global_params['master_volume']
-            self.master_level *= master_volume
-
-        if 'master_tune' in global_params:
-            # This would affect pitch, but voice-level tuning is usually handled per-partial
-            pass
-
-        if 'master_transpose' in global_params:
-            # This would affect transposition, but usually handled per-partial
-            pass
-
-        # Apply global parameters to all partials
-        for partial in self.partials:
-            if hasattr(partial, 'apply_global_parameters'):
-                partial.apply_global_parameters(global_params)
-
-    def apply_channel_parameters(self, channel_params: Dict) -> None:
-        """
-        Apply XG channel parameters to this voice.
-
-        Args:
-            channel_params: XG channel parameters
-        """
-        # Apply channel parameters to voice-level settings
-        if 'part_level' in channel_params:
-            part_level = channel_params['part_level'] / 100.0  # Convert from 0-100 to 0.0-1.0
-            self.master_level *= part_level
-
-        if 'part_pan' in channel_params:
-            # XG pan is -64 to +63, convert to -1.0 to +1.0
-            xg_pan = channel_params['part_pan']
-            self.pan = xg_pan / 63.0  # Normalize to -1.0 to +1.0
-
-        if 'effects_sends' in channel_params:
-            channel_sends = channel_params['effects_sends']
-            self.reverb_send = channel_sends.get('reverb', 40) / 127.0
-            self.chorus_send = channel_sends.get('chorus', 0) / 127.0
-            # Note: delay_send not used in current implementation
-
-        if 'drum_kit' in channel_params:
-            # Store drum kit info for drum channel (channel 9)
-            self._drum_kit = channel_params['drum_kit']
-
-        # Apply channel parameters to all partials
-        for partial in self.partials:
-            if hasattr(partial, 'apply_channel_parameters'):
-                partial.apply_channel_parameters(channel_params)
-
+        """Check if voice has any active regions."""
+        return any(r.is_active() for r in self._active_instances)
+    
+    def get_active_region_count(self) -> int:
+        """Get number of currently active regions."""
+        return len(self._active_instances)
+    
+    def get_region_info(self) -> List[Dict[str, Any]]:
+        """Get information about active regions."""
+        return [r.get_region_info() for r in self._active_instances]
+    
+    def get_preset_name(self) -> str:
+        """Get preset name."""
+        return self.preset_info.name
+    
+    def get_engine_type(self) -> str:
+        """Get engine type."""
+        return self.preset_info.engine_type
+    
+    def has_key_splits(self) -> bool:
+        """Check if preset has key splits."""
+        return self.preset_info.has_key_splits()
+    
+    def has_velocity_splits(self) -> bool:
+        """Check if preset has velocity splits."""
+        return self.preset_info.has_velocity_splits()
+    
+    def get_region_count(self) -> int:
+        """Get total number of regions in preset."""
+        return self.preset_info.get_region_count()
+    
+    # ========== RESOURCE MANAGEMENT ==========
+    
     def reset(self) -> None:
-        """Reset voice to initial state."""
-        self.active = True
-        for partial in self.partials:
-            partial.reset()
+        """Reset voice state (for reuse)."""
+        # Release all active regions
+        for region in self._active_instances:
+            region.dispose()
+        self._active_instances.clear()
+        
+        # Reset round-robin state
+        self._round_robin_state.clear()
+        
+        # Reset parameters to preset defaults
+        self._master_level = self.preset_info.master_level
+        self._master_pan = self.preset_info.master_pan
+        self._reverb_send = self.preset_info.reverb_send
+        self._chorus_send = self.preset_info.chorus_send
+    
+    def dispose(self) -> None:
+        """Release all region resources."""
+        self.reset()
+        
+        # Clear cache
+        for region in self._region_cache.values():
+            region.dispose()
+        self._region_cache.clear()
+    
+    def __str__(self) -> str:
+        """String representation."""
+        return (
+            f"Voice(preset='{self.preset_info.name}', "
+            f"engine={self.preset_info.engine_type}, "
+            f"regions={self.preset_info.get_region_count()}, "
+            f"active={len(self._active_instances)})"
+        )
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+def _create_silent_region(
+    descriptor: RegionDescriptor, 
+    sample_rate: int
+) -> IRegion:
+    """
+    Create a silent region for error handling.
+    
+    Returns a region that generates silence when region creation fails.
+    """
+    from ..partial.region import IRegion, RegionState
+    
+    class SilentRegion(IRegion):
+        def _load_sample_data(self) -> Optional[np.ndarray]:
+            return None
+        
+        def _create_partial(self) -> Optional[Any]:
+            return None
+        
+        def _init_envelopes(self) -> None:
+            pass
+        
+        def _init_filters(self) -> None:
+            pass
+        
+        def generate_samples(
+            self, 
+            block_size: int, 
+            modulation: Dict[str, float]
+        ) -> np.ndarray:
+            return np.zeros(block_size * 2, dtype=np.float32)
+    
+    return SilentRegion(descriptor, sample_rate)

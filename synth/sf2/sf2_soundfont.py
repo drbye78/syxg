@@ -295,6 +295,7 @@ INDUSTRY COMPLIANCE:
 from typing import Dict, List, Tuple, Optional, Any, Set, Union
 from pathlib import Path
 import threading
+import numpy as np
 
 
 class SF2SoundFont:
@@ -416,6 +417,101 @@ class SF2SoundFont:
 
             # Process zones into synthesis parameters
             return self._process_zones_to_parameters(matching_zones, note, velocity)
+    
+    def get_zone(self, bank: int, program: int, zone_id: int) -> Optional['SF2Zone']:
+        """
+        Get SF2Zone by zone ID for a specific preset.
+        
+        Args:
+            bank: MIDI bank number
+            program: MIDI program number
+            zone_id: Zone identifier
+        
+        Returns:
+            SF2Zone instance or None
+        """
+        if not self._is_loaded:
+            return None
+        
+        preset = self._get_or_load_preset(bank, program)
+        if not preset:
+            return None
+        
+        # Get zone by ID
+        if zone_id < len(preset.zones):
+            return preset.zones[zone_id]
+        
+        return None
+    
+    def get_sample_info(self, sample_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get sample information by sample ID.
+        
+        Args:
+            sample_id: Sample identifier
+        
+        Returns:
+            Sample info dictionary or None
+        """
+        if not self._is_loaded or not self.file_loader:
+            return None
+        
+        # Get sample header
+        if hasattr(self.file_loader, 'parse_sample_header_at_index'):
+            header = self.file_loader.parse_sample_header_at_index(sample_id)
+            if header:
+                return {
+                    'name': header.get('name', ''),
+                    'original_pitch': header.get('original_pitch', 60),
+                    'correction': header.get('correction', 0),
+                    'sample_rate': header.get('sample_rate', 44100)
+                }
+        
+        return None
+    
+    def get_sample_loop_info(self, sample_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get sample loop information by sample ID.
+        
+        Args:
+            sample_id: Sample identifier
+        
+        Returns:
+            Loop info dictionary or None
+        """
+        if not self._is_loaded or not self.file_loader:
+            return None
+        
+        # Get sample header
+        if hasattr(self.file_loader, 'parse_sample_header_at_index'):
+            header = self.file_loader.parse_sample_header_at_index(sample_id)
+            if header:
+                return {
+                    'start': header.get('start', 0),
+                    'end': header.get('end', 0),
+                    'mode': header.get('loop_mode', 0)
+                }
+        
+        return None
+    
+    def get_sample_data(self, sample_id: int) -> Optional[np.ndarray]:
+        """
+        Get sample audio data by sample ID.
+        
+        Args:
+            sample_id: Sample identifier
+        
+        Returns:
+            Sample data as numpy array or None
+        """
+        if not self._is_loaded or not self.file_loader:
+            return None
+        
+        # Get sample data from file loader
+        if hasattr(self.file_loader, 'get_sample_data'):
+            return self.file_loader.get_sample_data(sample_id)
+        
+        return None
 
     def _get_or_load_preset(self, bank: int, program: int) -> Optional['SF2Preset']:
         """Get preset from cache or load on-demand."""

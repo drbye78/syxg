@@ -314,6 +314,51 @@ class AdditiveEngine(SynthesisEngine):
             'max_partials': self.max_partials
         }
 
+    # ========== NEW REGION-BASED METHODS (STUBS) ==========
+    # TODO: Implement full region-based architecture for additive engine
+    
+    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+        """Get additive preset info (stub - returns basic spectrum)."""
+        from .preset_info import PresetInfo
+        from .region_descriptor import RegionDescriptor
+        
+        # For now, return a basic additive preset with single region
+        descriptor = RegionDescriptor(
+            region_id=0,
+            engine_type='additive',
+            key_range=(0, 127),
+            velocity_range=(0, 127),
+            algorithm_params={
+                'spectrum_type': 'sawtooth',
+                'max_partials': self.max_partials,
+                'brightness': self.brightness
+            }
+        )
+        
+        return PresetInfo(
+            bank=bank,
+            program=program,
+            name=f'Additive {bank}:{program}',
+            engine_type='additive',
+            region_descriptors=[descriptor]
+        )
+    
+    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+        """Get all region descriptors for additive preset."""
+        preset_info = self.get_preset_info(bank, program)
+        if preset_info:
+            return preset_info.region_descriptors
+        return []
+    
+    def create_region(self, descriptor: 'RegionDescriptor', sample_rate: int) -> 'IRegion':
+        """Create additive region with full implementation."""
+        from ..partial.additive_region import AdditiveRegion
+        return AdditiveRegion(descriptor, sample_rate)
+    
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        """Load sample for additive region (no-op - algorithmic synthesis)."""
+        return True
+
     def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float], block_size: int) -> np.ndarray:
         """
         Generate additive synthesis audio samples.

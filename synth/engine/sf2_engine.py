@@ -347,13 +347,232 @@ class SF2Engine(SynthesisEngine):
         
         return partial
 
-    def get_voice_parameters(self, program: int, bank: int = 0) -> Optional[Dict]:
+    # ========== NEW REGION-BASED METHODS ==========
+    
+    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
         """
-        Get SF2 voice parameters for a program/bank using optimized architecture.
-
+        Get SF2 preset info with all zone descriptors.
+        
+        This is the KEY method that enables multi-zone preset support.
+        Returns ALL zones as descriptors without loading samples.
+        
+        Args:
+            bank: MIDI bank number
+            program: MIDI program number
+        
+        Returns:
+            PresetInfo with all region descriptors, or None if not found
+        """
+        # Import here to avoid circular imports
+        from .preset_info import PresetInfo
+        from .region_descriptor import RegionDescriptor
+        
+        # Search through loaded soundfonts
+        for filepath in self.soundfont_manager.file_order:
+            soundfont = self.soundfont_manager.loaded_files.get(filepath)
+            if not soundfont:
+                continue
+            
+            # Get or load preset
+            preset = soundfont._get_or_load_preset(bank, program)
+            if not preset:
+                continue
+            
+            # Build region descriptors from ALL zones
+            descriptors = []
+            for zone_idx, zone in enumerate(preset.zones):
+                descriptor = self._zone_to_descriptor(zone, zone_idx, filepath)
+                descriptors.append(descriptor)
+            
+            if descriptors:
+                return PresetInfo(
+                    bank=bank,
+                    program=program,
+                    name=preset.name,
+                    engine_type='sf2',
+                    region_descriptors=descriptors,
+                    master_level=1.0,
+                    master_pan=0.0,
+                    reverb_send=0.0,
+                    chorus_send=0.0
+                )
+        
+        return None
+    
+    def get_all_region_descriptors(
+        self, 
+        bank: int, 
+        program: int
+    ) -> List['RegionDescriptor']:
+        """
+        Get ALL region descriptors for an SF2 preset.
+        
+        Args:
+            bank: MIDI bank number
+            program: MIDI program number
+        
+        Returns:
+            List of all RegionDescriptor objects for this preset
+        """
+        preset_info = self.get_preset_info(bank, program)
+        if preset_info:
+            return preset_info.region_descriptors
+        return []
+    
+    def create_region(
+        self, 
+        descriptor: 'RegionDescriptor', 
+        sample_rate: int
+    ) -> 'IRegion':
+        """
+        Create SF2 region instance from descriptor.
+        
+        Args:
+            descriptor: Region metadata and parameters
+            sample_rate: Audio sample rate in Hz
+        
+        Returns:
+            SF2Region instance ready for lazy initialization
+        """
+        from .partial.sf2_region import SF2Region
+        return SF2Region(descriptor, sample_rate, self.soundfont_manager)
+    
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        """
+        Load sample data for SF2 region.
+        
+        Args:
+            region: Region instance to load sample for
+        
+        Returns:
+            True if sample loaded successfully
+        """
+        if hasattr(region, 'load_sample'):
+            return region.load_sample()
+        return False
+    
+    def _zone_to_descriptor(
+        self, 
+        zone: Any, 
+        zone_idx: int,
+        filepath: str
+    ) -> 'RegionDescriptor':
+        """
+        Convert SF2 zone to region descriptor.
+        
+        Args:
+            zone: SF2Zone object
+            zone_idx: Zone index
+            filepath: Soundfont file path
+        
+        Returns:
+            RegionDescriptor with zone metadata
+        """
+        from .region_descriptor import RegionDescriptor
+        
+        # Extract key/velocity ranges from zone
+        key_range = getattr(zone, 'key_range', (0, 127))
+        velocity_range = getattr(zone, 'velocity_range', (0, 127))
+        
+        # Get sample ID if this zone has one
+        sample_id = getattr(zone, 'sample_id', -1)
+        if sample_id < 0:
+            sample_id = None
+        
+        # Extract generator parameters (but don't load sample)
+        generator_params = self._extract_generator_params(zone)
+        
+        # Get round-robin info (if available)
+        round_robin_group = 0
+        round_robin_position = zone_idx
+        
+        return RegionDescriptor(
+            region_id=zone_idx,
+            engine_type='sf2',
+            key_range=key_range,
+            velocity_range=velocity_range,
+            round_robin_group=round_robin_group,
+            round_robin_position=round_robin_position,
+            sample_id=sample_id,
+            generator_params=generator_params
+        )
+    
+    def _extract_generator_params(self, zone: Any) -> Dict[str, Any]:
+        """
+        Extract generator parameters from SF2 zone.
+        
+        Args:
+            zone: SF2Zone object
+        
+        Returns:
+            Dictionary of generator parameters
+        """
+        params = {}
+        
+        # Helper to get generator value with default
+        def get_gen(gen_type: int, default: int) -> int:
+            if hasattr(zone, 'get_generator_value'):
+                return zone.get_generator_value(gen_type, default)
+            return default
+        
+        # Volume envelope (SF2 generator IDs)
+        params['amp_delay'] = self._timecents_to_seconds(get_gen(8, -12000))
+        params['amp_attack'] = self._timecents_to_seconds(get_gen(9, -12000))
+        params['amp_hold'] = self._timecents_to_seconds(get_gen(10, -12000))
+        params['amp_decay'] = self._timecents_to_seconds(get_gen(11, -12000))
+        params['amp_sustain'] = get_gen(12, 0) / 1000.0
+        params['amp_release'] = self._timecents_to_seconds(get_gen(13, -12000))
+        
+        # Modulation envelope
+        params['mod_env_delay'] = self._timecents_to_seconds(get_gen(14, -12000))
+        params['mod_env_attack'] = self._timecents_to_seconds(get_gen(15, -12000))
+        params['mod_env_hold'] = self._timecents_to_seconds(get_gen(16, -12000))
+        params['mod_env_decay'] = self._timecents_to_seconds(get_gen(17, -12000))
+        params['mod_env_sustain'] = get_gen(18, 0) / 1000.0
+        params['mod_env_release'] = self._timecents_to_seconds(get_gen(19, -12000))
+        params['mod_env_to_pitch'] = get_gen(20, 0) / 1200.0
+        
+        # LFO parameters
+        params['mod_lfo_delay'] = self._timecents_to_seconds(get_gen(21, -12000))
+        params['mod_lfo_rate'] = self._cents_to_frequency(get_gen(22, 0))
+        params['vib_lfo_delay'] = self._timecents_to_seconds(get_gen(26, -12000))
+        params['vib_lfo_rate'] = self._cents_to_frequency(get_gen(27, 0))
+        
+        # Filter
+        params['filter_cutoff'] = self._cents_to_frequency(get_gen(29, 13500))
+        params['filter_resonance'] = get_gen(30, 0) / 10.0
+        
+        # Effects
+        params['reverb_send'] = get_gen(32, 0) / 1000.0
+        params['chorus_send'] = get_gen(33, 0) / 1000.0
+        params['pan'] = get_gen(34, 0) / 500.0
+        
+        # Pitch
+        params['coarse_tune'] = get_gen(48, 0)
+        params['fine_tune'] = get_gen(49, 0) / 100.0
+        
+        return params
+    
+    # ========== LEGACY METHODS (kept for transition) ==========
+    
+    def get_voice_parameters(
+        self, 
+        program: int, 
+        bank: int = 0,
+        note: int = 60,
+        velocity: int = 100
+    ) -> Optional[Dict]:
+        """
+        Get SF2 voice parameters for a program/bank.
+        
+        DEPRECATED: Use get_preset_info() instead.
+        This method now uses the new architecture internally.
+        
         Args:
             program: MIDI program number (0-127)
             bank: MIDI bank number (0-127)
+            note: MIDI note for zone matching (default 60)
+            velocity: MIDI velocity for zone matching (default 100)
 
         Returns:
             Voice parameters dictionary, or None if not found

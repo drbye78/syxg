@@ -298,11 +298,45 @@ class GranularEngine(SynthesisEngine):
             'name': 'Granular Synthesis Engine',
             'type': 'granular',
             'capabilities': ['granular_synthesis', 'time_stretching', 'pitch_shifting', 'grain_clouds'],
-            'formats': ['.gran', '.grn'],  # Custom granular formats
-            'polyphony': self.max_clouds,  # Limited by grain density
-            'parameters': ['density', 'duration', 'position', 'pitch_shift', 'time_stretch', 'freeze'],
+            'formats': ['.wav', '.aif'],  # Uses audio files as source
+            'polyphony': 4,  # Granular is very CPU intensive
+            'parameters': ['grain_density', 'grain_duration', 'position', 'pitch_spread'],
             'max_clouds': self.max_clouds
         }
+
+    # ========== NEW REGION-BASED METHODS (STUBS) ==========
+    
+    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+        """Get granular preset info (stub)."""
+        from .preset_info import PresetInfo
+        from .region_descriptor import RegionDescriptor
+        
+        descriptor = RegionDescriptor(
+            region_id=0,
+            engine_type='granular',
+            key_range=(0, 127),
+            velocity_range=(0, 127),
+            algorithm_params={'max_clouds': self.max_clouds}
+        )
+        
+        return PresetInfo(
+            bank=bank, program=program,
+            name=f'Granular {bank}:{program}',
+            engine_type='granular',
+            region_descriptors=[descriptor]
+        )
+    
+    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+        preset_info = self.get_preset_info(bank, program)
+        return preset_info.region_descriptors if preset_info else []
+    
+    def create_region(self, descriptor: 'RegionDescriptor', sample_rate: int) -> 'IRegion':
+        """Create granular region with full implementation."""
+        from ..partial.granular_region import GranularRegion
+        return GranularRegion(descriptor, sample_rate)
+    
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        return True
 
     def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float], block_size: int) -> np.ndarray:
         """

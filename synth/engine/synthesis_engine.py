@@ -1,9 +1,15 @@
 """
-Advanced Synthesis Engine Registry System
+Advanced Synthesis Engine Registry System - Unified Region-Based Architecture
 
 Production-quality engine registry with dynamic loading, plugin architecture,
 content-based selection, and XGML v3.0 integration. Supports runtime engine
 management, performance monitoring, and intelligent synthesis method selection.
+
+This is the REFACTORED version with unified region-based architecture supporting:
+- Lazy initialization of regions and samples
+- On-demand sample loading
+- Multi-zone preset support (key splits, velocity splits)
+- Unified interface across all synthesis engines
 
 Features:
 - Dynamic engine loading/unloading
@@ -25,20 +31,31 @@ import inspect
 import os
 from pathlib import Path
 
+# Import new region-based architecture
+from .region_descriptor import RegionDescriptor
+from .preset_info import PresetInfo
+
 
 class SynthesisEngine(ABC):
     """
-    Abstract base class for synthesis engines.
-
+    Abstract base class for synthesis engines - REFACTORED VERSION.
+    
     Defines the standard interface that all synthesis engines must implement,
     providing a consistent way to generate audio regardless of the underlying
     synthesis method.
+    
+    This refactored version uses a region-based architecture with:
+    - PresetInfo for lightweight preset metadata
+    - RegionDescriptor for lazy region matching
+    - IRegion for unified region interface
+    - On-demand sample loading
 
     This abstraction enables:
     - Modular synthesis engine swapping
     - Consistent parameter handling across engines
     - Standardized audio generation interface
     - Engine capability discovery and metadata
+    - Multi-zone preset support (key/velocity splits)
     """
 
     def __init__(self, sample_rate: int = 44100, block_size: int = 1024):
@@ -52,64 +69,108 @@ class SynthesisEngine(ABC):
         self.sample_rate = sample_rate
         self.block_size = block_size
 
+    # ========== PRESET MANAGEMENT (NEW) ==========
+    
     @abstractmethod
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
-                        block_size: int) -> np.ndarray:
+    def get_preset_info(self, bank: int, program: int) -> Optional[PresetInfo]:
         """
-        Generate audio samples for a note.
-
+        Get preset metadata without loading regions.
+        
+        Returns lightweight PresetInfo with region descriptors.
+        Called at program change time.
+        
         Args:
-            note: MIDI note number (0-127)
-            velocity: MIDI velocity (0-127)
-            modulation: Current modulation values
-            block_size: Number of samples to generate
-
+            bank: MIDI bank number
+            program: MIDI program number
+        
         Returns:
-            Stereo audio buffer (block_size, 2) as float32
+            PresetInfo with all region descriptors, or None if not found
         """
         pass
-
+    
     @abstractmethod
-    def is_note_supported(self, note: int) -> bool:
+    def get_all_region_descriptors(self, bank: int, program: int) -> List[RegionDescriptor]:
         """
-        Check if a note is supported by this engine.
-
+        Get ALL region descriptors for a preset.
+        
+        Returns descriptors for ALL zones/layers in the preset.
+        Does NOT load sample data or create region instances.
+        
         Args:
-            note: MIDI note number (0-127)
-
+            bank: MIDI bank number
+            program: MIDI program number
+        
         Returns:
-            True if note can be played, False otherwise
+            List of all RegionDescriptor objects for this preset
         """
         pass
-
+    
+    # ========== REGION CREATION (NEW) ==========
+    
     @abstractmethod
-    def get_engine_info(self) -> Dict[str, Any]:
+    def create_region(self, descriptor: RegionDescriptor, 
+                     sample_rate: int) -> 'IRegion':
         """
-        Get engine information and capabilities.
-
+        Create a region instance from a descriptor.
+        
+        Called at note-on time for matching regions.
+        Does NOT load sample data (lazy loading).
+        
+        Args:
+            descriptor: Region metadata and parameters
+            sample_rate: Audio sample rate in Hz
+        
         Returns:
-            Dictionary containing engine metadata:
-            - 'name': Engine name
-            - 'type': Synthesis type ('sf2', 'fm', 'additive', 'physical')
-            - 'capabilities': List of supported features
-            - 'formats': List of supported file formats
-            - 'polyphony': Maximum simultaneous voices
-            - 'parameters': Available parameter names
+            IRegion instance ready for lazy initialization
         """
         pass
-
-    def get_voice_parameters(self, program: int, bank: int = 0) -> Optional[Dict[str, Any]]:
+    
+    @abstractmethod
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        """
+        Load sample data for a region (SF2/SFZ only).
+        
+        Called when region is about to play.
+        Returns True if sample loaded successfully.
+        For algorithmic engines, this is a no-op (returns True).
+        
+        Args:
+            region: Region instance to load sample for
+        
+        Returns:
+            True if sample loaded or not needed, False if loading failed
+        """
+        pass
+    
+    # ========== LEGACY METHODS (DEPRECATED - kept for transition) ==========
+    
+    def get_voice_parameters(self, program: int, bank: int = 0,
+                            note: int = 60, velocity: int = 100) -> Optional[Dict[str, Any]]:
         """
         Get voice parameters for a program/bank combination.
-
+        
+        DEPRECATED: Use get_preset_info() and get_regions_for_note() instead.
+        This method is kept for backward compatibility during transition.
+        
         Args:
             program: MIDI program number (0-127)
             bank: MIDI bank number (0-16383)
+            note: MIDI note for zone matching (default 60)
+            velocity: MIDI velocity for zone matching (default 100)
 
         Returns:
             Voice parameter dictionary or None if not supported
         """
-        # Default implementation returns None - engines should override
+        # Default implementation using new architecture
+        preset_info = self.get_preset_info(bank, program)
+        if not preset_info:
+            return None
+        
+        # Get matching regions and return first one's params
+        matching = preset_info.get_matching_descriptors(note, velocity)
+        if matching and matching[0].generator_params:
+            return matching[0].generator_params
+        
         return None
 
     def get_engine_type(self) -> str:
@@ -121,10 +182,12 @@ class SynthesisEngine(ABC):
         """
         return 'unknown'
 
-    @abstractmethod
     def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> 'SynthesisPartial':
         """
         Create a partial instance for this engine.
+        
+        DEPRECATED: Use create_region() instead.
+        This method is kept for backward compatibility during transition.
 
         Args:
             partial_params: Parameters for the partial
@@ -133,37 +196,8 @@ class SynthesisEngine(ABC):
         Returns:
             SynthesisPartial instance configured for this engine
         """
-        pass
-
-    def create_region(self, region_params: Dict[str, Any], sample_rate: int) -> Optional['Region']:
-        """
-        Create a region instance for this engine.
-
-        Args:
-            region_params: Parameters for the region
-            sample_rate: Audio sample rate
-
-        Returns:
-            Region instance configured for this engine, or None if regions not supported
-        """
-        # Default implementation returns None - engines should override for region support
-        return None
-
-    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> List['Region']:
-        """
-        Get all regions that should play for a given note/velocity/program.
-
-        Args:
-            note: MIDI note number (0-127)
-            velocity: MIDI velocity (0-127)
-            program: MIDI program number (0-127)
-            bank: MIDI bank number
-
-        Returns:
-            List of Region instances that should play
-        """
-        # Default implementation - engines should override for region support
-        return []
+        # Default implementation - engines should override if they support partials
+        raise NotImplementedError("create_partial() not implemented. Use create_region().")
 
     def get_supported_formats(self) -> List[str]:
         """
@@ -1103,4 +1137,4 @@ class SynthesisEngineRegistry:
 
 # Import here to avoid circular imports
 from ..partial.partial import SynthesisPartial
-from ..partial.region import Region
+# Note: Region import removed - use forward references instead to avoid circular import

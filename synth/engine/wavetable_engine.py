@@ -1074,6 +1074,40 @@ class WavetableEngine(SynthesisEngine):
             ]
         }
 
+    # ========== NEW REGION-BASED METHODS (STUBS) ==========
+    
+    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+        """Get wavetable preset info (stub)."""
+        from .preset_info import PresetInfo
+        from .region_descriptor import RegionDescriptor
+        
+        descriptor = RegionDescriptor(
+            region_id=0,
+            engine_type='wavetable',
+            key_range=(0, 127),
+            velocity_range=(0, 127),
+            algorithm_params={'wavetable': 'default'}
+        )
+        
+        return PresetInfo(
+            bank=bank, program=program,
+            name=f'Wavetable {bank}:{program}',
+            engine_type='wavetable',
+            region_descriptors=[descriptor]
+        )
+    
+    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+        preset_info = self.get_preset_info(bank, program)
+        return preset_info.region_descriptors if preset_info else []
+    
+    def create_region(self, descriptor: 'RegionDescriptor', sample_rate: int) -> 'IRegion':
+        """Create wavetable region with full implementation."""
+        from ..partial.wavetable_region import WavetableRegion
+        return WavetableRegion(descriptor, sample_rate, self.wavetable_bank)
+    
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        return True
+
     def get_available_wavetables(self) -> List[str]:
         """Get list of available wavetable names."""
         return self.wavetable_bank.list_wavetables()

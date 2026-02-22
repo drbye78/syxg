@@ -514,6 +514,145 @@ class FMEngine(SynthesisEngine):
             'max_operators': self.num_operators
         }
 
+    # ========== NEW REGION-BASED METHODS ==========
+    
+    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+        """
+        Get FM preset info with region descriptors.
+        
+        FM presets are algorithmic - single region with algorithm parameters.
+        
+        Args:
+            bank: MIDI bank number
+            program: MIDI program number
+        
+        Returns:
+            PresetInfo with FM algorithm parameters
+        """
+        from .preset_info import PresetInfo
+        from .region_descriptor import RegionDescriptor
+        
+        # Get FM program parameters
+        fm_params = self._get_fm_program(bank, program)
+        if not fm_params:
+            return None
+        
+        # FM has single algorithm (one region)
+        # Key and velocity scaling are applied per-note
+        descriptor = RegionDescriptor(
+            region_id=0,
+            engine_type='fm',
+            key_range=(0, 127),  # Full MIDI range
+            velocity_range=(0, 127),
+            round_robin_group=0,
+            round_robin_position=0,
+            algorithm_params=fm_params
+        )
+        
+        return PresetInfo(
+            bank=bank,
+            program=program,
+            name=fm_params.get('name', f'FM {bank}:{program}'),
+            engine_type='fm',
+            region_descriptors=[descriptor],
+            master_level=fm_params.get('master_level', 1.0),
+            master_pan=fm_params.get('pan', 0.0)
+        )
+    
+    def get_all_region_descriptors(
+        self, 
+        bank: int, 
+        program: int
+    ) -> List['RegionDescriptor']:
+        """
+        Get all region descriptors for an FM preset.
+        
+        Args:
+            bank: MIDI bank number
+            program: MIDI program number
+        
+        Returns:
+            List of RegionDescriptor objects
+        """
+        preset_info = self.get_preset_info(bank, program)
+        if preset_info:
+            return preset_info.region_descriptors
+        return []
+    
+    def create_region(
+        self, 
+        descriptor: 'RegionDescriptor', 
+        sample_rate: int
+    ) -> 'IRegion':
+        """
+        Create FM region instance from descriptor.
+        
+        Args:
+            descriptor: Region metadata with FM algorithm parameters
+            sample_rate: Audio sample rate in Hz
+        
+        Returns:
+            FMRegion instance
+        """
+        from .partial.fm_region import FMRegion
+        return FMRegion(descriptor, sample_rate)
+    
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        """
+        Load sample data for FM region (no-op for algorithmic synthesis).
+        
+        Args:
+            region: Region instance
+        
+        Returns:
+            True (always succeeds for FM)
+        """
+        return True
+    
+    # ========== LEGACY METHODS ==========
+    
+    def get_voice_parameters(
+        self, 
+        program: int, 
+        bank: int = 0,
+        note: int = 60,
+        velocity: int = 100
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get FM voice parameters.
+        
+        DEPRECATED: Use get_preset_info() instead.
+        
+        Args:
+            program: MIDI program number
+            bank: MIDI bank number
+            note: MIDI note (for scaling)
+            velocity: MIDI velocity (for scaling)
+        
+        Returns:
+            FM parameters dictionary
+        """
+        fm_params = self._get_fm_program(bank, program)
+        if not fm_params:
+            return None
+        
+        # Apply note and velocity scaling
+        scaled_params = fm_params.copy()
+        if 'operators' in scaled_params:
+            for op in scaled_params['operators']:
+                # Apply key scaling
+                if 'key_scaling_depth' in op:
+                    key_offset = note - 60
+                    scale = 1.0 + (key_offset / 127.0) * (op['key_scaling_depth'] / 7.0)
+                    op['amplitude'] = op.get('amplitude', 1.0) * scale
+                
+                # Apply velocity scaling
+                if 'velocity_sensitivity' in op:
+                    vel_factor = (velocity / 127.0) ** (op['velocity_sensitivity'] / 7.0)
+                    op['amplitude'] = op.get('amplitude', 1.0) * vel_factor
+        
+        return scaled_params
+
     def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float], block_size: int) -> np.ndarray:
         """
         Generate FM-X synthesis audio samples with full feature set.

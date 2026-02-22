@@ -964,6 +964,41 @@ class ANEngine(SynthesisEngine):
             'sample_rate': self.sample_rate,
             'block_size': self.block_size
         }
+    # ========== NEW REGION-BASED METHODS (STUBS) ==========
+    
+    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+        """Get preset info (stub)."""
+        from .preset_info import PresetInfo
+        from .region_descriptor import RegionDescriptor
+        
+        descriptor = RegionDescriptor(
+            region_id=0,
+            engine_type=self.get_engine_type(),
+            key_range=(0, 127),
+            velocity_range=(0, 127),
+            algorithm_params={}
+        )
+        
+        return PresetInfo(
+            bank=bank, program=program,
+            name=f'{self.get_engine_type().title()} {bank}:{program}',
+            engine_type=self.get_engine_type(),
+            region_descriptors=[descriptor]
+        )
+    
+    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+        preset_info = self.get_preset_info(bank, program)
+        return preset_info.region_descriptors if preset_info else []
+    
+    def create_region(self, descriptor: 'RegionDescriptor', sample_rate: int) -> 'IRegion':
+        """Create ANRegion with full implementation."""
+        from ..partial.an_region import ANRegion
+        return ANRegion(descriptor, sample_rate)
+    
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        return True
+
+
 
     def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
                         block_size: int) -> np.ndarray:

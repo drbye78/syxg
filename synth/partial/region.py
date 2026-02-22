@@ -1,383 +1,390 @@
 """
-Region Base Class - Abstract base for SFZ/SF2 regions.
+Region Base Class - Unified interface for all synthesis regions.
 
-Defines the common interface for all region types (SFZ regions, SF2 regions, etc.)
-that can be played as part of a voice instance.
+Part of the unified region-based synthesis architecture.
+IRegion defines the common interface for all region types (SF2, FM, Additive, etc.)
+with support for lazy initialization and on-demand sample loading.
 """
 
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Tuple
+from enum import IntEnum
 import numpy as np
 
-# Import core synthesis components
-from ..core.envelope import UltraFastADSREnvelope
-from ..core.filter import UltraFastResonantFilter
-from ..modulation.matrix import ModulationMatrix
+# Import from engine module where RegionDescriptor is defined
+from ..engine.region_descriptor import RegionDescriptor
 
 
-class Region(ABC):
+class RegionState(IntEnum):
     """
-    Abstract base class for synthesis regions.
-
-    A Region represents a single playable element within a voice, such as:
-    - An SFZ region with sample playback
-    - An SF2 region with wavetable synthesis
-    - A procedural synthesis region
-
-    Regions handle their own modulation, envelopes, and sample playback,
-    and can be mixed together within a VoiceInstance.
-
-    Key Features:
-    - Key and velocity range definitions
-    - Individual modulation processing
-    - Envelope management
-    - Sample/filter processing
-    - Crossfading support
+    Region lifecycle states.
+    
+    States represent the progression of a region from creation to disposal.
     """
+    CREATED = 0       # Region object created, not initialized
+    INITIALIZED = 1   # Resources loaded, ready to play
+    ACTIVE = 2        # Currently playing (note-on triggered)
+    RELEASING = 3     # Note-off triggered, in release phase
+    RELEASED = 4      # Envelope complete, ready for disposal
 
-    def __init__(self, region_params: Dict[str, Any]):
+
+class IRegion(ABC):
+    """
+    Abstract base class for all region types.
+    
+    Unified interface for sample-based and algorithmic synthesis.
+    Implements lazy initialization - sample data loaded only when needed.
+    
+    Attributes:
+        descriptor: Region metadata and parameters
+        sample_rate: Audio sample rate in Hz
+        block_size: Processing block size in samples
+        state: Current region lifecycle state
+        current_note: Current MIDI note being played
+        current_velocity: Current velocity being played
+    """
+    
+    __slots__ = [
+        'descriptor', 'sample_rate', 'block_size',
+        'state', 'current_note', 'current_velocity',
+        '_sample_data', '_partial', '_initialized',
+        '_modulation_state', '_envelopes', '_filters',
+        '_output_buffer', '_work_buffer'
+    ]
+    
+    def __init__(self, descriptor: RegionDescriptor, sample_rate: int = 44100):
         """
-        Initialize region with parameters.
-
+        Initialize region with descriptor.
+        
         Args:
-            region_params: Dictionary of region parameters
+            descriptor: Region metadata and parameters
+            sample_rate: Audio sample rate in Hz
         """
-        # Key and velocity ranges
-        self.key_range: Tuple[int, int] = region_params.get('key_range', (0, 127))
-        self.velocity_range: Tuple[int, int] = region_params.get('velocity_range', (0, 127))
-
-        # Round robin and sequence
-        self.round_robin_group: int = region_params.get('round_robin_group', 0)
-        self.round_robin_position: int = region_params.get('round_robin_position', 0)
-        self.round_robin_length: int = region_params.get('round_robin_length', 1)
-        self.sequence_position: int = region_params.get('sequence_position', 0)
-        self.sequence_length: int = region_params.get('sequence_length', 1)
-
-        # Trigger types
-        self.trigger: str = region_params.get('trigger', 'attack')  # attack, release, first, legato
-
-        # Crossfading
-        self.velocity_crossfade: Tuple[float, float] = region_params.get('velocity_crossfade', (0.0, 0.0))
-        self.note_crossfade: Tuple[float, float] = region_params.get('note_crossfade', (0.0, 0.0))
-
-        # Sample information
-        self.sample: Optional[Any] = None  # Sample object (SFZSample, SF2Sample, etc.)
-        self.sample_path: Optional[str] = region_params.get('sample_path')
-
-        # Timing
-        self.offset: int = region_params.get('offset', 0)  # Sample offset in frames
-        self.end: Optional[int] = region_params.get('end')  # End position in frames
-        self.loop_mode: str = region_params.get('loop_mode', 'no_loop')
-        self.loop_start: int = region_params.get('loop_start', 0)
-        self.loop_end: int = region_params.get('loop_end', 0)
-
-        # Pitch
-        self.pitch_keycenter: int = region_params.get('pitch_keycenter', 60)
-        self.tune: int = region_params.get('tune', 0)  # Coarse tune in cents
-        self.fine_tune: float = region_params.get('fine_tune', 0.0)  # Fine tune in cents
-
-        # Amplitude
-        self.volume: float = region_params.get('volume', 0.0)  # dB
-        self.pan: float = region_params.get('pan', 0.0)  # -1.0 to 1.0
-
-        # Filter
-        self.filter_type: str = region_params.get('filter_type', 'lpf_2p')
-        self.cutoff: float = region_params.get('cutoff', 1000.0)  # Hz
-        self.resonance: float = region_params.get('resonance', 0.7)
-
-        # Envelope parameters
-        self.amplitude_envelope: Dict[str, float] = region_params.get('amplitude_envelope', {
-            'attack': 0.01, 'decay': 0.3, 'sustain': 0.7, 'release': 0.5, 'delay': 0.0, 'hold': 0.0
-        })
-
-        self.filter_envelope: Dict[str, float] = region_params.get('filter_envelope', {
-            'attack': 0.1, 'decay': 0.5, 'sustain': 0.6, 'release': 0.8
-        })
-
-        # Modulation matrix (region-specific modulation)
-        self.modulation_routes: List[Dict[str, Any]] = region_params.get('modulation_routes', [])
-
+        self.descriptor = descriptor
+        self.sample_rate = sample_rate
+        self.block_size = 1024  # Default, can be overridden
+        
         # State
-        self.active: bool = False
-        self.current_note: int = 60
-        self.current_velocity: int = 64
-        self.sample_position: int = 0
-
-        # Initialize components
-        self._initialize_components()
-
-    def _initialize_components(self):
-        """Initialize region components (envelopes, filters, etc.)"""
-        # Create envelopes
-        self.amp_env = self._create_envelope('amplitude', self.amplitude_envelope)
-        self.filter_env = self._create_envelope('filter', self.filter_envelope)
-
-        # Create filter
-        self.filter = self._create_filter(self.filter_type, self.cutoff, self.resonance)
-
-        # Create modulation matrix for this region
-        self.modulation_matrix = self._create_modulation_matrix()
-
-    def _create_envelope(self, env_type: str, params: Dict[str, float]):
-        """Create envelope for this region"""
+        self.state = RegionState.CREATED
+        self.current_note = 0
+        self.current_velocity = 0
+        
+        # Lazy-loaded resources
+        self._sample_data: Optional[np.ndarray] = None
+        self._partial: Optional[Any] = None
+        self._initialized = False
+        
+        # Processing
+        self._modulation_state: Dict[str, float] = {}
+        self._envelopes: Dict[str, Any] = {}
+        self._filters: Dict[str, Any] = {}
+        
+        # Buffers (allocated on demand)
+        self._output_buffer: Optional[np.ndarray] = None
+        self._work_buffer: Optional[np.ndarray] = None
+    
+    # ========== LIFECYCLE MANAGEMENT ==========
+    
+    def initialize(self) -> bool:
+        """
+        Initialize region resources.
+        
+        Called automatically before first sample generation.
+        Loads sample data and creates partial if needed.
+        
+        Returns:
+            True if initialization succeeded, False otherwise
+        """
+        if self._initialized:
+            return True
+        
         try:
-            # Extract envelope parameters
-            delay = params.get('delay', 0.0)
-            attack = params.get('attack', 0.01)
-            hold = params.get('hold', 0.0)
-            decay = params.get('decay', 0.3)
-            sustain = params.get('sustain', 0.7)
-            release = params.get('release', 0.5)
-
-            # Create UltraFastADSREnvelope
-            return UltraFastADSREnvelope(
-                delay=delay,
-                attack=attack,
-                hold=hold,
-                decay=decay,
-                sustain=sustain,
-                release=release,
-                sample_rate=44100  # Default sample rate, can be overridden
-            )
+            # Load sample data for sample-based engines
+            if self.descriptor.sample_id is not None or self.descriptor.sample_path:
+                self._sample_data = self._load_sample_data()
+                if self._sample_data is None and self.descriptor.is_sample_based():
+                    # Sample-based region requires sample data
+                    return False
+            
+            # Create partial for audio generation
+            self._partial = self._create_partial()
+            if self._partial is None:
+                return False
+            
+            # Initialize envelopes and filters
+            self._init_envelopes()
+            self._init_filters()
+            
+            # Allocate buffers
+            self._allocate_buffers()
+            
+            self._initialized = True
+            self.state = RegionState.INITIALIZED
+            return True
+            
         except Exception as e:
-            print(f"Failed to create {env_type} envelope: {e}")
-            return None
-
-    def _create_filter(self, filter_type: str, cutoff: float, resonance: float):
-        """Create filter for this region"""
-        try:
-            # Map filter type strings to internal types
-            filter_type_map = {
-                'lpf_1p': 'lowpass',
-                'lpf_2p': 'lowpass',
-                'hpf_1p': 'highpass',
-                'hpf_2p': 'highpass',
-                'bpf_2p': 'bandpass',
-                'notch_2p': 'notch_2p',
-                'apf_1p': 'allpass_1p',
-                'peq': 'peaking_eq',
-                'lsh': 'low_shelf',
-                'hsh': 'high_shelf'
-            }
-
-            internal_type = filter_type_map.get(filter_type, 'lowpass')
-
-            # Create UltraFastResonantFilter
-            return UltraFastResonantFilter(
-                cutoff=cutoff,
-                resonance=resonance,
-                filter_type=internal_type,
-                sample_rate=44100  # Default sample rate, can be overridden
-            )
-        except Exception as e:
-            print(f"Failed to create {filter_type} filter: {e}")
-            return None
-
-    def _create_modulation_matrix(self):
-        """Create modulation matrix for this region"""
-        try:
-            # Create a basic modulation matrix for this region
-            matrix = ModulationMatrix(num_routes=8)  # Smaller matrix for regions
-
-            # Add default routes based on region's modulation_routes parameter
-            route_index = 0
-            for route in self.modulation_routes:
-                try:
-                    source = route.get('source')
-                    destination = route.get('destination')
-                    amount = route.get('amount', 1.0)
-
-                    if source and destination and route_index < 8:
-                        matrix.set_route(route_index, source, destination, amount)
-                        route_index += 1
-                except Exception as e:
-                    print(f"Failed to add modulation route: {e}")
-
-            return matrix
-        except Exception as e:
-            print(f"Failed to create modulation matrix: {e}")
-            return None
-
+            # Log error in production
+            print(f"Region initialization failed: {e}")
+            return False
+    
     @abstractmethod
-    def generate_samples(self, block_size: int, modulation: Dict[str, float]) -> np.ndarray:
+    def _load_sample_data(self) -> Optional[np.ndarray]:
+        """
+        Load sample data (SF2/SFZ override, others return None).
+        
+        Returns:
+            Sample data as numpy array, or None for algorithmic regions
+        """
+        pass
+    
+    @abstractmethod
+    def _create_partial(self) -> Optional[Any]:
+        """
+        Create synthesis partial for audio generation.
+        
+        Returns:
+            SynthesisPartial instance or None if creation failed
+        """
+        pass
+    
+    @abstractmethod
+    def _init_envelopes(self) -> None:
+        """Initialize envelopes from generator parameters."""
+        pass
+    
+    @abstractmethod
+    def _init_filters(self) -> None:
+        """Initialize filters from generator parameters."""
+        pass
+    
+    def _allocate_buffers(self) -> None:
+        """Allocate processing buffers."""
+        # Allocate stereo output buffer
+        self._output_buffer = np.zeros(self.block_size * 2, dtype=np.float32)
+        self._work_buffer = np.zeros(self.block_size, dtype=np.float32)
+    
+    # ========== PLAYBACK ==========
+    
+    def note_on(self, velocity: int, note: int) -> bool:
+        """
+        Trigger note-on for this region.
+        
+        Args:
+            velocity: MIDI velocity (0-127)
+            note: MIDI note number (0-127)
+        
+        Returns:
+            True if region should play, False if it shouldn't
+        """
+        # Check if this region should play for this note/velocity
+        if not self.descriptor.should_play_for_note(note, velocity):
+            return False
+        
+        self.current_note = note
+        self.current_velocity = velocity
+        self.state = RegionState.ACTIVE
+        
+        # Initialize if not already done
+        if not self._initialized:
+            if not self.initialize():
+                return False
+        
+        # Trigger partial
+        if self._partial:
+            if hasattr(self._partial, 'note_on'):
+                self._partial.note_on(velocity, note)
+        
+        return True
+    
+    def note_off(self) -> None:
+        """Trigger note-off for this region."""
+        self.state = RegionState.RELEASING
+        
+        if self._partial:
+            if hasattr(self._partial, 'note_off'):
+                self._partial.note_off()
+        
+        # Release envelopes
+        for envelope in self._envelopes.values():
+            if hasattr(envelope, 'note_off'):
+                envelope.note_off()
+    
+    @abstractmethod
+    def generate_samples(
+        self, 
+        block_size: int, 
+        modulation: Dict[str, float]
+    ) -> np.ndarray:
         """
         Generate audio samples for this region.
-
+        
         Args:
             block_size: Number of samples to generate
             modulation: Current modulation values
-
+        
         Returns:
-            Audio buffer (block_size, channels) - mono or stereo
+            Stereo audio buffer (block_size * 2,) as float32
         """
         pass
-
-    def note_on(self, velocity: int, note: int) -> None:
-        """
-        Trigger note-on for this region.
-
-        Args:
-            velocity: MIDI velocity (0-127)
-            note: MIDI note number (0-127)
-        """
-        self.active = True
-        self.current_note = note
-        self.current_velocity = velocity
-        self.sample_position = self.offset
-
-        # Trigger envelopes
-        if self.amp_env:
-            self.amp_env.note_on(velocity, note)
-        if self.filter_env:
-            self.filter_env.note_on(velocity, note)
-
-    def note_off(self) -> None:
-        """
-        Trigger note-off for this region.
-        """
-        # Trigger release phase of envelopes
-        if self.amp_env:
-            self.amp_env.note_off()
-        if self.filter_env:
-            self.filter_env.note_off()
-
+    
     def update_modulation(self, modulation: Dict[str, float]) -> None:
         """
-        Update modulation state for this region.
-
+        Update modulation state.
+        
         Args:
             modulation: Dictionary of modulation parameter updates
         """
-        # Update modulation matrix
-        if self.modulation_matrix:
-            # Process modulation matrix with current sources and note info
-            self.modulation_matrix.process(modulation, self.current_velocity, self.current_note)
-
+        self._modulation_state.update(modulation)
+        
+        if self._partial:
+            if hasattr(self._partial, 'apply_modulation'):
+                self._partial.apply_modulation(modulation)
+    
     def is_active(self) -> bool:
         """
-        Check if this region is still active.
-
+        Check if region is still producing sound.
+        
         Returns:
-            True if region is still producing sound
+            True if region should continue generating samples
         """
-        # Check if envelope is still active (not in IDLE state)
-        envelope_active = True
-        if self.amp_env:
-            # Envelope is active if not in IDLE state (0)
-            envelope_active = self.amp_env.state != 0
-
-        return self.active and envelope_active
-
-    def should_play_for_note(self, note: int, velocity: int) -> bool:
-        """
-        Check if this region should play for the given note and velocity.
-
-        Args:
-            note: MIDI note number (0-127)
-            velocity: MIDI velocity (0-127)
-
-        Returns:
-            True if region should play
-        """
-        # Check key range
-        if not (self.key_range[0] <= note <= self.key_range[1]):
+        if self.state == RegionState.RELEASED:
             return False
-
-        # Check velocity range
-        if not (self.velocity_range[0] <= velocity <= self.velocity_range[1]):
+        
+        if self.state == RegionState.RELEASING:
+            # Check if envelope has completed
+            if self._envelopes.get('amp_env'):
+                env = self._envelopes['amp_env']
+                if hasattr(env, 'is_active'):
+                    return env.is_active()
             return False
-
-        return True
-
-    def calculate_crossfade_gain(self, note: int, velocity: int) -> float:
+        
+        if self._partial:
+            if hasattr(self._partial, 'is_active'):
+                return self._partial.is_active()
+        
+        return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
+    
+    # ========== RESOURCE MANAGEMENT ==========
+    
+    def reset(self) -> None:
         """
-        Calculate crossfade gain for this region.
-
-        Args:
-            note: MIDI note number
-            velocity: MIDI velocity
-
-        Returns:
-            Gain multiplier (0.0 to 1.0)
+        Reset region state for reuse.
+        
+        Called when region is returned to pool or reused.
+        Does NOT release sample data (kept in cache).
         """
-        gain = 1.0
-
-        # Velocity crossfading
-        if self.velocity_crossfade[1] > self.velocity_crossfade[0]:
-            vel_low, vel_high = self.velocity_crossfade
-            if velocity < vel_low:
-                gain *= 0.0
-            elif velocity < vel_high:
-                # Linear fade in
-                gain *= (velocity - vel_low) / (vel_high - vel_low)
-
-        # Note crossfading
-        if self.note_crossfade[1] > self.note_crossfade[0]:
-            note_low, note_high = self.note_crossfade
-            if note < note_low:
-                gain *= 0.0
-            elif note < note_high:
-                # Linear fade in
-                gain *= (note - note_low) / (note_high - note_low)
-
-        return gain
-
-    def get_pitch_ratio(self, note: int) -> float:
+        self.state = RegionState.CREATED
+        self.current_note = 0
+        self.current_velocity = 0
+        self._modulation_state.clear()
+        
+        # Reset partial if available
+        if self._partial:
+            if hasattr(self._partial, 'reset'):
+                self._partial.reset()
+        
+        # Reset envelopes
+        for envelope in self._envelopes.values():
+            if hasattr(envelope, 'reset'):
+                envelope.reset()
+        
+        self._initialized = False
+    
+    def dispose(self) -> None:
         """
-        Calculate pitch ratio for the given note.
-
-        Args:
-            note: MIDI note number
-
-        Returns:
-            Pitch ratio multiplier
+        Release all resources.
+        
+        Called when region is no longer needed.
+        Sample data may be cached or released based on memory pressure.
         """
-        # Calculate semitone offset from keycenter
-        semitones = note - self.pitch_keycenter
-
-        # Add coarse and fine tuning
-        total_cents = semitones * 100 + self.tune + self.fine_tune
-
-        # Convert cents to ratio
-        return 2 ** (total_cents / 1200)
-
+        self.state = RegionState.RELEASED
+        
+        # Release partial
+        if self._partial:
+            if hasattr(self._partial, 'dispose'):
+                self._partial.dispose()
+            self._partial = None
+        
+        # Release envelopes
+        for envelope in self._envelopes.values():
+            if hasattr(envelope, 'dispose'):
+                envelope.dispose()
+        self._envelopes.clear()
+        
+        # Release filters
+        for filter_obj in self._filters.values():
+            if hasattr(filter_obj, 'dispose'):
+                filter_obj.dispose()
+        self._filters.clear()
+        
+        # Release buffers
+        self._output_buffer = None
+        self._work_buffer = None
+        
+        # Sample data release handled by sample cache manager
+        self._sample_data = None
+        self.descriptor.is_sample_loaded = False
+    
+    # ========== UTILITY METHODS ==========
+    
     def get_region_info(self) -> Dict[str, Any]:
         """
         Get information about this region.
-
+        
         Returns:
-            Dictionary with region information
+            Dictionary with region metadata and state
         """
         return {
-            'key_range': self.key_range,
-            'velocity_range': self.velocity_range,
-            'round_robin_group': self.round_robin_group,
-            'trigger': self.trigger,
-            'sample_path': self.sample_path,
-            'pitch_keycenter': self.pitch_keycenter,
-            'volume': self.volume,
-            'pan': self.pan,
-            'filter_type': self.filter_type,
-            'cutoff': self.cutoff,
-            'active': self.active,
+            'region_id': self.descriptor.region_id,
+            'engine_type': self.descriptor.engine_type,
+            'key_range': self.descriptor.key_range,
+            'velocity_range': self.descriptor.velocity_range,
+            'state': self.state.name,
             'current_note': self.current_note,
-            'current_velocity': self.current_velocity
+            'current_velocity': self.current_velocity,
+            'is_initialized': self._initialized,
+            'is_sample_loaded': self.descriptor.is_sample_loaded
         }
-
-    def reset(self) -> None:
-        """Reset region to clean state."""
-        self.active = False
-        self.sample_position = 0
-
-        # Reset envelopes
-        if self.amp_env:
-            self.amp_env.reset()
-        if self.filter_env:
-            self.filter_env.reset()
-
+    
+    def _get_generator_param(self, name: str, default: Any = None) -> Any:
+        """
+        Get a generator parameter from descriptor.
+        
+        Args:
+            name: Parameter name
+            default: Default value if not found
+        
+        Returns:
+            Parameter value or default
+        """
+        return self.descriptor.generator_params.get(name, default)
+    
+    def _get_algorithm_param(self, name: str, default: Any = None) -> Any:
+        """
+        Get an algorithm parameter from descriptor.
+        
+        Args:
+            name: Parameter name
+            default: Default value if not found
+        
+        Returns:
+            Parameter value or default
+        """
+        if self.descriptor.algorithm_params:
+            return self.descriptor.algorithm_params.get(name, default)
+        return default
+    
     def __str__(self) -> str:
-        """String representation of the region."""
-        return f"{self.__class__.__name__}(key={self.key_range}, vel={self.velocity_range}, sample={self.sample_path})"
-
+        """String representation."""
+        return (
+            f"{self.__class__.__name__}(id={self.descriptor.region_id}, "
+            f"type={self.descriptor.engine_type}, state={self.state.name})"
+        )
+    
     def __repr__(self) -> str:
         return self.__str__()
+
+
+# Backward compatibility alias - Region is now IRegion
+# Existing code (WavetableRegion, SFZRegion) can still import Region
+Region = IRegion

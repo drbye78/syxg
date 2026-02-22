@@ -386,7 +386,8 @@ class Channel:
             sample_rate=self.sample_rate
         )
 
-        # Set current program for region-based playback (fallback to voice for now)
+        # Set current program for region-based playback
+        # current_voice is now a Voice object with preset info
         self.current_program = self.current_voice
 
     def note_on(self, note: int, velocity: int) -> bool:
@@ -395,6 +396,8 @@ class Channel:
 
         Creates a new VoiceInstance for each note, allowing multiple
         simultaneous notes per channel (true polyphony).
+        
+        Uses the new region-based architecture for multi-zone preset support.
 
         Args:
             note: MIDI note number (0-127)
@@ -421,18 +424,35 @@ class Channel:
             return True
 
         # Create new VoiceInstance for this note
-        voice_instance = VoiceInstance(transposed_note, velocity, self.channel_number, self.sample_rate)
+        voice_instance = VoiceInstance(
+            transposed_note, 
+            velocity, 
+            self.channel_number, 
+            self.sample_rate
+        )
 
-        # Get regions for this note/velocity from current program
-        if self.current_program:
-            regions = self.current_program.get_regions_for_note(transposed_note, velocity)
-            for region in regions:
-                voice_instance.add_region(region)
+        # Get regions for this note/velocity from current Voice
+        # This is the KEY call that enables multi-zone preset support
+        if self.current_voice:
+            try:
+                # Voice.get_regions_for_note() returns regions matching this note/velocity
+                regions = self.current_voice.get_regions_for_note(
+                    transposed_note, 
+                    velocity
+                )
+                
+                # Add all matching regions to voice instance
+                for region in regions:
+                    voice_instance.add_region(region)
+                    
+            except Exception as e:
+                logger.error(f"Channel note_on: Failed to get regions: {e}")
 
         # Check if we have any regions to play
         if not voice_instance.regions:
-            # Fallback to legacy single voice if no regions
+            # No regions matched - check if voice supports this note
             if self.current_voice and self.current_voice.is_note_supported(transposed_note):
+                # Fallback: try legacy single voice
                 self.current_voice.note_on(transposed_note, velocity)
                 return True
             return False
