@@ -271,6 +271,21 @@ class SF2Engine(SynthesisEngine):
     def get_engine_type(self) -> str:
         """Return engine type identifier."""
         return 'sf2'
+    
+    def _create_base_region(self, descriptor: 'RegionDescriptor', 
+                           sample_rate: int) -> 'IRegion':
+        """
+        Create SF2 base region without S.Art2 wrapper.
+        
+        Args:
+            descriptor: Region descriptor with SF2 parameters
+            sample_rate: Audio sample rate in Hz
+        
+        Returns:
+            SF2Region instance
+        """
+        from ..partial.sf2_region import SF2Region
+        return SF2Region(descriptor, sample_rate, self.soundfont_manager)
 
     def create_partial(self, partial_params: Dict, sample_rate: int) -> SF2Partial:
         """

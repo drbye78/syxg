@@ -990,11 +990,35 @@ class ANEngine(SynthesisEngine):
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
     
-    def create_region(self, descriptor: 'RegionDescriptor', sample_rate: int) -> 'IRegion':
-        """Create ANRegion with full implementation."""
+    def create_region(
+        self,
+        descriptor: 'RegionDescriptor',
+        sample_rate: int
+    ) -> 'IRegion':
+        """
+        Create region instance. Base implementation wraps with S.Art2.
+        """
+        return self._create_base_region(descriptor, sample_rate)
+
+    def _create_base_region(
+        self,
+        descriptor: 'RegionDescriptor',
+        sample_rate: int
+    ) -> 'IRegion':
+        """
+        Create ANRegion base region without S.Art2 wrapper.
+
+        Args:
+            descriptor: Region descriptor
+            sample_rate: Audio sample rate in Hz
+
+        Returns:
+            ANRegion instance
+        """
         from ..partial.an_region import ANRegion
         return ANRegion(descriptor, sample_rate)
     
+
     def load_sample_for_region(self, region: 'IRegion') -> bool:
         return True
 

@@ -68,6 +68,11 @@ class SynthesisEngine(ABC):
         """
         self.sample_rate = sample_rate
         self.block_size = block_size
+        
+        # S.Art2 articulation support - ENABLED BY DEFAULT
+        # All regions created by this engine will be S.Art2-enabled
+        self.sart2_enabled = True
+        self.sart2_factory = None  # Set by ModernXGSynthesizer
 
     # ========== PRESET MANAGEMENT (NEW) ==========
     
@@ -107,21 +112,44 @@ class SynthesisEngine(ABC):
     
     # ========== REGION CREATION (NEW) ==========
     
-    @abstractmethod
-    def create_region(self, descriptor: RegionDescriptor, 
+    def create_region(self, descriptor: 'RegionDescriptor', 
                      sample_rate: int) -> 'IRegion':
         """
         Create a region instance from a descriptor.
         
         Called at note-on time for matching regions.
-        Does NOT load sample data (lazy loading).
+        Wraps base region with S.Art2 if enabled.
         
         Args:
             descriptor: Region metadata and parameters
             sample_rate: Audio sample rate in Hz
         
         Returns:
-            IRegion instance ready for lazy initialization
+            IRegion instance (S.Art2-wrapped if enabled)
+        """
+        # Create base region (engine-specific implementation)
+        base_region = self._create_base_region(descriptor, sample_rate)
+        
+        # Wrap with S.Art2 if enabled
+        if self.sart2_enabled and self.sart2_factory:
+            return self.sart2_factory.create_sart2_region(base_region)
+        
+        return base_region
+    
+    @abstractmethod
+    def _create_base_region(self, descriptor: 'RegionDescriptor', 
+                           sample_rate: int) -> 'IRegion':
+        """
+        Create base region without S.Art2 wrapper.
+        
+        Engine-specific implementation creates the base region type.
+        
+        Args:
+            descriptor: Region metadata and parameters
+            sample_rate: Audio sample rate in Hz
+        
+        Returns:
+            Base IRegion instance (SF2, FM, Additive, etc.)
         """
         pass
     

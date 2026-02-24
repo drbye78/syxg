@@ -712,7 +712,122 @@ class ModernXGSynthesizer:
             pass
         except Exception as e:
             print(f"⚠️  Workstation manager initialization failed: {e}")
-
+        
+        # S.Art2 Integration - Initialize articulation system
+        self._init_sart2()
+    
+    def _init_sart2(self) -> None:
+        """
+        Initialize S.Art2 articulation system.
+        
+        S.Art2 provides universal articulation control across ALL synthesis engines
+        via NRPN/SYSEX messages. It wraps all regions with an articulation layer.
+        """
+        from ..xg.sart import YamahaNRPNMapper, ArticulationController
+        from ..xg.sart.sart2_region import SArt2RegionFactory
+        
+        # NRPN mapper for articulation control (35+ articulations)
+        self.nrpn_mapper = YamahaNRPNMapper()
+        
+        # Global articulation controller
+        self.articulation_manager = ArticulationController()
+        
+        # S.Art2 factory - wraps ALL regions with articulation support
+        self.sart2_factory = SArt2RegionFactory(self.sample_rate)
+        
+        # Configure ALL engines with S.Art2
+        for engine_type in self.engine_registry.get_priority_order():
+            engine = self.engine_registry.get_engine(engine_type)
+            if engine:
+                engine.sart2_enabled = True
+                engine.sart2_factory = self.sart2_factory
+        
+        print(f"   S.Art2: Articulation system initialized (35+ articulations)")
+    
+    # ========== S.Art2 ARTICULATION CONTROL ==========
+    
+    def process_nrpn(self, channel: int, msb: int, lsb: int, value: int) -> None:
+        """
+        Process NRPN message for S.Art2 articulation control.
+        
+        NRPN (Non-Registered Parameter Number) messages allow real-time
+        articulation switching during performance.
+        
+        Common NRPN mappings:
+        - MSB 1, LSB 0: normal
+        - MSB 1, LSB 1: legato
+        - MSB 1, LSB 2: staccato
+        - MSB 1, LSB 7: growl
+        - MSB 1, LSB 8: flutter
+        
+        Args:
+            channel: MIDI channel number (0-15)
+            msb: NRPN MSB value (0-127)
+            lsb: NRPN LSB value (0-127)
+            value: NRPN data value (0-127)
+        """
+        # Get articulation from NRPN mapper
+        articulation = self.nrpn_mapper.get_articulation(msb, lsb)
+        
+        # Set articulation for channel
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].set_articulation(articulation)
+        
+        # Debug logging
+        logger.debug(f"NRPN: Channel {channel} ({msb}, {lsb}) → {articulation}")
+    
+    def process_sysex(self, data: bytes) -> None:
+        """
+        Process SYSEX message for S.Art2 articulation.
+        
+        SYSEX (System Exclusive) messages provide advanced articulation
+        control with parameter settings.
+        
+        Args:
+            data: SYSEX byte data
+        """
+        result = self.articulation_manager.parse_sysex(data)
+        
+        if result['command'] == 'set_articulation':
+            articulation = result['articulation']
+            # Apply to appropriate channel
+            channel = result.get('channel', 0)
+            if 0 <= channel < len(self.channels):
+                self.channels[channel].set_articulation(articulation)
+    
+    def set_channel_articulation(self, channel: int, articulation: str) -> None:
+        """
+        Set articulation for a specific channel.
+        
+        Args:
+            channel: MIDI channel number (0-15)
+            articulation: Articulation name (e.g., 'legato', 'staccato')
+        """
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].set_articulation(articulation)
+    
+    def get_channel_articulation(self, channel: int) -> str:
+        """
+        Get current articulation for channel.
+        
+        Args:
+            channel: MIDI channel number
+        
+        Returns:
+            Current articulation name
+        """
+        if 0 <= channel < len(self.channels):
+            return self.channels[channel].get_articulation()
+        return 'normal'
+    
+    def get_available_articulations(self) -> list:
+        """
+        Get list of all available articulations.
+        
+        Returns:
+            List of articulation names
+        """
+        return self.articulation_manager.get_available_articulations()
 
 
     def _handle_arpeggiator_note_on(self, channel: int, note: int, velocity: int):

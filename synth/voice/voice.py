@@ -77,6 +77,9 @@ class Voice:
         self._master_pan = preset_info.master_pan
         self._reverb_send = preset_info.reverb_send
         self._chorus_send = preset_info.chorus_send
+        
+        # S.Art2 articulation support
+        self._articulation = 'normal'
     
     # ========== REGION SELECTION (KEY METHOD) ==========
     
@@ -364,6 +367,26 @@ class Voice:
         """Get total number of regions in preset."""
         return self.preset_info.get_region_count()
     
+    # ========== S.Art2 ARTICULATION CONTROL ==========
+    
+    def set_articulation(self, articulation: str) -> None:
+        """
+        Set articulation for this voice.
+        
+        Args:
+            articulation: Articulation name
+        """
+        self._articulation = articulation
+        
+        # Propagate to all active regions
+        for region in self._active_instances:
+            if hasattr(region, 'set_articulation'):
+                region.set_articulation(articulation)
+    
+    def get_articulation(self) -> str:
+        """Get current articulation."""
+        return self._articulation
+    
     # ========== RESOURCE MANAGEMENT ==========
     
     def reset(self) -> None:
@@ -372,15 +395,18 @@ class Voice:
         for region in self._active_instances:
             region.dispose()
         self._active_instances.clear()
-        
+
         # Reset round-robin state
         self._round_robin_state.clear()
-        
+
         # Reset parameters to preset defaults
         self._master_level = self.preset_info.master_level
         self._master_pan = self.preset_info.master_pan
         self._reverb_send = self.preset_info.reverb_send
         self._chorus_send = self.preset_info.chorus_send
+        
+        # Reset articulation
+        self._articulation = 'normal'
     
     def dispose(self) -> None:
         """Release all region resources."""

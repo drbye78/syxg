@@ -580,21 +580,41 @@ class FMEngine(SynthesisEngine):
         return []
     
     def create_region(
-        self, 
-        descriptor: 'RegionDescriptor', 
+        self,
+        descriptor: 'RegionDescriptor',
         sample_rate: int
     ) -> 'IRegion':
         """
         Create FM region instance from descriptor.
         
+        Note: Base create_region() wraps with S.Art2 if enabled.
+        This method is now _create_base_region().
+
         Args:
             descriptor: Region metadata with FM algorithm parameters
             sample_rate: Audio sample rate in Hz
-        
+
+        Returns:
+            FMRegion instance (or SArt2Region wrapper if enabled)
+        """
+        return self._create_base_region(descriptor, sample_rate)
+    
+    def _create_base_region(
+        self,
+        descriptor: 'RegionDescriptor',
+        sample_rate: int
+    ) -> 'IRegion':
+        """
+        Create FM base region without S.Art2 wrapper.
+
+        Args:
+            descriptor: Region metadata with FM algorithm parameters
+            sample_rate: Audio sample rate in Hz
+
         Returns:
             FMRegion instance
         """
-        from .partial.fm_region import FMRegion
+        from ..partial.fm_region import FMRegion
         return FMRegion(descriptor, sample_rate)
     
     def load_sample_for_region(self, region: 'IRegion') -> bool:

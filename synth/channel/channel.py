@@ -298,6 +298,10 @@ class Channel:
         self.pitch_bend_value = 8192  # Center position
         self.pitch_bend_range = 2.0   # Default ±2 semitones
 
+        # S.Art2 articulation support
+        self._articulation = 'normal'
+        self._articulation_params = {}
+
         # NRPN/RPN state
         self.nrpn_active = False
         self.rpn_active = False
@@ -389,6 +393,28 @@ class Channel:
         # Set current program for region-based playback
         # current_voice is now a Voice object with preset info
         self.current_program = self.current_voice
+        
+        # Reset articulation on program change
+        self.set_articulation('normal')
+    
+    # ========== S.Art2 ARTICULATION CONTROL ==========
+    
+    def set_articulation(self, articulation: str) -> None:
+        """
+        Set articulation for this channel.
+        
+        Args:
+            articulation: Articulation name (e.g., 'legato', 'staccato', 'growl')
+        """
+        self._articulation = articulation
+        
+        # Propagate to current voice
+        if self.current_voice and hasattr(self.current_voice, 'set_articulation'):
+            self.current_voice.set_articulation(articulation)
+    
+    def get_articulation(self) -> str:
+        """Get current articulation."""
+        return self._articulation
 
     def note_on(self, note: int, velocity: int) -> bool:
         """

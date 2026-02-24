@@ -149,6 +149,22 @@ class ArticulationController:
         
         # Callback for articulation changes
         self._on_articulation_change: Optional[Callable[[str], None]] = None
+        
+        # Import NRPN parameter controller
+        from .nrpn import NRPNParameterController
+        self.param_controller = NRPNParameterController()
+        
+        # SYSEX command definitions (Genos2 compatible)
+        self.SYSEX_COMMANDS = {
+            0x10: 'articulation_set',
+            0x11: 'articulation_param',
+            0x12: 'articulation_release',
+            0x13: 'articulation_query',
+            0x14: 'articulation_chain',
+            0x15: 'bulk_dump',
+            0x16: 'bulk_load',
+            0x17: 'system_config',
+        }
     
     def process_nrpn(self, msb: int, lsb: int) -> str:
         """
@@ -177,64 +193,261 @@ class ArticulationController:
     
     def process_sysex(self, sysex: bytes) -> Optional[Dict[str, Any]]:
         """
-        Process Yamaha S.Art2 SYSEX message.
+        Process Yamaha S.Art2 SYSEX message with full Genos2 compatibility.
         
-        SYSEX format: F0 43 [device] 4C [sub] [type] [data] ... F7
+        Supported SYSEX formats:
         
+        1. Articulation Set (0x10):
+           F0 43 10 4C 10 [channel] [art_msb] [art_lsb] F7
+        
+        2. Parameter Set (0x11):
+           F0 43 10 4C 11 [channel] [param_msb] [param_lsb] [value_msb] [value_lsb] F7
+        
+        3. Articulation Release (0x12):
+           F0 43 10 4C 12 [channel] F7
+        
+        4. Articulation Query (0x13):
+           F0 43 10 4C 13 [channel] F7
+        
+        5. Articulation Chain (0x14):
+           F0 43 10 4C 14 [channel] [count] [art1_msb] [art1_lsb] [dur1_msb] [dur1_lsb] ... F7
+        
+        6. Bulk Dump (0x15):
+           F0 43 10 4C 15 [channel] [data...] [checksum] F7
+        
+        7. Bulk Load (0x16):
+           F0 43 10 4C 16 [channel] [data...] [checksum] F7
+        
+        8. System Config (0x17):
+           F0 43 10 4C 17 [channel] [config_msb] [config_lsb] [value] F7
+
         Args:
-            sysex: SYSEX message bytes
-            
+            sysex: SYSEX message bytes (including F0 and F7)
+
         Returns:
             Parsed command dict or None if not recognized
         """
-        if len(sysex) < 6:
+        if len(sysex) < 8:
             return None
-        
-        # Check Yamaha manufacturer ID
+
+        # Validate SYSEX format
+        if sysex[0] != 0xF0 or sysex[-1] != 0xF7:
+            return None
+
+        # Check Yamaha manufacturer ID (0x43)
         if sysex[1] != self.YAMAHA_SYSEX_ID:
             return None
-        
+
         # Check for S.Art2 command (0x4C)
         if sysex[3] != 0x4C:
             return None
+
+        # Get command type
+        cmd = sysex[4]
+        cmd_name = self.SYSEX_COMMANDS.get(cmd, 'unknown')
         
-        sub = sysex[4]  # Sub status
-        cmd_type = sysex[5] if len(sysex) > 5 else 0
+        # Parse based on command type
+        if cmd == 0x10:
+            return self._parse_sysex_articulation_set(sysex)
+        elif cmd == 0x11:
+            return self._parse_sysex_parameter_set(sysex)
+        elif cmd == 0x12:
+            return self._parse_sysex_articulation_release(sysex)
+        elif cmd == 0x13:
+            return self._parse_sysex_articulation_query(sysex)
+        elif cmd == 0x14:
+            return self._parse_sysex_articulation_chain(sysex)
+        elif cmd == 0x15:
+            return self._parse_sysex_bulk_dump(sysex)
+        elif cmd == 0x16:
+            return self._parse_sysex_bulk_load(sysex)
+        elif cmd == 0x17:
+            return self._parse_sysex_system_config(sysex)
+        else:
+            return {
+                'command': cmd_name,
+                'raw_data': sysex.hex(),
+                'length': len(sysex)
+            }
+    
+    def _parse_sysex_articulation_set(self, sysex: bytes) -> Dict[str, Any]:
+        """Parse articulation set SYSEX (0x10)."""
+        if len(sysex) < 9:
+            return {'error': 'Invalid articulation set SYSEX'}
         
-        result = {
-            'command': 'unknown',
-            'sub': sub,
-            'type': cmd_type,
+        channel = sysex[5] & 0x0F
+        art_msb = sysex[6] & 0x7F
+        art_lsb = sysex[7] & 0x7F
+        
+        articulation = self.NRPN_ARTICULATION_MAP.get((art_msb, art_lsb), 'normal')
+        
+        # Set articulation
+        self.process_nrpn(art_msb, art_lsb)
+        
+        return {
+            'command': 'set_articulation',
+            'channel': channel,
+            'articulation': articulation,
+            'nrpn_msb': art_msb,
+            'nrpn_lsb': art_lsb
         }
+    
+    def _parse_sysex_parameter_set(self, sysex: bytes) -> Dict[str, Any]:
+        """Parse parameter set SYSEX (0x11)."""
+        if len(sysex) < 11:
+            return {'error': 'Invalid parameter set SYSEX'}
         
-        # S.Art2 specific commands
-        if sub == 0x10:  # Articulation set
-            if len(sysex) >= 8:
-                art_msb = sysex[6]
-                art_lsb = sysex[7]
-                articulation = self.process_nrpn(art_msb, art_lsb)
-                result['command'] = 'set_articulation'
-                result['articulation'] = articulation
+        channel = sysex[5] & 0x0F
+        param_msb = sysex[6] & 0x7F
+        param_lsb = sysex[7] & 0x7F
+        value_msb = sysex[8] & 0x7F
+        value_lsb = sysex[9] & 0x7F
         
-        elif sub == 0x11:  # Articulation parameter
-            if len(sysex) >= 10:
-                param_msb = sysex[6]
-                param_lsb = sysex[7]
-                value_msb = sysex[8]
-                value_lsb = sysex[9]
-                result['command'] = 'set_parameter'
-                result['param_msb'] = param_msb
-                result['param_lsb'] = param_lsb
-                result['value'] = (value_msb << 7) | value_lsb
+        value = (value_msb << 7) | value_lsb
         
-        elif sub == 0x12:  # Articulation release
-            result['command'] = 'release_articulation'
+        # Process parameter
+        param_result = self.param_controller.process_parameter_nrpn(
+            param_msb, param_lsb, value
+        )
         
-        elif sub == 0x13:  # Query current articulation
-            result['command'] = 'query_articulation'
-            result['articulation'] = self.current_articulation
+        return {
+            'command': 'set_parameter',
+            'channel': channel,
+            'param_msb': param_msb,
+            'param_lsb': param_lsb,
+            'value': value,
+            'param_info': param_result
+        }
+    
+    def _parse_sysex_articulation_release(self, sysex: bytes) -> Dict[str, Any]:
+        """Parse articulation release SYSEX (0x12)."""
+        channel = sysex[5] & 0x0F if len(sysex) > 5 else 0
         
-        return result
+        # Reset to normal articulation
+        self.process_nrpn(1, 0)
+        
+        return {
+            'command': 'release_articulation',
+            'channel': channel
+        }
+    
+    def _parse_sysex_articulation_query(self, sysex: bytes) -> Dict[str, Any]:
+        """Parse articulation query SYSEX (0x13)."""
+        channel = sysex[5] & 0x0F if len(sysex) > 5 else 0
+        
+        # Get current articulation NRPN
+        msb, lsb = self._find_nrpn_for_articulation(self.current_articulation)
+        
+        return {
+            'command': 'query_articulation',
+            'channel': channel,
+            'articulation': self.current_articulation,
+            'nrpn_msb': msb,
+            'nrpn_lsb': lsb
+        }
+    
+    def _parse_sysex_articulation_chain(self, sysex: bytes) -> Dict[str, Any]:
+        """Parse articulation chain SYSEX (0x14)."""
+        if len(sysex) < 8:
+            return {'error': 'Invalid articulation chain SYSEX'}
+        
+        channel = sysex[5] & 0x0F
+        count = sysex[6]
+        
+        articulations = []
+        offset = 7
+        
+        for i in range(count):
+            if offset + 3 >= len(sysex):
+                break
+            
+            art_msb = sysex[offset] & 0x7F
+            art_lsb = sysex[offset + 1] & 0x7F
+            dur_msb = sysex[offset + 2] & 0x7F
+            dur_lsb = sysex[offset + 3] & 0x7F
+            
+            articulation = self.NRPN_ARTICULATION_MAP.get((art_msb, art_lsb), 'normal')
+            duration = ((dur_msb << 7) | dur_lsb) * 0.001  # Convert to seconds
+            
+            articulations.append({
+                'articulation': articulation,
+                'duration': duration,
+                'nrpn_msb': art_msb,
+                'nrpn_lsb': art_lsb
+            })
+            
+            offset += 4
+        
+        return {
+            'command': 'set_articulation_chain',
+            'channel': channel,
+            'count': count,
+            'articulations': articulations
+        }
+    
+    def _parse_sysex_bulk_dump(self, sysex: bytes) -> Dict[str, Any]:
+        """Parse bulk dump SYSEX (0x15)."""
+        if len(sysex) < 10:
+            return {'error': 'Invalid bulk dump SYSEX'}
+        
+        channel = sysex[5] & 0x0F
+        
+        # Extract data (excluding F0, header, and checksum/F7)
+        data = sysex[6:-2]
+        checksum = sysex[-2]
+        
+        # Verify checksum
+        calculated_checksum = self._calculate_sysex_checksum(sysex[1:-2])
+        
+        return {
+            'command': 'bulk_dump',
+            'channel': channel,
+            'data': data,
+            'checksum': checksum,
+            'checksum_valid': (checksum == calculated_checksum),
+            'data_length': len(data)
+        }
+    
+    def _parse_sysex_bulk_load(self, sysex: bytes) -> Dict[str, Any]:
+        """Parse bulk load SYSEX (0x16)."""
+        if len(sysex) < 10:
+            return {'error': 'Invalid bulk load SYSEX'}
+        
+        channel = sysex[5] & 0x0F
+        
+        # Extract data
+        data = sysex[6:-2]
+        checksum = sysex[-2]
+        
+        # Verify checksum
+        calculated_checksum = self._calculate_sysex_checksum(sysex[1:-2])
+        
+        return {
+            'command': 'bulk_load',
+            'channel': channel,
+            'data': data,
+            'checksum': checksum,
+            'checksum_valid': (checksum == calculated_checksum),
+            'data_length': len(data)
+        }
+    
+    def _parse_sysex_system_config(self, sysex: bytes) -> Dict[str, Any]:
+        """Parse system config SYSEX (0x17)."""
+        if len(sysex) < 10:
+            return {'error': 'Invalid system config SYSEX'}
+        
+        channel = sysex[5] & 0x0F
+        config_msb = sysex[6] & 0x7F
+        config_lsb = sysex[7] & 0x7F
+        value = sysex[8] & 0x7F
+        
+        return {
+            'command': 'system_config',
+            'channel': channel,
+            'config_msb': config_msb,
+            'config_lsb': config_lsb,
+            'value': value
+        }
     
     def build_sysex_response(self, articulation: str) -> bytes:
         """
@@ -343,6 +556,94 @@ class ArticulationController:
         self.nrpn_lsb = 0
         if self._on_articulation_change:
             self._on_articulation_change('normal')
+    
+    # =====================================================================
+    # SYSEX HELPER METHODS (Genos2 Compatible)
+    # =====================================================================
+    
+    def _calculate_sysex_checksum(self, data: bytes) -> int:
+        """
+        Calculate Yamaha SYSEX checksum.
+        
+        Yamaha checksum: invert lower 7 bits of sum
+        
+        Args:
+            data: SYSEX data (excluding F0 and F7)
+        
+        Returns:
+            Checksum byte (0-127)
+        """
+        checksum = sum(data) & 0x7F
+        return (~checksum) & 0x7F
+    
+    def _find_nrpn_for_articulation(self, articulation: str) -> Tuple[int, int]:
+        """Find NRPN MSB/LSB for an articulation name."""
+        for (msb, lsb), art in self.NRPN_ARTICULATION_MAP.items():
+            if art == articulation:
+                return (msb, lsb)
+        return (1, 0)  # Default to normal
+    
+    def build_sysex_articulation_set(self, channel: int, 
+                                     art_msb: int, art_lsb: int) -> bytes:
+        """
+        Build SYSEX message for articulation set.
+        
+        Args:
+            channel: MIDI channel (0-15)
+            art_msb: Articulation MSB
+            art_lsb: Articulation LSB
+        
+        Returns:
+            SYSEX byte sequence
+        """
+        return bytes([
+            0xF0, 0x43, 0x10, 0x4C, 0x10,
+            channel & 0x0F,
+            art_msb & 0x7F,
+            art_lsb & 0x7F,
+            0xF7
+        ])
+    
+    def build_sysex_parameter_set(self, channel: int, param_msb: int,
+                                  param_lsb: int, value: int) -> bytes:
+        """
+        Build SYSEX message for parameter set.
+        
+        Args:
+            channel: MIDI channel
+            param_msb: Parameter MSB
+            param_lsb: Parameter LSB
+            value: Parameter value (0-16383)
+        
+        Returns:
+            SYSEX byte sequence
+        """
+        value = max(0, min(16383, value))
+        return bytes([
+            0xF0, 0x43, 0x10, 0x4C, 0x11,
+            channel & 0x0F,
+            param_msb & 0x7F,
+            param_lsb & 0x7F,
+            (value >> 7) & 0x7F,
+            value & 0x7F,
+            0xF7
+        ])
+    
+    def build_sysex_articulation_query(self, channel: int) -> bytes:
+        """
+        Build SYSEX message for articulation query.
+        
+        Args:
+            channel: MIDI channel
+        
+        Returns:
+            SYSEX byte sequence
+        """
+        return bytes([
+            0xF0, 0x43, 0x10, 0x4C, 0x13,
+            channel & 0x0F,
+            0xF7
+        ])
 
 
 class SF2SampleModifier:

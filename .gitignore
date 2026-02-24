@@ -145,10 +145,10 @@ Thumbs.db
 *.prof
 profile_*.py
 *.?
-*test*.py
-*demo*.py
 *.*backup*
 *debug*.py
 temp*.py
-tests/
+*.sf2
 .aider*
+
+

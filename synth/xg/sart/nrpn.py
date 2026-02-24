@@ -1,8 +1,11 @@
 """
-NRPN Mapper for Yamaha S.Art2 articulations and Genos2 voice bank mapping.
+Enhanced NRPN Mapper for Yamaha S.Art2 with Genos2 compatibility.
+
+Provides category-based NRPN mapping, reverse lookup, and parameter control
+for advanced articulation management.
 """
 
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List, Any
 
 
 def midi_note_to_frequency(note: int) -> float:
@@ -13,309 +16,474 @@ def midi_note_to_frequency(note: int) -> float:
 
 class YamahaNRPNMapper:
     """
-    Enhanced NRPN mapper for Yamaha S.Art2 articulations.
-    Properly handles MSB/LSB combinations without duplicates.
+    Enhanced NRPN mapper for Yamaha S.Art2 articulations with Genos2 compatibility.
+    
+    Features:
+    - Category-based NRPN mapping (13 categories, 275+ articulations)
+    - Reverse lookup (articulation → NRPN)
+    - Category hints for disambiguation
+    - Backward compatible with simplified map
+    
+    Usage:
+        mapper = YamahaNRPNMapper()
+        
+        # Get articulation from NRPN
+        art = mapper.get_articulation(1, 1)  # 'legato'
+        art = mapper.get_articulation(3, 10, 'wind_sax')  # 'key_click_sax'
+        
+        # Get NRPN from articulation (reverse lookup)
+        msb, lsb = mapper.get_nrpn_for_articulation('legato')  # (1, 1)
+        msb, lsb = mapper.get_nrpn_for_articulation('spiccato', 'strings_bow')
     """
     
+    # Category names for each MSB
+    MSB_CATEGORIES = {
+        1: 'common',
+        2: 'dynamics',
+        3: 'wind_sax',
+        4: 'wind_brass',
+        5: 'wind_woodwind',
+        6: 'strings_bow',
+        7: 'strings_pluck',
+        8: 'guitar',
+        9: 'vocal',
+        10: 'synth',
+        11: 'percussion',
+        12: 'ethnic',
+        13: 'effects',
+    }
+    
     def __init__(self):
-        # Use a more specific key structure to avoid duplicates
-        # Format: (msb, lsb, category) -> articulation_name
-        self.nrpn_to_articulation: Dict[Tuple[int, int, str], str] = {
-            # Common articulations (MSB 1)
-            (1, 0, 'common'): 'normal',
-            (1, 1, 'common'): 'legato',
-            (1, 2, 'common'): 'staccato',
-            (1, 3, 'common'): 'bend',
-            (1, 4, 'common'): 'vibrato',
-            (1, 5, 'common'): 'breath',
-            (1, 6, 'common'): 'glissando',
-            (1, 7, 'common'): 'growl',
-            (1, 8, 'common'): 'flutter',
-            (1, 9, 'common'): 'trill',
-            (1, 10, 'common'): 'pizzicato',
-            (1, 11, 'common'): 'grace',
-            (1, 12, 'common'): 'shake',
-            (1, 13, 'common'): 'fall',
-            (1, 14, 'common'): 'doit',
-            (1, 15, 'common'): 'tongue_slap',
-            (1, 16, 'common'): 'harmonics',
-            (1, 17, 'common'): 'hammer_on',
-            (1, 18, 'common'): 'pull_off',
-            (1, 19, 'common'): 'key_off',
-            (1, 20, 'common'): 'marcato',
-            (1, 21, 'common'): 'detache',
-            (1, 22, 'common'): 'sul_ponticello',
-            (1, 23, 'common'): 'scoop',
-            (1, 24, 'common'): 'rip',
-            (1, 25, 'common'): 'portamento',
-            (1, 26, 'common'): 'swell',
-            (1, 27, 'common'): 'accented',
-            (1, 28, 'common'): 'bow_up',
-            (1, 29, 'common'): 'bow_down',
-            (1, 30, 'common'): 'col_legno',
-            (1, 31, 'common'): 'up_bend',
-            (1, 32, 'common'): 'down_bend',
-            (1, 33, 'common'): 'smear',
-            (1, 34, 'common'): 'flip',
-            (1, 35, 'common'): 'straight',
-            
-            # Wind-specific (MSB 2)
-            (2, 0, 'wind'): 'growl_wind',
-            (2, 1, 'wind'): 'flutter_wind',
-            (2, 2, 'wind'): 'tongue_slap_wind',
-            (2, 3, 'wind'): 'smear_wind',
-            (2, 4, 'wind'): 'flip_wind',
-            (2, 5, 'wind'): 'scoop_wind',
-            (2, 6, 'wind'): 'rip_wind',
-            
-            # Strings-specific (MSB 3)
-            (3, 0, 'strings'): 'pizzicato_strings',
-            (3, 1, 'strings'): 'harmonics_strings',
-            (3, 2, 'strings'): 'sul_ponticello_strings',
-            (3, 3, 'strings'): 'bow_up_strings',
-            (3, 4, 'strings'): 'bow_down_strings',
-            (3, 5, 'strings'): 'col_legno_strings',
-            (3, 6, 'strings'): 'portamento_strings',
-            
-            # Guitar-specific (MSB 4)
-            (4, 0, 'guitar'): 'hammer_on_guitar',
-            (4, 1, 'guitar'): 'pull_off_guitar',
-            (4, 2, 'guitar'): 'harmonics_guitar',
-        }
+        # Category-based NRPN mappings (275+ articulations)
+        self.nrpn_to_articulation: Dict[Tuple[int, int, str], str] = {}
+        
+        # Reverse mapping: articulation → (msb, lsb, category)
+        self.articulation_to_nrpn: Dict[str, Tuple[int, int, str]] = {}
         
         # Simplified lookup for backward compatibility
         self._simplified_map: Dict[Tuple[int, int], str] = {}
-        for (msb, lsb, _), art in self.nrpn_to_articulation.items():
-            key = (msb, lsb)
-            # Only add if not already present (common articulations take priority)
-            if key not in self._simplified_map:
-                self._simplified_map[key] = art
+        
+        # Category mappings for quick access
+        self.category_maps: Dict[str, Dict[Tuple[int, int], str]] = {
+            'common': {},
+            'dynamics': {},
+            'wind_sax': {},
+            'wind_brass': {},
+            'wind_woodwind': {},
+            'strings_bow': {},
+            'strings_pluck': {},
+            'guitar': {},
+            'vocal': {},
+            'synth': {},
+            'percussion': {},
+            'ethnic': {},
+            'effects': {},
+        }
+        
+        # Initialize all mappings
+        self._initialize_mappings()
     
-    def get_articulation(self, msb: int, lsb: int, category: str = 'common') -> str:
-        """Get articulation from NRPN MSB/LSB values."""
+    def _initialize_mappings(self) -> None:
+        """Initialize all NRPN mappings from articulation_controller."""
+        # Import articulation map from controller
+        from .articulation_controller import ArticulationController
+        
+        for (msb, lsb), articulation in ArticulationController.NRPN_ARTICULATION_MAP.items():
+            # Get category for this MSB
+            category = self.MSB_CATEGORIES.get(msb, 'common')
+            
+            # Add to category-based map
+            key = (msb, lsb, category)
+            self.nrpn_to_articulation[key] = articulation
+            
+            # Add to reverse map
+            self.articulation_to_nrpn[articulation] = key
+            
+            # Add to category-specific map
+            self.category_maps[category][(msb, lsb)] = articulation
+            
+            # Add to simplified map (first occurrence wins)
+            if (msb, lsb) not in self._simplified_map:
+                self._simplified_map[(msb, lsb)] = articulation
+    
+    def get_articulation(self, msb: int, lsb: int, 
+                        category: Optional[str] = None) -> str:
+        """
+        Get articulation from NRPN MSB/LSB values.
+        
+        Args:
+            msb: NRPN MSB (0-127)
+            lsb: NRPN LSB (0-127)
+            category: Optional category hint for disambiguation
+        
+        Returns:
+            Articulation name
+        
+        Examples:
+            >>> mapper = YamahaNRPNMapper()
+            >>> mapper.get_articulation(1, 1)
+            'legato'
+            >>> mapper.get_articulation(3, 10, 'wind_sax')
+            'key_click_sax'
+            >>> mapper.get_articulation(6, 7, 'strings_bow')
+            'spiccato'
+        """
         # Validate input range
         msb = max(0, min(127, msb))
         lsb = max(0, min(127, lsb))
         
-        # Try category-specific lookup first
-        key = (msb, lsb, category)
-        if key in self.nrpn_to_articulation:
-            return self.nrpn_to_articulation[key]
+        # Try category-specific lookup first if provided
+        if category and category in self.category_maps:
+            if (msb, lsb) in self.category_maps[category]:
+                return self.category_maps[category][(msb, lsb)]
+        
+        # Try to infer category from MSB
+        if msb in self.MSB_CATEGORIES:
+            inferred_category = self.MSB_CATEGORIES[msb]
+            if (msb, lsb) in self.category_maps.get(inferred_category, {}):
+                return self.category_maps[inferred_category][(msb, lsb)]
         
         # Fall back to simplified map
         return self._simplified_map.get((msb, lsb), 'normal')
+    
+    def get_nrpn_for_articulation(self, articulation: str, 
+                                  category: Optional[str] = None) -> Tuple[int, int]:
+        """
+        Get NRPN MSB/LSB for articulation (reverse lookup).
+        
+        Args:
+            articulation: Articulation name
+            category: Optional category hint for disambiguation
+        
+        Returns:
+            Tuple of (msb, lsb)
+        
+        Examples:
+            >>> mapper = YamahaNRPNMapper()
+            >>> mapper.get_nrpn_for_articulation('legato')
+            (1, 1)
+            >>> mapper.get_nrpn_for_articulation('spiccato', 'strings_bow')
+            (6, 7)
+        """
+        if articulation not in self.articulation_to_nrpn:
+            return (1, 0)  # Default to normal
+        
+        msb, lsb, art_category = self.articulation_to_nrpn[articulation]
+        
+        # If category hint provided and matches, use it
+        if category and category != art_category:
+            # Search in specified category
+            if category in self.category_maps:
+                for (m, l), art in self.category_maps[category].items():
+                    if art == articulation:
+                        return (m, l)
+        
+        return (msb, lsb)
+    
+    def get_category_for_msb(self, msb: int) -> str:
+        """
+        Get category name for MSB value.
+        
+        Args:
+            msb: NRPN MSB value
+        
+        Returns:
+            Category name
+        """
+        return self.MSB_CATEGORIES.get(msb, 'common')
+    
+    def get_msb_for_category(self, category: str) -> Optional[int]:
+        """
+        Get MSB value for category name.
+        
+        Args:
+            category: Category name
+        
+        Returns:
+            MSB value or None if not found
+        """
+        for msb, cat in self.MSB_CATEGORIES.items():
+            if cat == category:
+                return msb
+        return None
+    
+    def get_articulations_by_category(self, category: str) -> List[str]:
+        """
+        Get all articulations in a category.
+        
+        Args:
+            category: Category name
+        
+        Returns:
+            List of articulation names
+        """
+        if category not in self.category_maps:
+            return []
+        
+        return list(self.category_maps[category].values())
+    
+    def get_all_categories(self) -> List[str]:
+        """Get list of all available categories."""
+        return list(self.MSB_CATEGORIES.values())
+    
+    def get_articulation_count(self) -> int:
+        """Get total number of articulations."""
+        return len(self.articulation_to_nrpn)
+    
+    def get_category_count(self, category: str) -> int:
+        """Get number of articulations in a category."""
+        if category not in self.category_maps:
+            return 0
+        return len(self.category_maps[category])
+    
+    def search_articulations(self, pattern: str) -> List[Tuple[str, int, int]]:
+        """
+        Search for articulations matching a pattern.
+        
+        Args:
+            pattern: Search pattern (case-insensitive substring)
+        
+        Returns:
+            List of (articulation, msb, lsb) tuples
+        
+        Examples:
+            >>> mapper.search_articulations('vibrato')
+            [('vibrato', 1, 4), ('molto_vibrato', 1, 38), ...]
+        """
+        pattern_lower = pattern.lower()
+        results = []
+        
+        for articulation, (msb, lsb, _) in self.articulation_to_nrpn.items():
+            if pattern_lower in articulation.lower():
+                results.append((articulation, msb, lsb))
+        
+        return sorted(results, key=lambda x: x[0])
 
 
-class Genos2VoiceBank:
+class NRPNParameterController:
     """
-    Yamaha Genos2 Voice Bank Mapping.
-    Maps Bank Select (MSB/LSB) + Program Change to instrument names.
-    Based on Yamaha XG/GM standard with Genos2-specific additions.
+    Advanced NRPN controller for articulation parameters.
+    
+    Supports:
+    - Multi-parameter NRPN sequences
+    - Parameter value ranges (0-16383)
+    - Relative parameter changes
+    - Parameter groups by articulation
+    
+    NRPN Parameter Format:
+        MSB 99: Parameter number MSB
+        LSB 98: Parameter number LSB
+        MSB 6:  Value MSB (0-127)
+        LSB 38: Value LSB (0-127)
+        
+        Value = (MSB6 << 7) | LSB38  (0-16383)
+    
+    Usage:
+        controller = NRPNParameterController()
+        
+        # Set vibrato rate
+        result = controller.process_parameter_nrpn(99, 0, 64)
+        # Returns: {'articulation': 'vibrato', 'param': 'rate', 'value': 0.64}
+        
+        # Build parameter NRPN message
+        msb, lsb = controller.get_nrpn_for_parameter('vibrato', 'rate')
     """
     
-    # Bank MSB numbers (CC 0)
-    BANK_PIANO = 0
-    BANK_E_PIANO = 1
-    BANK_ORGAN = 2
-    BANK_ACCORDION = 3
-    BANK_GUITAR = 4
-    BANK_BASS = 5
-    BANK_STRINGS = 6
-    BANK_BRASS = 7
-    BANK_REED = 8
-    BANK_PIPE = 9
-    BANK_SYNTH_LEAD = 10
-    BANK_SYNTH_PAD = 11
-    BANK_SYNTH_EFFECT = 12
-    BANK_WORLd = 13
-    BANK_PERCUSSION = 14
-    BANK_SFX = 15
-    BANK_SART_SOLO = 16      # S.Art2 Solo instruments
-    BANK_SART_ENSEMBLE = 17  # S.Art2 Ensemble
-    BANK_LIVE = 18            # Live! sounds
-    BANK_SWEET = 19          # Sweet! sounds
-    BANK_COOL = 20           # Cool! sounds
-    
-    # Voice bank mapping: (MSB, LSB, Program) -> instrument_name
-    # Maps Yamaha Genos2 voice numbers to internal instrument names
-    VOICE_MAP: Dict[Tuple[int, int, int], str] = {
-        # === PIANO (MSB 0) ===
-        (0, 0, 0): 'grand_piano',
-        (0, 0, 1): 'grand_piano',
-        (0, 0, 2): 'piano',
-        (0, 0, 3): 'honkytonk_piano',
-        (0, 0, 4): 'electric_piano',
-        (0, 0, 5): 'electric_piano',
-        (0, 0, 6): 'electric_piano',
-        (0, 0, 7): 'clavinet',
+    # Parameter NRPN mappings
+    # Format: (param_msb, param_lsb): (articulation, param_name, scale, offset)
+    PARAMETER_MAPPINGS = {
+        # Vibrato parameters (param MSB 0)
+        (0, 0): ('vibrato', 'rate', 0.01, 0.0),        # 0-127 → 0.0-1.27 Hz
+        (0, 1): ('vibrato', 'depth', 0.001, 0.0),       # 0-16383 → 0.0-16.38
+        (0, 2): ('vibrato', 'delay', 0.001, 0.0),       # 0-16383 → 0.0-16.38 sec
         
-        # === E.PIANO (MSB 1) ===
-        (1, 0, 0): 'electric_piano',
-        (1, 0, 1): 'electric_piano',
-        (1, 0, 2): 'electric_piano',
-        (1, 0, 3): 'electric_piano',
+        # Legato parameters (param MSB 1)
+        (1, 0): ('legato', 'blend', 0.0001, 0.0),       # 0-16383 → 0.0-1.638
+        (1, 1): ('legato', 'transition_time', 0.00001, 0.0),  # 0-16383 → 0.0-0.16 sec
         
-        # === ORGAN (MSB 2) ===
-        (2, 0, 0): 'hammond_organ',
-        (2, 0, 1): 'rock_organ',
-        (2, 0, 2): 'church_organ',
-        (2, 0, 3): 'reed_organ',
-        (2, 0, 4): 'hammond_organ',
+        # Growl parameters (param MSB 2)
+        (2, 0): ('growl', 'mod_freq', 1.0, 0.0),        # 0-127 → 0-127 Hz
+        (2, 1): ('growl', 'depth', 0.0001, 0.0),        # 0-16383 → 0.0-1.638
         
-        # === S.ART2 SOLO (MSB 16) - Genos2 Super Articulation Solo ===
-        (16, 0, 0): 'saxophone',
-        (16, 0, 1): 'tenor_sax',
-        (16, 0, 2): 'alto_sax',
-        (16, 0, 3): 'soprano_sax',
-        (16, 0, 4): 'baritone_sax',
-        (16, 0, 5): 'trumpet',
-        (16, 0, 6): 'trombone',
-        (16, 0, 7): 'flugelhorn',
-        (16, 0, 8): 'french_horn',
-        (16, 0, 9): 'tuba',
-        (16, 0, 10): 'flute',
-        (16, 0, 11): 'clarinet',
-        (16, 0, 12): 'oboe',
-        (16, 0, 13): 'bassoon',
-        (16, 0, 14): 'piccolo',
-        (16, 0, 15): 'recorder',
-        (16, 0, 16): 'violin',
-        (16, 0, 17): 'viola',
-        (16, 0, 18): 'cello',
-        (16, 0, 19): 'contrabass',
-        (16, 0, 20): 'guitar',
-        (16, 0, 21): 'nylon_guitar',
-        (16, 0, 22): 'steel_guitar',
-        (16, 0, 23): 'electric_guitar',
-        (16, 0, 24): 'bass_guitar',
+        # Dynamics parameters (param MSB 3)
+        (3, 0): ('dynamics', 'volume', 0.0001, 0.0),    # 0-16383 → 0.0-1.638
+        (3, 1): ('dynamics', 'tone_darkness', 0.0001, 0.0),
+        (3, 2): ('dynamics', 'tone_brightness', 0.0001, 0.0),
         
-        # === S.ART2 ENSEMBLE (MSB 17) ===
-        (17, 0, 0): 'strings_ensemble',
-        (17, 0, 1): 'violin_section',
-        (17, 0, 2): 'brass_section',
+        # Saxophone parameters (param MSB 4)
+        (4, 0): ('sub_tone_sax', 'breath_level', 0.0001, 0.0),
+        (4, 1): ('key_click_sax', 'click_level', 0.0001, 0.0),
+        (4, 2): ('key_click_sax', 'timing', 0.00001, -0.1),  # -0.1 to +0.06 sec
         
-        # === GUITAR (MSB 4) ===
-        (4, 0, 0): 'nylon_guitar',
-        (4, 0, 1): 'steel_guitar',
-        (4, 0, 2): 'electric_guitar',
-        (4, 0, 3): 'clean_guitar',
-        (4, 0, 4): 'overdrive_guitar',
-        (4, 0, 5): 'distortion_guitar',
-        (4, 0, 6): 'guitar',
-        (4, 0, 7): 'jazz_guitar',
+        # Brass parameters (param MSB 5)
+        (5, 0): ('straight_mute', 'mute_level', 0.0001, 0.0),
+        (5, 1): ('plunger_mute', 'wah_freq', 10.0, 100.0),   # 100-163930 Hz
         
-        # === BASS (MSB 5) ===
-        (5, 0, 0): 'bass_guitar',
-        (5, 0, 1): 'electric_bass',
-        (5, 0, 2): 'fretless_bass',
-        (5, 0, 3): 'slap_bass',
-        (5, 0, 4): 'synth_bass',
+        # Strings parameters (param MSB 6)
+        (6, 0): ('con_sordino', 'mute_level', 0.0001, 0.0),
+        (6, 1): ('tremolo', 'speed', 0.1, 0.0),         # 0-127 → 0-12.7 Hz
+        (6, 2): ('portamento_fast', 'speed', 0.001, 0.0),
         
-        # === STRINGS (MSB 6) ===
-        (6, 0, 0): 'strings_ensemble',
-        (6, 0, 1): 'violin_section',
-        (6, 0, 2): 'violin',
-        (6, 0, 3): 'viola',
-        (6, 0, 4): 'cello',
-        (6, 0, 5): 'contrabass',
-        (6, 0, 6): 'pizzicato_strings',
-        (6, 0, 7): 'synth_strings',
+        # Guitar parameters (param MSB 7)
+        (7, 0): ('bend_gtr', 'semitones', 0.01, 0.0),   # 0-127 → 0-1.27 semitones
+        (7, 1): ('bend_gtr', 'speed', 0.001, 0.0),      # 0-16383 → 0-16.38 sec
+        (7, 2): ('palm_mute_gtr', 'pressure', 0.0001, 0.0),
         
-        # === BRASS (MSB 7) ===
-        (7, 0, 0): 'trumpet',
-        (7, 0, 1): 'trombone',
-        (7, 0, 2): 'french_horn',
-        (7, 0, 3): 'tuba',
-        (7, 0, 4): 'brass_section',
-        (7, 0, 5): 'synth_brass_1',
+        # Vocal parameters (param MSB 8)
+        (8, 0): ('vocal_breath', 'breath_level', 0.0001, 0.0),
+        (8, 1): ('vocal_attack', 'hardness', 0.0001, 0.0),
+        (8, 2): ('falsetto', 'brightness', 0.0001, 0.0),
         
-        # === REED (MSB 8) ===
-        (8, 0, 0): 'saxophone',
-        (8, 0, 1): 'clarinet',
-        (8, 0, 2): 'oboe',
-        (8, 0, 3): 'bassoon',
-        (8, 0, 4): 'english_horn',
+        # Synth parameters (param MSB 9)
+        (9, 0): ('filter_sweep', 'cutoff_start', 10.0, 20.0),   # 20-163850 Hz
+        (9, 1): ('filter_sweep', 'cutoff_end', 10.0, 20.0),
+        (9, 2): ('lfo_sync', 'rate', 0.01, 0.0),        # 0-127 → 0-1.27 Hz
         
-        # === PIPE (MSB 9) ===
-        (9, 0, 0): 'flute',
-        (9, 0, 1): 'piccolo',
-        (9, 0, 2): 'recorder',
-        (9, 0, 3): 'pan_flute',
-        (9, 0, 4): 'shakuhachi',
-        (9, 0, 5): 'ocarina',
-        
-        # === SYNTH LEAD (MSB 10) ===
-        (10, 0, 0): 'saw_lead',
-        (10, 0, 1): 'square_lead',
-        (10, 0, 2): 'sine_lead',
-        (10, 0, 3): 'classic_lead',
-        (10, 0, 4): 'unison_lead',
-        
-        # === SYNTH PAD (MSB 11) ===
-        (11, 0, 0): 'warm_pad',
-        (11, 0, 1): 'polysynth',
-        (11, 0, 2): 'space_pad',
-        (11, 0, 3): 'halo_pad',
-        (11, 0, 4): 'metal_pad',
-        
-        # === ETHNIC/WORLD (MSB 13) ===
-        (13, 0, 0): 'sitar',
-        (13, 0, 1): 'banjo',
-        (13, 0, 2): 'mandolin',
-        (13, 0, 3): 'bouzouki',
-        (13, 0, 4): 'erhu',
-        (13, 0, 5): 'shamisen',
-        (13, 0, 6): 'koto',
-        (13, 0, 7): 'kalimba',
-        (13, 0, 8): 'bansuri',
-        (13, 0, 9): 'bagpipe',
-        
-        # === PERCUSSION (MSB 14) ===
-        (14, 0, 0): 'vibraphone',
-        (14, 0, 1): 'marimba',
-        (14, 0, 2): 'xylophone',
-        (14, 0, 3): 'glockenspiel',
-        (14, 0, 4): 'celesta',
-        (14, 0, 5): 'tubular_bells',
-        
-        # === LIVE! (MSB 18) ===
-        (18, 0, 0): 'grand_piano',
-        (18, 0, 1): 'saxophone',
-        (18, 0, 2): 'trumpet',
-        (18, 0, 3): 'violin',
-        (18, 0, 4): 'guitar',
+        # Effects parameters (param MSB 10)
+        (10, 0): ('fx_sweep_up', 'duration', 0.01, 0.0),  # 0-127 → 0-1.27 sec
+        (10, 1): ('fx_noise', 'level', 0.0001, 0.0),
+        (10, 2): ('fx_hit', 'impact', 0.0001, 0.0),
     }
     
-    @classmethod
-    def get_instrument(cls, msb: int, lsb: int, program: int) -> Optional[str]:
-        """Get instrument name from bank MSB, LSB, and program number."""
-        key = (msb, lsb, program)
-        return cls.VOICE_MAP.get(key)
+    def __init__(self):
+        """Initialize NRPN parameter controller."""
+        self.current_param_msb = 0
+        self.current_param_lsb = 0
+        self.pending_value_msb = None
+        self.pending_value_lsb = None
     
-    @classmethod
-    def get_bank_info(cls, msb: int) -> str:
-        """Get bank name from MSB number."""
-        bank_names = {
-            0: "Piano",
-            1: "E.Piano",
-            2: "Organ",
-            3: "Accordion",
-            4: "Guitar",
-            5: "Bass",
-            6: "Strings",
-            7: "Brass",
-            8: "Reed",
-            9: "Pipe",
-            10: "Synth Lead",
-            11: "Synth Pad",
-            12: "Synth Effect",
-            13: "World",
-            14: "Percussion",
-            15: "SFX",
-            16: "S.Art2 Solo",
-            17: "S.Art2 Ensemble",
-            18: "Live!",
-            19: "Sweet!",
-            20: "Cool!",
+    def process_parameter_nrpn(self, param_msb: int, param_lsb: int,
+                              value: int) -> Optional[Dict[str, Any]]:
+        """
+        Process NRPN parameter change.
+        
+        Args:
+            param_msb: Parameter MSB (0-127)
+            param_lsb: Parameter LSB (0-127)
+            value: Parameter value (0-16383)
+        
+        Returns:
+            Parameter update dict or None if not recognized
+        
+        Example:
+            >>> controller = NRPNParameterController()
+            >>> result = controller.process_parameter_nrpn(0, 0, 64)
+            >>> result
+            {'articulation': 'vibrato', 'param_name': 'rate', 'value': 0.64, 'raw_value': 64}
+        """
+        key = (param_msb, param_lsb)
+        
+        if key not in self.PARAMETER_MAPPINGS:
+            return None
+        
+        articulation, param_name, scale, offset = self.PARAMETER_MAPPINGS[key]
+        
+        return {
+            'articulation': articulation,
+            'param_name': param_name,
+            'value': value * scale + offset,
+            'raw_value': value,
+            'param_msb': param_msb,
+            'param_lsb': param_lsb
         }
-        return bank_names.get(msb, f"Bank {msb}")
+    
+    def get_nrpn_for_parameter(self, articulation: str, 
+                              param_name: str) -> Optional[Tuple[int, int]]:
+        """
+        Get NRPN MSB/LSB for a parameter (reverse lookup).
+        
+        Args:
+            articulation: Articulation name
+            param_name: Parameter name
+        
+        Returns:
+            Tuple of (param_msb, param_lsb) or None
+        
+        Example:
+            >>> controller = NRPNParameterController()
+            >>> controller.get_nrpn_for_parameter('vibrato', 'rate')
+            (0, 0)
+        """
+        for (param_msb, param_lsb), (art, param, _, _) in self.PARAMETER_MAPPINGS.items():
+            if art == articulation and param == param_name:
+                return (param_msb, param_lsb)
+        
+        return None
+    
+    def build_parameter_value(self, value_msb: int, value_lsb: int) -> int:
+        """
+        Build 14-bit parameter value from MSB/LSB.
+        
+        Args:
+            value_msb: Value MSB (0-127)
+            value_lsb: Value LSB (0-127)
+        
+        Returns:
+            14-bit value (0-16383)
+        """
+        return (value_msb << 7) | value_lsb
+    
+    def split_parameter_value(self, value: int) -> Tuple[int, int]:
+        """
+        Split 14-bit value into MSB/LSB.
+        
+        Args:
+            value: 14-bit value (0-16383)
+        
+        Returns:
+            Tuple of (value_msb, value_lsb)
+        """
+        value = max(0, min(16383, value))
+        return (value >> 7, value & 0x7F)
+    
+    def get_parameter_range(self, param_msb: int, param_lsb: int) -> Optional[Dict[str, float]]:
+        """
+        Get valid range for a parameter.
+        
+        Args:
+            param_msb: Parameter MSB
+            param_lsb: Parameter LSB
+        
+        Returns:
+            Dict with min_value, max_value, scale, offset
+        """
+        key = (param_msb, param_lsb)
+        
+        if key not in self.PARAMETER_MAPPINGS:
+            return None
+        
+        articulation, param_name, scale, offset = self.PARAMETER_MAPPINGS[key]
+        
+        return {
+            'articulation': articulation,
+            'param_name': param_name,
+            'min_value': 0 * scale + offset,
+            'max_value': 16383 * scale + offset,
+            'scale': scale,
+            'offset': offset
+        }
+    
+    def get_all_parameters(self) -> List[Dict[str, Any]]:
+        """
+        Get all available parameters.
+        
+        Returns:
+            List of parameter info dicts
+        """
+        params = []
+        
+        for (param_msb, param_lsb), (articulation, param_name, scale, offset) in \
+            self.PARAMETER_MAPPINGS.items():
+            
+            params.append({
+                'param_msb': param_msb,
+                'param_lsb': param_lsb,
+                'articulation': articulation,
+                'param_name': param_name,
+                'scale': scale,
+                'offset': offset,
+                'min_value': 0 * scale + offset,
+                'max_value': 16383 * scale + offset
+            })
+        
+        return params
