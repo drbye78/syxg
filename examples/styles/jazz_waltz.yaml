@@ -1,0 +1,142 @@
+name: Jazz Waltz
+category: jazz
+description: Classic 3/4 jazz waltz with walking bass and brush drums
+tempo: 140
+time_signature: [3, 4]
+genre: jazz_waltz
+character: Sophisticated and swinging
+
+sections:
+  main_a:
+    chord_patterns:
+      - pattern: [1, 0, 0]
+        variation: 1
+    measures: 4
+    dynamics: 75
+
+  main_b:
+    chord_patterns:
+      - pattern: [1, 1, 0]
+        variation: 2
+    measures: 4
+    dynamics: 80
+
+  main_c:
+    chord_patterns:
+      - pattern: [1, 0, 1]
+        variation: 1
+    measures: 8
+    dynamics: 70
+
+  main_d:
+    chord_patterns:
+      - pattern: [1, 1, 1]
+        variation: 3
+    measures: 4
+    dynamics: 85
+
+  intro:
+    measures: 2
+    type: count_in
+
+  ending:
+    measures: 2
+    type: ending
+
+tracks:
+  drums:
+    type: percussion
+    mute: false
+    volume: 85
+    channels: [9]
+    patterns:
+      - name: brush
+        notes:
+          - {note: 38, velocity: 50, timing: 0.0}
+          - {note: 42, velocity: 40, timing: 0.33}
+          - {note: 42, velocity: 40, timing: 0.66}
+          - {note: 38, velocity: 50, timing: 1.0}
+          - {note: 42, velocity: 40, timing: 1.33}
+          - {note: 42, velocity: 40, timing: 1.66}
+          - {note: 38, velocity: 50, timing: 2.0}
+          - {note: 42, velocity: 40, timing: 2.33}
+          - {note: 42, velocity: 40, timing: 2.66}
+
+  bass:
+    type: bass
+    mute: false
+    volume: 90
+    channels: [0]
+    patterns:
+      - name: walking
+        root_minor_offset: 0
+        root_major_offset: 0
+        notes:
+          - {note: 0, velocity: 80, timing: 0.0, length: 0.33}
+          - {note: 2, velocity: 75, timing: 0.66, length: 0.33}
+          - {note: 4, velocity: 80, timing: 1.33, length: 0.33}
+          - {note: 5, velocity: 75, timing: 2.0, length: 0.33}
+          - {note: 7, velocity: 80, timing: 2.66, length: 0.33}
+
+  chord:
+    type: polyphonic
+    mute: false
+    volume: 70
+    channels: [1]
+    patterns:
+      - name: comping
+        notes:
+          - {note: 0, velocity: 60, timing: 0.0, length: 0.66}
+          - {note: 0, velocity: 50, timing: 1.66, length: 0.66}
+
+  pad:
+    type: pad
+    mute: true
+    volume: 55
+    channels: [2]
+    patterns:
+      - name: sustained
+        notes:
+          - {note: 0, velocity: 45, timing: 0.0, length: 3.0}
+
+  brass:
+    type: lead
+    mute: true
+    volume: 75
+    channels: [3]
+    patterns:
+      - name: fills
+        notes:
+          - {note: 0, velocity: 70, timing: 2.0, length: 0.5}
+
+groove:
+  type: jazz
+  intensity: 0.7
+  shuffle: 0.15
+
+variations:
+  - name: basic
+    tracks: [drums, bass, chord]
+  - name: full
+    tracks: [drums, bass, chord, pad, brass]
+  - name: sparse
+    tracks: [bass]
+
+ots_presets:
+  - name: Piano
+    voices:
+      - {channel: 0, bank: 0, program: 0, volume: 100}
+    sections: [main_a]
+  - name: Organ
+    voices:
+      - {channel: 0, bank: 0, program: 17, volume: 85}
+    sections: [main_b]
+  - name: Bass
+    voices:
+      - {channel: 0, bank: 0, program: 32, volume: 90}
+    sections: [main_a]
+  - name: Combo
+    voices:
+      - {channel: 0, bank: 0, program: 0, volume: 90}
+      - {channel: 1, bank: 0, program: 32, volume: 80}
+    sections: [main_b]

@@ -25,14 +25,16 @@ class AccompanimentMode(Enum):
 
 
 class StylePlaybackState(Enum):
-    """Style playback states"""
+    """Style playback states - Complete state machine"""
 
-    STOPPED = auto()
-    PLAYING = auto()
-    FADING_IN = auto()
-    FADING_OUT = auto()
-    COUNT_IN = auto()
-    TRANSITIONING = auto()
+    STOPPED = auto()        # No playback
+    WAITING = auto()        # Sync-start waiting for first key
+    COUNT_IN = auto()       # Playing count-in bars
+    PLAYING = auto()        # Normal playback
+    FILL_IN = auto()        # Playing fill section
+    TRANSITIONING = auto()  # Between sections (at bar boundary)
+    ENDING = auto()         # Playing ending section
+    FADING_OUT = auto()     # Fade-out in progress
 
 
 @dataclass
@@ -71,6 +73,27 @@ class AutoAccompanimentConfig:
     velocity_sensitivity: float = 1.0
     humanize_amount: float = 0.0
     swing_amount: float = 0.0
+
+
+@dataclass
+class TransitionRequest:
+    """
+    Represents a pending section transition request.
+    
+    Attributes:
+        from_section: Current section we're transitioning from
+        to_section: Target section to transition to
+        use_fill: Whether to play fill before transition
+        trigger_tick: Tick position when transition was requested
+        fill_length_bars: Length of fill section (default 1)
+        execute_at_bar: Bar boundary where transition should execute
+    """
+    from_section: Any
+    to_section: Any
+    use_fill: bool = True
+    trigger_tick: int = 0
+    fill_length_bars: int = 1
+    execute_at_bar: Optional[int] = None
 
 
 class StyleEvent:
@@ -140,6 +163,10 @@ class AutoAccompaniment:
         self._target_section: Any = None
         self._fill_section: Optional[Any] = None
         self._is_filling = False
+
+        # Transition scheduler
+        self._pending_transition: Optional[TransitionRequest] = None
+        self._transition_queued: bool = False
 
         self._tick_position: int = 0
         self._bar_position: int = 0
@@ -225,7 +252,17 @@ class AutoAccompaniment:
         self.chord_detector.config.on_chord_change = callback
 
     def start(self, section: Optional[Any] = None):
-        """Start auto-accompaniment"""
+        """
+        Start auto-accompaniment with proper state machine initialization.
+        
+        Args:
+            section: Optional starting section. If None, uses default_main_section.
+        
+        Behavior:
+            - If sync_start_enabled: Enters WAITING state, starts on first key
+            - If count_in_enabled: Plays count-in bars before starting
+            - Otherwise: Starts playback immediately
+        """
         with self._lock:
             if self._running:
                 return
@@ -234,17 +271,56 @@ class AutoAccompaniment:
                 self.config.default_main_section
             )
 
-            if self.config.sync_start_enabled:
-                self.mode = AccompanimentMode.SYNC_START
-                self._target_section = target_section
-            else:
-                self._start_playback(target_section)
-
             self._running = True
             self._processing_thread = threading.Thread(
                 target=self._processing_loop, daemon=True
             )
             self._processing_thread.start()
+
+            if self.config.sync_start_enabled:
+                # Wait for first key press to start
+                self.mode = AccompanimentMode.SYNC_START
+                self.playback_state = StylePlaybackState.WAITING
+                self._target_section = target_section
+            elif self.config.count_in_enabled and target_section.count_in_bars > 0:
+                # Start with count-in
+                self._start_count_in(target_section)
+            else:
+                # Start playback immediately
+                self._start_playback(target_section)
+
+    def _start_count_in(self, section: Any):
+        """
+        Start with count-in bars before main playback.
+        
+        Args:
+            section: Target section to play after count-in
+        """
+        self._target_section = section
+        self.playback_state = StylePlaybackState.COUNT_IN
+        self.mode = AccompanimentMode.ON
+        
+        # Use a simple count-in pattern (metronome-like)
+        self._current_section = section
+        self._tick_position = 0
+        self._bar_position = 0
+        self._schedule_section_events(section)
+
+    def _on_sync_start_key(self):
+        """
+        Called when first key is pressed in sync-start mode.
+        Triggers actual playback start.
+        """
+        if self.mode != AccompanimentMode.SYNC_START:
+            return
+        
+        if self._target_section:
+            if self.config.count_in_enabled and self._target_section.count_in_bars > 0:
+                self._start_count_in(self._target_section)
+            else:
+                self._start_playback(self._target_section)
+        
+        self.mode = AccompanimentMode.ON
 
     def stop(self, ending: bool = True):
         """Stop auto-accompaniment"""
@@ -289,25 +365,143 @@ class AutoAccompaniment:
         self._current_section = None
         self._scheduled_events.clear()
 
-    def _transition_to(self, section: Any):
-        """Transition to a new section"""
+    def _transition_to(self, section: Any, immediate: bool = False):
+        """
+        Transition to a new section with proper state machine handling.
+        
+        Args:
+            section: Target section to transition to
+            immediate: If True, transition immediately. If False, wait for bar boundary.
+        """
         from .style import StyleSectionType
 
         old_section = self._current_section
+        if old_section is None:
+            # First transition - start immediately
+            self._execute_transition(section)
+            return
 
-        if section.section_type.is_ending:
+        target_type = section.section_type
+        
+        # Handle ending sections specially
+        if target_type.is_ending:
             self._target_section = section
-            self.playback_state = StylePlaybackState.TRANSITIONING
-            self._schedule_section_events(section)
+            self.playback_state = StylePlaybackState.ENDING
+            self._execute_transition(section)
+            return
+        
+        # Handle fill sections
+        if target_type.is_fill:
+            self._execute_fill_transition(section, old_section)
+            return
+        
+        # For main sections, decide whether to queue or execute
+        if immediate:
+            self._execute_transition(section)
         else:
-            self._current_section = section
-            self._tick_position = 0
-            self._bar_position = 0
-            self._beat_position = 0
-            self._schedule_section_events(section)
+            # Queue transition for next bar boundary
+            self._queue_transition(section, old_section)
 
-            if self._on_section_change:
-                self._on_section_change(old_section, section)
+    def _queue_transition(self, section: Any, from_section: Any):
+        """
+        Queue a transition to execute at the next bar boundary.
+        
+        Args:
+            section: Target section
+            from_section: Current section
+        """
+        self._pending_transition = TransitionRequest(
+            from_section=from_section,
+            to_section=section,
+            use_fill=self._is_filling,
+            trigger_tick=self._tick_position,
+            fill_length_bars=1,
+            execute_at_bar=self._bar_position + 1
+        )
+        self._transition_queued = True
+        self.playback_state = StylePlaybackState.TRANSITIONING
+
+    def _execute_transition(self, section: Any):
+        """
+        Execute a section transition immediately.
+        
+        Args:
+            section: Target section
+        """
+        from .style import StyleSectionType
+
+        old_section = self._current_section
+        
+        self._current_section = section
+        self._tick_position = 0
+        self._bar_position = 0
+        self._beat_position = 0
+        self._pending_transition = None
+        self._transition_queued = False
+        self._is_filling = False
+        
+        # Determine playback state
+        if section.section_type.is_intro:
+            self.playback_state = StylePlaybackState.PLAYING
+        elif section.section_type.is_ending:
+            self.playback_state = StylePlaybackState.ENDING
+        else:
+            self.playback_state = StylePlaybackState.PLAYING
+        
+        self._schedule_section_events(section)
+
+        if self._on_section_change and old_section:
+            self._on_section_change(old_section, section)
+
+    def _execute_fill_transition(self, fill_section: Any, from_section: Any):
+        """
+        Execute a fill transition then continue to target section.
+        
+        Args:
+            fill_section: Fill section to play
+            from_section: Section we're coming from
+        """
+        self._fill_section = fill_section
+        self._is_filling = True
+        self.playback_state = StylePlaybackState.FILL_IN
+        
+        # Play fill section
+        self._current_section = fill_section
+        self._tick_position = 0
+        self._bar_position = 0
+        self._schedule_section_events(fill_section)
+
+    def _check_pending_transition(self):
+        """
+        Check if pending transition should be executed.
+        Called at each bar boundary.
+        """
+        if not self._transition_queued or self._pending_transition is None:
+            return
+        
+        if self._bar_position >= self._pending_transition.execute_at_bar:
+            # Execute the transition
+            target = self._pending_transition.to_section
+            
+            # If fill was requested and we have a fill section
+            if self._pending_transition.use_fill and self._fill_section:
+                self._execute_fill_transition(self._fill_section, self._current_section)
+                # After fill, transition to target
+                self._target_section = target
+            else:
+                self._execute_transition(target)
+
+    def _complete_fill_and_transition(self):
+        """
+        Complete fill playback and transition to target section.
+        Called when fill section completes.
+        """
+        if self._target_section:
+            self._execute_transition(self._target_section)
+            self._target_section = None
+        else:
+            # No target - go to next main section
+            self.next_main_section()
 
     def trigger_fill(self):
         """Trigger fill in before next section change"""
@@ -502,18 +696,47 @@ class AutoAccompaniment:
 
             channel = track_type.default_midi_channel
 
-            for note_event in track_data.notes:
+            # Get swing and humanize from track data
+            swing = track_data.swing
+            humanize = track_data.humanize
+
+            for i, note_event in enumerate(track_data.notes):
                 mapped_note = self._map_note_to_chord(
                     note_event.note, track_type, self.chord_detector.get_current_chord()
                 )
 
                 if mapped_note is not None:
+                    # Apply swing to tick
+                    tick = note_event.tick
+                    position_16th = (tick // 120) % 16  # Approximate 16th position
+
+                    # Apply swing if enabled
+                    if self._swing_amount != 0:
+                        swing_offset = int(
+                            self._swing_amount * 30 * (position_16th % 2)
+                        )
+                        tick += swing_offset
+
+                    # Apply humanize to timing
+                    if humanize > 0:
+                        self._random.seed(i + int(tick))
+                        timing_var = int((self._random.random() - 0.5) * 10 * humanize)
+                        tick += timing_var
+
+                    # Calculate velocity with humanize
+                    velocity = note_event.velocity
+                    if humanize > 0:
+                        self._random.seed(i + 1000)
+                        vel_var = int((self._random.random() - 0.5) * 10 * humanize)
+                        velocity = max(1, min(127, velocity + vel_var))
+
+                    # Apply velocity offset from track data
+                    velocity = int(velocity * (1 + track_data.velocity_offset / 127))
+
                     event = StyleEvent(
-                        tick=note_event.tick,
+                        tick=tick,
                         note=mapped_note,
-                        velocity=int(
-                            note_event.velocity * track_data.velocity_offset / 127
-                        ),
+                        velocity=velocity,
                         duration=note_event.duration,
                         channel=channel,
                         track_type=track_type,
@@ -614,7 +837,7 @@ class AutoAccompaniment:
                 self.next_main_section()
 
     def _processing_loop(self):
-        """Main processing loop"""
+        """Main processing loop with state machine handling"""
         last_time = time.time()
 
         while self._running:
@@ -636,11 +859,18 @@ class AutoAccompaniment:
                             self._beat_position + 1
                         ) % self._time_signature_num
 
+                        # Check for pending transition at bar boundary
+                        self._check_pending_transition()
+
                         if self._bar_position >= self._current_section.length_bars:
                             self._loop_count += 1
                             self._bar_position = 0
                             self._tick_position = 0
                             self._schedule_section_events(self._current_section)
+
+                elif self.playback_state == StylePlaybackState.WAITING:
+                    # Sync start - waiting for first key
+                    pass
 
                 elif self.playback_state == StylePlaybackState.COUNT_IN:
                     self._tick_position += tick_increment
@@ -649,6 +879,51 @@ class AutoAccompaniment:
                         self._bar_position += 1
                         if self._bar_position >= self._current_section.count_in_bars:
                             self.playback_state = StylePlaybackState.PLAYING
+
+                elif self.playback_state == StylePlaybackState.FILL_IN:
+                    self._tick_position += tick_increment
+                    self._process_events()
+
+                    if self._tick_position >= self._ticks_per_bar:
+                        self._tick_position = 0
+                        self._bar_position += 1
+
+                        # Check if fill section is complete
+                        if self._bar_position >= self._current_section.length_bars:
+                            self._complete_fill_and_transition()
+
+                elif self.playback_state == StylePlaybackState.TRANSITIONING:
+                    # Waiting for bar boundary to execute transition
+                    self._process_events()
+                    
+                    if self._tick_position >= self._ticks_per_bar:
+                        self._tick_position = 0
+                        self._bar_position += 1
+                        self._check_pending_transition()
+
+                elif self.playback_state == StylePlaybackState.ENDING:
+                    self._tick_position += tick_increment
+                    self._process_events()
+
+                    if self._tick_position >= self._ticks_per_bar:
+                        self._tick_position = 0
+                        self._bar_position += 1
+
+                        if self._bar_position >= self._current_section.length_bars:
+                            # Ending complete - stop playback
+                            self._stop_playback()
+
+                elif self.playback_state == StylePlaybackState.FADING_OUT:
+                    self._tick_position += tick_increment
+                    self._process_events()
+
+                    # Fade out logic would go here
+                    if self._tick_position >= self._ticks_per_bar:
+                        self._tick_position = 0
+                        self._bar_position += 1
+
+                        if self._bar_position >= self._current_section.length_bars:
+                            self._stop_playback()
 
             time.sleep(0.001)
 

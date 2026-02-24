@@ -118,6 +118,21 @@ class OTSPreset:
 
     linked_section: Optional[OTSSection] = None
 
+    # Extended fields
+    description: str = ""
+    color: str = "#FFFFFF"
+    icon: str = ""
+    category: str = "user"
+
+    # Dual voice support
+    dual_voice_enabled: bool = False
+    dual_voice_part: int = -1
+    dual_voice_octave: int = 0
+
+    # Key on/off answer back
+    key_on_answer: bool = True
+    key_off_answer: bool = True
+
     def get_part(self, part_id: int) -> OTSPart:
         """Get part by ID"""
         for part in self.parts:
@@ -129,6 +144,10 @@ class OTSPreset:
         return {
             "preset_id": self.preset_id,
             "name": self.name,
+            "description": self.description,
+            "color": self.color,
+            "icon": self.icon,
+            "category": self.category,
             "parts": [p.to_dict() for p in self.parts],
             "master_volume": self.master_volume,
             "master_tempo": self.master_tempo,
@@ -143,6 +162,11 @@ class OTSPreset:
             "linked_section": self.linked_section.value
             if self.linked_section
             else None,
+            "dual_voice_enabled": self.dual_voice_enabled,
+            "dual_voice_part": self.dual_voice_part,
+            "dual_voice_octave": self.dual_voice_octave,
+            "key_on_answer": self.key_on_answer,
+            "key_off_answer": self.key_off_answer,
         }
 
     @classmethod
@@ -154,6 +178,10 @@ class OTSPreset:
         return cls(
             preset_id=data.get("preset_id", 0),
             name=data.get("name", "New OTS"),
+            description=data.get("description", ""),
+            color=data.get("color", "#FFFFFF"),
+            icon=data.get("icon", ""),
+            category=data.get("category", "user"),
             parts=parts,
             master_volume=data.get("master_volume", 100),
             master_tempo=data.get("master_tempo", 0),
@@ -168,6 +196,11 @@ class OTSPreset:
             linked_section=OTSSection(data["linked_section"])
             if data.get("linked_section")
             else None,
+            dual_voice_enabled=data.get("dual_voice_enabled", False),
+            dual_voice_part=data.get("dual_voice_part", -1),
+            dual_voice_octave=data.get("dual_voice_octave", 0),
+            key_on_answer=data.get("key_on_answer", True),
+            key_off_answer=data.get("key_off_answer", True),
         )
 
 
@@ -191,9 +224,22 @@ class OneTouchSettings:
             self._init_default_presets()
 
     def _init_default_presets(self):
-        """Initialize default OTS presets"""
-        for i in range(4):
-            preset = OTSPreset(preset_id=i, name=f"OTS {i + 1}")
+        """Initialize default OTS presets (8 presets)"""
+        preset_names = [
+            "Piano",
+            "Organ",
+            "Strings",
+            "Synth Pad",
+            "Bass",
+            "Guitar",
+            "Brass",
+            "Sax",
+        ]
+        for i in range(8):
+            preset = OTSPreset(
+                preset_id=i,
+                name=preset_names[i] if i < len(preset_names) else f"OTS {i + 1}",
+            )
             self.presets.append(preset)
 
     @property
@@ -283,6 +329,84 @@ class OneTouchSettings:
             dest.master_tempo = source.master_tempo
             return True
         return False
+
+    def link_preset_to_section(self, preset_id: int, section: OTSSection) -> bool:
+        """Link an OTS preset to a specific section for auto-loading"""
+        preset = self.get_preset(preset_id)
+        if preset:
+            preset.linked_section = section
+            return True
+        return False
+
+    def get_preset_for_section(self, section: OTSSection) -> Optional[OTSPreset]:
+        """Get the OTS preset linked to a specific section"""
+        for preset in self.presets:
+            if preset.linked_section == section:
+                return preset
+        return None
+
+    def auto_load_for_section(self, section_name: str) -> bool:
+        """
+        Automatically load OTS preset for a section if linked.
+
+        Args:
+            section_name: Name of the section (e.g., 'main_a', 'intro_1')
+
+        Returns:
+            True if a linked preset was found and loaded
+        """
+        if not self.ots_link_enabled:
+            return False
+
+        # Map section name to OTSSection
+        section_map = {
+            "intro": OTSSection.INTRO,
+            "intro_1": OTSSection.INTRO,
+            "intro_2": OTSSection.INTRO,
+            "intro_3": OTSSection.INTRO,
+            "main_a": OTSSection.MAIN_A,
+            "main_b": OTSSection.MAIN_B,
+            "main_c": OTSSection.MAIN_C,
+            "main_d": OTSSection.MAIN_D,
+            "ending": OTSSection.ENDING,
+            "ending_1": OTSSection.ENDING,
+            "ending_2": OTSSection.ENDING,
+            "ending_3": OTSSection.ENDING,
+        }
+
+        ots_section = section_map.get(section_name.lower())
+        if ots_section:
+            preset = self.get_preset_for_section(ots_section)
+            if preset:
+                self.activate_preset(preset.preset_id)
+                return True
+
+        return False
+
+    def store_current_to_preset(self, preset_id: int, name: str = "") -> bool:
+        """
+        Store current synthesizer state to a preset.
+
+        Args:
+            preset_id: Target preset ID
+            name: Optional new name
+
+        Returns:
+            True if successful
+        """
+        preset = self.get_preset(preset_id)
+        if not preset or not self._synthesizer:
+            return False
+
+        if name:
+            preset.name = name
+
+        # TODO: Query synthesizer for current state and store to preset
+        return True
+
+    def get_preset_names(self) -> List[str]:
+        """Get list of all preset names"""
+        return [p.name for p in self.presets]
 
     def to_dict(self) -> Dict[str, Any]:
         return {

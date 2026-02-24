@@ -301,6 +301,9 @@ class Channel:
         # S.Art2 articulation support
         self._articulation = 'normal'
         self._articulation_params = {}
+        self._articulation_preset = None  # Current articulation preset
+        self._velocity_articulations = {}  # Velocity-based articulation splits
+        self._key_articulations = {}  # Key-based articulation splits
 
         # NRPN/RPN state
         self.nrpn_active = False
@@ -415,6 +418,76 @@ class Channel:
     def get_articulation(self) -> str:
         """Get current articulation."""
         return self._articulation
+    
+    def apply_articulation_preset(self, preset) -> None:
+        """
+        Apply articulation preset to channel.
+        
+        Args:
+            preset: ArticulationPreset object
+        """
+        self._articulation_preset = preset
+        
+        # Apply preset splits
+        self._velocity_articulations = {}
+        self._key_articulations = {}
+        
+        for split in preset.velocity_splits:
+            self._velocity_articulations[(split.vel_low, split.vel_high)] = {
+                'articulation': split.articulation,
+                'parameters': split.parameters
+            }
+        
+        for split in preset.key_splits:
+            self._key_articulations[(split.key_low, split.key_high)] = {
+                'articulation': split.articulation,
+                'parameters': split.parameters
+            }
+    
+    def get_articulation_for_note(self, note: int, velocity: int) -> tuple:
+        """
+        Get articulation and parameters for note/velocity.
+        
+        Args:
+            note: MIDI note number
+            velocity: MIDI velocity
+        
+        Returns:
+            Tuple of (articulation_name, parameters_dict)
+        """
+        # Check key splits first
+        for (key_low, key_high), config in self._key_articulations.items():
+            if key_low <= note <= key_high:
+                return (config['articulation'], config['parameters'])
+        
+        # Check velocity splits
+        for (vel_low, vel_high), config in self._velocity_articulations.items():
+            if vel_low <= velocity <= vel_high:
+                return (config['articulation'], config['parameters'])
+        
+        # Return default
+        return (self._articulation, self._articulation_params)
+    
+    def set_velocity_articulation(self, vel_low: int, vel_high: int,
+                                 articulation: str, **params) -> None:
+        """Set velocity-based articulation."""
+        self._velocity_articulations[(vel_low, vel_high)] = {
+            'articulation': articulation,
+            'parameters': params
+        }
+    
+    def set_key_articulation(self, key_low: int, key_high: int,
+                            articulation: str, **params) -> None:
+        """Set key-based articulation."""
+        self._key_articulations[(key_low, key_high)] = {
+            'articulation': articulation,
+            'parameters': params
+        }
+    
+    def clear_articulation_splits(self) -> None:
+        """Clear all articulation splits."""
+        self._velocity_articulations.clear()
+        self._key_articulations.clear()
 
     def note_on(self, note: int, velocity: int) -> bool:
         """
@@ -449,13 +522,23 @@ class Channel:
             existing_voice.note_on(velocity)
             return True
 
-        # Create new VoiceInstance for this note
-        voice_instance = VoiceInstance(
-            transposed_note, 
-            velocity, 
-            self.channel_number, 
-            self.sample_rate
+        # Get articulation for this note/velocity
+        articulation, art_params = self.get_articulation_for_note(
+            transposed_note, velocity
         )
+
+        # Create new VoiceInstance for this note with articulation
+        voice_instance = VoiceInstance(
+            transposed_note,
+            velocity,
+            self.channel_number,
+            self.sample_rate,
+            articulation=articulation
+        )
+        
+        # Apply articulation parameters
+        if art_params:
+            voice_instance.set_articulation(articulation, **art_params)
 
         # Get regions for this note/velocity from current Voice
         # This is the KEY call that enables multi-zone preset support

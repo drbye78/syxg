@@ -1,0 +1,1 @@
+"""Style acceptance tests package."""

@@ -1,0 +1,1828 @@
+# ============================================================
+# EDM Pop Style - Electronic Dance Music Pop
+# ============================================================
+# A modern EDM pop style with driving beats, pulsing bass,
+# and energetic synth patterns. Suitable for pop, dance,
+# and electronic music production.
+#
+# Tempo: 128 BPM
+# Time Signature: 4/4
+# Category: Pop/Dance
+# ============================================================
+
+style_format_version: "1.0"
+
+metadata:
+  name: "EDM Pop"
+  category: "POP"
+  subcategory: "dance"
+  tempo: 128
+  time_signature: "4/4"
+  volume: 1.0
+  author: "SYXG Team"
+  version: "1.0"
+  description: "Modern EDM pop style with driving beats and energetic synths"
+  tags:
+    - edm
+    - pop
+    - dance
+    - electronic
+    - upbeat
+  characteristics:
+    energy: 0.9
+    complexity: 0.6
+    danceability: 0.95
+
+# ============================================================
+# STYLE SECTIONS
+# ============================================================
+
+sections:
+  # ----------------------------------------------------------
+  # INTRO 1 - 2 bars, building up
+  # ----------------------------------------------------------
+  intro_1:
+    section_type: "intro_1"
+    length_bars: 2
+    length_ticks: 1920
+    tempo: 128
+    count_in_bars: 0
+    auto_fill: true
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 100, duration: 120, gate_time: 0.8 }
+          - { tick: 480, note: 42, velocity: 85, duration: 120, gate_time: 0.8 }
+          - { tick: 960, note: 36, velocity: 100, duration: 120, gate_time: 0.8 }
+          - { tick: 1440, note: 42, velocity: 85, duration: 120, gate_time: 0.8 }
+        cc_events:
+          - { tick: 0, controller: 7, value: 100 }
+        mute: false
+        volume: 0.9
+        pan: 64
+        reverb_send: 20
+        chorus_send: 10
+        swing: 0.0
+        humanize: 0.05
+
+      rhythm_2:
+        notes:
+          - { tick: 240, note: 38, velocity: 70, duration: 60, gate_time: 0.5 }
+          - { tick: 720, note: 38, velocity: 70, duration: 60, gate_time: 0.5 }
+          - { tick: 1200, note: 38, velocity: 70, duration: 60, gate_time: 0.5 }
+          - { tick: 1680, note: 38, velocity: 70, duration: 60, gate_time: 0.5 }
+        mute: false
+        volume: 0.7
+        pan: 64
+        swing: 0.0
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 95, duration: 240, gate_time: 0.7 }
+          - { tick: 480, note: 36, velocity: 90, duration: 240, gate_time: 0.7 }
+          - { tick: 960, note: 36, velocity: 95, duration: 240, gate_time: 0.7 }
+          - { tick: 1440, note: 36, velocity: 90, duration: 240, gate_time: 0.7 }
+        mute: false
+        volume: 0.85
+        pan: 64
+        reverb_send: 10
+        swing: 0.0
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 75, duration: 480, gate_time: 0.9 }
+          - { tick: 960, note: 48, velocity: 75, duration: 480, gate_time: 0.9 }
+        mute: false
+        volume: 0.7
+        pan: 64
+        reverb_send: 30
+        chorus_send: 20
+
+      chord_2:
+        notes: []
+        mute: false
+        volume: 0.6
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 60, duration: 1920, gate_time: 0.95 }
+        mute: false
+        volume: 0.5
+        pan: 64
+        reverb_send: 40
+
+      phrase_1:
+        notes:
+          - { tick: 1440, note: 72, velocity: 80, duration: 240, gate_time: 0.6 }
+          - { tick: 1680, note: 76, velocity: 75, duration: 240, gate_time: 0.6 }
+        mute: false
+        volume: 0.65
+        pan: 50
+        reverb_send: 35
+
+      phrase_2:
+        notes: []
+        mute: true
+
+  # ----------------------------------------------------------
+  # INTRO 2 - 4 bars, fuller arrangement
+  # ----------------------------------------------------------
+  intro_2:
+    section_type: "intro_2"
+    length_bars: 4
+    length_ticks: 3840
+    tempo: 128
+    count_in_bars: 0
+    auto_fill: true
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 100, duration: 120 }
+          - { tick: 240, note: 42, velocity: 80, duration: 120 }
+          - { tick: 480, note: 36, velocity: 100, duration: 120 }
+          - { tick: 720, note: 42, velocity: 80, duration: 120 }
+          - { tick: 960, note: 36, velocity: 100, duration: 120 }
+          - { tick: 1200, note: 42, velocity: 80, duration: 120 }
+          - { tick: 1440, note: 36, velocity: 100, duration: 120 }
+          - { tick: 1680, note: 42, velocity: 80, duration: 120 }
+          - { tick: 1920, note: 36, velocity: 100, duration: 120 }
+          - { tick: 2160, note: 42, velocity: 80, duration: 120 }
+          - { tick: 2400, note: 36, velocity: 100, duration: 120 }
+          - { tick: 2640, note: 42, velocity: 80, duration: 120 }
+          - { tick: 2880, note: 36, velocity: 100, duration: 120 }
+          - { tick: 3120, note: 42, velocity: 80, duration: 120 }
+          - { tick: 3360, note: 36, velocity: 100, duration: 120 }
+          - { tick: 3600, note: 42, velocity: 80, duration: 120 }
+        volume: 0.95
+        swing: 0.0
+
+      rhythm_2:
+        notes:
+          - { tick: 120, note: 38, velocity: 75, duration: 60 }
+          - { tick: 360, note: 38, velocity: 75, duration: 60 }
+          - { tick: 600, note: 38, velocity: 75, duration: 60 }
+          - { tick: 840, note: 38, velocity: 75, duration: 60 }
+          - { tick: 1080, note: 38, velocity: 75, duration: 60 }
+          - { tick: 1320, note: 38, velocity: 75, duration: 60 }
+          - { tick: 1560, note: 38, velocity: 75, duration: 60 }
+          - { tick: 1800, note: 38, velocity: 75, duration: 60 }
+          - { tick: 2040, note: 38, velocity: 75, duration: 60 }
+          - { tick: 2280, note: 38, velocity: 75, duration: 60 }
+          - { tick: 2520, note: 38, velocity: 75, duration: 60 }
+          - { tick: 2760, note: 38, velocity: 75, duration: 60 }
+          - { tick: 3000, note: 38, velocity: 75, duration: 60 }
+          - { tick: 3240, note: 38, velocity: 75, duration: 60 }
+          - { tick: 3480, note: 38, velocity: 75, duration: 60 }
+          - { tick: 3720, note: 38, velocity: 75, duration: 60 }
+        volume: 0.75
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 95, duration: 240 }
+          - { tick: 240, note: 36, velocity: 85, duration: 120 }
+          - { tick: 480, note: 36, velocity: 95, duration: 240 }
+          - { tick: 720, note: 36, velocity: 85, duration: 120 }
+          - { tick: 960, note: 36, velocity: 95, duration: 240 }
+          - { tick: 1200, note: 36, velocity: 85, duration: 120 }
+          - { tick: 1440, note: 36, velocity: 95, duration: 240 }
+          - { tick: 1680, note: 36, velocity: 85, duration: 120 }
+          - { tick: 1920, note: 36, velocity: 95, duration: 240 }
+          - { tick: 2160, note: 36, velocity: 85, duration: 120 }
+          - { tick: 2400, note: 36, velocity: 95, duration: 240 }
+          - { tick: 2640, note: 36, velocity: 85, duration: 120 }
+          - { tick: 2880, note: 36, velocity: 95, duration: 240 }
+          - { tick: 3120, note: 36, velocity: 85, duration: 120 }
+          - { tick: 3360, note: 36, velocity: 95, duration: 240 }
+          - { tick: 3600, note: 36, velocity: 85, duration: 120 }
+        volume: 0.9
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 75, duration: 480 }
+          - { tick: 480, note: 52, velocity: 70, duration: 480 }
+          - { tick: 960, note: 48, velocity: 75, duration: 480 }
+          - { tick: 1440, note: 52, velocity: 70, duration: 480 }
+          - { tick: 1920, note: 48, velocity: 75, duration: 480 }
+          - { tick: 2400, note: 52, velocity: 70, duration: 480 }
+          - { tick: 2880, note: 48, velocity: 75, duration: 480 }
+          - { tick: 3360, note: 52, velocity: 70, duration: 480 }
+        volume: 0.75
+
+      chord_2:
+        notes:
+          - { tick: 960, note: 60, velocity: 65, duration: 240 }
+          - { tick: 1440, note: 64, velocity: 65, duration: 240 }
+          - { tick: 2880, note: 60, velocity: 65, duration: 240 }
+          - { tick: 3360, note: 64, velocity: 65, duration: 240 }
+        volume: 0.65
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 55, duration: 3840 }
+        volume: 0.55
+
+      phrase_1:
+        notes:
+          - { tick: 1920, note: 72, velocity: 80, duration: 240 }
+          - { tick: 2160, note: 76, velocity: 75, duration: 240 }
+          - { tick: 2400, note: 79, velocity: 80, duration: 240 }
+          - { tick: 2640, note: 72, velocity: 75, duration: 240 }
+        volume: 0.7
+
+      phrase_2:
+        notes: []
+        mute: true
+
+  # ----------------------------------------------------------
+  # INTRO 3 - 8 bars, full build
+  # ----------------------------------------------------------
+  intro_3:
+    section_type: "intro_3"
+    length_bars: 8
+    length_ticks: 7680
+    tempo: 128
+    count_in_bars: 0
+    auto_fill: true
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 110, duration: 120 }
+          - { tick: 120, note: 42, velocity: 85, duration: 120 }
+          - { tick: 240, note: 42, velocity: 85, duration: 120 }
+          - { tick: 360, note: 42, velocity: 85, duration: 120 }
+          - { tick: 480, note: 36, velocity: 110, duration: 120 }
+          - { tick: 600, note: 42, velocity: 85, duration: 120 }
+          - { tick: 720, note: 42, velocity: 85, duration: 120 }
+          - { tick: 840, note: 42, velocity: 85, duration: 120 }
+        volume: 1.0
+        humanize: 0.03
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 80, duration: 60 }
+          - { tick: 180, note: 38, velocity: 80, duration: 60 }
+          - { tick: 300, note: 38, velocity: 80, duration: 60 }
+          - { tick: 420, note: 38, velocity: 80, duration: 60 }
+        volume: 0.8
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 100, duration: 120 }
+          - { tick: 120, note: 36, velocity: 90, duration: 120 }
+          - { tick: 240, note: 36, velocity: 100, duration: 120 }
+          - { tick: 360, note: 36, velocity: 90, duration: 120 }
+        volume: 0.95
+        swing: 0.05
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 80, duration: 240 }
+          - { tick: 240, note: 52, velocity: 75, duration: 240 }
+        volume: 0.8
+
+      chord_2:
+        notes:
+          - { tick: 480, note: 60, velocity: 70, duration: 240 }
+          - { tick: 720, note: 64, velocity: 70, duration: 240 }
+        volume: 0.7
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 60, duration: 960 }
+        volume: 0.6
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 85, duration: 120 }
+          - { tick: 240, note: 76, velocity: 80, duration: 120 }
+          - { tick: 480, note: 79, velocity: 85, duration: 120 }
+          - { tick: 720, note: 84, velocity: 90, duration: 240 }
+        volume: 0.75
+
+      phrase_2:
+        notes:
+          - { tick: 4800, note: 67, velocity: 75, duration: 480 }
+          - { tick: 5760, note: 67, velocity: 75, duration: 480 }
+        volume: 0.65
+
+  # ----------------------------------------------------------
+  # MAIN A - 4 bars, core groove
+  # ----------------------------------------------------------
+  main_a:
+    section_type: "main_a"
+    length_bars: 4
+    length_ticks: 3840
+    tempo: 128
+    count_in_bars: 0
+    auto_fill: true
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 115, duration: 120 }
+          - { tick: 120, note: 42, velocity: 90, duration: 120 }
+          - { tick: 240, note: 42, velocity: 90, duration: 120 }
+          - { tick: 360, note: 42, velocity: 90, duration: 120 }
+          - { tick: 480, note: 36, velocity: 115, duration: 120 }
+          - { tick: 600, note: 42, velocity: 90, duration: 120 }
+          - { tick: 720, note: 42, velocity: 90, duration: 120 }
+          - { tick: 840, note: 42, velocity: 90, duration: 120 }
+          - { tick: 960, note: 36, velocity: 115, duration: 120 }
+          - { tick: 1080, note: 42, velocity: 90, duration: 120 }
+          - { tick: 1200, note: 42, velocity: 90, duration: 120 }
+          - { tick: 1320, note: 42, velocity: 90, duration: 120 }
+          - { tick: 1440, note: 36, velocity: 115, duration: 120 }
+          - { tick: 1560, note: 42, velocity: 90, duration: 120 }
+          - { tick: 1680, note: 42, velocity: 90, duration: 120 }
+          - { tick: 1800, note: 42, velocity: 90, duration: 120 }
+        volume: 1.0
+        swing: 0.0
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 85, duration: 60 }
+          - { tick: 180, note: 38, velocity: 85, duration: 60 }
+          - { tick: 300, note: 38, velocity: 85, duration: 60 }
+          - { tick: 420, note: 38, velocity: 85, duration: 60 }
+          - { tick: 540, note: 38, velocity: 85, duration: 60 }
+          - { tick: 660, note: 38, velocity: 85, duration: 60 }
+          - { tick: 780, note: 38, velocity: 85, duration: 60 }
+          - { tick: 900, note: 38, velocity: 85, duration: 60 }
+        volume: 0.85
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 105, duration: 120 }
+          - { tick: 120, note: 36, velocity: 95, duration: 120 }
+          - { tick: 240, note: 36, velocity: 105, duration: 120 }
+          - { tick: 360, note: 36, velocity: 95, duration: 120 }
+          - { tick: 480, note: 36, velocity: 105, duration: 120 }
+          - { tick: 600, note: 36, velocity: 95, duration: 120 }
+          - { tick: 720, note: 36, velocity: 105, duration: 120 }
+          - { tick: 840, note: 36, velocity: 95, duration: 120 }
+        volume: 0.95
+        swing: 0.08
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 85, duration: 480 }
+          - { tick: 480, note: 52, velocity: 80, duration: 480 }
+          - { tick: 960, note: 48, velocity: 85, duration: 480 }
+          - { tick: 1440, note: 52, velocity: 80, duration: 480 }
+        volume: 0.85
+
+      chord_2:
+        notes:
+          - { tick: 960, note: 60, velocity: 75, duration: 480 }
+          - { tick: 1440, note: 64, velocity: 75, duration: 480 }
+        volume: 0.75
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 65, duration: 3840 }
+        volume: 0.6
+
+      phrase_1:
+        notes:
+          - { tick: 1920, note: 72, velocity: 90, duration: 240 }
+          - { tick: 2160, note: 76, velocity: 85, duration: 240 }
+          - { tick: 2400, note: 79, velocity: 90, duration: 240 }
+          - { tick: 2640, note: 72, velocity: 85, duration: 240 }
+        volume: 0.8
+
+      phrase_2:
+        notes: []
+        mute: false
+        volume: 0.0
+
+  # ----------------------------------------------------------
+  # MAIN B - 4 bars, variation with more energy
+  # ----------------------------------------------------------
+  main_b:
+    section_type: "main_b"
+    length_bars: 4
+    length_ticks: 3840
+    tempo: 128
+    count_in_bars: 0
+    auto_fill: true
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 120, duration: 120 }
+          - { tick: 120, note: 42, velocity: 95, duration: 120 }
+          - { tick: 240, note: 42, velocity: 95, duration: 120 }
+          - { tick: 360, note: 42, velocity: 95, duration: 120 }
+          - { tick: 480, note: 36, velocity: 120, duration: 120 }
+          - { tick: 600, note: 42, velocity: 95, duration: 120 }
+          - { tick: 720, note: 42, velocity: 95, duration: 120 }
+          - { tick: 840, note: 42, velocity: 95, duration: 120 }
+        volume: 1.0
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 90, duration: 60 }
+          - { tick: 180, note: 38, velocity: 90, duration: 60 }
+          - { tick: 300, note: 38, velocity: 90, duration: 60 }
+          - { tick: 420, note: 38, velocity: 90, duration: 60 }
+          - { tick: 540, note: 38, velocity: 90, duration: 60 }
+          - { tick: 660, note: 38, velocity: 90, duration: 60 }
+          - { tick: 780, note: 38, velocity: 90, duration: 60 }
+          - { tick: 900, note: 38, velocity: 90, duration: 60 }
+        volume: 0.9
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 110, duration: 120 }
+          - { tick: 120, note: 36, velocity: 100, duration: 120 }
+          - { tick: 240, note: 36, velocity: 110, duration: 120 }
+          - { tick: 360, note: 36, velocity: 100, duration: 120 }
+        volume: 1.0
+        swing: 0.1
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 90, duration: 240 }
+          - { tick: 240, note: 52, velocity: 85, duration: 240 }
+          - { tick: 480, note: 48, velocity: 90, duration: 240 }
+          - { tick: 720, note: 52, velocity: 85, duration: 240 }
+        volume: 0.9
+
+      chord_2:
+        notes:
+          - { tick: 960, note: 60, velocity: 80, duration: 240 }
+          - { tick: 1200, note: 64, velocity: 80, duration: 240 }
+          - { tick: 1440, note: 67, velocity: 80, duration: 240 }
+        volume: 0.8
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 70, duration: 3840 }
+        volume: 0.65
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 95, duration: 120 }
+          - { tick: 240, note: 76, velocity: 90, duration: 120 }
+          - { tick: 480, note: 79, velocity: 95, duration: 120 }
+          - { tick: 720, note: 84, velocity: 100, duration: 240 }
+        volume: 0.85
+
+      phrase_2:
+        notes:
+          - { tick: 1920, note: 67, velocity: 80, duration: 480 }
+        volume: 0.7
+
+  # ----------------------------------------------------------
+  # MAIN C - 4 bars, breakdown with less drums
+  # ----------------------------------------------------------
+  main_c:
+    section_type: "main_c"
+    length_bars: 4
+    length_ticks: 3840
+    tempo: 128
+    count_in_bars: 0
+    auto_fill: true
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 100, duration: 120 }
+          - { tick: 480, note: 36, velocity: 100, duration: 120 }
+          - { tick: 960, note: 36, velocity: 100, duration: 120 }
+          - { tick: 1440, note: 36, velocity: 100, duration: 120 }
+        volume: 0.85
+
+      rhythm_2:
+        notes: []
+        mute: true
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 95, duration: 480 }
+          - { tick: 960, note: 36, velocity: 95, duration: 480 }
+        volume: 0.9
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 85, duration: 960 }
+          - { tick: 960, note: 52, velocity: 85, duration: 960 }
+        volume: 0.9
+
+      chord_2:
+        notes:
+          - { tick: 480, note: 60, velocity: 80, duration: 480 }
+          - { tick: 1440, note: 64, velocity: 80, duration: 480 }
+        volume: 0.85
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 75, duration: 3840 }
+        volume: 0.75
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 90, duration: 480 }
+          - { tick: 960, note: 76, velocity: 90, duration: 480 }
+        volume: 0.85
+
+      phrase_2:
+        notes:
+          - { tick: 1920, note: 79, velocity: 85, duration: 960 }
+        volume: 0.75
+
+  # ----------------------------------------------------------
+  # MAIN D - 4 bars, full energy climax
+  # ----------------------------------------------------------
+  main_d:
+    section_type: "main_d"
+    length_bars: 4
+    length_ticks: 3840
+    tempo: 128
+    count_in_bars: 0
+    auto_fill: true
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 127, duration: 120 }
+          - { tick: 120, note: 42, velocity: 100, duration: 120 }
+          - { tick: 240, note: 42, velocity: 100, duration: 120 }
+          - { tick: 360, note: 42, velocity: 100, duration: 120 }
+          - { tick: 480, note: 36, velocity: 127, duration: 120 }
+          - { tick: 600, note: 42, velocity: 100, duration: 120 }
+          - { tick: 720, note: 42, velocity: 100, duration: 120 }
+          - { tick: 840, note: 42, velocity: 100, duration: 120 }
+        volume: 1.0
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 95, duration: 60 }
+          - { tick: 180, note: 38, velocity: 95, duration: 60 }
+          - { tick: 300, note: 38, velocity: 95, duration: 60 }
+          - { tick: 420, note: 38, velocity: 95, duration: 60 }
+          - { tick: 540, note: 38, velocity: 95, duration: 60 }
+          - { tick: 660, note: 38, velocity: 95, duration: 60 }
+          - { tick: 780, note: 38, velocity: 95, duration: 60 }
+          - { tick: 900, note: 38, velocity: 95, duration: 60 }
+        volume: 0.95
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 115, duration: 120 }
+          - { tick: 120, note: 36, velocity: 105, duration: 120 }
+          - { tick: 240, note: 36, velocity: 115, duration: 120 }
+          - { tick: 360, note: 36, velocity: 105, duration: 120 }
+        volume: 1.0
+        swing: 0.12
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 95, duration: 240 }
+          - { tick: 240, note: 52, velocity: 90, duration: 240 }
+          - { tick: 480, note: 48, velocity: 95, duration: 240 }
+          - { tick: 720, note: 52, velocity: 90, duration: 240 }
+        volume: 0.95
+
+      chord_2:
+        notes:
+          - { tick: 960, note: 60, velocity: 85, duration: 240 }
+          - { tick: 1200, note: 64, velocity: 85, duration: 240 }
+          - { tick: 1440, note: 67, velocity: 85, duration: 240 }
+          - { tick: 1680, note: 72, velocity: 85, duration: 240 }
+        volume: 0.85
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 80, duration: 3840 }
+        volume: 0.7
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 100, duration: 120 }
+          - { tick: 240, note: 76, velocity: 95, duration: 120 }
+          - { tick: 480, note: 79, velocity: 100, duration: 120 }
+          - { tick: 720, note: 84, velocity: 105, duration: 240 }
+        volume: 0.9
+
+      phrase_2:
+        notes:
+          - { tick: 1920, note: 67, velocity: 90, duration: 240 }
+          - { tick: 2160, note: 72, velocity: 90, duration: 240 }
+          - { tick: 2400, note: 76, velocity: 90, duration: 240 }
+          - { tick: 2640, note: 79, velocity: 95, duration: 480 }
+        volume: 0.8
+
+  # ----------------------------------------------------------
+  # FILL IN AA - 1 bar
+  # ----------------------------------------------------------
+  fill_in_aa:
+    section_type: "fill_in_aa"
+    length_bars: 1
+    length_ticks: 960
+    tempo: 128
+    auto_fill: false
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 110, duration: 120 }
+          - { tick: 120, note: 42, velocity: 95, duration: 120 }
+          - { tick: 240, note: 36, velocity: 110, duration: 120 }
+          - { tick: 360, note: 42, velocity: 95, duration: 120 }
+          - { tick: 480, note: 36, velocity: 115, duration: 120 }
+          - { tick: 600, note: 42, velocity: 100, duration: 120 }
+          - { tick: 720, note: 38, velocity: 105, duration: 120 }
+          - { tick: 840, note: 42, velocity: 100, duration: 120 }
+        volume: 1.0
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 90, duration: 60 }
+          - { tick: 180, note: 38, velocity: 90, duration: 60 }
+          - { tick: 300, note: 38, velocity: 95, duration: 60 }
+          - { tick: 420, note: 38, velocity: 95, duration: 60 }
+          - { tick: 540, note: 38, velocity: 100, duration: 60 }
+          - { tick: 660, note: 38, velocity: 100, duration: 60 }
+          - { tick: 780, note: 38, velocity: 105, duration: 60 }
+          - { tick: 900, note: 38, velocity: 105, duration: 60 }
+        volume: 0.9
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 100, duration: 240 }
+          - { tick: 240, note: 36, velocity: 100, duration: 240 }
+          - { tick: 480, note: 36, velocity: 105, duration: 240 }
+          - { tick: 720, note: 36, velocity: 105, duration: 240 }
+        volume: 0.95
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 85, duration: 480 }
+          - { tick: 480, note: 52, velocity: 85, duration: 480 }
+        volume: 0.85
+
+      chord_2:
+        notes: []
+        volume: 0.7
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 70, duration: 960 }
+        volume: 0.65
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 90, duration: 120 }
+          - { tick: 240, note: 76, velocity: 90, duration: 120 }
+          - { tick: 480, note: 79, velocity: 95, duration: 120 }
+          - { tick: 720, note: 84, velocity: 100, duration: 240 }
+        volume: 0.85
+
+      phrase_2:
+        notes: []
+
+  # ----------------------------------------------------------
+  # FILL IN BB - 1 bar
+  # ----------------------------------------------------------
+  fill_in_bb:
+    section_type: "fill_in_bb"
+    length_bars: 1
+    length_ticks: 960
+    tempo: 128
+    auto_fill: false
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 115, duration: 120 }
+          - { tick: 120, note: 42, velocity: 100, duration: 120 }
+          - { tick: 240, note: 36, velocity: 115, duration: 120 }
+          - { tick: 360, note: 42, velocity: 100, duration: 120 }
+          - { tick: 480, note: 36, velocity: 120, duration: 120 }
+          - { tick: 600, note: 42, velocity: 105, duration: 120 }
+          - { tick: 720, note: 38, velocity: 110, duration: 120 }
+          - { tick: 840, note: 42, velocity: 105, duration: 120 }
+        volume: 1.0
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 95, duration: 60 }
+          - { tick: 180, note: 38, velocity: 95, duration: 60 }
+          - { tick: 300, note: 38, velocity: 100, duration: 60 }
+          - { tick: 420, note: 38, velocity: 100, duration: 60 }
+          - { tick: 540, note: 38, velocity: 105, duration: 60 }
+          - { tick: 660, note: 38, velocity: 105, duration: 60 }
+          - { tick: 780, note: 38, velocity: 110, duration: 60 }
+          - { tick: 900, note: 38, velocity: 110, duration: 60 }
+        volume: 0.95
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 105, duration: 240 }
+          - { tick: 240, note: 36, velocity: 105, duration: 240 }
+          - { tick: 480, note: 36, velocity: 110, duration: 240 }
+          - { tick: 720, note: 36, velocity: 110, duration: 240 }
+        volume: 1.0
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 90, duration: 480 }
+          - { tick: 480, note: 52, velocity: 90, duration: 480 }
+        volume: 0.9
+
+      chord_2:
+        notes:
+          - { tick: 480, note: 60, velocity: 80, duration: 240 }
+        volume: 0.75
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 75, duration: 960 }
+        volume: 0.7
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 95, duration: 120 }
+          - { tick: 240, note: 76, velocity: 95, duration: 120 }
+          - { tick: 480, note: 79, velocity: 100, duration: 120 }
+          - { tick: 720, note: 84, velocity: 105, duration: 240 }
+        volume: 0.9
+
+      phrase_2:
+        notes: []
+
+  # ----------------------------------------------------------
+  # FILL IN CC - 1 bar
+  # ----------------------------------------------------------
+  fill_in_cc:
+    section_type: "fill_in_cc"
+    length_bars: 1
+    length_ticks: 960
+    tempo: 128
+    auto_fill: false
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 120, duration: 120 }
+          - { tick: 120, note: 42, velocity: 105, duration: 120 }
+          - { tick: 240, note: 36, velocity: 120, duration: 120 }
+          - { tick: 360, note: 42, velocity: 105, duration: 120 }
+          - { tick: 480, note: 36, velocity: 125, duration: 120 }
+          - { tick: 600, note: 42, velocity: 110, duration: 120 }
+          - { tick: 720, note: 38, velocity: 115, duration: 120 }
+          - { tick: 840, note: 42, velocity: 110, duration: 120 }
+        volume: 1.0
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 100, duration: 60 }
+          - { tick: 180, note: 38, velocity: 100, duration: 60 }
+          - { tick: 300, note: 38, velocity: 105, duration: 60 }
+          - { tick: 420, note: 38, velocity: 105, duration: 60 }
+          - { tick: 540, note: 38, velocity: 110, duration: 60 }
+          - { tick: 660, note: 38, velocity: 110, duration: 60 }
+          - { tick: 780, note: 38, velocity: 115, duration: 60 }
+          - { tick: 900, note: 38, velocity: 115, duration: 60 }
+        volume: 1.0
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 110, duration: 240 }
+          - { tick: 240, note: 36, velocity: 110, duration: 240 }
+          - { tick: 480, note: 36, velocity: 115, duration: 240 }
+          - { tick: 720, note: 36, velocity: 115, duration: 240 }
+        volume: 1.0
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 95, duration: 480 }
+          - { tick: 480, note: 52, velocity: 95, duration: 480 }
+        volume: 0.95
+
+      chord_2:
+        notes:
+          - { tick: 480, note: 60, velocity: 85, duration: 240 }
+        volume: 0.8
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 80, duration: 960 }
+        volume: 0.75
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 100, duration: 120 }
+          - { tick: 240, note: 76, velocity: 100, duration: 120 }
+          - { tick: 480, note: 79, velocity: 105, duration: 120 }
+          - { tick: 720, note: 84, velocity: 110, duration: 240 }
+        volume: 0.95
+
+      phrase_2:
+        notes: []
+
+  # ----------------------------------------------------------
+  # FILL IN DD - 1 bar
+  # ----------------------------------------------------------
+  fill_in_dd:
+    section_type: "fill_in_dd"
+    length_bars: 1
+    length_ticks: 960
+    tempo: 128
+    auto_fill: false
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 127, duration: 120 }
+          - { tick: 120, note: 42, velocity: 110, duration: 120 }
+          - { tick: 240, note: 36, velocity: 127, duration: 120 }
+          - { tick: 360, note: 42, velocity: 110, duration: 120 }
+          - { tick: 480, note: 36, velocity: 127, duration: 120 }
+          - { tick: 600, note: 42, velocity: 115, duration: 120 }
+          - { tick: 720, note: 38, velocity: 120, duration: 120 }
+          - { tick: 840, note: 42, velocity: 115, duration: 120 }
+        volume: 1.0
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 105, duration: 60 }
+          - { tick: 180, note: 38, velocity: 105, duration: 60 }
+          - { tick: 300, note: 38, velocity: 110, duration: 60 }
+          - { tick: 420, note: 38, velocity: 110, duration: 60 }
+          - { tick: 540, note: 38, velocity: 115, duration: 60 }
+          - { tick: 660, note: 38, velocity: 115, duration: 60 }
+          - { tick: 780, note: 38, velocity: 120, duration: 60 }
+          - { tick: 900, note: 38, velocity: 120, duration: 60 }
+        volume: 1.0
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 115, duration: 240 }
+          - { tick: 240, note: 36, velocity: 115, duration: 240 }
+          - { tick: 480, note: 36, velocity: 120, duration: 240 }
+          - { tick: 720, note: 36, velocity: 120, duration: 240 }
+        volume: 1.0
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 100, duration: 480 }
+          - { tick: 480, note: 52, velocity: 100, duration: 480 }
+        volume: 1.0
+
+      chord_2:
+        notes:
+          - { tick: 480, note: 60, velocity: 90, duration: 240 }
+        volume: 0.85
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 85, duration: 960 }
+        volume: 0.8
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 105, duration: 120 }
+          - { tick: 240, note: 76, velocity: 105, duration: 120 }
+          - { tick: 480, note: 79, velocity: 110, duration: 120 }
+          - { tick: 720, note: 84, velocity: 115, duration: 240 }
+        volume: 1.0
+
+      phrase_2:
+        notes: []
+
+  # ----------------------------------------------------------
+  # BREAK - 1 bar, stripped down
+  # ----------------------------------------------------------
+  break:
+    section_type: "break"
+    length_bars: 1
+    length_ticks: 960
+    tempo: 128
+    auto_fill: true
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 90, duration: 120 }
+          - { tick: 480, note: 38, velocity: 85, duration: 120 }
+        volume: 0.7
+
+      rhythm_2:
+        notes: []
+        mute: true
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 85, duration: 480 }
+        volume: 0.8
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 75, duration: 960 }
+        volume: 0.75
+
+      chord_2:
+        notes: []
+        mute: true
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 65, duration: 960 }
+        volume: 0.6
+
+      phrase_1:
+        notes:
+          - { tick: 480, note: 72, velocity: 80, duration: 480 }
+        volume: 0.7
+
+      phrase_2:
+        notes: []
+
+  # ----------------------------------------------------------
+  # ENDING 1 - 2 bars, quick finish
+  # ----------------------------------------------------------
+  ending_1:
+    section_type: "ending_1"
+    length_bars: 2
+    length_ticks: 1920
+    tempo: 128
+    fade_out_time: 2.0
+    auto_fill: false
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 110, duration: 120 }
+          - { tick: 120, note: 42, velocity: 95, duration: 120 }
+          - { tick: 240, note: 36, velocity: 110, duration: 120 }
+          - { tick: 360, note: 42, velocity: 95, duration: 120 }
+          - { tick: 480, note: 36, velocity: 115, duration: 120 }
+          - { tick: 600, note: 42, velocity: 100, duration: 120 }
+          - { tick: 720, note: 38, velocity: 105, duration: 120 }
+          - { tick: 840, note: 42, velocity: 100, duration: 120 }
+        volume: 1.0
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 90, duration: 60 }
+          - { tick: 180, note: 38, velocity: 90, duration: 60 }
+          - { tick: 300, note: 38, velocity: 95, duration: 60 }
+          - { tick: 420, note: 38, velocity: 95, duration: 60 }
+        volume: 0.85
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 100, duration: 480 }
+          - { tick: 960, note: 36, velocity: 90, duration: 960 }
+        volume: 0.9
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 85, duration: 960 }
+          - { tick: 960, note: 48, velocity: 70, duration: 960 }
+        volume: 0.85
+
+      chord_2:
+        notes: []
+        volume: 0.7
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 70, duration: 1920 }
+        volume: 0.65
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 90, duration: 480 }
+          - { tick: 960, note: 60, velocity: 75, duration: 960 }
+        volume: 0.8
+
+      phrase_2:
+        notes: []
+
+  # ----------------------------------------------------------
+  # ENDING 2 - 4 bars, medium finish
+  # ----------------------------------------------------------
+  ending_2:
+    section_type: "ending_2"
+    length_bars: 4
+    length_ticks: 3840
+    tempo: 128
+    fade_out_time: 3.0
+    auto_fill: false
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 110, duration: 120 }
+          - { tick: 120, note: 42, velocity: 95, duration: 120 }
+          - { tick: 240, note: 42, velocity: 95, duration: 120 }
+          - { tick: 360, note: 42, velocity: 95, duration: 120 }
+          - { tick: 480, note: 36, velocity: 110, duration: 120 }
+          - { tick: 600, note: 42, velocity: 95, duration: 120 }
+          - { tick: 720, note: 42, velocity: 95, duration: 120 }
+          - { tick: 840, note: 42, velocity: 95, duration: 120 }
+        volume: 0.95
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 90, duration: 60 }
+          - { tick: 180, note: 38, velocity: 90, duration: 60 }
+          - { tick: 300, note: 38, velocity: 90, duration: 60 }
+          - { tick: 420, note: 38, velocity: 90, duration: 60 }
+        volume: 0.8
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 100, duration: 960 }
+          - { tick: 1920, note: 36, velocity: 85, duration: 1920 }
+        volume: 0.85
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 85, duration: 1920 }
+          - { tick: 1920, note: 48, velocity: 65, duration: 1920 }
+        volume: 0.8
+
+      chord_2:
+        notes:
+          - { tick: 0, note: 60, velocity: 75, duration: 960 }
+        volume: 0.7
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 70, duration: 3840 }
+        volume: 0.6
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 90, duration: 960 }
+          - { tick: 1920, note: 60, velocity: 70, duration: 1920 }
+        volume: 0.75
+
+      phrase_2:
+        notes: []
+
+  # ----------------------------------------------------------
+  # ENDING 3 - 8 bars, long dramatic finish
+  # ----------------------------------------------------------
+  ending_3:
+    section_type: "ending_3"
+    length_bars: 8
+    length_ticks: 7680
+    tempo: 128
+    fade_out_time: 5.0
+    auto_fill: false
+    tracks:
+      rhythm_1:
+        notes:
+          - { tick: 0, note: 36, velocity: 110, duration: 120 }
+          - { tick: 120, note: 42, velocity: 95, duration: 120 }
+          - { tick: 240, note: 42, velocity: 95, duration: 120 }
+          - { tick: 360, note: 42, velocity: 95, duration: 120 }
+          - { tick: 480, note: 36, velocity: 110, duration: 120 }
+          - { tick: 600, note: 42, velocity: 95, duration: 120 }
+          - { tick: 720, note: 42, velocity: 95, duration: 120 }
+          - { tick: 840, note: 42, velocity: 95, duration: 120 }
+        volume: 0.9
+
+      rhythm_2:
+        notes:
+          - { tick: 60, note: 38, velocity: 90, duration: 60 }
+          - { tick: 180, note: 38, velocity: 90, duration: 60 }
+          - { tick: 300, note: 38, velocity: 90, duration: 60 }
+          - { tick: 420, note: 38, velocity: 90, duration: 60 }
+        volume: 0.75
+
+      bass:
+        notes:
+          - { tick: 0, note: 36, velocity: 100, duration: 1920 }
+          - { tick: 3840, note: 36, velocity: 80, duration: 3840 }
+        volume: 0.8
+
+      chord_1:
+        notes:
+          - { tick: 0, note: 48, velocity: 85, duration: 3840 }
+          - { tick: 3840, note: 48, velocity: 60, duration: 3840 }
+        volume: 0.75
+
+      chord_2:
+        notes:
+          - { tick: 0, note: 60, velocity: 75, duration: 1920 }
+        volume: 0.65
+
+      pad:
+        notes:
+          - { tick: 0, note: 60, velocity: 70, duration: 7680 }
+        volume: 0.55
+
+      phrase_1:
+        notes:
+          - { tick: 0, note: 72, velocity: 90, duration: 1920 }
+          - { tick: 3840, note: 60, velocity: 65, duration: 3840 }
+        volume: 0.7
+
+      phrase_2:
+        notes: []
+
+# ============================================================
+# CHORD TABLES
+# ============================================================
+
+chord_tables:
+  main_a:
+    section: "main_a"
+    mappings:
+      # Major chords
+      "0_major":
+        chord_1: [0, 4, 7]
+        chord_2: [0, 4, 7, 11]
+        pad: [0, 4, 7, 11, 14]
+        bass: [0]
+        phrase_1: [0, 4, 7, 12]
+      "1_major":
+        chord_1: [1, 5, 8]
+        chord_2: [1, 5, 8, 11]
+        pad: [1, 5, 8, 11, 13]
+        bass: [1]
+        phrase_1: [1, 5, 8, 13]
+      "2_major":
+        chord_1: [2, 6, 9]
+        chord_2: [2, 6, 9, 11]
+        pad: [2, 6, 9, 11, 14]
+        bass: [2]
+        phrase_1: [2, 6, 9, 14]
+      "3_major":
+        chord_1: [3, 7, 10]
+        chord_2: [3, 7, 10, 11]
+        pad: [3, 7, 10, 11, 15]
+        bass: [3]
+        phrase_1: [3, 7, 10, 15]
+      "4_major":
+        chord_1: [4, 8, 11]
+        chord_2: [4, 8, 11, 11]
+        pad: [4, 8, 11, 11, 16]
+        bass: [4]
+        phrase_1: [4, 8, 11, 16]
+      "5_major":
+        chord_1: [5, 9, 12]
+        chord_2: [5, 9, 12, 11]
+        pad: [5, 9, 12, 11, 17]
+        bass: [5]
+        phrase_1: [5, 9, 12, 17]
+      "6_major":
+        chord_1: [6, 10, 13]
+        chord_2: [6, 10, 13, 11]
+        pad: [6, 10, 13, 11, 18]
+        bass: [6]
+        phrase_1: [6, 10, 13, 18]
+      "7_major":
+        chord_1: [7, 11, 14]
+        chord_2: [7, 11, 14, 11]
+        pad: [7, 11, 14, 11, 19]
+        bass: [7]
+        phrase_1: [7, 11, 14, 19]
+      "8_major":
+        chord_1: [8, 12, 15]
+        chord_2: [8, 12, 15, 11]
+        pad: [8, 12, 15, 11, 20]
+        bass: [8]
+        phrase_1: [8, 12, 15, 20]
+      "9_major":
+        chord_1: [9, 13, 16]
+        chord_2: [9, 13, 16, 11]
+        pad: [9, 13, 16, 11, 21]
+        bass: [9]
+        phrase_1: [9, 13, 16, 21]
+      "10_major":
+        chord_1: [10, 14, 17]
+        chord_2: [10, 14, 17, 11]
+        pad: [10, 14, 17, 11, 22]
+        bass: [10]
+        phrase_1: [10, 14, 17, 22]
+      "11_major":
+        chord_1: [11, 15, 18]
+        chord_2: [11, 15, 18, 11]
+        pad: [11, 15, 18, 11, 23]
+        bass: [11]
+        phrase_1: [11, 15, 18, 23]
+
+      # Minor chords
+      "0_minor":
+        chord_1: [0, 3, 7]
+        chord_2: [0, 3, 7, 10]
+        pad: [0, 3, 7, 10, 14]
+        bass: [0]
+        phrase_1: [0, 3, 7, 12]
+      "1_minor":
+        chord_1: [1, 4, 8]
+        chord_2: [1, 4, 8, 10]
+        pad: [1, 4, 8, 10, 13]
+        bass: [1]
+        phrase_1: [1, 4, 8, 13]
+      "2_minor":
+        chord_1: [2, 5, 9]
+        chord_2: [2, 5, 9, 10]
+        pad: [2, 5, 9, 10, 14]
+        bass: [2]
+        phrase_1: [2, 5, 9, 14]
+      "3_minor":
+        chord_1: [3, 6, 10]
+        chord_2: [3, 6, 10, 10]
+        pad: [3, 6, 10, 10, 15]
+        bass: [3]
+        phrase_1: [3, 6, 10, 15]
+      "4_minor":
+        chord_1: [4, 7, 11]
+        chord_2: [4, 7, 11, 10]
+        pad: [4, 7, 11, 10, 16]
+        bass: [4]
+        phrase_1: [4, 7, 11, 16]
+      "5_minor":
+        chord_1: [5, 8, 12]
+        chord_2: [5, 8, 12, 10]
+        pad: [5, 8, 12, 10, 17]
+        bass: [5]
+        phrase_1: [5, 8, 12, 17]
+      "6_minor":
+        chord_1: [6, 9, 13]
+        chord_2: [6, 9, 13, 10]
+        pad: [6, 9, 13, 10, 18]
+        bass: [6]
+        phrase_1: [6, 9, 13, 18]
+      "7_minor":
+        chord_1: [7, 10, 14]
+        chord_2: [7, 10, 14, 10]
+        pad: [7, 10, 14, 10, 19]
+        bass: [7]
+        phrase_1: [7, 10, 14, 19]
+      "8_minor":
+        chord_1: [8, 11, 15]
+        chord_2: [8, 11, 15, 10]
+        pad: [8, 11, 15, 10, 20]
+        bass: [8]
+        phrase_1: [8, 11, 15, 20]
+      "9_minor":
+        chord_1: [9, 12, 16]
+        chord_2: [9, 12, 16, 10]
+        pad: [9, 12, 16, 10, 21]
+        bass: [9]
+        phrase_1: [9, 12, 16, 21]
+      "10_minor":
+        chord_1: [10, 13, 17]
+        chord_2: [10, 13, 17, 10]
+        pad: [10, 13, 17, 10, 22]
+        bass: [10]
+        phrase_1: [10, 13, 17, 22]
+      "11_minor":
+        chord_1: [11, 14, 18]
+        chord_2: [11, 14, 18, 10]
+        pad: [11, 14, 18, 10, 23]
+        bass: [11]
+        phrase_1: [11, 14, 18, 23]
+
+      # Seventh chords
+      "0_seventh":
+        chord_1: [0, 4, 7, 10]
+        chord_2: [0, 4, 7, 10, 14]
+        pad: [0, 4, 7, 10, 14]
+        bass: [0]
+        phrase_1: [0, 4, 7, 10]
+      "1_seventh":
+        chord_1: [1, 5, 8, 10]
+        chord_2: [1, 5, 8, 10, 13]
+        pad: [1, 5, 8, 10, 13]
+        bass: [1]
+        phrase_1: [1, 5, 8, 10]
+      "2_seventh":
+        chord_1: [2, 6, 9, 10]
+        chord_2: [2, 6, 9, 10, 14]
+        pad: [2, 6, 9, 10, 14]
+        bass: [2]
+        phrase_1: [2, 6, 9, 10]
+      "3_seventh":
+        chord_1: [3, 7, 10, 10]
+        chord_2: [3, 7, 10, 10, 15]
+        pad: [3, 7, 10, 10, 15]
+        bass: [3]
+        phrase_1: [3, 7, 10, 10]
+      "4_seventh":
+        chord_1: [4, 8, 11, 10]
+        chord_2: [4, 8, 11, 10, 16]
+        pad: [4, 8, 11, 10, 16]
+        bass: [4]
+        phrase_1: [4, 8, 11, 10]
+      "5_seventh":
+        chord_1: [5, 9, 12, 10]
+        chord_2: [5, 9, 12, 10, 17]
+        pad: [5, 9, 12, 10, 17]
+        bass: [5]
+        phrase_1: [5, 9, 12, 10]
+      "6_seventh":
+        chord_1: [6, 10, 13, 10]
+        chord_2: [6, 10, 13, 10, 18]
+        pad: [6, 10, 13, 10, 18]
+        bass: [6]
+        phrase_1: [6, 10, 13, 10]
+      "7_seventh":
+        chord_1: [7, 11, 14, 10]
+        chord_2: [7, 11, 14, 10, 19]
+        pad: [7, 11, 14, 10, 19]
+        bass: [7]
+        phrase_1: [7, 11, 14, 10]
+      "8_seventh":
+        chord_1: [8, 12, 15, 10]
+        chord_2: [8, 12, 15, 10, 20]
+        pad: [8, 12, 15, 10, 20]
+        bass: [8]
+        phrase_1: [8, 12, 15, 10]
+      "9_seventh":
+        chord_1: [9, 13, 16, 10]
+        chord_2: [9, 13, 16, 10, 21]
+        pad: [9, 13, 16, 10, 21]
+        bass: [9]
+        phrase_1: [9, 13, 16, 10]
+      "10_seventh":
+        chord_1: [10, 14, 17, 10]
+        chord_2: [10, 14, 17, 10, 22]
+        pad: [10, 14, 17, 10, 22]
+        bass: [10]
+        phrase_1: [10, 14, 17, 10]
+      "11_seventh":
+        chord_1: [11, 15, 18, 10]
+        chord_2: [11, 15, 18, 10, 23]
+        pad: [11, 15, 18, 10, 23]
+        bass: [11]
+        phrase_1: [11, 15, 18, 10]
+
+      # Major Seventh chords
+      "0_major_seventh":
+        chord_1: [0, 4, 7, 11]
+        chord_2: [0, 4, 7, 11, 14]
+        pad: [0, 4, 7, 11, 14]
+        bass: [0]
+        phrase_1: [0, 4, 7, 11]
+      "2_major_seventh":
+        chord_1: [2, 6, 9, 11]
+        chord_2: [2, 6, 9, 11, 14]
+        pad: [2, 6, 9, 11, 14]
+        bass: [2]
+        phrase_1: [2, 6, 9, 11]
+      "4_major_seventh":
+        chord_1: [4, 8, 11, 11]
+        chord_2: [4, 8, 11, 11, 16]
+        pad: [4, 8, 11, 11, 16]
+        bass: [4]
+        phrase_1: [4, 8, 11, 11]
+      "5_major_seventh":
+        chord_1: [5, 9, 12, 11]
+        chord_2: [5, 9, 12, 11, 17]
+        pad: [5, 9, 12, 11, 17]
+        bass: [5]
+        phrase_1: [5, 9, 12, 11]
+      "7_major_seventh":
+        chord_1: [7, 11, 14, 11]
+        chord_2: [7, 11, 14, 11, 19]
+        pad: [7, 11, 14, 11, 19]
+        bass: [7]
+        phrase_1: [7, 11, 14, 11]
+      "9_major_seventh":
+        chord_1: [9, 13, 16, 11]
+        chord_2: [9, 13, 16, 11, 21]
+        pad: [9, 13, 16, 11, 21]
+        bass: [9]
+        phrase_1: [9, 13, 16, 11]
+      "11_major_seventh":
+        chord_1: [11, 15, 18, 11]
+        chord_2: [11, 15, 18, 11, 23]
+        pad: [11, 15, 18, 11, 23]
+        bass: [11]
+        phrase_1: [11, 15, 18, 11]
+
+      # Power chords
+      "0_power":
+        chord_1: [0, 7]
+        chord_2: [0, 7, 12]
+        bass: [0]
+        phrase_1: [0, 7, 12]
+      "1_power":
+        chord_1: [1, 8]
+        chord_2: [1, 8, 13]
+        bass: [1]
+        phrase_1: [1, 8, 13]
+      "2_power":
+        chord_1: [2, 9]
+        chord_2: [2, 9, 14]
+        bass: [2]
+        phrase_1: [2, 9, 14]
+      "3_power":
+        chord_1: [3, 10]
+        chord_2: [3, 10, 15]
+        bass: [3]
+        phrase_1: [3, 10, 15]
+      "4_power":
+        chord_1: [4, 11]
+        chord_2: [4, 11, 16]
+        bass: [4]
+        phrase_1: [4, 11, 16]
+      "5_power":
+        chord_1: [5, 12]
+        chord_2: [5, 12, 17]
+        bass: [5]
+        phrase_1: [5, 12, 17]
+      "6_power":
+        chord_1: [6, 13]
+        chord_2: [6, 13, 18]
+        bass: [6]
+        phrase_1: [6, 13, 18]
+      "7_power":
+        chord_1: [7, 14]
+        chord_2: [7, 14, 19]
+        bass: [7]
+        phrase_1: [7, 14, 19]
+      "8_power":
+        chord_1: [8, 15]
+        chord_2: [8, 15, 20]
+        bass: [8]
+        phrase_1: [8, 15, 20]
+      "9_power":
+        chord_1: [9, 16]
+        chord_2: [9, 16, 21]
+        bass: [9]
+        phrase_1: [9, 16, 21]
+      "10_power":
+        chord_1: [10, 17]
+        chord_2: [10, 17, 22]
+        bass: [10]
+        phrase_1: [10, 17, 22]
+      "11_power":
+        chord_1: [11, 18]
+        chord_2: [11, 18, 23]
+        bass: [11]
+        phrase_1: [11, 18, 23]
+
+  main_b:
+    section: "main_b"
+    mappings:
+      "0_major":
+        chord_1: [0, 4, 7]
+        chord_2: [0, 4, 7, 11]
+        pad: [0, 4, 7, 11, 14]
+        bass: [0]
+        phrase_1: [0, 4, 7, 12, 16]
+      "0_minor":
+        chord_1: [0, 3, 7]
+        chord_2: [0, 3, 7, 10]
+        pad: [0, 3, 7, 10, 14]
+        bass: [0]
+        phrase_1: [0, 3, 7, 12, 15]
+      "0_seventh":
+        chord_1: [0, 4, 7, 10]
+        chord_2: [0, 4, 7, 10, 14]
+        pad: [0, 4, 7, 10, 14]
+        bass: [0]
+        phrase_1: [0, 4, 7, 10, 14]
+      "0_major_seventh":
+        chord_1: [0, 4, 7, 11]
+        chord_2: [0, 4, 7, 11, 14]
+        pad: [0, 4, 7, 11, 14]
+        bass: [0]
+        phrase_1: [0, 4, 7, 11, 14]
+      "0_power":
+        chord_1: [0, 7]
+        chord_2: [0, 7, 12]
+        bass: [0]
+        phrase_1: [0, 7, 12]
+
+  main_c:
+    section: "main_c"
+    mappings:
+      "0_major":
+        chord_1: [0, 4, 7]
+        chord_2: [0, 4, 7, 11]
+        pad: [0, 4, 7, 11, 14]
+        bass: [0]
+      "0_minor":
+        chord_1: [0, 3, 7]
+        chord_2: [0, 3, 7, 10]
+        pad: [0, 3, 7, 10, 14]
+        bass: [0]
+      "0_seventh":
+        chord_1: [0, 4, 7, 10]
+        chord_2: [0, 4, 7, 10, 14]
+        pad: [0, 4, 7, 10, 14]
+        bass: [0]
+      "0_power":
+        chord_1: [0, 7]
+        chord_2: [0, 7, 12]
+        bass: [0]
+
+  main_d:
+    section: "main_d"
+    mappings:
+      "0_major":
+        chord_1: [0, 4, 7]
+        chord_2: [0, 4, 7, 11, 14]
+        pad: [0, 4, 7, 11, 14, 17]
+        bass: [0]
+        phrase_1: [0, 4, 7, 12, 16, 19]
+      "0_minor":
+        chord_1: [0, 3, 7]
+        chord_2: [0, 3, 7, 10, 14]
+        pad: [0, 3, 7, 10, 14, 17]
+        bass: [0]
+        phrase_1: [0, 3, 7, 12, 15, 19]
+      "0_seventh":
+        chord_1: [0, 4, 7, 10]
+        chord_2: [0, 4, 7, 10, 14, 17]
+        pad: [0, 4, 7, 10, 14, 17]
+        bass: [0]
+        phrase_1: [0, 4, 7, 10, 14, 17]
+      "0_power":
+        chord_1: [0, 7]
+        chord_2: [0, 7, 12, 14]
+        bass: [0]
+        phrase_1: [0, 7, 12, 14]
+
+# ============================================================
+# ONE TOUCH SETTINGS (OTS)
+# ============================================================
+
+ots_presets:
+  - preset_id: 0
+    name: "EDM Lead"
+    description: "Bright synth lead for EDM"
+    color: "#FF6B35"
+    category: "synth"
+    parts:
+      - part_id: 0
+        enabled: true
+        program_change: 81
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 100
+        pan: 64
+        reverb_send: 30
+        chorus_send: 20
+      - part_id: 1
+        enabled: true
+        program_change: 89
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 90
+        pan: 48
+        reverb_send: 25
+        chorus_send: 15
+      - part_id: 2
+        enabled: false
+      - part_id: 3
+        enabled: false
+    master_volume: 100
+    master_tempo: 0
+    reverb_type: 1
+    chorus_type: 2
+    dual_voice_enabled: false
+
+  - preset_id: 1
+    name: "Pluck Synth"
+    description: "Percussive pluck synth"
+    color: "#4ECDC4"
+    category: "synth"
+    parts:
+      - part_id: 0
+        enabled: true
+        program_change: 85
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 95
+        pan: 64
+        reverb_send: 20
+        chorus_send: 25
+      - part_id: 1
+        enabled: true
+        program_change: 86
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 85
+        pan: 80
+        reverb_send: 15
+        chorus_send: 20
+      - part_id: 2
+        enabled: false
+      - part_id: 3
+        enabled: false
+    master_volume: 95
+    master_tempo: 0
+    reverb_type: 1
+    chorus_type: 3
+
+  - preset_id: 2
+    name: "Super Saw"
+    description: "Fat supersaw for drops"
+    color: "#FFE66D"
+    category: "synth"
+    parts:
+      - part_id: 0
+        enabled: true
+        program_change: 88
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 100
+        pan: 64
+        reverb_send: 35
+        chorus_send: 40
+      - part_id: 1
+        enabled: true
+        program_change: 88
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 95
+        pan: 64
+        reverb_send: 35
+        chorus_send: 40
+        octave_shift: 1
+      - part_id: 2
+        enabled: false
+      - part_id: 3
+        enabled: false
+    master_volume: 100
+    master_tempo: 0
+    reverb_type: 2
+    chorus_type: 4
+    dual_voice_enabled: true
+    dual_voice_part: 1
+
+  - preset_id: 3
+    name: "Bass Drop"
+    description: "Heavy bass for drops"
+    color: "#FF8C42"
+    category: "bass"
+    parts:
+      - part_id: 0
+        enabled: true
+        program_change: 38
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 100
+        pan: 64
+        reverb_send: 10
+        chorus_send: 15
+      - part_id: 1
+        enabled: true
+        program_change: 39
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 90
+        pan: 64
+        reverb_send: 10
+        chorus_send: 10
+        octave_shift: -1
+      - part_id: 2
+        enabled: false
+      - part_id: 3
+        enabled: false
+    master_volume: 100
+    master_tempo: 0
+    reverb_type: 0
+    chorus_type: 1
+
+  - preset_id: 4
+    name: "Piano House"
+    description: "House piano chords"
+    color: "#A8D8EA"
+    category: "piano"
+    parts:
+      - part_id: 0
+        enabled: true
+        program_change: 0
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 95
+        pan: 64
+        reverb_send: 40
+        chorus_send: 20
+      - part_id: 1
+        enabled: true
+        program_change: 0
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 85
+        pan: 64
+        reverb_send: 40
+        chorus_send: 20
+        octave_shift: 1
+      - part_id: 2
+        enabled: false
+      - part_id: 3
+        enabled: false
+    master_volume: 95
+    master_tempo: 0
+    reverb_type: 3
+    chorus_type: 2
+
+  - preset_id: 5
+    name: "Organ Dance"
+    description: "Dance organ stabs"
+    color: "#AA96DA"
+    category: "organ"
+    parts:
+      - part_id: 0
+        enabled: true
+        program_change: 16
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 90
+        pan: 64
+        reverb_send: 25
+        chorus_send: 30
+      - part_id: 1
+        enabled: true
+        program_change: 17
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 80
+        pan: 64
+        reverb_send: 25
+        chorus_send: 30
+      - part_id: 2
+        enabled: false
+      - part_id: 3
+        enabled: false
+    master_volume: 90
+    master_tempo: 0
+    reverb_type: 1
+    chorus_type: 3
+
+  - preset_id: 6
+    name: "Brass Hit"
+    description: "Synth brass hits"
+    color: "#FCBAD3"
+    category: "brass"
+    parts:
+      - part_id: 0
+        enabled: true
+        program_change: 64
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 95
+        pan: 64
+        reverb_send: 30
+        chorus_send: 25
+      - part_id: 1
+        enabled: true
+        program_change: 65
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 85
+        pan: 64
+        reverb_send: 30
+        chorus_send: 25
+      - part_id: 2
+        enabled: false
+      - part_id: 3
+        enabled: false
+    master_volume: 95
+    master_tempo: 0
+    reverb_type: 2
+    chorus_type: 2
+
+  - preset_id: 7
+    name: "Vox Pad"
+    description: "Vocal pad background"
+    color: "#FFFFD2"
+    category: "pad"
+    parts:
+      - part_id: 0
+        enabled: true
+        program_change: 52
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 80
+        pan: 64
+        reverb_send: 50
+        chorus_send: 35
+      - part_id: 1
+        enabled: true
+        program_change: 53
+        bank_msb: 0
+        bank_lsb: 0
+        volume: 70
+        pan: 64
+        reverb_send: 50
+        chorus_send: 35
+      - part_id: 2
+        enabled: false
+      - part_id: 3
+        enabled: false
+    master_volume: 80
+    master_tempo: 0
+    reverb_type: 4
+    chorus_type: 4
+
+# ============================================================
+# PARAMETERS
+# ============================================================
+
+parameters:
+  fade_master: true
+  tempo_lock: false
+  default_section: "main_a"
+  groove_type: "off"
+  swing_amount: 0.0
+  humanize_amount: 0.05
+  dynamics_enabled: true
+  velocity_sensitivity: 0.8
+  auto_fill_enabled: true
+  sync_start_enabled: true
+  count_in_enabled: false

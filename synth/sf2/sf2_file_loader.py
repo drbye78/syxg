@@ -78,10 +78,10 @@ class SF2BinaryChunk:
         """
         data_slice = self.get_data_slice(offset, max_length)
         # Find null terminator
-        null_pos = data_slice.find(b'\x00')
+        null_pos = data_slice.find(b"\x00")
         if null_pos >= 0:
             data_slice = data_slice[:null_pos]
-        return data_slice.decode('ascii', errors='ignore')
+        return data_slice.decode("ascii", errors="ignore")
 
     def mark_parsed(self, parsed_data: Any) -> None:
         """
@@ -118,7 +118,9 @@ class SF2ChunkIndex:
     def __init__(self):
         """Initialize chunk index."""
         self.chunks: Dict[str, SF2BinaryChunk] = {}
-        self.list_chunks: Dict[str, Dict[str, SF2BinaryChunk]] = {}  # list_type -> {subchunk_id -> chunk}
+        self.list_chunks: Dict[
+            str, Dict[str, SF2BinaryChunk]
+        ] = {}  # list_type -> {subchunk_id -> chunk}
 
     def add_chunk(self, chunk_id: str, chunk: SF2BinaryChunk) -> None:
         """
@@ -130,7 +132,9 @@ class SF2ChunkIndex:
         """
         self.chunks[chunk_id] = chunk
 
-    def add_list_subchunk(self, list_type: str, subchunk_id: str, chunk: SF2BinaryChunk) -> None:
+    def add_list_subchunk(
+        self, list_type: str, subchunk_id: str, chunk: SF2BinaryChunk
+    ) -> None:
         """
         Add subchunk to LIST chunk.
 
@@ -143,7 +147,9 @@ class SF2ChunkIndex:
             self.list_chunks[list_type] = {}
         self.list_chunks[list_type][subchunk_id] = chunk
 
-    def get_chunk(self, chunk_id: str, list_type: Optional[str] = None) -> Optional[SF2BinaryChunk]:
+    def get_chunk(
+        self, chunk_id: str, list_type: Optional[str] = None
+    ) -> Optional[SF2BinaryChunk]:
         """
         Get chunk by ID.
 
@@ -158,7 +164,9 @@ class SF2ChunkIndex:
             return self.list_chunks.get(list_type, {}).get(chunk_id)
         return self.chunks.get(chunk_id)
 
-    def get_all_chunks(self, list_type: Optional[str] = None) -> Dict[str, SF2BinaryChunk]:
+    def get_all_chunks(
+        self, list_type: Optional[str] = None
+    ) -> Dict[str, SF2BinaryChunk]:
         """
         Get all chunks of a type.
 
@@ -213,7 +221,9 @@ class SF2FileLoader:
         self._is_loaded = False
 
         # Sample data chunk locations (for lazy loading)
-        self.sample_data_chunks: Dict[str, Tuple[int, int]] = {}  # chunk_id -> (offset, size)
+        self.sample_data_chunks: Dict[
+            str, Tuple[int, int]
+        ] = {}  # chunk_id -> (offset, size)
 
         # Metadata
         self.version: Tuple[int, int] = (0, 0)
@@ -238,7 +248,7 @@ class SF2FileLoader:
         """
         try:
             # Open file and verify (keep file handle open for sample data access)
-            self._file_handle = open(self.filepath, 'rb')
+            self._file_handle = open(self.filepath, "rb")
 
             if not self._verify_sf2_header():
                 self._cleanup()
@@ -273,9 +283,9 @@ class SF2FileLoader:
         if len(riff_header) < 12:
             return False
 
-        riff_id, file_size, sfbk_id = struct.unpack('<4sI4s', riff_header)
+        riff_id, file_size, sfbk_id = struct.unpack("<4sI4s", riff_header)
 
-        if riff_id != b'RIFF' or sfbk_id != b'sfbk':
+        if riff_id != b"RIFF" or sfbk_id != b"sfbk":
             return False
 
         self.file_size = file_size + 8  # Include RIFF header
@@ -296,16 +306,16 @@ class SF2FileLoader:
             if len(chunk_header) < 8:
                 break
 
-            chunk_id, chunk_size = struct.unpack('<4sI', chunk_header)
-            chunk_id_str = chunk_id.decode('ascii', errors='ignore')
+            chunk_id, chunk_size = struct.unpack("<4sI", chunk_header)
+            chunk_id_str = chunk_id.decode("ascii", errors="ignore")
 
             # Handle LIST chunks specially
-            if chunk_id_str == 'LIST':
+            if chunk_id_str == "LIST":
                 list_type_data = self._file_handle.read(4)
                 if len(list_type_data) < 4:
                     break
 
-                list_type = list_type_data.decode('ascii', errors='ignore')
+                list_type = list_type_data.decode("ascii", errors="ignore")
                 actual_chunk_size = chunk_size - 4  # Subtract list type size
 
                 # Decide whether to load LIST chunk data or just index it
@@ -314,15 +324,45 @@ class SF2FileLoader:
                 if should_load_data:
                     # Load metadata LIST chunks (INFO, pdta)
                     list_chunk_data = self._read_chunk_data(actual_chunk_size)
-                    list_chunk = SF2BinaryChunk(f'LIST_{list_type}', list_chunk_data, file_pos)
-                    self.chunk_index.add_chunk(f'LIST_{list_type}', list_chunk)
+                    list_chunk = SF2BinaryChunk(
+                        f"LIST_{list_type}", list_chunk_data, file_pos
+                    )
+                    self.chunk_index.add_chunk(f"LIST_{list_type}", list_chunk)
 
                     # Parse subchunks
-                    self._parse_list_subchunks(list_type, list_chunk_data, file_pos + 12)
+                    self._parse_list_subchunks(
+                        list_type, list_chunk_data, file_pos + 12
+                    )
                 else:
-                    # For sdta (sample data), just index the chunk location
-                    if list_type == 'sdta':
-                        self.sample_data_chunks[f'LIST_{list_type}'] = (file_pos, chunk_size + 8)  # Include LIST header
+                    # For sdta (sample data), parse nested chunks to find smpl/sm24
+                    if list_type == "sdta":
+                        # Parse the nested LIST to find smpl and sm24 chunks
+                        sdta_start = self._file_handle.tell() - 4  # After LIST type
+                        list_data_size = actual_chunk_size - 4  # Exclude list type
+
+                        # Parse nested chunks within LIST sdta
+                        nested_pos = 0
+                        while nested_pos < list_data_size - 8:
+                            self._file_handle.seek(sdta_start + nested_pos)
+                            nested_header = self._file_handle.read(8)
+                            if len(nested_header) < 8:
+                                break
+                            nested_id, nested_size = struct.unpack(
+                                "<4sI", nested_header
+                            )
+                            nested_id_str = nested_id.decode("ascii", errors="ignore")
+
+                            if nested_id_str in ["smpl", "sm24"]:
+                                # Found sample data chunk - store its location
+                                chunk_start = sdta_start + nested_pos + 8
+                                self.sample_data_chunks[nested_id_str] = (
+                                    chunk_start - 8,
+                                    nested_size + 8,
+                                )
+
+                            nested_pos += 8 + nested_size
+                            if nested_size % 2 == 1:  # Pad to word boundary
+                                nested_pos += 1
 
                     # Skip the LIST chunk data
                     self._file_handle.seek(actual_chunk_size, 1)
@@ -340,8 +380,11 @@ class SF2FileLoader:
                     self.chunk_index.add_chunk(chunk_id_str, chunk)
                 else:
                     # For sample data chunks, just index their location
-                    if chunk_id_str in ['smpl', 'sm24']:
-                        self.sample_data_chunks[chunk_id_str] = (file_pos, chunk_size + 8)  # Include chunk header
+                    if chunk_id_str in ["smpl", "sm24"]:
+                        self.sample_data_chunks[chunk_id_str] = (
+                            file_pos,
+                            chunk_size + 8,
+                        )  # Include chunk header
 
                     # Skip the chunk data
                     self._file_handle.seek(chunk_size, 1)
@@ -362,16 +405,34 @@ class SF2FileLoader:
         """
         # Load metadata chunks
         metadata_chunks = [
-            'ifil', 'INAM', 'irom', 'ICRD', 'IENG', 'IPRD', 'ICOP', 'ICMT', 'ISFT',  # INFO
-            'phdr', 'pbag', 'pmod', 'pgen', 'inst', 'ibag', 'imod', 'igen', 'shdr'  # pdta
+            "ifil",
+            "INAM",
+            "irom",
+            "ICRD",
+            "IENG",
+            "IPRD",
+            "ICOP",
+            "ICMT",
+            "ISFT",  # INFO
+            "phdr",
+            "pbag",
+            "pmod",
+            "pgen",
+            "inst",
+            "ibag",
+            "imod",
+            "igen",
+            "shdr",  # pdta
         ]
 
         # Load LIST chunks that contain metadata
-        metadata_lists = ['INFO', 'pdta']
+        metadata_lists = ["INFO", "pdta"]
 
         return chunk_id in metadata_chunks or chunk_id in metadata_lists
 
-    def _parse_list_subchunks(self, list_type: str, list_data: bytes, base_offset: int) -> None:
+    def _parse_list_subchunks(
+        self, list_type: str, list_data: bytes, base_offset: int
+    ) -> None:
         """
         Parse subchunks within a LIST chunk.
 
@@ -390,9 +451,9 @@ class SF2FileLoader:
             if data_pos + 8 > len(list_data):
                 break
 
-            subchunk_header = list_data[data_pos:data_pos + 8]
-            subchunk_id, subchunk_size = struct.unpack('<4sI', subchunk_header)
-            subchunk_id_str = subchunk_id.decode('ascii', errors='ignore')
+            subchunk_header = list_data[data_pos : data_pos + 8]
+            subchunk_id, subchunk_size = struct.unpack("<4sI", subchunk_header)
+            subchunk_id_str = subchunk_id.decode("ascii", errors="ignore")
 
             data_pos += 8
 
@@ -400,10 +461,12 @@ class SF2FileLoader:
             if data_pos + subchunk_size > len(list_data):
                 break
 
-            subchunk_data = list_data[data_pos:data_pos + subchunk_size]
+            subchunk_data = list_data[data_pos : data_pos + subchunk_size]
 
             # Create subchunk
-            subchunk = SF2BinaryChunk(subchunk_id_str, subchunk_data, base_offset + data_pos)
+            subchunk = SF2BinaryChunk(
+                subchunk_id_str, subchunk_data, base_offset + data_pos
+            )
             self.chunk_index.add_list_subchunk(list_type, subchunk_id_str, subchunk)
 
             data_pos += subchunk_size
@@ -419,41 +482,45 @@ class SF2FileLoader:
             Raw chunk data bytes
         """
         if self._file_handle is None:
-            return b''
+            return b""
 
         data = self._file_handle.read(size)
         # Pad if necessary (some chunks may be padded to even boundaries)
         if len(data) < size:
-            data += b'\x00' * (size - len(data))
+            data += b"\x00" * (size - len(data))
         return data
 
     def _load_info_metadata(self) -> None:
         """Load INFO metadata from binary chunks."""
-        info_chunks = self.chunk_index.get_all_chunks('INFO')
+        info_chunks = self.chunk_index.get_all_chunks("INFO")
 
         # Version
-        if 'ifil' in info_chunks:
-            version_data = info_chunks['ifil'].parse_as_struct('<HH')
+        if "ifil" in info_chunks:
+            version_data = info_chunks["ifil"].parse_as_struct("<HH")
             self.version = (version_data[0], version_data[1])
 
         # Strings
         string_fields = {
-            'INAM': 'bank_name',
-            'irom': 'rom_name',
-            'ICRD': 'creation_date',
-            'IENG': 'authors',
-            'IPRD': 'product',
-            'ICOP': 'copyright',
-            'ICMT': 'comments',
-            'ISFT': 'tools'
+            "INAM": "bank_name",
+            "irom": "rom_name",
+            "ICRD": "creation_date",
+            "IENG": "authors",
+            "IPRD": "product",
+            "ICOP": "copyright",
+            "ICMT": "comments",
+            "ISFT": "tools",
         }
 
         for chunk_id, field_name in string_fields.items():
             if chunk_id in info_chunks:
-                string_value = info_chunks[chunk_id].parse_string(0, len(info_chunks[chunk_id].data))
+                string_value = info_chunks[chunk_id].parse_string(
+                    0, len(info_chunks[chunk_id].data)
+                )
                 setattr(self, field_name, string_value)
 
-    def get_chunk(self, chunk_id: str, list_type: Optional[str] = None) -> Optional[SF2BinaryChunk]:
+    def get_chunk(
+        self, chunk_id: str, list_type: Optional[str] = None
+    ) -> Optional[SF2BinaryChunk]:
         """
         Get binary chunk by ID.
 
@@ -476,7 +543,7 @@ class SF2FileLoader:
         Returns:
             List of preset header dictionaries
         """
-        phdr_chunk = self.get_chunk('phdr', 'pdta')
+        phdr_chunk = self.get_chunk("phdr", "pdta")
         if not phdr_chunk:
             return []
 
@@ -489,22 +556,28 @@ class SF2FileLoader:
                 break
 
             # Parse preset header
-            header_data = data[i:i + 38]
-            preset_name = header_data[:20].decode('ascii', errors='ignore').rstrip('\x00')
-            preset_num, bank_num, bag_ndx = struct.unpack('<HHH', header_data[20:26])
+            header_data = data[i : i + 38]
+            preset_name = (
+                header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
+            )
+            preset_num, bank_num, bag_ndx = struct.unpack("<HHH", header_data[20:26])
 
             # Skip library, genre, morphology for now
-            presets.append({
-                'name': preset_name,
-                'program': preset_num,
-                'bank': bank_num,
-                'bag_index': bag_ndx,
-                'header_index': i // 38  # Store index for selective access
-            })
+            presets.append(
+                {
+                    "name": preset_name,
+                    "program": preset_num,
+                    "bank": bank_num,
+                    "bag_index": bag_ndx,
+                    "header_index": i // 38,  # Store index for selective access
+                }
+            )
 
         return presets
 
-    def find_preset_by_bank_program(self, bank: int, program: int) -> Optional[Dict[str, Any]]:
+    def find_preset_by_bank_program(
+        self, bank: int, program: int
+    ) -> Optional[Dict[str, Any]]:
         """
         Find a specific preset by bank and program number with selective parsing.
 
@@ -518,7 +591,7 @@ class SF2FileLoader:
         Returns:
             Preset header dictionary or None if not found
         """
-        phdr_chunk = self.get_chunk('phdr', 'pdta')
+        phdr_chunk = self.get_chunk("phdr", "pdta")
         if not phdr_chunk:
             return None
 
@@ -532,21 +605,23 @@ class SF2FileLoader:
                 break
 
             # Parse just the bank/program part (offsets 20-25)
-            header_data = data[offset + 20:offset + 26]
-            preset_num, bank_num = struct.unpack('<HH', header_data[:4])
+            header_data = data[offset + 20 : offset + 26]
+            preset_num, bank_num = struct.unpack("<HH", header_data[:4])
 
             if preset_num == program and bank_num == bank:
                 # Found match - parse the full header
-                full_header = data[offset:offset + 38]
-                preset_name = full_header[:20].decode('ascii', errors='ignore').rstrip('\x00')
-                bag_ndx = struct.unpack('<H', full_header[24:26])[0]
+                full_header = data[offset : offset + 38]
+                preset_name = (
+                    full_header[:20].decode("ascii", errors="ignore").rstrip("\x00")
+                )
+                bag_ndx = struct.unpack("<H", full_header[24:26])[0]
 
                 return {
-                    'name': preset_name,
-                    'program': preset_num,
-                    'bank': bank_num,
-                    'bag_index': bag_ndx,
-                    'header_index': i
+                    "name": preset_name,
+                    "program": preset_num,
+                    "bank": bank_num,
+                    "bag_index": bag_ndx,
+                    "header_index": i,
                 }
 
         return None
@@ -561,7 +636,7 @@ class SF2FileLoader:
         Returns:
             Preset header dictionary or None if index invalid
         """
-        phdr_chunk = self.get_chunk('phdr', 'pdta')
+        phdr_chunk = self.get_chunk("phdr", "pdta")
         if not phdr_chunk:
             return None
 
@@ -570,16 +645,16 @@ class SF2FileLoader:
             return None
 
         # Parse specific header
-        header_data = phdr_chunk.data[offset:offset + 38]
-        preset_name = header_data[:20].decode('ascii', errors='ignore').rstrip('\x00')
-        preset_num, bank_num, bag_ndx = struct.unpack('<HHH', header_data[20:26])
+        header_data = phdr_chunk.data[offset : offset + 38]
+        preset_name = header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
+        preset_num, bank_num, bag_ndx = struct.unpack("<HHH", header_data[20:26])
 
         return {
-            'name': preset_name,
-            'program': preset_num,
-            'bank': bank_num,
-            'bag_index': bag_ndx,
-            'header_index': index
+            "name": preset_name,
+            "program": preset_num,
+            "bank": bank_num,
+            "bag_index": bag_ndx,
+            "header_index": index,
         }
 
     def parse_instrument_headers(self) -> List[Dict[str, Any]]:
@@ -592,7 +667,7 @@ class SF2FileLoader:
         Returns:
             List of instrument header dictionaries
         """
-        inst_chunk = self.get_chunk('inst', 'pdta')
+        inst_chunk = self.get_chunk("inst", "pdta")
         if not inst_chunk:
             return []
 
@@ -605,15 +680,17 @@ class SF2FileLoader:
                 break
 
             # Parse instrument header
-            header_data = data[i:i + 22]
-            inst_name = header_data[:20].decode('ascii', errors='ignore').rstrip('\x00')
-            bag_ndx = struct.unpack('<H', header_data[20:22])[0]
+            header_data = data[i : i + 22]
+            inst_name = header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
+            bag_ndx = struct.unpack("<H", header_data[20:22])[0]
 
-            instruments.append({
-                'name': inst_name,
-                'bag_index': bag_ndx,
-                'header_index': i // 22  # Store index for selective access
-            })
+            instruments.append(
+                {
+                    "name": inst_name,
+                    "bag_index": bag_ndx,
+                    "header_index": i // 22,  # Store index for selective access
+                }
+            )
 
         return instruments
 
@@ -627,7 +704,7 @@ class SF2FileLoader:
         Returns:
             Instrument header dictionary or None if index invalid
         """
-        inst_chunk = self.get_chunk('inst', 'pdta')
+        inst_chunk = self.get_chunk("inst", "pdta")
         if not inst_chunk:
             return None
 
@@ -636,15 +713,11 @@ class SF2FileLoader:
             return None
 
         # Parse specific header
-        header_data = inst_chunk.data[offset:offset + 22]
-        inst_name = header_data[:20].decode('ascii', errors='ignore').rstrip('\x00')
-        bag_ndx = struct.unpack('<H', header_data[20:22])[0]
+        header_data = inst_chunk.data[offset : offset + 22]
+        inst_name = header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
+        bag_ndx = struct.unpack("<H", header_data[20:22])[0]
 
-        return {
-            'name': inst_name,
-            'bag_index': bag_ndx,
-            'header_index': index
-        }
+        return {"name": inst_name, "bag_index": bag_ndx, "header_index": index}
 
     def parse_sample_headers(self) -> List[Dict[str, Any]]:
         """
@@ -656,7 +729,7 @@ class SF2FileLoader:
         Returns:
             List of sample header dictionaries
         """
-        shdr_chunk = self.get_chunk('shdr', 'pdta')
+        shdr_chunk = self.get_chunk("shdr", "pdta")
         if not shdr_chunk:
             return []
 
@@ -669,26 +742,38 @@ class SF2FileLoader:
                 break
 
             # Parse sample header
-            header_data = data[i:i + 46]
-            sample_name = header_data[:20].decode('ascii', errors='ignore').rstrip('\x00')
-
-            start, end, start_loop, end_loop, sample_rate, orig_pitch, pitch_corr, sample_link, sample_type = struct.unpack(
-                '<IIIIIbbHH', header_data[20:46]
+            header_data = data[i : i + 46]
+            sample_name = (
+                header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
             )
 
-            samples.append({
-                'name': sample_name,
-                'start': start,
-                'end': end,
-                'start_loop': start_loop,
-                'end_loop': end_loop,
-                'sample_rate': sample_rate,
-                'original_pitch': orig_pitch,
-                'pitch_correction': pitch_corr,
-                'sample_link': sample_link,
-                'sample_type': sample_type,
-                'header_index': i // 46  # Store index for selective access
-            })
+            (
+                start,
+                end,
+                start_loop,
+                end_loop,
+                sample_rate,
+                orig_pitch,
+                pitch_corr,
+                sample_link,
+                sample_type,
+            ) = struct.unpack("<IIIIIbbHH", header_data[20:46])
+
+            samples.append(
+                {
+                    "name": sample_name,
+                    "start": start,
+                    "end": end,
+                    "start_loop": start_loop,
+                    "end_loop": end_loop,
+                    "sample_rate": sample_rate,
+                    "original_pitch": orig_pitch,
+                    "pitch_correction": pitch_corr,
+                    "sample_link": sample_link,
+                    "sample_type": sample_type,
+                    "header_index": i // 46,  # Store index for selective access
+                }
+            )
 
         return samples
 
@@ -702,7 +787,7 @@ class SF2FileLoader:
         Returns:
             Sample header dictionary or None if index invalid
         """
-        shdr_chunk = self.get_chunk('shdr', 'pdta')
+        shdr_chunk = self.get_chunk("shdr", "pdta")
         if not shdr_chunk:
             return None
 
@@ -711,29 +796,38 @@ class SF2FileLoader:
             return None
 
         # Parse specific header
-        header_data = shdr_chunk.data[offset:offset + 46]
-        sample_name = header_data[:20].decode('ascii', errors='ignore').rstrip('\x00')
+        header_data = shdr_chunk.data[offset : offset + 46]
+        sample_name = header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
 
-        start, end, start_loop, end_loop, sample_rate, orig_pitch, pitch_corr, sample_link, sample_type = struct.unpack(
-            '<IIIIIbbHH', header_data[20:46]
-        )
+        (
+            start,
+            end,
+            start_loop,
+            end_loop,
+            sample_rate,
+            orig_pitch,
+            pitch_corr,
+            sample_link,
+            sample_type,
+        ) = struct.unpack("<IIIIIbbHH", header_data[20:46])
 
         return {
-            'name': sample_name,
-            'start': start,
-            'end': end,
-            'start_loop': start_loop,
-            'end_loop': end_loop,
-            'sample_rate': sample_rate,
-            'original_pitch': orig_pitch,
-            'pitch_correction': pitch_corr,
-            'sample_link': sample_link,
-            'sample_type': sample_type,
-            'header_index': index
+            "name": sample_name,
+            "start": start,
+            "end": end,
+            "start_loop": start_loop,
+            "end_loop": end_loop,
+            "sample_rate": sample_rate,
+            "original_pitch": orig_pitch,
+            "pitch_correction": pitch_corr,
+            "sample_link": sample_link,
+            "sample_type": sample_type,
+            "header_index": index,
         }
 
-    def get_sample_data(self, sample_start: int, sample_end: int,
-                       is_24bit: bool = False) -> Optional[bytes]:
+    def get_sample_data(
+        self, sample_start: int, sample_end: int, is_24bit: bool = False
+    ) -> Optional[bytes]:
         """
         Get raw sample data from smpl and sm24 chunks with proper 24-bit reconstruction.
         Reads data directly from file on-demand to avoid loading large sample data into memory.
@@ -757,7 +851,9 @@ class SF2FileLoader:
                 # 16-bit samples
                 return self._read_16bit_sample_data_from_file(sample_start, sample_end)
 
-    def _read_16bit_sample_data_from_file(self, sample_start: int, sample_end: int) -> Optional[bytes]:
+    def _read_16bit_sample_data_from_file(
+        self, sample_start: int, sample_end: int
+    ) -> Optional[bytes]:
         """
         Read 16-bit sample data directly from file.
 
@@ -768,10 +864,10 @@ class SF2FileLoader:
         Returns:
             Raw 16-bit sample data bytes
         """
-        if 'smpl' not in self.sample_data_chunks:
+        if "smpl" not in self.sample_data_chunks:
             return None
 
-        chunk_offset, chunk_size = self.sample_data_chunks['smpl']
+        chunk_offset, chunk_size = self.sample_data_chunks["smpl"]
 
         # Calculate file offsets for the sample data
         # Skip chunk header (8 bytes: 'smpl' + size)
@@ -787,20 +883,22 @@ class SF2FileLoader:
 
         data_size = sample_data_end - sample_data_start
         if data_size <= 0:
-            return b''
+            return b""
 
         # Read data directly from file
         self._file_handle.seek(sample_data_start)
         return self._file_handle.read(data_size)
 
-    def _read_24bit_sample_data_from_file(self, sample_start: int, sample_end: int) -> Optional[bytes]:
+    def _read_24bit_sample_data_from_file(
+        self, sample_start: int, sample_end: int
+    ) -> Optional[bytes]:
         """
         Read and combine 24-bit sample data from both smpl and sm24 chunks directly from file.
 
         According to SF2 specification:
         - smpl chunk contains 16-bit samples (LSB)
         - sm24 chunk contains MSB of 24-bit samples
-        
+
         Args:
             sample_start: Sample start index
             sample_end: Sample end index
@@ -808,23 +906,28 @@ class SF2FileLoader:
         Returns:
             Combined 24-bit sample data as bytes
         """
-        if 'smpl' not in self.sample_data_chunks or 'sm24' not in self.sample_data_chunks:
+        if (
+            "smpl" not in self.sample_data_chunks
+            or "sm24" not in self.sample_data_chunks
+        ):
             return None
 
-        smpl_offset, smpl_size = self.sample_data_chunks['smpl']
-        sm24_offset, sm24_size = self.sample_data_chunks['sm24']
+        smpl_offset, smpl_size = self.sample_data_chunks["smpl"]
+        sm24_offset, sm24_size = self.sample_data_chunks["sm24"]
 
         # Calculate data ranges
         num_samples = sample_end - sample_start
         if num_samples <= 0:
-            return b''
+            return b""
 
         # Each 24-bit sample needs: 2 bytes from smpl + 1 byte from sm24 = 3 bytes total
         combined_data = bytearray(num_samples * 3)
 
         try:
             # Read smpl data (16-bit samples - LSB)
-            smpl_data_start = smpl_offset + 8 + (sample_start * 2)  # Skip header + offset to sample
+            smpl_data_start = (
+                smpl_offset + 8 + (sample_start * 2)
+            )  # Skip header + offset to sample
             smpl_data_size = num_samples * 2
 
             self._file_handle.seek(smpl_data_start)
@@ -834,7 +937,9 @@ class SF2FileLoader:
                 return None
 
             # Read sm24 data (MSB of 24-bit samples)
-            sm24_data_start = sm24_offset + 8 + sample_start  # Skip header + offset to sample
+            sm24_data_start = (
+                sm24_offset + 8 + sample_start
+            )  # Skip header + offset to sample
             sm24_data_size = num_samples
 
             self._file_handle.seek(sm24_data_start)
@@ -846,17 +951,19 @@ class SF2FileLoader:
             # Combine the data correctly: sm24_byte is MSB, smpl_word is LSB
             for i in range(num_samples):
                 # Get 16-bit data from smpl (LSB of 24-bit sample)
-                lsb_word = int.from_bytes(smpl_bytes[i*2:i*2+2], byteorder='little', signed=True)
-                
+                lsb_word = int.from_bytes(
+                    smpl_bytes[i * 2 : i * 2 + 2], byteorder="little", signed=True
+                )
+
                 # Get 8-bit MSB from sm24
                 msb_byte = sm24_bytes[i]
-                
+
                 # Sign-extend the MSB byte if it's negative
                 if msb_byte & 0x80:  # If MSB is set, it's negative
                     msb_extended = msb_byte | 0xFFFFFF00  # Sign extend to 32-bit
                 else:
                     msb_extended = msb_byte
-                
+
                 # Combine: shift MSB to upper 8 bits and combine with LSB
                 # The 24-bit value is: (msb << 16) | (lsb & 0xFFFF)
                 sample_24bit = (msb_extended << 16) | (lsb_word & 0xFFFF)
@@ -864,20 +971,26 @@ class SF2FileLoader:
                 # Convert to 3-byte signed 24-bit representation
                 # We need to handle the sign correctly for 24-bit
                 if sample_24bit & 0x800000:  # If MSB of 24-bit is set, it's negative
-                    sample_24bit = sample_24bit | 0xFF000000  # Sign extend to 32-bit for proper conversion
+                    sample_24bit = (
+                        sample_24bit | 0xFF000000
+                    )  # Sign extend to 32-bit for proper conversion
 
                 # Convert to 3-byte signed representation
                 try:
-                    combined_bytes = sample_24bit.to_bytes(3, byteorder='little', signed=True)
-                    combined_data[i*3:(i+1)*3] = combined_bytes
+                    combined_bytes = sample_24bit.to_bytes(
+                        3, byteorder="little", signed=True
+                    )
+                    combined_data[i * 3 : (i + 1) * 3] = combined_bytes
                 except OverflowError:
                     # Handle overflow by clamping to valid 24-bit range
                     if sample_24bit > 0x7FFFFF:
                         sample_24bit = 0x7FFFFF
                     elif sample_24bit < -0x800000:
                         sample_24bit = -0x800000
-                    combined_bytes = sample_24bit.to_bytes(3, byteorder='little', signed=True)
-                    combined_data[i*3:(i+1)*3] = combined_bytes
+                    combined_bytes = sample_24bit.to_bytes(
+                        3, byteorder="little", signed=True
+                    )
+                    combined_data[i * 3 : (i + 1) * 3] = combined_bytes
 
             return bytes(combined_data)
 
@@ -885,8 +998,13 @@ class SF2FileLoader:
             print(f"Error reading 24-bit sample data from file: {e}")
             return None
 
-    def _combine_24bit_sample_data(self, smpl_chunk: SF2BinaryChunk, sm24_chunk: SF2BinaryChunk,
-                                  sample_start: int, sample_end: int) -> Optional[bytes]:
+    def _combine_24bit_sample_data(
+        self,
+        smpl_chunk: SF2BinaryChunk,
+        sm24_chunk: SF2BinaryChunk,
+        sample_start: int,
+        sample_end: int,
+    ) -> Optional[bytes]:
         """
         Combine 16-bit data from smpl chunk with 8-bit extensions from sm24 chunk
         to reconstruct proper 24-bit sample data.
@@ -903,7 +1021,7 @@ class SF2FileLoader:
         # Calculate data ranges
         num_samples = sample_end - sample_start
         if num_samples <= 0:
-            return b''
+            return b""
 
         # Each 24-bit sample needs: 2 bytes from smpl + 1 byte from sm24 = 3 bytes total
         combined_data = bytearray(num_samples * 3)
@@ -931,7 +1049,7 @@ class SF2FileLoader:
                     break
 
                 # Reconstruct 24-bit sample: (sm24_byte << 16) | (smpl_word << 0)
-                smpl_word = int.from_bytes(smpl_bytes, byteorder='little', signed=True)
+                smpl_word = int.from_bytes(smpl_bytes, byteorder="little", signed=True)
                 sm24_value = sm24_byte[0]
 
                 # Handle sign extension for 24-bit sample
@@ -942,10 +1060,14 @@ class SF2FileLoader:
                 sample_24bit = (sm24_value << 16) | (smpl_word & 0xFFFF)
 
                 # Convert back to 3 bytes (24-bit)
-                combined_bytes = sample_24bit.to_bytes(3, byteorder='little', signed=True)
-                combined_data[i*3:(i+1)*3] = combined_bytes
+                combined_bytes = sample_24bit.to_bytes(
+                    3, byteorder="little", signed=True
+                )
+                combined_data[i * 3 : (i + 1) * 3] = combined_bytes
 
-            return bytes(combined_data[:len(combined_data)//3*3])  # Ensure complete samples
+            return bytes(
+                combined_data[: len(combined_data) // 3 * 3]
+            )  # Ensure complete samples
 
         except Exception as e:
             print(f"Error combining 24-bit sample data: {e}")
@@ -964,8 +1086,8 @@ class SF2FileLoader:
         Returns:
             List of (gen_ndx, mod_ndx) tuples
         """
-        chunk_id = 'pbag' if level_type == 'preset' else 'ibag'
-        bag_chunk = self.get_chunk(chunk_id, 'pdta')
+        chunk_id = "pbag" if level_type == "preset" else "ibag"
+        bag_chunk = self.get_chunk(chunk_id, "pdta")
         if not bag_chunk:
             return []
 
@@ -977,12 +1099,14 @@ class SF2FileLoader:
             if i + 4 > len(data):
                 break
 
-            gen_ndx, mod_ndx = struct.unpack('<HH', data[i:i + 4])
+            gen_ndx, mod_ndx = struct.unpack("<HH", data[i : i + 4])
             bags.append((gen_ndx, mod_ndx))
 
         return bags
 
-    def get_bag_data_in_range(self, level_type: str, start_bag: int, end_bag: int) -> List[Tuple[int, int]]:
+    def get_bag_data_in_range(
+        self, level_type: str, start_bag: int, end_bag: int
+    ) -> List[Tuple[int, int]]:
         """
         Get bag data for a specific range of bags with selective parsing.
 
@@ -997,8 +1121,8 @@ class SF2FileLoader:
         Returns:
             List of (gen_ndx, mod_ndx) tuples for the specified range
         """
-        chunk_id = 'pbag' if level_type == 'preset' else 'ibag'
-        bag_chunk = self.get_chunk(chunk_id, 'pdta')
+        chunk_id = "pbag" if level_type == "preset" else "ibag"
+        bag_chunk = self.get_chunk(chunk_id, "pdta")
         if not bag_chunk:
             return []
 
@@ -1017,12 +1141,14 @@ class SF2FileLoader:
             if offset + 4 > len(data):
                 break
 
-            gen_ndx, mod_ndx = struct.unpack('<HH', data[offset:offset + 4])
+            gen_ndx, mod_ndx = struct.unpack("<HH", data[offset : offset + 4])
             bags.append((gen_ndx, mod_ndx))
 
         return bags
 
-    def get_generator_data_in_range(self, level_type: str, start_gen: int, end_gen: int) -> List[Tuple[int, int]]:
+    def get_generator_data_in_range(
+        self, level_type: str, start_gen: int, end_gen: int
+    ) -> List[Tuple[int, int]]:
         """
         Get generator data for a specific range with selective parsing.
 
@@ -1034,8 +1160,8 @@ class SF2FileLoader:
         Returns:
             List of (gen_type, gen_amount) tuples for the specified range
         """
-        chunk_id = 'pgen' if level_type == 'preset' else 'igen'
-        gen_chunk = self.get_chunk(chunk_id, 'pdta')
+        chunk_id = "pgen" if level_type == "preset" else "igen"
+        gen_chunk = self.get_chunk(chunk_id, "pdta")
         if not gen_chunk:
             return []
 
@@ -1054,12 +1180,14 @@ class SF2FileLoader:
             if offset + 4 > len(data):
                 break
 
-            gen_type, gen_amount = struct.unpack('<Hh', data[offset:offset + 4])
+            gen_type, gen_amount = struct.unpack("<Hh", data[offset : offset + 4])
             generators.append((gen_type, gen_amount))
 
         return generators
 
-    def get_modulator_data_in_range(self, level_type: str, start_mod: int, end_mod: int) -> List[Dict[str, Any]]:
+    def get_modulator_data_in_range(
+        self, level_type: str, start_mod: int, end_mod: int
+    ) -> List[Dict[str, Any]]:
         """
         Get modulator data for a specific range with selective parsing.
 
@@ -1071,8 +1199,8 @@ class SF2FileLoader:
         Returns:
             List of modulator dictionaries for the specified range
         """
-        chunk_id = 'pmod' if level_type == 'preset' else 'imod'
-        mod_chunk = self.get_chunk(chunk_id, 'pdta')
+        chunk_id = "pmod" if level_type == "preset" else "imod"
+        mod_chunk = self.get_chunk(chunk_id, "pdta")
         if not mod_chunk:
             return []
 
@@ -1091,16 +1219,20 @@ class SF2FileLoader:
             if offset + 10 > len(data):
                 break
 
-            mod_data = data[offset:offset + 10]
-            src_oper, dest_oper, mod_amount, amt_src_oper, mod_trans_oper = struct.unpack('<HHhHH', mod_data)
+            mod_data = data[offset : offset + 10]
+            src_oper, dest_oper, mod_amount, amt_src_oper, mod_trans_oper = (
+                struct.unpack("<HHhHH", mod_data)
+            )
 
-            modulators.append({
-                'src_operator': src_oper,
-                'dest_operator': dest_oper,
-                'mod_amount': mod_amount,
-                'amt_src_operator': amt_src_oper,
-                'mod_trans_operator': mod_trans_oper
-            })
+            modulators.append(
+                {
+                    "src_operator": src_oper,
+                    "dest_operator": dest_oper,
+                    "mod_amount": mod_amount,
+                    "amt_src_operator": amt_src_oper,
+                    "mod_trans_operator": mod_trans_oper,
+                }
+            )
 
         return modulators
 
@@ -1114,8 +1246,8 @@ class SF2FileLoader:
         Returns:
             List of (gen_type, gen_amount) tuples
         """
-        chunk_id = 'pgen' if level_type == 'preset' else 'igen'
-        gen_chunk = self.get_chunk(chunk_id, 'pdta')
+        chunk_id = "pgen" if level_type == "preset" else "igen"
+        gen_chunk = self.get_chunk(chunk_id, "pdta")
         if not gen_chunk:
             return []
 
@@ -1127,7 +1259,7 @@ class SF2FileLoader:
             if i + 4 > len(data):
                 break
 
-            gen_type, gen_amount = struct.unpack('<Hh', data[i:i + 4])
+            gen_type, gen_amount = struct.unpack("<Hh", data[i : i + 4])
             generators.append((gen_type, gen_amount))
 
         return generators
@@ -1142,8 +1274,8 @@ class SF2FileLoader:
         Returns:
             List of modulator dictionaries
         """
-        chunk_id = 'pmod' if level_type == 'preset' else 'imod'
-        mod_chunk = self.get_chunk(chunk_id, 'pdta')
+        chunk_id = "pmod" if level_type == "preset" else "imod"
+        mod_chunk = self.get_chunk(chunk_id, "pdta")
         if not mod_chunk:
             return []
 
@@ -1155,16 +1287,20 @@ class SF2FileLoader:
             if i + 10 > len(data):
                 break
 
-            mod_data = data[i:i + 10]
-            src_oper, dest_oper, mod_amount, amt_src_oper, mod_trans_oper = struct.unpack('<HHhHH', mod_data)
+            mod_data = data[i : i + 10]
+            src_oper, dest_oper, mod_amount, amt_src_oper, mod_trans_oper = (
+                struct.unpack("<HHhHH", mod_data)
+            )
 
-            modulators.append({
-                'src_operator': src_oper,
-                'dest_operator': dest_oper,
-                'mod_amount': mod_amount,
-                'amt_src_operator': amt_src_oper,
-                'mod_trans_operator': mod_trans_oper
-            })
+            modulators.append(
+                {
+                    "src_operator": src_oper,
+                    "dest_operator": dest_oper,
+                    "mod_amount": mod_amount,
+                    "amt_src_operator": amt_src_oper,
+                    "mod_trans_operator": mod_trans_oper,
+                }
+            )
 
         return modulators
 
@@ -1185,19 +1321,19 @@ class SF2FileLoader:
             Dictionary with file metadata
         """
         return {
-            'filename': self.filename,
-            'filepath': str(self.filepath),
-            'file_size': self.file_size,
-            'version': self.version,
-            'bank_name': self.bank_name,
-            'rom_name': self.rom_name,
-            'creation_date': self.creation_date,
-            'authors': self.authors,
-            'product': self.product,
-            'copyright': self.copyright,
-            'comments': self.comments,
-            'tools': self.tools,
-            'loaded': self._is_loaded
+            "filename": self.filename,
+            "filepath": str(self.filepath),
+            "file_size": self.file_size,
+            "version": self.version,
+            "bank_name": self.bank_name,
+            "rom_name": self.rom_name,
+            "creation_date": self.creation_date,
+            "authors": self.authors,
+            "product": self.product,
+            "copyright": self.copyright,
+            "comments": self.comments,
+            "tools": self.tools,
+            "loaded": self._is_loaded,
         }
 
     def get_memory_usage(self) -> Dict[str, Any]:
@@ -1210,15 +1346,17 @@ class SF2FileLoader:
         total_chunks = len(self.chunk_index.chunks)
         list_chunk_groups = len(self.chunk_index.list_chunks)
 
-        total_memory = sum(len(chunk.data) for chunk in self.chunk_index.chunks.values())
+        total_memory = sum(
+            len(chunk.data) for chunk in self.chunk_index.chunks.values()
+        )
         for list_chunks in self.chunk_index.list_chunks.values():
             total_memory += sum(len(chunk.data) for chunk in list_chunks.values())
 
         return {
-            'total_chunks': total_chunks,
-            'list_chunk_groups': list_chunk_groups,
-            'total_memory_bytes': total_memory,
-            'total_memory_mb': total_memory / (1024 * 1024)
+            "total_chunks": total_chunks,
+            "list_chunk_groups": list_chunk_groups,
+            "total_memory_bytes": total_memory,
+            "total_memory_mb": total_memory / (1024 * 1024),
         }
 
     def clear_cache(self) -> None:

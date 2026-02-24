@@ -719,30 +719,35 @@ class ModernXGSynthesizer:
     def _init_sart2(self) -> None:
         """
         Initialize S.Art2 articulation system.
-        
+
         S.Art2 provides universal articulation control across ALL synthesis engines
         via NRPN/SYSEX messages. It wraps all regions with an articulation layer.
         """
         from ..xg.sart import YamahaNRPNMapper, ArticulationController
         from ..xg.sart.sart2_region import SArt2RegionFactory
-        
-        # NRPN mapper for articulation control (35+ articulations)
+        from ..xg.sart.articulation_preset import ArticulationPresetManager, create_builtin_presets
+
+        # NRPN mapper for articulation control (275+ articulations)
         self.nrpn_mapper = YamahaNRPNMapper()
-        
+
         # Global articulation controller
         self.articulation_manager = ArticulationController()
-        
+
+        # Articulation preset manager
+        self.articulation_preset_manager = create_builtin_presets()
+
         # S.Art2 factory - wraps ALL regions with articulation support
         self.sart2_factory = SArt2RegionFactory(self.sample_rate)
-        
+
         # Configure ALL engines with S.Art2
         for engine_type in self.engine_registry.get_priority_order():
             engine = self.engine_registry.get_engine(engine_type)
             if engine:
                 engine.sart2_enabled = True
                 engine.sart2_factory = self.sart2_factory
-        
-        print(f"   S.Art2: Articulation system initialized (35+ articulations)")
+
+        print(f"   S.Art2: Articulation system initialized (275+ articulations)")
+        print(f"   S.Art2: Articulation presets loaded ({self.articulation_preset_manager.get_preset_count()} presets)")
     
     # ========== S.Art2 ARTICULATION CONTROL ==========
     
@@ -828,6 +833,59 @@ class ModernXGSynthesizer:
             List of articulation names
         """
         return self.articulation_manager.get_available_articulations()
+    
+    # ========== ARTICULATION PRESET MANAGEMENT ==========
+    
+    def load_articulation_preset(self, channel: int, bank: int, program: int) -> bool:
+        """
+        Load articulation preset for channel.
+        
+        Args:
+            channel: MIDI channel number
+            bank: Bank number
+            program: Program number
+        
+        Returns:
+            True if preset loaded successfully
+        """
+        preset = self.articulation_preset_manager.get_preset(bank, program)
+        
+        if preset and 0 <= channel < len(self.channels):
+            self.channels[channel].apply_articulation_preset(preset)
+            logger.debug(f"Loaded articulation preset '{preset.name}' for channel {channel}")
+            return True
+        
+        return False
+    
+    def set_channel_articulation_preset(self, channel: int, 
+                                       articulation: str, 
+                                       **params) -> None:
+        """
+        Set articulation preset for channel.
+        
+        Args:
+            channel: MIDI channel number
+            articulation: Articulation name
+            **params: Articulation parameters
+        """
+        if 0 <= channel < len(self.channels):
+            self.channels[channel].set_articulation(articulation, **params)
+    
+    def get_articulation_preset_count(self) -> int:
+        """Get total number of articulation presets."""
+        return self.articulation_preset_manager.get_preset_count()
+    
+    def get_articulation_presets_by_category(self, category: str) -> list:
+        """Get all presets in a category."""
+        return self.articulation_preset_manager.get_presets_by_category(category)
+    
+    def save_articulation_presets(self, filepath: str) -> None:
+        """Save articulation presets to file."""
+        self.articulation_preset_manager.save_to_file(filepath)
+    
+    def load_articulation_presets_from_file(self, filepath: str) -> int:
+        """Load articulation presets from file."""
+        return self.articulation_preset_manager.load_from_file(filepath)
 
 
     def _handle_arpeggiator_note_on(self, channel: int, note: int, velocity: int):

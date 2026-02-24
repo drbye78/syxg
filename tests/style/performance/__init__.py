@@ -1,0 +1,1 @@
+"""Style performance tests package."""

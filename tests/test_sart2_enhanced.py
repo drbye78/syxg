@@ -510,7 +510,7 @@ class TestYamahaNRPNMapper:
         assert lsb == 1
         
         msb, lsb = mapper.get_nrpn_for_articulation('pizzicato_strings')
-        assert msb == 4  # In strings_bow category
+        assert msb == 7  # In strings_bow category (MSB 7)
         assert lsb == 0
     
     def test_search_articulations(self, mapper):

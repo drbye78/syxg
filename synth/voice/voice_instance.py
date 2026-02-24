@@ -37,39 +37,42 @@ class VoiceInstance:
         'regions', 'active_regions', 'start_time',
         'release_triggered', 'released',
         'modulation_state', 'per_note_modulation',
-        'master_volume', 'pan', 'transpose'
+        'master_volume', 'pan', 'transpose',
+        'articulation', 'articulation_parameters'
     ]
-    
+
     def __init__(
-        self, 
-        note: int, 
-        velocity: int, 
+        self,
+        note: int,
+        velocity: int,
         channel: int,
-        sample_rate: int
+        sample_rate: int,
+        articulation: str = 'normal'
     ):
         """
         Initialize VoiceInstance for a specific note.
-        
+
         Args:
             note: MIDI note number (0-127)
             velocity: MIDI velocity (0-127)
             channel: MIDI channel number (0-15)
             sample_rate: Audio sample rate in Hz
+            articulation: Initial articulation (default: 'normal')
         """
         self.note = note
         self.velocity = velocity
         self.channel = channel
         self.sample_rate = sample_rate
-        
+
         # Region management (now uses IRegion interface)
         self.regions: List[IRegion] = []
         self.active_regions: List[IRegion] = []
-        
+
         # Timing and state
         self.start_time = time.time()
         self.release_triggered = False
         self.released = False
-        
+
         # Modulation state (shared across all regions in this voice)
         self.modulation_state: Dict[str, float] = {
             'pitch_bend': 0.0,
@@ -81,7 +84,7 @@ class VoiceInstance:
             'pan': 0.0,
             'brightness': 0.5,
         }
-        
+
         # Per-note modulation (for MPE/polyphonic expression)
         self.per_note_modulation: Dict[str, float] = {
             'per_note_pitch_bend': 0.0,
@@ -90,11 +93,15 @@ class VoiceInstance:
             'per_note_pan': 0.0,
             'per_note_pressure': 0.0,
         }
-        
+
         # Voice-level parameters
         self.master_volume = 1.0
         self.pan = 0.0
         self.transpose = 0
+        
+        # S.Art2 articulation support
+        self.articulation = articulation
+        self.articulation_parameters: Dict[str, float] = {}
     
     def add_region(self, region: IRegion) -> None:
         """
@@ -125,7 +132,7 @@ class VoiceInstance:
     def note_off(self, velocity: int = 64) -> None:
         """
         Trigger note-off for all regions in this voice.
-        
+
         Args:
             velocity: Note-off velocity
         """
@@ -134,8 +141,48 @@ class VoiceInstance:
                 region.note_off()
             except Exception as e:
                 logger.error(f"VoiceInstance region note_off failed: {e}")
-        
+
         self.release_triggered = True
+    
+    # ========== S.Art2 ARTICULATION CONTROL ==========
+    
+    def set_articulation(self, articulation: str, **parameters) -> None:
+        """
+        Set articulation for this voice instance.
+        
+        Args:
+            articulation: Articulation name
+            **parameters: Articulation parameters
+        """
+        self.articulation = articulation
+        self.articulation_parameters.update(parameters)
+        
+        # Propagate to all regions
+        for region in self.regions:
+            if hasattr(region, 'set_articulation'):
+                region.set_articulation(articulation)
+                for param, value in parameters.items():
+                    if hasattr(region, 'set_articulation_param'):
+                        region.set_articulation_param(param, value)
+    
+    def get_articulation(self) -> str:
+        """Get current articulation."""
+        return self.articulation
+    
+    def get_articulation_parameters(self) -> Dict[str, float]:
+        """Get current articulation parameters."""
+        return self.articulation_parameters.copy()
+    
+    def apply_articulation_preset(self, articulation: str, 
+                                 parameters: Dict[str, float]) -> None:
+        """
+        Apply articulation preset.
+        
+        Args:
+            articulation: Articulation name
+            parameters: Articulation parameters
+        """
+        self.set_articulation(articulation, **parameters)
     
     def update_modulation(self, modulation_updates: Dict[str, float]) -> None:
         """

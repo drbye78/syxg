@@ -99,12 +99,23 @@ from ..core.config import SynthConfig
 # Style Engine imports
 try:
     from ..style.style_player import StylePlayer
-    from ..style import StyleLoader, Style, StyleSectionType
+    from ..style import StyleLoader, Style, StyleSectionType, RegistrationMemory
+    from ..style import StyleDynamics, DynamicsParameter
+    from ..style.midi_learn import MIDILearn, LearnTargetType
+    from ..style.integrations import StyleIntegrations
+    from ..style.scale import ScaleDetector
 except ImportError:
     StylePlayer = None
     StyleLoader = None
     Style = None
     StyleSectionType = None
+    RegistrationMemory = None
+    StyleDynamics = None
+    DynamicsParameter = None
+    MIDILearn = None
+    LearnTargetType = None
+    StyleIntegrations = None
+    ScaleDetector = None
 
 
 class Synthesizer:
@@ -246,6 +257,13 @@ class Synthesizer:
         self._chord_detection_channel = 0  # Channel for chord detection
         self._chord_detection_low_note = 36  # Low note for chord detection
         self._chord_detection_high_note = 60  # High note for chord detection
+        
+        # Style Engine Integrations
+        self.style_integrations: Optional[Any] = None
+
+        # Registration Memory
+        self.registration_memory: Optional[RegistrationMemory] = None
+        self._registration_enabled = False
 
         # Audio output buffers
         self.output_buffer = np.zeros((buffer_size, 2), dtype=np.float32)
@@ -859,14 +877,56 @@ class Synthesizer:
             self.style_player = StylePlayer(self, sample_rate=self.sample_rate)
             self.style_engine_enabled = True
 
+            # Initialize MIDI Learn for style control
+            if MIDILearn is not None:
+                self.midi_learn = MIDILearn()
+                self._setup_midi_learn_callbacks()
+
             # Connect XG system to style player
             self.xg_system.set_style_player(self.style_player)
+            
+            # Initialize style engine integrations
+            self._initialize_style_integrations()
 
             print("Style Engine: Initialized successfully")
             return True
         except Exception as e:
             print(f"Style Engine: Initialization failed - {e}")
             return False
+    
+    def _initialize_style_integrations(self):
+        """
+        Initialize style engine integrations with other synth subsystems.
+        
+        Integrations:
+        1. Effects Coordinator ↔ Style Dynamics
+        2. Voice Manager ↔ OTS Presets
+        3. Modulation Matrix ↔ MIDI Learn
+        4. Pattern Sequencer ↔ Style Sections
+        5. MPE System ↔ Scale Detection
+        """
+        if StyleIntegrations is None:
+            return
+        
+        try:
+            self.style_integrations = StyleIntegrations(
+                effects_coordinator=self.effects_coordinator,
+                voice_manager=self.voice_manager,
+                modulation_matrix=getattr(self, 'modulation_matrix', None),
+                pattern_sequencer=getattr(self, 'pattern_sequencer', None),
+                mpe_manager=getattr(self, 'mpe_manager', None),
+                style_player=self.style_player,
+                style_dynamics=getattr(self.style_player, '_dynamics', None),
+                ots=getattr(self.style_player, '_ots', None),
+                midi_learn=getattr(self, 'midi_learn', None),
+                scale_detector=getattr(self, 'scale_detector', None),
+            )
+            
+            # Enable all integrations
+            self.style_integrations.enable_all()
+            print("Style Engine: Integrations initialized")
+        except Exception as e:
+            print(f"Style Engine: Integration initialization failed - {e}")
 
     def load_style_file(self, file_path: str) -> bool:
         """
@@ -1098,6 +1158,271 @@ class Synthesizer:
         if self.style_player:
             return self.style_player.is_playing
         return False
+
+    # ===== MIDI Learn Methods =====
+
+    def _setup_midi_learn_callbacks(self) -> None:
+        """Set up MIDI Learn callbacks to handle parameter changes."""
+        if not hasattr(self, "midi_learn") or not self.midi_learn:
+            return
+
+        self.midi_learn.register_callback(
+            LearnTargetType.STYLE_START_STOP, self._midi_learn_style_toggle
+        )
+        self.midi_learn.register_callback(
+            LearnTargetType.STYLE_TEMPO, self._midi_learn_style_tempo
+        )
+        self.midi_learn.register_callback(
+            LearnTargetType.STYLE_DYNAMICS, self._midi_learn_style_dynamics
+        )
+        self.midi_learn.register_callback(
+            LearnTargetType.STYLE_SECTION, self._midi_learn_style_section
+        )
+        self.midi_learn.register_callback(
+            LearnTargetType.STYLE_FILL, self._midi_learn_style_fill
+        )
+        self.midi_learn.register_callback(
+            LearnTargetType.STYLE_OCTAVE, self._midi_learn_style_octave
+        )
+        self.midi_learn.register_callback(
+            LearnTargetType.STYLE_VARIATION, self._midi_learn_style_variation
+        )
+        self.midi_learn.register_callback(
+            LearnTargetType.STYLE_INTENSITY, self._midi_learn_style_intensity
+        )
+
+    def _midi_learn_style_toggle(self, value: float) -> None:
+        """Handle style start/stop from MIDI learn."""
+        if value > 0.5:
+            self.start_style()
+        else:
+            self.stop_style()
+
+    def _midi_learn_style_tempo(self, value: float) -> None:
+        """Handle tempo change from MIDI learn."""
+        tempo = int(20 + value * 280)  # 20-300 BPM
+        self.set_style_tempo(tempo)
+
+    def _midi_learn_style_dynamics(self, value: float) -> None:
+        """Handle dynamics change from MIDI learn."""
+        dynamics = int(value * 127)
+        self.set_style_dynamics(dynamics)
+
+    def _midi_learn_style_section(self, value: float) -> None:
+        """Handle section change from MIDI learn."""
+        sections = ["main_a", "main_b", "main_c", "main_d"]
+        index = int(value * (len(sections) - 1))
+        self.set_style_section(sections[index])
+
+    def _midi_learn_style_fill(self, value: float) -> None:
+        """Handle fill trigger from MIDI learn."""
+        if value > 0.5:
+            self.trigger_style_fill()
+
+    def _midi_learn_style_octave(self, value: float) -> None:
+        """Handle octave shift from MIDI learn."""
+        if self.style_player:
+            octave = int(value * 8 - 4)  # -4 to +4
+            self.style_player.octave_shift = octave
+
+    def _midi_learn_style_variation(self, value: float) -> None:
+        """Handle variation change from MIDI learn."""
+        if self.style_player:
+            variation = int(value * 3)  # 0-3
+            self.style_player.variation = variation
+
+    def _midi_learn_style_intensity(self, value: float) -> None:
+        """Handle intensity change from MIDI learn."""
+        if self.style_player and self.style_player.dynamics:
+            intensity = int(value * 127)
+            self.style_player.dynamics.set_parameter(
+                DynamicsParameter.INTENSITY, intensity
+            )
+
+    def process_midi_learn(
+        self, cc_number: int, channel: int, value: int
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Process incoming MIDI CC for MIDI Learn.
+
+        Args:
+            cc_number: MIDI controller number (0-127)
+            channel: MIDI channel (0-15)
+            value: Controller value (0-127)
+
+        Returns:
+            Dict with processing result or None
+        """
+        if not hasattr(self, "midi_learn") or not self.midi_learn:
+            return None
+        return self.midi_learn.process_midi(cc_number, channel, value)
+
+    def start_midi_learn(self, target: str, param: str = "") -> bool:
+        """
+        Start MIDI learn mode for a target.
+
+        Args:
+            target: Target type (e.g., 'style_tempo', 'style_dynamics')
+            param: Optional parameter name
+
+        Returns:
+            True if learn mode started
+        """
+        if not hasattr(self, "midi_learn") or not self.midi_learn:
+            return False
+
+        target_map = {
+            "style_start_stop": LearnTargetType.STYLE_START_STOP,
+            "style_tempo": LearnTargetType.STYLE_TEMPO,
+            "style_dynamics": LearnTargetType.STYLE_DYNAMICS,
+            "style_section": LearnTargetType.STYLE_SECTION,
+            "style_fill": LearnTargetType.STYLE_FILL,
+            "style_octave": LearnTargetType.STYLE_OCTAVE,
+            "style_variation": LearnTargetType.STYLE_VARIATION,
+            "style_intensity": LearnTargetType.STYLE_INTENSITY,
+        }
+
+        target_type = target_map.get(target)
+        if target_type:
+            self.midi_learn.start_learn(target_type, param)
+            return True
+        return False
+
+    def cancel_midi_learn(self) -> None:
+        """Cancel pending MIDI learn."""
+        if hasattr(self, "midi_learn") and self.midi_learn:
+            self.midi_learn.cancel_learn()
+
+    def get_midi_learn_status(self) -> Dict[str, Any]:
+        """Get MIDI Learn status."""
+        if hasattr(self, "midi_learn") and self.midi_learn:
+            return self.midi_learn.get_status()
+        return {"enabled": False, "mappings": []}
+
+    def save_midi_learn_mappings(self, filepath: str) -> bool:
+        """Save MIDI Learn mappings to file."""
+        if hasattr(self, "midi_learn") and self.midi_learn:
+            return self.midi_learn.save_to_file(filepath)
+        return False
+
+    def load_midi_learn_mappings(self, filepath: str) -> bool:
+        """Load MIDI Learn mappings from file."""
+        if hasattr(self, "midi_learn") and self.midi_learn:
+            return self.midi_learn.load_from_file(filepath)
+        return False
+
+    # ===== Registration Memory Methods =====
+
+    def initialize_registration_memory(
+        self, num_banks: int = 8, slots_per_bank: int = 16
+    ) -> bool:
+        """
+        Initialize registration memory.
+
+        Args:
+            num_banks: Number of banks (default: 8)
+            slots_per_bank: Slots per bank (default: 16)
+
+        Returns:
+            True if initialization successful
+        """
+        if RegistrationMemory is None:
+            print("Registration Memory: Not available")
+            return False
+
+        try:
+            self.registration_memory = RegistrationMemory(num_banks, slots_per_bank)
+            self.registration_memory.set_synthesizer(self)
+            self._registration_enabled = True
+            print("Registration Memory: Initialized")
+            return True
+        except Exception as e:
+            print(f"Registration Memory: Initialization failed - {e}")
+            return False
+
+    def recall_registration(self, bank: int = 0, slot: int = 0) -> bool:
+        """
+        Recall a registration.
+
+        Args:
+            bank: Bank number (0-7)
+            slot: Slot number (0-15)
+
+        Returns:
+            True if recall successful
+        """
+        if not self.registration_memory:
+            if not self.initialize_registration_memory():
+                return False
+
+        return self.registration_memory.recall(bank, slot)
+
+    def store_registration(
+        self, name: str = "", bank: Optional[int] = None, slot: Optional[int] = None
+    ) -> bool:
+        """
+        Store current setup to a registration.
+
+        Args:
+            name: Registration name
+            bank: Bank number (optional, uses current)
+            slot: Slot number (optional, uses current)
+
+        Returns:
+            True if store successful
+        """
+        if not self.registration_memory:
+            return False
+
+        return self.registration_memory.store(name, bank, slot)
+
+    def set_registration_bank(self, bank: int) -> bool:
+        """Set current registration bank."""
+        if self.registration_memory:
+            return self.registration_memory.set_bank(bank)
+        return False
+
+    def next_registration_bank(self) -> bool:
+        """Advance to next registration bank."""
+        if self.registration_memory:
+            self.registration_memory.next_bank()
+            return True
+        return False
+
+    def set_registration_slot(self, slot: int) -> bool:
+        """Set current registration slot."""
+        if self.registration_memory:
+            return self.registration_memory.set_slot(slot)
+        return False
+
+    def get_registration_status(self) -> Dict[str, Any]:
+        """Get registration memory status."""
+        if self.registration_memory:
+            return self.registration_memory.get_status()
+        return {"enabled": False}
+
+    def save_registrations_to_file(self, filepath: str) -> bool:
+        """Save registrations to JSON file."""
+        if self.registration_memory:
+            try:
+                self.registration_memory.save_to_file(filepath)
+                return True
+            except Exception:
+                pass
+        return False
+
+    def load_registrations_from_file(self, filepath: str) -> bool:
+        """Load registrations from JSON file."""
+        if RegistrationMemory is None:
+            return False
+
+        try:
+            self.registration_memory = RegistrationMemory.load_from_file(filepath)
+            self.registration_memory.set_synthesizer(self)
+            self._registration_enabled = True
+            return True
+        except Exception:
+            return False
 
     def reset(self):
         """Reset synthesizer to default state."""

@@ -1,7 +1,8 @@
 """
-Style Loader - YAML-based Style File Parser
+Style Loader - YAML and SFF2-based Style File Parser
 
-Parses YAML-based style files and provides validation.
+Parses YAML-based style files and SFF2 binary files.
+Provides validation and conversion capabilities.
 """
 
 import yaml
@@ -31,24 +32,54 @@ class StyleValidationError(Exception):
 
 class StyleLoader:
     """
-    Loads and parses YAML-based style files.
+    Loads and parses YAML-based style files and SFF2 binary files.
 
-    Supports loading style files in the custom YAML format that
-    resembles/supersedes Yamaha SFF format.
+    Supports loading style files in:
+    - Custom YAML format (native)
+    - Yamaha SFF2 binary format (.sty)
     """
 
     DEFAULT_SCHEMA_VERSION = "1.0"
 
     def __init__(self, validate: bool = True):
         self.validate = validate
+        self._sff2_parser = None
+
+    def _get_sff2_parser(self):
+        """Lazy load SFF2 parser."""
+        if self._sff2_parser is None:
+            try:
+                from ..parsers.sff2_parser import SFF2Parser
+                self._sff2_parser = SFF2Parser()
+            except ImportError:
+                self._sff2_parser = None
+        return self._sff2_parser
 
     def load_style_file(self, file_path: Union[str, Path]) -> Style:
-        """Load a style from YAML file"""
+        """
+        Load a style from YAML or SFF2 file.
+        
+        Automatically detects file format based on extension.
+
+        Args:
+            file_path: Path to style file (.yaml, .yml, or .sty)
+
+        Returns:
+            Style object
+        """
         path = Path(file_path)
 
         if not path.exists():
             raise FileNotFoundError(f"Style file not found: {path}")
 
+        # Detect format based on extension
+        if path.suffix.lower() in ['.sty']:
+            return self._load_sff2_file(path)
+        else:
+            return self._load_yaml_file(path)
+
+    def _load_yaml_file(self, path: Path) -> Style:
+        """Load style from YAML file."""
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
@@ -56,6 +87,24 @@ class StyleLoader:
             raise StyleValidationError("Empty style file")
 
         style = self.parse_style_data(data)
+
+        if self.validate:
+            self.validate_style(style)
+
+        style._file_path = path
+
+        return style
+
+    def _load_sff2_file(self, path: Path) -> Style:
+        """Load style from SFF2 binary file."""
+        parser = self._get_sff2_parser()
+        
+        if parser is None:
+            raise StyleValidationError(
+                "SFF2 parser not available. Install with: pip install sff2-parser"
+            )
+
+        style = parser.parse_file(str(path))
 
         if self.validate:
             self.validate_style(style)
@@ -302,6 +351,8 @@ class StyleLoader:
             return []
 
         styles = []
+        
+        # Load YAML styles
         for file_path in path.glob("*.yaml"):
             try:
                 style = self.load_style_file(file_path)
@@ -311,6 +362,7 @@ class StyleLoader:
                         "path": str(file_path),
                         "category": style.category.name,
                         "tempo": style.tempo,
+                        "format": "yaml",
                     }
                 )
             except Exception:
@@ -325,9 +377,54 @@ class StyleLoader:
                         "path": str(file_path),
                         "category": style.category.name,
                         "tempo": style.tempo,
+                        "format": "yaml",
+                    }
+                )
+            except Exception:
+                continue
+        
+        # Load SFF2 styles
+        for file_path in path.glob("*.sty"):
+            try:
+                style = self.load_style_file(file_path)
+                styles.append(
+                    {
+                        "name": style.name,
+                        "path": str(file_path),
+                        "category": style.category.name,
+                        "tempo": style.tempo,
+                        "format": "sff2",
                     }
                 )
             except Exception:
                 continue
 
         return sorted(styles, key=lambda s: s["name"])
+    
+    def convert_sff2_to_yaml(self, sff2_path: Union[str, Path], 
+                             yaml_path: Optional[Union[str, Path]] = None) -> str:
+        """
+        Convert SFF2 file to YAML format.
+        
+        Args:
+            sff2_path: Path to input .sty file
+            yaml_path: Optional path for output .yaml file.
+                      If None, uses same name with .yaml extension.
+        
+        Returns:
+            Path to converted YAML file
+        """
+        sff2_path = Path(sff2_path)
+        
+        if yaml_path is None:
+            yaml_path = sff2_path.with_suffix('.yaml')
+        else:
+            yaml_path = Path(yaml_path)
+        
+        # Load SFF2
+        style = self._load_sff2_file(sff2_path)
+        
+        # Save as YAML
+        style.save(yaml_path)
+        
+        return str(yaml_path)

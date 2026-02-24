@@ -18,7 +18,9 @@ class RangeNode:
     Stores key and velocity ranges for fast zone matching.
     """
 
-    def __init__(self, zone: SF2Zone, key_min: int, key_max: int, vel_min: int, vel_max: int):
+    def __init__(
+        self, zone: SF2Zone, key_min: int, key_max: int, vel_min: int, vel_max: int
+    ):
         """
         Initialize range node.
 
@@ -36,8 +38,8 @@ class RangeNode:
         self.vel_max = vel_max
 
         # Tree structure
-        self.left: Optional['RangeNode'] = None
-        self.right: Optional['RangeNode'] = None
+        self.left: Optional["RangeNode"] = None
+        self.right: Optional["RangeNode"] = None
         self.height = 1
 
     def overlaps(self, key: int, velocity: int) -> bool:
@@ -51,8 +53,10 @@ class RangeNode:
         Returns:
             True if ranges overlap
         """
-        return (self.key_min <= key <= self.key_max and
-                self.vel_min <= velocity <= self.vel_max)
+        return (
+            self.key_min <= key <= self.key_max
+            and self.vel_min <= velocity <= self.vel_max
+        )
 
 
 class AVLRangeTree:
@@ -80,8 +84,13 @@ class AVLRangeTree:
     def _insert_recursive(self, node: Optional[RangeNode], zone: SF2Zone) -> RangeNode:
         """Recursive insertion with AVL balancing."""
         if node is None:
-            return RangeNode(zone, zone.key_range[0], zone.key_range[1],
-                           zone.velocity_range[0], zone.velocity_range[1])
+            return RangeNode(
+                zone,
+                zone.key_range[0],
+                zone.key_range[1],
+                zone.velocity_range[0],
+                zone.velocity_range[1],
+            )
 
         # Compare by key range start for ordering
         if zone.key_range[0] < node.key_min:
@@ -130,9 +139,10 @@ class AVLRangeTree:
         self._query_recursive(self.root, key, velocity, result)
         return result
 
-    def _query_recursive(self, node: Optional[RangeNode], key: int, velocity: int,
-                        result: List[SF2Zone]) -> None:
-        """Recursive range query."""
+    def _query_recursive(
+        self, node: Optional[RangeNode], key: int, velocity: int, result: List[SF2Zone]
+    ) -> None:
+        """Recursive range query with proper pruning."""
         if node is None:
             return
 
@@ -140,9 +150,13 @@ class AVLRangeTree:
         if node.overlaps(key, velocity):
             result.append(node.zone)
 
-        # Query subtrees
-        self._query_recursive(node.left, key, velocity, result)
-        self._query_recursive(node.right, key, velocity, result)
+        # Prune: only search left subtree if key is within left subtree's range
+        if node.left and key >= node.left.key_min:
+            self._query_recursive(node.left, key, velocity, result)
+
+        # Prune: only search right subtree if key is within right subtree's range
+        if node.right and key <= node.right.key_max:
+            self._query_recursive(node.right, key, velocity, result)
 
     def clear(self) -> None:
         """Clear the tree."""
@@ -157,9 +171,9 @@ class AVLRangeTree:
             Dictionary with tree statistics
         """
         return {
-            'node_count': self._node_count,
-            'height': self._get_height(self.root),
-            'is_balanced': self._is_balanced()
+            "node_count": self._node_count,
+            "height": self._get_height(self.root),
+            "is_balanced": self._is_balanced(),
         }
 
     def _get_height(self, node: Optional[RangeNode]) -> int:
@@ -289,13 +303,13 @@ class HierarchicalZoneCache:
         tree_stats = self.range_tree.get_stats()
 
         return {
-            'tree_stats': tree_stats,
-            'query_cache_size': len(self.query_cache),
-            'max_cache_size': self.max_cache_size,
-            'cache_hits': self.cache_hits,
-            'cache_misses': self.cache_misses,
-            'total_queries': total_queries,
-            'hit_rate_percent': round(hit_rate, 2)
+            "tree_stats": tree_stats,
+            "query_cache_size": len(self.query_cache),
+            "max_cache_size": self.max_cache_size,
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "total_queries": total_queries,
+            "hit_rate_percent": round(hit_rate, 2),
         }
 
 
@@ -308,8 +322,12 @@ class SF2ZoneCacheManager:
 
     def __init__(self):
         """Initialize zone cache manager."""
-        self.preset_caches: Dict[int, HierarchicalZoneCache] = {}  # bank_program -> cache
-        self.instrument_caches: Dict[int, HierarchicalZoneCache] = {}  # instrument_index -> cache
+        self.preset_caches: Dict[
+            int, HierarchicalZoneCache
+        ] = {}  # bank_program -> cache
+        self.instrument_caches: Dict[
+            int, HierarchicalZoneCache
+        ] = {}  # instrument_index -> cache
         self.global_preset_cache: Optional[HierarchicalZoneCache] = None
         self.global_instrument_cache: Optional[HierarchicalZoneCache] = None
 
@@ -359,7 +377,9 @@ class SF2ZoneCacheManager:
         self.global_instrument_cache = HierarchicalZoneCache()
         self.global_instrument_cache.add_zones(zones)
 
-    def get_preset_zones(self, bank: int, program: int, key: int, velocity: int) -> List[SF2Zone]:
+    def get_preset_zones(
+        self, bank: int, program: int, key: int, velocity: int
+    ) -> List[SF2Zone]:
         """
         Get zones for a preset that match the given key/velocity.
 
@@ -381,11 +401,15 @@ class SF2ZoneCacheManager:
         # Add specific preset zones
         cache_key = (bank << 8) | program
         if cache_key in self.preset_caches:
-            zones.extend(self.preset_caches[cache_key].get_matching_zones(key, velocity))
+            zones.extend(
+                self.preset_caches[cache_key].get_matching_zones(key, velocity)
+            )
 
         return zones
 
-    def get_instrument_zones(self, instrument_index: int, key: int, velocity: int) -> List[SF2Zone]:
+    def get_instrument_zones(
+        self, instrument_index: int, key: int, velocity: int
+    ) -> List[SF2Zone]:
         """
         Get zones for an instrument that match the given key/velocity.
 
@@ -405,11 +429,17 @@ class SF2ZoneCacheManager:
 
         # Add specific instrument zones
         if instrument_index in self.instrument_caches:
-            zones.extend(self.instrument_caches[instrument_index].get_matching_zones(key, velocity))
+            zones.extend(
+                self.instrument_caches[instrument_index].get_matching_zones(
+                    key, velocity
+                )
+            )
 
         return zones
 
-    def preload_hot_zones(self, common_keys: List[int] = None, common_velocities: List[int] = None) -> None:
+    def preload_hot_zones(
+        self, common_keys: List[int] = None, common_velocities: List[int] = None
+    ) -> None:
         """
         Preload cache for commonly used key/velocity combinations.
 
@@ -461,20 +491,35 @@ class SF2ZoneCacheManager:
         preset_cache_count = len(self.preset_caches)
         instrument_cache_count = len(self.instrument_caches)
 
-        total_preset_zones = sum(cache.range_tree._node_count for cache in self.preset_caches.values())
-        total_instrument_zones = sum(cache.range_tree._node_count for cache in self.instrument_caches.values())
+        total_preset_zones = sum(
+            cache.range_tree._node_count for cache in self.preset_caches.values()
+        )
+        total_instrument_zones = sum(
+            cache.range_tree._node_count for cache in self.instrument_caches.values()
+        )
 
-        global_preset_zones = self.global_preset_cache.range_tree._node_count if self.global_preset_cache else 0
-        global_instrument_zones = self.global_instrument_cache.range_tree._node_count if self.global_instrument_cache else 0
+        global_preset_zones = (
+            self.global_preset_cache.range_tree._node_count
+            if self.global_preset_cache
+            else 0
+        )
+        global_instrument_zones = (
+            self.global_instrument_cache.range_tree._node_count
+            if self.global_instrument_cache
+            else 0
+        )
 
         return {
-            'preset_caches': preset_cache_count,
-            'instrument_caches': instrument_cache_count,
-            'total_preset_zones': total_preset_zones,
-            'total_instrument_zones': total_instrument_zones,
-            'global_preset_zones': global_preset_zones,
-            'global_instrument_zones': global_instrument_zones,
-            'total_zones': total_preset_zones + total_instrument_zones + global_preset_zones + global_instrument_zones
+            "preset_caches": preset_cache_count,
+            "instrument_caches": instrument_cache_count,
+            "total_preset_zones": total_preset_zones,
+            "total_instrument_zones": total_instrument_zones,
+            "global_preset_zones": global_preset_zones,
+            "global_instrument_zones": global_instrument_zones,
+            "total_zones": total_preset_zones
+            + total_instrument_zones
+            + global_preset_zones
+            + global_instrument_zones,
         }
 
     def get_performance_stats(self) -> Dict[str, Any]:
@@ -485,26 +530,26 @@ class SF2ZoneCacheManager:
             Dictionary with performance metrics
         """
         stats = {
-            'preset_cache_stats': {},
-            'instrument_cache_stats': {},
-            'global_preset_stats': None,
-            'global_instrument_stats': None
+            "preset_cache_stats": {},
+            "instrument_cache_stats": {},
+            "global_preset_stats": None,
+            "global_instrument_stats": None,
         }
 
         # Collect stats from preset caches
         for cache_key, cache in self.preset_caches.items():
             bank = cache_key >> 8
             program = cache_key & 0xFF
-            stats['preset_cache_stats'][f'{bank}:{program}'] = cache.get_stats()
+            stats["preset_cache_stats"][f"{bank}:{program}"] = cache.get_stats()
 
         # Collect stats from instrument caches
         for inst_idx, cache in self.instrument_caches.items():
-            stats['instrument_cache_stats'][str(inst_idx)] = cache.get_stats()
+            stats["instrument_cache_stats"][str(inst_idx)] = cache.get_stats()
 
         # Global cache stats
         if self.global_preset_cache:
-            stats['global_preset_stats'] = self.global_preset_cache.get_stats()
+            stats["global_preset_stats"] = self.global_preset_cache.get_stats()
         if self.global_instrument_cache:
-            stats['global_instrument_stats'] = self.global_instrument_cache.get_stats()
+            stats["global_instrument_stats"] = self.global_instrument_cache.get_stats()
 
         return stats

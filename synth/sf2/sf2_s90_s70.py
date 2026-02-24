@@ -28,7 +28,7 @@ class S90AWMConfiguration:
         self.velocity_layers: Dict[str, List[Dict[str, Any]]] = {}
         self.stereo_pairs: Dict[str, Tuple[str, str]] = {}
         self.mixing_parameters: Dict[str, Any] = {}
-        self.interpolation_quality = 'sinc'  # S90/S70 uses high-quality sinc
+        self.interpolation_quality = "sinc"  # S90/S70 uses high-quality sinc
         self.oversampling_factor = 2  # 2x oversampling for fidelity
 
         # Initialize default mixing parameters
@@ -37,18 +37,18 @@ class S90AWMConfiguration:
     def _initialize_default_mixing(self) -> None:
         """Initialize default S90/S70 mixing parameters."""
         self.mixing_parameters = {
-            'master_volume': 1.0,
-            'stereo_width': 1.0,  # Full stereo
-            'center_balance': 0.0,  # Center panned
-            'reverb_send': 0.3,
-            'chorus_send': 0.2,
-            'variation_send': 0.0,
-            'delay_send': 0.0,
-            'eq_low_gain': 0.0,
-            'eq_mid_gain': 0.0,
-            'eq_high_gain': 0.0,
-            'compression_ratio': 1.0,  # No compression
-            'limiter_threshold': 1.0,  # No limiting
+            "master_volume": 1.0,
+            "stereo_width": 1.0,  # Full stereo
+            "center_balance": 0.0,  # Center panned
+            "reverb_send": 0.3,
+            "chorus_send": 0.2,
+            "variation_send": 0.0,
+            "delay_send": 0.0,
+            "eq_low_gain": 0.0,
+            "eq_mid_gain": 0.0,
+            "eq_high_gain": 0.0,
+            "compression_ratio": 1.0,  # No compression
+            "limiter_threshold": 1.0,  # No limiting
         }
 
     def add_velocity_layer(self, preset_key: str, layer_config: Dict[str, Any]) -> None:
@@ -64,7 +64,9 @@ class S90AWMConfiguration:
 
         self.velocity_layers[preset_key].append(layer_config)
 
-    def get_velocity_layer(self, preset_key: str, velocity: int) -> Optional[Dict[str, Any]]:
+    def get_velocity_layer(
+        self, preset_key: str, velocity: int
+    ) -> Optional[Dict[str, Any]]:
         """
         Get velocity layer for a given preset and velocity.
 
@@ -82,15 +84,17 @@ class S90AWMConfiguration:
 
         # Find layer that matches velocity range
         for layer in layers:
-            min_vel = layer.get('min_velocity', 0)
-            max_vel = layer.get('max_velocity', 127)
+            min_vel = layer.get("min_velocity", 0)
+            max_vel = layer.get("max_velocity", 127)
 
             if min_vel <= velocity <= max_vel:
                 return layer
 
         return None
 
-    def register_stereo_pair(self, logical_name: str, left_sample: str, right_sample: str) -> None:
+    def register_stereo_pair(
+        self, logical_name: str, left_sample: str, right_sample: str
+    ) -> None:
         """
         Register stereo sample pair for S90/S70 stereo management.
 
@@ -131,12 +135,12 @@ class S90AWMConfiguration:
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary."""
         return {
-            'soundfont_name': self.soundfont_name,
-            'velocity_layers': self.velocity_layers.copy(),
-            'stereo_pairs': self.stereo_pairs.copy(),
-            'mixing_parameters': self.mixing_parameters.copy(),
-            'interpolation_quality': self.interpolation_quality,
-            'oversampling_factor': self.oversampling_factor
+            "soundfont_name": self.soundfont_name,
+            "velocity_layers": self.velocity_layers.copy(),
+            "stereo_pairs": self.stereo_pairs.copy(),
+            "mixing_parameters": self.mixing_parameters.copy(),
+            "interpolation_quality": self.interpolation_quality,
+            "oversampling_factor": self.oversampling_factor,
         }
 
 
@@ -160,16 +164,20 @@ class S90AWMStereoProcessor:
 
         # Professional mixing parameters
         self.mixing_params = {
-            'stereo_width': 1.0,
-            'center_balance': 0.0,
-            'haas_effect': True,
-            'frequency_panning': False,
-            'compression_enabled': False,
-            'limiter_enabled': False,
+            "stereo_width": 1.0,
+            "center_balance": 0.0,
+            "haas_effect": True,
+            "frequency_panning": False,
+            "compression_enabled": False,
+            "limiter_enabled": False,
         }
 
-    def process_stereo_sample(self, left_data: np.ndarray, right_data: np.ndarray,
-                            mixing_params: Dict[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
+    def process_stereo_sample(
+        self,
+        left_data: np.ndarray,
+        right_data: np.ndarray,
+        mixing_params: Dict[str, Any],
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Process stereo sample with S90/S70 advanced algorithms.
 
@@ -182,33 +190,34 @@ class S90AWMStereoProcessor:
             Processed (left, right) stereo data
         """
         # Apply stereo width control
-        width = mixing_params.get('stereo_width', 1.0)
+        width = mixing_params.get("stereo_width", 1.0)
         left_processed, right_processed = self.stereo_processor.process_stereo_width(
             left_data, right_data, width
         )
 
         # Apply center balance
-        balance = mixing_params.get('center_balance', 0.0)
+        balance = mixing_params.get("center_balance", 0.0)
         left_processed, right_processed = self._apply_center_balance(
             left_processed, right_processed, balance
         )
 
         # Apply Haas effect if enabled
-        if self.mixing_params.get('haas_effect', True):
+        if self.mixing_params.get("haas_effect", True):
             left_processed, right_processed = self._apply_haas_effect(
                 left_processed, right_processed
             )
 
         # Apply frequency-dependent panning if enabled
-        if self.mixing_params.get('frequency_panning', False):
+        if self.mixing_params.get("frequency_panning", False):
             left_processed, right_processed = self._apply_frequency_panning(
                 left_processed, right_processed
             )
 
         return left_processed, right_processed
 
-    def _apply_center_balance(self, left: np.ndarray, right: np.ndarray,
-                            balance: float) -> Tuple[np.ndarray, np.ndarray]:
+    def _apply_center_balance(
+        self, left: np.ndarray, right: np.ndarray, balance: float
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Apply center balance control (S90/S70 feature).
 
@@ -238,7 +247,9 @@ class S90AWMStereoProcessor:
 
         return left_out, right_out
 
-    def _apply_haas_effect(self, left: np.ndarray, right: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _apply_haas_effect(
+        self, left: np.ndarray, right: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Apply Haas effect for enhanced stereo spatialization.
 
@@ -257,14 +268,16 @@ class S90AWMStereoProcessor:
 
         # Apply delay to right channel
         delayed_right = np.zeros_like(right)
-        delayed_right[:len(right) - delay_samples] = right[delay_samples:]
+        delayed_right[: len(right) - delay_samples] = right[delay_samples:]
 
         # Mix original and delayed
         haas_right = right * 0.7 + delayed_right * 0.3
 
         return left, haas_right
 
-    def _apply_frequency_panning(self, left: np.ndarray, right: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _apply_frequency_panning(
+        self, left: np.ndarray, right: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Apply frequency-dependent panning for enhanced spatialization using proper filtering.
 
@@ -287,7 +300,9 @@ class S90AWMStereoProcessor:
 
         # Ensure valid bin ranges
         low_crossover_bin = max(1, min(low_crossover_bin, len(left) // 2))
-        high_crossover_bin = max(low_crossover_bin + 1, min(high_crossover_bin, len(left) - 1))
+        high_crossover_bin = max(
+            low_crossover_bin + 1, min(high_crossover_bin, len(left) - 1)
+        )
 
         # Apply frequency-dependent processing using FFT
         try:
@@ -296,7 +311,9 @@ class S90AWMStereoProcessor:
             right_fft = np.fft.rfft(right)
 
             # Low frequencies: mix to mono (center panned)
-            left_fft[:low_crossover_bin] = (left_fft[:low_crossover_bin] + right_fft[:low_crossover_bin]) * 0.5
+            left_fft[:low_crossover_bin] = (
+                left_fft[:low_crossover_bin] + right_fft[:low_crossover_bin]
+            ) * 0.5
             right_fft[:low_crossover_bin] = left_fft[:low_crossover_bin].copy()
 
             # Mid frequencies: moderate stereo enhancement
@@ -318,7 +335,9 @@ class S90AWMStereoProcessor:
             # Fallback to time-domain processing if FFT fails
             return self._apply_frequency_panning_fallback(left, right)
 
-    def _apply_frequency_panning_fallback(self, left: np.ndarray, right: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _apply_frequency_panning_fallback(
+        self, left: np.ndarray, right: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Fallback frequency panning using simple filtering.
 
@@ -334,8 +353,8 @@ class S90AWMStereoProcessor:
         low_pass_kernel = np.array([0.1, 0.2, 0.4, 0.2, 0.1])  # Simple low-pass
 
         # Apply low-pass to create centered low frequencies
-        left_low = np.convolve(left, low_pass_kernel, mode='same')
-        right_low = np.convolve(right, low_pass_kernel, mode='same')
+        left_low = np.convolve(left, low_pass_kernel, mode="same")
+        right_low = np.convolve(right, low_pass_kernel, mode="same")
         center_low = (left_low + right_low) * 0.5
 
         # High-pass approximation (original minus low-pass)
@@ -343,13 +362,18 @@ class S90AWMStereoProcessor:
         right_high = right - right_low
 
         # Combine with frequency-dependent panning
-        result_left = center_low * 0.7 + left_high * 1.3  # Lows centered, highs enhanced left
-        result_right = center_low * 0.7 + right_high * 1.3  # Lows centered, highs enhanced right
+        result_left = (
+            center_low * 0.7 + left_high * 1.3
+        )  # Lows centered, highs enhanced left
+        result_right = (
+            center_low * 0.7 + right_high * 1.3
+        )  # Lows centered, highs enhanced right
 
         return result_left, result_right
 
-    def apply_compression(self, left: np.ndarray, right: np.ndarray,
-                         ratio: float, threshold: float) -> Tuple[np.ndarray, np.ndarray]:
+    def apply_compression(
+        self, left: np.ndarray, right: np.ndarray, ratio: float, threshold: float
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Apply professional RMS-based compression to stereo signal.
 
@@ -362,7 +386,7 @@ class S90AWMStereoProcessor:
         Returns:
             Compressed stereo data
         """
-        if not self.mixing_params.get('compression_enabled', False) or ratio <= 1.0:
+        if not self.mixing_params.get("compression_enabled", False) or ratio <= 1.0:
             return left, right
 
         # RMS-based envelope detection (more musical than peak detection)
@@ -389,7 +413,9 @@ class S90AWMStereoProcessor:
         gain_reduction[below_threshold] = 1.0
 
         # In soft knee region: gradual compression
-        in_knee = (envelope >= soft_threshold) & (envelope <= threshold + knee_width / 2)
+        in_knee = (envelope >= soft_threshold) & (
+            envelope <= threshold + knee_width / 2
+        )
         if np.any(in_knee):
             knee_ratio = 1.0 / ratio  # Inverse ratio for soft knee
             knee_factor = (envelope[in_knee] - soft_threshold) / knee_width
@@ -401,7 +427,9 @@ class S90AWMStereoProcessor:
             gain_reduction[above_threshold] = 1.0 / ratio
 
         # Apply attack/release smoothing (simplified)
-        gain_reduction = self._smooth_gain_reduction(gain_reduction, attack_samples=100, release_samples=500)
+        gain_reduction = self._smooth_gain_reduction(
+            gain_reduction, attack_samples=100, release_samples=500
+        )
 
         # Apply gain reduction
         left_compressed = left * gain_reduction
@@ -409,7 +437,9 @@ class S90AWMStereoProcessor:
 
         return left_compressed, right_compressed
 
-    def _calculate_rms_envelope(self, signal: np.ndarray, window_size: int) -> np.ndarray:
+    def _calculate_rms_envelope(
+        self, signal: np.ndarray, window_size: int
+    ) -> np.ndarray:
         """
         Calculate RMS envelope for compression.
 
@@ -421,8 +451,10 @@ class S90AWMStereoProcessor:
             RMS envelope
         """
         # Calculate RMS in sliding windows
-        squared = signal ** 2
-        rms = np.sqrt(np.convolve(squared, np.ones(window_size) / window_size, mode='same'))
+        squared = signal**2
+        rms = np.sqrt(
+            np.convolve(squared, np.ones(window_size) / window_size, mode="same")
+        )
 
         # Normalize to 0-1 range based on signal level
         max_rms = np.max(rms)
@@ -431,8 +463,12 @@ class S90AWMStereoProcessor:
 
         return rms
 
-    def _smooth_gain_reduction(self, gain_reduction: np.ndarray,
-                              attack_samples: int = 100, release_samples: int = 500) -> np.ndarray:
+    def _smooth_gain_reduction(
+        self,
+        gain_reduction: np.ndarray,
+        attack_samples: int = 100,
+        release_samples: int = 500,
+    ) -> np.ndarray:
         """
         Apply attack/release smoothing to gain reduction signal.
 
@@ -456,17 +492,22 @@ class S90AWMStereoProcessor:
 
             if current_gain < previous_gain:
                 # Attack (gain reduction increasing)
-                smoothed[i] = previous_gain + attack_coeff * (current_gain - previous_gain)
+                smoothed[i] = previous_gain + attack_coeff * (
+                    current_gain - previous_gain
+                )
             else:
                 # Release (gain reduction decreasing)
-                smoothed[i] = previous_gain + release_coeff * (current_gain - previous_gain)
+                smoothed[i] = previous_gain + release_coeff * (
+                    current_gain - previous_gain
+                )
 
             previous_gain = smoothed[i]
 
         return smoothed
 
-    def apply_limiter(self, left: np.ndarray, right: np.ndarray,
-                     threshold: float) -> Tuple[np.ndarray, np.ndarray]:
+    def apply_limiter(
+        self, left: np.ndarray, right: np.ndarray, threshold: float
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Apply professional limiting to prevent clipping.
 
@@ -478,7 +519,7 @@ class S90AWMStereoProcessor:
         Returns:
             Limited stereo data
         """
-        if not self.mixing_params.get('limiter_enabled', False):
+        if not self.mixing_params.get("limiter_enabled", False):
             return left, right
 
         # Calculate envelope
@@ -509,7 +550,9 @@ class S90AWMLayerEngine:
         self.layer_cache: Dict[str, List[Dict[str, Any]]] = {}
         self.crossfade_samples = 8  # Samples for crossfade between layers
 
-    def add_layer_configuration(self, preset_key: str, layers: List[Dict[str, Any]]) -> None:
+    def add_layer_configuration(
+        self, preset_key: str, layers: List[Dict[str, Any]]
+    ) -> None:
         """
         Add layer configuration for a preset.
 
@@ -518,7 +561,7 @@ class S90AWMLayerEngine:
             layers: List of layer configurations
         """
         # Sort layers by velocity range for efficient lookup
-        sorted_layers = sorted(layers, key=lambda x: x.get('min_velocity', 0))
+        sorted_layers = sorted(layers, key=lambda x: x.get("min_velocity", 0))
         self.layer_cache[preset_key] = sorted_layers
 
     def get_active_layers(self, preset_key: str, velocity: int) -> List[Dict[str, Any]]:
@@ -539,16 +582,17 @@ class S90AWMLayerEngine:
         active_layers = []
 
         for layer in layers:
-            min_vel = layer.get('min_velocity', 0)
-            max_vel = layer.get('max_velocity', 127)
+            min_vel = layer.get("min_velocity", 0)
+            max_vel = layer.get("max_velocity", 127)
 
             if min_vel <= velocity <= max_vel:
                 active_layers.append(layer)
 
         return active_layers
 
-    def process_velocity_crossfade(self, layer_samples: List[Tuple[np.ndarray, Dict[str, Any]]],
-                                 velocity: int) -> np.ndarray:
+    def process_velocity_crossfade(
+        self, layer_samples: List[Tuple[np.ndarray, Dict[str, Any]]], velocity: int
+    ) -> np.ndarray:
         """
         Process velocity-based crossfading between layers with professional crossfade algorithms.
 
@@ -569,8 +613,9 @@ class S90AWMLayerEngine:
         # Multi-layer mixing with proper normalization
         return self._mix_multiple_layers(layer_samples, velocity)
 
-    def _crossfade_two_layers(self, layer_samples: List[Tuple[np.ndarray, Dict[str, Any]]],
-                            velocity: int) -> np.ndarray:
+    def _crossfade_two_layers(
+        self, layer_samples: List[Tuple[np.ndarray, Dict[str, Any]]], velocity: int
+    ) -> np.ndarray:
         """
         Crossfade between two velocity layers with smooth transition.
 
@@ -584,10 +629,10 @@ class S90AWMLayerEngine:
         sample1, config1 = layer_samples[0]
         sample2, config2 = layer_samples[1]
 
-        min_vel1 = config1.get('min_velocity', 0)
-        max_vel1 = config1.get('max_velocity', 64)
-        min_vel2 = config2.get('min_velocity', 64)
-        max_vel2 = config2.get('max_velocity', 127)
+        min_vel1 = config1.get("min_velocity", 0)
+        max_vel1 = config1.get("max_velocity", 64)
+        min_vel2 = config2.get("min_velocity", 64)
+        max_vel2 = config2.get("max_velocity", 127)
 
         # Calculate crossfade region
         crossfade_start = max(min_vel1, min_vel2 - self.crossfade_samples)
@@ -602,7 +647,9 @@ class S90AWMLayerEngine:
         else:
             # Crossfade region
             # Calculate crossfade position (0.0 = all layer1, 1.0 = all layer2)
-            crossfade_pos = (velocity - crossfade_start) / max(1, crossfade_end - crossfade_start)
+            crossfade_pos = (velocity - crossfade_start) / max(
+                1, crossfade_end - crossfade_start
+            )
 
             # Apply smooth crossfade curve (equal power)
             # layer1_gain = cos(crossfade_pos * π/2)
@@ -614,15 +661,16 @@ class S90AWMLayerEngine:
             # Ensure samples are same length (pad if necessary)
             max_len = max(len(sample1), len(sample2))
             if len(sample1) < max_len:
-                sample1 = np.pad(sample1, (0, max_len - len(sample1)), mode='constant')
+                sample1 = np.pad(sample1, (0, max_len - len(sample1)), mode="constant")
             if len(sample2) < max_len:
-                sample2 = np.pad(sample2, (0, max_len - len(sample2)), mode='constant')
+                sample2 = np.pad(sample2, (0, max_len - len(sample2)), mode="constant")
 
             # Crossfade
             return sample1 * layer1_gain + sample2 * layer2_gain
 
-    def _mix_multiple_layers(self, layer_samples: List[Tuple[np.ndarray, Dict[str, Any]]],
-                           velocity: int) -> np.ndarray:
+    def _mix_multiple_layers(
+        self, layer_samples: List[Tuple[np.ndarray, Dict[str, Any]]], velocity: int
+    ) -> np.ndarray:
         """
         Mix multiple layers with proper normalization and velocity scaling.
 
@@ -642,8 +690,8 @@ class S90AWMLayerEngine:
 
         for sample_data, layer_config in layer_samples:
             # Calculate layer contribution based on velocity distance
-            min_vel = layer_config.get('min_velocity', 0)
-            max_vel = layer_config.get('max_velocity', 127)
+            min_vel = layer_config.get("min_velocity", 0)
+            max_vel = layer_config.get("max_velocity", 127)
             center_vel = (min_vel + max_vel) / 2
 
             # Gaussian falloff from center velocity
@@ -653,17 +701,21 @@ class S90AWMLayerEngine:
             if max_distance > 0:
                 # Normalize distance and apply Gaussian
                 normalized_distance = min(velocity_distance / max_distance, 1.0)
-                contribution_factor = np.exp(-2 * normalized_distance ** 2)  # Gaussian falloff
+                contribution_factor = np.exp(
+                    -2 * normalized_distance**2
+                )  # Gaussian falloff
             else:
                 contribution_factor = 1.0 if velocity_distance == 0 else 0.0
 
             # Apply velocity scaling
-            velocity_factor = layer_config.get('velocity_scaling', 1.0)
+            velocity_factor = layer_config.get("velocity_scaling", 1.0)
             final_contribution = contribution_factor * velocity_factor
 
             # Pad sample to max length if necessary
             if len(sample_data) < max_len:
-                sample_data = np.pad(sample_data, (0, max_len - len(sample_data)), mode='constant')
+                sample_data = np.pad(
+                    sample_data, (0, max_len - len(sample_data)), mode="constant"
+                )
 
             # Add to mix
             contribution_signal = np.ones(max_len) * final_contribution
@@ -694,9 +746,9 @@ class S90AWMEngine:
 
         # Performance tracking
         self.processing_stats = {
-            'total_processed_samples': 0,
-            'average_processing_time': 0.0,
-            'compression_ratio': 0.0,
+            "total_processed_samples": 0,
+            "average_processing_time": 0.0,
+            "compression_ratio": 0.0,
         }
 
     def configure_soundfont(self, soundfont_path: str) -> S90AWMConfiguration:
@@ -710,6 +762,7 @@ class S90AWMEngine:
             AWM configuration object
         """
         import os
+
         soundfont_name = os.path.basename(soundfont_path)
 
         if soundfont_name not in self.configurations:
@@ -717,8 +770,13 @@ class S90AWMEngine:
 
         return self.configurations[soundfont_name]
 
-    def process_sample_with_awm(self, sample_data: np.ndarray, sample_info: Dict[str, Any],
-                              awm_config: S90AWMConfiguration, velocity: int = 100) -> np.ndarray:
+    def process_sample_with_awm(
+        self,
+        sample_data: np.ndarray,
+        sample_info: Dict[str, Any],
+        awm_config: S90AWMConfiguration,
+        velocity: int = 100,
+    ) -> np.ndarray:
         """
         Process sample with full S90/S70 AWM features.
 
@@ -732,30 +790,35 @@ class S90AWMEngine:
             Processed sample with AWM features applied
         """
         import time
+
         start_time = time.time()
 
         # Handle stereo processing
-        if sample_info.get('is_stereo', False):
+        if sample_info.get("is_stereo", False):
             # Split stereo data
             mid_point = len(sample_data) // 2
             left_data = sample_data[:mid_point]
             right_data = sample_data[mid_point:]
 
             # Apply AWM stereo processing
-            left_processed, right_processed = self.stereo_processor.process_stereo_sample(
-                left_data, right_data, awm_config.mixing_parameters
+            left_processed, right_processed = (
+                self.stereo_processor.process_stereo_sample(
+                    left_data, right_data, awm_config.mixing_parameters
+                )
             )
 
             # Apply compression and limiting
             left_processed, right_processed = self.stereo_processor.apply_compression(
-                left_processed, right_processed,
-                awm_config.mixing_parameters.get('compression_ratio', 1.0),
-                awm_config.mixing_parameters.get('limiter_threshold', 1.0)
+                left_processed,
+                right_processed,
+                awm_config.mixing_parameters.get("compression_ratio", 1.0),
+                awm_config.mixing_parameters.get("limiter_threshold", 1.0),
             )
 
             left_processed, right_processed = self.stereo_processor.apply_limiter(
-                left_processed, right_processed,
-                awm_config.mixing_parameters.get('limiter_threshold', 1.0)
+                left_processed,
+                right_processed,
+                awm_config.mixing_parameters.get("limiter_threshold", 1.0),
             )
 
             # Recombine stereo
@@ -763,16 +826,18 @@ class S90AWMEngine:
 
         else:
             # Mono processing - convert to stereo with AWM enhancements
-            left_processed, right_processed = self.stereo_processor.process_stereo_sample(
-                sample_data, sample_data, awm_config.mixing_parameters
+            left_processed, right_processed = (
+                self.stereo_processor.process_stereo_sample(
+                    sample_data, sample_data, awm_config.mixing_parameters
+                )
             )
             processed_data = np.concatenate([left_processed, right_processed])
 
         # Update statistics
         processing_time = time.time() - start_time
-        self.processing_stats['total_processed_samples'] += len(processed_data)
-        self.processing_stats['average_processing_time'] = (
-            self.processing_stats['average_processing_time'] + processing_time
+        self.processing_stats["total_processed_samples"] += len(processed_data)
+        self.processing_stats["average_processing_time"] = (
+            self.processing_stats["average_processing_time"] + processing_time
         ) / 2.0
 
         return processed_data
@@ -785,33 +850,42 @@ class S90AWMEngine:
             AWM system status
         """
         return {
-            'active_configurations': len(self.configurations),
-            'configured_soundfonts': list(self.configurations.keys()),
-            'stereo_processor_status': {
-                'haas_effect_enabled': self.stereo_processor.mixing_params.get('haas_effect', True),
-                'frequency_panning_enabled': self.stereo_processor.mixing_params.get('frequency_panning', False),
-                'compression_enabled': self.stereo_processor.mixing_params.get('compression_enabled', False),
-                'limiter_enabled': self.stereo_processor.mixing_params.get('limiter_enabled', False),
+            "active_configurations": len(self.configurations),
+            "configured_soundfonts": list(self.configurations.keys()),
+            "stereo_processor_status": {
+                "haas_effect_enabled": self.stereo_processor.mixing_params.get(
+                    "haas_effect", True
+                ),
+                "frequency_panning_enabled": self.stereo_processor.mixing_params.get(
+                    "frequency_panning", False
+                ),
+                "compression_enabled": self.stereo_processor.mixing_params.get(
+                    "compression_enabled", False
+                ),
+                "limiter_enabled": self.stereo_processor.mixing_params.get(
+                    "limiter_enabled", False
+                ),
             },
-            'layer_engine_status': {
-                'cached_presets': len(self.layer_engine.layer_cache),
-                'crossfade_samples': self.layer_engine.crossfade_samples,
+            "layer_engine_status": {
+                "cached_presets": len(self.layer_engine.layer_cache),
+                "crossfade_samples": self.layer_engine.crossfade_samples,
             },
-            'processing_stats': self.processing_stats.copy(),
+            "processing_stats": self.processing_stats.copy(),
         }
 
     def reset_processing_stats(self) -> None:
         """Reset processing statistics."""
         self.processing_stats = {
-            'total_processed_samples': 0,
-            'average_processing_time': 0.0,
-            'compression_ratio': 0.0,
+            "total_processed_samples": 0,
+            "average_processing_time": 0.0,
+            "compression_ratio": 0.0,
         }
 
 
 # Integration functions for SF2 architecture
 
-def enable_s90_awm_features(sf2_manager: 'SF2SoundFontManager') -> S90AWMEngine:
+
+def enable_s90_awm_features(sf2_manager: "SF2SoundFontManager") -> S90AWMEngine:
     """
     Enable S90/S70 AWM features in SF2 manager.
 
@@ -827,16 +901,21 @@ def enable_s90_awm_features(sf2_manager: 'SF2SoundFontManager') -> S90AWMEngine:
     _integrate_awm_with_sf2_manager(sf2_manager, awm_engine)
 
     print("🎹 SF2: S90/S70 Advanced AWM Stereo features enabled")
-    print(f"   - Multi-layer velocity switching: {len(awm_engine.layer_engine.layer_cache)} presets configured")
-    print("   - Professional stereo processing: Haas effect, frequency panning, compression")
+    print(
+        f"   - Multi-layer velocity switching: {len(awm_engine.layer_engine.layer_cache)} presets configured"
+    )
+    print(
+        "   - Professional stereo processing: Haas effect, frequency panning, compression"
+    )
     print("   - Advanced mixing algorithms: RMS-based compression, limiter")
     print("   - Real-time performance monitoring and optimization")
 
     return awm_engine
 
 
-def _integrate_awm_with_sf2_manager(sf2_manager: 'SF2SoundFontManager',
-                                   awm_engine: S90AWMEngine) -> None:
+def _integrate_awm_with_sf2_manager(
+    sf2_manager: "SF2SoundFontManager", awm_engine: S90AWMEngine
+) -> None:
     """
     Integrate AWM engine with SF2 manager for seamless operation.
 
@@ -844,33 +923,41 @@ def _integrate_awm_with_sf2_manager(sf2_manager: 'SF2SoundFontManager',
         sf2_manager: SF2 soundfont manager
         awm_engine: AWM engine to integrate
     """
-    # Monkey patch the manager's sample processing to include AWM features
+    # Store original method reference
     original_get_sample_data = sf2_manager.get_sample_data
 
-    def enhanced_get_sample_data(sample_index: int) -> Optional[np.ndarray]:
+    def enhanced_get_sample_data(
+        sample_id: int, soundfont_path: Optional[str] = None
+    ) -> Optional[np.ndarray]:
         """
         Enhanced sample data retrieval with AWM processing.
 
         Args:
-            sample_index: Sample index
+            sample_id: Sample ID to retrieve
+            soundfont_path: Optional soundfont path for context
 
         Returns:
             Processed sample data with AWM features
         """
-        # Get base sample data
-        sample_data = original_get_sample_data(sample_index)
+        # Get base sample data using original method
+        sample_data = original_get_sample_data(sample_id, soundfont_path)
         if sample_data is None:
             return None
 
-        # Get sample info for AWM processing
-        sample_info = sf2_manager.get_sample_info(sample_index)
-        if not sample_info:
+        # Get sample info for AWM processing if available
+        sample_info = None
+        try:
+            sample_info = sf2_manager.get_sample_info(sample_id)
+        except AttributeError:
+            pass  # get_sample_info may not exist yet
+
+        if sample_info is None:
             return sample_data
 
         # Get current soundfont for AWM configuration
-        current_soundfont = getattr(sf2_manager, '_current_soundfont', None)
+        current_soundfont = getattr(sf2_manager, "_current_soundfont", soundfont_path)
         if current_soundfont:
-            awm_config = awm_engine.configure_soundfont(current_soundfont)
+            awm_config = awm_engine.configure_soundfont(str(current_soundfont))
 
             # Apply AWM processing
             processed_data = awm_engine.process_sample_with_awm(
@@ -882,6 +969,31 @@ def _integrate_awm_with_sf2_manager(sf2_manager: 'SF2SoundFontManager',
 
     # Replace the method
     sf2_manager.get_sample_data = enhanced_get_sample_data
+
+    # Add sample info method if not exists
+    if not hasattr(sf2_manager, "get_sample_info"):
+
+        def get_sample_info(sample_id: int) -> Optional[Dict[str, Any]]:
+            """Get sample information for a sample ID."""
+            # Try to get from samples cache
+            samples = getattr(sf2_manager, "samples", {})
+            if sample_id in samples:
+                sample = samples[sample_id]
+                return {
+                    "name": sample.name if hasattr(sample, "name") else "",
+                    "sample_rate": sample.sample_rate
+                    if hasattr(sample, "sample_rate")
+                    else 44100,
+                    "original_pitch": sample.original_pitch
+                    if hasattr(sample, "original_pitch")
+                    else 60,
+                    "pitch_correction": sample.pitch_correction
+                    if hasattr(sample, "pitch_correction")
+                    else 0,
+                }
+            return None
+
+        sf2_manager.get_sample_info = get_sample_info
 
     # Add AWM status method
     def get_awm_status():
@@ -898,7 +1010,9 @@ def _integrate_awm_with_sf2_manager(sf2_manager: 'SF2SoundFontManager',
     sf2_manager.configure_awm_for_soundfont = configure_awm_for_soundfont
 
     # Add method to update AWM mixing parameters
-    def update_awm_mixing_parameters(soundfont_name: str, parameters: Dict[str, float]) -> None:
+    def update_awm_mixing_parameters(
+        soundfont_name: str, parameters: Dict[str, float]
+    ) -> None:
         """
         Update AWM mixing parameters for a soundfont.
 
@@ -914,9 +1028,12 @@ def _integrate_awm_with_sf2_manager(sf2_manager: 'SF2SoundFontManager',
     sf2_manager.update_awm_mixing_parameters = update_awm_mixing_parameters
 
 
-def create_awm_preset_from_sf2(sf2_manager: 'SF2SoundFontManager',
-                              bank: int, program: int,
-                              awm_engine: Optional[S90AWMEngine] = None) -> Optional[Dict[str, Any]]:
+def create_awm_preset_from_sf2(
+    sf2_manager: "SF2SoundFontManager",
+    bank: int,
+    program: int,
+    awm_engine: Optional[S90AWMEngine] = None,
+) -> Optional[Dict[str, Any]]:
     """
     Create AWM-enhanced preset from SF2 data.
 
@@ -935,31 +1052,31 @@ def create_awm_preset_from_sf2(sf2_manager: 'SF2SoundFontManager',
         return None
 
     awm_preset = {
-        'name': base_params.get('name', f'AWM Program {program}'),
-        'bank': bank,
-        'program': program,
-        'base_parameters': base_params,
-        'awm_features': {}
+        "name": base_params.get("name", f"AWM Program {program}"),
+        "bank": bank,
+        "program": program,
+        "base_parameters": base_params,
+        "awm_features": {},
     }
 
     if awm_engine:
         # Get current soundfont
-        current_soundfont = getattr(sf2_manager, '_current_soundfont', None)
+        current_soundfont = getattr(sf2_manager, "_current_soundfont", None)
         if current_soundfont:
             awm_config = awm_engine.configure_soundfont(current_soundfont)
 
-            awm_preset['awm_features'] = {
-                'velocity_layers': awm_config.velocity_layers,
-                'stereo_pairs': awm_config.stereo_pairs,
-                'mixing_parameters': awm_config.get_mixing_parameters(),
-                'interpolation_quality': awm_config.interpolation_quality,
-                'oversampling_factor': awm_config.oversampling_factor
+            awm_preset["awm_features"] = {
+                "velocity_layers": awm_config.velocity_layers,
+                "stereo_pairs": awm_config.stereo_pairs,
+                "mixing_parameters": awm_config.get_mixing_parameters(),
+                "interpolation_quality": awm_config.interpolation_quality,
+                "oversampling_factor": awm_config.oversampling_factor,
             }
 
             # Add layer information for this preset
             preset_key = f"{bank}_{program}"
             active_layers = awm_engine.layer_engine.get_active_layers(preset_key, 100)
-            awm_preset['awm_features']['active_layers'] = len(active_layers)
+            awm_preset["awm_features"]["active_layers"] = len(active_layers)
 
     return awm_preset
 
@@ -977,34 +1094,36 @@ def get_awm_performance_metrics(awm_engine: S90AWMEngine) -> Dict[str, Any]:
     status = awm_engine.get_awm_status()
 
     metrics = {
-        'awm_enabled': True,
-        'processing_stats': status.get('processing_stats', {}),
-        'stereo_features': {
-            'haas_effect': status['stereo_processor_status']['haas_effect_enabled'],
-            'frequency_panning': status['stereo_processor_status']['frequency_panning_enabled'],
-            'compression': status['stereo_processor_status']['compression_enabled'],
-            'limiter': status['stereo_processor_status']['limiter_enabled'],
+        "awm_enabled": True,
+        "processing_stats": status.get("processing_stats", {}),
+        "stereo_features": {
+            "haas_effect": status["stereo_processor_status"]["haas_effect_enabled"],
+            "frequency_panning": status["stereo_processor_status"][
+                "frequency_panning_enabled"
+            ],
+            "compression": status["stereo_processor_status"]["compression_enabled"],
+            "limiter": status["stereo_processor_status"]["limiter_enabled"],
         },
-        'layer_engine': {
-            'configured_presets': status['layer_engine_status']['cached_presets'],
-            'crossfade_samples': status['layer_engine_status']['crossfade_samples'],
+        "layer_engine": {
+            "configured_presets": status["layer_engine_status"]["cached_presets"],
+            "crossfade_samples": status["layer_engine_status"]["crossfade_samples"],
         },
-        'memory_usage': {
-            'configurations': status['active_configurations'],
-            'stereo_pairs': status['stereo_pairs'],
-        }
+        "memory_usage": {
+            "configurations": status["active_configurations"],
+            "stereo_pairs": status["stereo_pairs"],
+        },
     }
 
     # Calculate processing efficiency
-    stats = status.get('processing_stats', {})
-    total_samples = stats.get('total_processed_samples', 0)
-    total_time = stats.get('average_processing_time', 0)
+    stats = status.get("processing_stats", {})
+    total_samples = stats.get("total_processed_samples", 0)
+    total_time = stats.get("average_processing_time", 0)
 
     if total_time > 0:
-        metrics['processing_efficiency'] = {
-            'samples_per_second': total_samples / total_time,
-            'average_latency_ms': total_time * 1000,
-            'compression_ratio': stats.get('compression_ratio', 0.0)
+        metrics["processing_efficiency"] = {
+            "samples_per_second": total_samples / total_time,
+            "average_latency_ms": total_time * 1000,
+            "compression_ratio": stats.get("compression_ratio", 0.0),
         }
 
     return metrics

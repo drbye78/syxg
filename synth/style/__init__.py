@@ -11,9 +11,12 @@ Main Components:
 - StylePlayer: Style playback with section transitions
 - OneTouchSettings: Quick voice preset system
 - RegistrationMemory: Bank/memory recall system
+- ScaleDetector: Musical scale/key detection
+- GrooveQuantizer: Rhythmic feel processing
+- MIDILearn: MIDI controller learning
 
 Usage:
-    from synth.style import StyleLoader, AutoAccompaniment
+    from synth.style import StyleLoader, AutoAccompaniment, ScaleDetector
 
     # Load a style
     loader = StyleLoader()
@@ -22,6 +25,11 @@ Usage:
     # Create accompaniment engine
     engine = AutoAccompaniment(style, synthesizer)
     engine.start()
+    
+    # Get scale detection
+    scale_detector = ScaleDetector()
+    scale_detector.add_note(60)
+    current_scale = scale_detector.get_current_scale()
 """
 
 from .style import Style, StyleCategory, StyleSection, StyleSectionType
@@ -39,8 +47,26 @@ from .groove import (
     GrooveTemplate,
     get_default_groove_quantizer,
 )
+from .midi_learn import MIDILearn, MIDILearnMapping, LearnTargetType
+from .scale import (
+    ScaleDetector,
+    ScaleType,
+    ScalePattern,
+    DetectedScale,
+    ScaleDetectionConfig,
+    get_scale_detector,
+    SCALE_PATTERNS,
+)
+from .integrations import (
+    StyleEffectsIntegration,
+    StyleVoiceIntegration,
+    StyleModulationIntegration,
+    StyleSequencerIntegration,
+    StyleMPEIntegration,
+    StyleIntegrations,
+)
 
-__version__ = "1.0.0"
+__version__ = "1.2.0"
 
 __all__ = [
     # Core
@@ -79,4 +105,23 @@ __all__ = [
     "GrooveType",
     "GrooveTemplate",
     "get_default_groove_quantizer",
+    # MIDI Learn
+    "MIDILearn",
+    "MIDILearnMapping",
+    "LearnTargetType",
+    # Scale Detection
+    "ScaleDetector",
+    "ScaleType",
+    "ScalePattern",
+    "DetectedScale",
+    "ScaleDetectionConfig",
+    "get_scale_detector",
+    "SCALE_PATTERNS",
+    # Integrations (NEW)
+    "StyleEffectsIntegration",
+    "StyleVoiceIntegration",
+    "StyleModulationIntegration",
+    "StyleSequencerIntegration",
+    "StyleMPEIntegration",
+    "StyleIntegrations",
 ]

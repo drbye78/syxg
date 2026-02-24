@@ -17,7 +17,7 @@ class SF2Zone:
     with complete SF2 specification compliance.
     """
 
-    def __init__(self, level_type: str = 'preset'):
+    def __init__(self, level_type: str = "preset"):
         """
         Initialize SF2 zone.
 
@@ -36,7 +36,9 @@ class SF2Zone:
         self.velocity_range: Tuple[int, int] = (0, 127)
 
         # Zone type classification
-        self.is_global: bool = False  # True if zone has no sample and full key/vel range
+        self.is_global: bool = (
+            False  # True if zone has no sample and full key/vel range
+        )
 
         # Instrument linking (for preset zones)
         self.instrument_index: int = -1
@@ -62,7 +64,7 @@ class SF2Zone:
             self.key_range = (gen_amount & 0xFF, (gen_amount >> 8) & 0xFF)
         elif gen_type == 43:  # velRange
             self.velocity_range = (gen_amount & 0xFF, (gen_amount >> 8) & 0xFF)
-        elif gen_type == 53:  # sampleID (instrument level)
+        elif gen_type == 50:  # sampleID (instrument level)
             self.sample_id = gen_amount
 
     def add_modulator(self, modulator_data: Dict[str, Any]) -> None:
@@ -80,25 +82,25 @@ class SF2Zone:
         Determines zone type and validates ranges.
         """
         # Determine if this is a global zone
-        if self.level_type == 'preset':
+        if self.level_type == "preset":
             # Preset global zone: no instrument assigned
-            self.is_global = (self.instrument_index == -1)
+            self.is_global = self.instrument_index == -1
         else:  # instrument level
             # Instrument global zone: no sample assigned and full ranges
             self.is_global = (
-                self.sample_id == -1 and
-                self.key_range == (0, 127) and
-                self.velocity_range == (0, 127)
+                self.sample_id == -1
+                and self.key_range == (0, 127)
+                and self.velocity_range == (0, 127)
             )
 
         # Validate ranges
         self.key_range = (
             max(0, min(127, self.key_range[0])),
-            max(0, min(127, self.key_range[1]))
+            max(0, min(127, self.key_range[1])),
         )
         self.velocity_range = (
             max(0, min(127, self.velocity_range[0])),
-            max(0, min(127, self.velocity_range[1]))
+            max(0, min(127, self.velocity_range[1])),
         )
 
         # Ensure valid ranges
@@ -125,8 +127,8 @@ class SF2Zone:
 
         # Check ranges
         matches = (
-            self.key_range[0] <= note <= self.key_range[1] and
-            self.velocity_range[0] <= velocity <= self.velocity_range[1]
+            self.key_range[0] <= note <= self.key_range[1]
+            and self.velocity_range[0] <= velocity <= self.velocity_range[1]
         )
 
         # Cache result
@@ -158,22 +160,19 @@ class SF2Zone:
         Returns:
             List of modulators targeting this destination
         """
-        return [
-            mod for mod in self.modulators
-            if mod.get('dest_operator') == dest_type
-        ]
+        return [mod for mod in self.modulators if mod.get("dest_operator") == dest_type]
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert zone to dictionary representation."""
         return {
-            'level_type': self.level_type,
-            'generators': self.generators.copy(),
-            'modulators': [mod.copy() for mod in self.modulators],
-            'sample_id': self.sample_id,
-            'key_range': self.key_range,
-            'velocity_range': self.velocity_range,
-            'is_global': self.is_global,
-            'instrument_index': self.instrument_index
+            "level_type": self.level_type,
+            "generators": self.generators.copy(),
+            "modulators": [mod.copy() for mod in self.modulators],
+            "sample_id": self.sample_id,
+            "key_range": self.key_range,
+            "velocity_range": self.velocity_range,
+            "is_global": self.is_global,
+            "instrument_index": self.instrument_index,
         }
 
 
@@ -263,12 +262,12 @@ class SF2Instrument:
     def to_dict(self) -> Dict[str, Any]:
         """Convert instrument to dictionary representation."""
         return {
-            'index': self.index,
-            'name': self.name,
-            'zones': [zone.to_dict() for zone in self.zones],
-            'global_zone': self.global_zone.to_dict() if self.global_zone else None,
-            'has_samples': self.has_samples(),
-            'sample_ids': list(self.get_sample_ids())
+            "index": self.index,
+            "name": self.name,
+            "zones": [zone.to_dict() for zone in self.zones],
+            "global_zone": self.global_zone.to_dict() if self.global_zone else None,
+            "has_samples": self.has_samples(),
+            "sample_ids": list(self.get_sample_ids()),
         }
 
 
@@ -360,13 +359,13 @@ class SF2Preset:
     def to_dict(self) -> Dict[str, Any]:
         """Convert preset to dictionary representation."""
         return {
-            'bank': self.bank,
-            'program': self.program,
-            'name': self.name,
-            'zones': [zone.to_dict() for zone in self.zones],
-            'global_zone': self.global_zone.to_dict() if self.global_zone else None,
-            'instruments': list(self.get_instruments()),
-            'has_instruments': self.has_instruments()
+            "bank": self.bank,
+            "program": self.program,
+            "name": self.name,
+            "zones": [zone.to_dict() for zone in self.zones],
+            "global_zone": self.global_zone.to_dict() if self.global_zone else None,
+            "instruments": list(self.get_instruments()),
+            "has_instruments": self.has_instruments(),
         }
 
 
@@ -384,16 +383,16 @@ class SF2Sample:
         Args:
             header_data: Sample header information
         """
-        self.name = header_data.get('name', 'Unknown')
-        self.start = header_data.get('start', 0)
-        self.end = header_data.get('end', 0)
-        self.start_loop = header_data.get('start_loop', 0)
-        self.end_loop = header_data.get('end_loop', 0)
-        self.sample_rate = header_data.get('sample_rate', 44100)
-        self.original_pitch = header_data.get('original_pitch', 60)
-        self.pitch_correction = header_data.get('pitch_correction', 0)
-        self.sample_link = header_data.get('sample_link', 0)
-        self.sample_type = header_data.get('sample_type', 1)
+        self.name = header_data.get("name", "Unknown")
+        self.start = header_data.get("start", 0)
+        self.end = header_data.get("end", 0)
+        self.start_loop = header_data.get("start_loop", 0)
+        self.end_loop = header_data.get("end_loop", 0)
+        self.sample_rate = header_data.get("sample_rate", 44100)
+        self.original_pitch = header_data.get("original_pitch", 60)
+        self.pitch_correction = header_data.get("pitch_correction", 0)
+        self.sample_link = header_data.get("sample_link", 0)
+        self.sample_type = header_data.get("sample_type", 1)
 
         # Derived properties
         self.length = self.end - self.start
@@ -424,10 +423,10 @@ class SF2Sample:
         # Bit 3: 1=ROM sample (not used for loop mode)
         # Loop mode is determined by the sample mode generator (gen_type 51)
         # But we can infer from sample_type if needed:
-        
+
         # Extract sample type without 24-bit flag
         type_flags = self.sample_type & 0x7FFF
-        
+
         # For loop mode, we should rely on sample_modes generator (51) instead
         # But if we must determine from sample_type:
         # 1 = mono, 2 = right, 4 = left, 8 = linked
@@ -477,15 +476,15 @@ class SF2Sample:
                     break
 
                 # Left channel
-                left_bytes = data[i:i+3]
-                left_int = int.from_bytes(left_bytes, byteorder='little', signed=True)
+                left_bytes = data[i : i + 3]
+                left_int = int.from_bytes(left_bytes, byteorder="little", signed=True)
                 if left_int & 0x800000:
                     left_int |= 0xFF000000
                 left_sample = left_int / 8388608.0
 
                 # Right channel
-                right_bytes = data[i+3:i+6]
-                right_int = int.from_bytes(right_bytes, byteorder='little', signed=True)
+                right_bytes = data[i + 3 : i + 6]
+                right_int = int.from_bytes(right_bytes, byteorder="little", signed=True)
                 if right_int & 0x800000:
                     right_int |= 0xFF000000
                 right_sample = right_int / 8388608.0
@@ -499,8 +498,10 @@ class SF2Sample:
                 if i + 3 > len(data):
                     break
 
-                sample_bytes = data[i:i+3]
-                sample_int = int.from_bytes(sample_bytes, byteorder='little', signed=True)
+                sample_bytes = data[i : i + 3]
+                sample_int = int.from_bytes(
+                    sample_bytes, byteorder="little", signed=True
+                )
                 if sample_int & 0x800000:
                     sample_int |= 0xFF000000
                 sample = sample_int / 8388608.0
@@ -514,9 +515,9 @@ class SF2Sample:
             return None
 
         if self.is_stereo:
-            return self.data[self.start_loop:self.end_loop]
+            return self.data[self.start_loop : self.end_loop]
         else:
-            return self.data[self.start_loop:self.end_loop]
+            return self.data[self.start_loop : self.end_loop]
 
     def get_root_frequency(self) -> float:
         """Get root frequency in Hz for this sample."""
@@ -527,23 +528,23 @@ class SF2Sample:
     def to_dict(self) -> Dict[str, Any]:
         """Convert sample to dictionary representation."""
         return {
-            'name': self.name,
-            'start': self.start,
-            'end': self.end,
-            'start_loop': self.start_loop,
-            'end_loop': self.end_loop,
-            'sample_rate': self.sample_rate,
-            'original_pitch': self.original_pitch,
-            'pitch_correction': self.pitch_correction,
-            'sample_link': self.sample_link,
-            'sample_type': self.sample_type,
-            'length': self.length,
-            'loop_length': self.loop_length,
-            'is_stereo': self.is_stereo,
-            'bit_depth': self.bit_depth,
-            'loop_mode': self.loop_mode,
-            'data_loaded': self.data_loaded,
-            'root_frequency': self.get_root_frequency()
+            "name": self.name,
+            "start": self.start,
+            "end": self.end,
+            "start_loop": self.start_loop,
+            "end_loop": self.end_loop,
+            "sample_rate": self.sample_rate,
+            "original_pitch": self.original_pitch,
+            "pitch_correction": self.pitch_correction,
+            "sample_link": self.sample_link,
+            "sample_type": self.sample_type,
+            "length": self.length,
+            "loop_length": self.loop_length,
+            "is_stereo": self.is_stereo,
+            "bit_depth": self.bit_depth,
+            "loop_mode": self.loop_mode,
+            "data_loaded": self.data_loaded,
+            "root_frequency": self.get_root_frequency(),
         }
 
 
@@ -568,8 +569,8 @@ class RangeTreeNode:
         self.vel_max = zone.velocity_range[1]
 
         # Tree structure
-        self.left: Optional['RangeTreeNode'] = None
-        self.right: Optional['RangeTreeNode'] = None
+        self.left: Optional["RangeTreeNode"] = None
+        self.right: Optional["RangeTreeNode"] = None
         self.height = 1
 
     def overlaps(self, note: int, velocity: int) -> bool:
@@ -583,8 +584,10 @@ class RangeTreeNode:
         Returns:
             True if ranges overlap
         """
-        return (self.key_min <= note <= self.key_max and
-                self.vel_min <= velocity <= self.vel_max)
+        return (
+            self.key_min <= note <= self.key_max
+            and self.vel_min <= velocity <= self.vel_max
+        )
 
 
 class RangeTree:
@@ -652,10 +655,10 @@ class RangeTree:
         is_balanced = self._is_balanced()
 
         return {
-            'zone_count': self.zone_count,
-            'height': height,
-            'is_balanced': is_balanced,
-            'balance_factor': self._get_balance_factor(self.root)
+            "zone_count": self.zone_count,
+            "height": height,
+            "is_balanced": is_balanced,
+            "balance_factor": self._get_balance_factor(self.root),
         }
 
     def _insert(self, node: Optional[RangeTreeNode], zone: SF2Zone) -> RangeTreeNode:
@@ -705,8 +708,13 @@ class RangeTree:
 
         return node
 
-    def _query_recursive(self, node: Optional[RangeTreeNode], note: int,
-                        velocity: int, results: List[SF2Zone]) -> None:
+    def _query_recursive(
+        self,
+        node: Optional[RangeTreeNode],
+        note: int,
+        velocity: int,
+        results: List[SF2Zone],
+    ) -> None:
         """
         Recursively query the range tree for matching zones.
 
@@ -778,9 +786,9 @@ class RangeTree:
     def to_dict(self) -> Dict[str, Any]:
         """Convert range tree to dictionary."""
         return {
-            'zone_count': self.zone_count,
-            'stats': self.get_stats(),
-            'zones': self._node_to_dict(self.root)
+            "zone_count": self.zone_count,
+            "stats": self.get_stats(),
+            "zones": self._node_to_dict(self.root),
         }
 
     def _node_to_dict(self, node: Optional[RangeTreeNode]) -> Optional[Dict[str, Any]]:
@@ -789,10 +797,10 @@ class RangeTree:
             return None
 
         return {
-            'zone': node.zone.to_dict(),
-            'key_range': (node.key_min, node.key_max),
-            'vel_range': (node.vel_min, node.vel_max),
-            'height': node.height,
-            'left': self._node_to_dict(node.left),
-            'right': self._node_to_dict(node.right)
+            "zone": node.zone.to_dict(),
+            "key_range": (node.key_min, node.key_max),
+            "vel_range": (node.vel_min, node.vel_max),
+            "height": node.height,
+            "left": self._node_to_dict(node.left),
+            "right": self._node_to_dict(node.right),
         }

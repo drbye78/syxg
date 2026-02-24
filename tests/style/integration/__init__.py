@@ -1,0 +1,1 @@
+"""Style integration tests package."""
