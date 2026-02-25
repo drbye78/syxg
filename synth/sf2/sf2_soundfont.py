@@ -500,36 +500,30 @@ class SF2SoundFont:
         if not self._is_loaded or not self.file_loader:
             return None
 
-        # Get sample header
+        # Get sample header and derive loop region from header loop points.
+        # SF2 loop mode is primarily controlled by generator 51 (sampleModes),
+        # so we only return start/end here and leave mode selection to
+        # higher-level zone/region logic. As a heuristic, we treat a non-zero
+        # loop length as a forward loop.
         if hasattr(self.file_loader, "parse_sample_header_at_index"):
             header = self.file_loader.parse_sample_header_at_index(sample_id)
             if header:
+                start_loop = header.get("start_loop", header.get("start", 0))
+                end_loop = header.get("end_loop", header.get("end", 0))
+                loop_length = max(0, end_loop - start_loop)
+                mode = 1 if loop_length > 0 else 0  # 1 = forward loop (heuristic)
                 return {
-                    "start": header.get("start", 0),
-                    "end": header.get("end", 0),
-                    "mode": header.get("loop_mode", 0),
+                    "start": start_loop,
+                    "end": end_loop,
+                    "mode": mode,
                 }
 
         return None
 
-    def get_sample_data(self, sample_id: int) -> Optional[np.ndarray]:
-        """
-        Get sample audio data by sample ID.
-
-        Args:
-            sample_id: Sample identifier
-
-        Returns:
-            Sample data as numpy array or None
-        """
-        if not self._is_loaded or not self.file_loader:
-            return None
-
-        # Get sample data from file loader
-        if hasattr(self.file_loader, "get_sample_data"):
-            return self.file_loader.get_sample_data(sample_id)
-
-        return None
+    # NOTE: The public get_sample_data API is defined later in this class and
+    # returns processed numpy data via the SF2Sample cache. The older variant
+    # that called file_loader.get_sample_data(sample_id) directly has been
+    # removed to avoid signature mismatches.
 
     def _get_or_load_preset(self, bank: int, program: int) -> Optional["SF2Preset"]:
         """Get preset from cache or load on-demand."""

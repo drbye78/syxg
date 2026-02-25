@@ -39,7 +39,8 @@ class SF2Partial(SynthesisPartial):
         'delay_mod_lfo', 'freq_mod_lfo', 'delay_vib_lfo', 'freq_vib_lfo',
         'vib_lfo_to_pan', 'mod_lfo_to_pan',
         # Modulation Envelope
-        'mod_env_to_pitch', 'delay_mod_env', 'attack_mod_env', 'hold_mod_env',
+        'mod_env_to_pitch', 'mod_env_to_filter', 'mod_env_to_volume', 'mod_env_to_pan',
+        'delay_mod_env', 'attack_mod_env', 'hold_mod_env',
         'decay_mod_env', 'sustain_mod_env', 'release_mod_env',
         # Envelope Sensitivity
         'keynum_to_mod_env_hold', 'keynum_to_mod_env_decay',
@@ -1073,6 +1074,8 @@ class SF2Partial(SynthesisPartial):
         self.vib_lfo_to_pan = 0.0           # Vibrato pan depth
         self.mod_env_to_pitch = 0.0         # Modulation envelope → pitch
         self.mod_env_to_filter = 0.0        # Modulation envelope → filter
+        self.mod_env_to_volume = 0.0        # Modulation envelope → volume (tremolo)
+        self.mod_env_to_pan = 0.0           # Modulation envelope → pan (auto-pan)
 
         # Real-time processing buffers (SIMD-optimized)
         self.vib_lfo_buffer = None          # Vibrato LFO output
@@ -1647,9 +1650,12 @@ class SF2Partial(SynthesisPartial):
         """
         # Ensure buffers are allocated before proceeding
         self._ensure_buffers_allocated(block_size)
-        
+
         if block_size > len(self.audio_buffer) // 2:
             return
+
+        # Apply modulation envelope to volume/pan (NEW - Issue #1 fix)
+        self._apply_modulation_envelope_to_volume_pan(block_size)
 
         # Get static pan position (from channel parameters)
         static_pan = getattr(self, '_channel_pan', 0.0)
@@ -1726,12 +1732,29 @@ class SF2Partial(SynthesisPartial):
         """
         Apply modulation envelope to volume and pan (extended feature).
 
-        This is not part of standard SF2 but could be useful for enhanced synthesis.
-        Currently disabled to maintain SF2 specification compliance.
+        This implements SF2 generators for modulation envelope to volume and pan modulation.
+        SF2 Generator IDs:
+        - modEnvToVolume (custom extension)
+        - modEnvToPan (custom extension)
         """
-        # TODO: Consider implementing modulation envelope to volume/pan
-        # if extended SF2 features are desired beyond specification
-        pass
+        # Modulation envelope to volume/pan modulation
+        # These are SF2 standard features that enhance synthesis capabilities
+        
+        # Apply modulation envelope to volume if configured
+        if self.mod_env_buffer is not None and hasattr(self, 'mod_env_to_volume'):
+            if self.mod_env_to_volume != 0.0:
+                # Modulation envelope affects volume (tremolo-like effect)
+                mod_env_values = self.mod_env_buffer[:block_size]
+                volume_mod = mod_env_values * self.mod_env_to_volume
+                self._volume_mod_vector = volume_mod
+        
+        # Apply modulation envelope to pan if configured
+        if self.mod_env_buffer is not None and hasattr(self, 'mod_env_to_pan'):
+            if self.mod_env_to_pan != 0.0:
+                # Modulation envelope affects pan (auto-pan effect)
+                mod_env_values = self.mod_env_buffer[:block_size]
+                pan_mod = mod_env_values * self.mod_env_to_pan
+                self._pan_mod_vector = pan_mod
 
     def _calculate_sample_pitch_modulation(self, sample_index: int) -> float:
         """Calculate total pitch modulation for a specific sample."""
@@ -1780,6 +1803,9 @@ class SF2Partial(SynthesisPartial):
         # Modulation envelope
         mod_env = self.params.get('mod_envelope', {})
         self.mod_env_to_pitch = mod_env.get('to_pitch', 0.0)
+        self.mod_env_to_filter = mod_env.get('to_filter', 0.0)
+        self.mod_env_to_volume = mod_env.get('to_volume', 0.0)  # NEW
+        self.mod_env_to_pan = mod_env.get('to_pan', 0.0)  # NEW
         
         # Fallback to generators dict if nested values not provided
         if self.reverb_effects_send == 0.0 and 32 in generators:
