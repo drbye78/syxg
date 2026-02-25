@@ -337,8 +337,8 @@ class SF2FileLoader:
                     # For sdta (sample data), parse nested chunks to find smpl/sm24
                     if list_type == "sdta":
                         # Parse the nested LIST to find smpl and sm24 chunks
-                        sdta_start = self._file_handle.tell() - 4  # After LIST type
-                        list_data_size = actual_chunk_size - 4  # Exclude list type
+                        sdta_start = self._file_handle.tell()  # Already after LIST type
+                        list_data_size = actual_chunk_size  # Already excludes list type
 
                         # Parse nested chunks within LIST sdta
                         nested_pos = 0
@@ -359,13 +359,16 @@ class SF2FileLoader:
                                     chunk_start - 8,
                                     nested_size + 8,
                                 )
+                                # Skip past this chunk's data
+                                self._file_handle.seek(nested_size, 1)
+                                if nested_size % 2 == 1:
+                                    self._file_handle.seek(1, 1)
 
                             nested_pos += 8 + nested_size
                             if nested_size % 2 == 1:  # Pad to word boundary
                                 nested_pos += 1
 
-                    # Skip the LIST chunk data
-                    self._file_handle.seek(actual_chunk_size, 1)
+                    # After nested parsing, file position should be at next chunk
 
                 file_pos += chunk_size + 8  # Skip entire LIST chunk
 

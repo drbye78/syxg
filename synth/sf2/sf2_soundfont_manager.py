@@ -235,6 +235,101 @@ class SF2SoundFontManager:
 
         return None
 
+    def get_sample_info(self, sample_id: int, soundfont_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Get sample information (root key, loop points, etc.).
+
+        Args:
+            sample_id: Sample ID
+            soundfont_path: Specific soundfont path (search all if None)
+
+        Returns:
+            Sample info dictionary or None
+        """
+        with self._lock:
+            if soundfont_path:
+                # Get from specific soundfont
+                soundfont_path = str(Path(soundfont_path).resolve())
+                if soundfont_path in self.loaded_files:
+                    soundfont = self.loaded_files[soundfont_path]
+                    if hasattr(soundfont, 'get_sample_info'):
+                        return soundfont.get_sample_info(sample_id)
+            else:
+                # Search through all soundfonts in priority order
+                for filepath in self.file_order:
+                    if filepath in self.loaded_files:
+                        soundfont = self.loaded_files[filepath]
+                        if hasattr(soundfont, 'get_sample_info'):
+                            info = soundfont.get_sample_info(sample_id)
+                            if info:
+                                return info
+
+        return None
+
+    def get_sample_loop_info(self, sample_id: int, soundfont_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Get sample loop information.
+
+        Args:
+            sample_id: Sample ID
+            soundfont_path: Specific soundfont path (search all if None)
+
+        Returns:
+            Loop info dictionary or None
+        """
+        with self._lock:
+            if soundfont_path:
+                # Get from specific soundfont
+                soundfont_path = str(Path(soundfont_path).resolve())
+                if soundfont_path in self.loaded_files:
+                    soundfont = self.loaded_files[soundfont_path]
+                    if hasattr(soundfont, 'get_sample_loop_info'):
+                        return soundfont.get_sample_loop_info(sample_id)
+            else:
+                # Search through all soundfonts in priority order
+                for filepath in self.file_order:
+                    if filepath in self.loaded_files:
+                        soundfont = self.loaded_files[filepath]
+                        if hasattr(soundfont, 'get_sample_loop_info'):
+                            info = soundfont.get_sample_loop_info(sample_id)
+                            if info:
+                                return info
+
+        return None
+
+    def get_zone(self, region_id: int, bank: int = 0, program: int = 0, soundfont_path: Optional[str] = None) -> Optional[Any]:
+        """
+        Get SF2Zone by region ID for a specific preset.
+
+        Args:
+            region_id: Zone/region identifier
+            bank: MIDI bank number
+            program: MIDI program number
+            soundfont_path: Specific soundfont path (search all if None)
+
+        Returns:
+            SF2Zone instance or None
+        """
+        with self._lock:
+            if soundfont_path:
+                # Get from specific soundfont
+                soundfont_path = str(Path(soundfont_path).resolve())
+                if soundfont_path in self.loaded_files:
+                    soundfont = self.loaded_files[soundfont_path]
+                    if hasattr(soundfont, 'get_zone'):
+                        return soundfont.get_zone(bank, program, region_id)
+            else:
+                # Search through all soundfonts in priority order
+                for filepath in self.file_order:
+                    if filepath in self.loaded_files:
+                        soundfont = self.loaded_files[filepath]
+                        if hasattr(soundfont, 'get_zone'):
+                            zone = soundfont.get_zone(bank, program, region_id)
+                            if zone:
+                                return zone
+
+        return None
+
     def get_available_programs(self) -> List[Tuple[int, int, str]]:
         """
         Get all available programs across all loaded soundfonts.

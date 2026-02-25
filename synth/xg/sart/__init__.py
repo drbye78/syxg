@@ -6,7 +6,7 @@ Wraps any IRegion implementation with expressive articulation capabilities.
 
 This package contains the CORE S.Art2 integration components:
 - sart2_region: SArt2Region wrapper for articulation control
-- articulation_controller: ArticulationController for parameter management  
+- articulation_controller: ArticulationController for parameter management
 - nrpn: YamahaNRPNMapper for NRPN message processing
 
 Note: The standalone synthesizer and related components have been integrated
@@ -19,13 +19,13 @@ Package Structure:
 
 Usage:
     from synth import ModernXGSynthesizer
-    
+
     # S.Art2 is enabled by default
     synth = ModernXGSynthesizer()
-    
+
     # Set articulation
     synth.set_channel_articulation(0, 'legato')
-    
+
     # Or via NRPN
     synth.process_nrpn(channel=0, msb=1, lsb=1, value=0)
 """
@@ -33,18 +33,41 @@ Usage:
 from .sart2_region import SArt2Region, SArt2RegionFactory
 from .articulation_controller import ArticulationController
 from .nrpn import YamahaNRPNMapper, midi_note_to_frequency
+from .mappings import (
+    NRPN_ARTICULATION_MAP,
+    MSB_CATEGORIES,
+    ARTICULATION_ALIASES,
+    get_articulation_from_nrpn,
+    get_nrpn_for_articulation,
+    get_category_for_msb,
+)
+from .modifiers import SF2SampleModifier
+from .controllers import (
+    ArticulationController as ArticulationControllerAlt,
+    create_articulation_controller,
+)
 
-__version__ = "3.0.0"
+__version__ = "3.1.0"
 
 __all__ = [
     # Core S.Art2 integration
     "SArt2Region",
     "SArt2RegionFactory",
     "ArticulationController",
-    
     # NRPN mapping
     "YamahaNRPNMapper",
     "midi_note_to_frequency",
+    # Articulation mappings
+    "NRPN_ARTICULATION_MAP",
+    "MSB_CATEGORIES",
+    "ARTICULATION_ALIASES",
+    "get_articulation_from_nrpn",
+    "get_nrpn_for_articulation",
+    "get_category_for_msb",
+    # Sample modifiers
+    "SF2SampleModifier",
+    # Factory function
+    "create_articulation_controller",
 ]
 
 # Deprecated imports (for backward compatibility during transition)
@@ -62,14 +85,13 @@ def __getattr__(name):
     """Handle deprecated imports with helpful error messages."""
     if name in _DEPRECATED:
         import warnings
+
         warnings.warn(
             f"{name} is deprecated and will be removed in a future version. "
             f"{_DEPRECATED[name]}",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         # Return None or raise ImportError
-        raise ImportError(
-            f"{name} has been moved. {_DEPRECATED[name]}"
-        )
+        raise ImportError(f"{name} has been moved. {_DEPRECATED[name]}")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

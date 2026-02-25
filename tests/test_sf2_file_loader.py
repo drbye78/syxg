@@ -239,7 +239,7 @@ class TestSF2BinaryChunk:
 
     def test_chunk_creation(self):
         """Test chunk creation."""
-        chunk = sf2_file_loader.SF2BinaryChunk(b"test", b"hello world", 0)
+        chunk = sf2_file_loader.SF2BinaryChunk("test", b"hello world", 0)
 
         assert chunk.chunk_id == "test"
         assert chunk.size == 11
@@ -247,14 +247,14 @@ class TestSF2BinaryChunk:
 
     def test_get_data_slice(self):
         """Test getting data slice."""
-        chunk = sf2_file_loader.SF2BinaryChunk(b"test", b"hello world", 0)
+        chunk = sf2_file_loader.SF2BinaryChunk("test", b"hello world", 0)
 
         slice_data = chunk.get_data_slice(0, 5)
         assert slice_data == b"hello"
 
     def test_parse_string(self):
         """Test parsing null-terminated string."""
-        chunk = sf2_file_loader.SF2BinaryChunk(b"test", b"hello\x00world\x00", 0)
+        chunk = sf2_file_loader.SF2BinaryChunk("test", b"hello\x00world\x00", 0)
 
         string = chunk.parse_string(0, 20)
         assert string == "hello"
@@ -272,7 +272,7 @@ class TestSF2ChunkIndex:
     def test_add_chunk(self):
         """Test adding chunk to index."""
         index = sf2_file_loader.SF2ChunkIndex()
-        chunk = sf2_file_loader.SF2BinaryChunk(b"test", b"data", 0)
+        chunk = sf2_file_loader.SF2BinaryChunk("test", b"data", 0)
 
         index.add_chunk("test", chunk)
 
@@ -281,7 +281,7 @@ class TestSF2ChunkIndex:
     def test_add_list_subchunk(self):
         """Test adding subchunk to LIST."""
         index = sf2_file_loader.SF2ChunkIndex()
-        chunk = sf2_file_loader.SF2BinaryChunk(b"INAM", b"data", 0)
+        chunk = sf2_file_loader.SF2BinaryChunk("INAM", b"data", 0)
 
         index.add_list_subchunk("INFO", "INAM", chunk)
 

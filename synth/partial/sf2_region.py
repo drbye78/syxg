@@ -39,7 +39,7 @@ class SF2Region(IRegion):
     """
     
     __slots__ = [
-        'soundfont_manager', '_sample_data', '_loop_start', '_loop_end',
+        'synth', 'soundfont_manager', '_sample_data', '_loop_start', '_loop_end',
         '_loop_mode', '_root_key', '_coarse_tune', '_fine_tune',
         '_sample_position', '_phase_step', '_sf2_zone', '_sf2_preset',
         '_sf2_instrument', '_generator_params', '_modulators',
@@ -47,20 +47,23 @@ class SF2Region(IRegion):
     ]
     
     def __init__(
-        self, 
-        descriptor: RegionDescriptor, 
+        self,
+        descriptor: RegionDescriptor,
         sample_rate: int = 44100,
-        soundfont_manager: Optional[Any] = None
+        soundfont_manager: Optional[Any] = None,
+        synth: Optional[Any] = None
     ):
         """
         Initialize SF2 region with full SF2 package integration.
-        
+
         Args:
             descriptor: Region metadata and parameters
             sample_rate: Audio sample rate in Hz
             soundfont_manager: SF2SoundFontManager for sample/zone access
+            synth: ModernXGSynthesizer instance for infrastructure access
         """
         super().__init__(descriptor, sample_rate)
+        self.synth = synth
         self.soundfont_manager = soundfont_manager
         
         # SF2-specific state (lazy loaded)
@@ -240,29 +243,34 @@ class SF2Region(IRegion):
     def _create_partial(self) -> Optional[Any]:
         """
         Create SF2 partial with full SF2 generator support.
-        
+
         Returns:
             SF2Partial instance or None if sample not loaded
         """
         if self._sample_data is None:
             return None
         
+        # Require synth instance for partial creation
+        if self.synth is None:
+            logger.error("SF2Region requires synth instance for partial creation")
+            return None
+
         try:
             # Build partial parameters from SF2 generators
             partial_params = self._build_partial_params_from_generators()
-            
+
             # Import SF2Partial
             from ..partial.sf2_partial import SF2Partial
-            
-            # Create partial
-            partial = SF2Partial(partial_params, self.sample_rate)
-            
+
+            # Create partial with correct signature (params, synth)
+            partial = SF2Partial(partial_params, self.synth)
+
             # Set sample data directly
             if hasattr(partial, 'sample_data'):
                 partial.sample_data = self._sample_data
-            
+
             return partial
-            
+
         except Exception as e:
             logger.error(f"Failed to create SF2 partial: {e}")
             return None
@@ -270,109 +278,106 @@ class SF2Region(IRegion):
     def _build_partial_params_from_generators(self) -> Dict[str, Any]:
         """
         Build partial parameters from SF2 generators (all 60+).
-        
+        Uses nested structure compatible with SF2Partial._load_sf2_parameters().
+
         Returns:
-            Dictionary of partial parameters
+            Dictionary of partial parameters with nested structure
         """
         params = {
+            # Sample data
             'sample_data': self._sample_data,
             'note': self.current_note,
             'velocity': self.current_velocity,
             'original_pitch': self._root_key,
+            
+            # Loop info (nested)
             'loop': {
-                'mode': self._loop_mode,
+                'mode': self._get_generator_value(51, 0),  # sampleMode
                 'start': self._loop_start,
                 'end': self._loop_end
-            }
+            },
+            
+            # Volume envelope (nested)
+            'amp_envelope': {
+                'delay': self._timecents_to_seconds(self._get_generator_value(8, -12000)),
+                'attack': self._timecents_to_seconds(self._get_generator_value(9, -12000)),
+                'hold': self._timecents_to_seconds(self._get_generator_value(10, -12000)),
+                'decay': self._timecents_to_seconds(self._get_generator_value(11, -12000)),
+                'sustain': self._get_generator_value(12, 0) / 1000.0,
+                'release': self._timecents_to_seconds(self._get_generator_value(13, -12000))
+            },
+            
+            # Modulation envelope (nested)
+            'mod_envelope': {
+                'delay': self._timecents_to_seconds(self._get_generator_value(14, -12000)),
+                'attack': self._timecents_to_seconds(self._get_generator_value(15, -12000)),
+                'hold': self._timecents_to_seconds(self._get_generator_value(16, -12000)),
+                'decay': self._timecents_to_seconds(self._get_generator_value(17, -12000)),
+                'sustain': self._get_generator_value(18, 0) / 1000.0,
+                'release': self._timecents_to_seconds(self._get_generator_value(19, -12000)),
+                'to_pitch': self._get_generator_value(20, 0) / 1200.0
+            },
+            
+            # Mod LFO (nested)
+            'mod_lfo': {
+                'delay': self._timecents_to_seconds(self._get_generator_value(21, -12000)),
+                'frequency': self._cents_to_frequency(self._get_generator_value(22, 0)),
+                'to_volume': self._get_generator_value(23, 0) / 960.0,
+                'to_filter': self._get_generator_value(24, 0) / 1200.0,
+                'to_pitch': self._get_generator_value(25, 0) / 1200.0
+            },
+            
+            # Vib LFO (nested)
+            'vib_lfo': {
+                'delay': self._timecents_to_seconds(self._get_generator_value(26, -12000)),
+                'frequency': self._cents_to_frequency(self._get_generator_value(27, 0)),
+                'to_pitch': self._get_generator_value(28, 0) / 1200.0
+            },
+            
+            # Filter (nested)
+            'filter': {
+                'cutoff': self._cents_to_frequency(self._get_generator_value(29, 13500)),
+                'resonance': self._get_generator_value(30, 0) / 10.0,
+                'type': 'lowpass'
+            },
+            
+            # Effects (nested)
+            'effects': {
+                'reverb_send': self._get_generator_value(32, 0) / 1000.0,
+                'chorus_send': self._get_generator_value(33, 0) / 1000.0,
+                'pan': self._get_generator_value(34, 0) / 500.0
+            },
+            
+            # Pitch modulation (nested)
+            'pitch_modulation': {
+                'coarse_tune': self._get_generator_value(48, 0),
+                'fine_tune': self._get_generator_value(49, 0) / 100.0,
+                'scale_tuning': self._get_generator_value(52, 100) / 100.0
+            },
+            
+            # Key tracking (nested)
+            'key_tracking': {
+                'to_mod_env_hold': self._get_generator_value(35, 0),
+                'to_mod_env_decay': self._get_generator_value(36, 0),
+                'to_vol_env_hold': self._get_generator_value(37, 0),
+                'to_vol_env_decay': self._get_generator_value(38, 0)
+            },
+            
+            # Sample settings (nested)
+            'sample_settings': {
+                'mode': self._get_generator_value(51, 0),
+                'exclusive_class': self._get_generator_value(53, 0)
+            },
+            
+            # Modulators list
+            'modulators': self._modulators,
+            
+            # Generators dict for direct access
+            'generators': dict(self._generator_params)
         }
         
-        # ========== VOLUME ENVELOPE (Generators 8-13) ==========
-        params['amp_delay'] = self._timecents_to_seconds(
-            self._get_generator_value(8, -12000)
-        )
-        params['amp_attack'] = self._timecents_to_seconds(
-            self._get_generator_value(9, -12000)
-        )
-        params['amp_hold'] = self._timecents_to_seconds(
-            self._get_generator_value(10, -12000)
-        )
-        params['amp_decay'] = self._timecents_to_seconds(
-            self._get_generator_value(11, -12000)
-        )
-        params['amp_sustain'] = self._get_generator_value(12, 0) / 1000.0
-        params['amp_release'] = self._timecents_to_seconds(
-            self._get_generator_value(13, -12000)
-        )
-        
-        # ========== MODULATION ENVELOPE (Generators 14-20) ==========
-        params['mod_env_delay'] = self._timecents_to_seconds(
-            self._get_generator_value(14, -12000)
-        )
-        params['mod_env_attack'] = self._timecents_to_seconds(
-            self._get_generator_value(15, -12000)
-        )
-        params['mod_env_hold'] = self._timecents_to_seconds(
-            self._get_generator_value(16, -12000)
-        )
-        params['mod_env_decay'] = self._timecents_to_seconds(
-            self._get_generator_value(17, -12000)
-        )
-        params['mod_env_sustain'] = self._get_generator_value(18, 0) / 1000.0
-        params['mod_env_release'] = self._timecents_to_seconds(
-            self._get_generator_value(19, -12000)
-        )
-        params['mod_env_to_pitch'] = self._get_generator_value(20, 0) / 1200.0
-        
-        # ========== LFO PARAMETERS (Generators 21-28) ==========
-        params['mod_lfo_delay'] = self._timecents_to_seconds(
-            self._get_generator_value(21, -12000)
-        )
-        params['mod_lfo_rate'] = self._cents_to_frequency(
-            self._get_generator_value(22, 0)
-        )
-        params['mod_lfo_to_volume'] = self._get_generator_value(23, 0) / 960.0
-        params['mod_lfo_to_filter'] = self._get_generator_value(24, 0) / 1200.0
-        params['mod_lfo_to_pitch'] = self._get_generator_value(25, 0) / 1200.0
-        
-        params['vib_lfo_delay'] = self._timecents_to_seconds(
-            self._get_generator_value(26, -12000)
-        )
-        params['vib_lfo_rate'] = self._cents_to_frequency(
-            self._get_generator_value(27, 0)
-        )
-        params['vib_lfo_to_pitch'] = self._get_generator_value(28, 0) / 1200.0
-        
-        # ========== FILTER (Generators 29-30) ==========
-        params['filter_cutoff'] = self._cents_to_frequency(
-            self._get_generator_value(29, 13500)
-        )
-        params['filter_resonance'] = self._get_generator_value(30, 0) / 10.0
-        
-        # ========== EFFECTS SENDS (Generators 32-34) ==========
-        params['reverb_send'] = self._get_generator_value(32, 0) / 1000.0
-        params['chorus_send'] = self._get_generator_value(33, 0) / 1000.0
-        params['pan'] = self._get_generator_value(34, 0) / 500.0
-        
-        # ========== PITCH & TUNING (Generators 48-49, 52) ==========
-        params['coarse_tune'] = self._get_generator_value(48, 0)
-        params['fine_tune'] = self._get_generator_value(49, 0) / 100.0
-        params['scale_tuning'] = self._get_generator_value(52, 100) / 100.0
-        
-        # ========== SAMPLE MODES (Generators 51, 53) ==========
-        params['sample_mode'] = self._get_generator_value(51, 0)
-        params['exclusive_class'] = self._get_generator_value(53, 0)
-        
-        # ========== KEY/VELOCITY TRACKING ==========
-        params['keynum_to_mod_env_hold'] = self._get_generator_value(35, 0)
-        params['keynum_to_mod_env_decay'] = self._get_generator_value(36, 0)
-        params['keynum_to_vol_env_hold'] = self._get_generator_value(37, 0)
-        params['keynum_to_vol_env_decay'] = self._get_generator_value(38, 0)
-        
-        # ========== MODULATION ROUTING ==========
-        params['modulators'] = self._modulators
-        
         return params
-    
+
     def _timecents_to_seconds(self, timecents: int) -> float:
         """Convert SF2 timecents to seconds."""
         if timecents <= -12000:
@@ -483,18 +488,21 @@ class SF2Region(IRegion):
     def _matches_note_velocity(self, note: int, velocity: int) -> bool:
         """
         Check if note/velocity matches SF2 zone ranges.
-        
+
         Args:
             note: MIDI note number
             velocity: MIDI velocity
-        
+
         Returns:
             True if matches
         """
-        # Use cached ranges from SF2 zone
+        # Use cached ranges from SF2 zone, or fallback to descriptor ranges
+        key_range = self._key_range if self._key_range != (0, 127) else self.descriptor.key_range
+        velocity_range = self._velocity_range if self._velocity_range != (0, 127) else self.descriptor.velocity_range
+        
         return (
-            self._key_range[0] <= note <= self._key_range[1] and
-            self._velocity_range[0] <= velocity <= self._velocity_range[1]
+            key_range[0] <= note <= key_range[1] and
+            velocity_range[0] <= velocity <= velocity_range[1]
         )
     
     def generate_samples(

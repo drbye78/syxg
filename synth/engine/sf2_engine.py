@@ -445,12 +445,12 @@ class SF2Engine(SynthesisEngine):
         Args:
             descriptor: Region metadata and parameters
             sample_rate: Audio sample rate in Hz
-        
+
         Returns:
             SF2Region instance ready for lazy initialization
         """
-        from .partial.sf2_region import SF2Region
-        return SF2Region(descriptor, sample_rate, self.soundfont_manager)
+        from ..partial.sf2_region import SF2Region
+        return SF2Region(descriptor, sample_rate, self.soundfont_manager, synth=self.synth)
     
     def load_sample_for_region(self, region: 'IRegion') -> bool:
         """
@@ -794,29 +794,66 @@ class SF2Engine(SynthesisEngine):
             }
         return self._engine_info
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float], block_size: int) -> np.ndarray:
+    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float], block_size: int,
+                        bank: int = 0, program: int = 0) -> np.ndarray:
         """
-        Generate audio samples for a note using SF2 synthesis.
+        Generate audio samples for a note using SF2 synthesis with preset lookup.
 
         Args:
             note: MIDI note number (0-127)
             velocity: MIDI velocity (0-127)
             modulation: Current modulation values
             block_size: Number of samples to generate
+            bank: MIDI bank number (default 0)
+            program: MIDI program number (default 0)
 
         Returns:
-            Stereo audio buffer (block_size, 2) as float32
+            Stereo audio buffer (block_size * 2,) as float32
         """
-        # Create a temporary partial for this note
-        partial_params = self.get_default_partial_params()
-        partial_params['note'] = note
-        partial_params['velocity'] = velocity
-
-        partial = self.create_partial(partial_params, self.sample_rate)
-        partial.note_on(velocity, note)
-
-        # Generate samples
-        return partial.generate_samples(block_size, modulation)
+        # Get preset info with all regions
+        preset_info = self.get_preset_info(bank, program)
+        if not preset_info:
+            # No preset found - return silence
+            return np.zeros(block_size * 2, dtype=np.float32)
+        
+        # Find matching regions for this note/velocity
+        matching_descriptors = []
+        for descriptor in preset_info.region_descriptors:
+            if descriptor.should_play_for_note(note, velocity):
+                matching_descriptors.append(descriptor)
+        
+        if not matching_descriptors:
+            # No matching regions - return silence
+            return np.zeros(block_size * 2, dtype=np.float32)
+        
+        # Create and initialize regions for all matching descriptors
+        audio_output = np.zeros(block_size * 2, dtype=np.float32)
+        
+        for descriptor in matching_descriptors:
+            try:
+                # Create region
+                region = self.create_region(descriptor, self.sample_rate)
+                
+                # Load sample data for region
+                if not self.load_sample_for_region(region):
+                    logger.warning(f"Failed to load sample for region {descriptor.region_id}")
+                    continue
+                
+                # Trigger note
+                if not region.note_on(velocity, note):
+                    continue
+                
+                # Generate samples
+                region_audio = region.generate_samples(block_size, modulation)
+                
+                # Mix into output (apply master level)
+                audio_output += region_audio * preset_info.master_level
+                
+            except Exception as e:
+                logger.error(f"Error generating SF2 samples for region {descriptor.region_id}: {e}")
+                continue
+        
+        return audio_output
 
     def is_note_supported(self, note: int) -> bool:
         """

@@ -25,12 +25,13 @@ class SF2Partial(SynthesisPartial):
     """
 
     __slots__ = [
+        # Core state (original)
         'synth', 'sample_data', 'phase_step', 'sample_position', 'pitch_ratio',
         'loop_mode', 'loop_start', 'loop_end', 'envelope', 'filter',
         'mod_lfo', 'vib_lfo', 'audio_buffer', 'work_buffer',
         'pitch_mod', 'filter_mod', 'volume_mod', 'active', 'params',
-        # SF2 Generators - Missing from current implementation
-        # Effects
+        
+        # SF2 Generators - Effects
         'chorus_effects_send', 'reverb_effects_send',
         # Zone Control
         'key_range', 'vel_range', 'exclusive_class', 'sample_modes',
@@ -48,8 +49,37 @@ class SF2Partial(SynthesisPartial):
         'startloop_addrs_coarse_offset', 'endloop_addrs_coarse_offset',
         # Advanced Tuning
         'overriding_root_key', 'scale_tuning',
-        # Volume Envelope (missing hold)
-        'hold_vol_env'
+        # Volume Envelope
+        'hold_vol_env',
+        
+        # Buffer references (MISSING - causing crashes)
+        'vib_lfo_buffer', 'mod_lfo_buffer', 'mod_env_buffer',
+        'lfo_pitch_buffer', 'lfo_filter_buffer', 'lfo_volume_buffer', 'lfo_pan_buffer',
+        
+        # Performance optimization buffers (MISSING)
+        '_pitch_mod_vector', '_filter_mod_vector', '_volume_mod_vector', '_pan_mod_vector',
+        
+        # Allocation state (MISSING)
+        '_buffers_allocated',
+        
+        # LFO phase tracking (MISSING)
+        '_vib_lfo_phase', '_mod_lfo_phase',
+        
+        # Envelope state (MISSING)
+        '_mod_env_state', '_amp_env_state',
+        
+        # Spatial processing (MISSING)
+        '_channel_pan', '_reverb_send', '_chorus_send', '_pan_position',
+        
+        # Additional modulation attributes (MISSING)
+        'pan_mod', 'resonance_mod', 'lfo_rate_mod',
+        'aftertouch_mod', 'breath_mod', 'modwheel_mod', 'foot_mod', 'expression_mod',
+        
+        # LFO modulation routing (MISSING)
+        'vib_lfo_to_pitch', 'mod_lfo_to_filter', 'mod_lfo_to_volume',
+        
+        # Base phase step (MISSING)
+        'base_phase_step'
     ]
 
     def __init__(self, params: Dict, synth: 'ModernXGSynthesizer'):
@@ -170,6 +200,35 @@ class SF2Partial(SynthesisPartial):
         self.pitch_mod: float = 0.0
         self.filter_mod: float = 0.0
         self.volume_mod: float = 1.0
+        
+        # Initialize additional modulation attributes (MISSING)
+        self.pan_mod: float = 0.0
+        self.resonance_mod: float = 0.0
+        self.lfo_rate_mod: float = 0.0
+        self.aftertouch_mod: float = 0.0
+        self.breath_mod: float = 0.0
+        self.modwheel_mod: float = 0.0
+        self.foot_mod: float = 0.0
+        self.expression_mod: float = 0.0
+        
+        # LFO modulation routing (MISSING)
+        self.vib_lfo_to_pitch: float = 0.0
+        self.mod_lfo_to_filter: float = 0.0
+        self.mod_lfo_to_volume: float = 0.0
+        
+        # Spatial processing (MISSING)
+        self._channel_pan: float = 0.0
+        self._reverb_send: float = 0.0
+        self._chorus_send: float = 0.0
+        self._pan_position: float = 0.0
+        
+        # Envelope state (MISSING)
+        self._mod_env_state: dict = {'stage': 'idle', 'level': 0.0, 'stage_time': 0.0}
+        self._amp_env_state: dict = {'stage': 'idle', 'level': 0.0, 'stage_time': 0.0}
+        
+        # LFO phase tracking (MISSING)
+        self._vib_lfo_phase: float = 0.0
+        self._mod_lfo_phase: float = 0.0
 
         # Load SF2 parameters and sample data
         self._load_sf2_parameters()
@@ -1695,21 +1754,38 @@ class SF2Partial(SynthesisPartial):
     def _load_sf2_generator_values(self):
         """
         Load SF2 generator values from zone parameters.
+        Supports both nested structure (preferred) and flat generators dict (backward compat).
 
         Maps SF2 generator IDs to their corresponding parameter values
         from the zone data, implementing full SF2 specification compliance.
         """
         generators = self.params.get('generators', {})
-
-        # Effects Generators
-        self.chorus_effects_send = self._convert_sf2_generator(15, generators.get(15, 0)) / 1000.0
-        self.reverb_effects_send = self._convert_sf2_generator(16, generators.get(16, 0)) / 1000.0
-
-        # Zone Control Generators
-        self.key_range = self._parse_key_range(generators.get(43, 0))
-        self.vel_range = self._parse_vel_range(generators.get(44, 0))
-        self.exclusive_class = generators.get(57, 0)
-        self.sample_modes = generators.get(54, 0)
+        
+        # Load from nested structures first (preferred method)
+        # Effects
+        effects = self.params.get('effects', {})
+        self.reverb_effects_send = effects.get('reverb_send', 0.0)
+        self.chorus_effects_send = effects.get('chorus_send', 0.0)
+        self.pan = effects.get('pan', 0.0)
+        
+        # Key/Vel ranges
+        self.key_range = self.params.get('key_range', (0, 127))
+        self.vel_range = self.params.get('vel_range', (0, 127))
+        
+        # Sample settings
+        sample_settings = self.params.get('sample_settings', {})
+        self.exclusive_class = sample_settings.get('exclusive_class', 0)
+        self.sample_modes = sample_settings.get('mode', 0)
+        
+        # Modulation envelope
+        mod_env = self.params.get('mod_envelope', {})
+        self.mod_env_to_pitch = mod_env.get('to_pitch', 0.0)
+        
+        # Fallback to generators dict if nested values not provided
+        if self.reverb_effects_send == 0.0 and 32 in generators:
+            self.reverb_effects_send = generators.get(32, 0) / 1000.0
+        if self.chorus_effects_send == 0.0 and 33 in generators:
+            self.chorus_effects_send = generators.get(33, 0) / 1000.0
 
         # Advanced LFO Generators
         self.delay_mod_lfo = self._convert_time_cent(21, generators.get(21, -12000))
@@ -1726,13 +1802,15 @@ class SF2Partial(SynthesisPartial):
         self.mod_lfo_to_volume = generators.get(23, 0) / 10.0   # modLfoToVolume (generator 23, 0.1dB to dB)
 
         # Modulation Envelope Generators
-        self.mod_env_to_pitch = generators.get(7, 0) / 100.0  # Cent modulation
-        self.delay_mod_env = self._convert_time_cent(25, generators.get(25, -12000))
-        self.attack_mod_env = self._convert_time_cent(26, generators.get(26, -12000))
-        self.hold_mod_env = self._convert_time_cent(27, generators.get(27, -12000))
-        self.decay_mod_env = self._convert_time_cent(28, generators.get(28, -12000))
-        self.sustain_mod_env = generators.get(29, 0) / 1000.0
-        self.release_mod_env = self._convert_time_cent(30, generators.get(30, -12000))
+        # Only load from generators if not already set from nested structure
+        if self.mod_env_to_pitch == 0.0:
+            self.mod_env_to_pitch = generators.get(20, 0) / 1200.0  # Correct SF2 generator ID
+        self.delay_mod_env = self._convert_time_cent(14, generators.get(14, -12000))
+        self.attack_mod_env = self._convert_time_cent(15, generators.get(15, -12000))
+        self.hold_mod_env = self._convert_time_cent(16, generators.get(16, -12000))
+        self.decay_mod_env = self._convert_time_cent(17, generators.get(17, -12000))
+        self.sustain_mod_env = generators.get(18, 0) / 1000.0
+        self.release_mod_env = self._convert_time_cent(19, generators.get(19, -12000))
 
         # Envelope Sensitivity Generators
         self.keynum_to_mod_env_hold = generators.get(31, 0) / 100.0

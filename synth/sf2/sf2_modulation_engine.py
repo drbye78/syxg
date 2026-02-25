@@ -7,6 +7,7 @@ from .sf2_constants import (
     SF2_MODULATOR_DESTINATIONS,
     SF2_MODULATOR_TRANSFORMS,
 )
+from .sf2_zone_engine import SF2ZoneEngine, SF2ModulationEngine as SF2ModulationEngineV2
 
 
 class SF2GeneratorProcessor:
