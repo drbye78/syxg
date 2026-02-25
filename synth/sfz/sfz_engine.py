@@ -11,6 +11,9 @@ import numpy as np
 import os
 
 from ..engine.synthesis_engine import SynthesisEngine
+from ..engine.region_descriptor import RegionDescriptor
+from ..engine.preset_info import PresetInfo
+from ..partial.region import IRegion
 from .sfz_parser import SFZParser, SFZInstrument
 from .sfz_region import SFZRegion
 from .voice_effects import SFZVoiceEffectsProcessor
@@ -396,6 +399,183 @@ class SFZEngine(SynthesisEngine):
             SFZRegion instance
         """
         return SFZRegion(partial_params, self.sample_manager)
+
+    # ========== NEW REGION-BASED ARCHITECTURE METHODS ==========
+
+    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+        """
+        Get SFZ preset info with region descriptors.
+
+        SFZ uses file-based instruments rather than bank/program mapping.
+        This method provides compatibility with the XG bank/program system.
+
+        Args:
+            bank: MIDI bank number (0-127)
+            program: MIDI program number (0-127)
+
+        Returns:
+            PresetInfo with region descriptors, or None if not found
+        """
+        if not self.current_instrument:
+            return None
+
+        # Get all regions from current instrument
+        regions = self._get_all_region_descriptors()
+
+        if not regions:
+            return None
+
+        # Create PresetInfo with all region descriptors
+        return PresetInfo(
+            bank=bank,
+            program=program,
+            name=self.current_instrument.name or "SFZ Instrument",
+            engine_type='sfz',
+            region_descriptors=regions,
+            master_level=1.0,
+            master_pan=0.0,
+            reverb_send=0.0,
+            chorus_send=0.0
+        )
+
+    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+        """
+        Get ALL region descriptors for an SFZ preset.
+
+        Args:
+            bank: MIDI bank number
+            program: MIDI program number
+
+        Returns:
+            List of all RegionDescriptor objects for this preset
+        """
+        if not self.current_instrument:
+            return []
+
+        return self._get_all_region_descriptors()
+
+    def _get_all_region_descriptors(self) -> List['RegionDescriptor']:
+        """
+        Internal method to get all region descriptors from current instrument.
+
+        Returns:
+            List of RegionDescriptor objects
+        """
+        if not self.current_instrument:
+            return []
+
+        descriptors = []
+        sfz_regions = self.current_instrument.get_all_regions()
+
+        for idx, sfz_region in enumerate(sfz_regions):
+            # Convert SFZ region to RegionDescriptor
+            region_params = sfz_region.to_dict() if hasattr(sfz_region, 'to_dict') else {}
+
+            # Extract key range from region
+            lokey = region_params.get('lokey', 0)
+            hikey = region_params.get('hikey', 127)
+            key_range = (lokey, hikey)
+
+            # Extract velocity range
+            lovel = region_params.get('lovel', 0)
+            hivel = region_params.get('hivel', 127)
+            velocity_range = (lovel, hivel)
+
+            # Get sample info
+            sample_path = region_params.get('sample', None)
+            sample_id = None  # SFZ uses paths rather than IDs
+
+            # Build generator parameters
+            generator_params = {
+                'volume': region_params.get('volume', 0.0),
+                'pan': region_params.get('pan', 0.0),
+                'cutoff': region_params.get('cutoff', 20000.0),
+                'resonance': region_params.get('resonance', 0.0),
+                'amp_attack': region_params.get('ampeg_attack', 0.0),
+                'amp_decay': region_params.get('ampeg_decay', 0.0),
+                'amp_sustain': region_params.get('ampeg_sustain', 1.0),
+                'amp_release': region_params.get('ampeg_release', 0.0),
+                'pitch_keycenter': region_params.get('pitch_keycenter', 60),
+                'coarse_tune': region_params.get('transpose', 0),
+                'fine_tune': region_params.get('tune', 0),
+                'loop_mode': region_params.get('loop_mode', 'no_loop'),
+                'loop_start': region_params.get('loop_start', 0),
+                'loop_end': region_params.get('loop_end', 0),
+            }
+
+            # Get round-robin info
+            rr_group = region_params.get('round_robin_group', 0)
+            rr_position = idx
+
+            descriptor = RegionDescriptor(
+                region_id=idx,
+                engine_type='sfz',
+                key_range=key_range,
+                velocity_range=velocity_range,
+                round_robin_group=rr_group,
+                round_robin_position=rr_position,
+                sample_id=sample_id,
+                sample_path=sample_path,
+                generator_params=generator_params
+            )
+
+            descriptors.append(descriptor)
+
+        return descriptors
+
+    def _create_base_region(self, descriptor: 'RegionDescriptor',
+                           sample_rate: int) -> 'IRegion':
+        """
+        Create SFZ base region without S.Art2 wrapper.
+
+        Args:
+            descriptor: Region metadata and parameters
+            sample_rate: Audio sample rate in Hz
+
+        Returns:
+            SFZRegion instance
+        """
+        # Create region parameters from descriptor
+        region_params = descriptor.generator_params.copy()
+
+        # Add sample path if available
+        if descriptor.sample_path:
+            region_params['sample'] = descriptor.sample_path
+
+        # Add key/velocity ranges
+        region_params['lokey'] = descriptor.key_range[0]
+        region_params['hikey'] = descriptor.key_range[1]
+        region_params['lovel'] = descriptor.velocity_range[0]
+        region_params['hivel'] = descriptor.velocity_range[1]
+
+        # Create SFZRegion
+        region = SFZRegion(region_params, self.sample_manager)
+
+        return region
+
+    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        """
+        Load sample data for SFZ region.
+
+        Called when region is about to play.
+        Returns True if sample loaded successfully.
+
+        Args:
+            region: Region instance to load sample for
+
+        Returns:
+            True if sample loaded or not needed, False if loading failed
+        """
+        if not hasattr(region, 'load_sample'):
+            return True  # Not an SFZ region or doesn't need sample loading
+
+        try:
+            return region.load_sample()
+        except Exception as e:
+            print(f"Warning: SFZ sample loading failed: {e}")
+            return False
+
+    # ========== END NEW REGION-BASED ARCHITECTURE METHODS ==========
 
     def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
                         block_size: int) -> np.ndarray:

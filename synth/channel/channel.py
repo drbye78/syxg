@@ -401,24 +401,44 @@ class Channel:
         self.set_articulation('normal')
     
     # ========== S.Art2 ARTICULATION CONTROL ==========
-    
+
     def set_articulation(self, articulation: str) -> None:
         """
         Set articulation for this channel.
-        
+
         Args:
             articulation: Articulation name (e.g., 'legato', 'staccato', 'growl')
         """
         self._articulation = articulation
-        
+
         # Propagate to current voice
         if self.current_voice and hasattr(self.current_voice, 'set_articulation'):
             self.current_voice.set_articulation(articulation)
-    
+
     def get_articulation(self) -> str:
         """Get current articulation."""
         return self._articulation
-    
+
+    # ========== CHANNEL PARAMETER CONTROL ==========
+
+    def set_volume(self, volume: int) -> None:
+        """
+        Set channel volume.
+
+        Args:
+            volume: Volume value (0-127)
+        """
+        self.master_level = volume / 127.0
+
+    def set_pan(self, pan: int) -> None:
+        """
+        Set channel pan position.
+
+        Args:
+            pan: Pan value (0-127, 64 = center)
+        """
+        self.pan = (pan - 64) / 64.0  # Convert to -1.0 to 1.0
+
     def apply_articulation_preset(self, preset) -> None:
         """
         Apply articulation preset to channel.
@@ -907,98 +927,6 @@ class Channel:
                 modulation['brightness'] = self._normalize_32bit_value(value_32bit)
 
         return modulation
-
-    def __init__(self, channel_number: int, voice_factory: VoiceFactory, sample_rate: int, synthesizer=None):
-        """
-        Initialize XG Channel.
-
-        Args:
-            channel_number: MIDI channel number (0-15)
-            voice_factory: Factory for creating voices
-            sample_rate: Audio sample rate in Hz
-            synthesizer: Reference to parent synthesizer for parameter access
-        """
-        self.channel_number = channel_number
-        self.voice_factory = voice_factory
-        self.sample_rate = sample_rate
-        self.synthesizer = synthesizer  # Reference to parent synthesizer
-
-        # Polyphonic voice management - multiple simultaneous voices
-        self.active_voices: Dict[int, VoiceInstance] = {}  # note -> VoiceInstance
-        self.program = 0
-        self.bank_msb = 0
-        self.bank_lsb = 0
-        self.bank = 0
-
-        # Current instrument/program (for region selection)
-        self.current_program = None
-
-        # Legacy compatibility - maintain current_voice for backward compatibility
-        self.current_voice = None
-
-        # Channel state
-        self.active = True
-        self._muted = False
-        self._solo = False
-
-        # XG channel parameters
-        self.key_range_low = 0
-        self.key_range_high = 127
-        self.master_level = 1.0
-        self.pan = 0.0
-        self.transpose = 0
-
-        # Controller state (support both MIDI 1.0 and MIDI 2.0)
-        self.controllers = [0] * 128  # MIDI 1.0 controllers (7-bit)
-        self.controllers_32bit = {}   # MIDI 2.0 controllers (32-bit)
-        self._initialize_default_controllers()
-
-        # Channel pressure and key pressure
-        self._channel_pressure = 0
-        self.channel_pressure_32bit = 0  # 32-bit channel pressure for MIDI 2.0
-        self.key_pressure_values: Dict[int, int] = {}
-        self.key_pressure_32bit_values: Dict[int, int] = {}  # 32-bit key pressure for MIDI 2.0
-
-        # Pitch bend state
-        self.pitch_bend_value = 8192  # Center position (14-bit)
-        self.pitch_bend_32bit = 2147483647  # Center position (32-bit)
-        self.pitch_bend_range = 2.0   # Default ±2 semitones
-
-        # NRPN/RPN state
-        self.nrpn_active = False
-        self.rpn_active = False
-        self.nrpn_msb = 0
-        self.nrpn_lsb = 0
-        self.rpn_msb = 0
-        self.rpn_lsb = 0
-        self.data_msb = 0
-        self.data_msb_received = False
-
-        # XG channel state (updated from message metadata)
-        self.xg_pan_left_gain = 1.0
-        self.xg_pan_right_gain = 1.0
-        self.xg_effects_routing = {
-            'reverb_send': 0.0,
-            'chorus_send': 0.0,
-            'variation_send': 0.0
-        }
-        self.xg_part_mode = 'normal'  # 'normal', 'single', 'layer'
-        self.xg_voice_reserve = None  # Voice limit for this channel
-
-        # GS integration
-        self.gs_part = None  # Reference to GS part when in GS mode
-        
-        # MPE+ Extensions (MIDI Polyphonic Expression Plus)
-        self.mpe_enabled = False
-        self.mpe_configuration = {
-            'master_channel': 0,      # Channel that controls pitch bend, pressure, etc.
-            'first_note_channel': 1,  # First channel for note data
-            'last_note_channel': 15,  # Last channel for note data
-            'channel_layout': 'horizontal'  # 'horizontal' or 'vertical'
-        }
-        
-        # MPE+ per-note parameters
-        self.mpe_per_note_parameters = {}  # note -> {param: value}
 
     def key_pressure(self, note: int, pressure: int):
         """

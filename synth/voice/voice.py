@@ -39,7 +39,8 @@ class Voice:
     __slots__ = [
         'preset_info', 'engine', 'channel', 'sample_rate',
         '_active_instances', '_region_cache', '_round_robin_state',
-        '_master_level', '_master_pan', '_reverb_send', '_chorus_send'
+        '_master_level', '_master_pan', '_reverb_send', '_chorus_send',
+        '_articulation'
     ]
     
     def __init__(

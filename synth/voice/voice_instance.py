@@ -223,55 +223,63 @@ class VoiceInstance:
     def generate_samples(self, block_size: int) -> np.ndarray:
         """
         Generate audio samples for this voice instance.
-        
+
         Args:
             block_size: Number of samples to generate
-        
+
         Returns:
             Stereo audio buffer (block_size, 2) as float32
         """
         if not self.active_regions:
-            return np.zeros(block_size * 2, dtype=np.float32)
-        
-        output = np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
+
+        output = np.zeros((block_size, 2), dtype=np.float32)
         active_count = 0
-        
+
         for region in self.active_regions:
             if region.is_active():
                 try:
                     # Generate samples from region
                     samples = region.generate_samples(
-                        block_size, 
+                        block_size,
                         self.modulation_state
                     )
-                    
+
+                    # Handle different sample shapes
+                    if len(samples.shape) == 1:
+                        # Flat interleaved stereo - reshape
+                        if samples.shape[0] == block_size * 2:
+                            samples = samples.reshape(block_size, 2)
+                        else:
+                            samples = np.zeros((block_size, 2), dtype=np.float32)
+
                     # Apply region gain (crossfades, velocity scaling)
                     gain = self._calculate_region_gain(region)
                     if gain != 1.0:
                         samples *= gain
-                    
+
                     output += samples
                     active_count += 1
-                    
+
                 except Exception as e:
                     logger.error(f"VoiceInstance sample generation failed: {e}")
-        
+
         # Apply master volume
         if self.master_volume != 1.0:
             output *= self.master_volume
-        
+
         # Apply pan
         if self.pan != 0.0:
             pan_left = 1.0 - max(0.0, self.pan)
             pan_right = 1.0 - max(0.0, -self.pan)
-            output[::2] *= pan_left    # Left channel
-            output[1::2] *= pan_right  # Right channel
-        
+            output[:, 0] *= pan_left    # Left channel
+            output[:, 1] *= pan_right  # Right channel
+
         # Clean up inactive regions
         self.active_regions = [
             r for r in self.active_regions if r.is_active()
         ]
-        
+
         return output
     
     def _calculate_region_gain(self, region: IRegion) -> float:

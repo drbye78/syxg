@@ -31,7 +31,7 @@ class FMXLFO:
         self.sample_rate = sample_rate
         self.phase = 0.0
         self.frequency = 1.0  # Hz
-        self.waveform = 'sine'  # sine, triangle, sawtooth, square, random
+        self.waveform = "sine"  # sine, triangle, sawtooth, square, random
         self.depth = 1.0
         self.enabled = True
 
@@ -39,7 +39,9 @@ class FMXLFO:
         self.random_value = 0.0
         self.random_hold_time = 0.0
 
-    def set_parameters(self, frequency: float = 1.0, waveform: str = 'sine', depth: float = 1.0):
+    def set_parameters(
+        self, frequency: float = 1.0, waveform: str = "sine", depth: float = 1.0
+    ):
         """Set LFO parameters."""
         self.frequency = max(0.01, min(20.0, frequency))  # 0.01-20 Hz range
         self.waveform = waveform
@@ -57,15 +59,28 @@ class FMXLFO:
             self.phase -= 2.0 * math.pi
 
         # Generate waveform
-        if self.waveform == 'sine':
+        if self.waveform == "sine":
             value = math.sin(self.phase)
-        elif self.waveform == 'triangle':
-            value = 2.0 * abs(2.0 * (self.phase / (2.0 * math.pi) - math.floor(self.phase / (2.0 * math.pi) + 0.5))) - 1.0
-        elif self.waveform == 'sawtooth':
-            value = 2.0 * (self.phase / (2.0 * math.pi) - math.floor(self.phase / (2.0 * math.pi) + 0.5))
-        elif self.waveform == 'square':
+        elif self.waveform == "triangle":
+            value = (
+                2.0
+                * abs(
+                    2.0
+                    * (
+                        self.phase / (2.0 * math.pi)
+                        - math.floor(self.phase / (2.0 * math.pi) + 0.5)
+                    )
+                )
+                - 1.0
+            )
+        elif self.waveform == "sawtooth":
+            value = 2.0 * (
+                self.phase / (2.0 * math.pi)
+                - math.floor(self.phase / (2.0 * math.pi) + 0.5)
+            )
+        elif self.waveform == "square":
             value = 1.0 if math.sin(self.phase) >= 0 else -1.0
-        elif self.waveform == 'random':
+        elif self.waveform == "random":
             # Sample and hold random
             self.random_hold_time -= 1.0 / self.sample_rate
             if self.random_hold_time <= 0:
@@ -104,7 +119,7 @@ class FMOperator:
         self.frequency_ratio = 1.0
         self.detune_cents = 0.0
         self.feedback_level = 0  # 0-7 levels
-        self.waveform = 'sine'
+        self.waveform = "sine"
         self.phase = 0.0
 
         # FM-X 8-stage envelope (Level, Rate, Loop)
@@ -112,7 +127,7 @@ class FMOperator:
         self.envelope_rates = [0.01, 0.3, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0]  # 8 rates
         self.envelope_loop_start = -1  # -1 = no loop
         self.envelope_loop_end = -1
-        self.envelope_phase = 'idle'
+        self.envelope_phase = "idle"
         self.envelope_stage = 0
         self.envelope_value = 0.0
         self.envelope_time = 0.0
@@ -120,7 +135,7 @@ class FMOperator:
         # Operator scaling (FM-X style)
         self.key_scaling_depth = 0  # 0-7
         self.velocity_sensitivity = 0  # 0-7
-        self.key_scaling_curve = 'linear'  # linear, exp, log
+        self.key_scaling_curve = "linear"  # linear, exp, log
 
         # Advanced modulation
         self.amplitude_mod = 1.0
@@ -141,55 +156,57 @@ class FMOperator:
 
         # LFO modulation
         self.lfo_depth = 0.0
-        self.lfo_waveform = 'sine'
+        self.lfo_waveform = "sine"
         self.lfo_speed = 1.0
         self.lfo_phase = 0.0
 
     def set_parameters(self, params: Dict[str, Any]):
         """Set FM-X operator parameters."""
-        self.frequency_ratio = params.get('frequency_ratio', 1.0)
-        self.detune_cents = params.get('detune_cents', 0.0)
-        self.feedback_level = params.get('feedback_level', 0)
-        self.waveform = params.get('waveform', 'sine')
+        self.frequency_ratio = params.get("frequency_ratio", 1.0)
+        self.detune_cents = params.get("detune_cents", 0.0)
+        self.feedback_level = params.get("feedback_level", 0)
+        self.waveform = params.get("waveform", "sine")
 
         # FM-X 8-stage envelope parameters
-        if 'envelope_levels' in params:
-            self.envelope_levels = params['envelope_levels'][:8]  # Ensure 8 levels
-        if 'envelope_rates' in params:
-            self.envelope_rates = params['envelope_rates'][:8]  # Ensure 8 rates
+        if "envelope_levels" in params:
+            self.envelope_levels = params["envelope_levels"][:8]  # Ensure 8 levels
+        if "envelope_rates" in params:
+            self.envelope_rates = params["envelope_rates"][:8]  # Ensure 8 rates
 
-        self.envelope_loop_start = params.get('envelope_loop_start', -1)
-        self.envelope_loop_end = params.get('envelope_loop_end', -1)
+        self.envelope_loop_start = params.get("envelope_loop_start", -1)
+        self.envelope_loop_end = params.get("envelope_loop_end", -1)
 
         # Operator scaling
-        self.key_scaling_depth = params.get('key_scaling_depth', 0)
-        self.velocity_sensitivity = params.get('velocity_sensitivity', 0)
-        self.key_scaling_curve = params.get('key_scaling_curve', 'linear')
+        self.key_scaling_depth = params.get("key_scaling_depth", 0)
+        self.velocity_sensitivity = params.get("velocity_sensitivity", 0)
+        self.key_scaling_curve = params.get("key_scaling_curve", "linear")
 
         # Formant synthesis
-        self.formant_enabled = params.get('formant_enabled', False)
-        if 'formant_data' in params:
-            self.formant_data = params['formant_data']
+        self.formant_enabled = params.get("formant_enabled", False)
+        if "formant_data" in params:
+            self.formant_data = params["formant_data"]
 
         # Ring modulation
-        self.ring_mod_enabled = params.get('ring_mod_enabled', False)
-        self.ring_mod_operator = params.get('ring_mod_operator', -1)
+        self.ring_mod_enabled = params.get("ring_mod_enabled", False)
+        self.ring_mod_operator = params.get("ring_mod_operator", -1)
 
         # LFO parameters
-        self.lfo_depth = params.get('lfo_depth', 0.0)
-        self.lfo_waveform = params.get('lfo_waveform', 'sine')
-        self.lfo_speed = params.get('lfo_speed', 1.0)
+        self.lfo_depth = params.get("lfo_depth", 0.0)
+        self.lfo_waveform = params.get("lfo_waveform", "sine")
+        self.lfo_speed = params.get("lfo_speed", 1.0)
 
     def note_on(self, velocity: int = 127):
         """Start FM-X 8-stage envelope."""
-        self.envelope_phase = 'active'
+        self.envelope_phase = "active"
         self.envelope_stage = 0
         self.envelope_time = 0.0
         self.envelope_value = self.envelope_levels[0]
 
         # Apply velocity sensitivity
         if self.velocity_sensitivity > 0:
-            velocity_scale = ((velocity / 127.0) ** (1.0 / (8 - self.velocity_sensitivity)))
+            velocity_scale = (velocity / 127.0) ** (
+                1.0 / (8 - self.velocity_sensitivity)
+            )
             self.envelope_value *= velocity_scale
 
     def note_off(self):
@@ -205,7 +222,7 @@ class FMOperator:
 
     def update_envelope(self, dt: float):
         """Update FM-X 8-stage envelope."""
-        if self.envelope_phase == 'idle':
+        if self.envelope_phase == "idle":
             self.envelope_value = 0.0
             return
 
@@ -231,7 +248,9 @@ class FMOperator:
             # Interpolate between levels
             progress = self.envelope_time / rate
             if self.envelope_stage < 7:  # Not the last stage
-                self.envelope_value = current_level + (next_level - current_level) * progress
+                self.envelope_value = (
+                    current_level + (next_level - current_level) * progress
+                )
             else:
                 # Last stage holds or decays to zero
                 self.envelope_value = current_level * (1.0 - progress)
@@ -240,7 +259,7 @@ class FMOperator:
         """Advance to next envelope stage."""
         if self.envelope_stage >= 7:
             # End of envelope
-            self.envelope_phase = 'idle'
+            self.envelope_phase = "idle"
             self.envelope_value = 0.0
             return
 
@@ -248,12 +267,20 @@ class FMOperator:
         self.envelope_time = 0.0
 
         # Handle looping
-        if (self.envelope_loop_start >= 0 and self.envelope_loop_end >= 0 and
-            self.envelope_stage > self.envelope_loop_end):
+        if (
+            self.envelope_loop_start >= 0
+            and self.envelope_loop_end >= 0
+            and self.envelope_stage > self.envelope_loop_end
+        ):
             # Loop back to start
             self.envelope_stage = self.envelope_loop_start
 
-    def generate_sample(self, base_frequency: float, modulation_input: float = 0.0, ring_mod_input: float = 0.0) -> float:
+    def generate_sample(
+        self,
+        base_frequency: float,
+        modulation_input: float = 0.0,
+        ring_mod_input: float = 0.0,
+    ) -> float:
         """
         Generate operator sample with FM-X features.
 
@@ -273,7 +300,7 @@ class FMOperator:
         # Apply LFO modulation to frequency
         if self.lfo_depth > 0.0:
             lfo_mod = self.lfo_depth * math.sin(self.lfo_phase)
-            frequency *= (1.0 + lfo_mod * 0.1)  # ±10% frequency modulation
+            frequency *= 1.0 + lfo_mod * 0.1  # ±10% frequency modulation
             self.lfo_phase += 2.0 * math.pi * self.lfo_speed / self.sample_rate
             if self.lfo_phase > 2.0 * math.pi:
                 self.lfo_phase -= 2.0 * math.pi
@@ -284,13 +311,26 @@ class FMOperator:
             self.phase -= 2.0 * math.pi
 
         # Generate base waveform
-        if self.waveform == 'sine':
+        if self.waveform == "sine":
             output = math.sin(self.phase)
-        elif self.waveform == 'triangle':
-            output = 2.0 * abs(2.0 * (self.phase / (2.0 * math.pi) - math.floor(self.phase / (2.0 * math.pi) + 0.5))) - 1.0
-        elif self.waveform == 'sawtooth':
-            output = 2.0 * (self.phase / (2.0 * math.pi) - math.floor(self.phase / (2.0 * math.pi) + 0.5))
-        elif self.waveform == 'square':
+        elif self.waveform == "triangle":
+            output = (
+                2.0
+                * abs(
+                    2.0
+                    * (
+                        self.phase / (2.0 * math.pi)
+                        - math.floor(self.phase / (2.0 * math.pi) + 0.5)
+                    )
+                )
+                - 1.0
+            )
+        elif self.waveform == "sawtooth":
+            output = 2.0 * (
+                self.phase / (2.0 * math.pi)
+                - math.floor(self.phase / (2.0 * math.pi) + 0.5)
+            )
+        elif self.waveform == "square":
             output = 1.0 if math.sin(self.phase) >= 0 else -1.0
         else:
             output = math.sin(self.phase)  # Default to sine
@@ -323,7 +363,9 @@ class FMOperator:
                 self.feedback_buffer[0] = output
             else:
                 # Initialize feedback buffer
-                self.feedback_buffer = np.zeros(min(self.feedback_level, 8), dtype=np.float32)
+                self.feedback_buffer = np.zeros(
+                    min(self.feedback_level, 8), dtype=np.float32
+                )
 
             self.feedback_sample = output
 
@@ -349,8 +391,8 @@ class FMOperator:
         # Simple formant filter implementation
         # In a full implementation, this would be a proper IIR filter
         formant_freq = formant_data[0]  # Formant frequency in Hz
-        bandwidth = formant_data[1]      # Bandwidth in Hz
-        gain = formant_data[2]          # Gain multiplier
+        bandwidth = formant_data[1]  # Bandwidth in Hz
+        gain = formant_data[2]  # Gain multiplier
 
         # Simple resonant peak filter approximation
         # This is a simplified version - real formant synthesis would use
@@ -362,12 +404,12 @@ class FMOperator:
 
     def is_active(self) -> bool:
         """Check if operator is still active."""
-        return self.envelope_phase != 'idle'
+        return self.envelope_phase != "idle"
 
     def reset(self):
         """Reset operator state."""
         self.phase = 0.0
-        self.envelope_phase = 'idle'
+        self.envelope_phase = "idle"
         self.envelope_value = 0.0
         self.envelope_time = 0.0
         self.feedback_sample = 0.0
@@ -396,41 +438,71 @@ class FMEngine(SynthesisEngine):
     # Complete FM-X Algorithms (88 total - core algorithms implemented)
     ALGORITHMS = {
         # Basic Algorithms (1-8)
-        'algorithm_1': {  # Simple carrier + modulator
-            'operators': [0, 1], 'modulation': {0: [1]}, 'output': [0], 'name': 'Basic FM'
+        "algorithm_1": {  # Simple carrier + modulator
+            "operators": [0, 1],
+            "modulation": {0: [1]},
+            "output": [0],
+            "name": "Basic FM",
         },
-        'algorithm_2': {  # Stacked modulation
-            'operators': [0, 1, 2], 'modulation': {0: [1], 1: [2]}, 'output': [0], 'name': 'Stacked'
+        "algorithm_2": {  # Stacked modulation
+            "operators": [0, 1, 2],
+            "modulation": {0: [1], 1: [2]},
+            "output": [0],
+            "name": "Stacked",
         },
-        'algorithm_3': {  # Parallel modulation
-            'operators': [0, 1, 2], 'modulation': {0: [1, 2]}, 'output': [0], 'name': 'Parallel'
+        "algorithm_3": {  # Parallel modulation
+            "operators": [0, 1, 2],
+            "modulation": {0: [1, 2]},
+            "output": [0],
+            "name": "Parallel",
         },
-        'algorithm_4': {  # Mutual feedback
-            'operators': [0, 1], 'modulation': {0: [1], 1: [0]}, 'output': [0], 'name': 'Feedback'
+        "algorithm_4": {  # Mutual feedback
+            "operators": [0, 1],
+            "modulation": {0: [1], 1: [0]},
+            "output": [0],
+            "name": "Feedback",
         },
-        'algorithm_5': {  # Complex 6-op setup
-            'operators': [0, 1, 2, 3, 4, 5], 'modulation': {0: [1, 2], 1: [3], 2: [4], 3: [5]}, 'output': [0], 'name': 'Complex 6'
+        "algorithm_5": {  # Complex 6-op setup
+            "operators": [0, 1, 2, 3, 4, 5],
+            "modulation": {0: [1, 2], 1: [3], 2: [4], 3: [5]},
+            "output": [0],
+            "name": "Complex 6",
         },
-        'algorithm_6': {  # 8-operator chain
-            'operators': [0, 1, 2, 3, 4, 5, 6, 7], 'modulation': {0: [1], 1: [2], 2: [3], 3: [4], 4: [5], 5: [6], 6: [7]}, 'output': [0], 'name': 'Chain 8'
+        "algorithm_6": {  # 8-operator chain
+            "operators": [0, 1, 2, 3, 4, 5, 6, 7],
+            "modulation": {0: [1], 1: [2], 2: [3], 3: [4], 4: [5], 5: [6], 6: [7]},
+            "output": [0],
+            "name": "Chain 8",
         },
-        'algorithm_7': {  # Parallel carriers
-            'operators': [0, 1, 2, 3, 4, 5, 6, 7], 'modulation': {0: [4], 1: [5], 2: [6], 3: [7]}, 'output': [0, 1, 2, 3], 'name': 'Dual Carrier'
+        "algorithm_7": {  # Parallel carriers
+            "operators": [0, 1, 2, 3, 4, 5, 6, 7],
+            "modulation": {0: [4], 1: [5], 2: [6], 3: [7]},
+            "output": [0, 1, 2, 3],
+            "name": "Dual Carrier",
         },
-        'algorithm_8': {  # Ring modulation pairs
-            'operators': [0, 1, 2, 3, 4, 5, 6, 7], 'modulation': {0: [1], 2: [3], 4: [5], 6: [7]}, 'output': [0, 2, 4, 6], 'name': 'Ring Pairs'
+        "algorithm_8": {  # Ring modulation pairs
+            "operators": [0, 1, 2, 3, 4, 5, 6, 7],
+            "modulation": {0: [1], 2: [3], 4: [5], 6: [7]},
+            "output": [0, 2, 4, 6],
+            "name": "Ring Pairs",
         },
-
         # Generate remaining algorithms programmatically
-        **{f'algorithm_{i}': {
-            'operators': list(range(min(8, 2 + ((i-9) % 7)))),
-            'modulation': {j: [j+1] for j in range(min(7, 2 + ((i-9) % 7)) - 1)},
-            'output': [0],
-            'name': f'Algorithm {i}'
-        } for i in range(9, 89)}
+        **{
+            f"algorithm_{i}": {
+                "operators": list(range(min(8, 2 + ((i - 9) % 7)))),
+                "modulation": {
+                    j: [j + 1] for j in range(min(7, 2 + ((i - 9) % 7)) - 1)
+                },
+                "output": [0],
+                "name": f"Algorithm {i}",
+            }
+            for i in range(9, 89)
+        },
     }
 
-    def __init__(self, num_operators: int = 8, sample_rate: int = 44100, block_size: int = 1024):
+    def __init__(
+        self, num_operators: int = 8, sample_rate: int = 44100, block_size: int = 1024
+    ):
         """
         Initialize FM-X synthesis engine.
 
@@ -446,7 +518,7 @@ class FMEngine(SynthesisEngine):
         self.operators = [FMOperator(sample_rate) for _ in range(self.num_operators)]
 
         # Algorithm and routing
-        self.algorithm = 'basic'
+        self.algorithm = "basic"
         self.modulation_matrix = {}  # operator_index -> [modulating_operator_indices]
         self.output_operators = [0]  # Operators that contribute to final output
 
@@ -465,8 +537,12 @@ class FMEngine(SynthesisEngine):
         self.ring_mod_connections = []  # List of (op1, op2) pairs
 
         # MIDI Control Integration
-        self.sysex_controller = XGSYSEXController(None, None)  # Initialize with None for now
-        self.nrpn_controller = JV2080NRPNController(self)  # We'll need to create a component manager interface
+        self.sysex_controller = XGSYSEXController(
+            None, None
+        )  # Initialize with None for now
+        self.nrpn_controller = JV2080NRPNController(
+            self
+        )  # We'll need to create a component manager interface
 
         # Effects integration
         self.effects_enabled = False
@@ -479,7 +555,7 @@ class FMEngine(SynthesisEngine):
         self.mpe_pitch_bend_range = 48.0  # Semitones
 
         # Set default algorithm
-        self.set_algorithm('basic')
+        self.set_algorithm("basic")
 
         # Voice state
         self.active_notes = {}  # note -> velocity
@@ -493,10 +569,10 @@ class FMEngine(SynthesisEngine):
         self._plugin_registry = get_global_plugin_registry()
         self._loaded_plugins: Dict[str, SynthesisFeaturePlugin] = {}
         self._plugin_integration_points = {
-            'pre_synthesis': [],      # Called before synthesis
-            'post_synthesis': [],     # Called after synthesis
-            'midi_processing': [],    # MIDI message handlers
-            'parameter_processing': [] # Parameter processing
+            "pre_synthesis": [],  # Called before synthesis
+            "post_synthesis": [],  # Called after synthesis
+            "midi_processing": [],  # MIDI message handlers
+            "parameter_processing": [],  # Parameter processing
         }
 
         # Auto-load Jupiter-X FM plugin if available
@@ -505,72 +581,483 @@ class FMEngine(SynthesisEngine):
     def get_engine_info(self) -> Dict[str, Any]:
         """Get FM engine information."""
         return {
-            'name': 'FM Synthesis Engine',
-            'type': 'fm',
-            'capabilities': ['fm_synthesis', 'operator_modulation', 'feedback_fm', 'algorithms'],
-            'formats': ['.fmp', '.dx7'],  # Custom FM patch formats
-            'polyphony': 16,  # FM is more CPU intensive, lower polyphony
-            'parameters': ['algorithm', 'operator_freq_ratios', 'operator_envelopes', 'feedback_levels'],
-            'max_operators': self.num_operators
+            "name": "FM Synthesis Engine",
+            "type": "fm",
+            "capabilities": [
+                "fm_synthesis",
+                "operator_modulation",
+                "feedback_fm",
+                "algorithms",
+            ],
+            "formats": [".fmp", ".dx7"],  # Custom FM patch formats
+            "polyphony": 16,  # FM is more CPU intensive, lower polyphony
+            "parameters": [
+                "algorithm",
+                "operator_freq_ratios",
+                "operator_envelopes",
+                "feedback_levels",
+            ],
+            "max_operators": self.num_operators,
         }
 
+    def _get_fm_program(self, bank: int, program: int) -> Optional[Dict[str, Any]]:
+        """
+        Get FM program parameters for bank/program combination.
+
+        Provides built-in FM programs as fallback when no custom programs are loaded.
+
+        Args:
+            bank: MIDI bank number (0-127)
+            program: MIDI program number (0-127)
+
+        Returns:
+            FM program parameters dictionary or None
+        """
+        # Built-in FM programs organized by bank
+        default_programs = {
+            0: {
+                0: {
+                    "name": "Init FM",
+                    "algorithm": "algorithm_1",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.8,
+                    "pan": 0.0,
+                },
+                1: {
+                    "name": "FM Piano 1",
+                    "algorithm": "algorithm_2",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": -7,
+                            "feedback_level": 3,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 3.0,
+                            "detune_cents": 5,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.7,
+                    "pan": 0.0,
+                },
+                2: {
+                    "name": "FM E.Piano 1",
+                    "algorithm": "algorithm_3",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": -3,
+                            "feedback_level": 2,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 7,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 4.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 6.0,
+                            "detune_cents": -5,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.65,
+                    "pan": 0.0,
+                },
+                3: {
+                    "name": "FM Bell",
+                    "algorithm": "algorithm_4",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 5,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 2.4,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 3.6,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 5.3,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.6,
+                    "pan": 0.0,
+                },
+                4: {
+                    "name": "FM Organ",
+                    "algorithm": "algorithm_1",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.7,
+                    "pan": 0.0,
+                },
+                5: {
+                    "name": "FM Strings",
+                    "algorithm": "algorithm_5",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": -5,
+                            "feedback_level": 2,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 3.0,
+                            "detune_cents": 5,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 4.0,
+                            "detune_cents": 7,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 5.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 6.0,
+                            "detune_cents": -3,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.5,
+                    "pan": 0.0,
+                },
+                6: {
+                    "name": "FM Brass",
+                    "algorithm": "algorithm_3",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 3,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 3.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 5.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.6,
+                    "pan": 0.0,
+                },
+                7: {
+                    "name": "FM Reed",
+                    "algorithm": "algorithm_4",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 4,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 1.4,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 3.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.55,
+                    "pan": 0.0,
+                },
+            },
+            1: {
+                0: {
+                    "name": "FM Synth 1",
+                    "algorithm": "algorithm_6",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 4,
+                            "waveform": "sawtooth",
+                        },
+                        {
+                            "frequency_ratio": 1.5,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sawtooth",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sawtooth",
+                        },
+                        {
+                            "frequency_ratio": 3.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sawtooth",
+                        },
+                        {
+                            "frequency_ratio": 4.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sawtooth",
+                        },
+                        {
+                            "frequency_ratio": 5.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sawtooth",
+                        },
+                        {
+                            "frequency_ratio": 6.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sawtooth",
+                        },
+                        {
+                            "frequency_ratio": 8.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sawtooth",
+                        },
+                    ],
+                    "master_level": 0.5,
+                    "pan": 0.0,
+                },
+                1: {
+                    "name": "FM Synth 2",
+                    "algorithm": "algorithm_7",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 5,
+                            "waveform": "square",
+                        },
+                        {
+                            "frequency_ratio": 1.5,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "square",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "square",
+                        },
+                        {
+                            "frequency_ratio": 3.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "square",
+                        },
+                    ],
+                    "master_level": 0.45,
+                    "pan": 0.0,
+                },
+                2: {
+                    "name": "FM Bass 1",
+                    "algorithm": "algorithm_2",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 3,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 3.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.7,
+                    "pan": 0.0,
+                },
+                3: {
+                    "name": "FM Bass 2",
+                    "algorithm": "algorithm_1",
+                    "operators": [
+                        {
+                            "frequency_ratio": 1.0,
+                            "detune_cents": 0,
+                            "feedback_level": 4,
+                            "waveform": "sine",
+                        },
+                        {
+                            "frequency_ratio": 2.0,
+                            "detune_cents": 0,
+                            "feedback_level": 0,
+                            "waveform": "sine",
+                        },
+                    ],
+                    "master_level": 0.75,
+                    "pan": 0.0,
+                },
+            },
+        }
+
+        # Look up program in default banks
+        if bank in default_programs and program in default_programs[bank]:
+            return default_programs[bank][program]
+
+        # Return default init patch for unknown programs
+        if bank == 0:
+            return default_programs[0][0]
+
+        return None
+
     # ========== NEW REGION-BASED METHODS ==========
-    
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+
+    def get_preset_info(self, bank: int, program: int) -> Optional["PresetInfo"]:
         """
         Get FM preset info with region descriptors.
-        
+
         FM presets are algorithmic - single region with algorithm parameters.
-        
+
         Args:
             bank: MIDI bank number
             program: MIDI program number
-        
+
         Returns:
             PresetInfo with FM algorithm parameters
         """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
-        
+
         # Get FM program parameters
         fm_params = self._get_fm_program(bank, program)
         if not fm_params:
             return None
-        
+
         # FM has single algorithm (one region)
         # Key and velocity scaling are applied per-note
         descriptor = RegionDescriptor(
             region_id=0,
-            engine_type='fm',
+            engine_type="fm",
             key_range=(0, 127),  # Full MIDI range
             velocity_range=(0, 127),
             round_robin_group=0,
             round_robin_position=0,
-            algorithm_params=fm_params
+            algorithm_params=fm_params,
         )
-        
+
         return PresetInfo(
             bank=bank,
             program=program,
-            name=fm_params.get('name', f'FM {bank}:{program}'),
-            engine_type='fm',
+            name=fm_params.get("name", f"FM {bank}:{program}"),
+            engine_type="fm",
             region_descriptors=[descriptor],
-            master_level=fm_params.get('master_level', 1.0),
-            master_pan=fm_params.get('pan', 0.0)
+            master_level=fm_params.get("master_level", 1.0),
+            master_pan=fm_params.get("pan", 0.0),
         )
-    
+
     def get_all_region_descriptors(
-        self, 
-        bank: int, 
-        program: int
-    ) -> List['RegionDescriptor']:
+        self, bank: int, program: int
+    ) -> List["RegionDescriptor"]:
         """
         Get all region descriptors for an FM preset.
-        
+
         Args:
             bank: MIDI bank number
             program: MIDI program number
-        
+
         Returns:
             List of RegionDescriptor objects
         """
@@ -578,15 +1065,13 @@ class FMEngine(SynthesisEngine):
         if preset_info:
             return preset_info.region_descriptors
         return []
-    
+
     def create_region(
-        self,
-        descriptor: 'RegionDescriptor',
-        sample_rate: int
-    ) -> 'IRegion':
+        self, descriptor: "RegionDescriptor", sample_rate: int
+    ) -> "IRegion":
         """
         Create FM region instance from descriptor.
-        
+
         Note: Base create_region() wraps with S.Art2 if enabled.
         This method is now _create_base_region().
 
@@ -598,12 +1083,10 @@ class FMEngine(SynthesisEngine):
             FMRegion instance (or SArt2Region wrapper if enabled)
         """
         return self._create_base_region(descriptor, sample_rate)
-    
+
     def _create_base_region(
-        self,
-        descriptor: 'RegionDescriptor',
-        sample_rate: int
-    ) -> 'IRegion':
+        self, descriptor: "RegionDescriptor", sample_rate: int
+    ) -> "IRegion":
         """
         Create FM base region without S.Art2 wrapper.
 
@@ -615,65 +1098,66 @@ class FMEngine(SynthesisEngine):
             FMRegion instance
         """
         from ..partial.fm_region import FMRegion
+
         return FMRegion(descriptor, sample_rate)
-    
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+
+    def load_sample_for_region(self, region: "IRegion") -> bool:
         """
         Load sample data for FM region (no-op for algorithmic synthesis).
-        
+
         Args:
             region: Region instance
-        
+
         Returns:
             True (always succeeds for FM)
         """
         return True
-    
+
     # ========== LEGACY METHODS ==========
-    
+
     def get_voice_parameters(
-        self, 
-        program: int, 
-        bank: int = 0,
-        note: int = 60,
-        velocity: int = 100
+        self, program: int, bank: int = 0, note: int = 60, velocity: int = 100
     ) -> Optional[Dict[str, Any]]:
         """
         Get FM voice parameters.
-        
+
         DEPRECATED: Use get_preset_info() instead.
-        
+
         Args:
             program: MIDI program number
             bank: MIDI bank number
             note: MIDI note (for scaling)
             velocity: MIDI velocity (for scaling)
-        
+
         Returns:
             FM parameters dictionary
         """
         fm_params = self._get_fm_program(bank, program)
         if not fm_params:
             return None
-        
+
         # Apply note and velocity scaling
         scaled_params = fm_params.copy()
-        if 'operators' in scaled_params:
-            for op in scaled_params['operators']:
+        if "operators" in scaled_params:
+            for op in scaled_params["operators"]:
                 # Apply key scaling
-                if 'key_scaling_depth' in op:
+                if "key_scaling_depth" in op:
                     key_offset = note - 60
-                    scale = 1.0 + (key_offset / 127.0) * (op['key_scaling_depth'] / 7.0)
-                    op['amplitude'] = op.get('amplitude', 1.0) * scale
-                
+                    scale = 1.0 + (key_offset / 127.0) * (op["key_scaling_depth"] / 7.0)
+                    op["amplitude"] = op.get("amplitude", 1.0) * scale
+
                 # Apply velocity scaling
-                if 'velocity_sensitivity' in op:
-                    vel_factor = (velocity / 127.0) ** (op['velocity_sensitivity'] / 7.0)
-                    op['amplitude'] = op.get('amplitude', 1.0) * vel_factor
-        
+                if "velocity_sensitivity" in op:
+                    vel_factor = (velocity / 127.0) ** (
+                        op["velocity_sensitivity"] / 7.0
+                    )
+                    op["amplitude"] = op.get("amplitude", 1.0) * vel_factor
+
         return scaled_params
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float], block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: Dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Generate FM-X synthesis audio samples with full feature set.
 
@@ -694,7 +1178,9 @@ class FMEngine(SynthesisEngine):
         base_freq = 440.0 * (2.0 ** ((note - 69) / 12.0))
 
         # Apply pitch bend
-        pitch_bend_semitones = modulation.get('pitch', 0.0) / 100.0  # Convert cents to semitones
+        pitch_bend_semitones = (
+            modulation.get("pitch", 0.0) / 100.0
+        )  # Convert cents to semitones
         bend_ratio = 2.0 ** (pitch_bend_semitones / 12.0)
         base_freq *= bend_ratio
 
@@ -721,40 +1207,56 @@ class FMEngine(SynthesisEngine):
                 # Sum FM modulation from other operators
                 if op_idx in self.modulation_matrix:
                     for mod_idx in self.modulation_matrix[op_idx]:
-                        modulation_input += operator_outputs[mod_idx] * 1000.0  # Scale modulation
+                        modulation_input += (
+                            operator_outputs[mod_idx] * 1000.0
+                        )  # Scale modulation
 
                 # Generate base operator output (without ring modulation)
-                operator_outputs[op_idx] = self.operators[op_idx].generate_sample(base_freq, modulation_input, 0.0)
+                operator_outputs[op_idx] = self.operators[op_idx].generate_sample(
+                    base_freq, modulation_input, 0.0
+                )
 
             # Second pass: apply ring modulation between paired operators
             ring_modulated_outputs = operator_outputs.copy()
             for op1_idx, op2_idx in self.ring_mod_connections:
-                if (0 <= op1_idx < self.num_operators and 0 <= op2_idx < self.num_operators and
-                    op1_idx != op2_idx):
+                if (
+                    0 <= op1_idx < self.num_operators
+                    and 0 <= op2_idx < self.num_operators
+                    and op1_idx != op2_idx
+                ):
                     # Apply ring modulation: output = op1_output * op2_output
-                    ring_modulated_outputs[op1_idx] = operator_outputs[op1_idx] * operator_outputs[op2_idx]
+                    ring_modulated_outputs[op1_idx] = (
+                        operator_outputs[op1_idx] * operator_outputs[op2_idx]
+                    )
 
                     # Optionally apply to both operators for symmetric ring modulation
-                    if self.operators[op1_idx].ring_mod_enabled and self.operators[op2_idx].ring_mod_enabled:
-                        ring_modulated_outputs[op2_idx] = operator_outputs[op2_idx] * operator_outputs[op1_idx]
+                    if (
+                        self.operators[op1_idx].ring_mod_enabled
+                        and self.operators[op2_idx].ring_mod_enabled
+                    ):
+                        ring_modulated_outputs[op2_idx] = (
+                            operator_outputs[op2_idx] * operator_outputs[op1_idx]
+                        )
 
             # Apply modulation matrix assignments
             final_outputs = ring_modulated_outputs.copy()
             for source, dest, amount in self.modulation_assignments:
-                if source.startswith('lfo') and dest == 'pitch':
+                if source.startswith("lfo") and dest == "pitch":
                     # LFO to pitch modulation
                     lfo_idx = int(source[3]) - 1  # lfo1 -> 0, lfo2 -> 1, etc.
                     if 0 <= lfo_idx < len(lfo_outputs):
-                        pitch_mod = lfo_outputs[lfo_idx] * amount * 100.0  # Convert to cents
+                        pitch_mod = (
+                            lfo_outputs[lfo_idx] * amount * 100.0
+                        )  # Convert to cents
                         # This would need to be applied per operator - simplified for now
 
-                elif source == 'velocity' and dest == 'amplitude':
+                elif source == "velocity" and dest == "amplitude":
                     # Velocity to amplitude scaling (already handled in envelopes)
                     pass
 
-                elif source == 'aftertouch' and dest == 'pitch':
+                elif source == "aftertouch" and dest == "pitch":
                     # Aftertouch to pitch
-                    aftertouch = modulation.get('aftertouch', 0.0) / 127.0
+                    aftertouch = modulation.get("aftertouch", 0.0) / 127.0
                     pitch_mod = aftertouch * amount * 200.0  # ±200 cents max
                     # Apply to base frequency
                     base_freq_mod = base_freq * (2.0 ** (pitch_mod / 1200.0))
@@ -772,7 +1274,9 @@ class FMEngine(SynthesisEngine):
             # Apply effects sends (simplified)
             if self.effects_enabled:
                 # Basic effects mixing - would integrate with full effects system
-                wet_amount = (self.reverb_send + self.chorus_send + self.delay_send) / 3.0
+                wet_amount = (
+                    self.reverb_send + self.chorus_send + self.delay_send
+                ) / 3.0
                 sample = sample * (1.0 - wet_amount * 0.3)  # Simple dry/wet mix
 
             output[i] = sample
@@ -786,9 +1290,12 @@ class FMEngine(SynthesisEngine):
         """Check if a note is supported."""
         return 0 <= note <= 127
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> 'FMPartial':
+    def create_partial(
+        self, partial_params: Dict[str, Any], sample_rate: int
+    ) -> "FMPartial":
         """Create FM partial (not used in direct engine mode)."""
         from ..partial.fm_partial import FMPartial
+
         return FMPartial(partial_params, sample_rate)
 
     def set_algorithm(self, algorithm_name: str):
@@ -803,8 +1310,8 @@ class FMEngine(SynthesisEngine):
             self.algorithm = algorithm_name
 
             # Set up modulation routing
-            self.modulation_matrix = algorithm['modulation'].copy()
-            self.output_operators = algorithm['output'].copy()
+            self.modulation_matrix = algorithm["modulation"].copy()
+            self.output_operators = algorithm["output"].copy()
 
             # Ensure we have enough operators
             max_op = 0
@@ -813,8 +1320,10 @@ class FMEngine(SynthesisEngine):
             if self.output_operators:
                 max_op = max(max_op, max(self.output_operators))
             if max_op >= self.num_operators:
-                print(f"Warning: Algorithm {algorithm_name} requires {max_op + 1} operators, "
-                      f"but engine only has {self.num_operators}")
+                print(
+                    f"Warning: Algorithm {algorithm_name} requires {max_op + 1} operators, "
+                    f"but engine only has {self.num_operators}"
+                )
 
     def set_operator_parameters(self, op_index: int, params: Dict[str, Any]):
         """
@@ -840,24 +1349,24 @@ class FMEngine(SynthesisEngine):
         if 0 <= op_index < self.num_operators:
             op = self.operators[op_index]
             return {
-                'frequency_ratio': op.frequency_ratio,
-                'detune_cents': op.detune_cents,
-                'feedback_level': op.feedback_level,
-                'waveform': op.waveform,
-                'envelope_levels': op.envelope_levels.copy(),
-                'envelope_rates': op.envelope_rates.copy(),
-                'envelope_loop_start': op.envelope_loop_start,
-                'envelope_loop_end': op.envelope_loop_end,
-                'key_scaling_depth': op.key_scaling_depth,
-                'velocity_sensitivity': op.velocity_sensitivity,
-                'key_scaling_curve': op.key_scaling_curve,
-                'formant_enabled': op.formant_enabled,
-                'formant_data': op.formant_data.copy() if op.formant_data else [],
-                'ring_mod_enabled': op.ring_mod_enabled,
-                'ring_mod_operator': op.ring_mod_operator,
-                'lfo_depth': op.lfo_depth,
-                'lfo_waveform': op.lfo_waveform,
-                'lfo_speed': op.lfo_speed
+                "frequency_ratio": op.frequency_ratio,
+                "detune_cents": op.detune_cents,
+                "feedback_level": op.feedback_level,
+                "waveform": op.waveform,
+                "envelope_levels": op.envelope_levels.copy(),
+                "envelope_rates": op.envelope_rates.copy(),
+                "envelope_loop_start": op.envelope_loop_start,
+                "envelope_loop_end": op.envelope_loop_end,
+                "key_scaling_depth": op.key_scaling_depth,
+                "velocity_sensitivity": op.velocity_sensitivity,
+                "key_scaling_curve": op.key_scaling_curve,
+                "formant_enabled": op.formant_enabled,
+                "formant_data": op.formant_data.copy() if op.formant_data else [],
+                "ring_mod_enabled": op.ring_mod_enabled,
+                "ring_mod_operator": op.ring_mod_operator,
+                "lfo_depth": op.lfo_depth,
+                "lfo_waveform": op.lfo_waveform,
+                "lfo_speed": op.lfo_speed,
             }
         return {}
 
@@ -892,7 +1401,7 @@ class FMEngine(SynthesisEngine):
 
     def get_supported_formats(self) -> List[str]:
         """Get supported file formats."""
-        return ['.fmp', '.dx7']
+        return [".fmp", ".dx7"]
 
     def load_patch(self, patch_data: Dict[str, Any]):
         """
@@ -902,17 +1411,17 @@ class FMEngine(SynthesisEngine):
             patch_data: Patch parameters dictionary
         """
         # Set algorithm
-        algorithm = patch_data.get('algorithm', 'basic')
+        algorithm = patch_data.get("algorithm", "basic")
         self.set_algorithm(algorithm)
 
         # Set operator parameters
         for op_idx in range(self.num_operators):
-            op_key = f'operator_{op_idx}'
+            op_key = f"operator_{op_idx}"
             if op_key in patch_data:
                 self.set_operator_parameters(op_idx, patch_data[op_key])
 
         # Set global parameters
-        self.master_volume = patch_data.get('master_volume', 1.0)
+        self.master_volume = patch_data.get("master_volume", 1.0)
 
     def save_patch(self) -> Dict[str, Any]:
         """
@@ -922,44 +1431,44 @@ class FMEngine(SynthesisEngine):
             Patch parameters dictionary
         """
         patch = {
-            'algorithm': self.algorithm,
-            'master_volume': self.master_volume,
-            'num_operators': self.num_operators
+            "algorithm": self.algorithm,
+            "master_volume": self.master_volume,
+            "num_operators": self.num_operators,
         }
 
         # Save operator parameters
         for op_idx in range(self.num_operators):
             op_params = self.get_operator_parameters(op_idx)
-            patch[f'operator_{op_idx}'] = op_params
+            patch[f"operator_{op_idx}"] = op_params
 
         return patch
 
     def get_algorithm_info(self) -> Dict[str, Any]:
         """Get current algorithm information."""
         return {
-            'current_algorithm': self.algorithm,
-            'available_algorithms': list(self.ALGORITHMS.keys()),
-            'modulation_matrix': self.modulation_matrix,
-            'output_operators': self.output_operators
+            "current_algorithm": self.algorithm,
+            "available_algorithms": list(self.ALGORITHMS.keys()),
+            "modulation_matrix": self.modulation_matrix,
+            "output_operators": self.output_operators,
         }
 
     def _initialize_default_modulation(self):
         """Initialize default modulation assignments."""
         # Default FM-X modulation assignments
         # LFO1 -> Pitch modulation
-        self.modulation_assignments.append(('lfo1', 'pitch', 0.5))
+        self.modulation_assignments.append(("lfo1", "pitch", 0.5))
 
         # LFO2 -> Amplitude modulation
-        self.modulation_assignments.append(('lfo2', 'amplitude', 0.3))
+        self.modulation_assignments.append(("lfo2", "amplitude", 0.3))
 
         # LFO3 -> Filter modulation
-        self.modulation_assignments.append(('lfo3', 'filter', 0.2))
+        self.modulation_assignments.append(("lfo3", "filter", 0.2))
 
         # Velocity -> Amplitude (operator scaling)
-        self.modulation_assignments.append(('velocity', 'amplitude', 0.7))
+        self.modulation_assignments.append(("velocity", "amplitude", 0.7))
 
         # Aftertouch -> Pitch modulation
-        self.modulation_assignments.append(('aftertouch', 'pitch', 0.3))
+        self.modulation_assignments.append(("aftertouch", "pitch", 0.3))
 
     # MIDI Control Methods
 
@@ -1008,8 +1517,11 @@ class FMEngine(SynthesisEngine):
             op1_idx: First operator index
             op2_idx: Second operator index
         """
-        if (0 <= op1_idx < self.num_operators and 0 <= op2_idx < self.num_operators and
-            op1_idx != op2_idx):
+        if (
+            0 <= op1_idx < self.num_operators
+            and 0 <= op2_idx < self.num_operators
+            and op1_idx != op2_idx
+        ):
             connection = (op1_idx, op2_idx)
             if connection not in self.ring_mod_connections:
                 self.ring_mod_connections.append(connection)
@@ -1056,8 +1568,13 @@ class FMEngine(SynthesisEngine):
 
     # LFO Control Methods
 
-    def set_lfo_parameters(self, lfo_idx: int, frequency: float = 1.0,
-                          waveform: str = 'sine', depth: float = 1.0):
+    def set_lfo_parameters(
+        self,
+        lfo_idx: int,
+        frequency: float = 1.0,
+        waveform: str = "sine",
+        depth: float = 1.0,
+    ):
         """
         Set parameters for a specific LFO.
 
@@ -1083,10 +1600,10 @@ class FMEngine(SynthesisEngine):
         if 0 <= lfo_idx < len(self.lfos):
             lfo = self.lfos[lfo_idx]
             return {
-                'frequency': lfo.frequency,
-                'waveform': lfo.waveform,
-                'depth': lfo.depth,
-                'enabled': lfo.enabled
+                "frequency": lfo.frequency,
+                "waveform": lfo.waveform,
+                "depth": lfo.depth,
+                "enabled": lfo.enabled,
             }
         return {}
 
@@ -1114,7 +1631,8 @@ class FMEngine(SynthesisEngine):
             destination: Modulation destination
         """
         self.modulation_assignments = [
-            (src, dest, amt) for src, dest, amt in self.modulation_assignments
+            (src, dest, amt)
+            for src, dest, amt in self.modulation_assignments
             if not (src == source and dest == destination)
         ]
 
@@ -1124,7 +1642,9 @@ class FMEngine(SynthesisEngine):
 
     # Effects Integration Methods
 
-    def set_effects_sends(self, reverb: float = 0.0, chorus: float = 0.0, delay: float = 0.0):
+    def set_effects_sends(
+        self, reverb: float = 0.0, chorus: float = 0.0, delay: float = 0.0
+    ):
         """
         Set effects send levels.
 
@@ -1136,12 +1656,19 @@ class FMEngine(SynthesisEngine):
         self.reverb_send = max(0.0, min(1.0, reverb))
         self.chorus_send = max(0.0, min(1.0, chorus))
         self.delay_send = max(0.0, min(1.0, delay))
-        self.effects_enabled = (self.reverb_send > 0 or self.chorus_send > 0 or self.delay_send > 0)
+        self.effects_enabled = (
+            self.reverb_send > 0 or self.chorus_send > 0 or self.delay_send > 0
+        )
 
     # Algorithm Management Methods
 
-    def add_custom_algorithm(self, name: str, operators: List[int],
-                           modulation: Dict[int, List[int]], output: List[int]):
+    def add_custom_algorithm(
+        self,
+        name: str,
+        operators: List[int],
+        modulation: Dict[int, List[int]],
+        output: List[int],
+    ):
         """
         Add a custom FM algorithm.
 
@@ -1153,9 +1680,9 @@ class FMEngine(SynthesisEngine):
         """
         if name not in self.ALGORITHMS:
             self.ALGORITHMS[name] = {
-                'operators': operators,
-                'modulation': modulation,
-                'output': output
+                "operators": operators,
+                "modulation": modulation,
+                "output": output,
             }
 
     def get_available_algorithms(self) -> List[str]:
@@ -1201,11 +1728,11 @@ class FMEngine(SynthesisEngine):
         """
         # Simplified vowel formant data (F1, F2 frequencies in Hz)
         vowel_data = {
-            'a': [700, 50, 2.0],   # /ɑ/ as in father
-            'e': [500, 40, 2.0],   # /ɛ/ as in bed
-            'i': [300, 30, 2.0],   # /i/ as in machine
-            'o': [600, 45, 2.0],   # /oʊ/ as in go
-            'u': [250, 35, 2.0],   # /u/ as in blue
+            "a": [700, 50, 2.0],  # /ɑ/ as in father
+            "e": [500, 40, 2.0],  # /ɛ/ as in bed
+            "i": [300, 30, 2.0],  # /i/ as in machine
+            "o": [600, 45, 2.0],  # /oʊ/ as in go
+            "u": [250, 35, 2.0],  # /u/ as in blue
         }
 
         return vowel_data.get(vowel.lower(), [500, 40, 1.5])
@@ -1213,33 +1740,41 @@ class FMEngine(SynthesisEngine):
     def get_fm_x_status(self) -> Dict[str, Any]:
         """Get comprehensive FM-X engine status."""
         return {
-            'num_operators': self.num_operators,
-            'current_algorithm': self.algorithm,
-            'lfo_count': len(self.lfos),
-            'modulation_assignments': len(self.modulation_assignments),
-            'ring_mod_connections': len(self.ring_mod_connections),
-            'midi_control': {
-                'nrpn_enabled': True,
-                'sysex_enabled': True,
-                'mpe_enabled': self.mpe_enabled,
-                'mpe_pitch_bend_range': self.mpe_pitch_bend_range
+            "num_operators": self.num_operators,
+            "current_algorithm": self.algorithm,
+            "lfo_count": len(self.lfos),
+            "modulation_assignments": len(self.modulation_assignments),
+            "ring_mod_connections": len(self.ring_mod_connections),
+            "midi_control": {
+                "nrpn_enabled": True,
+                "sysex_enabled": True,
+                "mpe_enabled": self.mpe_enabled,
+                "mpe_pitch_bend_range": self.mpe_pitch_bend_range,
             },
-            'effects': {
-                'enabled': self.effects_enabled,
-                'reverb_send': self.reverb_send,
-                'chorus_send': self.chorus_send,
-                'delay_send': self.delay_send
+            "effects": {
+                "enabled": self.effects_enabled,
+                "reverb_send": self.reverb_send,
+                "chorus_send": self.chorus_send,
+                "delay_send": self.delay_send,
             },
-            'plugins': {
-                'loaded_plugins': list(self._loaded_plugins.keys()),
-                'available_plugins': self._plugin_registry.get_plugins_for_engine('fm')
+            "plugins": {
+                "loaded_plugins": list(self._loaded_plugins.keys()),
+                "available_plugins": self._plugin_registry.get_plugins_for_engine("fm"),
             },
-            'capabilities': [
-                '8_operators', '88_algorithms', '8_stage_envelopes',
-                'operator_scaling', 'ring_modulation', 'formant_synthesis',
-                'lfo_modulation', 'modulation_matrix', 'midi_control',
-                'effects_integration', 'mpe_support', 'plugin_extensions'
-            ]
+            "capabilities": [
+                "8_operators",
+                "88_algorithms",
+                "8_stage_envelopes",
+                "operator_scaling",
+                "ring_modulation",
+                "formant_synthesis",
+                "lfo_modulation",
+                "modulation_matrix",
+                "midi_control",
+                "effects_integration",
+                "mpe_support",
+                "plugin_extensions",
+            ],
         }
 
     # Plugin System Methods
@@ -1248,8 +1783,8 @@ class FMEngine(SynthesisEngine):
         """Automatically load Jupiter-X FM plugin if available."""
         try:
             # Check if Jupiter-X FM plugin is available
-            available_plugins = self._plugin_registry.get_plugins_for_engine('fm')
-            jupiter_fm_plugin = 'jupiter_x.fm_extensions.JupiterXFMPlugin'
+            available_plugins = self._plugin_registry.get_plugins_for_engine("fm")
+            jupiter_fm_plugin = "jupiter_x.fm_extensions.JupiterXFMPlugin"
 
             if jupiter_fm_plugin in available_plugins:
                 success = self.load_plugin(jupiter_fm_plugin)
@@ -1279,7 +1814,7 @@ class FMEngine(SynthesisEngine):
                 plugin_name,
                 engine_instance=self,
                 sample_rate=self.sample_rate,
-                block_size=self.block_size
+                block_size=self.block_size,
             )
 
             if success:
@@ -1354,12 +1889,12 @@ class FMEngine(SynthesisEngine):
             pass
 
         # Register MIDI processing
-        if hasattr(plugin, 'process_midi_message'):
-            self._plugin_integration_points['midi_processing'].append(plugin)
+        if hasattr(plugin, "process_midi_message"):
+            self._plugin_integration_points["midi_processing"].append(plugin)
 
         # Register parameter processing
-        if hasattr(plugin, 'set_parameter'):
-            self._plugin_integration_points['parameter_processing'].append(plugin)
+        if hasattr(plugin, "set_parameter"):
+            self._plugin_integration_points["parameter_processing"].append(plugin)
 
     def _unregister_plugin_integration_points(self, plugin: SynthesisFeaturePlugin):
         """
@@ -1386,13 +1921,15 @@ class FMEngine(SynthesisEngine):
             True if any plugin handled the message
         """
         handled = False
-        for plugin in self._plugin_integration_points['midi_processing']:
+        for plugin in self._plugin_integration_points["midi_processing"]:
             if plugin.process_midi_message(status, data1, data2):
                 handled = True
 
         return handled
 
-    def set_plugin_parameter(self, plugin_name: str, param_name: str, value: Any) -> bool:
+    def set_plugin_parameter(
+        self, plugin_name: str, param_name: str, value: Any
+    ) -> bool:
         """
         Set parameter on a loaded plugin.
 

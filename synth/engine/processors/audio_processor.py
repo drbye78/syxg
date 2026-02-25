@@ -136,15 +136,28 @@ class AudioProcessor:
                 # Generate individual channel audio for this segment
                 for i, channel in enumerate(self.synthesizer.channels):
                     if channel.is_active():
-                        # Get pre-allocated channel buffer for this segment
-                        channel_buffer = self.synthesizer.channel_buffers[i][block_offset:block_offset + segment_length]
-
                         # Generate channel audio for this time segment
-                        channel.generate_samples(channel_buffer)
+                        channel_audio = channel.generate_samples(segment_length)
+
+                        # Handle different channel_audio shapes
+                        if len(channel_audio.shape) == 1:
+                            # Flat array - reshape to stereo interleaved
+                            if channel_audio.shape[0] == segment_length * 2:
+                                channel_audio = channel_audio.reshape(segment_length, 2)
+                            else:
+                                # Wrong size - create silence
+                                channel_audio = np.zeros((segment_length, 2), dtype=np.float32)
+                        elif channel_audio.shape[0] != segment_length:
+                            # Resize channel_audio to match segment_length
+                            if channel_audio.shape[0] < segment_length:
+                                padding = np.zeros((segment_length - channel_audio.shape[0], 2), dtype=np.float32)
+                                channel_audio = np.vstack([channel_audio, padding])
+                            else:
+                                channel_audio = channel_audio[:segment_length]
 
                         # Mix to output (SIMD addition)
                         np.add(self.synthesizer.output_buffer[block_offset:block_offset + segment_length],
-                              channel_buffer, out=self.synthesizer.output_buffer[block_offset:block_offset + segment_length])
+                              channel_audio, out=self.synthesizer.output_buffer[block_offset:block_offset + segment_length])
 
                         active_voices += channel.get_active_voice_count()
 
@@ -226,6 +239,24 @@ class AudioProcessor:
                     # Channel.generate_samples() returns a stereo buffer, copy it to our pre-allocated buffer
                     channel_audio = channel.generate_samples(segment_length)
 
+                    # Handle different channel_audio shapes
+                    if len(channel_audio.shape) == 1:
+                        # Flat array - reshape to stereo interleaved
+                        if channel_audio.shape[0] == segment_length * 2:
+                            channel_audio = channel_audio.reshape(segment_length, 2)
+                        else:
+                            # Wrong size - create silence
+                            channel_audio = np.zeros((segment_length, 2), dtype=np.float32)
+                    elif channel_audio.shape[0] != segment_length:
+                        # Resize channel_audio to match segment_length
+                        if channel_audio.shape[0] < segment_length:
+                            # Pad with zeros
+                            padding = np.zeros((segment_length - channel_audio.shape[0], 2), dtype=np.float32)
+                            channel_audio = np.vstack([channel_audio, padding])
+                        else:
+                            # Truncate
+                            channel_audio = channel_audio[:segment_length]
+
                     # Mix to output (SIMD addition)
                     np.add(self.synthesizer.output_buffer[block_offset:block_offset + segment_length],
                           channel_audio, out=self.synthesizer.output_buffer[block_offset:block_offset + segment_length])
@@ -275,6 +306,22 @@ class AudioProcessor:
             if channel.is_active():
                 # Generate channel audio - this returns the audio buffer
                 channel_audio = channel.generate_samples(block_size)
+
+                # Handle different channel_audio shapes
+                if len(channel_audio.shape) == 1:
+                    # Flat array - reshape to stereo interleaved
+                    if channel_audio.shape[0] == block_size * 2:
+                        channel_audio = channel_audio.reshape(block_size, 2)
+                    else:
+                        # Wrong size - create silence
+                        channel_audio = np.zeros((block_size, 2), dtype=np.float32)
+                elif channel_audio.shape[0] != block_size:
+                    # Resize channel_audio to match block_size
+                    if channel_audio.shape[0] < block_size:
+                        padding = np.zeros((block_size - channel_audio.shape[0], 2), dtype=np.float32)
+                        channel_audio = np.vstack([channel_audio, padding])
+                    else:
+                        channel_audio = channel_audio[:block_size]
 
                 # Mix to output (SIMD addition)
                 np.add(self.synthesizer.output_buffer[:block_size], channel_audio,

@@ -1688,12 +1688,12 @@ class ModernXGSynthesizer:
         bank_lsb = part_config.get('bank_lsb', 0)
         bank = (bank_msb << 7) | bank_lsb
         channel.load_program(program, bank_msb, bank_lsb)
-        
-        # Set volume
+
+        # Set volume (0-127)
         volume = part_config.get('volume', 100)
         channel.set_volume(volume)
-        
-        # Set pan
+
+        # Set pan (0-127)
         pan = part_config.get('pan', 64)
         channel.set_pan(pan)
         

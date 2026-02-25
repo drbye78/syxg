@@ -782,7 +782,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
         """Get list of available built-in presets."""
         return list(self.presets.keys())
 
-    def get_preset_info(self, preset_name: str) -> Optional[Dict[str, Any]]:
+    def get_preset_details(self, preset_name: str) -> Optional[Dict[str, Any]]:
         """Get information about a specific preset."""
         preset = self.presets.get(preset_name)
         if preset:
