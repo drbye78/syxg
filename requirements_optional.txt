@@ -1,0 +1,57 @@
+# XG Synthesizer - Optional Dependencies
+# =======================================
+# Install with: pip install -r requirements_optional.txt
+# Or install specific features: pip install -r requirements_optional.txt --no-deps
+
+# =============================================================================
+# Real-Time Workstation (Vibexg)
+# =============================================================================
+# For physical MIDI port support
+rtmidi>=2.0.0,<3.0.0
+
+# For real-time audio output
+sounddevice>=0.4.0,<0.5.0
+
+# For enhanced TUI (Text User Interface)
+rich>=13.0.0,<14.0.0
+
+# =============================================================================
+# Development & Testing
+# =============================================================================
+pytest>=6.0
+pytest-cov>=2.10.1
+pytest-asyncio>=0.20.0
+
+# Code formatting and linting
+black>=21.0.0
+flake8>=3.8.0
+mypy>=0.812
+
+# =============================================================================
+# Visualization
+# =============================================================================
+matplotlib>=3.3.0
+seaborn>=0.11.0
+
+# =============================================================================
+# Platform-Specific (Optional)
+# =============================================================================
+# Linux ALSA MIDI (alternative to rtmidi)
+# python-alsa>=1.0.0,<2.0.0
+
+# macOS CoreMIDI (alternative to rtmidi)  
+# pyobjc-framework-CoreMIDI>=9.0.0,<10.0.0
+
+# JACK audio connection
+# jackclient>=0.3.0,<0.4.0
+
+# Improved keyboard handling (for keyboard MIDI input)
+# keyboard>=0.13.5,<0.14.0
+
+# =============================================================================
+# Installation Commands
+# =============================================================================
+# Core only:        pip install -r requirements.txt
+# Workstation:      pip install -r requirements.txt -r requirements_optional.txt
+# Development:      pip install -e ".[dev]"
+# Full installation: pip install -e ".[dev,audio,visualization]"

@@ -383,3 +383,77 @@ class MIDIMessage:
     def is_channel_message(self) -> bool:
         """Check if this is a channel message."""
         return self.channel is not None
+
+
+# ============================================================================
+# Message Conversion Utilities
+# ============================================================================
+
+def midimessage_to_bytes(msg: 'MIDIMessage') -> bytes:
+    """
+    Convert MIDIMessage to MIDI byte stream.
+    
+    Args:
+        msg: MIDIMessage to convert
+    
+    Returns:
+        Raw MIDI bytes
+    
+    Example:
+        >>> msg = MIDIMessage(type='note_on', channel=0, data={'note': 60, 'velocity': 80})
+        >>> data = midimessage_to_bytes(msg)
+        >>> data.hex()
+        '903c50'
+    """
+    result = bytearray()
+    channel = msg.channel or 0
+    
+    if msg.type == 'note_on':
+        status = 0x90 | channel
+        result.append(status)
+        result.append(msg.note or 0)
+        result.append(msg.velocity or 0)
+    
+    elif msg.type == 'note_off':
+        status = 0x80 | channel
+        result.append(status)
+        result.append(msg.note or 0)
+        result.append(msg.velocity or 0)
+    
+    elif msg.type == 'control_change':
+        status = 0xB0 | channel
+        result.append(status)
+        result.append(msg.controller or 0)
+        result.append(msg.value or 0)
+    
+    elif msg.type == 'program_change':
+        status = 0xC0 | channel
+        result.append(status)
+        result.append(msg.program or 0)
+    
+    elif msg.type == 'channel_pressure':
+        status = 0xD0 | channel
+        result.append(status)
+        result.append(msg.pressure or 0)
+    
+    elif msg.type == 'poly_pressure':
+        status = 0xA0 | channel
+        result.append(status)
+        result.append(msg.note or 0)
+        result.append(msg.pressure or 0)
+    
+    elif msg.type == 'pitch_bend':
+        status = 0xE0 | channel
+        result.append(status)
+        value = msg.bend_value or 8192
+        result.append(value & 0x7F)
+        result.append((value >> 7) & 0x7F)
+    
+    elif msg.type == 'sysex':
+        result.append(0xF0)
+        raw_data = msg.data.get('raw_data', [])
+        for byte in raw_data:
+            result.append(byte & 0x7F)
+        result.append(0xF7)
+    
+    return bytes(result)

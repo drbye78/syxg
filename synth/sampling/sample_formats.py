@@ -183,82 +183,113 @@ class SampleFormatHandler:
             return None
 
     def _load_aiff_file(self, file_path: str) -> Optional[Dict[str, Any]]:
-        """Load AIFF file (simplified implementation)."""
-        # AIFF loading would require aiff-specific library
-        # For now, return None to indicate not implemented
-        return None
+        """Load AIFF file using PyAV."""
+        return self._load_audio_file_pyav(file_path, 'aiff')
 
     def _load_flac_file(self, file_path: str) -> Optional[Dict[str, Any]]:
-        """Load FLAC file."""
-        try:
-            import soundfile as sf
-            data, sample_rate = sf.read(file_path, dtype='float32')
-            return {
-                'data': data if data.ndim == 2 else data.reshape(-1, 1),
-                'sample_rate': sample_rate,
-                'channels': data.shape[1] if data.ndim == 2 else 1,
-                'format': 'float32',
-                'original_format': 'flac',
-                'bit_depth': 24  # FLAC typically 24-bit
-            }
-        except ImportError:
-            print("soundfile library required for FLAC support")
-            return None
-        except Exception as e:
-            print(f"FLAC load error: {e}")
-            return None
+        """Load FLAC file using PyAV."""
+        return self._load_audio_file_pyav(file_path, 'flac')
 
     def _load_ogg_file(self, file_path: str) -> Optional[Dict[str, Any]]:
-        """Load OGG file."""
-        try:
-            import soundfile as sf
-            data, sample_rate = sf.read(file_path, dtype='float32')
-            return {
-                'data': data if data.ndim == 2 else data.reshape(-1, 1),
-                'sample_rate': sample_rate,
-                'channels': data.shape[1] if data.ndim == 2 else 1,
-                'format': 'float32',
-                'original_format': 'ogg',
-                'bit_depth': 16
-            }
-        except ImportError:
-            print("soundfile library required for OGG support")
-            return None
-        except Exception as e:
-            print(f"OGG load error: {e}")
-            return None
+        """Load OGG file using PyAV."""
+        return self._load_audio_file_pyav(file_path, 'ogg')
 
     def _load_mp3_file(self, file_path: str) -> Optional[Dict[str, Any]]:
-        """Load MP3 file."""
+        """Load MP3 file using PyAV."""
+        return self._load_audio_file_pyav(file_path, 'mp3')
+
+    def _load_audio_file_pyav(self, file_path: str, format_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Load audio file using PyAV (unified loader for all formats).
+        
+        This replaces the format-specific loaders (pydub, soundfile) with a single
+        PyAV-based implementation that supports all audio formats.
+        
+        Args:
+            file_path: Path to audio file
+            format_name: Format name for reporting (mp3, flac, ogg, wav, aiff, etc.)
+        
+        Returns:
+            Dictionary with audio data and metadata, or None on error
+        """
         try:
-            import pydub
-            audio = pydub.AudioSegment.from_mp3(file_path)
-            # Convert to numpy array
-            samples = np.array(audio.get_array_of_samples())
-            if audio.channels == 2:
-                samples = samples.reshape(-1, 2)
-
-            # Normalize
-            samples = samples.astype(np.float32)
-            if audio.sample_width == 2:
-                samples /= 32767.0
-            elif audio.sample_width == 1:
-                samples /= 127.0
-
+            import av
+            
+            container = av.open(file_path)
+            
+            # Find audio stream
+            audio_stream = None
+            for stream in container.streams:
+                if stream.type == 'audio':
+                    audio_stream = stream
+                    break
+            
+            if not audio_stream:
+                container.close()
+                print(f"No audio stream found in {file_path}")
+                return None
+            
+            # Decode all frames
+            frames = []
+            for frame in container.decode(audio_stream):
+                # Convert to numpy: (channels, samples) -> (samples, channels)
+                frame_data = frame.to_ndarray().astype(np.float32).T
+                frames.append(frame_data)
+            
+            container.close()
+            
+            if not frames:
+                print(f"No audio frames decoded from {file_path}")
+                return None
+            
+            # Concatenate frames
+            data = np.concatenate(frames, axis=0)
+            
+            # Ensure 2D shape (samples, channels)
+            if data.ndim == 1:
+                data = data.reshape(-1, 1)
+            
+            # Get bit depth from format
+            bit_depth = self._get_bit_depth_from_format(audio_stream.format.name)
+            
             return {
-                'data': samples,
-                'sample_rate': audio.frame_rate,
-                'channels': audio.channels,
+                'data': data,
+                'sample_rate': audio_stream.sample_rate,
+                'channels': audio_stream.channels,
                 'format': 'float32',
-                'original_format': 'mp3',
-                'bit_depth': audio.sample_width * 8
+                'original_format': format_name,
+                'bit_depth': bit_depth,
+                'codec': audio_stream.codec.name if audio_stream.codec else 'unknown'
             }
+            
         except ImportError:
-            print("pydub library required for MP3 support")
+            print("PyAV (av) library required for audio file loading")
             return None
         except Exception as e:
-            print(f"MP3 load error: {e}")
+            print(f"PyAV load error for {file_path}: {e}")
             return None
+
+    def _get_bit_depth_from_format(self, format_name: str) -> int:
+        """
+        Get bit depth from PyAV format name.
+        
+        Args:
+            format_name: PyAV format name (e.g., 'flt', 's16', 's32', 'u8')
+        
+        Returns:
+            Bit depth in bits (8, 16, 24, 32, 64), defaults to 16
+        """
+        format_map = {
+            'u8': 8, 's16': 16, 's32': 32, 'flt': 32, 'dbl': 64,
+            'u8p': 8, 's16p': 16, 's32p': 32, 'fltp': 32, 'dblp': 64,
+            # Common FFmpeg format names
+            'pcm_s16le': 16, 'pcm_s24le': 24, 'pcm_s32le': 32,
+            'pcm_f32le': 32, 'pcm_f64le': 64,
+            'mp3': 16, 'aac': 16, 'vorbis': 16, 'flac': 24,
+        }
+        # Extract base format (handle variants like 'fltp' -> 'flt')
+        base_format = format_name.lower().rstrip('p')
+        return format_map.get(base_format, format_map.get(format_name.lower(), 16))
 
     def _load_raw_file(self, file_path: str) -> Optional[Dict[str, Any]]:
         """Load raw PCM file."""

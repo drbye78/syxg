@@ -1,0 +1,207 @@
+# XG Synthesizer Workstation Configuration
+# =========================================
+#
+# This configuration file controls the real-time MIDI workstation behavior.
+# Copy this file to config.yaml and customize for your setup.
+
+# =============================================================================
+# Audio Settings
+# =============================================================================
+audio:
+  sample_rate: 44100          # Audio sample rate in Hz (44100, 48000, 88200, 96000)
+  buffer_size: 512            # Audio buffer size in samples (lower = lower latency)
+  block_size: 1024            # Processing block size
+  master_volume: 0.8          # Master output volume (0.0 - 1.0)
+
+# =============================================================================
+# MIDI Input Configuration
+# =============================================================================
+midi_inputs:
+  # Keyboard input (use computer keyboard as MIDI controller)
+  # Maps Z-M and Q-U rows to musical notes
+  - type: keyboard
+    name: "Computer Keyboard"
+    enabled: true
+    channel: 0                # MIDI channel (0-15)
+    velocity: 80              # Fixed velocity for keyboard input
+    transpose: 0              # Transpose in semitones
+
+  # Physical MIDI port (requires rtmidi library - pip install rtmidi)
+  # - type: mido_port
+  #   name: "USB MIDI Interface"
+  #   port_name: "USB MIDI Device"  # Exact port name from get_input_names()
+  #   enabled: true
+  #   channel_filter: [0, 1, 2]     # Only process these channels (optional)
+  #   velocity_offset: 0            # Add to all velocities
+  #   transpose: 0                  # Transpose in semitones
+
+  # Virtual MIDI port (for inter-process communication, requires rtmidi)
+  # - type: virtual_port
+  #   name: "Virtual MIDI"
+  #   port_name: "XG-Workstation-Virtual"
+  #   enabled: true
+
+  # Network MIDI (RTP-MIDI / AppleMIDI)
+  # - type: network_midi
+  #   name: "Network MIDI"
+  #   enabled: false
+  #   host: "192.168.1.100"     # Remote host IP
+  #   port: 5004                # RTP-MIDI port
+
+  # MIDI file playback
+  # - type: midi_file
+  #   name: "Background Playback"
+  #   file_path: "songs/background.mid"
+  #   enabled: false
+  #   tempo: 1.0                # Playback tempo multiplier
+  #   loop: true                # Loop the file
+
+  # Stdin MIDI (for scripting/automation)
+  # - type: stdin
+  #   name: "Script Control"
+  #   enabled: false
+
+# =============================================================================
+# Audio Output Configuration
+# =============================================================================
+audio_output:
+  # Real-time audio via sounddevice
+  type: sounddevice
+  # device_name: "USB Audio Device"  # Specific output device (or omit for default)
+  sample_rate: 44100
+  buffer_size: 512
+  channels: 2                   # Stereo output
+
+  # File output (uncomment to render to file instead)
+  # type: file
+  # file_path: "output/recording.wav"
+  # file_format: wav            # wav, flac, ogg, mp3, aac, m4a
+
+# =============================================================================
+# Synthesizer Engine Settings
+# =============================================================================
+synthesizer:
+  max_polyphony: 128            # Maximum simultaneous voices
+  xg_enabled: true              # Yamaha XG compatibility
+  gs_enabled: true              # Roland GS compatibility
+  mpe_enabled: false            # MIDI Polyphonic Expression
+
+  # SoundFont configuration
+  soundfonts:
+    # - path: "soundfonts/GM.sf2"
+    #   priority: 0
+    #   blacklist: []           # [(bank, program)] to disable
+    #   remap: {}               # {(from_bank, from_prog): (to_bank, to_prog)}
+
+# =============================================================================
+# Effects Configuration
+# =============================================================================
+effects:
+  # Master effects
+  master_reverb:
+    enabled: true
+    type: hall                 # hall, room, plate, delay
+    level: 0.3
+
+  master_chorus:
+    enabled: true
+    type: chorus1              # chorus1, chorus2, chorus3, celeste
+    level: 0.2
+
+  # Insertion effects (per-part)
+  insertion:
+    enabled: true
+    type: distortion           # distortion, overdrive, eq, phaser, etc.
+
+# =============================================================================
+# Style Engine (Auto-Accompaniment)
+# =============================================================================
+style_engine:
+  enabled: true
+  chord_detection_channel: 9    # Channel for chord detection (0-15)
+  chord_detection_range:
+    low_note: 36                # C2
+    high_note: 60               # C4
+
+  # Style file paths
+  style_paths:
+    - "styles/"
+
+# =============================================================================
+# Recording Configuration
+# =============================================================================
+recording:
+  enabled: true
+  output_directory: "recordings/"
+  format: "midi"                # midi, audio, both
+  auto_save: true               # Auto-save on stop
+
+# =============================================================================
+# TUI (Text User Interface) Settings
+# =============================================================================
+tui:
+  enabled: true
+  refresh_rate: 4               # Screen updates per second
+  show_channel_activity: true
+  show_voice_count: true
+  show_cpu_usage: true
+  color_scheme: "cyan"          # cyan, green, yellow, magenta
+
+# =============================================================================
+# Performance Monitoring
+# =============================================================================
+performance:
+  show_stats: true
+  log_interval: 5.0             # Seconds between stat updates
+  warn_cpu_threshold: 80.0      # CPU % threshold for warning
+  voice_display: true
+
+# =============================================================================
+# Preset Banks
+# =============================================================================
+presets:
+  # Custom preset bank files
+  banks:
+    - "presets/user_bank.yaml"
+
+  # Auto-load preset on startup
+  # auto_load: "Init Setup"
+
+# =============================================================================
+# MIDI Learn (Map controls to MIDI CCs)
+# =============================================================================
+midi_learn:
+  enabled: true
+  mappings:
+    # Example: Map CC1 to filter cutoff
+    # - cc: 1
+    #   target: "filter.cutoff"
+    #   channel: 0
+    #   min: 0
+    #   max: 127
+    #   curve: linear
+
+    # Example: Map CC74 to filter resonance
+    # - cc: 74
+    #   target: "filter.resonance"
+    #   channel: 0
+    #   min: 0
+    #   max: 127
+    #   curve: linear
+
+# =============================================================================
+# Advanced Settings
+# =============================================================================
+advanced:
+  # Threading
+  audio_thread_priority: high   # low, normal, high, realtime
+  midi_thread_priority: normal
+
+  # Buffer management
+  preallocate_buffers: true
+  buffer_pool_size: 100
+
+  # Debugging
+  debug_mode: false
+  log_midi_messages: false
+  log_audio_blocks: false

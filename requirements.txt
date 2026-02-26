@@ -1,31 +1,29 @@
-# XG Synthesizer Core Requirements
+# XG Synthesizer - Core Requirements
+# ===================================
+# Install with: pip install -r requirements.txt
+# For full workstation features: pip install -r requirements.txt -r requirements_optional.txt
+
+# =============================================================================
+# Core Dependencies (Required)
+# =============================================================================
 
 # Core scientific libraries
 numpy>=1.21.0,<2.0.0
 scipy>=1.7.0,<2.0.0
 
-# Audio processing
-pydub>=0.25.1,<1.0.0
-librosa>=0.9.0,<0.11.0
-soundfile>=0.10.3,<0.13.0
-
-# Audio writing/encoding
+# Audio processing and I/O (PyAV - FFmpeg bindings)
+# PyAV handles all audio file reading/writing/conversion
 av>=9.0.0,<12.0.0
 
-# Performance optimization
+# Performance optimization (JIT compilation)
 numba>=0.56.0,<0.60.0
 
 # System monitoring
 psutil>=5.9.0,<6.0.0
 
-# MIDI handling
-mido>=2.0.0,<3.0.0
-
-# Configuration
+# Configuration and data formats
 PyYAML>=6.0,<7.0.0
-
-# Type hints support
-typing-extensions>=4.0.0,<5.0.0
-
-# JSON Schema validation
 jsonschema>=4.0.0,<5.0.0
+
+# Type hints support (Python 3.8+)
+typing-extensions>=4.0.0,<5.0.0

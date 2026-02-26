@@ -203,17 +203,37 @@ class SampleLibrary:
                 'created_time': stat.st_ctime
             }
 
-            # Try to get audio metadata if possible
+            # Try to get audio metadata using PyAV
             try:
-                import soundfile as sf
-                with sf.SoundFile(file_path) as f:
+                import av
+                
+                container = av.open(file_path)
+                
+                # Find audio stream
+                audio_stream = None
+                for stream in container.streams:
+                    if stream.type == 'audio':
+                        audio_stream = stream
+                        break
+                
+                if audio_stream:
+                    # Calculate duration
+                    if audio_stream.duration and audio_stream.time_base:
+                        duration_seconds = float(audio_stream.duration * audio_stream.time_base)
+                    else:
+                        duration_seconds = 0
+                    
                     info.update({
-                        'sample_rate': f.samplerate,
-                        'channels': f.channels,
-                        'frames': f.frames,
-                        'duration_seconds': f.frames / f.samplerate,
-                        'bit_depth': f.subtype
+                        'sample_rate': audio_stream.sample_rate,
+                        'channels': audio_stream.channels,
+                        'frames': audio_stream.frames or 0,
+                        'duration_seconds': duration_seconds,
+                        'codec': audio_stream.codec.name if audio_stream.codec else 'unknown',
+                        'bit_depth': self._get_bit_depth_from_format(audio_stream.format.name)
                     })
+                
+                container.close()
+                
             except ImportError:
                 # Fallback: assume 44.1kHz stereo
                 estimated_frames = (stat.st_size * 44100) // (2 * 2)  # rough estimate
@@ -230,6 +250,26 @@ class SampleLibrary:
 
         except Exception:
             return None
+
+    def _get_bit_depth_from_format(self, format_name: str) -> int:
+        """
+        Get bit depth from PyAV format name.
+        
+        Args:
+            format_name: PyAV format name (e.g., 'flt', 's16', 's32', 'u8')
+        
+        Returns:
+            Bit depth in bits (8, 16, 24, 32, 64), defaults to 16
+        """
+        format_map = {
+            'u8': 8, 's16': 16, 's32': 32, 'flt': 32, 'dbl': 64,
+            'u8p': 8, 's16p': 16, 's32p': 32, 'fltp': 32, 'dblp': 64,
+            'pcm_s16le': 16, 'pcm_s24le': 24, 'pcm_s32le': 32,
+            'pcm_f32le': 32, 'pcm_f64le': 64,
+            'mp3': 16, 'aac': 16, 'vorbis': 16, 'flac': 24,
+        }
+        base_format = format_name.lower().rstrip('p')
+        return format_map.get(base_format, format_map.get(format_name.lower(), 16))
 
     def _get_current_timestamp(self) -> float:
         """Get current timestamp."""

@@ -8,13 +8,14 @@ dynamic = ["version"]
 authors = [
     {name = "Roger", email = "roger@syxg.dev"},
 ]
-description = "High-performance MIDI XG (eXtended General MIDI) synthesizer implemented in Python with optimized vectorized processing"
+description = "Professional XG (eXtended General MIDI) synthesizer and real-time workstation with Vibexg live performance interface, Yamaha S.Art2 articulation, comprehensive effects processing (62+ types), SF2/SFZ sample playback, FM-X synthesis, and vectorized audio processing"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.8"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: Musicians",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -31,18 +32,26 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    # Core scientific libraries
     "numpy>=1.21.0,<2.0.0",
     "scipy>=1.7.0,<2.0.0",
-    "pydub>=0.25.1,<1.0.0",
-    "librosa>=0.9.0,<0.11.0",
-    "soundfile>=0.10.3,<0.13.0",
+    
+    # Audio processing and I/O (PyAV - FFmpeg bindings)
+    # PyAV handles all audio file reading/writing/conversion
     "av>=9.0.0,<12.0.0",
+    
+    # Performance optimization
     "numba>=0.56.0,<0.60.0",
+    
+    # System monitoring
     "psutil>=5.9.0,<6.0.0",
-    "mido>=2.0.0,<3.0.0",
+    
+    # Configuration and data formats
     "PyYAML>=6.0,<7.0.0",
-    "typing-extensions>=4.0.0,<5.0.0",
     "jsonschema>=4.0.0,<5.0.0",
+    
+    # Type hints support
+    "typing-extensions>=4.0.0,<5.0.0",
 ]
 keywords = [
     "audio",
@@ -51,48 +60,107 @@ keywords = [
     "xg",
     "soundfont",
     "sf2",
+    "sfz",
     "music",
     "synthesis",
+    "workstation",
+    "vibexg",
+    "yamaha",
+    "sart2",
+    "real-time",
 ]
 
 [project.urls]
 Homepage = "https://github.com/drbye78/syxg"
 Documentation = "https://github.com/drbye78/syxg#readme"
 Repository = "https://github.com/drbye78/syxg"
-"Bug Reports" = "https://github.com/drbye78/syxg/issues"
+"Bug Tracker" = "https://github.com/drbye78/syxg/issues"
 Source = "https://github.com/drbye78/syxg"
 
 [project.optional-dependencies]
+# Development tools
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.10.1",
+    "pytest-asyncio>=0.20.0",
     "black>=21.0.0",
     "flake8>=3.8.0",
     "mypy>=0.812",
 ]
+
+# Real-time workstation (Vibexg)
+workstation = [
+    "rtmidi>=2.0.0,<3.0.0",
+    "sounddevice>=0.4.0,<0.5.0",
+    "rich>=13.0.0,<14.0.0",
+]
+
+# Performance optimization
 performance = [
     "numba>=0.56.0",
 ]
+
+# Audio processing (PyAV-based, all-in-one)
 audio = [
-    "pydub>=0.25.1",
-    "librosa>=0.9.0",
-    "soundfile>=0.10.3",
-    "av>=9.0.0",
+    "av>=9.0.0",  # Complete audio I/O via FFmpeg
 ]
+
+# Visualization
 visualization = [
     "matplotlib>=3.3.0",
     "seaborn>=0.11.0",
 ]
 
+# Documentation
+docs = [
+    "sphinx>=4.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+    "sphinx-autobuild>=2021.3.14",
+]
+
+# Complete installation
+full = [
+    "xg-synthesizer[dev,workstation,audio,visualization,docs]",
+]
+
 [project.scripts]
+# MIDI to audio rendering
 render-midi = "render_midi:main"
+
+# Real-time workstation
+vibexg = "vibexg.cli:main"
 
 [tool.setuptools]
 include-package-data = true
 zip-safe = false
+packages = ["synth", "vibexg"]
 
 [tool.setuptools.dynamic]
 version = {attr = "synth.version.__version__"}
 
-[tool.setuptools.packages.find]
-# Automatically find packages
+[tool.setuptools.package-data]
+synth = ["*.yaml", "*.yml"]
+vibexg = ["*.yaml", "*.yml"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short"
