@@ -401,8 +401,63 @@ class OneTouchSettings:
         if name:
             preset.name = name
 
-        # TODO: Query synthesizer for current state and store to preset
-        return True
+        try:
+            if hasattr(self._synthesizer, "get_parts_state"):
+                parts_state = self._synthesizer.get_parts_state()
+
+                for part_id, part_state in enumerate(parts_state[:4]):
+                    if part_id < len(preset.parts):
+                        part = preset.parts[part_id]
+
+                        if "program" in part_state:
+                            prog = part_state["program"]
+                            part.program_change = prog & 0x7F
+                            part.bank_msb = (prog >> 16) & 0x7F
+                            part.bank_lsb = (prog >> 8) & 0x7F
+
+                        if "volume" in part_state:
+                            part.volume = part_state["volume"]
+
+                        if "pan" in part_state:
+                            part.pan = part_state["pan"]
+
+                        if "reverb_send" in part_state:
+                            part.reverb_send = part_state["reverb_send"]
+
+                        if "chorus_send" in part_state:
+                            part.chorus_send = part_state["chorus_send"]
+
+                        if "variation_send" in part_state:
+                            part.variation_send = part_state["variation_send"]
+
+                        if "enabled" in part_state:
+                            part.enabled = part_state["enabled"]
+
+                        if "octave_shift" in part_state:
+                            part.octave_shift = part_state["octave_shift"]
+
+                        if "velocity_limit_low" in part_state:
+                            part.velocity_limit_low = part_state["velocity_limit_low"]
+
+                        if "velocity_limit_high" in part_state:
+                            part.velocity_limit_high = part_state["velocity_limit_high"]
+
+            if hasattr(self._synthesizer, "get_master_volume"):
+                preset.master_volume = self._synthesizer.get_master_volume()
+
+            if hasattr(self._synthesizer, "get_tempo"):
+                preset.tempo = self._synthesizer.get_tempo()
+
+            if hasattr(self._synthesizer, "get_time_signature"):
+                time_sig = self._synthesizer.get_time_signature()
+                preset.time_signature_numerator = time_sig[0]
+                preset.time_signature_denominator = time_sig[1]
+
+            return True
+
+        except Exception as e:
+            print(f"Error storing to preset: {e}")
+            return False
 
     def get_preset_names(self) -> List[str]:
         """Get list of all preset names"""

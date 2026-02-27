@@ -20,6 +20,7 @@ from enum import Enum
 
 class SampleFormat(Enum):
     """Supported sample formats"""
+
     WAV = "wav"
     AIFF = "aiff"
     FLAC = "flac"
@@ -29,6 +30,7 @@ class SampleFormat(Enum):
 
 class SampleQuality(Enum):
     """Sample quality settings"""
+
     COMPRESSED = "compressed"
     STANDARD = "standard"
     HIGH = "high"
@@ -38,6 +40,7 @@ class SampleQuality(Enum):
 @dataclass
 class SampleMetadata:
     """Sample metadata container"""
+
     name: str
     format: SampleFormat
     sample_rate: int
@@ -52,14 +55,15 @@ class SampleMetadata:
     loop_start: Optional[int] = None
     loop_end: Optional[int] = None
     root_note: int = 60  # MIDI note number
-    fine_tune: int = 0   # cents
+    fine_tune: int = 0  # cents
     volume: float = 1.0
-    pan: float = 0.0     # -1.0 to 1.0
+    pan: float = 0.0  # -1.0 to 1.0
 
 
 @dataclass
 class Keygroup:
     """Sample keygroup for keyboard mapping"""
+
     low_note: int
     high_note: int
     sample_id: str
@@ -76,6 +80,7 @@ class Keygroup:
 @dataclass
 class Multisample:
     """Multi-sample instrument definition"""
+
     id: str
     name: str
     keygroups: List[Keygroup]
@@ -103,8 +108,9 @@ class SampleCache:
         self.current_memory_usage = 0
         self.compression_enabled = True
 
-    def load_sample(self, sample_id: str, file_path: str,
-                   force_load: bool = False) -> Optional[np.ndarray]:
+    def load_sample(
+        self, sample_id: str, file_path: str, force_load: bool = False
+    ) -> Optional[np.ndarray]:
         """Load sample into cache with intelligent management"""
         with self.lock:
             # Check if already cached
@@ -130,12 +136,42 @@ class SampleCache:
             return sample_data
 
     def _load_sample_from_file(self, file_path: str) -> Optional[np.ndarray]:
-        """Load sample from file (simplified implementation)"""
+        """Load sample from file"""
         try:
-            # In a full implementation, this would use proper audio libraries
-            # For now, return a placeholder
-            # This would integrate with libraries like soundfile, librosa, etc.
-            return np.zeros(44100, dtype=np.float32)  # Placeholder
+            import soundfile as sf
+
+            audio_data, sr = sf.read(file_path, dtype="float32")
+
+            if len(audio_data.shape) > 1:
+                audio_data = np.mean(audio_data, axis=1)
+
+            if sr != self.sample_rate:
+                num_samples = int(len(audio_data) * self.sample_rate / sr)
+                x_old = np.arange(len(audio_data))
+                x_new = np.linspace(0, len(audio_data) - 1, num_samples)
+                audio_data = np.interp(x_new, x_old, audio_data)
+
+            return audio_data
+
+        except ImportError:
+            try:
+                import scipy.io.wavfile as wavfile
+
+                sr, audio_data = wavfile.read(file_path)
+                audio_data = audio_data.astype(np.float32) / 32768.0
+
+                if len(audio_data.shape) > 1:
+                    audio_data = np.mean(audio_data, axis=1)
+
+                if sr != self.sample_rate:
+                    num_samples = int(len(audio_data) * self.sample_rate / sr)
+                    x_old = np.arange(len(audio_data))
+                    x_new = np.linspace(0, len(audio_data) - 1, num_samples)
+                    audio_data = np.interp(x_new, x_old, audio_data)
+
+                return audio_data
+            except Exception:
+                return None
         except Exception:
             return None
 
@@ -228,21 +264,22 @@ class SampleManager:
     def _init_categories(self):
         """Initialize sample categories"""
         self.categories = {
-            'piano': [],
-            'strings': [],
-            'brass': [],
-            'woodwinds': [],
-            'percussion': [],
-            'drums': [],
-            'bass': [],
-            'guitar': [],
-            'synth': [],
-            'effects': [],
-            'user': []
+            "piano": [],
+            "strings": [],
+            "brass": [],
+            "woodwinds": [],
+            "percussion": [],
+            "drums": [],
+            "bass": [],
+            "guitar": [],
+            "synth": [],
+            "effects": [],
+            "user": [],
         }
 
-    def add_sample(self, file_path: str, name: Optional[str] = None,
-                  category: str = 'user') -> Optional[str]:
+    def add_sample(
+        self, file_path: str, name: Optional[str] = None, category: str = "user"
+    ) -> Optional[str]:
         """
         Add sample from file.
 
@@ -291,7 +328,9 @@ class SampleManager:
         # Use file path hash for uniqueness
         return hashlib.md5(file_path.encode()).hexdigest()[:16]
 
-    def _extract_metadata(self, file_path: str, name: Optional[str]) -> Optional[SampleMetadata]:
+    def _extract_metadata(
+        self, file_path: str, name: Optional[str]
+    ) -> Optional[SampleMetadata]:
         """Extract metadata from sample file"""
         try:
             # In a full implementation, this would use audio libraries
@@ -302,21 +341,21 @@ class SampleManager:
             # Generate checksum
             checksum = None
             if file_path_obj.exists():
-                with open(file_path, 'rb') as f:
+                with open(file_path, "rb") as f:
                     checksum = hashlib.md5(f.read()).hexdigest()
 
             return SampleMetadata(
                 name=name or file_path_obj.stem,
-                format=SampleFormat.WAV,  # Assume WAV for now
+                format=SampleFormat.WAV,
                 sample_rate=44100,
                 bit_depth=16,
                 channels=1,
-                length_samples=44100,  # 1 second placeholder
+                length_samples=44100,
                 duration_seconds=1.0,
                 file_path=file_path,
                 file_size_bytes=file_size,
                 checksum=checksum,
-                quality=SampleQuality.STANDARD
+                quality=SampleQuality.STANDARD,
             )
         except Exception:
             return None
@@ -361,8 +400,9 @@ class SampleManager:
 
             return True
 
-    def create_multisample(self, name: str, keygroups: List[Keygroup],
-                          category: str = 'user') -> str:
+    def create_multisample(
+        self, name: str, keygroups: List[Keygroup], category: str = "user"
+    ) -> str:
         """
         Create multisample from keygroups.
 
@@ -381,7 +421,7 @@ class SampleManager:
                 id=multisample_id,
                 name=name,
                 keygroups=keygroups.copy(),
-                category=category
+                category=category,
             )
 
             self.multisamples[multisample_id] = multisample
@@ -394,7 +434,9 @@ class SampleManager:
 
             return multisample_id
 
-    def get_sample_data(self, sample_id: str, force_load: bool = False) -> Optional[np.ndarray]:
+    def get_sample_data(
+        self, sample_id: str, force_load: bool = False
+    ) -> Optional[np.ndarray]:
         """
         Get sample audio data.
 
@@ -412,8 +454,9 @@ class SampleManager:
 
             return self.cache.load_sample(sample_id, metadata.file_path, force_load)
 
-    def find_keygroup_for_note(self, multisample_id: str, note: int,
-                              velocity: int = 64) -> Optional[Keygroup]:
+    def find_keygroup_for_note(
+        self, multisample_id: str, note: int, velocity: int = 64
+    ) -> Optional[Keygroup]:
         """
         Find appropriate keygroup for note and velocity.
 
@@ -435,12 +478,14 @@ class SampleManager:
             best_priority = -1
 
             for keygroup in multisample.keygroups:
-                if (keygroup.low_note <= note <= keygroup.high_note and
-                    keygroup.velocity_min <= velocity <= keygroup.velocity_max):
-
+                if (
+                    keygroup.low_note <= note <= keygroup.high_note
+                    and keygroup.velocity_min <= velocity <= keygroup.velocity_max
+                ):
                     # Prioritize more specific ranges
-                    priority = (keygroup.high_note - keygroup.low_note) + \
-                              (keygroup.velocity_max - keygroup.velocity_min)
+                    priority = (keygroup.high_note - keygroup.low_note) + (
+                        keygroup.velocity_max - keygroup.velocity_min
+                    )
 
                     if priority > best_priority:
                         best_match = keygroup
@@ -456,8 +501,11 @@ class SampleManager:
     def get_multisamples_in_category(self, category: str) -> List[str]:
         """Get all multisample IDs in a category"""
         with self.lock:
-            return [ms_id for ms_id, ms in self.multisamples.items()
-                   if ms.category == category]
+            return [
+                ms_id
+                for ms_id, ms in self.multisamples.items()
+                if ms.category == category
+            ]
 
     def search_samples(self, query: str, category: Optional[str] = None) -> List[str]:
         """
@@ -477,8 +525,11 @@ class SampleManager:
             search_space = self.samples
             if category:
                 category_samples = set(self.categories.get(category, []))
-                search_space = {sid: self.samples[sid] for sid in category_samples
-                              if sid in self.samples}
+                search_space = {
+                    sid: self.samples[sid]
+                    for sid in category_samples
+                    if sid in self.samples
+                }
 
             for sample_id, metadata in search_space.items():
                 if query_lower in metadata.name.lower():
@@ -510,13 +561,15 @@ class SampleManager:
             cache_memory = self.cache.current_memory_usage
 
             return {
-                'total_samples': total_samples,
-                'total_multisamples': total_multisamples,
-                'cache_memory_mb': cache_memory,
-                'max_memory_mb': self.max_memory_mb,
-                'memory_utilization': (cache_memory / self.max_memory_mb) * 100,
-                'categories': {cat: len(samples) for cat, samples in self.categories.items()},
-                'favorites_count': len(self.favorites)
+                "total_samples": total_samples,
+                "total_multisamples": total_multisamples,
+                "cache_memory_mb": cache_memory,
+                "max_memory_mb": self.max_memory_mb,
+                "memory_utilization": (cache_memory / self.max_memory_mb) * 100,
+                "categories": {
+                    cat: len(samples) for cat, samples in self.categories.items()
+                },
+                "favorites_count": len(self.favorites),
             }
 
     def optimize_memory_usage(self):
@@ -551,28 +604,35 @@ class SampleManager:
         with self.lock:
             try:
                 export_data = {
-                    'samples': {sid: {
-                        'metadata': metadata.__dict__,
-                    } for sid, metadata in self.samples.items()},
-                    'multisamples': {msid: {
-                        'id': ms.id,
-                        'name': ms.name,
-                        'keygroups': [kg.__dict__ for kg in ms.keygroups],
-                        'global_volume': ms.global_volume,
-                        'global_pan': ms.global_pan,
-                        'global_attack': ms.global_attack,
-                        'global_decay': ms.global_decay,
-                        'global_sustain': ms.global_sustain,
-                        'global_release': ms.global_release,
-                        'category': ms.category,
-                        'description': ms.description
-                    } for msid, ms in self.multisamples.items()},
-                    'categories': self.categories.copy(),
-                    'favorites': self.favorites.copy()
+                    "samples": {
+                        sid: {
+                            "metadata": metadata.__dict__,
+                        }
+                        for sid, metadata in self.samples.items()
+                    },
+                    "multisamples": {
+                        msid: {
+                            "id": ms.id,
+                            "name": ms.name,
+                            "keygroups": [kg.__dict__ for kg in ms.keygroups],
+                            "global_volume": ms.global_volume,
+                            "global_pan": ms.global_pan,
+                            "global_attack": ms.global_attack,
+                            "global_decay": ms.global_decay,
+                            "global_sustain": ms.global_sustain,
+                            "global_release": ms.global_release,
+                            "category": ms.category,
+                            "description": ms.description,
+                        }
+                        for msid, ms in self.multisamples.items()
+                    },
+                    "categories": self.categories.copy(),
+                    "favorites": self.favorites.copy(),
                 }
 
                 import json
-                with open(filename, 'w') as f:
+
+                with open(filename, "w") as f:
                     json.dump(export_data, f, indent=2)
 
                 return True
@@ -592,41 +652,42 @@ class SampleManager:
         with self.lock:
             try:
                 import json
-                with open(filename, 'r') as f:
+
+                with open(filename, "r") as f:
                     import_data = json.load(f)
 
                 # Import samples
-                for sample_id, sample_data in import_data.get('samples', {}).items():
-                    metadata_dict = sample_data['metadata']
+                for sample_id, sample_data in import_data.get("samples", {}).items():
+                    metadata_dict = sample_data["metadata"]
                     metadata = SampleMetadata(**metadata_dict)
                     self.samples[sample_id] = metadata
                     self.cache.metadata[sample_id] = metadata
 
                 # Import multisamples
-                for ms_id, ms_data in import_data.get('multisamples', {}).items():
+                for ms_id, ms_data in import_data.get("multisamples", {}).items():
                     keygroups = []
-                    for kg_data in ms_data['keygroups']:
+                    for kg_data in ms_data["keygroups"]:
                         keygroup = Keygroup(**kg_data)
                         keygroups.append(keygroup)
 
                     multisample = Multisample(
-                        id=ms_data['id'],
-                        name=ms_data['name'],
+                        id=ms_data["id"],
+                        name=ms_data["name"],
                         keygroups=keygroups,
-                        global_volume=ms_data.get('global_volume', 1.0),
-                        global_pan=ms_data.get('global_pan', 0.0),
-                        global_attack=ms_data.get('global_attack', 0.0),
-                        global_decay=ms_data.get('global_decay', 0.0),
-                        global_sustain=ms_data.get('global_sustain', 1.0),
-                        global_release=ms_data.get('global_release', 0.1),
-                        category=ms_data.get('category', 'user'),
-                        description=ms_data.get('description')
+                        global_volume=ms_data.get("global_volume", 1.0),
+                        global_pan=ms_data.get("global_pan", 0.0),
+                        global_attack=ms_data.get("global_attack", 0.0),
+                        global_decay=ms_data.get("global_decay", 0.0),
+                        global_sustain=ms_data.get("global_sustain", 1.0),
+                        global_release=ms_data.get("global_release", 0.1),
+                        category=ms_data.get("category", "user"),
+                        description=ms_data.get("description"),
                     )
                     self.multisamples[ms_id] = multisample
 
                 # Import categories and favorites
-                self.categories.update(import_data.get('categories', {}))
-                self.favorites.extend(import_data.get('favorites', []))
+                self.categories.update(import_data.get("categories", {}))
+                self.favorites.extend(import_data.get("favorites", []))
 
                 return True
             except Exception:
@@ -637,7 +698,7 @@ class SampleManager:
         with self.lock:
             self.samples.clear()
             self.multisamples.clear()
-            self.categories = {'user': []}
+            self.categories = {"user": []}
             self.favorites.clear()
             self.cache.clear_cache()
             self.active_samples.clear()

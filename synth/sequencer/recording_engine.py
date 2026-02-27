@@ -9,6 +9,7 @@ import numpy as np
 from typing import Dict, List, Any, Optional, Tuple
 import threading
 import time
+import os
 
 
 class RecordingEngine:
@@ -67,8 +68,9 @@ class RecordingEngine:
         self.lock = threading.RLock()
         self.recording_thread: Optional[threading.Thread] = None
 
-    def start_recording(self, track_number: int, record_type: str = 'midi',
-                       start_position: int = 0) -> bool:
+    def start_recording(
+        self, track_number: int, record_type: str = "midi", start_position: int = 0
+    ) -> bool:
         """
         Start recording on a specific track.
 
@@ -86,11 +88,11 @@ class RecordingEngine:
 
             if track_number not in self.tracks:
                 self.tracks[track_number] = {
-                    'type': record_type,
-                    'events': [],
-                    'audio_data': [],
-                    'start_position': start_position,
-                    'length': 0
+                    "type": record_type,
+                    "events": [],
+                    "audio_data": [],
+                    "start_position": start_position,
+                    "length": 0,
                 }
 
             self.active_record_tracks.add(track_number)
@@ -99,8 +101,10 @@ class RecordingEngine:
             self.current_position = start_position
 
             # Initialize audio buffer if recording audio
-            if record_type == 'audio':
-                self.current_audio_buffer = np.zeros((self.sample_rate * 60, 2), dtype=np.float32)  # 60 seconds max
+            if record_type == "audio":
+                self.current_audio_buffer = np.zeros(
+                    (self.sample_rate * 60, 2), dtype=np.float32
+                )  # 60 seconds max
                 self.audio_buffers[track_number] = []
 
             print(f"🎙️  Started recording on track {track_number} ({record_type})")
@@ -140,26 +144,26 @@ class RecordingEngine:
             if not self.is_recording or track_number not in self.active_record_tracks:
                 return False
 
-            if self.tracks[track_number]['type'] != 'midi':
+            if self.tracks[track_number]["type"] != "midi":
                 return False
 
             # Add timestamp
             event_with_time = event_data.copy()
-            event_with_time['timestamp'] = time.time() - self.recording_start_time
-            event_with_time['tick'] = self.current_position
+            event_with_time["timestamp"] = time.time() - self.recording_start_time
+            event_with_time["tick"] = self.current_position
 
-            self.tracks[track_number]['events'].append(event_with_time)
+            self.tracks[track_number]["events"].append(event_with_time)
 
             # Update track length
-            self.tracks[track_number]['length'] = max(
-                self.tracks[track_number]['length'],
-                self.current_position
+            self.tracks[track_number]["length"] = max(
+                self.tracks[track_number]["length"], self.current_position
             )
 
             return True
 
-    def record_audio_block(self, track_number: int, audio_block: np.ndarray,
-                          block_position: int) -> bool:
+    def record_audio_block(
+        self, track_number: int, audio_block: np.ndarray, block_position: int
+    ) -> bool:
         """
         Record an audio block on a track.
 
@@ -175,20 +179,21 @@ class RecordingEngine:
             if not self.is_recording or track_number not in self.active_record_tracks:
                 return False
 
-            if self.tracks[track_number]['type'] != 'audio':
+            if self.tracks[track_number]["type"] != "audio":
                 return False
 
             # Store audio block
             if track_number not in self.audio_buffers:
                 self.audio_buffers[track_number] = []
 
-            self.audio_buffers[track_number].append((block_position, audio_block.copy()))
+            self.audio_buffers[track_number].append(
+                (block_position, audio_block.copy())
+            )
 
             # Update track length
             end_position = block_position + len(audio_block)
-            self.tracks[track_number]['length'] = max(
-                self.tracks[track_number]['length'],
-                end_position
+            self.tracks[track_number]["length"] = max(
+                self.tracks[track_number]["length"], end_position
             )
 
             return True
@@ -198,15 +203,15 @@ class RecordingEngine:
         for track_num in self.tracks:
             track = self.tracks[track_num]
 
-            if track['type'] == 'midi':
+            if track["type"] == "midi":
                 # Sort MIDI events by tick
-                track['events'].sort(key=lambda x: x['tick'])
+                track["events"].sort(key=lambda x: x["tick"])
 
                 # Quantize if enabled
-                if hasattr(self, 'quantize_enabled') and self.quantize_enabled:
+                if hasattr(self, "quantize_enabled") and self.quantize_enabled:
                     self._quantize_track(track_num)
 
-            elif track['type'] == 'audio':
+            elif track["type"] == "audio":
                 # Concatenate audio blocks
                 if track_num in self.audio_buffers:
                     self._concatenate_audio_blocks(track_num)
@@ -215,13 +220,13 @@ class RecordingEngine:
         """Quantize MIDI events on a track."""
         track = self.tracks[track_number]
 
-        for event in track['events']:
-            if 'tick' in event:
-                quantized_tick = round(event['tick'] / grid_size) * grid_size
-                event['tick'] = quantized_tick
+        for event in track["events"]:
+            if "tick" in event:
+                quantized_tick = round(event["tick"] / grid_size) * grid_size
+                event["tick"] = quantized_tick
 
         # Re-sort after quantization
-        track['events'].sort(key=lambda x: x['tick'])
+        track["events"].sort(key=lambda x: x["tick"])
 
     def _concatenate_audio_blocks(self, track_number: int):
         """Concatenate recorded audio blocks into continuous audio."""
@@ -254,7 +259,7 @@ class RecordingEngine:
                     output_buffer[pos:end_pos] += block
 
         # Store in track
-        self.tracks[track_number]['audio_data'] = output_buffer
+        self.tracks[track_number]["audio_data"] = output_buffer
 
         # Clean up
         del self.audio_buffers[track_number]
@@ -313,18 +318,18 @@ class RecordingEngine:
         """
         with self.lock:
             return {
-                'is_recording': self.is_recording,
-                'is_playing': self.is_playing,
-                'active_tracks': list(self.active_record_tracks),
-                'current_position': self.current_position,
-                'punch_in_enabled': self.punch_in_enabled,
-                'punch_out_enabled': self.punch_out_enabled,
-                'punch_in_position': self.punch_in_position,
-                'punch_out_position': self.punch_out_position,
-                'overdub_enabled': self.overdub_enabled,
-                'replace_enabled': self.replace_enabled,
-                'tempo': self.tempo,
-                'time_signature': self.time_signature
+                "is_recording": self.is_recording,
+                "is_playing": self.is_playing,
+                "active_tracks": list(self.active_record_tracks),
+                "current_position": self.current_position,
+                "punch_in_enabled": self.punch_in_enabled,
+                "punch_out_enabled": self.punch_out_enabled,
+                "punch_in_position": self.punch_in_position,
+                "punch_out_position": self.punch_out_position,
+                "overdub_enabled": self.overdub_enabled,
+                "replace_enabled": self.replace_enabled,
+                "tempo": self.tempo,
+                "time_signature": self.time_signature,
             }
 
     def get_track_data(self, track_number: int) -> Optional[Dict[str, Any]]:
@@ -353,16 +358,18 @@ class RecordingEngine:
         with self.lock:
             if track_number in self.tracks:
                 self.tracks[track_number] = {
-                    'type': self.tracks[track_number]['type'],
-                    'events': [],
-                    'audio_data': [],
-                    'start_position': 0,
-                    'length': 0
+                    "type": self.tracks[track_number]["type"],
+                    "events": [],
+                    "audio_data": [],
+                    "start_position": 0,
+                    "length": 0,
                 }
                 return True
             return False
 
-    def export_track(self, track_number: int, filename: str, format_type: str = 'midi') -> bool:
+    def export_track(
+        self, track_number: int, filename: str, format_type: str = "midi"
+    ) -> bool:
         """
         Export track data to file.
 
@@ -374,9 +381,102 @@ class RecordingEngine:
         Returns:
             Success status
         """
-        # TODO: Implement file export
-        # This would require MIDI file writing and WAV file writing
-        return False
+        with self.lock:
+            if track_number not in self.tracks:
+                return False
+
+            track = self.tracks[track_number]
+
+            if format_type.lower() == "midi":
+                return self._export_midi(track, filename)
+            elif format_type.lower() == "wav":
+                return self._export_wav(track, filename)
+            else:
+                return False
+
+    def _export_midi(self, track: Dict[str, Any], filename: str) -> bool:
+        """Export MIDI track to file."""
+        from ..midi.file_writer import MIDIFileWriter
+
+        try:
+            events = track.get("events", [])
+            if not events:
+                return False
+
+            writer = MIDIFileWriter(format=0, division=self.ppq)
+
+            tempo_us = int(60000000 / self.tempo)
+            writer.set_tempo(tempo_us)
+
+            midi_messages = []
+            for event in events:
+                event_type = event.get("type")
+                if event_type in ["note_on", "note_off"]:
+                    msg_type = event_type
+                elif event_type == "note":
+                    msg_type = "note_on" if event.get("velocity", 0) > 0 else "note_off"
+                else:
+                    continue
+
+                from ..midi.message import MIDIMessage
+
+                msg = MIDIMessage(
+                    type=msg_type,
+                    channel=event.get("channel", 0),
+                    note=event.get("note", 60),
+                    velocity=event.get("velocity", 64),
+                    timestamp=event.get("timestamp", 0.0),
+                )
+                midi_messages.append(msg)
+
+            if midi_messages:
+                writer.add_track(midi_messages)
+                writer.save(filename)
+                print(f"✓ Exported MIDI track to {filename}")
+                return True
+
+            return False
+        except Exception as e:
+            print(f"Error exporting MIDI: {e}")
+            return False
+
+    def _export_wav(self, track: Dict[str, Any], filename: str) -> bool:
+        """Export audio track to WAV file."""
+        try:
+            import wave
+            import numpy as np
+
+            audio_data = track.get("audio_data")
+            if audio_data is None or len(audio_data) == 0:
+                audio_buffers = self.audio_buffers.get(track.get("track_number", 0), [])
+                if not audio_buffers:
+                    return False
+                # Concatenate audio blocks
+                audio_data = np.concatenate(
+                    [block for _, block in sorted(audio_buffers)]
+                )
+
+            if audio_data is None or len(audio_data) == 0:
+                return False
+
+            # Ensure stereo
+            if len(audio_data.shape) == 1:
+                audio_data = np.column_stack([audio_data, audio_data])
+
+            # Convert float32 to int16
+            audio_int16 = (audio_data * 32767).astype(np.int16)
+
+            with wave.open(filename, "wb") as wav_file:
+                wav_file.setnchannels(2)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(self.sample_rate)
+                wav_file.writeframes(audio_int16.tobytes())
+
+            print(f"✓ Exported audio track to {filename}")
+            return True
+        except Exception as e:
+            print(f"Error exporting WAV: {e}")
+            return False
 
     def import_track(self, track_number: int, filename: str) -> bool:
         """
@@ -389,9 +489,155 @@ class RecordingEngine:
         Returns:
             Success status
         """
-        # TODO: Implement file import
-        # This would require MIDI file parsing and WAV file reading
-        return False
+        with self.lock:
+            if track_number >= self.max_tracks:
+                return False
+
+            # Determine file type from extension
+            ext = filename.lower().split(".")[-1]
+
+            if ext == "mid" or ext == "midi":
+                return self._import_midi(track_number, filename)
+            elif ext == "wav":
+                return self._import_wav(track_number, filename)
+            else:
+                return False
+
+    def _import_midi(self, track_number: int, filename: str) -> bool:
+        """Import MIDI track from file."""
+        try:
+            from ..midi.file_handler import MIDIFileHandler
+
+            handler = MIDIFileHandler()
+            midi_data = handler.load_midi_file(filename)
+
+            if not midi_data:
+                return False
+
+            tracks = midi_data.get("tracks", [])
+            if not tracks:
+                return False
+
+            # Get first track's events
+            track_events = tracks[0]
+
+            # Extract tempo and time signature if available
+            for event in track_events:
+                if event.get("type") == "tempo_change":
+                    self.tempo = event.get("tempo", 120.0)
+                elif event.get("type") == "time_signature":
+                    self.time_signature = (
+                        event.get("numerator", 4),
+                        event.get("denominator", 4),
+                    )
+
+            # Convert to internal format
+            events = []
+            for event in track_events:
+                event_type = event.get("type")
+                if event_type in [
+                    "note_on",
+                    "note_off",
+                    "control_change",
+                    "program_change",
+                    "pitch_bend",
+                ]:
+                    tick = event.get("ticks", 0)
+                    seconds = tick / self.ppq * (60.0 / self.tempo)
+
+                    internal_event = {
+                        "type": event_type,
+                        "channel": event.get("channel", 0),
+                        "timestamp": seconds,
+                        "tick": tick,
+                    }
+
+                    if event_type in ["note_on", "note_off"]:
+                        internal_event["note"] = event.get("note", 60)
+                        internal_event["velocity"] = event.get("velocity", 64)
+                    elif event_type == "control_change":
+                        internal_event["controller"] = event.get("controller", 0)
+                        internal_event["value"] = event.get("value", 0)
+                    elif event_type == "program_change":
+                        internal_event["program"] = event.get("program", 0)
+                    elif event_type == "pitch_bend":
+                        internal_event["bend_value"] = event.get("value", 8192)
+
+                    events.append(internal_event)
+
+            # Calculate track length
+            max_tick = max((e.get("tick", 0) for e in events), default=0)
+
+            # Create or update track
+            self.tracks[track_number] = {
+                "type": "midi",
+                "events": events,
+                "audio_data": [],
+                "start_position": 0,
+                "length": max_tick,
+            }
+
+            print(f"✓ Imported MIDI track from {filename} ({len(events)} events)")
+            return True
+        except Exception as e:
+            print(f"Error importing MIDI: {e}")
+            return False
+
+    def _import_wav(self, track_number: int, filename: str) -> bool:
+        """Import audio track from WAV file."""
+        try:
+            import wave
+            import numpy as np
+
+            with wave.open(filename, "rb") as wav_file:
+                num_channels = wav_file.getnchannels()
+                sample_width = wav_file.getsampwidth()
+                sample_rate = wav_file.getframerate()
+                num_frames = wav_file.getnframes()
+
+                audio_bytes = wav_file.readframes(num_frames)
+
+                # Convert to numpy
+                if sample_width == 2:
+                    audio_int16 = np.frombuffer(audio_bytes, dtype=np.int16)
+                elif sample_width == 4:
+                    audio_int16 = np.frombuffer(audio_bytes, dtype=np.int32)
+                else:
+                    audio_int16 = np.frombuffer(audio_bytes, dtype=np.int8)
+
+                if num_channels > 1:
+                    audio_int16 = audio_int16.reshape(-1, num_channels)
+
+                # Convert to float32
+                audio_float = audio_int16.astype(np.float32) / 32768.0
+
+                # Mix to stereo if needed
+                if num_channels == 1:
+                    audio_float = np.column_stack([audio_float, audio_float])
+                elif num_channels > 2:
+                    # Mix down to stereo
+                    audio_float = np.mean(audio_float[:, :2], axis=1, keepdims=True)
+                    audio_float = np.column_stack(
+                        [audio_float[:, 0], audio_float[:, 0]]
+                    )
+
+            # Create or update track
+            self.tracks[track_number] = {
+                "type": "audio",
+                "events": [],
+                "audio_data": audio_float,
+                "start_position": 0,
+                "length": len(audio_float),
+            }
+
+            self.sample_rate = sample_rate
+            print(
+                f"✓ Imported audio track from {filename} ({len(audio_float)} samples)"
+            )
+            return True
+        except Exception as e:
+            print(f"Error importing WAV: {e}")
+            return False
 
     def set_quantize_settings(self, enabled: bool, grid_size: int = 480) -> bool:
         """
@@ -417,12 +663,16 @@ class RecordingEngine:
             Recording statistics
         """
         with self.lock:
-            total_events = sum(len(track.get('events', [])) for track in self.tracks.values())
+            total_events = sum(
+                len(track.get("events", [])) for track in self.tracks.values()
+            )
             total_tracks = len(self.tracks)
 
             return {
-                'total_tracks': total_tracks,
-                'total_events': total_events,
-                'recording_time': time.time() - self.recording_start_time if self.is_recording else 0,
-                'average_events_per_track': total_events / max(1, total_tracks)
+                "total_tracks": total_tracks,
+                "total_events": total_events,
+                "recording_time": time.time() - self.recording_start_time
+                if self.is_recording
+                else 0,
+                "average_events_per_track": total_events / max(1, total_tracks),
             }

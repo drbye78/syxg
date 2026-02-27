@@ -92,7 +92,7 @@ class MPESystem:
 
         # Release MPE note
         released_note = self.mpe_manager.process_note_off(channel, note, velocity)
-        if released_note and hasattr(released_note, 'voice_id'):
+        if released_note and hasattr(released_note, "voice_id"):
             # Release voice
             self._release_voice_mpe(released_note.voice_id)
 
@@ -178,22 +178,22 @@ class MPESystem:
         # This would integrate with the voice allocation system
         # For now, use regular channel allocation but store MPE reference
         if 0 <= mpe_note.channel < len(self.synthesizer.channels):
-            voice_id = self.synthesizer.channels[mpe_note.channel].note_on(mpe_note.note_number, mpe_note.velocity)
+            voice_id = self.synthesizer.channels[mpe_note.channel].note_on(
+                mpe_note.note_number, mpe_note.velocity
+            )
             if voice_id:
                 mpe_note.voice_id = voice_id
                 # Update voice with MPE parameters
                 self._apply_mpe_to_voice(voice_id, mpe_note)
 
     def _release_voice_mpe(self, voice_id):
-        """
-        Release voice by ID (MPE version).
+        """Release voice by ID (MPE version).
 
         Args:
             voice_id: Voice ID to release
         """
-        # This would need to be implemented based on voice management system
-        # For now, this is a placeholder
-        pass
+        if hasattr(self, "voice_manager") and self.voice_manager:
+            self.voice_manager.release_voice(voice_id)
 
     def _update_channel_voices_mpe(self, channel: int):
         """
@@ -207,7 +207,7 @@ class MPESystem:
 
         active_notes = self.mpe_manager.get_channel_mpe_notes(channel)
         for mpe_note in active_notes:
-            if hasattr(mpe_note, 'voice_id') and mpe_note.voice_id:
+            if hasattr(mpe_note, "voice_id") and mpe_note.voice_id:
                 self._apply_mpe_to_voice(mpe_note.voice_id, mpe_note)
 
     def _update_note_voice_mpe(self, channel: int, note: int):
@@ -222,22 +222,35 @@ class MPESystem:
             return
 
         mpe_note = self.mpe_manager.active_notes.get((channel, note))
-        if mpe_note and hasattr(mpe_note, 'voice_id') and mpe_note.voice_id:
+        if mpe_note and hasattr(mpe_note, "voice_id") and mpe_note.voice_id:
             self._apply_mpe_to_voice(mpe_note.voice_id, mpe_note)
 
     def _apply_mpe_to_voice(self, voice_id, mpe_note):
-        """
-        Apply MPE parameters to voice.
+        """Apply MPE parameters to voice.
 
         Args:
             voice_id: Voice ID to update
             mpe_note: MPE note with parameters
         """
-        # This would update the voice's frequency, timbre, etc.
-        # Implementation depends on voice architecture
-        # For now, this is a placeholder that would need integration
-        # with the actual voice rendering system
-        pass
+        if hasattr(self, "voice_manager") and self.voice_manager:
+            voice = self.voice_manager.get_voice(voice_id)
+            if voice:
+                if hasattr(mpe_note, "pitch_bend"):
+                    if hasattr(voice, "pitch_offset"):
+                        voice.pitch_offset = mpe_note.pitch_bend
+
+                if hasattr(mpe_note, "timbre"):
+                    if hasattr(voice, "timbre"):
+                        voice.timbre = mpe_note.timbre
+                    if hasattr(voice, "filter_cutoff_offset"):
+                        voice.filter_cutoff_offset = int(mpe_note.timbre * 20)
+
+                if hasattr(mpe_note, "pressure"):
+                    if hasattr(voice, "aftertouch"):
+                        voice.aftertouch = mpe_note.pressure
+
+                if hasattr(voice, "update"):
+                    voice.update()
 
     def get_mpe_info(self) -> Dict[str, Any]:
         """
@@ -247,14 +260,16 @@ class MPESystem:
             Dictionary with MPE system status
         """
         if not self.mpe_enabled or not self.mpe_manager:
-            return {'enabled': False, 'status': 'MPE disabled'}
+            return {"enabled": False, "status": "MPE disabled"}
 
         return {
-            'enabled': True,
-            'zones': len(self.mpe_manager.zones),
-            'active_notes': len(self.mpe_manager.active_notes),
-            'pitch_bend_range': self.global_pitch_bend_range,
-            'manager_info': self.mpe_manager.get_mpe_info() if hasattr(self.mpe_manager, 'get_mpe_info') else {}
+            "enabled": True,
+            "zones": len(self.mpe_manager.zones),
+            "active_notes": len(self.mpe_manager.active_notes),
+            "pitch_bend_range": self.global_pitch_bend_range,
+            "manager_info": self.mpe_manager.get_mpe_info()
+            if hasattr(self.mpe_manager, "get_mpe_info")
+            else {},
         }
 
     def set_mpe_enabled(self, enabled: bool):
@@ -307,7 +322,9 @@ class MPESystem:
         Args:
             range_semitones: Pitch bend range in semitones
         """
-        self.global_pitch_bend_range = max(1, min(96, range_semitones))  # Clamp to reasonable range
+        self.global_pitch_bend_range = max(
+            1, min(96, range_semitones)
+        )  # Clamp to reasonable range
 
     def get_global_pitch_bend_range(self) -> int:
         """

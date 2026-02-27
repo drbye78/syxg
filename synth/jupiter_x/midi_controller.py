@@ -9,7 +9,11 @@ from typing import Dict, List, Any, Optional, Tuple, Callable
 import threading
 
 from .constants import *
-from .component_manager import JupiterXComponentManager, JupiterXSystemParameters, JupiterXEffectsParameters
+from .component_manager import (
+    JupiterXComponentManager,
+    JupiterXSystemParameters,
+    JupiterXEffectsParameters,
+)
 
 
 class JupiterXSysExController:
@@ -90,11 +94,21 @@ class JupiterXSysExController:
                 return self._process_universal_realtime_sysex(data)
 
             # Check for MIDI Sample Dump Standard (F0 7E [dev] 00)
-            if len(data) >= 5 and data[0] == 0xF0 and data[1] in [0x7E, 0x7F] and data[3] == 0x00:
+            if (
+                len(data) >= 5
+                and data[0] == 0xF0
+                and data[1] in [0x7E, 0x7F]
+                and data[3] == 0x00
+            ):
                 return self._process_sds_message(data)
 
             # Check for MIDI Machine Control (F0 7F [dev] 06)
-            if len(data) >= 5 and data[0] == 0xF0 and data[1] == 0x7F and data[3] == 0x06:
+            if (
+                len(data) >= 5
+                and data[0] == 0xF0
+                and data[1] == 0x7F
+                and data[3] == 0x06
+            ):
                 return self._process_mmc_message(data)
 
             # Check for Jupiter-X specific SysEx
@@ -120,7 +134,9 @@ class JupiterXSysExController:
 
         return None
 
-    def _process_universal_realtime_sysex(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _process_universal_realtime_sysex(
+        self, data: bytes
+    ) -> Optional[Dict[str, Any]]:
         """Process Universal Realtime SysEx messages (F0 7F)."""
         if len(data) < 5:
             return None
@@ -188,7 +204,9 @@ class JupiterXSysExController:
         # Check device ID (should match our device or be broadcast)
         device_id = data[2]
         our_device_id = self.component_manager.system_params.device_id
-        if device_id != our_device_id and device_id != 0x7F:  # Not our device and not broadcast
+        if (
+            device_id != our_device_id and device_id != 0x7F
+        ):  # Not our device and not broadcast
             return False
 
         return True
@@ -200,7 +218,7 @@ class JupiterXSysExController:
         Format: F0 41 [dev] 64 12 [addr_high] [addr_mid] [addr_low] [value] [checksum] F7
         """
         if len(data) < 10:
-            return {'status': 'error', 'message': 'Parameter change message too short'}
+            return {"status": "error", "message": "Parameter change message too short"}
 
         # Extract address and value
         addr_high = data[5]
@@ -214,11 +232,11 @@ class JupiterXSysExController:
         success = self.component_manager.process_parameter_change(address, value)
 
         return {
-            'status': 'success' if success else 'error',
-            'type': 'parameter_change',
-            'address': f'{addr_high:02X}:{addr_mid:02X}:{addr_low:02X}',
-            'value': value,
-            'processed': success
+            "status": "success" if success else "error",
+            "type": "parameter_change",
+            "address": f"{addr_high:02X}:{addr_mid:02X}:{addr_low:02X}",
+            "value": value,
+            "processed": success,
         }
 
     def _handle_bulk_dump_request(self, data: bytes) -> Dict[str, Any]:
@@ -228,7 +246,7 @@ class JupiterXSysExController:
         Format: F0 41 [dev] 64 11 [request_type] [checksum] F7
         """
         if len(data) < 8:
-            return {'status': 'error', 'message': 'Bulk dump request too short'}
+            return {"status": "error", "message": "Bulk dump request too short"}
 
         request_type = data[5]
 
@@ -237,10 +255,10 @@ class JupiterXSysExController:
         response_data = self._generate_bulk_dump(request_type)
 
         return {
-            'status': 'success',
-            'type': 'bulk_dump_request',
-            'request_type': request_type,
-            'response_data': response_data
+            "status": "success",
+            "type": "bulk_dump_request",
+            "request_type": request_type,
+            "response_data": response_data,
         }
 
     def _handle_data_request(self, data: bytes) -> Dict[str, Any]:
@@ -251,7 +269,7 @@ class JupiterXSysExController:
         Returns: F0 41 [dev] 64 11 [addr_high] [addr_mid] [addr_low] [value] [checksum] F7
         """
         if len(data) < 9:
-            return {'status': 'error', 'message': 'Data request message too short'}
+            return {"status": "error", "message": "Data request message too short"}
 
         addr_high = data[5]
         addr_mid = data[6]
@@ -264,10 +282,10 @@ class JupiterXSysExController:
 
         if value is None:
             return {
-                'status': 'error',
-                'type': 'data_request',
-                'address': f'{addr_high:02X}:{addr_mid:02X}:{addr_low:02X}',
-                'message': 'Parameter not found'
+                "status": "error",
+                "type": "data_request",
+                "address": f"{addr_high:02X}:{addr_mid:02X}:{addr_low:02X}",
+                "message": "Parameter not found",
             }
 
         # Create data response message
@@ -277,24 +295,28 @@ class JupiterXSysExController:
         checksum_data = [addr_high, addr_mid, addr_low, value]
         checksum = (sum(checksum_data) & 0x7F) ^ 0x7F
 
-        response = bytes([
-            0xF0,  # Start of SysEx
-            JUPITER_X_MANUFACTURER_ID,
-            device_id,
-            JUPITER_X_MODEL_ID,
-            SYSEX_CMD_DATA_REQUEST,  # Data request response command (0x11, same as bulk dump request)
-            addr_high, addr_mid, addr_low,  # Address
-            value,  # Parameter value
-            checksum,  # Checksum
-            0xF7  # End of SysEx
-        ])
+        response = bytes(
+            [
+                0xF0,  # Start of SysEx
+                JUPITER_X_MANUFACTURER_ID,
+                device_id,
+                JUPITER_X_MODEL_ID,
+                SYSEX_CMD_DATA_REQUEST,  # Data request response command (0x11, same as bulk dump request)
+                addr_high,
+                addr_mid,
+                addr_low,  # Address
+                value,  # Parameter value
+                checksum,  # Checksum
+                0xF7,  # End of SysEx
+            ]
+        )
 
         return {
-            'status': 'success',
-            'type': 'data_request',
-            'address': f'{addr_high:02X}:{addr_mid:02X}:{addr_low:02X}',
-            'value': value,
-            'response': response
+            "status": "success",
+            "type": "data_request",
+            "address": f"{addr_high:02X}:{addr_mid:02X}:{addr_low:02X}",
+            "value": value,
+            "response": response,
         }
 
     def _handle_bulk_dump(self, data: bytes) -> Dict[str, Any]:
@@ -305,7 +327,7 @@ class JupiterXSysExController:
         Format: F0 41 [dev] 64 0B [type] [data_length] [data...] [checksum] F7
         """
         if len(data) < 10:
-            return {'status': 'error', 'message': 'Bulk dump message too short'}
+            return {"status": "error", "message": "Bulk dump message too short"}
 
         request_type = data[5]
         data_length = data[6]
@@ -314,19 +336,19 @@ class JupiterXSysExController:
         # Verify data length
         if len(bulk_data) != data_length:
             return {
-                'status': 'error',
-                'message': f'Data length mismatch: expected {data_length}, got {len(bulk_data)}'
+                "status": "error",
+                "message": f"Data length mismatch: expected {data_length}, got {len(bulk_data)}",
             }
 
         # Parse and apply bulk data based on type
         success = self._parse_bulk_dump_data(request_type, bulk_data)
 
         return {
-            'status': 'success' if success else 'error',
-            'type': 'bulk_dump_received',
-            'request_type': request_type,
-            'data_length': data_length,
-            'parameters_applied': len(bulk_data) if success else 0
+            "status": "success" if success else "error",
+            "type": "bulk_dump_received",
+            "request_type": request_type,
+            "data_length": data_length,
+            "parameters_applied": len(bulk_data) if success else 0,
         }
 
     def _parse_bulk_dump_data(self, request_type: int, data: bytes) -> bool:
@@ -377,11 +399,19 @@ class JupiterXSysExController:
 
             # Apply parameters
             success = (
-                self.component_manager.system_params.set_parameter(0x00, device_id) and
-                self.component_manager.system_params.set_parameter(0x01, master_tune + 64) and
-                self.component_manager.system_params.set_parameter(0x02, master_transpose + 64) and
-                self.component_manager.system_params.set_parameter(0x03, master_volume) and
-                self.component_manager.system_params.set_parameter(0x04, master_pan + 64)
+                self.component_manager.system_params.set_parameter(0x00, device_id)
+                and self.component_manager.system_params.set_parameter(
+                    0x01, master_tune + 64
+                )
+                and self.component_manager.system_params.set_parameter(
+                    0x02, master_transpose + 64
+                )
+                and self.component_manager.system_params.set_parameter(
+                    0x03, master_volume
+                )
+                and self.component_manager.system_params.set_parameter(
+                    0x04, master_pan + 64
+                )
             )
 
             return success
@@ -423,7 +453,9 @@ class JupiterXSysExController:
             part.key_range_high = data[8]
             part.velocity_range_low = data[9]
             part.velocity_range_high = data[10]
-            part.receive_channel = data[11] if data[11] < 16 else (254 if data[11] == 254 else 255)
+            part.receive_channel = (
+                data[11] if data[11] < 16 else (254 if data[11] == 254 else 255)
+            )
             part.polyphony_mode = 0 if data[12] == 0 else 1
             part.portamento_time = data[13]
 
@@ -513,7 +545,7 @@ class JupiterXSysExController:
             # Effects parameters dump
             return self._generate_effects_bulk_dump(device_id)
         else:
-            return b''
+            return b""
 
     def _generate_system_bulk_dump(self, device_id: int) -> bytes:
         """Generate system parameters bulk dump."""
@@ -548,11 +580,11 @@ class JupiterXSysExController:
     def _generate_part_bulk_dump(self, device_id: int, part_num: int) -> bytes:
         """Generate part parameters bulk dump."""
         if not (0 <= part_num < 16):
-            return b''
+            return b""
 
         part = self.component_manager.get_part(part_num)
         if not part:
-            return b''
+            return b""
 
         # Collect part parameters (simplified - just basic parameters for now)
         data = [
@@ -567,7 +599,9 @@ class JupiterXSysExController:
             part.key_range_high,
             part.velocity_range_low,
             part.velocity_range_high,
-            part.receive_channel if part.receive_channel < 16 else (254 if part.receive_channel == 254 else 255),
+            part.receive_channel
+            if part.receive_channel < 16
+            else (254 if part.receive_channel == 254 else 255),
             0 if part.polyphony_mode == 0 else 1,
             part.portamento_time,
         ]
@@ -594,12 +628,12 @@ class JupiterXSysExController:
     def _generate_engine_bulk_dump(self, device_id: int, part_num: int) -> bytes:
         """Generate engine parameters bulk dump (simplified)."""
         if not (0 <= part_num < 16):
-            return b''
+            return b""
 
         # For now, return a basic engine dump with enable/level for each engine
         part = self.component_manager.get_part(part_num)
         if not part:
-            return b''
+            return b""
 
         data = []
         for engine_type in range(4):  # 4 engines per part
@@ -691,15 +725,19 @@ class JupiterXSysExController:
             device_id,
             JUPITER_X_MODEL_ID,
             SYSEX_CMD_PARAMETER_CHANGE,  # Command
-            address[0], address[1], address[2],  # Address
+            address[0],
+            address[1],
+            address[2],  # Address
             value,  # Data
             checksum,  # Checksum
-            0xF7  # End of SysEx
+            0xF7,  # End of SysEx
         ]
 
         return bytes(message)
 
-    def _handle_universal_device_inquiry(self, device_id: int, sub_id2: int, data: bytes) -> Dict[str, Any]:
+    def _handle_universal_device_inquiry(
+        self, device_id: int, sub_id2: int, data: bytes
+    ) -> Dict[str, Any]:
         """
         Handle Universal Device Inquiry (F0 7E [dev] 06 01 F7)
 
@@ -729,24 +767,24 @@ class JupiterXSysExController:
             0x00,  # Version 2 (minor)
             0x00,  # Version 3 (release)
             0x00,  # Version 4 (build)
-            0xF7   # End of SysEx
+            0xF7,  # End of SysEx
         ]
 
         return {
-            'status': 'success',
-            'type': 'universal_device_inquiry',
-            'device_id': device_id,
-            'response': bytes(identity_reply),
-            'manufacturer': 'Roland',
-            'family': 'Jupiter-X',
-            'model': 'Jupiter-X',
-            'version': '1.0.0.0'
+            "status": "success",
+            "type": "universal_device_inquiry",
+            "device_id": device_id,
+            "response": bytes(identity_reply),
+            "manufacturer": "Roland",
+            "family": "Jupiter-X",
+            "model": "Jupiter-X",
+            "version": "1.0.0.0",
         }
 
     def _handle_sds_sample_dump_header(self, data: bytes) -> Dict[str, Any]:
         """Handle MIDI Sample Dump Standard sample dump header."""
         if len(data) < 16:
-            return {'status': 'error', 'message': 'Sample dump header too short'}
+            return {"status": "error", "message": "Sample dump header too short"}
 
         # Parse header: F0 7E [dev] 00 01 [sample_num] [sample_format] [sample_period_msb] [sample_period_lsb] [sample_length_msb] [sample_length_lsb] [loop_start_msb] [loop_start_lsb] [loop_end_msb] [loop_end_lsb] F7
         sample_num = data[5]
@@ -757,99 +795,123 @@ class JupiterXSysExController:
         loop_end = (data[13] << 8) | data[14]
 
         return {
-            'status': 'success',
-            'type': 'sds_sample_dump_header',
-            'sample_num': sample_num,
-            'sample_format': sample_format,
-            'sample_period': sample_period,
-            'sample_length': sample_length,
-            'loop_start': loop_start,
-            'loop_end': loop_end
+            "status": "success",
+            "type": "sds_sample_dump_header",
+            "sample_num": sample_num,
+            "sample_format": sample_format,
+            "sample_period": sample_period,
+            "sample_length": sample_length,
+            "loop_start": loop_start,
+            "loop_end": loop_end,
         }
 
     def _handle_sds_sample_dump_packet(self, data: bytes) -> Dict[str, Any]:
         """Handle MIDI Sample Dump Standard sample dump packet."""
         if len(data) < 8:
-            return {'status': 'error', 'message': 'Sample dump packet too short'}
+            return {"status": "error", "message": "Sample dump packet too short"}
 
         # Parse packet: F0 7E [dev] 00 02 [packet_num] [data]... F7
         packet_num = data[5]
         sample_data = data[6:-1]  # Exclude F0, F7 and header
 
         return {
-            'status': 'success',
-            'type': 'sds_sample_dump_packet',
-            'packet_num': packet_num,
-            'data_length': len(sample_data),
-            'sample_data': sample_data
+            "status": "success",
+            "type": "sds_sample_dump_packet",
+            "packet_num": packet_num,
+            "data_length": len(sample_data),
+            "sample_data": sample_data,
         }
 
     def _handle_sds_sample_dump_request(self, data: bytes) -> Dict[str, Any]:
         """Handle MIDI Sample Dump Standard sample dump request."""
         if len(data) < 7:
-            return {'status': 'error', 'message': 'Sample dump request too short'}
+            return {"status": "error", "message": "Sample dump request too short"}
 
         # Parse request: F0 7E [dev] 00 03 [sample_num] F7
         sample_num = data[5]
 
         return {
-            'status': 'success',
-            'type': 'sds_sample_dump_request',
-            'sample_num': sample_num
+            "status": "success",
+            "type": "sds_sample_dump_request",
+            "sample_num": sample_num,
         }
 
     # MIDI Machine Control (MMC) handlers
     def _handle_mmc_stop(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Stop command."""
-        return {'status': 'success', 'type': 'mmc_stop', 'command': 'stop'}
+        return {"status": "success", "type": "mmc_stop", "command": "stop"}
 
     def _handle_mmc_play(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Play command."""
-        return {'status': 'success', 'type': 'mmc_play', 'command': 'play'}
+        return {"status": "success", "type": "mmc_play", "command": "play"}
 
     def _handle_mmc_deferred_play(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Deferred Play command."""
-        return {'status': 'success', 'type': 'mmc_deferred_play', 'command': 'deferred_play'}
+        return {
+            "status": "success",
+            "type": "mmc_deferred_play",
+            "command": "deferred_play",
+        }
 
     def _handle_mmc_fast_forward(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Fast Forward command."""
-        return {'status': 'success', 'type': 'mmc_fast_forward', 'command': 'fast_forward'}
+        return {
+            "status": "success",
+            "type": "mmc_fast_forward",
+            "command": "fast_forward",
+        }
 
     def _handle_mmc_rewind(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Rewind command."""
-        return {'status': 'success', 'type': 'mmc_rewind', 'command': 'rewind'}
+        return {"status": "success", "type": "mmc_rewind", "command": "rewind"}
 
     def _handle_mmc_record_strobe(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Record Strobe command."""
-        return {'status': 'success', 'type': 'mmc_record_strobe', 'command': 'record_strobe'}
+        return {
+            "status": "success",
+            "type": "mmc_record_strobe",
+            "command": "record_strobe",
+        }
 
     def _handle_mmc_record_exit(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Record Exit command."""
-        return {'status': 'success', 'type': 'mmc_record_exit', 'command': 'record_exit'}
+        return {
+            "status": "success",
+            "type": "mmc_record_exit",
+            "command": "record_exit",
+        }
 
     def _handle_mmc_record_pause(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Record Pause command."""
-        return {'status': 'success', 'type': 'mmc_record_pause', 'command': 'record_pause'}
+        return {
+            "status": "success",
+            "type": "mmc_record_pause",
+            "command": "record_pause",
+        }
 
     def _handle_mmc_pause(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Pause command."""
-        return {'status': 'success', 'type': 'mmc_pause', 'command': 'pause'}
+        return {"status": "success", "type": "mmc_pause", "command": "pause"}
 
     def _handle_mmc_eject(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Eject command."""
-        return {'status': 'success', 'type': 'mmc_eject', 'command': 'eject'}
+        return {"status": "success", "type": "mmc_eject", "command": "eject"}
 
     def _handle_mmc_chase(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Chase command."""
-        return {'status': 'success', 'type': 'mmc_chase', 'command': 'chase'}
+        return {"status": "success", "type": "mmc_chase", "command": "chase"}
 
     def _handle_mmc_command_error_reset(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Command Error Reset command."""
-        return {'status': 'success', 'type': 'mmc_command_error_reset', 'command': 'command_error_reset'}
+        return {
+            "status": "success",
+            "type": "mmc_command_error_reset",
+            "command": "command_error_reset",
+        }
 
     def _handle_mmc_mmc_reset(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC MMC Reset command."""
-        return {'status': 'success', 'type': 'mmc_mmc_reset', 'command': 'mmc_reset'}
+        return {"status": "success", "type": "mmc_mmc_reset", "command": "mmc_reset"}
 
     def _handle_mmc_write(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Write command."""
@@ -858,14 +920,14 @@ class JupiterXSysExController:
             track_type = data[7]
             track_name_length = data[8]
             return {
-                'status': 'success',
-                'type': 'mmc_write',
-                'command': 'write',
-                'track_num': track_num,
-                'track_type': track_type,
-                'track_name_length': track_name_length
+                "status": "success",
+                "type": "mmc_write",
+                "command": "write",
+                "track_num": track_num,
+                "track_type": track_type,
+                "track_name_length": track_name_length,
             }
-        return {'status': 'error', 'message': 'MMC Write command too short'}
+        return {"status": "error", "message": "MMC Write command too short"}
 
     def _handle_mmc_goto(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Goto command."""
@@ -878,24 +940,26 @@ class JupiterXSysExController:
             subframes = data[10]
 
             return {
-                'status': 'success',
-                'type': 'mmc_goto',
-                'command': 'goto',
-                'time_code': f"{hours:02d}:{minutes:02d}:{seconds:02d}:{frames:02d}.{subframes:02d}"
+                "status": "success",
+                "type": "mmc_goto",
+                "command": "goto",
+                "time_code": f"{hours:02d}:{minutes:02d}:{seconds:02d}:{frames:02d}.{subframes:02d}",
             }
-        return {'status': 'error', 'message': 'MMC Goto command too short'}
+        return {"status": "error", "message": "MMC Goto command too short"}
 
     def _handle_mmc_shuttle(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Shuttle command."""
         if len(data) >= 8:
             shuttle_value = data[6]  # -128 to +127, 0 = stop
             return {
-                'status': 'success',
-                'type': 'mmc_shuttle',
-                'command': 'shuttle',
-                'shuttle_value': shuttle_value - 128 if shuttle_value > 127 else shuttle_value
+                "status": "success",
+                "type": "mmc_shuttle",
+                "command": "shuttle",
+                "shuttle_value": shuttle_value - 128
+                if shuttle_value > 127
+                else shuttle_value,
             }
-        return {'status': 'error', 'message': 'MMC Shuttle command too short'}
+        return {"status": "error", "message": "MMC Shuttle command too short"}
 
     def _handle_mmc_move(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Move command."""
@@ -911,34 +975,34 @@ class JupiterXSysExController:
             end_time_frames = data[14]
 
             return {
-                'status': 'success',
-                'type': 'mmc_move',
-                'command': 'move',
-                'track_num': track_num,
-                'start_time': f"{start_time_hours:02d}:{start_time_minutes:02d}:{start_time_seconds:02d}:{start_time_frames:02d}",
-                'end_time': f"{end_time_hours:02d}:{end_time_minutes:02d}:{end_time_seconds:02d}:{end_time_frames:02d}"
+                "status": "success",
+                "type": "mmc_move",
+                "command": "move",
+                "track_num": track_num,
+                "start_time": f"{start_time_hours:02d}:{start_time_minutes:02d}:{start_time_seconds:02d}:{start_time_frames:02d}",
+                "end_time": f"{end_time_hours:02d}:{end_time_minutes:02d}:{end_time_seconds:02d}:{end_time_frames:02d}",
             }
-        return {'status': 'error', 'message': 'MMC Move command too short'}
+        return {"status": "error", "message": "MMC Move command too short"}
 
     def _handle_mmc_add(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Add command."""
-        return {'status': 'success', 'type': 'mmc_add', 'command': 'add'}
+        return {"status": "success", "type": "mmc_add", "command": "add"}
 
     def _handle_mmc_subtract(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Subtract command."""
-        return {'status': 'success', 'type': 'mmc_subtract', 'command': 'subtract'}
+        return {"status": "success", "type": "mmc_subtract", "command": "subtract"}
 
     def _handle_mmc_drop(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Drop command."""
-        return {'status': 'success', 'type': 'mmc_drop', 'command': 'drop'}
+        return {"status": "success", "type": "mmc_drop", "command": "drop"}
 
     def _handle_mmc_select(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Select command."""
-        return {'status': 'success', 'type': 'mmc_select', 'command': 'select'}
+        return {"status": "success", "type": "mmc_select", "command": "select"}
 
     def _handle_mmc_clear(self, data: bytes) -> Dict[str, Any]:
         """Handle MMC Clear command."""
-        return {'status': 'success', 'type': 'mmc_clear', 'command': 'clear'}
+        return {"status": "success", "type": "mmc_clear", "command": "clear"}
 
 
 class JupiterXNRPNController:
@@ -970,43 +1034,265 @@ class JupiterXNRPNController:
 
         # System parameters (MSB 0x00) - COMPLETE IMPLEMENTATION
         system_params = {
-            0x00: {'name': 'device_id', 'range': (0, 127), 'default': 0x10, 'description': 'Device ID'},
-            0x01: {'name': 'master_tune', 'range': (-64, 63), 'default': 0, 'description': 'Master Tune (±1 semitone)'},
-            0x02: {'name': 'master_transpose', 'range': (-12, 12), 'default': 0, 'description': 'Master Transpose (±1 octave)'},
-            0x03: {'name': 'master_volume', 'range': (0, 127), 'default': 100, 'description': 'Master Volume'},
-            0x04: {'name': 'master_pan', 'range': (-64, 63), 'default': 0, 'description': 'Master Pan (L-R center)'},
+            0x00: {
+                "name": "device_id",
+                "range": (0, 127),
+                "default": 0x10,
+                "description": "Device ID",
+            },
+            0x01: {
+                "name": "master_tune",
+                "range": (-64, 63),
+                "default": 0,
+                "description": "Master Tune (±1 semitone)",
+            },
+            0x02: {
+                "name": "master_transpose",
+                "range": (-12, 12),
+                "default": 0,
+                "description": "Master Transpose (±1 octave)",
+            },
+            0x03: {
+                "name": "master_volume",
+                "range": (0, 127),
+                "default": 100,
+                "description": "Master Volume",
+            },
+            0x04: {
+                "name": "master_pan",
+                "range": (-64, 63),
+                "default": 0,
+                "description": "Master Pan (L-R center)",
+            },
         }
 
         for lsb, param_info in system_params.items():
             nrpn_map[(0x00, lsb)] = {
-                'type': 'system',
-                'param_id': lsb,
-                'param_name': param_info['name'],
-                'range': param_info['range'],
-                'default': param_info['default'],
-                'description': param_info['description']
+                "type": "system",
+                "param_id": lsb,
+                "param_name": param_info["name"],
+                "range": param_info["range"],
+                "default": param_info["default"],
+                "description": param_info["description"],
             }
 
         # Placeholder for additional system parameters (LSB 0x05-0xFF)
         for lsb in range(0x05, 0x100):
             nrpn_map[(0x00, lsb)] = {
-                'type': 'system',
-                'param_id': lsb,
-                'range': PARAM_RANGE_0_127,
-                'description': f'System parameter {lsb:02X}'
+                "type": "system",
+                "param_id": lsb,
+                "range": PARAM_RANGE_0_127,
+                "description": f"System parameter {lsb:02X}",
             }
 
-        # Part parameters (MSB 0x10-0x2F for parts 0-15) - STRUCTURE ONLY
-        # TODO: Implement in Phase 1, Week 2
+        # Part parameters (MSB 0x10-0x2F for parts 0-15) - FULL IMPLEMENTATION
         for part_offset in range(16):
             msb = 0x10 + part_offset
-            for lsb in range(32):  # 32 parameters per part
+
+            part_params = {
+                0x00: {
+                    "name": "part_level",
+                    "range": (0, 127),
+                    "default": 100,
+                    "desc": "Part Level",
+                },
+                0x01: {
+                    "name": "part_pan",
+                    "range": (-64, 63),
+                    "default": 0,
+                    "desc": "Part Pan",
+                },
+                0x02: {
+                    "name": "part_receive_midi",
+                    "range": (0, 1),
+                    "default": 1,
+                    "desc": "Receive MIDI",
+                },
+                0x03: {
+                    "name": "part_midi_channel",
+                    "range": (0, 15),
+                    "default": part_offset,
+                    "desc": "MIDI Channel",
+                },
+                0x04: {
+                    "name": "part_mute",
+                    "range": (0, 1),
+                    "default": 0,
+                    "desc": "Mute",
+                },
+                0x05: {
+                    "name": "part_solo",
+                    "range": (0, 1),
+                    "default": 0,
+                    "desc": "Solo",
+                },
+                0x06: {
+                    "name": "part_volume",
+                    "range": (0, 127),
+                    "default": 100,
+                    "desc": "Volume",
+                },
+                0x07: {
+                    "name": "part_coarse_tune",
+                    "range": (-24, 24),
+                    "default": 0,
+                    "desc": "Coarse Tune",
+                },
+                0x08: {
+                    "name": "part_fine_tune",
+                    "range": (-50, 50),
+                    "default": 0,
+                    "desc": "Fine Tune",
+                },
+                0x09: {
+                    "name": "part_transpose",
+                    "range": (-24, 24),
+                    "default": 0,
+                    "desc": "Transpose",
+                },
+                0x0A: {
+                    "name": "part_delay_send",
+                    "range": (0, 127),
+                    "default": 0,
+                    "desc": "Delay Send",
+                },
+                0x0B: {
+                    "name": "part_reverb_send",
+                    "range": (0, 127),
+                    "default": 0,
+                    "desc": "Reverb Send",
+                },
+                0x0C: {
+                    "name": "part_cutoff",
+                    "range": (0, 127),
+                    "default": 127,
+                    "desc": "Part Cutoff",
+                },
+                0x0D: {
+                    "name": "part_resonance",
+                    "range": (0, 127),
+                    "default": 0,
+                    "desc": "Part Resonance",
+                },
+                0x0E: {
+                    "name": "part_filter_key_tracking",
+                    "range": (0, 127),
+                    "default": 100,
+                    "desc": "Filter Key Tracking",
+                },
+                0x0F: {
+                    "name": "part_legacy_mode",
+                    "range": (0, 1),
+                    "default": 0,
+                    "desc": "Legacy Mode",
+                },
+                0x10: {
+                    "name": "part_program_number",
+                    "range": (0, 127),
+                    "default": 0,
+                    "desc": "Program Number",
+                },
+                0x11: {
+                    "name": "part_bank_msb",
+                    "range": (0, 127),
+                    "default": 0,
+                    "desc": "Bank MSB",
+                },
+                0x12: {
+                    "name": "part_bank_lsb",
+                    "range": (0, 127),
+                    "default": 0,
+                    "desc": "Bank LSB",
+                },
+                0x13: {
+                    "name": "part_key_range_low",
+                    "range": (0, 127),
+                    "default": 0,
+                    "desc": "Key Range Low",
+                },
+                0x14: {
+                    "name": "part_key_range_high",
+                    "range": (0, 127),
+                    "default": 127,
+                    "desc": "Key Range High",
+                },
+                0x15: {
+                    "name": "part_velocity_range_low",
+                    "range": (0, 127),
+                    "default": 1,
+                    "desc": "Velocity Range Low",
+                },
+                0x16: {
+                    "name": "part_velocity_range_high",
+                    "range": (0, 127),
+                    "default": 127,
+                    "desc": "Velocity Range High",
+                },
+                0x17: {
+                    "name": "part_arp_enable",
+                    "range": (0, 1),
+                    "default": 0,
+                    "desc": "Arpeggiator Enable",
+                },
+                0x18: {
+                    "name": "part_arp_type",
+                    "range": (0, 7),
+                    "default": 0,
+                    "desc": "Arpeggiator Type",
+                },
+                0x19: {
+                    "name": "part_arp_range",
+                    "range": (1, 4),
+                    "default": 1,
+                    "desc": "Arpeggiator Range",
+                },
+                0x1A: {
+                    "name": "part_arp_rate",
+                    "range": (0, 127),
+                    "default": 64,
+                    "desc": "Arpeggiator Rate",
+                },
+                0x1B: {
+                    "name": "part_arp_swing",
+                    "range": (-50, 50),
+                    "default": 0,
+                    "desc": "Arpeggiator Swing",
+                },
+                0x1C: {
+                    "name": "part_arp_latch",
+                    "range": (0, 1),
+                    "default": 0,
+                    "desc": "Arpeggiator Latch",
+                },
+                0x1D: {
+                    "name": "part_arp_target",
+                    "range": (0, 2),
+                    "default": 0,
+                    "desc": "Arpeggiator Target",
+                },
+                0x1E: {
+                    "name": "part_arp_pattern",
+                    "range": (0, 31),
+                    "default": 0,
+                    "desc": "Arpeggiator Pattern",
+                },
+                0x1F: {
+                    "name": "part_arp_gate",
+                    "range": (0, 100),
+                    "default": 100,
+                    "desc": "Arpeggiator Gate",
+                },
+            }
+
+            for lsb, param_info in part_params.items():
                 nrpn_map[(msb, lsb)] = {
-                    'type': 'part',
-                    'part_number': part_offset,
-                    'param_id': lsb,
-                    'range': PARAM_RANGE_0_127,
-                    'description': f'Part {part_offset} parameter {lsb:02X} (TODO: Implement)'
+                    "type": "part",
+                    "part_number": part_offset,
+                    "param_id": lsb,
+                    "param_name": param_info["name"],
+                    "range": param_info["range"],
+                    "default": param_info["default"],
+                    "description": f"Part {part_offset} {param_info['desc']}",
                 }
 
         # Engine parameters (MSB 0x30-0x3F: 16 parts × 4 engines × 32 parameters per engine) - COMPLETE IMPLEMENTATION
@@ -1015,220 +1301,903 @@ class JupiterXNRPNController:
                 msb = 0x30 + (part_offset * 4) + engine_offset
 
                 # Engine type mapping
-                engine_names = ['analog', 'digital', 'fm', 'external']
+                engine_names = ["analog", "digital", "fm", "external"]
                 engine_name = engine_names[engine_offset]
 
                 # Base parameters (0x00-0x0F) - common across all engines
                 base_params = {
-                    0x00: {'name': 'engine_enable', 'range': (0, 1), 'default': 1 if engine_offset == 0 else 0, 'desc': f'Enable {engine_name} engine'},
-                    0x01: {'name': 'engine_level', 'range': (0, 127), 'default': 100 if engine_offset == 0 else 0, 'desc': f'{engine_name} engine level'},
-                    0x02: {'name': 'engine_pan', 'range': (-64, 63), 'default': 0, 'desc': f'{engine_name} engine pan'},
-                    0x03: {'name': 'engine_coarse_tune', 'range': (-24, 24), 'default': 0, 'desc': f'{engine_name} coarse tune'},
-                    0x04: {'name': 'engine_fine_tune', 'range': (-50, 50), 'default': 0, 'desc': f'{engine_name} fine tune'},
+                    0x00: {
+                        "name": "engine_enable",
+                        "range": (0, 1),
+                        "default": 1 if engine_offset == 0 else 0,
+                        "desc": f"Enable {engine_name} engine",
+                    },
+                    0x01: {
+                        "name": "engine_level",
+                        "range": (0, 127),
+                        "default": 100 if engine_offset == 0 else 0,
+                        "desc": f"{engine_name} engine level",
+                    },
+                    0x02: {
+                        "name": "engine_pan",
+                        "range": (-64, 63),
+                        "default": 0,
+                        "desc": f"{engine_name} engine pan",
+                    },
+                    0x03: {
+                        "name": "engine_coarse_tune",
+                        "range": (-24, 24),
+                        "default": 0,
+                        "desc": f"{engine_name} coarse tune",
+                    },
+                    0x04: {
+                        "name": "engine_fine_tune",
+                        "range": (-50, 50),
+                        "default": 0,
+                        "desc": f"{engine_name} fine tune",
+                    },
                 }
 
                 for lsb, param_info in base_params.items():
                     nrpn_map[(msb, lsb)] = {
-                        'type': 'engine',
-                        'part_number': part_offset,
-                        'engine_type': engine_offset,
-                        'engine_name': engine_name,
-                        'param_id': lsb,
-                        'param_name': param_info['name'],
-                        'range': param_info['range'],
-                        'default': param_info['default'],
-                        'description': f'Part {part_offset} {param_info["desc"]}'
+                        "type": "engine",
+                        "part_number": part_offset,
+                        "engine_type": engine_offset,
+                        "engine_name": engine_name,
+                        "param_id": lsb,
+                        "param_name": param_info["name"],
+                        "range": param_info["range"],
+                        "default": param_info["default"],
+                        "description": f"Part {part_offset} {param_info['desc']}",
                     }
 
                 # Analog Engine parameters (MSB for engine 0)
                 if engine_offset == 0:  # Analog engine
                     analog_params = {
-                        0x10: {'name': 'osc1_waveform', 'range': (0, 7), 'default': 0, 'desc': 'Osc 1 Waveform'},
-                        0x11: {'name': 'osc1_coarse_tune', 'range': (-24, 24), 'default': 0, 'desc': 'Osc 1 Coarse Tune'},
-                        0x12: {'name': 'osc1_fine_tune', 'range': (-50, 50), 'default': 0, 'desc': 'Osc 1 Fine Tune'},
-                        0x13: {'name': 'osc1_level', 'range': (0, 127), 'default': 100, 'desc': 'Osc 1 Level'},
-                        0x14: {'name': 'osc1_supersaw_spread', 'range': (0, 127), 'default': 0, 'desc': 'Osc 1 Supersaw Spread'},
-                        0x15: {'name': 'osc2_waveform', 'range': (0, 7), 'default': 0, 'desc': 'Osc 2 Waveform'},
-                        0x16: {'name': 'osc2_coarse_tune', 'range': (-24, 24), 'default': 0, 'desc': 'Osc 2 Coarse Tune'},
-                        0x17: {'name': 'osc2_fine_tune', 'range': (-50, 50), 'default': 0, 'desc': 'Osc 2 Fine Tune'},
-                        0x18: {'name': 'osc2_level', 'range': (0, 127), 'default': 100, 'desc': 'Osc 2 Level'},
-                        0x19: {'name': 'osc2_detune', 'range': (-50, 50), 'default': 0, 'desc': 'Osc 2 Detune'},
-                        0x1A: {'name': 'osc_sync', 'range': (0, 1), 'default': 0, 'desc': 'Oscillator Sync'},
-                        0x1B: {'name': 'ring_modulation', 'range': (0, 127), 'default': 0, 'desc': 'Ring Modulation'},
-                        0x1C: {'name': 'filter_type', 'range': (0, 7), 'default': 0, 'desc': 'Filter Type'},
-                        0x1D: {'name': 'filter_cutoff', 'range': (0, 127), 'default': 64, 'desc': 'Filter Cutoff'},
-                        0x1E: {'name': 'filter_resonance', 'range': (0, 127), 'default': 0, 'desc': 'Filter Resonance'},
-                        0x1F: {'name': 'filter_drive', 'range': (0, 127), 'default': 0, 'desc': 'Filter Drive'},
-                        0x20: {'name': 'filter_key_tracking', 'range': (-64, 63), 'default': 0, 'desc': 'Filter Key Tracking'},
-                        0x21: {'name': 'filter_envelope_amount', 'range': (-64, 63), 'default': 0, 'desc': 'Filter Envelope Amount'},
-                        0x22: {'name': 'filter_attack', 'range': (0, 127), 'default': 0, 'desc': 'Filter Attack'},
-                        0x23: {'name': 'filter_decay', 'range': (0, 127), 'default': 64, 'desc': 'Filter Decay'},
-                        0x24: {'name': 'filter_sustain', 'range': (0, 127), 'default': 64, 'desc': 'Filter Sustain'},
-                        0x25: {'name': 'filter_release', 'range': (0, 127), 'default': 64, 'desc': 'Filter Release'},
-                        0x26: {'name': 'amp_level', 'range': (0, 127), 'default': 100, 'desc': 'Amplifier Level'},
-                        0x27: {'name': 'amp_attack', 'range': (0, 127), 'default': 0, 'desc': 'Amp Attack'},
-                        0x28: {'name': 'amp_decay', 'range': (0, 127), 'default': 64, 'desc': 'Amp Decay'},
-                        0x29: {'name': 'amp_sustain', 'range': (0, 127), 'default': 64, 'desc': 'Amp Sustain'},
-                        0x2A: {'name': 'amp_release', 'range': (0, 127), 'default': 64, 'desc': 'Amp Release'},
-                        0x2B: {'name': 'amp_velocity_sensitivity', 'range': (0, 127), 'default': 64, 'desc': 'Amp Velocity Sensitivity'},
-                        0x2C: {'name': 'lfo1_waveform', 'range': (0, 5), 'default': 0, 'desc': 'LFO 1 Waveform'},
-                        0x2D: {'name': 'lfo1_rate', 'range': (0, 127), 'default': 64, 'desc': 'LFO 1 Rate'},
-                        0x2E: {'name': 'lfo1_depth', 'range': (0, 127), 'default': 0, 'desc': 'LFO 1 Depth'},
-                        0x2F: {'name': 'lfo1_sync', 'range': (0, 1), 'default': 0, 'desc': 'LFO 1 Tempo Sync'},
+                        0x10: {
+                            "name": "osc1_waveform",
+                            "range": (0, 7),
+                            "default": 0,
+                            "desc": "Osc 1 Waveform",
+                        },
+                        0x11: {
+                            "name": "osc1_coarse_tune",
+                            "range": (-24, 24),
+                            "default": 0,
+                            "desc": "Osc 1 Coarse Tune",
+                        },
+                        0x12: {
+                            "name": "osc1_fine_tune",
+                            "range": (-50, 50),
+                            "default": 0,
+                            "desc": "Osc 1 Fine Tune",
+                        },
+                        0x13: {
+                            "name": "osc1_level",
+                            "range": (0, 127),
+                            "default": 100,
+                            "desc": "Osc 1 Level",
+                        },
+                        0x14: {
+                            "name": "osc1_supersaw_spread",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Osc 1 Supersaw Spread",
+                        },
+                        0x15: {
+                            "name": "osc2_waveform",
+                            "range": (0, 7),
+                            "default": 0,
+                            "desc": "Osc 2 Waveform",
+                        },
+                        0x16: {
+                            "name": "osc2_coarse_tune",
+                            "range": (-24, 24),
+                            "default": 0,
+                            "desc": "Osc 2 Coarse Tune",
+                        },
+                        0x17: {
+                            "name": "osc2_fine_tune",
+                            "range": (-50, 50),
+                            "default": 0,
+                            "desc": "Osc 2 Fine Tune",
+                        },
+                        0x18: {
+                            "name": "osc2_level",
+                            "range": (0, 127),
+                            "default": 100,
+                            "desc": "Osc 2 Level",
+                        },
+                        0x19: {
+                            "name": "osc2_detune",
+                            "range": (-50, 50),
+                            "default": 0,
+                            "desc": "Osc 2 Detune",
+                        },
+                        0x1A: {
+                            "name": "osc_sync",
+                            "range": (0, 1),
+                            "default": 0,
+                            "desc": "Oscillator Sync",
+                        },
+                        0x1B: {
+                            "name": "ring_modulation",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Ring Modulation",
+                        },
+                        0x1C: {
+                            "name": "filter_type",
+                            "range": (0, 7),
+                            "default": 0,
+                            "desc": "Filter Type",
+                        },
+                        0x1D: {
+                            "name": "filter_cutoff",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Filter Cutoff",
+                        },
+                        0x1E: {
+                            "name": "filter_resonance",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Filter Resonance",
+                        },
+                        0x1F: {
+                            "name": "filter_drive",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Filter Drive",
+                        },
+                        0x20: {
+                            "name": "filter_key_tracking",
+                            "range": (-64, 63),
+                            "default": 0,
+                            "desc": "Filter Key Tracking",
+                        },
+                        0x21: {
+                            "name": "filter_envelope_amount",
+                            "range": (-64, 63),
+                            "default": 0,
+                            "desc": "Filter Envelope Amount",
+                        },
+                        0x22: {
+                            "name": "filter_attack",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Filter Attack",
+                        },
+                        0x23: {
+                            "name": "filter_decay",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Filter Decay",
+                        },
+                        0x24: {
+                            "name": "filter_sustain",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Filter Sustain",
+                        },
+                        0x25: {
+                            "name": "filter_release",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Filter Release",
+                        },
+                        0x26: {
+                            "name": "amp_level",
+                            "range": (0, 127),
+                            "default": 100,
+                            "desc": "Amplifier Level",
+                        },
+                        0x27: {
+                            "name": "amp_attack",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Amp Attack",
+                        },
+                        0x28: {
+                            "name": "amp_decay",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Amp Decay",
+                        },
+                        0x29: {
+                            "name": "amp_sustain",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Amp Sustain",
+                        },
+                        0x2A: {
+                            "name": "amp_release",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Amp Release",
+                        },
+                        0x2B: {
+                            "name": "amp_velocity_sensitivity",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Amp Velocity Sensitivity",
+                        },
+                        0x2C: {
+                            "name": "lfo1_waveform",
+                            "range": (0, 5),
+                            "default": 0,
+                            "desc": "LFO 1 Waveform",
+                        },
+                        0x2D: {
+                            "name": "lfo1_rate",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "LFO 1 Rate",
+                        },
+                        0x2E: {
+                            "name": "lfo1_depth",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "LFO 1 Depth",
+                        },
+                        0x2F: {
+                            "name": "lfo1_sync",
+                            "range": (0, 1),
+                            "default": 0,
+                            "desc": "LFO 1 Tempo Sync",
+                        },
                     }
 
                     for lsb, param_info in analog_params.items():
                         nrpn_map[(msb, lsb)] = {
-                            'type': 'engine',
-                            'part_number': part_offset,
-                            'engine_type': engine_offset,
-                            'engine_name': engine_name,
-                            'param_id': lsb,
-                            'param_name': param_info['name'],
-                            'range': param_info['range'],
-                            'default': param_info['default'],
-                            'description': f'Part {part_offset} Analog {param_info["desc"]}'
+                            "type": "engine",
+                            "part_number": part_offset,
+                            "engine_type": engine_offset,
+                            "engine_name": engine_name,
+                            "param_id": lsb,
+                            "param_name": param_info["name"],
+                            "range": param_info["range"],
+                            "default": param_info["default"],
+                            "description": f"Part {part_offset} Analog {param_info['desc']}",
                         }
 
                 # Digital Engine parameters (MSB for engine 1)
                 elif engine_offset == 1:  # Digital engine
                     digital_params = {
-                        0x10: {'name': 'wavetable_position', 'range': (0, 127), 'default': 0, 'desc': 'Wavetable Position'},
-                        0x11: {'name': 'wavetable_speed', 'range': (0, 127), 'default': 64, 'desc': 'Wavetable Speed'},
-                        0x12: {'name': 'wavetable_start', 'range': (0, 127), 'default': 0, 'desc': 'Wavetable Start'},
-                        0x13: {'name': 'wavetable_end', 'range': (0, 127), 'default': 127, 'desc': 'Wavetable End'},
-                        0x14: {'name': 'wavetable_loop', 'range': (0, 1), 'default': 1, 'desc': 'Wavetable Loop'},
-                        0x15: {'name': 'morph_amount', 'range': (0, 127), 'default': 0, 'desc': 'Morph Amount'},
-                        0x16: {'name': 'morph_position', 'range': (0, 127), 'default': 0, 'desc': 'Morph Position'},
-                        0x17: {'name': 'morph_speed', 'range': (0, 127), 'default': 64, 'desc': 'Morph Speed'},
-                        0x18: {'name': 'bit_crush_depth', 'range': (0, 127), 'default': 0, 'desc': 'Bit Crush Depth'},
-                        0x19: {'name': 'bit_crush_bits', 'range': (1, 16), 'default': 16, 'desc': 'Bit Crush Bits'},
-                        0x1A: {'name': 'sample_rate_reduction', 'range': (0, 127), 'default': 0, 'desc': 'Sample Rate Reduction'},
-                        0x1B: {'name': 'formant_shift', 'range': (-64, 63), 'default': 0, 'desc': 'Formant Shift'},
-                        0x1C: {'name': 'formant_resonance', 'range': (0, 127), 'default': 0, 'desc': 'Formant Resonance'},
-                        0x1D: {'name': 'formant_mix', 'range': (0, 127), 'default': 100, 'desc': 'Formant Mix'},
-                        0x1E: {'name': 'wavefolding_amount', 'range': (0, 127), 'default': 0, 'desc': 'Wavefolding Amount'},
-                        0x1F: {'name': 'wavefolding_symmetry', 'range': (-64, 63), 'default': 0, 'desc': 'Wavefolding Symmetry'},
-                        0x20: {'name': 'ring_mod_frequency', 'range': (0, 127), 'default': 64, 'desc': 'Ring Mod Frequency'},
-                        0x21: {'name': 'ring_mod_mix', 'range': (0, 127), 'default': 0, 'desc': 'Ring Mod Mix'},
-                        0x22: {'name': 'digital_filter_type', 'range': (0, 3), 'default': 0, 'desc': 'Digital Filter Type'},
-                        0x23: {'name': 'digital_filter_cutoff', 'range': (0, 127), 'default': 64, 'desc': 'Digital Filter Cutoff'},
-                        0x24: {'name': 'digital_filter_resonance', 'range': (0, 127), 'default': 0, 'desc': 'Digital Filter Resonance'},
-                        0x25: {'name': 'digital_filter_envelope', 'range': (0, 127), 'default': 0, 'desc': 'Digital Filter Envelope'},
+                        0x10: {
+                            "name": "wavetable_position",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Wavetable Position",
+                        },
+                        0x11: {
+                            "name": "wavetable_speed",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Wavetable Speed",
+                        },
+                        0x12: {
+                            "name": "wavetable_start",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Wavetable Start",
+                        },
+                        0x13: {
+                            "name": "wavetable_end",
+                            "range": (0, 127),
+                            "default": 127,
+                            "desc": "Wavetable End",
+                        },
+                        0x14: {
+                            "name": "wavetable_loop",
+                            "range": (0, 1),
+                            "default": 1,
+                            "desc": "Wavetable Loop",
+                        },
+                        0x15: {
+                            "name": "morph_amount",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Morph Amount",
+                        },
+                        0x16: {
+                            "name": "morph_position",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Morph Position",
+                        },
+                        0x17: {
+                            "name": "morph_speed",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Morph Speed",
+                        },
+                        0x18: {
+                            "name": "bit_crush_depth",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Bit Crush Depth",
+                        },
+                        0x19: {
+                            "name": "bit_crush_bits",
+                            "range": (1, 16),
+                            "default": 16,
+                            "desc": "Bit Crush Bits",
+                        },
+                        0x1A: {
+                            "name": "sample_rate_reduction",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Sample Rate Reduction",
+                        },
+                        0x1B: {
+                            "name": "formant_shift",
+                            "range": (-64, 63),
+                            "default": 0,
+                            "desc": "Formant Shift",
+                        },
+                        0x1C: {
+                            "name": "formant_resonance",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Formant Resonance",
+                        },
+                        0x1D: {
+                            "name": "formant_mix",
+                            "range": (0, 127),
+                            "default": 100,
+                            "desc": "Formant Mix",
+                        },
+                        0x1E: {
+                            "name": "wavefolding_amount",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Wavefolding Amount",
+                        },
+                        0x1F: {
+                            "name": "wavefolding_symmetry",
+                            "range": (-64, 63),
+                            "default": 0,
+                            "desc": "Wavefolding Symmetry",
+                        },
+                        0x20: {
+                            "name": "ring_mod_frequency",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Ring Mod Frequency",
+                        },
+                        0x21: {
+                            "name": "ring_mod_mix",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Ring Mod Mix",
+                        },
+                        0x22: {
+                            "name": "digital_filter_type",
+                            "range": (0, 3),
+                            "default": 0,
+                            "desc": "Digital Filter Type",
+                        },
+                        0x23: {
+                            "name": "digital_filter_cutoff",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Digital Filter Cutoff",
+                        },
+                        0x24: {
+                            "name": "digital_filter_resonance",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Digital Filter Resonance",
+                        },
+                        0x25: {
+                            "name": "digital_filter_envelope",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Digital Filter Envelope",
+                        },
                     }
 
                     for lsb, param_info in digital_params.items():
                         nrpn_map[(msb, lsb)] = {
-                            'type': 'engine',
-                            'part_number': part_offset,
-                            'engine_type': engine_offset,
-                            'engine_name': engine_name,
-                            'param_id': lsb,
-                            'param_name': param_info['name'],
-                            'range': param_info['range'],
-                            'default': param_info['default'],
-                            'description': f'Part {part_offset} Digital {param_info["desc"]}'
+                            "type": "engine",
+                            "part_number": part_offset,
+                            "engine_type": engine_offset,
+                            "engine_name": engine_name,
+                            "param_id": lsb,
+                            "param_name": param_info["name"],
+                            "range": param_info["range"],
+                            "default": param_info["default"],
+                            "description": f"Part {part_offset} Digital {param_info['desc']}",
                         }
 
                 # FM Engine parameters (MSB for engine 2)
                 elif engine_offset == 2:  # FM engine
                     fm_params = {
-                        0x10: {'name': 'fm_algorithm', 'range': (0, 31), 'default': 0, 'desc': 'FM Algorithm'},
-                        0x11: {'name': 'fm_feedback', 'range': (0, 7), 'default': 0, 'desc': 'FM Feedback'},
-                        0x12: {'name': 'fm_lfo_waveform', 'range': (0, 5), 'default': 0, 'desc': 'FM LFO Waveform'},
-                        0x13: {'name': 'fm_lfo_rate', 'range': (0, 127), 'default': 64, 'desc': 'FM LFO Rate'},
-                        0x14: {'name': 'fm_lfo_depth', 'range': (0, 127), 'default': 0, 'desc': 'FM LFO Depth'},
-                        0x15: {'name': 'fm_lfo_sync', 'range': (0, 1), 'default': 0, 'desc': 'FM LFO Tempo Sync'},
-                        0x16: {'name': 'op1_ratio', 'range': (1, 32), 'default': 1, 'desc': 'Operator 1 Ratio'},
-                        0x17: {'name': 'op1_level', 'range': (0, 127), 'default': 100, 'desc': 'Operator 1 Level'},
-                        0x18: {'name': 'op1_attack', 'range': (0, 127), 'default': 0, 'desc': 'Operator 1 Attack'},
-                        0x19: {'name': 'op1_decay', 'range': (0, 127), 'default': 64, 'desc': 'Operator 1 Decay'},
-                        0x1A: {'name': 'op1_sustain', 'range': (0, 127), 'default': 64, 'desc': 'Operator 1 Sustain'},
-                        0x1B: {'name': 'op1_release', 'range': (0, 127), 'default': 64, 'desc': 'Operator 1 Release'},
-                        0x1C: {'name': 'op2_ratio', 'range': (1, 32), 'default': 1, 'desc': 'Operator 2 Ratio'},
-                        0x1D: {'name': 'op2_level', 'range': (0, 127), 'default': 100, 'desc': 'Operator 2 Level'},
-                        0x1E: {'name': 'op2_attack', 'range': (0, 127), 'default': 0, 'desc': 'Operator 2 Attack'},
-                        0x1F: {'name': 'op2_decay', 'range': (0, 127), 'default': 64, 'desc': 'Operator 2 Decay'},
-                        0x20: {'name': 'op2_sustain', 'range': (0, 127), 'default': 64, 'desc': 'Operator 2 Sustain'},
-                        0x21: {'name': 'op2_release', 'range': (0, 127), 'default': 64, 'desc': 'Operator 2 Release'},
-                        0x22: {'name': 'op3_ratio', 'range': (1, 32), 'default': 1, 'desc': 'Operator 3 Ratio'},
-                        0x23: {'name': 'op3_level', 'range': (0, 127), 'default': 100, 'desc': 'Operator 3 Level'},
-                        0x24: {'name': 'op3_attack', 'range': (0, 127), 'default': 0, 'desc': 'Operator 3 Attack'},
-                        0x25: {'name': 'op3_decay', 'range': (0, 127), 'default': 64, 'desc': 'Operator 3 Decay'},
-                        0x26: {'name': 'op3_sustain', 'range': (0, 127), 'default': 64, 'desc': 'Operator 3 Sustain'},
-                        0x27: {'name': 'op3_release', 'range': (0, 127), 'default': 64, 'desc': 'Operator 3 Release'},
-                        0x28: {'name': 'op4_ratio', 'range': (1, 32), 'default': 1, 'desc': 'Operator 4 Ratio'},
-                        0x29: {'name': 'op4_level', 'range': (0, 127), 'default': 100, 'desc': 'Operator 4 Level'},
-                        0x2A: {'name': 'op4_attack', 'range': (0, 127), 'default': 0, 'desc': 'Operator 4 Attack'},
-                        0x2B: {'name': 'op4_decay', 'range': (0, 127), 'default': 64, 'desc': 'Operator 4 Decay'},
-                        0x2C: {'name': 'op4_sustain', 'range': (0, 127), 'default': 64, 'desc': 'Operator 4 Sustain'},
-                        0x2D: {'name': 'op4_release', 'range': (0, 127), 'default': 64, 'desc': 'Operator 4 Release'},
+                        0x10: {
+                            "name": "fm_algorithm",
+                            "range": (0, 31),
+                            "default": 0,
+                            "desc": "FM Algorithm",
+                        },
+                        0x11: {
+                            "name": "fm_feedback",
+                            "range": (0, 7),
+                            "default": 0,
+                            "desc": "FM Feedback",
+                        },
+                        0x12: {
+                            "name": "fm_lfo_waveform",
+                            "range": (0, 5),
+                            "default": 0,
+                            "desc": "FM LFO Waveform",
+                        },
+                        0x13: {
+                            "name": "fm_lfo_rate",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "FM LFO Rate",
+                        },
+                        0x14: {
+                            "name": "fm_lfo_depth",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "FM LFO Depth",
+                        },
+                        0x15: {
+                            "name": "fm_lfo_sync",
+                            "range": (0, 1),
+                            "default": 0,
+                            "desc": "FM LFO Tempo Sync",
+                        },
+                        0x16: {
+                            "name": "op1_ratio",
+                            "range": (1, 32),
+                            "default": 1,
+                            "desc": "Operator 1 Ratio",
+                        },
+                        0x17: {
+                            "name": "op1_level",
+                            "range": (0, 127),
+                            "default": 100,
+                            "desc": "Operator 1 Level",
+                        },
+                        0x18: {
+                            "name": "op1_attack",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Operator 1 Attack",
+                        },
+                        0x19: {
+                            "name": "op1_decay",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 1 Decay",
+                        },
+                        0x1A: {
+                            "name": "op1_sustain",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 1 Sustain",
+                        },
+                        0x1B: {
+                            "name": "op1_release",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 1 Release",
+                        },
+                        0x1C: {
+                            "name": "op2_ratio",
+                            "range": (1, 32),
+                            "default": 1,
+                            "desc": "Operator 2 Ratio",
+                        },
+                        0x1D: {
+                            "name": "op2_level",
+                            "range": (0, 127),
+                            "default": 100,
+                            "desc": "Operator 2 Level",
+                        },
+                        0x1E: {
+                            "name": "op2_attack",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Operator 2 Attack",
+                        },
+                        0x1F: {
+                            "name": "op2_decay",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 2 Decay",
+                        },
+                        0x20: {
+                            "name": "op2_sustain",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 2 Sustain",
+                        },
+                        0x21: {
+                            "name": "op2_release",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 2 Release",
+                        },
+                        0x22: {
+                            "name": "op3_ratio",
+                            "range": (1, 32),
+                            "default": 1,
+                            "desc": "Operator 3 Ratio",
+                        },
+                        0x23: {
+                            "name": "op3_level",
+                            "range": (0, 127),
+                            "default": 100,
+                            "desc": "Operator 3 Level",
+                        },
+                        0x24: {
+                            "name": "op3_attack",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Operator 3 Attack",
+                        },
+                        0x25: {
+                            "name": "op3_decay",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 3 Decay",
+                        },
+                        0x26: {
+                            "name": "op3_sustain",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 3 Sustain",
+                        },
+                        0x27: {
+                            "name": "op3_release",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 3 Release",
+                        },
+                        0x28: {
+                            "name": "op4_ratio",
+                            "range": (1, 32),
+                            "default": 1,
+                            "desc": "Operator 4 Ratio",
+                        },
+                        0x29: {
+                            "name": "op4_level",
+                            "range": (0, 127),
+                            "default": 100,
+                            "desc": "Operator 4 Level",
+                        },
+                        0x2A: {
+                            "name": "op4_attack",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "Operator 4 Attack",
+                        },
+                        0x2B: {
+                            "name": "op4_decay",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 4 Decay",
+                        },
+                        0x2C: {
+                            "name": "op4_sustain",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 4 Sustain",
+                        },
+                        0x2D: {
+                            "name": "op4_release",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "Operator 4 Release",
+                        },
                     }
 
                     for lsb, param_info in fm_params.items():
                         nrpn_map[(msb, lsb)] = {
-                            'type': 'engine',
-                            'part_number': part_offset,
-                            'engine_type': engine_offset,
-                            'engine_name': engine_name,
-                            'param_id': lsb,
-                            'param_name': param_info['name'],
-                            'range': param_info['range'],
-                            'default': param_info['default'],
-                            'description': f'Part {part_offset} FM {param_info["desc"]}'
+                            "type": "engine",
+                            "part_number": part_offset,
+                            "engine_type": engine_offset,
+                            "engine_name": engine_name,
+                            "param_id": lsb,
+                            "param_name": param_info["name"],
+                            "range": param_info["range"],
+                            "default": param_info["default"],
+                            "description": f"Part {part_offset} FM {param_info['desc']}",
                         }
 
                 # External Engine parameters (MSB for engine 3)
                 elif engine_offset == 3:  # External engine
                     external_params = {
-                        0x10: {'name': 'external_input_gain', 'range': (0, 127), 'default': 64, 'desc': 'External Input Gain'},
-                        0x11: {'name': 'external_input_pan', 'range': (-64, 63), 'default': 0, 'desc': 'External Input Pan'},
-                        0x12: {'name': 'external_filter_type', 'range': (0, 7), 'default': 0, 'desc': 'External Filter Type'},
-                        0x13: {'name': 'external_filter_cutoff', 'range': (0, 127), 'default': 64, 'desc': 'External Filter Cutoff'},
-                        0x14: {'name': 'external_filter_resonance', 'range': (0, 127), 'default': 0, 'desc': 'External Filter Resonance'},
-                        0x15: {'name': 'external_drive', 'range': (0, 127), 'default': 0, 'desc': 'External Drive'},
-                        0x16: {'name': 'external_amp_level', 'range': (0, 127), 'default': 100, 'desc': 'External Amp Level'},
-                        0x17: {'name': 'external_amp_attack', 'range': (0, 127), 'default': 0, 'desc': 'External Amp Attack'},
-                        0x18: {'name': 'external_amp_decay', 'range': (0, 127), 'default': 64, 'desc': 'External Amp Decay'},
-                        0x19: {'name': 'external_amp_sustain', 'range': (0, 127), 'default': 64, 'desc': 'External Amp Sustain'},
-                        0x1A: {'name': 'external_amp_release', 'range': (0, 127), 'default': 64, 'desc': 'External Amp Release'},
-                        0x1B: {'name': 'external_send_reverb', 'range': (0, 127), 'default': 0, 'desc': 'External Reverb Send'},
-                        0x1C: {'name': 'external_send_chorus', 'range': (0, 127), 'default': 0, 'desc': 'External Chorus Send'},
-                        0x1D: {'name': 'external_send_delay', 'range': (0, 127), 'default': 0, 'desc': 'External Delay Send'},
-                        0x1E: {'name': 'external_routing_mode', 'range': (0, 3), 'default': 0, 'desc': 'External Routing Mode'},
-                        0x1F: {'name': 'external_sidechain_enable', 'range': (0, 1), 'default': 0, 'desc': 'External Sidechain Enable'},
-                        0x20: {'name': 'external_sidechain_attack', 'range': (0, 127), 'default': 0, 'desc': 'External Sidechain Attack'},
-                        0x21: {'name': 'external_sidechain_release', 'range': (0, 127), 'default': 64, 'desc': 'External Sidechain Release'},
-                        0x22: {'name': 'external_compression_enable', 'range': (0, 1), 'default': 0, 'desc': 'External Compression Enable'},
-                        0x23: {'name': 'external_compression_ratio', 'range': (1, 20), 'default': 4, 'desc': 'External Compression Ratio'},
-                        0x24: {'name': 'external_compression_threshold', 'range': (0, 127), 'default': 64, 'desc': 'External Compression Threshold'},
-                        0x25: {'name': 'external_compression_attack', 'range': (0, 127), 'default': 0, 'desc': 'External Compression Attack'},
-                        0x26: {'name': 'external_compression_release', 'range': (0, 127), 'default': 64, 'desc': 'External Compression Release'},
+                        0x10: {
+                            "name": "external_input_gain",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "External Input Gain",
+                        },
+                        0x11: {
+                            "name": "external_input_pan",
+                            "range": (-64, 63),
+                            "default": 0,
+                            "desc": "External Input Pan",
+                        },
+                        0x12: {
+                            "name": "external_filter_type",
+                            "range": (0, 7),
+                            "default": 0,
+                            "desc": "External Filter Type",
+                        },
+                        0x13: {
+                            "name": "external_filter_cutoff",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "External Filter Cutoff",
+                        },
+                        0x14: {
+                            "name": "external_filter_resonance",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "External Filter Resonance",
+                        },
+                        0x15: {
+                            "name": "external_drive",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "External Drive",
+                        },
+                        0x16: {
+                            "name": "external_amp_level",
+                            "range": (0, 127),
+                            "default": 100,
+                            "desc": "External Amp Level",
+                        },
+                        0x17: {
+                            "name": "external_amp_attack",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "External Amp Attack",
+                        },
+                        0x18: {
+                            "name": "external_amp_decay",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "External Amp Decay",
+                        },
+                        0x19: {
+                            "name": "external_amp_sustain",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "External Amp Sustain",
+                        },
+                        0x1A: {
+                            "name": "external_amp_release",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "External Amp Release",
+                        },
+                        0x1B: {
+                            "name": "external_send_reverb",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "External Reverb Send",
+                        },
+                        0x1C: {
+                            "name": "external_send_chorus",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "External Chorus Send",
+                        },
+                        0x1D: {
+                            "name": "external_send_delay",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "External Delay Send",
+                        },
+                        0x1E: {
+                            "name": "external_routing_mode",
+                            "range": (0, 3),
+                            "default": 0,
+                            "desc": "External Routing Mode",
+                        },
+                        0x1F: {
+                            "name": "external_sidechain_enable",
+                            "range": (0, 1),
+                            "default": 0,
+                            "desc": "External Sidechain Enable",
+                        },
+                        0x20: {
+                            "name": "external_sidechain_attack",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "External Sidechain Attack",
+                        },
+                        0x21: {
+                            "name": "external_sidechain_release",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "External Sidechain Release",
+                        },
+                        0x22: {
+                            "name": "external_compression_enable",
+                            "range": (0, 1),
+                            "default": 0,
+                            "desc": "External Compression Enable",
+                        },
+                        0x23: {
+                            "name": "external_compression_ratio",
+                            "range": (1, 20),
+                            "default": 4,
+                            "desc": "External Compression Ratio",
+                        },
+                        0x24: {
+                            "name": "external_compression_threshold",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "External Compression Threshold",
+                        },
+                        0x25: {
+                            "name": "external_compression_attack",
+                            "range": (0, 127),
+                            "default": 0,
+                            "desc": "External Compression Attack",
+                        },
+                        0x26: {
+                            "name": "external_compression_release",
+                            "range": (0, 127),
+                            "default": 64,
+                            "desc": "External Compression Release",
+                        },
                     }
 
                     for lsb, param_info in external_params.items():
                         nrpn_map[(msb, lsb)] = {
-                            'type': 'engine',
-                            'part_number': part_offset,
-                            'engine_type': engine_offset,
-                            'engine_name': engine_name,
-                            'param_id': lsb,
-                            'param_name': param_info['name'],
-                            'range': param_info['range'],
-                            'default': param_info['default'],
-                            'description': f'Part {part_offset} External {param_info["desc"]}'
+                            "type": "engine",
+                            "part_number": part_offset,
+                            "engine_type": engine_offset,
+                            "engine_name": engine_name,
+                            "param_id": lsb,
+                            "param_name": param_info["name"],
+                            "range": param_info["range"],
+                            "default": param_info["default"],
+                            "description": f"Part {part_offset} External {param_info['desc']}",
                         }
 
-        # Effects parameters (MSB 0x40-0x4F) - STRUCTURE ONLY
-        # TODO: Implement in Phase 1, Week 3
-        for msb in range(0x40, 0x50):
-            for lsb in range(16):  # 16 parameters per effects group
+        # Effects parameters (MSB 0x40-0x4F) - FULL IMPLEMENTATION
+        effect_types = {
+            0: "Reverb",
+            1: "Delay",
+            2: "Chorus",
+            3: "Flanger",
+            4: "Phaser",
+            5: "Ring Modulator",
+            6: "Distortion",
+            7: "Overdrive",
+            8: "EQ",
+            9: "Compressor",
+            10: "Limiter",
+            11: "Gate",
+            12: "Tremolo",
+            13: "Auto Pan",
+            14: "Slap Back Delay",
+            15: "Wah",
+        }
+
+        common_effect_params = {
+            0x00: {
+                "name": "effect_type",
+                "range": (0, 15),
+                "default": 0,
+                "desc": "Effect Type",
+            },
+            0x01: {
+                "name": "effect_bypass",
+                "range": (0, 1),
+                "default": 0,
+                "desc": "Bypass",
+            },
+            0x02: {
+                "name": "effect_level",
+                "range": (0, 127),
+                "default": 100,
+                "desc": "Level",
+            },
+            0x03: {
+                "name": "effect_pan",
+                "range": (-64, 63),
+                "default": 0,
+                "desc": "Pan",
+            },
+            0x04: {
+                "name": "effect_dry_wet",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Dry/Wet",
+            },
+            0x05: {
+                "name": "effect_param1",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Parameter 1",
+            },
+            0x06: {
+                "name": "effect_param2",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Parameter 2",
+            },
+            0x07: {
+                "name": "effect_param3",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Parameter 3",
+            },
+            0x08: {
+                "name": "effect_param4",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Parameter 4",
+            },
+            0x09: {
+                "name": "effect_param5",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Parameter 5",
+            },
+            0x0A: {
+                "name": "effect_param6",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Parameter 6",
+            },
+            0x0B: {
+                "name": "effect_param7",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Parameter 7",
+            },
+            0x0C: {
+                "name": "effect_param8",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Parameter 8",
+            },
+            0x0D: {
+                "name": "effect_reserve",
+                "range": (0, 127),
+                "default": 0,
+                "desc": "Reserve",
+            },
+            0x0E: {
+                "name": "effect_attack",
+                "range": (0, 127),
+                "default": 0,
+                "desc": "Attack",
+            },
+            0x0F: {
+                "name": "effect_release",
+                "range": (0, 127),
+                "default": 64,
+                "desc": "Release",
+            },
+        }
+
+        for group_idx in range(16):
+            msb = 0x40 + group_idx
+            effect_name = effect_types.get(group_idx, "Unknown")
+
+            for lsb, param_info in common_effect_params.items():
                 nrpn_map[(msb, lsb)] = {
-                    'type': 'effects',
-                    'group': msb - 0x40,
-                    'param_id': lsb,
-                    'range': PARAM_RANGE_0_127,
-                    'description': f'Effects group {msb - 0x40} parameter {lsb:02X} (TODO: Implement)'
+                    "type": "effects",
+                    "group": group_idx,
+                    "effect_type": effect_name,
+                    "param_id": lsb,
+                    "param_name": param_info["name"],
+                    "range": param_info["range"],
+                    "default": param_info["default"],
+                    "description": f"Effect {group_idx} ({effect_name}) {param_info['desc']}",
                 }
 
         return nrpn_map
@@ -1307,27 +2276,33 @@ class JupiterXNRPNController:
             return False
 
         # Process based on parameter type
-        param_type = param_info['type']
+        param_type = param_info["type"]
 
-        if param_type == 'system':
-            param_id = param_info['param_id']
-            return self.component_manager.system_params.set_parameter(param_id, midi_value)
+        if param_type == "system":
+            param_id = param_info["param_id"]
+            return self.component_manager.system_params.set_parameter(
+                param_id, midi_value
+            )
 
-        elif param_type == 'part':
-            part_number = param_info['part_number']
-            param_id = param_info['param_id']
-            return self.component_manager.set_part_parameter(part_number, param_id, midi_value)
+        elif param_type == "part":
+            part_number = param_info["part_number"]
+            param_id = param_info["param_id"]
+            return self.component_manager.set_part_parameter(
+                part_number, param_id, midi_value
+            )
 
-        elif param_type == 'engine':
-            part_number = param_info['part_number']
-            engine_type = param_info['engine_type']
-            param_id = param_info['param_id']
-            return self.component_manager.set_engine_parameter(part_number, engine_type, param_id, midi_value)
+        elif param_type == "engine":
+            part_number = param_info["part_number"]
+            engine_type = param_info["engine_type"]
+            param_id = param_info["param_id"]
+            return self.component_manager.set_engine_parameter(
+                part_number, engine_type, param_id, midi_value
+            )
 
-        elif param_type == 'effects':
+        elif param_type == "effects":
             # Convert to 3-byte address for effects parameters
-            group = param_info['group']
-            param_id = param_info['param_id']
+            group = param_info["group"]
+            param_id = param_info["param_id"]
             addr_high = 0x40 + group
             address = bytes([addr_high, 0x00, param_id])
             return self.component_manager.process_parameter_change(address, midi_value)
@@ -1346,20 +2321,20 @@ class JupiterXNRPNController:
             return None
 
         # Get value based on parameter type
-        param_type = param_info['type']
+        param_type = param_info["type"]
 
-        if param_type == 'system':
-            param_id = param_info['param_id']
+        if param_type == "system":
+            param_id = param_info["param_id"]
             return self.component_manager.system_params.get_parameter(param_id)
 
-        elif param_type == 'part':
-            part_number = param_info['part_number']
-            param_id = param_info['param_id']
+        elif param_type == "part":
+            part_number = param_info["part_number"]
+            param_id = param_info["param_id"]
             return self.component_manager.get_part_parameter(part_number, param_id)
 
-        elif param_type == 'effects':
-            group = param_info['group']
-            param_id = param_info['param_id']
+        elif param_type == "effects":
+            group = param_info["group"]
+            param_id = param_info["param_id"]
             addr_high = 0x40 + group
             address = bytes([addr_high, 0x00, param_id])
             return self.component_manager.get_parameter_value(address)
@@ -1378,12 +2353,14 @@ class JupiterXNRPNController:
         """Get current NRPN processing status."""
         with self.lock:
             return {
-                'active': self.active_nrpn,
-                'current_msb': self.current_msb,
-                'current_lsb': self.current_lsb,
-                'data_msb_received': self.data_msb_received,
-                'data_msb': self.data_msb,
-                'current_parameter': self.nrpn_map.get((self.current_msb, self.current_lsb))
+                "active": self.active_nrpn,
+                "current_msb": self.current_msb,
+                "current_lsb": self.current_lsb,
+                "data_msb_received": self.data_msb_received,
+                "data_msb": self.data_msb,
+                "current_parameter": self.nrpn_map.get(
+                    (self.current_msb, self.current_lsb)
+                ),
             }
 
     def create_nrpn_message(self, msb: int, lsb: int, value: int) -> List[bytes]:
@@ -1452,17 +2429,21 @@ class JupiterXMIDIController:
                 return self.sysex_controller.process_sysex_message(message_bytes)
 
             # Check for NRPN controller messages
-            elif len(message_bytes) == 3 and (message_bytes[0] & 0xF0) == 0xB0:  # CC message
+            elif (
+                len(message_bytes) == 3 and (message_bytes[0] & 0xF0) == 0xB0
+            ):  # CC message
                 controller = message_bytes[1]
                 value = message_bytes[2]
 
                 # NRPN controllers
                 if controller in [98, 99, 6, 38, 96, 97]:  # NRPN related
                     return {
-                        'status': 'processed' if self.nrpn_controller.process_nrpn_message(controller, value) else 'ignored',
-                        'type': 'nrpn',
-                        'controller': controller,
-                        'value': value
+                        "status": "processed"
+                        if self.nrpn_controller.process_nrpn_message(controller, value)
+                        else "ignored",
+                        "type": "nrpn",
+                        "controller": controller,
+                        "value": value,
                     }
 
             return None
@@ -1471,11 +2452,11 @@ class JupiterXMIDIController:
         """Get comprehensive MIDI processing status."""
         with self.lock:
             return {
-                'sysex_status': 'active',
-                'nrpn_status': self.nrpn_controller.get_nrpn_status(),
-                'device_id': self.component_manager.system_params.device_id,
-                'model_id': JUPITER_X_MODEL_ID,
-                'manufacturer_id': JUPITER_X_MANUFACTURER_ID
+                "sysex_status": "active",
+                "nrpn_status": self.nrpn_controller.get_nrpn_status(),
+                "device_id": self.component_manager.system_params.device_id,
+                "model_id": JUPITER_X_MODEL_ID,
+                "manufacturer_id": JUPITER_X_MANUFACTURER_ID,
             }
 
     def create_parameter_change_sysex(self, address: bytes, value: int) -> bytes:

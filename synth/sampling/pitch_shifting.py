@@ -31,8 +31,8 @@ class PitchShiftingEngine:
         self.max_block_size = max_block_size
 
         # Algorithm settings
-        self.algorithm = 'phase_vocoder'  # 'phase_vocoder', 'resampling', 'harmonic'
-        self.quality = 'high'  # 'fast', 'standard', 'high'
+        self.algorithm = "phase_vocoder"  # 'phase_vocoder', 'resampling', 'harmonic'
+        self.quality = "high"  # 'fast', 'standard', 'high'
 
         # Processing parameters
         self.pitch_ratio = 1.0
@@ -41,7 +41,9 @@ class PitchShiftingEngine:
 
         # Buffer management
         self.input_buffer = np.zeros(max_block_size, dtype=np.float32)
-        self.output_buffer = np.zeros(max_block_size * 2, dtype=np.float32)  # Allow for expansion
+        self.output_buffer = np.zeros(
+            max_block_size * 2, dtype=np.float32
+        )  # Allow for expansion
 
         # Phase vocoder state
         self.phase_accumulator = np.zeros(max_block_size // 2, dtype=np.float32)
@@ -97,7 +99,7 @@ class PitchShiftingEngine:
             Success status
         """
         with self.lock:
-            if algorithm in ['phase_vocoder', 'resampling', 'harmonic']:
+            if algorithm in ["phase_vocoder", "resampling", "harmonic"]:
                 self.algorithm = algorithm
                 return True
             return False
@@ -113,7 +115,7 @@ class PitchShiftingEngine:
             Success status
         """
         with self.lock:
-            if quality in ['fast', 'standard', 'high']:
+            if quality in ["fast", "standard", "high"]:
                 self.quality = quality
                 return True
             return False
@@ -132,11 +134,11 @@ class PitchShiftingEngine:
             if self.pitch_ratio == 1.0 and self.formant_ratio == 1.0:
                 return input_audio
 
-            if self.algorithm == 'phase_vocoder':
+            if self.algorithm == "phase_vocoder":
                 return self._process_phase_vocoder(input_audio)
-            elif self.algorithm == 'resampling':
+            elif self.algorithm == "resampling":
                 return self._process_resampling(input_audio)
-            elif self.algorithm == 'harmonic':
+            elif self.algorithm == "harmonic":
                 return self._process_harmonic(input_audio)
             else:
                 return input_audio
@@ -151,30 +153,106 @@ class PitchShiftingEngine:
         Returns:
             Pitch-shifted audio
         """
-        # Simplified phase vocoder implementation
-        # In a production system, this would be much more sophisticated
-
         if self.pitch_ratio == 1.0:
             return input_audio
 
-        # For now, implement simple resampling-based pitch shifting
-        # This is a placeholder - real phase vocoder is much more complex
+        # Determine FFT size based on quality setting
+        if self.quality == "fast":
+            fft_size = 1024
+            hop_size = 256
+        elif self.quality == "standard":
+            fft_size = 2048
+            hop_size = 512
+        else:  # high
+            fft_size = 4096
+            hop_size = 1024
+
+        # Ensure input is float64 for FFT
+        input_audio = input_audio.astype(np.float64)
+
+        # Pad input to handle edge effects
+        pad_size = fft_size // 2
+        padded_input = np.pad(input_audio, (pad_size, pad_size), mode="edge")
+
+        # Calculate number of frames
+        num_frames = (len(padded_input) - fft_size) // hop_size + 1
+
+        # Output storage
         output_length = int(len(input_audio) / self.pitch_ratio)
+        output_audio = np.zeros(output_length + fft_size, dtype=np.float64)
 
-        if output_length <= 0:
-            return np.array([], dtype=np.float32)
+        # Phase vocoder processing
+        stretch_factor = self.pitch_ratio
+        phase_accum = np.zeros(fft_size // 2 + 1, dtype=np.float64)
+        previous_phase = np.zeros(fft_size // 2 + 1, dtype=np.float64)
 
-        # Simple interpolation for pitch shifting
-        x_old = np.arange(len(input_audio))
-        x_new = np.linspace(0, len(input_audio) - 1, output_length)
+        for frame_idx in range(num_frames):
+            # Get current frame
+            start_pos = frame_idx * hop_size
+            frame = padded_input[start_pos : start_pos + fft_size]
 
-        shifted = np.interp(x_new, x_old, input_audio)
+            # Apply Hann window
+            window = np.hanning(fft_size)
+            windowed_frame = frame * window
+
+            # FFT
+            fft_result = np.fft.rfft(windowed_frame)
+            magnitudes = np.abs(fft_result)
+            phases = np.angle(fft_result)
+
+            # Phase vocoder processing
+            # Calculate instantaneous frequencies
+            phase_diff = phases - previous_phase
+            previous_phase = phases
+
+            # Unwrap phase differences
+            phase_diff = np.mod(phase_diff + np.pi, 2 * np.pi) - np.pi
+
+            # Calculate true phase
+            expected_phase_increments = (
+                2 * np.pi * np.arange(fft_size // 2 + 1) * hop_size / fft_size
+            )
+            true_phases = (
+                phase_accum + (phase_diff + expected_phase_increments) * stretch_factor
+            )
+            phase_accum = true_phases
+
+            # Apply time stretch
+            stretched_phases = phases + phase_diff * (stretch_factor - 1)
+
+            # Reconstruct with new phases
+            stretched_phases = np.mod(stretched_phases + np.pi, 2 * np.pi) - np.pi
+
+            # New frequencies after pitch shift
+            new_phases = phases + expected_phase_increments * (1 - stretch_factor)
+            new_phases = np.mod(new_phases + np.pi, 2 * np.pi) - np.pi
+
+            # Reconstruct signal
+            new_fft = magnitudes * np.exp(1j * new_phases)
+            stretched_frame = np.fft.irfft(new_fft, fft_size)
+
+            # Overlap-add
+            output_pos = int(start_pos / self.pitch_ratio)
+            if output_pos + fft_size <= len(output_audio):
+                output_audio[output_pos : output_pos + fft_size] += (
+                    stretched_frame * window
+                )
+
+        # Trim and normalize
+        output_audio = output_audio[:output_length]
+
+        # Apply gain compensation for energy change
+        if self.pitch_ratio != 1.0:
+            output_audio *= np.sqrt(self.pitch_ratio)
 
         # Apply formant shifting if needed
         if self.formant_ratio != 1.0:
-            shifted = self._apply_formant_shift(shifted, self.formant_ratio)
+            output_audio = self._apply_formant_shift(
+                output_audio.astype(np.float32), self.formant_ratio
+            )
+            output_audio = output_audio.astype(np.float64)
 
-        return shifted.astype(np.float32)
+        return output_audio.astype(np.float32)
 
     def _process_resampling(self, input_audio: np.ndarray) -> np.ndarray:
         """
@@ -243,16 +321,20 @@ class PitchShiftingEngine:
                         # Resample to output length
                         if len(harmonic) != output_length:
                             x_out = np.linspace(0, len(harmonic) - 1, output_length)
-                            harmonic = np.interp(x_out, np.arange(len(harmonic)), harmonic)
+                            harmonic = np.interp(
+                                x_out, np.arange(len(harmonic)), harmonic
+                            )
 
-                        gain = self.harmonic_gains[i] / (i + 1)  # Reduce higher harmonics
+                        gain = self.harmonic_gains[i] / (
+                            i + 1
+                        )  # Reduce higher harmonics
                         shifted += harmonic * gain
 
         return shifted
 
     def _apply_formant_shift(self, audio: np.ndarray, ratio: float) -> np.ndarray:
         """
-        Apply formant shifting for vocal processing.
+        Apply formant shifting for vocal processing using spectral envelope.
 
         Args:
             audio: Input audio
@@ -261,11 +343,85 @@ class PitchShiftingEngine:
         Returns:
             Formant-shifted audio
         """
-        # Simplified formant shifting
-        # In production, this would use more sophisticated vocal processing
-
         if abs(ratio - 1.0) < 0.01:
             return audio
+
+        audio = audio.astype(np.float64)
+
+        fft_size = 2048
+        hop_size = 512
+
+        # Pad audio
+        pad_size = fft_size // 2
+        padded_audio = np.pad(audio, (pad_size, pad_size), mode="edge")
+
+        # Number of frames
+        num_frames = (len(padded_audio) - fft_size) // hop_size + 1
+
+        # Output
+        output_audio = np.zeros(len(audio) + fft_size, dtype=np.float64)
+
+        for frame_idx in range(num_frames):
+            start_pos = frame_idx * hop_size
+            frame = padded_audio[start_pos : start_pos + fft_size]
+
+            # Apply window
+            window = np.hanning(fft_size)
+            windowed_frame = frame * window
+
+            # FFT
+            fft_result = np.fft.rfft(windowed_frame)
+            magnitudes = np.abs(fft_result)
+            phases = np.angle(fft_result)
+
+            # Extract spectral envelope using cepstral analysis
+            log_magnitude = np.log(np.maximum(magnitudes, 1e-10))
+            cepstrum = np.fft.irfft(log_magnitude)
+
+            # Lifter to smooth (keep only low quefrencies)
+            lifter_size = min(fft_size // 8, len(cepstrum) // 2)
+            cepstrum[lifter_size:-lifter_size] = 0
+
+            # Reconstruct smoothed spectral envelope
+            smoothed_env = np.exp(np.fft.rfft(cepstrum))
+
+            # Normalize magnitude by envelope
+            normalized_mag = magnitudes / (smoothed_env + 1e-10)
+
+            # Shift formants by scaling frequency axis
+            bin_shift = int(
+                np.round(
+                    np.log2(ratio)
+                    * np.arange(fft_size // 2 + 1)
+                    / (fft_size // 2 + 1)
+                    * (fft_size // 2 + 1)
+                )
+            )
+
+            shifted_mag = np.zeros(fft_size // 2 + 1)
+            for i in range(fft_size // 2 + 1):
+                src_idx = i - bin_shift[i]
+                if 0 <= src_idx < fft_size // 2 + 1:
+                    shifted_mag[i] = normalized_mag[src_idx] * smoothed_env[i]
+
+            # Apply scaling to prevent artifacts
+            shifted_mag = np.maximum(shifted_mag, magnitudes * 0.1)
+
+            # Reconstruct
+            new_fft = shifted_mag * np.exp(1j * phases)
+            processed_frame = np.fft.irfft(new_fft, fft_size)
+
+            # Overlap-add
+            output_pos = start_pos
+            if output_pos + fft_size <= len(output_audio):
+                output_audio[output_pos : output_pos + fft_size] += (
+                    processed_frame * window
+                )
+
+        # Trim
+        output_audio = output_audio[: len(audio)]
+
+        return output_audio.astype(np.float32)
 
         # Simple spectral filtering approach
         # This is a placeholder - real formant shifting is much more complex
@@ -274,14 +430,16 @@ class PitchShiftingEngine:
         # Higher ratio = higher formants, lower ratio = lower formants
         if ratio > 1.0:
             # Boost highs for higher formants
-            return self._apply_simple_filter(audio, 0.7, 'highpass')
+            return self._apply_simple_filter(audio, 0.7, "highpass")
         elif ratio < 1.0:
             # Boost lows for lower formants
-            return self._apply_simple_filter(audio, 0.3, 'lowpass')
+            return self._apply_simple_filter(audio, 0.3, "lowpass")
         else:
             return audio
 
-    def _apply_simple_filter(self, audio: np.ndarray, freq: float, filter_type: str) -> np.ndarray:
+    def _apply_simple_filter(
+        self, audio: np.ndarray, freq: float, filter_type: str
+    ) -> np.ndarray:
         """
         Apply simple filter for formant processing.
 
@@ -296,20 +454,20 @@ class PitchShiftingEngine:
         # Very simple filter implementation
         alpha = freq
 
-        if filter_type == 'lowpass':
+        if filter_type == "lowpass":
             # Simple lowpass
             filtered = np.zeros_like(audio)
             filtered[0] = audio[0]
             for i in range(1, len(audio)):
-                filtered[i] = alpha * audio[i] + (1 - alpha) * filtered[i-1]
+                filtered[i] = alpha * audio[i] + (1 - alpha) * filtered[i - 1]
             return filtered
 
-        elif filter_type == 'highpass':
+        elif filter_type == "highpass":
             # Simple highpass
             filtered = np.zeros_like(audio)
             filtered[0] = audio[0]
             for i in range(1, len(audio)):
-                filtered[i] = alpha * (filtered[i-1] + audio[i] - audio[i-1])
+                filtered[i] = alpha * (filtered[i - 1] + audio[i] - audio[i - 1])
             return filtered
 
         else:
@@ -327,7 +485,7 @@ class PitchShiftingEngine:
         """
         with self.lock:
             if len(gains) <= self.harmonic_count:
-                self.harmonic_gains[:len(gains)] = gains
+                self.harmonic_gains[: len(gains)] = gains
                 return True
             return False
 
@@ -340,15 +498,15 @@ class PitchShiftingEngine:
         """
         with self.lock:
             return {
-                'algorithm': self.algorithm,
-                'quality': self.quality,
-                'pitch_ratio': self.pitch_ratio,
-                'formant_ratio': self.formant_ratio,
-                'time_stretch_ratio': self.time_stretch_ratio,
-                'harmonic_count': self.harmonic_count,
-                'harmonic_gains': self.harmonic_gains.tolist(),
-                'sample_rate': self.sample_rate,
-                'max_block_size': self.max_block_size
+                "algorithm": self.algorithm,
+                "quality": self.quality,
+                "pitch_ratio": self.pitch_ratio,
+                "formant_ratio": self.formant_ratio,
+                "time_stretch_ratio": self.time_stretch_ratio,
+                "harmonic_count": self.harmonic_count,
+                "harmonic_gains": self.harmonic_gains.tolist(),
+                "sample_rate": self.sample_rate,
+                "max_block_size": self.max_block_size,
             }
 
     def reset(self):
@@ -368,9 +526,9 @@ class PitchShiftingEngine:
         Returns:
             Latency in samples
         """
-        if self.algorithm == 'phase_vocoder':
+        if self.algorithm == "phase_vocoder":
             return self.max_block_size // 2
-        elif self.algorithm == 'resampling':
+        elif self.algorithm == "resampling":
             return 0  # Minimal latency
         else:
             return self.max_block_size // 4
@@ -390,11 +548,11 @@ class PitchShiftingEngine:
 
     def get_supported_algorithms(self) -> List[str]:
         """Get list of supported algorithms."""
-        return ['phase_vocoder', 'resampling', 'harmonic']
+        return ["phase_vocoder", "resampling", "harmonic"]
 
     def get_supported_qualities(self) -> List[str]:
         """Get list of supported quality levels."""
-        return ['fast', 'standard', 'high']
+        return ["fast", "standard", "high"]
 
     def get_pitch_range(self) -> Tuple[float, float]:
         """
