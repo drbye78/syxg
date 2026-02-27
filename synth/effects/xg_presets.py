@@ -17,6 +17,7 @@ XG Preset Categories:
 
 Copyright (c) 2025 XG Synthesis Core
 """
+from __future__ import annotations
 
 """
 XG Master Section - XG Master Compressor/Limiter, Stereo Enhancer, and Volume Curves
@@ -29,7 +30,7 @@ This module implements XG master section effects including:
 All components support XG NRPN parameter control and real-time operation.
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Any
 from enum import IntEnum
 import numpy as np
 import math
@@ -626,7 +627,7 @@ class XGMasterSection:
                 return True
             return False
 
-    def set_chain_order(self, order: List[str]) -> None:
+    def set_chain_order(self, order: list[str]) -> None:
         """Set the processing order of master effects."""
         with self.lock:
             valid_components = {'compressor', 'stereo_enhancer', 'volume_curve'}
@@ -666,7 +667,7 @@ class XGMasterSection:
             # Final limiting to prevent clipping
             np.clip(stereo_block[:num_samples], -1.0, 1.0, out=stereo_block[:num_samples])
 
-    def get_master_status(self) -> Dict[str, Any]:
+    def get_master_status(self) -> dict[str, Any]:
         """Get status of all master section components."""
         with self.lock:
             return {
@@ -1075,7 +1076,7 @@ class XGEffectPresets:
     }
 
     @classmethod
-    def get_preset(cls, preset_id: int) -> Dict[str, Any]:
+    def get_preset(cls, preset_id: int) -> dict[str, Any]:
         """
         Get a preset configuration by ID.
 
@@ -1088,7 +1089,7 @@ class XGEffectPresets:
         return cls.PRESETS.get(preset_id, cls.PRESETS[127])  # Default to XG Default
 
     @classmethod
-    def get_preset_names(cls) -> Dict[int, str]:
+    def get_preset_names(cls) -> dict[int, str]:
         """
         Get all preset names indexed by ID.
 
@@ -1098,7 +1099,7 @@ class XGEffectPresets:
         return {pid: preset["name"] for pid, preset in cls.PRESETS.items()}
 
     @classmethod
-    def get_presets_by_category(cls, category: XGPresetCategory) -> Dict[int, Dict[str, Any]]:
+    def get_presets_by_category(cls, category: XGPresetCategory) -> dict[int, dict[str, Any]]:
         """
         Get all presets in a specific category.
 

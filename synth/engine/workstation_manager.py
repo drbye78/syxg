@@ -13,8 +13,9 @@ Features:
 - XGML v3.0 workstation_features configuration
 - Real-time parameter control and automation
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Union
+from typing import Any
 import threading
 import time
 from pathlib import Path
@@ -61,7 +62,7 @@ class WorkstationManager:
         self._init_workstation_components()
 
         # XGML v3.0 configuration state
-        self.xgml_config: Dict[str, Any] = {}
+        self.xgml_config: dict[str, Any] = {}
 
         # Performance monitoring
         self.performance_stats = {
@@ -109,7 +110,7 @@ class WorkstationManager:
         # MPE Manager
         self.mpe_manager = MPEManager(max_channels=self.max_channels)
 
-    def configure_from_xgml(self, xgml_config: Dict[str, Any]) -> bool:
+    def configure_from_xgml(self, xgml_config: dict[str, Any]) -> bool:
         """
         Configure workstation from XGML v3.0 workstation_features section.
 
@@ -153,7 +154,7 @@ class WorkstationManager:
                 print(f"❌ Failed to apply workstation configuration: {e}")
                 return False
 
-    def _configure_motif_integration(self, motif_config: Dict[str, Any]):
+    def _configure_motif_integration(self, motif_config: dict[str, Any]):
         """Configure Motif integration features."""
         if not motif_config.get('enabled', False):
             return
@@ -183,7 +184,7 @@ class WorkstationManager:
 
         self.performance_stats['workstation_features'].add('motif_integration')
 
-    def _configure_s90_awm_stereo(self, awm_config: Dict[str, Any]):
+    def _configure_s90_awm_stereo(self, awm_config: dict[str, Any]):
         """Configure S90/S70 AWM Stereo features."""
         if not awm_config.get('enabled', False):
             return
@@ -209,7 +210,7 @@ class WorkstationManager:
 
         self.performance_stats['workstation_features'].add('s90_awm_stereo')
 
-    def _configure_jupiter_x_integration(self, jupiter_config: Dict[str, Any]):
+    def _configure_jupiter_x_integration(self, jupiter_config: dict[str, Any]):
         """Configure Jupiter-X integration."""
         if not jupiter_config.get('enabled', False):
             return
@@ -233,7 +234,7 @@ class WorkstationManager:
 
         self.performance_stats['workstation_features'].add('jupiter_x_integration')
 
-    def _configure_multi_timbral(self, multi_config: Dict[str, Any]):
+    def _configure_multi_timbral(self, multi_config: dict[str, Any]):
         """Configure multi-timbral setup."""
         print("🎹 Configuring multi-timbral setup...")
 
@@ -246,7 +247,7 @@ class WorkstationManager:
 
         self.performance_stats['workstation_features'].add('multi_timbral')
 
-    def _configure_xg_effects(self, xg_config: Dict[str, Any]):
+    def _configure_xg_effects(self, xg_config: dict[str, Any]):
         """Configure XG effects processing."""
         print("🎹 Configuring XG effects system...")
 
@@ -294,7 +295,7 @@ class WorkstationManager:
         # MPE zones
         self.performance_stats['mpe_zones'] = len(self.mpe_manager.zones)
 
-    def get_workstation_status(self) -> Dict[str, Any]:
+    def get_workstation_status(self) -> dict[str, Any]:
         """
         Get comprehensive workstation status.
 
@@ -338,7 +339,7 @@ class WorkstationManager:
 
             return status
 
-    def process_arpeggiator_note(self, channel: int, note: int, velocity: int) -> List[Tuple[int, int, int]]:
+    def process_arpeggiator_note(self, channel: int, note: int, velocity: int) -> list[tuple[int, int, int]]:
         """
         Process note through arpeggiator system.
 
@@ -388,7 +389,7 @@ class WorkstationManager:
 
         return audio_buffer
 
-    def get_arpeggiator_presets(self) -> Dict[str, Any]:
+    def get_arpeggiator_presets(self) -> dict[str, Any]:
         """
         Get available arpeggiator presets.
 
@@ -419,7 +420,7 @@ class WorkstationManager:
             print(f"Failed to load arpeggiator preset {preset_name}: {e}")
             return False
 
-    def get_effect_presets(self) -> Dict[str, Any]:
+    def get_effect_presets(self) -> dict[str, Any]:
         """
         Get available effect presets.
 
@@ -459,7 +460,7 @@ class WorkstationManager:
             print(f"Failed to load effect preset {preset_name}: {e}")
             return False
 
-    def enable_mpe_zone(self, zone_id: int, channel_range: Tuple[int, int]) -> bool:
+    def enable_mpe_zone(self, zone_id: int, channel_range: tuple[int, int]) -> bool:
         """
         Enable MPE zone.
 
@@ -508,7 +509,7 @@ class WorkstationManager:
             print(f"Failed to apply temperament {temperament_name}: {e}")
             return False
 
-    def get_available_temperaments(self) -> List[str]:
+    def get_available_temperaments(self) -> list[str]:
         """
         Get list of available temperaments.
 
@@ -534,7 +535,7 @@ class WorkstationManager:
             print(f"Failed to set drum kit {kit_name} on channel {channel}: {e}")
             return False
 
-    def get_available_drum_kits(self) -> List[str]:
+    def get_available_drum_kits(self) -> list[str]:
         """
         Get list of available drum kits.
 
@@ -543,7 +544,7 @@ class WorkstationManager:
         """
         return self.drum_setup.get_available_kits()
 
-    def create_workstation_template(self) -> Dict[str, Any]:
+    def create_workstation_template(self) -> dict[str, Any]:
         """
         Create a workstation configuration template.
 
@@ -720,7 +721,7 @@ class WorkstationManager:
 
 
 # Global workstation manager instance
-_workstation_manager_instance: Optional[WorkstationManager] = None
+_workstation_manager_instance: WorkstationManager | None = None
 _workstation_manager_lock = threading.Lock()
 
 

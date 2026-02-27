@@ -4,8 +4,9 @@ Enhanced NRPN Mapper for Yamaha S.Art2 with Genos2 compatibility.
 Provides category-based NRPN mapping, reverse lookup, and parameter control
 for advanced articulation management.
 """
+from __future__ import annotations
 
-from typing import Dict, Tuple, Optional, List, Any
+from typing import Any
 
 
 def midi_note_to_frequency(note: int) -> float:
@@ -55,16 +56,16 @@ class YamahaNRPNMapper:
     
     def __init__(self):
         # Category-based NRPN mappings (275+ articulations)
-        self.nrpn_to_articulation: Dict[Tuple[int, int, str], str] = {}
+        self.nrpn_to_articulation: dict[tuple[int, int, str], str] = {}
         
         # Reverse mapping: articulation → (msb, lsb, category)
-        self.articulation_to_nrpn: Dict[str, Tuple[int, int, str]] = {}
+        self.articulation_to_nrpn: dict[str, tuple[int, int, str]] = {}
         
         # Simplified lookup for backward compatibility
-        self._simplified_map: Dict[Tuple[int, int], str] = {}
+        self._simplified_map: dict[tuple[int, int], str] = {}
         
         # Category mappings for quick access
-        self.category_maps: Dict[str, Dict[Tuple[int, int], str]] = {
+        self.category_maps: dict[str, dict[tuple[int, int], str]] = {
             'common': {},
             'dynamics': {},
             'wind_sax': {},
@@ -107,7 +108,7 @@ class YamahaNRPNMapper:
                 self._simplified_map[(msb, lsb)] = articulation
     
     def get_articulation(self, msb: int, lsb: int, 
-                        category: Optional[str] = None) -> str:
+                        category: str | None = None) -> str:
         """
         Get articulation from NRPN MSB/LSB values.
         
@@ -147,7 +148,7 @@ class YamahaNRPNMapper:
         return self._simplified_map.get((msb, lsb), 'normal')
     
     def get_nrpn_for_articulation(self, articulation: str, 
-                                  category: Optional[str] = None) -> Tuple[int, int]:
+                                  category: str | None = None) -> tuple[int, int]:
         """
         Get NRPN MSB/LSB for articulation (reverse lookup).
         
@@ -192,7 +193,7 @@ class YamahaNRPNMapper:
         """
         return self.MSB_CATEGORIES.get(msb, 'common')
     
-    def get_msb_for_category(self, category: str) -> Optional[int]:
+    def get_msb_for_category(self, category: str) -> int | None:
         """
         Get MSB value for category name.
         
@@ -207,7 +208,7 @@ class YamahaNRPNMapper:
                 return msb
         return None
     
-    def get_articulations_by_category(self, category: str) -> List[str]:
+    def get_articulations_by_category(self, category: str) -> list[str]:
         """
         Get all articulations in a category.
         
@@ -222,7 +223,7 @@ class YamahaNRPNMapper:
         
         return list(self.category_maps[category].values())
     
-    def get_all_categories(self) -> List[str]:
+    def get_all_categories(self) -> list[str]:
         """Get list of all available categories."""
         return list(self.MSB_CATEGORIES.values())
     
@@ -236,7 +237,7 @@ class YamahaNRPNMapper:
             return 0
         return len(self.category_maps[category])
     
-    def search_articulations(self, pattern: str) -> List[Tuple[str, int, int]]:
+    def search_articulations(self, pattern: str) -> list[tuple[str, int, int]]:
         """
         Search for articulations matching a pattern.
         
@@ -353,7 +354,7 @@ class NRPNParameterController:
         self.pending_value_lsb = None
     
     def process_parameter_nrpn(self, param_msb: int, param_lsb: int,
-                              value: int) -> Optional[Dict[str, Any]]:
+                              value: int) -> dict[str, Any] | None:
         """
         Process NRPN parameter change.
         
@@ -388,7 +389,7 @@ class NRPNParameterController:
         }
     
     def get_nrpn_for_parameter(self, articulation: str, 
-                              param_name: str) -> Optional[Tuple[int, int]]:
+                              param_name: str) -> tuple[int, int] | None:
         """
         Get NRPN MSB/LSB for a parameter (reverse lookup).
         
@@ -423,7 +424,7 @@ class NRPNParameterController:
         """
         return (value_msb << 7) | value_lsb
     
-    def split_parameter_value(self, value: int) -> Tuple[int, int]:
+    def split_parameter_value(self, value: int) -> tuple[int, int]:
         """
         Split 14-bit value into MSB/LSB.
         
@@ -436,7 +437,7 @@ class NRPNParameterController:
         value = max(0, min(16383, value))
         return (value >> 7, value & 0x7F)
     
-    def get_parameter_range(self, param_msb: int, param_lsb: int) -> Optional[Dict[str, float]]:
+    def get_parameter_range(self, param_msb: int, param_lsb: int) -> dict[str, float] | None:
         """
         Get valid range for a parameter.
         
@@ -463,7 +464,7 @@ class NRPNParameterController:
             'offset': offset
         }
     
-    def get_all_parameters(self) -> List[Dict[str, Any]]:
+    def get_all_parameters(self) -> list[dict[str, Any]]:
         """
         Get all available parameters.
         

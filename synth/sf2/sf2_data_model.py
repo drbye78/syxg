@@ -4,8 +4,9 @@ SF2 Data Model Classes
 Core data classes for SF2 SoundFont representation with 100% SF2 compliance.
 Includes proper zone processing, generator inheritance, and modulation support.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Optional, Any, Set
+from typing import Any
 import numpy as np
 
 
@@ -27,13 +28,13 @@ class SF2Zone:
         self.level_type = level_type  # 'preset' or 'instrument'
 
         # Core zone data
-        self.generators: Dict[int, int] = {}  # gen_type -> gen_amount
-        self.modulators: List[Dict[str, Any]] = []  # List of modulator dicts
+        self.generators: dict[int, int] = {}  # gen_type -> gen_amount
+        self.modulators: list[dict[str, Any]] = []  # List of modulator dicts
         self.sample_id: int = -1
 
         # Key/Velocity ranges (extracted from generators 42/43)
-        self.key_range: Tuple[int, int] = (0, 127)
-        self.velocity_range: Tuple[int, int] = (0, 127)
+        self.key_range: tuple[int, int] = (0, 127)
+        self.velocity_range: tuple[int, int] = (0, 127)
 
         # Zone type classification
         self.is_global: bool = (
@@ -44,7 +45,7 @@ class SF2Zone:
         self.instrument_index: int = -1
 
         # Cached matching results for performance
-        self._last_match: Optional[Tuple[int, int]] = None
+        self._last_match: tuple[int, int] | None = None
         self._match_result: bool = False
 
     def add_generator(self, gen_type: int, gen_amount: int) -> None:
@@ -67,7 +68,7 @@ class SF2Zone:
         elif gen_type == 50:  # sampleID (instrument level)
             self.sample_id = gen_amount
 
-    def add_modulator(self, modulator_data: Dict[str, Any]) -> None:
+    def add_modulator(self, modulator_data: dict[str, Any]) -> None:
         """
         Add a modulator to this zone.
 
@@ -150,7 +151,7 @@ class SF2Zone:
         """
         return self.generators.get(gen_type, default)
 
-    def get_modulators_for_destination(self, dest_type: int) -> List[Dict[str, Any]]:
+    def get_modulators_for_destination(self, dest_type: int) -> list[dict[str, Any]]:
         """
         Get all modulators targeting a specific destination.
 
@@ -162,7 +163,7 @@ class SF2Zone:
         """
         return [mod for mod in self.modulators if mod.get("dest_operator") == dest_type]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert zone to dictionary representation."""
         return {
             "level_type": self.level_type,
@@ -195,11 +196,11 @@ class SF2Instrument:
         self.name = name
 
         # Zones
-        self.zones: List[SF2Zone] = []
-        self.global_zone: Optional[SF2Zone] = None
+        self.zones: list[SF2Zone] = []
+        self.global_zone: SF2Zone | None = None
 
         # Zone lookup caches
-        self._zone_cache: Dict[Tuple[int, int], List[SF2Zone]] = {}
+        self._zone_cache: dict[tuple[int, int], list[SF2Zone]] = {}
 
     def add_zone(self, zone: SF2Zone) -> None:
         """
@@ -216,7 +217,7 @@ class SF2Instrument:
         # Clear cache when zones change
         self._zone_cache.clear()
 
-    def get_matching_zones(self, note: int, velocity: int) -> List[SF2Zone]:
+    def get_matching_zones(self, note: int, velocity: int) -> list[SF2Zone]:
         """
         Get all zones that match the given note/velocity.
 
@@ -251,7 +252,7 @@ class SF2Instrument:
         """Check if instrument has any sample assignments."""
         return any(zone.sample_id >= 0 for zone in self.zones)
 
-    def get_sample_ids(self) -> Set[int]:
+    def get_sample_ids(self) -> set[int]:
         """Get all sample IDs used by this instrument."""
         sample_ids = set()
         for zone in self.zones:
@@ -259,7 +260,7 @@ class SF2Instrument:
                 sample_ids.add(zone.sample_id)
         return sample_ids
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert instrument to dictionary representation."""
         return {
             "index": self.index,
@@ -292,11 +293,11 @@ class SF2Preset:
         self.name = name
 
         # Zones
-        self.zones: List[SF2Zone] = []
-        self.global_zone: Optional[SF2Zone] = None
+        self.zones: list[SF2Zone] = []
+        self.global_zone: SF2Zone | None = None
 
         # Zone lookup caches
-        self._zone_cache: Dict[Tuple[int, int], List[SF2Zone]] = {}
+        self._zone_cache: dict[tuple[int, int], list[SF2Zone]] = {}
 
     def add_zone(self, zone: SF2Zone) -> None:
         """
@@ -313,7 +314,7 @@ class SF2Preset:
         # Clear cache when zones change
         self._zone_cache.clear()
 
-    def get_matching_zones(self, note: int, velocity: int) -> List[SF2Zone]:
+    def get_matching_zones(self, note: int, velocity: int) -> list[SF2Zone]:
         """
         Get all zones that match the given note/velocity.
 
@@ -344,7 +345,7 @@ class SF2Preset:
         self._zone_cache[cache_key] = matching_zones
         return matching_zones
 
-    def get_instruments(self) -> Set[int]:
+    def get_instruments(self) -> set[int]:
         """Get all instrument indices referenced by this preset."""
         instrument_indices = set()
         for zone in self.zones:
@@ -356,7 +357,7 @@ class SF2Preset:
         """Check if preset has any instrument assignments."""
         return any(zone.instrument_index >= 0 for zone in self.zones)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert preset to dictionary representation."""
         return {
             "bank": self.bank,
@@ -376,7 +377,7 @@ class SF2Sample:
     Supports both 16-bit and 24-bit samples, mono and stereo.
     """
 
-    def __init__(self, header_data: Dict[str, Any]):
+    def __init__(self, header_data: dict[str, Any]):
         """
         Initialize SF2 sample from header data.
 
@@ -403,7 +404,7 @@ class SF2Sample:
         self.loop_mode = self._get_loop_mode()
 
         # Sample data (loaded on demand)
-        self.data: Optional[np.ndarray] = None
+        self.data: np.ndarray | None = None
         self.data_loaded = False
 
     def _is_stereo_sample(self) -> bool:
@@ -509,7 +510,7 @@ class SF2Sample:
 
             return np.array(samples, dtype=np.float32)
 
-    def get_loop_samples(self) -> Optional[np.ndarray]:
+    def get_loop_samples(self) -> np.ndarray | None:
         """Get loop section of sample data."""
         if not self.data_loaded or self.data is None or self.loop_length <= 0:
             return None
@@ -525,7 +526,7 @@ class SF2Sample:
         base_freq = 440.0 * (2.0 ** ((self.original_pitch - 69) / 12.0))
         return base_freq * (2.0 ** (self.pitch_correction / 1200.0))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert sample to dictionary representation."""
         return {
             "name": self.name,
@@ -569,8 +570,8 @@ class RangeTreeNode:
         self.vel_max = zone.velocity_range[1]
 
         # Tree structure
-        self.left: Optional["RangeTreeNode"] = None
-        self.right: Optional["RangeTreeNode"] = None
+        self.left: RangeTreeNode | None = None
+        self.right: RangeTreeNode | None = None
         self.height = 1
 
     def overlaps(self, note: int, velocity: int) -> bool:
@@ -600,7 +601,7 @@ class RangeTree:
 
     def __init__(self):
         """Initialize range tree."""
-        self.root: Optional[RangeTreeNode] = None
+        self.root: RangeTreeNode | None = None
         self.zone_count = 0
 
     def add_zone(self, zone: SF2Zone) -> None:
@@ -613,7 +614,7 @@ class RangeTree:
         self.root = self._insert(self.root, zone)
         self.zone_count += 1
 
-    def add_zones(self, zones: List[SF2Zone]) -> None:
+    def add_zones(self, zones: list[SF2Zone]) -> None:
         """
         Add multiple zones efficiently with bulk insertion.
 
@@ -624,7 +625,7 @@ class RangeTree:
             self.root = self._insert(self.root, zone)
         self.zone_count += len(zones)
 
-    def find_matching_zones(self, note: int, velocity: int) -> List[SF2Zone]:
+    def find_matching_zones(self, note: int, velocity: int) -> list[SF2Zone]:
         """
         Find all zones that match the given note and velocity using range tree.
 
@@ -644,7 +645,7 @@ class RangeTree:
         self.root = None
         self.zone_count = 0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """
         Get tree statistics and balance information.
 
@@ -661,7 +662,7 @@ class RangeTree:
             "balance_factor": self._get_balance_factor(self.root),
         }
 
-    def _insert(self, node: Optional[RangeTreeNode], zone: SF2Zone) -> RangeTreeNode:
+    def _insert(self, node: RangeTreeNode | None, zone: SF2Zone) -> RangeTreeNode:
         """
         Insert zone into AVL tree with balancing.
 
@@ -710,10 +711,10 @@ class RangeTree:
 
     def _query_recursive(
         self,
-        node: Optional[RangeTreeNode],
+        node: RangeTreeNode | None,
         note: int,
         velocity: int,
-        results: List[SF2Zone],
+        results: list[SF2Zone],
     ) -> None:
         """
         Recursively query the range tree for matching zones.
@@ -743,11 +744,11 @@ class RangeTree:
             self._query_recursive(node.left, note, velocity, results)
             self._query_recursive(node.right, note, velocity, results)
 
-    def _get_height(self, node: Optional[RangeTreeNode]) -> int:
+    def _get_height(self, node: RangeTreeNode | None) -> int:
         """Get node height."""
         return node.height if node else 0
 
-    def _get_balance_factor(self, node: Optional[RangeTreeNode]) -> int:
+    def _get_balance_factor(self, node: RangeTreeNode | None) -> int:
         """Get balance factor for AVL tree."""
         if node is None:
             return 0
@@ -783,7 +784,7 @@ class RangeTree:
         """Check if tree is balanced."""
         return abs(self._get_balance_factor(self.root)) <= 1
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert range tree to dictionary."""
         return {
             "zone_count": self.zone_count,
@@ -791,7 +792,7 @@ class RangeTree:
             "zones": self._node_to_dict(self.root),
         }
 
-    def _node_to_dict(self, node: Optional[RangeTreeNode]) -> Optional[Dict[str, Any]]:
+    def _node_to_dict(self, node: RangeTreeNode | None) -> dict[str, Any] | None:
         """Convert tree node to dictionary."""
         if node is None:
             return None

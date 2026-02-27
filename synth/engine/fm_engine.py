@@ -5,8 +5,9 @@ Implements FM synthesis with 2-6 operators supporting various algorithms
 including basic FM, stacked FM, and feedback FM. Provides DX7-style
 parameter sets and real-time modulation capabilities.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional, List
+from typing import Any
 import numpy as np
 import math
 
@@ -160,7 +161,7 @@ class FMOperator:
         self.lfo_speed = 1.0
         self.lfo_phase = 0.0
 
-    def set_parameters(self, params: Dict[str, Any]):
+    def set_parameters(self, params: dict[str, Any]):
         """Set FM-X operator parameters."""
         self.frequency_ratio = params.get("frequency_ratio", 1.0)
         self.detune_cents = params.get("detune_cents", 0.0)
@@ -374,7 +375,7 @@ class FMOperator:
 
         return output
 
-    def _apply_formant_filter(self, input_sample: float, formant_data: List) -> float:
+    def _apply_formant_filter(self, input_sample: float, formant_data: list) -> float:
         """
         Apply formant filtering for vocal synthesis.
 
@@ -567,7 +568,7 @@ class FMEngine(SynthesisEngine):
 
         # Plugin system
         self._plugin_registry = get_global_plugin_registry()
-        self._loaded_plugins: Dict[str, SynthesisFeaturePlugin] = {}
+        self._loaded_plugins: dict[str, SynthesisFeaturePlugin] = {}
         self._plugin_integration_points = {
             "pre_synthesis": [],  # Called before synthesis
             "post_synthesis": [],  # Called after synthesis
@@ -578,7 +579,7 @@ class FMEngine(SynthesisEngine):
         # Auto-load Jupiter-X FM plugin if available
         self._auto_load_jupiter_x_plugin()
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get FM engine information."""
         return {
             "name": "FM Synthesis Engine",
@@ -600,7 +601,7 @@ class FMEngine(SynthesisEngine):
             "max_operators": self.num_operators,
         }
 
-    def _get_fm_program(self, bank: int, program: int) -> Optional[Dict[str, Any]]:
+    def _get_fm_program(self, bank: int, program: int) -> dict[str, Any] | None:
         """
         Get FM program parameters for bank/program combination.
 
@@ -1005,7 +1006,7 @@ class FMEngine(SynthesisEngine):
 
     # ========== NEW REGION-BASED METHODS ==========
 
-    def get_preset_info(self, bank: int, program: int) -> Optional["PresetInfo"]:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get FM preset info with region descriptors.
 
@@ -1050,7 +1051,7 @@ class FMEngine(SynthesisEngine):
 
     def get_all_region_descriptors(
         self, bank: int, program: int
-    ) -> List["RegionDescriptor"]:
+    ) -> list[RegionDescriptor]:
         """
         Get all region descriptors for an FM preset.
 
@@ -1067,8 +1068,8 @@ class FMEngine(SynthesisEngine):
         return []
 
     def create_region(
-        self, descriptor: "RegionDescriptor", sample_rate: int
-    ) -> "IRegion":
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
         """
         Create FM region instance from descriptor.
 
@@ -1085,8 +1086,8 @@ class FMEngine(SynthesisEngine):
         return self._create_base_region(descriptor, sample_rate)
 
     def _create_base_region(
-        self, descriptor: "RegionDescriptor", sample_rate: int
-    ) -> "IRegion":
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
         """
         Create FM base region without S.Art2 wrapper.
 
@@ -1101,7 +1102,7 @@ class FMEngine(SynthesisEngine):
 
         return FMRegion(descriptor, sample_rate)
 
-    def load_sample_for_region(self, region: "IRegion") -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for FM region (no-op for algorithmic synthesis).
 
@@ -1117,7 +1118,7 @@ class FMEngine(SynthesisEngine):
 
     def get_voice_parameters(
         self, program: int, bank: int = 0, note: int = 60, velocity: int = 100
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get FM voice parameters.
 
@@ -1156,7 +1157,7 @@ class FMEngine(SynthesisEngine):
         return scaled_params
 
     def generate_samples(
-        self, note: int, velocity: int, modulation: Dict[str, float], block_size: int
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
     ) -> np.ndarray:
         """
         Generate FM-X synthesis audio samples with full feature set.
@@ -1291,8 +1292,8 @@ class FMEngine(SynthesisEngine):
         return 0 <= note <= 127
 
     def create_partial(
-        self, partial_params: Dict[str, Any], sample_rate: int
-    ) -> "FMPartial":
+        self, partial_params: dict[str, Any], sample_rate: int
+    ) -> FMPartial:
         """Create FM partial (not used in direct engine mode)."""
         from ..partial.fm_partial import FMPartial
 
@@ -1325,7 +1326,7 @@ class FMEngine(SynthesisEngine):
                     f"but engine only has {self.num_operators}"
                 )
 
-    def set_operator_parameters(self, op_index: int, params: Dict[str, Any]):
+    def set_operator_parameters(self, op_index: int, params: dict[str, Any]):
         """
         Set parameters for a specific operator.
 
@@ -1336,7 +1337,7 @@ class FMEngine(SynthesisEngine):
         if 0 <= op_index < self.num_operators:
             self.operators[op_index].set_parameters(params)
 
-    def get_operator_parameters(self, op_index: int) -> Dict[str, Any]:
+    def get_operator_parameters(self, op_index: int) -> dict[str, Any]:
         """
         Get FM-X parameters for a specific operator.
 
@@ -1399,11 +1400,11 @@ class FMEngine(SynthesisEngine):
         for op in self.operators:
             op.reset()
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """Get supported file formats."""
         return [".fmp", ".dx7"]
 
-    def load_patch(self, patch_data: Dict[str, Any]):
+    def load_patch(self, patch_data: dict[str, Any]):
         """
         Load FM patch data.
 
@@ -1423,7 +1424,7 @@ class FMEngine(SynthesisEngine):
         # Set global parameters
         self.master_volume = patch_data.get("master_volume", 1.0)
 
-    def save_patch(self) -> Dict[str, Any]:
+    def save_patch(self) -> dict[str, Any]:
         """
         Save current patch data.
 
@@ -1443,7 +1444,7 @@ class FMEngine(SynthesisEngine):
 
         return patch
 
-    def get_algorithm_info(self) -> Dict[str, Any]:
+    def get_algorithm_info(self) -> dict[str, Any]:
         """Get current algorithm information."""
         return {
             "current_algorithm": self.algorithm,
@@ -1485,7 +1486,7 @@ class FMEngine(SynthesisEngine):
         """
         return self.nrpn_controller.process_nrpn_message(controller, value)
 
-    def process_sysex_message(self, data: bytes) -> Optional[List[int]]:
+    def process_sysex_message(self, data: bytes) -> list[int] | None:
         """
         Process SYSEX message for FM-X control.
 
@@ -1587,7 +1588,7 @@ class FMEngine(SynthesisEngine):
         if 0 <= lfo_idx < len(self.lfos):
             self.lfos[lfo_idx].set_parameters(frequency, waveform, depth)
 
-    def get_lfo_parameters(self, lfo_idx: int) -> Dict[str, Any]:
+    def get_lfo_parameters(self, lfo_idx: int) -> dict[str, Any]:
         """
         Get parameters for a specific LFO.
 
@@ -1665,9 +1666,9 @@ class FMEngine(SynthesisEngine):
     def add_custom_algorithm(
         self,
         name: str,
-        operators: List[int],
-        modulation: Dict[int, List[int]],
-        output: List[int],
+        operators: list[int],
+        modulation: dict[int, list[int]],
+        output: list[int],
     ):
         """
         Add a custom FM algorithm.
@@ -1685,13 +1686,13 @@ class FMEngine(SynthesisEngine):
                 "output": output,
             }
 
-    def get_available_algorithms(self) -> List[str]:
+    def get_available_algorithms(self) -> list[str]:
         """Get list of all available algorithms."""
         return list(self.ALGORITHMS.keys())
 
     # Formant Synthesis Methods
 
-    def configure_formant_operator(self, op_idx: int, formant_data: List[float]):
+    def configure_formant_operator(self, op_idx: int, formant_data: list[float]):
         """
         Configure formant synthesis for an operator.
 
@@ -1716,7 +1717,7 @@ class FMEngine(SynthesisEngine):
 
     # Utility Methods
 
-    def create_vowel_formants(self, vowel: str) -> List[float]:
+    def create_vowel_formants(self, vowel: str) -> list[float]:
         """
         Create formant filter data for vowel synthesis.
 
@@ -1737,7 +1738,7 @@ class FMEngine(SynthesisEngine):
 
         return vowel_data.get(vowel.lower(), [500, 40, 1.5])
 
-    def get_fm_x_status(self) -> Dict[str, Any]:
+    def get_fm_x_status(self) -> dict[str, Any]:
         """Get comprehensive FM-X engine status."""
         return {
             "num_operators": self.num_operators,
@@ -1865,7 +1866,7 @@ class FMEngine(SynthesisEngine):
             print(f"❌ FM Engine: Failed to unload plugin '{plugin_name}': {e}")
             return False
 
-    def get_loaded_plugins(self) -> Dict[str, SynthesisFeaturePlugin]:
+    def get_loaded_plugins(self) -> dict[str, SynthesisFeaturePlugin]:
         """Get all plugins loaded for this engine."""
         return self._loaded_plugins.copy()
 
@@ -1963,7 +1964,7 @@ class FMEngine(SynthesisEngine):
             return params.get(param_name)
         return None
 
-    def get_plugin_info(self, plugin_name: str) -> Optional[Dict[str, Any]]:
+    def get_plugin_info(self, plugin_name: str) -> dict[str, Any] | None:
         """
         Get information about a loaded plugin.
 

@@ -5,8 +5,9 @@ Plugin that adds Jupiter-X specific sample playback features to the base sample 
 Eliminates duplication by extending the existing sample engine rather than creating
 a parallel implementation.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import numpy as np
 
 from ..base_plugin import (
@@ -92,8 +93,8 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
         self.scrub_loop_end = 1.0
 
         # Multi-sample state
-        self.sample_layers: List[Dict[str, Any]] = []
-        self.crossfade_points: List[float] = []
+        self.sample_layers: list[dict[str, Any]] = []
+        self.crossfade_points: list[float] = []
 
         # ===== PHASE 2.6: ADVANCED MULTI-SAMPLING FEATURES =====
         # Time-stretching state
@@ -101,9 +102,9 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
         self.pitch_shift = 0.0
 
         # Multi-sample mapping system
-        self.keygroups: List[Dict[str, Any]] = []  # Keygroup definitions
-        self.velocity_layers: List[Dict[str, Any]] = []  # Velocity layers
-        self.round_robin_groups: List[List[int]] = []  # Round-robin sample indices
+        self.keygroups: list[dict[str, Any]] = []  # Keygroup definitions
+        self.velocity_layers: list[dict[str, Any]] = []  # Velocity layers
+        self.round_robin_groups: list[list[int]] = []  # Round-robin sample indices
         self.current_round_robin_index = 0
 
         # Advanced granular synthesis
@@ -214,7 +215,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
             if hasattr(self.sample_engine, 'set_crossfade_points'):
                 self.sample_engine.set_crossfade_points(self.crossfade_points)
 
-    def get_synthesis_features(self) -> Dict[str, Any]:
+    def get_synthesis_features(self) -> dict[str, Any]:
         """Get Jupiter-X external synthesis features."""
         return {
             'playback_modes': {
@@ -278,7 +279,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def get_parameters(self) -> Dict[str, Any]:
+    def get_parameters(self) -> dict[str, Any]:
         """Get current parameter values."""
         return {
             "playback_mode": self.playback_mode,
@@ -467,7 +468,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
         self._update_scrub_parameters()
         return True
 
-    def get_sample_info(self) -> Dict[str, Any]:
+    def get_sample_info(self) -> dict[str, Any]:
         """Get information about loaded samples."""
         return {
             'sample_layers': len(self.sample_layers),
@@ -479,8 +480,8 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
             'jupiter_x_features': True
         }
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
-                        block_size: int) -> Optional[np.ndarray]:
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
+                        block_size: int) -> np.ndarray | None:
         """
         Generate additional sample-based audio with Jupiter-X features.
 
@@ -549,7 +550,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
         print(f"🎛️ Created velocity layer: vel {low_velocity}-{high_velocity}, sample {sample_index}")
         return True
 
-    def create_round_robin_group(self, sample_indices: List[int]) -> int:
+    def create_round_robin_group(self, sample_indices: list[int]) -> int:
         """Create a round-robin group for alternating between samples."""
         if not sample_indices:
             return -1
@@ -657,7 +658,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Keygroup crossfade {'enabled' if enabled else 'disabled'} (range: {self.keygroup_crossfade_range_semitones:.1f} semitones)")
 
-    def configure_velocity_switching(self, enabled: bool = True, switch_points: Optional[List[int]] = None):
+    def configure_velocity_switching(self, enabled: bool = True, switch_points: list[int] | None = None):
         """Configure velocity switching points."""
         self.velocity_switching_enabled = enabled
 
@@ -745,7 +746,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
 
         return cloud_output
 
-    def get_multi_sample_mapping(self) -> Dict[str, Any]:
+    def get_multi_sample_mapping(self) -> dict[str, Any]:
         """Get current multi-sample mapping configuration."""
         return {
             'keygroups': self.keygroups,
@@ -762,7 +763,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
             }
         }
 
-    def get_advanced_granular_features(self) -> Dict[str, Any]:
+    def get_advanced_granular_features(self) -> dict[str, Any]:
         """Get advanced granular synthesis features."""
         return {
             'grain_cloud': {
@@ -791,7 +792,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
             }
         }
 
-    def get_external_engine_status(self) -> Dict[str, Any]:
+    def get_external_engine_status(self) -> dict[str, Any]:
         """Get Jupiter-X external engine status."""
         return {
             'playback_mode': self.playback_mode,

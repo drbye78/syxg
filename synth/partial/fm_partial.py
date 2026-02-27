@@ -4,8 +4,9 @@ FM Partial Implementation
 Provides FM synthesis partial for the voice-based architecture.
 Wraps FMEngine functionality for integration with the Voice system.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional
+from typing import Any
 import numpy as np
 
 from .partial import SynthesisPartial
@@ -19,7 +20,7 @@ class FMPartial(SynthesisPartial):
     within the voice-based architecture.
     """
 
-    def __init__(self, params: Dict[str, Any], sample_rate: int):
+    def __init__(self, params: dict[str, Any], sample_rate: int):
         """
         Initialize FM partial.
 
@@ -49,7 +50,7 @@ class FMPartial(SynthesisPartial):
             if isinstance(op_idx, int) and 0 <= op_idx < self.num_operators:
                 self.fm_engine.set_operator_parameters(op_idx, op_params)
 
-    def generate_samples(self, block_size: int, modulation: Dict[str, float]) -> np.ndarray:
+    def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
         """
         Generate FM synthesis samples.
 
@@ -96,7 +97,7 @@ class FMPartial(SynthesisPartial):
         """
         return self.active and self.fm_engine.is_active()
 
-    def apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def apply_modulation(self, modulation: dict[str, float]) -> None:
         """
         Apply modulation changes to partial parameters.
 
@@ -113,7 +114,7 @@ class FMPartial(SynthesisPartial):
         if hasattr(self, 'fm_engine'):
             self.fm_engine.reset()
 
-    def get_partial_info(self) -> Dict[str, Any]:
+    def get_partial_info(self) -> dict[str, Any]:
         """Get FM partial information."""
         info = super().get_partial_info()
         info.update({

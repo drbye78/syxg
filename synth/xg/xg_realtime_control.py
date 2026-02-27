@@ -12,8 +12,10 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 
@@ -73,7 +75,7 @@ class XGRealtimeControl:
         self.bulk_dump_callback = dump_callback
         self.bulk_dump_request_callback = request_callback
 
-    def process_sysex_message(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def process_sysex_message(self, data: bytes) -> dict[str, Any] | None:
         """
         Process incoming SYSEX message for realtime control.
 
@@ -120,7 +122,7 @@ class XGRealtimeControl:
 
         return None
 
-    def _handle_parameter_change(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_parameter_change(self, data: bytes) -> dict[str, Any] | None:
         """Handle parameter change SYSEX: F0 43 [dev] 4C 08 [part] [param_msb] [param_lsb] [data_msb] [data_lsb] F7"""
         if len(data) < 5:
             return None
@@ -147,7 +149,7 @@ class XGRealtimeControl:
             'timestamp': time.time()
         }
 
-    def _handle_display_message(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_display_message(self, data: bytes) -> dict[str, Any] | None:
         """Handle display message SYSEX: F0 43 [dev] 4C 10 [message_data] F7"""
         try:
             # Convert to ASCII string (XG display messages are ASCII)
@@ -165,7 +167,7 @@ class XGRealtimeControl:
         except:
             return None
 
-    def _handle_led_control(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_led_control(self, data: bytes) -> dict[str, Any] | None:
         """Handle LED control SYSEX: F0 43 [dev] 4C 11 [led_number] [led_state] F7"""
         if len(data) < 2:
             return None
@@ -191,7 +193,7 @@ class XGRealtimeControl:
 
         return None
 
-    def _handle_bulk_dump(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_bulk_dump(self, data: bytes) -> dict[str, Any] | None:
         """Handle XG bulk dump: F0 43 [dev] 4C 07 [data] F7"""
         if self.bulk_dump_callback:
             self.bulk_dump_callback(data)
@@ -202,7 +204,7 @@ class XGRealtimeControl:
             'timestamp': time.time()
         }
 
-    def _handle_xg_dump(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_xg_dump(self, data: bytes) -> dict[str, Any] | None:
         """Handle XG dump: F0 43 [dev] 4C 09 [data] F7"""
         # Similar to bulk dump but XG-specific format
         if self.bulk_dump_callback:
@@ -214,7 +216,7 @@ class XGRealtimeControl:
             'timestamp': time.time()
         }
 
-    def _handle_bulk_dump_data(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_bulk_dump_data(self, data: bytes) -> dict[str, Any] | None:
         """Handle bulk dump data: F0 43 [dev] 4C 0A [data] F7"""
         if self.bulk_dump_callback:
             self.bulk_dump_callback(data)
@@ -225,7 +227,7 @@ class XGRealtimeControl:
             'timestamp': time.time()
         }
 
-    def _handle_bulk_dump_request(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_bulk_dump_request(self, data: bytes) -> dict[str, Any] | None:
         """Handle bulk dump request: F0 43 [dev] 4C 0C [request_data] F7"""
         if self.bulk_dump_request_callback:
             response_data = self.bulk_dump_request_callback()
@@ -368,7 +370,7 @@ class XGRealtimeControl:
 
         return bytes(message)
 
-    def _calculate_checksum(self, data: List[int]) -> int:
+    def _calculate_checksum(self, data: list[int]) -> int:
         """Calculate XG SYSEX checksum."""
         checksum = 0
         for byte in data:
@@ -407,14 +409,14 @@ class XGRealtimeControl:
                 return self.led_states[led_number]
         return 0
 
-    def get_all_led_states(self) -> List[int]:
+    def get_all_led_states(self) -> list[int]:
         """Get all LED states."""
         with self.lock:
             return self.led_states.copy()
 
     # Status and monitoring
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get realtime control status."""
         with self.lock:
             return {

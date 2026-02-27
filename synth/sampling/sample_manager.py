@@ -6,9 +6,11 @@ velocity switching, and professional workstation features.
 
 Part of S90/S70 compatibility - Enhanced Sampling System (Phase 3).
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import os
 import hashlib
@@ -37,7 +39,7 @@ class SampleQuality(Enum):
     LOSSLESS = "lossless"
 
 
-@dataclass
+@dataclass(slots=True)
 class SampleMetadata:
     """Sample metadata container"""
 
@@ -48,19 +50,19 @@ class SampleMetadata:
     channels: int
     length_samples: int
     duration_seconds: float
-    file_path: Optional[str] = None
+    file_path: str | None = None
     file_size_bytes: int = 0
-    checksum: Optional[str] = None
+    checksum: str | None = None
     quality: SampleQuality = SampleQuality.STANDARD
-    loop_start: Optional[int] = None
-    loop_end: Optional[int] = None
+    loop_start: int | None = None
+    loop_end: int | None = None
     root_note: int = 60  # MIDI note number
     fine_tune: int = 0  # cents
     volume: float = 1.0
     pan: float = 0.0  # -1.0 to 1.0
 
 
-@dataclass
+@dataclass(slots=True)
 class Keygroup:
     """Sample keygroup for keyboard mapping"""
 
@@ -73,17 +75,17 @@ class Keygroup:
     pan: float = 0.0
     tune_coarse: int = 0
     tune_fine: int = 0
-    filter_cutoff: Optional[float] = None
-    filter_resonance: Optional[float] = None
+    filter_cutoff: float | None = None
+    filter_resonance: float | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class Multisample:
     """Multi-sample instrument definition"""
 
     id: str
     name: str
-    keygroups: List[Keygroup]
+    keygroups: list[Keygroup]
     global_volume: float = 1.0
     global_pan: float = 0.0
     global_attack: float = 0.0
@@ -91,7 +93,7 @@ class Multisample:
     global_sustain: float = 1.0
     global_release: float = 0.1
     category: str = "user"
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class SampleCache:
@@ -99,9 +101,9 @@ class SampleCache:
 
     def __init__(self, max_memory_mb: int = 512):
         self.max_memory_mb = max_memory_mb
-        self.cache: Dict[str, np.ndarray] = {}
-        self.metadata: Dict[str, SampleMetadata] = {}
-        self.access_times: Dict[str, float] = {}
+        self.cache: dict[str, np.ndarray] = {}
+        self.metadata: dict[str, SampleMetadata] = {}
+        self.access_times: dict[str, float] = {}
         self.lock = threading.RLock()
 
         # Memory management
@@ -110,7 +112,7 @@ class SampleCache:
 
     def load_sample(
         self, sample_id: str, file_path: str, force_load: bool = False
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray | None:
         """Load sample into cache with intelligent management"""
         with self.lock:
             # Check if already cached
@@ -135,7 +137,7 @@ class SampleCache:
 
             return sample_data
 
-    def _load_sample_from_file(self, file_path: str) -> Optional[np.ndarray]:
+    def _load_sample_from_file(self, file_path: str) -> np.ndarray | None:
         """Load sample from file"""
         try:
             import soundfile as sf
@@ -170,9 +172,14 @@ class SampleCache:
                     audio_data = np.interp(x_new, x_old, audio_data)
 
                 return audio_data
-            except Exception:
+            except Exception as e:
+                # Python 3.11+: Add context to exception
+                e.add_note(f"Failed to load sample with scipy: {file_path}")
                 return None
-        except Exception:
+        except Exception as e:
+            # Python 3.11+: Add context to exception
+            e.add_note(f"Failed to load sample with soundfile: {file_path}")
+            e.add_note(f"Sample rate: {self.sample_rate}")
             return None
 
     def _evict_samples(self, required_mb: float):
@@ -200,11 +207,11 @@ class SampleCache:
                 del self.access_times[sample_id]
                 self.current_memory_usage -= sample_size
 
-    def get_sample_info(self, sample_id: str) -> Optional[SampleMetadata]:
+    def get_sample_info(self, sample_id: str) -> SampleMetadata | None:
         """Get sample metadata"""
         return self.metadata.get(sample_id)
 
-    def preload_samples(self, sample_ids: List[str]):
+    def preload_samples(self, sample_ids: list[str]):
         """Preload multiple samples into cache"""
         for sample_id in sample_ids:
             if sample_id in self.metadata:
@@ -241,19 +248,19 @@ class SampleManager:
 
         # Core components
         self.cache = SampleCache(max_memory_mb)
-        self.samples: Dict[str, SampleMetadata] = {}
-        self.multisamples: Dict[str, Multisample] = {}
+        self.samples: dict[str, SampleMetadata] = {}
+        self.multisamples: dict[str, Multisample] = {}
 
         # Sample library organization
-        self.categories: Dict[str, List[str]] = {}
-        self.favorites: List[str] = []
+        self.categories: dict[str, list[str]] = {}
+        self.favorites: list[str] = []
 
         # Playback state
-        self.active_samples: Dict[str, List[Dict[str, Any]]] = {}
+        self.active_samples: dict[str, list[dict[str, Any]]] = {}
 
         # Callbacks
-        self.sample_loaded_callback: Optional[Callable[[str], None]] = None
-        self.sample_unloaded_callback: Optional[Callable[[str], None]] = None
+        self.sample_loaded_callback: Callable[[str], None] | None = None
+        self.sample_unloaded_callback: Callable[[str], None] | None = None
 
         # Threading
         self.lock = threading.RLock()
@@ -278,8 +285,8 @@ class SampleManager:
         }
 
     def add_sample(
-        self, file_path: str, name: Optional[str] = None, category: str = "user"
-    ) -> Optional[str]:
+        self, file_path: str, name: str | None = None, category: str = "user"
+    ) -> str | None:
         """
         Add sample from file.
 
@@ -329,8 +336,8 @@ class SampleManager:
         return hashlib.md5(file_path.encode()).hexdigest()[:16]
 
     def _extract_metadata(
-        self, file_path: str, name: Optional[str]
-    ) -> Optional[SampleMetadata]:
+        self, file_path: str, name: str | None
+    ) -> SampleMetadata | None:
         """Extract metadata from sample file"""
         try:
             # In a full implementation, this would use audio libraries
@@ -401,7 +408,7 @@ class SampleManager:
             return True
 
     def create_multisample(
-        self, name: str, keygroups: List[Keygroup], category: str = "user"
+        self, name: str, keygroups: list[Keygroup], category: str = "user"
     ) -> str:
         """
         Create multisample from keygroups.
@@ -436,7 +443,7 @@ class SampleManager:
 
     def get_sample_data(
         self, sample_id: str, force_load: bool = False
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray | None:
         """
         Get sample audio data.
 
@@ -456,7 +463,7 @@ class SampleManager:
 
     def find_keygroup_for_note(
         self, multisample_id: str, note: int, velocity: int = 64
-    ) -> Optional[Keygroup]:
+    ) -> Keygroup | None:
         """
         Find appropriate keygroup for note and velocity.
 
@@ -493,12 +500,12 @@ class SampleManager:
 
             return best_match
 
-    def get_samples_in_category(self, category: str) -> List[str]:
+    def get_samples_in_category(self, category: str) -> list[str]:
         """Get all sample IDs in a category"""
         with self.lock:
             return self.categories.get(category, []).copy()
 
-    def get_multisamples_in_category(self, category: str) -> List[str]:
+    def get_multisamples_in_category(self, category: str) -> list[str]:
         """Get all multisample IDs in a category"""
         with self.lock:
             return [
@@ -507,7 +514,7 @@ class SampleManager:
                 if ms.category == category
             ]
 
-    def search_samples(self, query: str, category: Optional[str] = None) -> List[str]:
+    def search_samples(self, query: str, category: str | None = None) -> list[str]:
         """
         Search samples by name.
 
@@ -553,7 +560,7 @@ class SampleManager:
                 return True
             return False
 
-    def get_memory_usage(self) -> Dict[str, Any]:
+    def get_memory_usage(self) -> dict[str, Any]:
         """Get memory usage statistics"""
         with self.lock:
             total_samples = len(self.samples)
@@ -653,7 +660,7 @@ class SampleManager:
             try:
                 import json
 
-                with open(filename, "r") as f:
+                with open(filename) as f:
                     import_data = json.load(f)
 
                 # Import samples

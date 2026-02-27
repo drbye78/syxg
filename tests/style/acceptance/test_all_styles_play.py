@@ -7,6 +7,7 @@ End-to-end acceptance tests for the style engine including:
 - Transitions are smooth
 - Full workflow scenarios
 """
+from __future__ import annotations
 
 import pytest
 import time

@@ -9,8 +9,9 @@ SpectralRegion implements spectral synthesis with:
 - Spectral filtering
 - Freeze/morph effects
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -72,15 +73,15 @@ class SpectralRegion(IRegion):
         self._noise_injection = algo_params.get('noise_injection', 0.0)
         
         # Runtime state
-        self._spectral_buffer: Optional[np.ndarray] = None
-        self._frozen_spectrum: Optional[np.ndarray] = None
-        self._fft_processor: Optional[Any] = None
+        self._spectral_buffer: np.ndarray | None = None
+        self._frozen_spectrum: np.ndarray | None = None
+        self._fft_processor: Any | None = None
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """No sample data for spectral (FFT processing)."""
         return None
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create spectral synthesis partial.
         
@@ -122,7 +123,7 @@ class SpectralRegion(IRegion):
             logger.error(f"Failed to create spectral partial: {e}")
             return None
     
-    def _create_fft_processor(self) -> Optional[Any]:
+    def _create_fft_processor(self) -> Any | None:
         """
         Create FFT processor for spectral analysis/synthesis.
         
@@ -222,7 +223,7 @@ class SpectralRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from spectral processing.
@@ -258,7 +259,7 @@ class SpectralRegion(IRegion):
             logger.error(f"Spectral sample generation failed: {e}")
             return np.zeros(block_size * 2, dtype=np.float32)
     
-    def _apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """
         Apply modulation to spectral parameters.
         
@@ -277,7 +278,7 @@ class SpectralRegion(IRegion):
             if hasattr(self._partial, 'set_harmonic_enhancement'):
                 self._partial.set_harmonic_enhancement(enhancement)
     
-    def update_modulation(self, modulation: Dict[str, float]) -> None:
+    def update_modulation(self, modulation: dict[str, float]) -> None:
         """
         Update modulation state.
         
@@ -297,7 +298,7 @@ class SpectralRegion(IRegion):
         
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

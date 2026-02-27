@@ -3,8 +3,9 @@ Song Mode - Advanced Sequencer Capabilities
 
 Provides song mode functionality for multi-track sequencing and arrangement.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional
+from typing import Any
 import threading
 
 
@@ -28,10 +29,10 @@ class SongMode:
         self.ppq = ppq
 
         # Song structure
-        self.tracks: Dict[int, Dict[str, Any]] = {}
-        self.tempo_events: List[Dict[str, Any]] = []
-        self.time_signature_events: List[Dict[str, Any]] = []
-        self.marker_events: List[Dict[str, Any]] = []
+        self.tracks: dict[int, dict[str, Any]] = {}
+        self.tempo_events: list[dict[str, Any]] = []
+        self.time_signature_events: list[dict[str, Any]] = []
+        self.marker_events: list[dict[str, Any]] = []
 
         # Playback state
         self.current_position = 0  # In ticks
@@ -207,7 +208,7 @@ class SongMode:
 
             return True
 
-    def get_events_at_position(self, tick: int) -> List[Dict[str, Any]]:
+    def get_events_at_position(self, tick: int) -> list[dict[str, Any]]:
         """
         Get all events at a specific tick position.
 
@@ -341,7 +342,7 @@ class SongMode:
             self.is_playing = False
             return True
 
-    def get_playback_info(self) -> Dict[str, Any]:
+    def get_playback_info(self) -> dict[str, Any]:
         """
         Get current playback information.
 
@@ -399,7 +400,7 @@ class SongMode:
                 return True
             return False
 
-    def get_track_info(self, track_number: int) -> Optional[Dict[str, Any]]:
+    def get_track_info(self, track_number: int) -> dict[str, Any] | None:
         """
         Get information about a track.
 

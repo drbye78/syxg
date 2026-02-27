@@ -4,8 +4,10 @@ XG Component System - Clean XG Implementation
 Production-quality XG synthesizer components with complete XG specification compliance.
 Contains XG component manager, MIDI processor, and state management.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -58,7 +60,7 @@ class XGComponentManager:
         """Get component by name - fast lookup"""
         return self.components.get(name)
 
-    def process_sysex_message(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def process_sysex_message(self, data: bytes) -> dict[str, Any] | None:
         """Process SYSEX message through XG components"""
         # Route to appropriate component based on command
         if len(data) >= 6:
@@ -166,7 +168,7 @@ class XGStateManager:
         getter = self.parameter_cache.get(param_name)
         return getter() if getter else None
 
-    def get_effects_config(self) -> Dict[str, Any]:
+    def get_effects_config(self) -> dict[str, Any]:
         """Get effects configuration for audio processing"""
         return {
             'reverb_enabled': self.get_parameter('reverb_type') > 0,

@@ -20,10 +20,11 @@ Effects implemented:
 
 All implementations use zero-allocation processing and thread-safe state management.
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import Dict, Any, Optional
+from typing import Any
 import threading
 
 
@@ -50,7 +51,7 @@ class ChorusModulationProcessor:
         self._lock = threading.RLock()
 
     def process_effect(self, effect_type: int, stereo_mix: np.ndarray,
-                      num_samples: int, params: Dict[str, float]) -> None:
+                      num_samples: int, params: dict[str, float]) -> None:
         """
         Process chorus/modulation effect.
 
@@ -106,14 +107,14 @@ class ChorusModulationProcessor:
             elif effect_type == 31:
                 self._process_reverb_autopan(stereo_mix, num_samples, params)
 
-    def _ensure_state(self, effect_key: str, state_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _ensure_state(self, effect_key: str, state_config: dict[str, Any]) -> dict[str, Any]:
         """Ensure effect state exists, create if needed."""
         if effect_key not in self._effect_states:
             self._effect_states[effect_key] = state_config.copy()
         return self._effect_states[effect_key]
 
     def _process_chorus_1(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """
         Process Chorus 1 effect (XG Variation Type 10).
         Multi-tap chorus with LFO modulation - rich, lush chorus sound.
@@ -168,7 +169,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
 
     def _process_chorus_2(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """
         Process Chorus 2 effect (XG Variation Type 11).
         Faster chorus with different tap spacing.
@@ -214,7 +215,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
 
     def _process_chorus_3(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """
         Process Chorus 3 effect (XG Variation Type 12).
         Chorus with feedback for richer sound.
@@ -264,7 +265,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
 
     def _process_chorus_4(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """
         Process Chorus 4 effect (XG Variation Type 13).
         Deep, wide chorus effect.
@@ -311,7 +312,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
 
     def _process_celeste_1(self, stereo_mix: np.ndarray, num_samples: int,
-                          params: Dict[str, float]) -> None:
+                          params: dict[str, float]) -> None:
         """
         Process Celeste 1 effect (XG Variation Type 14).
         Pitch-shifted chorus with different tap spacing.
@@ -358,7 +359,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
 
     def _process_celeste_2(self, stereo_mix: np.ndarray, num_samples: int,
-                          params: Dict[str, float]) -> None:
+                          params: dict[str, float]) -> None:
         """
         Process Celeste 2 effect (XG Variation Type 15).
         Alternative celeste with different characteristics.
@@ -404,7 +405,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
 
     def _process_flanger_1(self, stereo_mix: np.ndarray, num_samples: int,
-                          params: Dict[str, float]) -> None:
+                          params: dict[str, float]) -> None:
         """
         Process Flanger 1 effect (XG Variation Type 16).
         Classic flanger with short delay and feedback.
@@ -451,7 +452,7 @@ class ChorusModulationProcessor:
                 state['write_positions'][ch] = (state['write_positions'][ch] + 1) % self.max_delay_samples
 
     def _process_flanger_2(self, stereo_mix: np.ndarray, num_samples: int,
-                          params: Dict[str, float]) -> None:
+                          params: dict[str, float]) -> None:
         """
         Process Flanger 2 effect (XG Variation Type 17).
         Alternative flanger with different modulation.
@@ -492,7 +493,7 @@ class ChorusModulationProcessor:
                 state['write_positions'][ch] = (state['write_positions'][ch] + 1) % self.max_delay_samples
 
     def _process_delay_lcr_chorus(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """
         Process Delay LCR Chorus effect (XG Variation Type 18).
         Combination of delay and chorus processing.
@@ -503,7 +504,7 @@ class ChorusModulationProcessor:
         self._process_delay_lcr_chorus_chorus(stereo_mix, num_samples, params)
 
     def _process_delay_lcr_chorus_delay(self, stereo_mix: np.ndarray, num_samples: int,
-                                       params: Dict[str, float]) -> None:
+                                       params: dict[str, float]) -> None:
         """Helper: Apply delay portion of Delay LCR Chorus."""
         time = params.get("parameter1", 0.3) * 1000
         feedback = params.get("parameter2", 0.2)
@@ -561,7 +562,7 @@ class ChorusModulationProcessor:
             state['write_pos_c'] = (state['write_pos_c'] + 1) % self.max_delay_samples
 
     def _process_delay_lcr_chorus_chorus(self, stereo_mix: np.ndarray, num_samples: int,
-                                        params: Dict[str, float]) -> None:
+                                        params: dict[str, float]) -> None:
         """Helper: Apply chorus portion of Delay LCR Chorus."""
         rate = params.get("parameter1", 0.4) * 4.0
         depth = params.get("parameter2", 0.4)
@@ -604,7 +605,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - chorus_level) + chorus_sum[1] * chorus_level
 
     def _process_delay_lr_chorus(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """
         Process Delay LR Chorus effect (XG Variation Type 19).
         Dual delay combined with chorus.
@@ -615,7 +616,7 @@ class ChorusModulationProcessor:
         self._process_delay_lr_chorus_chorus(stereo_mix, num_samples, params)
 
     def _process_delay_lr_chorus_delay(self, stereo_mix: np.ndarray, num_samples: int,
-                                      params: Dict[str, float]) -> None:
+                                      params: dict[str, float]) -> None:
         """Helper: Apply delay portion of Delay LR Chorus."""
         time = params.get("parameter1", 0.3) * 1000
         feedback = params.get("parameter2", 0.25)
@@ -660,7 +661,7 @@ class ChorusModulationProcessor:
             state['write_pos_r'] = (state['write_pos_r'] + 1) % self.max_delay_samples
 
     def _process_delay_lr_chorus_chorus(self, stereo_mix: np.ndarray, num_samples: int,
-                                       params: Dict[str, float]) -> None:
+                                       params: dict[str, float]) -> None:
         """Helper: Apply chorus portion of Delay LR Chorus."""
         rate = params.get("parameter1", 0.45) * 4.5
         depth = params.get("parameter2", 0.45)
@@ -703,7 +704,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - chorus_level) + chorus_sum[1] * chorus_level
 
     def _process_rotary_speaker_variation(self, stereo_mix: np.ndarray, num_samples: int,
-                                        params: Dict[str, float]) -> None:
+                                        params: dict[str, float]) -> None:
         """
         Process Rotary Speaker Variation effect (XG Variation Type 20).
         Alternative rotary speaker implementation.
@@ -752,7 +753,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = right_out
 
     def _process_celeste_chorus(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process Celeste Chorus effect (XG Variation Type 21).
         Enhanced celeste effect with chorus characteristics.
@@ -799,7 +800,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
 
     def _process_vibrato(self, stereo_mix: np.ndarray, num_samples: int,
-                        params: Dict[str, float]) -> None:
+                        params: dict[str, float]) -> None:
         """
         Process Vibrato effect (XG Variation Type 22).
         Pitch modulation effect.
@@ -829,7 +830,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] *= (1.0 + modulation)
 
     def _process_acoustic_simulator(self, stereo_mix: np.ndarray, num_samples: int,
-                                   params: Dict[str, float]) -> None:
+                                   params: dict[str, float]) -> None:
         """
         Process Acoustic Simulator effect (XG Variation Type 23).
         Room acoustic simulation with frequency response.
@@ -871,7 +872,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = output * (1 - depth * 0.3)
 
     def _process_guitar_amp_simulator(self, stereo_mix: np.ndarray, num_samples: int,
-                                     params: Dict[str, float]) -> None:
+                                     params: dict[str, float]) -> None:
         """
         Process Guitar Amp Simulator effect (XG Variation Type 24).
         Guitar amplifier simulation with distortion.
@@ -895,7 +896,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = output
 
     def _process_enhancer(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """
         Process Enhancer effect (XG Variation Type 25).
         Dynamic enhancement with harmonic enhancement.
@@ -918,7 +919,7 @@ class ChorusModulationProcessor:
                 stereo_mix[i, ch] = shaped * level
 
     def _process_slicer(self, stereo_mix: np.ndarray, num_samples: int,
-                       params: Dict[str, float]) -> None:
+                       params: dict[str, float]) -> None:
         """
         Process Slicer effect (XG Variation Type 26).
         Rhythmic gating effect with multiple waveforms.
@@ -953,7 +954,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = output
 
     def _process_phaser_flanger(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process Phaser-Flanger effect (XG Variation Type 27).
         Combined phaser and flanger effect.
@@ -1009,7 +1010,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output * level
 
     def _process_chorus_autopan(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process Chorus Auto-Pan effect (XG Variation Type 28).
         Chorus with auto-panning modulation.
@@ -1064,7 +1065,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
 
     def _process_celeste_autopan(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """
         Process Celeste Auto-Pan effect (XG Variation Type 29).
         Celeste with auto-panning modulation.
@@ -1119,7 +1120,7 @@ class ChorusModulationProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + chorus_sum[1] * level
 
     def _process_delay_autopan(self, stereo_mix: np.ndarray, num_samples: int,
-                              params: Dict[str, float]) -> None:
+                              params: dict[str, float]) -> None:
         """
         Process Delay Auto-Pan effect (XG Variation Type 30).
         Delay with auto-panning modulation.
@@ -1169,7 +1170,7 @@ class ChorusModulationProcessor:
                 state['write_positions'][ch] = (state['write_positions'][ch] + 1) % self.max_delay_samples
 
     def _process_reverb_autopan(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process Reverb Auto-Pan effect (XG Variation Type 31).
         Reverb with auto-panning modulation.

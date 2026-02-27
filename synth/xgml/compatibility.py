@@ -4,8 +4,9 @@ XGML Backward Compatibility Layer
 Provides automatic conversion from XGML v2.1 to XGML v3.0 format.
 Ensures seamless migration while maintaining all functionality.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 
 class XGMLCompatibilityConverter:
@@ -17,10 +18,10 @@ class XGMLCompatibilityConverter:
     """
 
     def __init__(self):
-        self.conversion_warnings: List[str] = []
-        self.conversion_errors: List[str] = []
+        self.conversion_warnings: list[str] = []
+        self.conversion_errors: list[str] = []
 
-    def convert_v2_to_v3(self, v2_config: Dict[str, Any]) -> Dict[str, Any]:
+    def convert_v2_to_v3(self, v2_config: dict[str, Any]) -> dict[str, Any]:
         """
         Convert XGML v2.1 configuration to v3.0 format.
 
@@ -50,7 +51,7 @@ class XGMLCompatibilityConverter:
 
         return v3_config
 
-    def _convert_basic_messages(self, v2_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_basic_messages(self, v2_config: dict[str, Any]) -> dict[str, Any]:
         """Convert basic_messages section from v2.1 to v3.0."""
         if "basic_messages" not in v2_config:
             return {}
@@ -75,7 +76,7 @@ class XGMLCompatibilityConverter:
 
         return v3_basic
 
-    def _convert_channel_parameters(self, v2_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_channel_parameters(self, v2_config: dict[str, Any]) -> dict[str, Any]:
         """Convert channel_parameters section from v2.1 to v3.0."""
         if "channel_parameters" not in v2_config:
             return {}
@@ -110,7 +111,7 @@ class XGMLCompatibilityConverter:
             return {"channel_parameters": v3_channels}
         return {}
 
-    def _convert_filter_config(self, v2_filter: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_filter_config(self, v2_filter: dict[str, Any]) -> dict[str, Any]:
         """Convert filter configuration from v2.1 to v3.0."""
         v3_filter = {}
 
@@ -131,7 +132,7 @@ class XGMLCompatibilityConverter:
 
         return v3_filter
 
-    def _convert_lfo_config(self, v2_lfo: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_lfo_config(self, v2_lfo: dict[str, Any]) -> dict[str, Any]:
         """Convert LFO configuration from v2.1 to v3.0."""
         v3_lfo = {}
 
@@ -159,7 +160,7 @@ class XGMLCompatibilityConverter:
 
         return v3_lfo
 
-    def _convert_effects(self, v2_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_effects(self, v2_config: dict[str, Any]) -> dict[str, Any]:
         """Convert effects section from v2.1 to v3.0."""
         if "effects" not in v2_config:
             return {}
@@ -226,7 +227,7 @@ class XGMLCompatibilityConverter:
 
         return v3_effects
 
-    def _convert_engine_config(self, v2_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_engine_config(self, v2_config: dict[str, Any]) -> dict[str, Any]:
         """Convert engine configuration from v2.1 to v3.0."""
         engine_sections = ["fm_x_engine", "sfz_engine"]
         v3_engines = {"synthesis_engines": {}}
@@ -256,7 +257,7 @@ class XGMLCompatibilityConverter:
 
         return v3_engines if has_engines else {}
 
-    def _convert_fm_x_engine(self, v2_fm_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_fm_x_engine(self, v2_fm_config: dict[str, Any]) -> dict[str, Any]:
         """Convert FM-X engine config from v2.1 to v3.0."""
         v3_fm_config = {
             "enabled": True,
@@ -283,7 +284,7 @@ class XGMLCompatibilityConverter:
 
         return v3_fm_config
 
-    def _convert_sfz_engine(self, v2_sfz_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_sfz_engine(self, v2_sfz_config: dict[str, Any]) -> dict[str, Any]:
         """Convert SFZ engine config from v2.1 to v3.0."""
         v3_sfz_config = {
             "enabled": True,
@@ -293,7 +294,7 @@ class XGMLCompatibilityConverter:
 
         return v3_sfz_config
 
-    def _convert_sequences(self, v2_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_sequences(self, v2_config: dict[str, Any]) -> dict[str, Any]:
         """Convert sequences section from v2.1 to v3.0."""
         if "sequences" not in v2_config:
             return {}
@@ -301,11 +302,11 @@ class XGMLCompatibilityConverter:
         # Sequences structure is largely compatible
         return {"sequences": v2_config["sequences"]}
 
-    def get_conversion_warnings(self) -> List[str]:
+    def get_conversion_warnings(self) -> list[str]:
         """Get conversion warnings."""
         return self.conversion_warnings.copy()
 
-    def get_conversion_errors(self) -> List[str]:
+    def get_conversion_errors(self) -> list[str]:
         """Get conversion errors."""
         return self.conversion_errors.copy()
 
@@ -324,7 +325,7 @@ class XGMLv2CompatibilityLayer:
     def __init__(self):
         self.converter = XGMLCompatibilityConverter()
 
-    def convert_if_needed(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def convert_if_needed(self, config: dict[str, Any]) -> dict[str, Any]:
         """
         Convert configuration to v3.0 format if it's v2.1.
 
@@ -354,7 +355,7 @@ class XGMLv2CompatibilityLayer:
             # Unknown version, assume v3.0
             return config
 
-    def get_conversion_report(self) -> Dict[str, Any]:
+    def get_conversion_report(self) -> dict[str, Any]:
         """Get detailed conversion report."""
         return {
             "warnings": self.converter.get_conversion_warnings(),

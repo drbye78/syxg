@@ -189,8 +189,10 @@ VALIDATOR REGISTRATION:
 - Custom error code registration
 - Validation priority management
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Union, Callable
+from typing import Any
+from collections.abc import Callable
 import numpy as np
 import threading
 import math
@@ -204,7 +206,7 @@ class ValidationError(Exception):
     """
 
     def __init__(self, message: str, error_code: str = None,
-                 context: Dict[str, Any] = None, severity: str = "error"):
+                 context: dict[str, Any] = None, severity: str = "error"):
         """
         Initialize validation error.
 
@@ -230,7 +232,7 @@ class ValidationError(Exception):
         context_str = ", ".join(f"{k}={v}" for k, v in self.context.items())
         return f"[{self.error_code}] {self.message} ({context_str})"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert error to dictionary for logging/serialization."""
         return {
             'error_code': self.error_code,
@@ -248,9 +250,9 @@ class ValidationResult:
     """
 
     def __init__(self):
-        self.errors: List[ValidationError] = []
-        self.warnings: List[ValidationError] = []
-        self.info: List[ValidationError] = []
+        self.errors: list[ValidationError] = []
+        self.warnings: list[ValidationError] = []
+        self.info: list[ValidationError] = []
 
     def add_error(self, error: ValidationError):
         """Add validation error."""
@@ -272,7 +274,7 @@ class ValidationResult:
         """Check if validation has warnings."""
         return len(self.warnings) > 0
 
-    def get_summary(self) -> Dict[str, int]:
+    def get_summary(self) -> dict[str, int]:
         """Get validation summary."""
         return {
             'errors': len(self.errors),
@@ -666,7 +668,7 @@ class ParameterValidator:
     def __init__(self):
         self.parameter_ranges = self._initialize_parameter_ranges()
 
-    def _initialize_parameter_ranges(self) -> Dict[str, Dict[str, Any]]:
+    def _initialize_parameter_ranges(self) -> dict[str, dict[str, Any]]:
         """Initialize parameter range definitions."""
         return {
             'volume': {'min': 0.0, 'max': 1.0, 'type': float},
@@ -720,9 +722,9 @@ class ParameterValidator:
 
         return result
 
-    def validate_parameter_range(self, value: Union[int, float],
-                               min_val: Union[int, float],
-                               max_val: Union[int, float],
+    def validate_parameter_range(self, value: int | float,
+                               min_val: int | float,
+                               max_val: int | float,
                                param_name: str = "parameter") -> ValidationResult:
         """
         Validate parameter is within range.
@@ -761,8 +763,8 @@ class ParameterValidator:
         result1.info.extend(result2.info)
         return result1
 
-    def add_parameter_definition(self, name: str, min_val: Union[int, float],
-                               max_val: Union[int, float], param_type: type):
+    def add_parameter_definition(self, name: str, min_val: int | float,
+                               max_val: int | float, param_type: type):
         """
         Add custom parameter definition.
 

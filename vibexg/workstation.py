@@ -5,6 +5,7 @@ This module provides the XGWorkstation class, which is the main
 orchestration class that coordinates all components of the virtual
 XG synthesizer workstation.
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -14,7 +15,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from synth.core.config_manager import ConfigManager
 from synth.core.synthesizer import Synthesizer
@@ -66,7 +67,7 @@ class XGWorkstation:
     - TUI control surface
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """
         Initialize the workstation.
 
@@ -87,17 +88,17 @@ class XGWorkstation:
         )
 
         # MIDI input interfaces
-        self.midi_inputs: Dict[str, MIDIInputInterface] = {}
+        self.midi_inputs: dict[str, MIDIInputInterface] = {}
         self.midi_queue: queue.Queue = queue.Queue()
 
         # Audio output engines
-        self.audio_outputs: Dict[str, AudioOutputEngine] = {}
+        self.audio_outputs: dict[str, AudioOutputEngine] = {}
 
         # TUI control surface
-        self.tui: Optional[TUIControlSurface] = None
+        self.tui: TUIControlSurface | None = None
 
         # Recording
-        self.recorded_events: List[Dict[str, Any]] = []
+        self.recorded_events: list[dict[str, Any]] = []
         self.recording_start_time: float = 0
 
         # Performance monitoring
@@ -186,7 +187,7 @@ class XGWorkstation:
             interface = KeyboardInput(config, self._handle_midi_message)
             self.midi_inputs['keyboard'] = interface
 
-    def _create_midi_interface(self, config: MIDIInputConfig) -> Optional[MIDIInputInterface]:
+    def _create_midi_interface(self, config: MIDIInputConfig) -> MIDIInputInterface | None:
         """
         Create MIDI input interface based on configuration.
 
@@ -196,21 +197,28 @@ class XGWorkstation:
         Returns:
             MIDIInputInterface instance or None if unknown type
         """
-        if config.interface_type == InputInterfaceType.MIDO_PORT:
-            return MidoPortInput(config, self._handle_midi_message)
-        elif config.interface_type == InputInterfaceType.VIRTUAL_PORT:
-            return VirtualPortInput(config, self._handle_midi_message)
-        elif config.interface_type == InputInterfaceType.NETWORK_MIDI:
-            return NetworkMIDIInput(config, self._handle_midi_message)
-        elif config.interface_type == InputInterfaceType.KEYBOARD:
-            return KeyboardInput(config, self._handle_midi_message)
-        elif config.interface_type == InputInterfaceType.MIDI_FILE:
-            return FileMIDIInput(config, self._handle_midi_message)
-        elif config.interface_type == InputInterfaceType.STDIN:
-            return StdinMIDIInput(config, self._handle_midi_message)
-
-        logger.warning(f"Unknown MIDI input type: {config.interface_type}")
-        return None
+        match config.interface_type:
+            case InputInterfaceType.MIDO_PORT:
+                return MidoPortInput(config, self._handle_midi_message)
+            
+            case InputInterfaceType.VIRTUAL_PORT:
+                return VirtualPortInput(config, self._handle_midi_message)
+            
+            case InputInterfaceType.NETWORK_MIDI:
+                return NetworkMIDIInput(config, self._handle_midi_message)
+            
+            case InputInterfaceType.KEYBOARD:
+                return KeyboardInput(config, self._handle_midi_message)
+            
+            case InputInterfaceType.MIDI_FILE:
+                return FileMIDIInput(config, self._handle_midi_message)
+            
+            case InputInterfaceType.STDIN:
+                return StdinMIDIInput(config, self._handle_midi_message)
+            
+            case _:
+                logger.warning(f"Unknown MIDI input type: {config.interface_type}")
+                return None
 
     def _setup_audio_outputs(self):
         """Setup audio output engines from configuration."""
@@ -257,10 +265,15 @@ class XGWorkstation:
         self.synthesizer.midi_parser.parse_bytes(midi_bytes)
 
         # Update state for note messages
-        if message.is_note_on():
-            self.state.voices_active += 1
-        elif message.is_note_off():
-            self.state.voices_active = max(0, self.state.voices_active - 1)
+        match message.type:
+            case 'note_on':
+                self.state.voices_active += 1
+            
+            case 'note_off':
+                self.state.voices_active = max(0, self.state.voices_active - 1)
+            
+            case _:
+                pass  # No voice count change for other message types
 
     def _record_event(self, message: MIDIMessage):
         """
@@ -410,7 +423,7 @@ class XGWorkstation:
             return True
         return False
 
-    def save_preset(self, filename: Optional[str] = None) -> Optional[Path]:
+    def save_preset(self, filename: str | None = None) -> Path | None:
         """
         Save current preset.
 

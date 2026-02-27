@@ -8,8 +8,9 @@ Extends SF2 with S90/S70 AWM Stereo capabilities including:
 - Enhanced interpolation algorithms
 - Professional mixing and panning
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Optional, Any, Set, Union
+from typing import Any
 import numpy as np
 from .sf2_sample_processor import StereoProcessor
 
@@ -25,9 +26,9 @@ class S90AWMConfiguration:
     def __init__(self, soundfont_name: str):
         """Initialize AWM configuration for a soundfont."""
         self.soundfont_name = soundfont_name
-        self.velocity_layers: Dict[str, List[Dict[str, Any]]] = {}
-        self.stereo_pairs: Dict[str, Tuple[str, str]] = {}
-        self.mixing_parameters: Dict[str, Any] = {}
+        self.velocity_layers: dict[str, list[dict[str, Any]]] = {}
+        self.stereo_pairs: dict[str, tuple[str, str]] = {}
+        self.mixing_parameters: dict[str, Any] = {}
         self.interpolation_quality = "sinc"  # S90/S70 uses high-quality sinc
         self.oversampling_factor = 2  # 2x oversampling for fidelity
 
@@ -51,7 +52,7 @@ class S90AWMConfiguration:
             "limiter_threshold": 1.0,  # No limiting
         }
 
-    def add_velocity_layer(self, preset_key: str, layer_config: Dict[str, Any]) -> None:
+    def add_velocity_layer(self, preset_key: str, layer_config: dict[str, Any]) -> None:
         """
         Add velocity layer configuration for S90/S70 multi-layer synthesis.
 
@@ -66,7 +67,7 @@ class S90AWMConfiguration:
 
     def get_velocity_layer(
         self, preset_key: str, velocity: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get velocity layer for a given preset and velocity.
 
@@ -105,7 +106,7 @@ class S90AWMConfiguration:
         """
         self.stereo_pairs[logical_name] = (left_sample, right_sample)
 
-    def get_stereo_samples(self, sample_name: str) -> Optional[Tuple[str, str]]:
+    def get_stereo_samples(self, sample_name: str) -> tuple[str, str] | None:
         """
         Get stereo sample pair.
 
@@ -128,11 +129,11 @@ class S90AWMConfiguration:
         if parameter in self.mixing_parameters:
             self.mixing_parameters[parameter] = value
 
-    def get_mixing_parameters(self) -> Dict[str, Any]:
+    def get_mixing_parameters(self) -> dict[str, Any]:
         """Get current mixing parameters."""
         return self.mixing_parameters.copy()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary."""
         return {
             "soundfont_name": self.soundfont_name,
@@ -176,8 +177,8 @@ class S90AWMStereoProcessor:
         self,
         left_data: np.ndarray,
         right_data: np.ndarray,
-        mixing_params: Dict[str, Any],
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        mixing_params: dict[str, Any],
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Process stereo sample with S90/S70 advanced algorithms.
 
@@ -217,7 +218,7 @@ class S90AWMStereoProcessor:
 
     def _apply_center_balance(
         self, left: np.ndarray, right: np.ndarray, balance: float
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Apply center balance control (S90/S70 feature).
 
@@ -249,7 +250,7 @@ class S90AWMStereoProcessor:
 
     def _apply_haas_effect(
         self, left: np.ndarray, right: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Apply Haas effect for enhanced stereo spatialization.
 
@@ -277,7 +278,7 @@ class S90AWMStereoProcessor:
 
     def _apply_frequency_panning(
         self, left: np.ndarray, right: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Apply frequency-dependent panning for enhanced spatialization using proper filtering.
 
@@ -337,7 +338,7 @@ class S90AWMStereoProcessor:
 
     def _apply_frequency_panning_fallback(
         self, left: np.ndarray, right: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Fallback frequency panning using simple filtering.
 
@@ -373,7 +374,7 @@ class S90AWMStereoProcessor:
 
     def apply_compression(
         self, left: np.ndarray, right: np.ndarray, ratio: float, threshold: float
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Apply professional RMS-based compression to stereo signal.
 
@@ -507,7 +508,7 @@ class S90AWMStereoProcessor:
 
     def apply_limiter(
         self, left: np.ndarray, right: np.ndarray, threshold: float
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Apply professional limiting to prevent clipping.
 
@@ -547,11 +548,11 @@ class S90AWMLayerEngine:
 
     def __init__(self):
         """Initialize AWM layer engine."""
-        self.layer_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self.layer_cache: dict[str, list[dict[str, Any]]] = {}
         self.crossfade_samples = 8  # Samples for crossfade between layers
 
     def add_layer_configuration(
-        self, preset_key: str, layers: List[Dict[str, Any]]
+        self, preset_key: str, layers: list[dict[str, Any]]
     ) -> None:
         """
         Add layer configuration for a preset.
@@ -564,7 +565,7 @@ class S90AWMLayerEngine:
         sorted_layers = sorted(layers, key=lambda x: x.get("min_velocity", 0))
         self.layer_cache[preset_key] = sorted_layers
 
-    def get_active_layers(self, preset_key: str, velocity: int) -> List[Dict[str, Any]]:
+    def get_active_layers(self, preset_key: str, velocity: int) -> list[dict[str, Any]]:
         """
         Get active layers for a given velocity.
 
@@ -591,7 +592,7 @@ class S90AWMLayerEngine:
         return active_layers
 
     def process_velocity_crossfade(
-        self, layer_samples: List[Tuple[np.ndarray, Dict[str, Any]]], velocity: int
+        self, layer_samples: list[tuple[np.ndarray, dict[str, Any]]], velocity: int
     ) -> np.ndarray:
         """
         Process velocity-based crossfading between layers with professional crossfade algorithms.
@@ -614,7 +615,7 @@ class S90AWMLayerEngine:
         return self._mix_multiple_layers(layer_samples, velocity)
 
     def _crossfade_two_layers(
-        self, layer_samples: List[Tuple[np.ndarray, Dict[str, Any]]], velocity: int
+        self, layer_samples: list[tuple[np.ndarray, dict[str, Any]]], velocity: int
     ) -> np.ndarray:
         """
         Crossfade between two velocity layers with smooth transition.
@@ -669,7 +670,7 @@ class S90AWMLayerEngine:
             return sample1 * layer1_gain + sample2 * layer2_gain
 
     def _mix_multiple_layers(
-        self, layer_samples: List[Tuple[np.ndarray, Dict[str, Any]]], velocity: int
+        self, layer_samples: list[tuple[np.ndarray, dict[str, Any]]], velocity: int
     ) -> np.ndarray:
         """
         Mix multiple layers with proper normalization and velocity scaling.
@@ -740,7 +741,7 @@ class S90AWMEngine:
     def __init__(self, sample_rate: int = 44100):
         """Initialize S90 AWM engine."""
         self.sample_rate = sample_rate
-        self.configurations: Dict[str, S90AWMConfiguration] = {}
+        self.configurations: dict[str, S90AWMConfiguration] = {}
         self.stereo_processor = S90AWMStereoProcessor(sample_rate)
         self.layer_engine = S90AWMLayerEngine()
 
@@ -773,7 +774,7 @@ class S90AWMEngine:
     def process_sample_with_awm(
         self,
         sample_data: np.ndarray,
-        sample_info: Dict[str, Any],
+        sample_info: dict[str, Any],
         awm_config: S90AWMConfiguration,
         velocity: int = 100,
     ) -> np.ndarray:
@@ -842,7 +843,7 @@ class S90AWMEngine:
 
         return processed_data
 
-    def get_awm_status(self) -> Dict[str, Any]:
+    def get_awm_status(self) -> dict[str, Any]:
         """
         Get S90/S70 AWM status and statistics.
 
@@ -885,7 +886,7 @@ class S90AWMEngine:
 # Integration functions for SF2 architecture
 
 
-def enable_s90_awm_features(sf2_manager: "SF2SoundFontManager") -> S90AWMEngine:
+def enable_s90_awm_features(sf2_manager: SF2SoundFontManager) -> S90AWMEngine:
     """
     Enable S90/S70 AWM features in SF2 manager.
 
@@ -914,7 +915,7 @@ def enable_s90_awm_features(sf2_manager: "SF2SoundFontManager") -> S90AWMEngine:
 
 
 def _integrate_awm_with_sf2_manager(
-    sf2_manager: "SF2SoundFontManager", awm_engine: S90AWMEngine
+    sf2_manager: SF2SoundFontManager, awm_engine: S90AWMEngine
 ) -> None:
     """
     Integrate AWM engine with SF2 manager for seamless operation.
@@ -927,8 +928,8 @@ def _integrate_awm_with_sf2_manager(
     original_get_sample_data = sf2_manager.get_sample_data
 
     def enhanced_get_sample_data(
-        sample_id: int, soundfont_path: Optional[str] = None
-    ) -> Optional[np.ndarray]:
+        sample_id: int, soundfont_path: str | None = None
+    ) -> np.ndarray | None:
         """
         Enhanced sample data retrieval with AWM processing.
 
@@ -973,7 +974,7 @@ def _integrate_awm_with_sf2_manager(
     # Add sample info method if not exists
     if not hasattr(sf2_manager, "get_sample_info"):
 
-        def get_sample_info(sample_id: int) -> Optional[Dict[str, Any]]:
+        def get_sample_info(sample_id: int) -> dict[str, Any] | None:
             """Get sample information for a sample ID."""
             # Try to get from samples cache
             samples = getattr(sf2_manager, "samples", {})
@@ -1011,7 +1012,7 @@ def _integrate_awm_with_sf2_manager(
 
     # Add method to update AWM mixing parameters
     def update_awm_mixing_parameters(
-        soundfont_name: str, parameters: Dict[str, float]
+        soundfont_name: str, parameters: dict[str, float]
     ) -> None:
         """
         Update AWM mixing parameters for a soundfont.
@@ -1029,11 +1030,11 @@ def _integrate_awm_with_sf2_manager(
 
 
 def create_awm_preset_from_sf2(
-    sf2_manager: "SF2SoundFontManager",
+    sf2_manager: SF2SoundFontManager,
     bank: int,
     program: int,
-    awm_engine: Optional[S90AWMEngine] = None,
-) -> Optional[Dict[str, Any]]:
+    awm_engine: S90AWMEngine | None = None,
+) -> dict[str, Any] | None:
     """
     Create AWM-enhanced preset from SF2 data.
 
@@ -1081,7 +1082,7 @@ def create_awm_preset_from_sf2(
     return awm_preset
 
 
-def get_awm_performance_metrics(awm_engine: S90AWMEngine) -> Dict[str, Any]:
+def get_awm_performance_metrics(awm_engine: S90AWMEngine) -> dict[str, Any]:
     """
     Get detailed AWM performance metrics.
 

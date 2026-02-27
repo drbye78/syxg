@@ -5,8 +5,9 @@ Part of the unified region-based synthesis architecture.
 VoiceInstance handles polyphonic playback of a single note with multiple regions.
 Refactored to work with IRegion interface.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional
+from typing import Any
 import numpy as np
 import time
 import logging
@@ -33,9 +34,9 @@ class VoiceInstance:
     """
     
     __slots__ = [
-        'note', 'velocity', 'channel', 'sample_rate',
+        'voice_id', 'note', 'velocity', 'channel', 'sample_rate',
         'regions', 'active_regions', 'start_time',
-        'release_triggered', 'released',
+        'release_triggered', 'released', '_pending_removal',
         'modulation_state', 'per_note_modulation',
         'master_volume', 'pan', 'transpose',
         'articulation', 'articulation_parameters'
@@ -47,7 +48,8 @@ class VoiceInstance:
         velocity: int,
         channel: int,
         sample_rate: int,
-        articulation: str = 'normal'
+        articulation: str = 'normal',
+        voice_id: int | None = None
     ):
         """
         Initialize VoiceInstance for a specific note.
@@ -58,23 +60,26 @@ class VoiceInstance:
             channel: MIDI channel number (0-15)
             sample_rate: Audio sample rate in Hz
             articulation: Initial articulation (default: 'normal')
+            voice_id: Unique voice identifier (optional, auto-generated if None)
         """
+        self.voice_id = voice_id if voice_id is not None else id(self)
         self.note = note
         self.velocity = velocity
         self.channel = channel
         self.sample_rate = sample_rate
 
         # Region management (now uses IRegion interface)
-        self.regions: List[IRegion] = []
-        self.active_regions: List[IRegion] = []
+        self.regions: list[IRegion] = []
+        self.active_regions: list[IRegion] = []
 
         # Timing and state
         self.start_time = time.time()
         self.release_triggered = False
         self.released = False
+        self._pending_removal = False  # Marked for removal after release phase
 
         # Modulation state (shared across all regions in this voice)
-        self.modulation_state: Dict[str, float] = {
+        self.modulation_state: dict[str, float] = {
             'pitch_bend': 0.0,
             'mod_wheel': 0.0,
             'breath_controller': 0.0,
@@ -86,7 +91,7 @@ class VoiceInstance:
         }
 
         # Per-note modulation (for MPE/polyphonic expression)
-        self.per_note_modulation: Dict[str, float] = {
+        self.per_note_modulation: dict[str, float] = {
             'per_note_pitch_bend': 0.0,
             'per_note_expression': 1.0,
             'per_note_brightness': 0.5,
@@ -101,7 +106,7 @@ class VoiceInstance:
         
         # S.Art2 articulation support
         self.articulation = articulation
-        self.articulation_parameters: Dict[str, float] = {}
+        self.articulation_parameters: dict[str, float] = {}
     
     def add_region(self, region: IRegion) -> None:
         """
@@ -169,12 +174,12 @@ class VoiceInstance:
         """Get current articulation."""
         return self.articulation
     
-    def get_articulation_parameters(self) -> Dict[str, float]:
+    def get_articulation_parameters(self) -> dict[str, float]:
         """Get current articulation parameters."""
         return self.articulation_parameters.copy()
     
     def apply_articulation_preset(self, articulation: str, 
-                                 parameters: Dict[str, float]) -> None:
+                                 parameters: dict[str, float]) -> None:
         """
         Apply articulation preset.
         
@@ -184,7 +189,7 @@ class VoiceInstance:
         """
         self.set_articulation(articulation, **parameters)
     
-    def update_modulation(self, modulation_updates: Dict[str, float]) -> None:
+    def update_modulation(self, modulation_updates: dict[str, float]) -> None:
         """
         Update modulation state for this voice.
         
@@ -202,7 +207,7 @@ class VoiceInstance:
     
     def update_per_note_modulation(
         self, 
-        per_note_updates: Dict[str, float]
+        per_note_updates: dict[str, float]
     ) -> None:
         """
         Update per-note modulation state for this voice instance.
@@ -325,7 +330,7 @@ class VoiceInstance:
         """Get number of currently active regions."""
         return len(self.active_regions)
     
-    def get_region_info(self) -> List[Dict[str, Any]]:
+    def get_region_info(self) -> list[dict[str, Any]]:
         """Get information about all regions."""
         return [r.get_region_info() for r in self.regions]
     

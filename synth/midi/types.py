@@ -4,12 +4,12 @@ MIDI Type Definitions and Constants
 Centralized definitions for MIDI message types, status bytes, and utility functions.
 Provides a single source of truth for MIDI specifications and validation.
 """
+from __future__ import annotations
 
-from enum import Enum
-from typing import Set
+from enum import Enum, StrEnum
 
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     """Enumeration of all MIDI message types."""
 
     # Channel Messages
@@ -101,7 +101,7 @@ class MessageType(str, Enum):
 
 
 # Message type collections for validation and categorization
-CHANNEL_MESSAGE_TYPES: Set[str] = {
+CHANNEL_MESSAGE_TYPES: set[str] = {
     MessageType.NOTE_OFF,
     MessageType.NOTE_ON,
     MessageType.POLY_PRESSURE,
@@ -122,7 +122,7 @@ CHANNEL_MESSAGE_TYPES: Set[str] = {
 }
 
 # System Real-time Messages (for synchronization)
-SYSTEM_REALTIME_MESSAGE_TYPES: Set[str] = {
+SYSTEM_REALTIME_MESSAGE_TYPES: set[str] = {
     MessageType.TIMING_CLOCK,
     MessageType.START,
     MessageType.CONTINUE,
@@ -132,14 +132,14 @@ SYSTEM_REALTIME_MESSAGE_TYPES: Set[str] = {
 }
 
 # System Common Messages
-SYSTEM_COMMON_MESSAGE_TYPES: Set[str] = {
+SYSTEM_COMMON_MESSAGE_TYPES: set[str] = {
     MessageType.TIME_CODE,
     MessageType.SONG_POSITION,
     MessageType.SONG_SELECT,
     MessageType.TUNE_REQUEST,
 }
 
-SYSTEM_MESSAGE_TYPES: Set[str] = {
+SYSTEM_MESSAGE_TYPES: set[str] = {
     MessageType.TIMING_CLOCK,
     MessageType.START,
     MessageType.CONTINUE,
@@ -152,7 +152,7 @@ SYSTEM_MESSAGE_TYPES: Set[str] = {
     MessageType.SONG_SELECT,
 }
 
-SYSEX_MESSAGE_TYPES: Set[str] = {
+SYSEX_MESSAGE_TYPES: set[str] = {
     MessageType.SYSEX,
     MessageType.XG_PARAMETER_CHANGE,
     MessageType.XG_BULK_DUMP,
@@ -161,7 +161,7 @@ SYSEX_MESSAGE_TYPES: Set[str] = {
     MessageType.UNIVERSAL_REALTIME_SYSEX,
 }
 
-MIDI_2_0_MESSAGE_TYPES: Set[str] = {
+MIDI_2_0_MESSAGE_TYPES: set[str] = {
     MessageType.EXTENDED_CHANNEL_MESSAGE,
     MessageType.COMPLEX_CHANNEL_MESSAGE,
     MessageType.FULL_128BIT_MESSAGE,
@@ -197,7 +197,7 @@ MIDI_2_0_MESSAGE_TYPES: Set[str] = {
     MessageType.MIDI_2_FLEX_DATA_THIRTY_TWO,
 }
 
-ALL_MESSAGE_TYPES: Set[str] = (
+ALL_MESSAGE_TYPES: set[str] = (
     CHANNEL_MESSAGE_TYPES |
     SYSTEM_MESSAGE_TYPES |
     SYSEX_MESSAGE_TYPES |

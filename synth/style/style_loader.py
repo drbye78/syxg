@@ -4,10 +4,11 @@ Style Loader - YAML and SFF2-based Style File Parser
 Parses YAML-based style files and SFF2 binary files.
 Provides validation and conversion capabilities.
 """
+from __future__ import annotations
 
 import yaml
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Any
 from dataclasses import asdict
 
 from .style import (
@@ -55,7 +56,7 @@ class StyleLoader:
                 self._sff2_parser = None
         return self._sff2_parser
 
-    def load_style_file(self, file_path: Union[str, Path]) -> Style:
+    def load_style_file(self, file_path: str | Path) -> Style:
         """
         Load a style from YAML or SFF2 file.
         
@@ -80,7 +81,7 @@ class StyleLoader:
 
     def _load_yaml_file(self, path: Path) -> Style:
         """Load style from YAML file."""
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         if not data:
@@ -113,7 +114,7 @@ class StyleLoader:
 
         return style
 
-    def parse_style_data(self, data: Dict[str, Any]) -> Style:
+    def parse_style_data(self, data: dict[str, Any]) -> Style:
         """Parse style data from dictionary"""
         metadata = StyleMetadata.from_dict(data.get("metadata", {}))
 
@@ -148,7 +149,7 @@ class StyleLoader:
         return style
 
     def _parse_section(
-        self, data: Dict[str, Any], section_type: StyleSectionType
+        self, data: dict[str, Any], section_type: StyleSectionType
     ) -> StyleSection:
         """Parse a style section"""
         time_sig = data.get("time_signature")
@@ -181,7 +182,7 @@ class StyleLoader:
 
         return section
 
-    def _parse_track_data(self, data: Dict[str, Any]) -> StyleTrackData:
+    def _parse_track_data(self, data: dict[str, Any]) -> StyleTrackData:
         """Parse track data"""
         notes = [NoteEvent.from_dict(n) for n in data.get("notes", [])]
         cc_events = [CCEvent.from_dict(c) for c in data.get("cc_events", [])]
@@ -205,7 +206,7 @@ class StyleLoader:
         )
 
     def _parse_chord_table(
-        self, data: Dict[str, Any], section: StyleSectionType
+        self, data: dict[str, Any], section: StyleSectionType
     ) -> ChordTable:
         """Parse chord table"""
         table = ChordTable(section=section)
@@ -336,14 +337,14 @@ class StyleLoader:
 
         return style
 
-    def save_style(self, style: Style, file_path: Union[str, Path]):
+    def save_style(self, style: Style, file_path: str | Path):
         """Save style to YAML file"""
         path = Path(file_path)
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(style.to_yaml())
 
-    def get_available_styles(self, directory: Union[str, Path]) -> List[Dict[str, Any]]:
+    def get_available_styles(self, directory: str | Path) -> list[dict[str, Any]]:
         """Get list of available styles in a directory"""
         path = Path(directory)
 
@@ -401,8 +402,8 @@ class StyleLoader:
 
         return sorted(styles, key=lambda s: s["name"])
     
-    def convert_sff2_to_yaml(self, sff2_path: Union[str, Path], 
-                             yaml_path: Optional[Union[str, Path]] = None) -> str:
+    def convert_sff2_to_yaml(self, sff2_path: str | Path, 
+                             yaml_path: str | Path | None = None) -> str:
         """
         Convert SFF2 file to YAML format.
         

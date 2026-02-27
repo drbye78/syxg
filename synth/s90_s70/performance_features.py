@@ -4,8 +4,10 @@ S90/S70 Performance Features
 Real-time performance features and optimizations specific to S90/S70 synthesizers,
 including voice allocation, performance monitoring, and hardware optimizations.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import psutil
@@ -23,8 +25,8 @@ class VoiceAllocationOptimizer:
             max_voices: Maximum voices available
         """
         self.max_voices = max_voices
-        self.active_voices: Dict[int, Dict[str, Any]] = {}
-        self.voice_stealing_queue: List[int] = []
+        self.active_voices: dict[int, dict[str, Any]] = {}
+        self.voice_stealing_queue: list[int] = []
 
         # Voice allocation strategies
         self.allocation_strategy = 'priority'  # 'priority', 'oldest', 'quietest'
@@ -46,7 +48,7 @@ class VoiceAllocationOptimizer:
         self.lock = threading.RLock()
 
     def allocate_voice(self, voice_type: str, channel: int, note: int,
-                      velocity: int) -> Optional[int]:
+                      velocity: int) -> int | None:
         """
         Allocate a voice with hardware-optimized strategy.
 
@@ -105,7 +107,7 @@ class VoiceAllocationOptimizer:
                 return True
             return False
 
-    def _find_available_voice_id(self) -> Optional[int]:
+    def _find_available_voice_id(self) -> int | None:
         """Find an available voice ID"""
         # Simple sequential allocation
         for voice_id in range(self.max_voices):
@@ -114,7 +116,7 @@ class VoiceAllocationOptimizer:
         return None
 
     def _steal_voice(self, voice_type: str, channel: int, note: int,
-                    velocity: int) -> Optional[int]:
+                    velocity: int) -> int | None:
         """
         Attempt to steal a voice using hardware-optimized strategy.
 
@@ -140,7 +142,7 @@ class VoiceAllocationOptimizer:
         else:
             return self._steal_oldest()  # Default fallback
 
-    def _steal_by_priority(self, requesting_type: str) -> Optional[int]:
+    def _steal_by_priority(self, requesting_type: str) -> int | None:
         """Steal voice based on priority (lower priority voices first)"""
         requesting_priority = self.voice_priorities.get(requesting_type, 0)
 
@@ -160,7 +162,7 @@ class VoiceAllocationOptimizer:
 
         return None
 
-    def _steal_oldest(self) -> Optional[int]:
+    def _steal_oldest(self) -> int | None:
         """Steal the oldest allocated voice"""
         if not self.active_voices:
             return None
@@ -180,7 +182,7 @@ class VoiceAllocationOptimizer:
 
         return None
 
-    def _steal_quietest(self) -> Optional[int]:
+    def _steal_quietest(self) -> int | None:
         """Steal the voice with lowest velocity (quietest)"""
         if not self.active_voices:
             return None
@@ -216,7 +218,7 @@ class VoiceAllocationOptimizer:
             return True
         return False
 
-    def get_allocation_status(self) -> Dict[str, Any]:
+    def get_allocation_status(self) -> dict[str, Any]:
         """Get current voice allocation status"""
         with self.lock:
             active_count = len(self.active_voices)
@@ -228,7 +230,7 @@ class VoiceAllocationOptimizer:
                 'stats': self.allocation_stats.copy()
             }
 
-    def _count_voice_types(self) -> Dict[str, int]:
+    def _count_voice_types(self) -> dict[str, int]:
         """Count active voices by type"""
         counts = {}
         for voice_info in self.active_voices.values():
@@ -264,12 +266,12 @@ class HardwarePerformanceMonitor:
         }
 
         # Historical data for trending
-        self.history: List[Dict[str, Any]] = []
+        self.history: list[dict[str, Any]] = []
         self.max_history_entries = 100
 
         # Monitoring thread
         self.monitoring_active = False
-        self.monitor_thread: Optional[threading.Thread] = None
+        self.monitor_thread: threading.Thread | None = None
 
         self.lock = threading.RLock()
 
@@ -370,12 +372,12 @@ class HardwarePerformanceMonitor:
             self.metrics['envelope_update_time_us'] = envelope_update_us
             self.metrics['lfo_update_time_us'] = lfo_update_us
 
-    def get_current_metrics(self) -> Dict[str, Any]:
+    def get_current_metrics(self) -> dict[str, Any]:
         """Get current performance metrics"""
         with self.lock:
             return self.metrics.copy()
 
-    def get_performance_report(self) -> Dict[str, Any]:
+    def get_performance_report(self) -> dict[str, Any]:
         """Generate comprehensive performance report"""
         with self.lock:
             current_metrics = self.metrics.copy()
@@ -397,7 +399,7 @@ class HardwarePerformanceMonitor:
                 'performance_rating': self._calculate_performance_rating(current_metrics)
             }
 
-    def _calculate_averages(self) -> Dict[str, float]:
+    def _calculate_averages(self) -> dict[str, float]:
         """Calculate average metrics from history"""
         if not self.history:
             return {}
@@ -423,7 +425,7 @@ class HardwarePerformanceMonitor:
 
         return averages
 
-    def _calculate_peaks(self) -> Dict[str, float]:
+    def _calculate_peaks(self) -> dict[str, float]:
         """Calculate peak metrics from history"""
         if not self.history:
             return {}
@@ -439,7 +441,7 @@ class HardwarePerformanceMonitor:
 
         return peaks
 
-    def _calculate_performance_rating(self, metrics: Dict[str, Any]) -> str:
+    def _calculate_performance_rating(self, metrics: dict[str, Any]) -> str:
         """
         Calculate overall performance rating.
 
@@ -539,7 +541,7 @@ class RealTimeOptimizer:
 
         self.lock = threading.RLock()
 
-    def apply_optimizations(self) -> Dict[str, Any]:
+    def apply_optimizations(self) -> dict[str, Any]:
         """
         Apply real-time optimizations based on current conditions.
 
@@ -571,7 +573,7 @@ class RealTimeOptimizer:
                 'performance_impact': self._estimate_performance_impact(applied_optimizations)
             }
 
-    def _estimate_performance_impact(self, optimizations: List[str]) -> Dict[str, float]:
+    def _estimate_performance_impact(self, optimizations: list[str]) -> dict[str, float]:
         """Estimate performance impact of applied optimizations"""
         impact = {
             'cpu_reduction_percent': 0.0,
@@ -592,7 +594,7 @@ class RealTimeOptimizer:
 
         return impact
 
-    def check_performance_thresholds(self, metrics: Dict[str, Any]) -> List[str]:
+    def check_performance_thresholds(self, metrics: dict[str, Any]) -> list[str]:
         """
         Check if performance metrics exceed thresholds.
 
@@ -619,7 +621,7 @@ class RealTimeOptimizer:
 
             return exceeded
 
-    def apply_adaptive_measures(self, exceeded_thresholds: List[str]) -> Dict[str, Any]:
+    def apply_adaptive_measures(self, exceeded_thresholds: list[str]) -> dict[str, Any]:
         """
         Apply adaptive measures when thresholds are exceeded.
 
@@ -646,7 +648,7 @@ class RealTimeOptimizer:
                 'recommendations': self._generate_recommendations(exceeded_thresholds)
             }
 
-    def _generate_recommendations(self, exceeded_thresholds: List[str]) -> List[str]:
+    def _generate_recommendations(self, exceeded_thresholds: list[str]) -> list[str]:
         """Generate performance recommendations"""
         recommendations = []
 
@@ -673,7 +675,7 @@ class RealTimeOptimizer:
 
         return recommendations
 
-    def get_optimization_status(self) -> Dict[str, Any]:
+    def get_optimization_status(self) -> dict[str, Any]:
         """Get current optimization status"""
         with self.lock:
             return {
@@ -746,7 +748,7 @@ class S90S70PerformanceFeatures:
             self.performance_monitor.stop_monitoring()
 
     def allocate_voice(self, voice_type: str, channel: int, note: int,
-                      velocity: int) -> Optional[int]:
+                      velocity: int) -> int | None:
         """
         Allocate a voice using hardware-optimized strategy.
 
@@ -802,7 +804,7 @@ class S90S70PerformanceFeatures:
 
             return True
 
-    def get_performance_report(self) -> Dict[str, Any]:
+    def get_performance_report(self) -> dict[str, Any]:
         """Get comprehensive performance report"""
         with self.lock:
             return {
@@ -814,7 +816,7 @@ class S90S70PerformanceFeatures:
                 'system_health': self._assess_system_health()
             }
 
-    def _assess_system_health(self) -> Dict[str, Any]:
+    def _assess_system_health(self) -> dict[str, Any]:
         """Assess overall system health"""
         current_metrics = self.performance_monitor.get_current_metrics()
 
@@ -836,7 +838,7 @@ class S90S70PerformanceFeatures:
             'recommendations': self.realtime_optimizer.apply_adaptive_measures(issues) if issues else []
         }
 
-    def optimize_for_workload(self, active_voices: int, effects_active: int) -> Dict[str, Any]:
+    def optimize_for_workload(self, active_voices: int, effects_active: int) -> dict[str, Any]:
         """
         Optimize system for current workload.
 
@@ -907,7 +909,7 @@ class S90S70PerformanceFeatures:
             # Reset performance monitor history
             self.performance_monitor.history.clear()
 
-    def get_realtime_performance_data(self) -> Dict[str, Any]:
+    def get_realtime_performance_data(self) -> dict[str, Any]:
         """Get real-time performance data for monitoring"""
         with self.lock:
             return {

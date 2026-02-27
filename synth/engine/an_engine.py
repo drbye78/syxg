@@ -5,9 +5,11 @@ Complete AN synthesis engine with physical modeling algorithms,
 mass-spring systems, waveguide synthesis, and analog-style processing.
 Provides authentic Yamaha Motif AN compatibility with modern performance.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import math
 from ..math.fast_approx import fast_math
 from ..core.buffer_pool import XGBufferPool
@@ -537,7 +539,7 @@ class StringBodyInteraction:
         return coupling * self.bridge_coupling
 
     def process_string_body_interaction(self, string_output: float, body_output: float,
-                                      string_freq: float) -> Tuple[float, float]:
+                                      string_freq: float) -> tuple[float, float]:
         """Process string-body interaction for RP-PR modeling"""
         # Calculate energy transfer from string to body
         string_to_body_energy = string_output * self.bridge_coupling
@@ -629,12 +631,12 @@ class MaterialProperties:
             print(f"Warning: Unknown material '{material_name}', using spruce")
             self.current_material = "spruce"
 
-    def get_material_properties(self, material_name: Optional[str] = None) -> Dict[str, float]:
+    def get_material_properties(self, material_name: str | None = None) -> dict[str, float]:
         """Get material properties"""
         material = material_name or self.current_material
         return self.material_database.get(material, self.material_database["spruce"]).copy()
 
-    def calculate_resonance_properties(self, frequency: float, material_name: Optional[str] = None) -> Dict[str, float]:
+    def calculate_resonance_properties(self, frequency: float, material_name: str | None = None) -> dict[str, float]:
         """Calculate frequency-dependent resonance properties"""
         props = self.get_material_properties(material_name)
 
@@ -657,7 +659,7 @@ class MaterialProperties:
             "resonant_gain": min(2.0, q_factor / 100.0)  # Limit gain
         }
 
-    def get_available_materials(self) -> List[str]:
+    def get_available_materials(self) -> list[str]:
         """Get list of available materials"""
         return list(self.material_database.keys())
 
@@ -692,7 +694,7 @@ class ANEngine(SynthesisEngine):
 
         # Voice management
         self.max_voices = 64
-        self.active_voices: Dict[int, Dict[str, Any]] = {}
+        self.active_voices: dict[int, dict[str, Any]] = {}
 
         # Initialize components
         self._init_components()
@@ -928,7 +930,7 @@ class ANEngine(SynthesisEngine):
         elif param == "max_voices":
             self.max_voices = max(1, min(128, int(value)))
 
-    def get_parameters(self) -> Dict[str, Any]:
+    def get_parameters(self) -> dict[str, Any]:
         """Get current AN parameters"""
         return {
             'oscillator_type': self.oscillator_type,
@@ -951,7 +953,7 @@ class ANEngine(SynthesisEngine):
         for env in self.envelopes:
             env.reset()
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get AN engine information"""
         return {
             'type': 'AN (Analog Physical Modeling)',
@@ -966,7 +968,7 @@ class ANEngine(SynthesisEngine):
         }
     # ========== NEW REGION-BASED METHODS (STUBS) ==========
     
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """Get preset info (stub)."""
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
@@ -986,15 +988,15 @@ class ANEngine(SynthesisEngine):
             region_descriptors=[descriptor]
         )
     
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
     
     def create_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create region instance. Base implementation wraps with S.Art2.
         """
@@ -1002,9 +1004,9 @@ class ANEngine(SynthesisEngine):
 
     def _create_base_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create ANRegion base region without S.Art2 wrapper.
 
@@ -1019,12 +1021,12 @@ class ANEngine(SynthesisEngine):
         return ANRegion(descriptor, sample_rate)
     
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         return True
 
 
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
                         block_size: int) -> np.ndarray:
         """
         Generate audio samples for AN synthesis.
@@ -1070,7 +1072,7 @@ class ANEngine(SynthesisEngine):
         # AN engine supports full MIDI range
         return 0 <= note <= 127
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int):
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int):
         """
         Create a partial instance for AN engine.
 

@@ -1,4 +1,5 @@
-from typing import Dict, List, Tuple, Optional, Any, Set, Union
+from __future__ import annotations
+from typing import Any
 import math
 import numpy as np
 from .sf2_constants import (
@@ -20,7 +21,7 @@ class SF2GeneratorProcessor:
 
     def __init__(self):
         """Initialize generator processor."""
-        self.generator_values: Dict[int, int] = {}
+        self.generator_values: dict[int, int] = {}
 
         # Initialize with SF2 defaults
         for gen_type, gen_info in SF2_GENERATORS.items():
@@ -55,7 +56,7 @@ class SF2GeneratorProcessor:
         """
         return self.generator_values.get(generator_type, default)
 
-    def to_modern_synth_params(self) -> Dict[str, Any]:
+    def to_modern_synth_params(self) -> dict[str, Any]:
         """
         Convert ALL SF2 generators to modern synth parameters.
         Implements 100% SF2 specification compliance.
@@ -211,15 +212,15 @@ class SF2ModulationEngine:
 
     def __init__(self):
         """Initialize modulation engine."""
-        self.controller_values: Dict[int, float] = {}
-        self.modulators: List[Dict[str, Any]] = []
+        self.controller_values: dict[int, float] = {}
+        self.modulators: list[dict[str, Any]] = []
 
         # Controller states for smoothing
-        self.controller_states: Dict[int, float] = {}
-        self.smoothing_filters: Dict[int, float] = {}
+        self.controller_states: dict[int, float] = {}
+        self.smoothing_filters: dict[int, float] = {}
 
         # Voice modulation state
-        self.voice_modulation_state: Dict[str, Dict[int, float]] = {}
+        self.voice_modulation_state: dict[str, dict[int, float]] = {}
 
         # Pitch bend state
         self.current_pitch_bend_range: int = 2
@@ -242,7 +243,7 @@ class SF2ModulationEngine:
         self.controller_values[139] = 64.0  # Coarse tune
         self.controller_values[140] = 64.0  # Fine tune
 
-    def add_modulator(self, modulator: Dict[str, Any]) -> None:
+    def add_modulator(self, modulator: dict[str, Any]) -> None:
         """
         Add a modulator to the engine.
 
@@ -299,7 +300,7 @@ class SF2ModulationEngine:
         """Get current controller value."""
         return self.controller_values.get(controller, 0.0)
 
-    def get_performance_state(self) -> Dict[str, Any]:
+    def get_performance_state(self) -> dict[str, Any]:
         """Get performance state."""
         return {
             "active_voices": len(self.voice_modulation_state),
@@ -312,11 +313,11 @@ class SF2ModulationEngine:
     def create_zone_engine(
         self,
         zone_id: str,
-        instrument_generators: Dict[int, int],
-        instrument_modulators: List[Dict],
-        preset_generators: Dict[int, int],
-        preset_modulators: List[Dict],
-    ) -> "SF2ZoneEngine":
+        instrument_generators: dict[int, int],
+        instrument_modulators: list[dict],
+        preset_generators: dict[int, int],
+        preset_modulators: list[dict],
+    ) -> SF2ZoneEngine:
         """Create a per-zone modulation engine."""
         return SF2ZoneEngine(
             zone_id,
@@ -374,7 +375,7 @@ class SF2ModulationEngine:
 
     def _calculate_modulation_factors(
         self, note: int, velocity: int
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Calculate modulation factors for ALL modern synth parameters.
         Implements complete SF2 modulation destination routing.
@@ -614,8 +615,8 @@ class SF2RealtimeControllerManager:
             modulation_engine: SF2 modulation engine to update
         """
         self.modulation_engine = modulation_engine
-        self.controller_states: Dict[int, float] = {}
-        self.smoothing_filters: Dict[int, ExponentialFilter] = {}
+        self.controller_states: dict[int, float] = {}
+        self.smoothing_filters: dict[int, ExponentialFilter] = {}
 
         # Initialize smoothing for modulation-sensitive controllers
         self._init_controller_smoothing()
@@ -644,7 +645,7 @@ class SF2RealtimeControllerManager:
             self.smoothing_filters[controller] = ExponentialFilter(alpha=0.1)
 
     def update_controller(
-        self, controller: int, value: Union[int, float], smooth: bool = True
+        self, controller: int, value: int | float, smooth: bool = True
     ) -> None:
         """
         Update controller value with optional smoothing.
@@ -678,7 +679,7 @@ class SF2RealtimeControllerManager:
         self.modulation_engine.update_global_controller(controller, normalized_value)
 
     def update_pitch_bend(
-        self, value: int, range_semitones: Optional[int] = None
+        self, value: int, range_semitones: int | None = None
     ) -> None:
         """
         Update pitch bend with configurable range.
@@ -791,7 +792,7 @@ class SF2RealtimeControllerManager:
         """
         return self.controller_states.get(controller, 0.0)
 
-    def get_performance_state(self) -> Dict[str, Any]:
+    def get_performance_state(self) -> dict[str, Any]:
         """
         Get current performance state for debugging/monitoring.
 
@@ -809,11 +810,11 @@ class SF2RealtimeControllerManager:
     def create_zone_engine(
         self,
         zone_id: str,
-        instrument_generators: Dict[int, int],
-        instrument_modulators: List[Dict],
-        preset_generators: Dict[int, int],
-        preset_modulators: List[Dict],
-    ) -> "SF2ZoneEngine":
+        instrument_generators: dict[int, int],
+        instrument_modulators: list[dict],
+        preset_generators: dict[int, int],
+        preset_modulators: list[dict],
+    ) -> SF2ZoneEngine:
         """
         Create a per-zone modulation engine.
 
@@ -838,11 +839,11 @@ class SF2RealtimeControllerManager:
     def create_zone_engine(
         self,
         zone_id: str,
-        instrument_generators: Dict[int, int],
-        instrument_modulators: List[Dict],
-        preset_generators: Dict[int, int],
-        preset_modulators: List[Dict],
-    ) -> "SF2ZoneEngine":
+        instrument_generators: dict[int, int],
+        instrument_modulators: list[dict],
+        preset_generators: dict[int, int],
+        preset_modulators: list[dict],
+    ) -> SF2ZoneEngine:
         """
         Create a per-zone modulation engine.
 
@@ -918,10 +919,10 @@ class SF2ZoneEngine:
     def __init__(
         self,
         zone_id: str,
-        instrument_generators: Dict[int, int],
-        instrument_modulators: List[Dict],
-        preset_generators: Dict[int, int],
-        preset_modulators: List[Dict],
+        instrument_generators: dict[int, int],
+        instrument_modulators: list[dict],
+        preset_generators: dict[int, int],
+        preset_modulators: list[dict],
     ):
         """
         Initialize zone engine.
@@ -948,7 +949,7 @@ class SF2ZoneEngine:
         self.instrument_modulators = instrument_modulators
         self.preset_modulators = preset_modulators
 
-    def get_modulated_parameters(self, note: int, velocity: int) -> Dict[str, Any]:
+    def get_modulated_parameters(self, note: int, velocity: int) -> dict[str, Any]:
         """
         Get final synthesis parameters after modulation.
 
@@ -977,10 +978,10 @@ class SF2ZoneEngine:
 
 def create_zone_engine(
     zone_id: str,
-    instrument_generators: Dict[int, int],
-    instrument_modulators: List[Dict],
-    preset_generators: Dict[int, int],
-    preset_modulators: List[Dict],
+    instrument_generators: dict[int, int],
+    instrument_modulators: list[dict],
+    preset_generators: dict[int, int],
+    preset_modulators: list[dict],
 ) -> SF2ZoneEngine:
     """
     Factory function to create a zone engine.

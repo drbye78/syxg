@@ -6,8 +6,10 @@ Implements 14-bit parameter resolution for precise arpeggiator control.
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Callable, Tuple
+from typing import Any
+from collections.abc import Callable
 import threading
 
 
@@ -46,7 +48,7 @@ class YamahaArpeggiatorNRPNController:
 
         print("🎹 Yamaha Arpeggiator NRPN Controller: Initialized")
 
-    def _build_parameter_map(self) -> Dict[Tuple[int, int], Dict[str, Any]]:
+    def _build_parameter_map(self) -> dict[tuple[int, int], dict[str, Any]]:
         """
         Build comprehensive NRPN parameter map for arpeggiator control.
 
@@ -223,7 +225,7 @@ class YamahaArpeggiatorNRPNController:
         pattern_id = value  # Simplified - should combine MSB/LSB
         return self.arpeggiator_engine.set_pattern(part, pattern_id)
 
-    def get_current_parameter_value(self) -> Optional[int]:
+    def get_current_parameter_value(self) -> int | None:
         """Get current parameter value for data increment/decrement."""
         if not self.active_nrpn:
             return None
@@ -283,12 +285,12 @@ class YamahaArpeggiatorNRPNController:
             return param_info['range'][0]
         return 0
 
-    def get_parameter_info(self, msb: int, lsb: int) -> Optional[Dict[str, Any]]:
+    def get_parameter_info(self, msb: int, lsb: int) -> dict[str, Any] | None:
         """Get information about a specific NRPN parameter."""
         param_key = (msb, lsb)
         return self.parameter_map.get(param_key)
 
-    def list_parameters(self, part: Optional[int] = None) -> List[Dict[str, Any]]:
+    def list_parameters(self, part: int | None = None) -> list[dict[str, Any]]:
         """
         List all NRPN parameters, optionally filtered by part.
 
@@ -312,7 +314,7 @@ class YamahaArpeggiatorNRPNController:
 
         return parameters
 
-    def get_nrpn_status(self) -> Dict[str, Any]:
+    def get_nrpn_status(self) -> dict[str, Any]:
         """Get current NRPN controller status."""
         with self.lock:
             return {
@@ -333,7 +335,7 @@ class YamahaArpeggiatorNRPNController:
             self.data_msb = 0
             self.data_msb_received = False
 
-    def create_nrpn_message(self, msb: int, lsb: int, value: int, channel: int = 0) -> List[bytes]:
+    def create_nrpn_message(self, msb: int, lsb: int, value: int, channel: int = 0) -> list[bytes]:
         """
         Create NRPN message sequence for a parameter.
 

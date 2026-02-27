@@ -18,10 +18,11 @@ Effects implemented:
 
 All implementations use zero-allocation processing and thread-safe state management.
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import Dict, Any, Optional
+from typing import Any
 import threading
 
 
@@ -48,7 +49,7 @@ class DelayVariationProcessor:
         self._lock = threading.RLock()
 
     def process_effect(self, effect_type: int, stereo_mix: np.ndarray,
-                      num_samples: int, params: Dict[str, float]) -> None:
+                      num_samples: int, params: dict[str, float]) -> None:
         """
         Process delay variation effect.
 
@@ -80,14 +81,14 @@ class DelayVariationProcessor:
             elif effect_type == 9:
                 self._process_auto_pan(stereo_mix, num_samples, params)
 
-    def _ensure_state(self, effect_key: str, state_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _ensure_state(self, effect_key: str, state_config: dict[str, Any]) -> dict[str, Any]:
         """Ensure effect state exists, create if needed."""
         if effect_key not in self._effect_states:
             self._effect_states[effect_key] = state_config.copy()
         return self._effect_states[effect_key]
 
     def _process_delay_lcr(self, stereo_mix: np.ndarray, num_samples: int,
-                          params: Dict[str, float]) -> None:
+                          params: dict[str, float]) -> None:
         """
         Process Delay L/C/R effect (XG Variation Type 0).
         Production implementation with proper delay line processing.
@@ -157,7 +158,7 @@ class DelayVariationProcessor:
             state['write_pos_c'] = (state['write_pos_c'] + 1) % self.max_delay_samples
 
     def _process_delay_lr(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """
         Process Delay L/R effect (XG Variation Type 1).
         Dual delay implementation with cross-feedback support.
@@ -212,7 +213,7 @@ class DelayVariationProcessor:
             state['write_pos_r'] = (state['write_pos_r'] + 1) % self.max_delay_samples
 
     def _process_echo(self, stereo_mix: np.ndarray, num_samples: int,
-                     params: Dict[str, float]) -> None:
+                     params: dict[str, float]) -> None:
         """
         Process Echo effect (XG Variation Type 2).
         Echo with configurable decay and feedback.
@@ -254,7 +255,7 @@ class DelayVariationProcessor:
             state['write_pos'] = (state['write_pos'] + 1) % self.max_delay_samples
 
     def _process_dual_delay(self, stereo_mix: np.ndarray, num_samples: int,
-                           params: Dict[str, float]) -> None:
+                           params: dict[str, float]) -> None:
         """
         Process Dual Delay effect (XG Variation Type 3).
         Two independent delay lines.
@@ -308,7 +309,7 @@ class DelayVariationProcessor:
             state['write_pos2'] = (state['write_pos2'] + 1) % self.max_delay_samples
 
     def _process_pan_delay(self, stereo_mix: np.ndarray, num_samples: int,
-                          params: Dict[str, float]) -> None:
+                          params: dict[str, float]) -> None:
         """
         Process Pan Delay effect (XG Variation Type 4).
         Auto-panning delay with LFO modulation.
@@ -360,7 +361,7 @@ class DelayVariationProcessor:
             state['lfo_phase'] = lfo_phase % (2 * math.pi)
 
     def _process_cross_delay(self, stereo_mix: np.ndarray, num_samples: int,
-                            params: Dict[str, float]) -> None:
+                            params: dict[str, float]) -> None:
         """
         Process Cross Delay effect (XG Variation Type 5).
         Cross-feedback delay processing.
@@ -418,7 +419,7 @@ class DelayVariationProcessor:
             state['write_pos_r'] = (state['write_pos_r'] + 1) % self.max_delay_samples
 
     def _process_multi_tap_delay(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """
         Process Multi-tap Delay effect (XG Variation Type 6).
         Multiple simultaneous delay taps.
@@ -465,7 +466,7 @@ class DelayVariationProcessor:
             state['write_pos'] = (state['write_pos'] + 1) % self.max_delay_samples
 
     def _process_reverse_delay(self, stereo_mix: np.ndarray, num_samples: int,
-                              params: Dict[str, float]) -> None:
+                              params: dict[str, float]) -> None:
         """
         Process Reverse Delay effect (XG Variation Type 7).
         Reverse delay effect.
@@ -517,7 +518,7 @@ class DelayVariationProcessor:
             state['buffer_index'] = state['write_pos']
 
     def _process_tremolo(self, stereo_mix: np.ndarray, num_samples: int,
-                        params: Dict[str, float]) -> None:
+                        params: dict[str, float]) -> None:
         """
         Process Tremolo effect (XG Variation Type 8).
         Amplitude modulation with multiple waveforms.
@@ -552,7 +553,7 @@ class DelayVariationProcessor:
             stereo_mix[i, 1] *= amplitude
 
     def _process_auto_pan(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """
         Process Auto Pan effect (XG Variation Type 9).
         Stereo panning modulation with multiple waveforms.

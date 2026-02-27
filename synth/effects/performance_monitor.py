@@ -22,13 +22,15 @@ Performance Categories:
 - Buffer Management: Pool usage and allocation monitoring
 - MIDI Control: Parameter update response times
 """
+from __future__ import annotations
 
 import time
 import numpy as np
 import threading
 import psutil
 import os
-from typing import Dict, List, Tuple, Optional, Any, Callable
+from typing import Any
+from collections.abc import Callable
 from collections import deque
 from dataclasses import dataclass
 from enum import IntEnum
@@ -64,7 +66,7 @@ class XGProfilingEvent(IntEnum):
     EFFECT_DISABLE = 6
 
 
-@dataclass
+@dataclass(slots=True)
 class XGProcessStats:
     """XG Processing Statistics Structure"""
     total_blocks: int = 0
@@ -79,7 +81,7 @@ class XGProcessStats:
     parameter_updates: int = 0
 
 
-@dataclass
+@dataclass(slots=True)
 class XGEffectProfile:
     """XG Effect Profile Data"""
     effect_type: str
@@ -115,7 +117,7 @@ class XGPerformanceProfiler:
         self.global_stats = XGProcessStats()
 
         # Effect-specific profiling
-        self.effect_profiles: Dict[str, XGEffectProfile] = {}
+        self.effect_profiles: dict[str, XGEffectProfile] = {}
         self.system_profile = XGEffectProfile("system", 2)  # Stereo
         self.variation_profile = XGEffectProfile("variation", 1)  # Mono input
         self.insertion_profile = XGEffectProfile("insertion", 16)  # 16 channels
@@ -138,7 +140,7 @@ class XGPerformanceProfiler:
 
         # Thread safety
         self.lock = threading.RLock()
-        self.monitor_thread: Optional[threading.Thread] = None
+        self.monitor_thread: threading.Thread | None = None
         self.monitoring_active = False
 
         # Alerting thresholds
@@ -147,7 +149,7 @@ class XGPerformanceProfiler:
         self.memory_threshold_mb = 1000.0  # 1GB
 
         # Callbacks for alerts
-        self.alert_callbacks: List[Callable] = []
+        self.alert_callbacks: list[Callable] = []
 
     def start_monitoring(self) -> None:
         """Start continuous performance monitoring."""
@@ -250,7 +252,7 @@ class XGPerformanceProfiler:
             if effect_name in self.effect_profiles:
                 self.effect_profiles[effect_name].parameter_changes += 1
 
-    def get_performance_report(self) -> Dict[str, Any]:
+    def get_performance_report(self) -> dict[str, Any]:
         """
         Generate a comprehensive performance report.
 
@@ -428,7 +430,7 @@ class XGMemoryProfiler:
     Tracks buffer usage, allocation patterns, and memory efficiency.
     """
 
-    def __init__(self, buffer_pool: Optional[Any] = None):
+    def __init__(self, buffer_pool: Any | None = None):
         """
         Initialize memory profiler.
 
@@ -436,8 +438,8 @@ class XGMemoryProfiler:
             buffer_pool: XGBufferPool instance to monitor
         """
         self.buffer_pool = buffer_pool
-        self.memory_samples: Dict[str, List[float]] = {}
-        self.allocation_events: List[Tuple[float, str, bool]] = []  # (time, type, allocated)
+        self.memory_samples: dict[str, list[float]] = {}
+        self.allocation_events: list[tuple[float, str, bool]] = []  # (time, type, allocated)
 
         # Memory statistics
         self.peak_memory_mb = 0.0
@@ -492,7 +494,7 @@ class XGMemoryProfiler:
             self.zero_alloc_violations += 1
             print(f"ZERO-ALLOCATION VIOLATION: {violation_type}")
 
-    def get_memory_report(self) -> Dict[str, Any]:
+    def get_memory_report(self) -> dict[str, Any]:
         """Generate detailed memory usage report."""
         with self.lock:
             total_allocated = sum(
@@ -560,7 +562,7 @@ class XGPerformanceMonitor:
         with self.lock:
             return self.profiler.end_frame(self._current_frame_start, num_samples, num_channels)
 
-    def monitor_effect(self, effect_name: str, start_time: Optional[float] = None) -> Callable:
+    def monitor_effect(self, effect_name: str, start_time: float | None = None) -> Callable:
         """
         Create a context manager for monitoring effect processing.
 
@@ -587,7 +589,7 @@ class XGPerformanceMonitor:
         monitor.profiler = self.profiler
         return monitor
 
-    def get_comprehensive_report(self) -> Dict[str, Any]:
+    def get_comprehensive_report(self) -> dict[str, Any]:
         """
         Get comprehensive performance and memory report.
 
@@ -612,7 +614,7 @@ class XGPerformanceMonitor:
         self.profiler.stop_monitoring()
 
     @staticmethod
-    def create_default_monitor() -> 'XGPerformanceMonitor':
+    def create_default_monitor() -> XGPerformanceMonitor:
         """Create a default XG performance monitor with standard settings."""
         return XGPerformanceMonitor(target_latency_ms=10.0)  # <10ms for realtime
 

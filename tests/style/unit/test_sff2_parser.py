@@ -9,6 +9,7 @@ Tests for Yamaha SFF2 style file parser including:
 - Style conversion
 - File I/O
 """
+from __future__ import annotations
 
 import pytest
 import struct

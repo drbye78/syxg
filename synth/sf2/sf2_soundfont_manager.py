@@ -4,8 +4,9 @@ SF2 SoundFont Manager
 Single optimized SF2 implementation managing multiple soundfonts with complete feature set.
 Handles ordering, blacklisting, remapping, and orchestrates all SF2 components.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Optional, Any, Set, Union
+from typing import Any
 from pathlib import Path
 import threading
 import time
@@ -31,10 +32,10 @@ class SF2SoundFontManager:
         self.max_loaded_files = max_loaded_files
 
         # File management
-        self.loaded_files: Dict[str, 'SF2SoundFont'] = {}  # filepath -> soundfont
-        self.file_order: List[str] = []  # File loading order for preset resolution
-        self.file_blacklist: Set[Tuple[int, int]] = set()  # (bank, program) to blacklist
-        self.file_remapping: Dict[Tuple[int, int], Tuple[int, int]] = {}  # (bank, program) -> (new_bank, new_program)
+        self.loaded_files: dict[str, SF2SoundFont] = {}  # filepath -> soundfont
+        self.file_order: list[str] = []  # File loading order for preset resolution
+        self.file_blacklist: set[tuple[int, int]] = set()  # (bank, program) to blacklist
+        self.file_remapping: dict[tuple[int, int], tuple[int, int]] = {}  # (bank, program) -> (new_bank, new_program)
 
         # Core components
         self.sample_processor = None  # Will be initialized when first file is loaded
@@ -42,8 +43,8 @@ class SF2SoundFontManager:
         self.modulation_engine = None
 
         # Statistics and performance tracking
-        self.load_times: Dict[str, float] = {}
-        self.access_counts: Dict[str, int] = {}
+        self.load_times: dict[str, float] = {}
+        self.access_counts: dict[str, int] = {}
         self._lock = threading.RLock()
 
         # Initialize core components
@@ -191,7 +192,7 @@ class SF2SoundFontManager:
             return True
 
     def get_program_parameters(self, bank: int, program: int, note: int = 60,
-                             velocity: int = 100) -> Optional[Dict[str, Any]]:
+                             velocity: int = 100) -> dict[str, Any] | None:
         """
         Get program parameters with remapping and blacklisting support.
 
@@ -239,7 +240,7 @@ class SF2SoundFontManager:
     # with unified implementations that support optional soundfont_path. The older versions
     # that were here have been removed to avoid duplicate, conflicting definitions.
 
-    def get_available_programs(self) -> List[Tuple[int, int, str]]:
+    def get_available_programs(self) -> list[tuple[int, int, str]]:
         """
         Get all available programs across all loaded soundfonts.
 
@@ -339,7 +340,7 @@ class SF2SoundFontManager:
             self._insert_file_by_priority(filepath, priority)
             return True
 
-    def get_sample_data(self, sample_id: int, soundfont_path: Optional[str] = None) -> Optional[Any]:
+    def get_sample_data(self, sample_id: int, soundfont_path: str | None = None) -> Any | None:
         """
         Get sample data with cross-file caching.
 
@@ -366,7 +367,7 @@ class SF2SoundFontManager:
 
         return None
     
-    def get_sample_info(self, sample_id: int, soundfont_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_sample_info(self, sample_id: int, soundfont_path: str | None = None) -> dict[str, Any] | None:
         """
         Get sample information (root key, name, sample rate, etc.).
 
@@ -396,7 +397,7 @@ class SF2SoundFontManager:
 
         return None
 
-    def get_sample_loop_info(self, sample_id: int, soundfont_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_sample_loop_info(self, sample_id: int, soundfont_path: str | None = None) -> dict[str, Any] | None:
         """
         Get sample loop information.
 
@@ -426,7 +427,7 @@ class SF2SoundFontManager:
 
         return None
 
-    def get_zone(self, region_id: int, bank: int = 0, program: int = 0) -> Optional[Any]:
+    def get_zone(self, region_id: int, bank: int = 0, program: int = 0) -> Any | None:
         """
         Get SF2Zone by region ID for a specific preset.
 
@@ -449,7 +450,7 @@ class SF2SoundFontManager:
 
         return None
 
-    def update_controller(self, controller: int, value: Union[int, float]) -> None:
+    def update_controller(self, controller: int, value: int | float) -> None:
         """
         Update global controller value across all soundfonts.
 
@@ -460,7 +461,7 @@ class SF2SoundFontManager:
         if self.modulation_engine:
             self.modulation_engine.update_global_controller(controller, value)
 
-    def get_performance_stats(self) -> Dict[str, Any]:
+    def get_performance_stats(self) -> dict[str, Any]:
         """
         Get comprehensive performance statistics.
 
@@ -498,7 +499,7 @@ class SF2SoundFontManager:
 
             return stats
 
-    def _get_memory_usage(self) -> Dict[str, Any]:
+    def _get_memory_usage(self) -> dict[str, Any]:
         """Get memory usage across all components."""
         memory_stats = {
             'total_mb': 0.0,
@@ -545,7 +546,7 @@ class SF2SoundFontManager:
 
             self.clear_all_caches()
 
-    def get_soundfont_info(self, filepath: Optional[str] = None) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    def get_soundfont_info(self, filepath: str | None = None) -> dict[str, Any] | list[dict[str, Any]]:
         """
         Get information about loaded soundfonts.
 

@@ -19,12 +19,14 @@ Architecture:
 - Object pooling to minimize memory allocation overhead
 - Pre-allocated audio buffers for zero-allocation rendering
 """
+from __future__ import annotations
 
 import numpy as np
 import threading
 import sys
 import os
-from typing import List, Tuple, Optional, Dict, Any, Callable
+from typing import Any
+from collections.abc import Callable
 import time
 
 from synth.core.envelope import EnvelopePool
@@ -105,7 +107,7 @@ class OptimizedXGSynthesizer:
         memory_pool_stereo_multiplier: int = 8,  # Configurable memory pool size multipliers
         memory_pool_mono_multiplier: int = 4,
         minimum_time_slice: float = 0.002,  # Configurable timing parameters
-        sysex_response_callback: Optional[Callable] = None,  # Callback for SYSEX responses
+        sysex_response_callback: Callable | None = None,  # Callback for SYSEX responses
         architecture: str = "legacy",  # "legacy" or "voice" - NEW: Architecture selection
     ):
         """
@@ -160,7 +162,7 @@ class OptimizedXGSynthesizer:
 
         # Per-channel renderers owned by synthesizer (one per MIDI channel)
         # Can be VectorizedChannelRenderer (legacy) or Channel (voice)
-        self.channel_renderers: List[Any] = []
+        self.channel_renderers: list[Any] = []
         self._create_channel_renderers()
 
         # NEW XG Effects System - Zero-allocation, XG-compliant effects coordinator
@@ -192,7 +194,7 @@ class OptimizedXGSynthesizer:
         self.partial_pool = PartialGeneratorPool(max_size=512)  # Pool for up to 512 partial generators
 
         # Initialize message processing state
-        self._message_sequence: List[MIDIMessage] = []
+        self._message_sequence: list[MIDIMessage] = []
         self._current_message_index: int = 0
         self._current_time: float = 0.0
         self._minimum_time_slice = minimum_time_slice
@@ -341,7 +343,7 @@ class OptimizedXGSynthesizer:
         self.channel_renderers[channel].program_change(program)
 
     # Public API methods
-    def set_sf2_files(self, sf2_paths: List[str]):
+    def set_sf2_files(self, sf2_paths: list[str]):
         """
         Set list of SF2 files to use with synthesizer.
 
@@ -483,7 +485,7 @@ class OptimizedXGSynthesizer:
             if len(data) >= 2 and data[1] == 0x43:  # Yamaha
                 self._handle_yamaha_sysex(data)
 
-    def send_midi_message_block(self, messages: List[MIDIMessage]):
+    def send_midi_message_block(self, messages: list[MIDIMessage]):
         """
         Send block of MIDI messages for buffered processing.
         Messages are stored in a sorted sequence for efficient consumption during rendering.
@@ -512,7 +514,7 @@ class OptimizedXGSynthesizer:
         # Use the sample-accurate method which already handles buffered processing
         return self.generate_audio_block_sample_accurate()
 
-    def _handle_yamaha_sysex(self, data: List[int]):
+    def _handle_yamaha_sysex(self, data: list[int]):
         """Handle Yamaha SYSEX messages with XG receive channel mapping support."""
         if len(data) < 4:
             return
@@ -567,7 +569,7 @@ class OptimizedXGSynthesizer:
         """
         # Initialize NRPN state if not exists
         if not hasattr(self, '_nrpn_state'):
-            self._nrpn_state: Dict[str, Optional[int]] = {
+            self._nrpn_state: dict[str, int | None] = {
                 'msb': None,      # NRPN MSB (CC 99)
                 'lsb': None,      # NRPN LSB (CC 98)
                 'data_msb': None, # Data Entry MSB (CC 6)
@@ -800,7 +802,7 @@ class OptimizedXGSynthesizer:
             return self.out_buffer
 
 
-    def _generate_channel_audio_vectorized(self, block_size: int) -> List[np.ndarray]:
+    def _generate_channel_audio_vectorized(self, block_size: int) -> list[np.ndarray]:
         """
         CORRECT XG INSERTION EFFECTS IMPLEMENTATION - Audio Quality Priority
 
@@ -1172,7 +1174,7 @@ class OptimizedXGSynthesizer:
             # If log recreation fails, print to console as fallback
             print(f"Warning: Failed to recreate performance log: {e}")
 
-    def _write_performance_log(self, log_data: Dict[str, Any]):
+    def _write_performance_log(self, log_data: dict[str, Any]):
         """Write performance statistics to a log file."""
         try:
             # Ensure log directory exists

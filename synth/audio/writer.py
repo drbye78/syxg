@@ -1,8 +1,9 @@
+from __future__ import annotations
 import av
 import numpy as np
-from typing import Optional
 from fractions import Fraction
 import sys
+
 
 class AudioWriter:
     """Handles writing audio data to various formats using pyav"""
@@ -15,11 +16,11 @@ class AudioWriter:
         'flac': 'flac',
         'm4a': 'aac'
     }
-    
+
     def __init__(self, sample_rate: int, chunk_size_ms: float):
         self.sample_rate = sample_rate
         self.chunk_size_ms = chunk_size_ms
-        
+
     def create_writer(self, output_file: str, format: str):
         """Create AV writer context"""
         try:
@@ -28,6 +29,45 @@ class AudioWriter:
             print("Error: Audio encoding requires 'av' library")
             print("Install with: pip install av")
             sys.exit(1)
+    
+    def write_multiple_files(
+        self,
+        audio_data: list[np.ndarray],
+        output_files: list[str],
+        formats: list[str]
+    ) -> None:
+        """
+        Write audio to multiple files with exception grouping.
+        
+        Python 3.11+: Uses ExceptionGroup to collect all errors
+        
+        Args:
+            audio_data: List of audio arrays
+            output_files: List of output file paths
+            formats: List of output formats
+        
+        Raises:
+            ExceptionGroup: If multiple files fail to write
+        """
+        errors = []
+        
+        for i, (audio, output_file, format) in enumerate(zip(audio_data, output_files, formats)):
+            try:
+                writer = self.create_writer(output_file, format)
+                with writer:
+                    writer.write(audio)
+            except Exception as e:
+                # Python 3.11+: Add context
+                e.add_note(f"Failed to write file {i+1}: {output_file}")
+                e.add_note(f"Format: {format}")
+                e.add_note(f"Audio shape: {audio.shape}")
+                errors.append(e)
+        
+        # Python 3.11+: Raise exception group if multiple errors
+        if len(errors) > 1:
+            raise ExceptionGroup("Failed to write multiple audio files", errors)
+        elif len(errors) == 1:
+            raise errors[0]
 
 class AvWriter:
     """Context manager for audio output using pyav"""

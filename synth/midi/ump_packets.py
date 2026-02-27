@@ -4,9 +4,9 @@ Universal MIDI Packet (UMP) Implementation for MIDI 2.0 Support
 This module implements the complete UMP specification for MIDI 2.0 support,
 including packet parsing, serialization, and conversion between MIDI 1.0 and MIDI 2.0 formats.
 """
+from __future__ import annotations
 
 from enum import IntEnum
-from typing import List, Optional, Union, Tuple, Dict
 import struct
 
 
@@ -41,7 +41,7 @@ class UMPPacket:
         """Convert packet to bytes representation"""
         raise NotImplementedError
     
-    def to_words(self) -> List[int]:
+    def to_words(self) -> list[int]:
         """Convert packet to 32-bit word array"""
         raise NotImplementedError
 
@@ -66,7 +66,7 @@ class MIDI2ChannelVoicePacket(UMPPacket):
         self.data_word_1 = data_word_1
         self.data_word_2 = data_word_2
     
-    def to_words(self) -> List[int]:
+    def to_words(self) -> list[int]:
         """Convert to 2-word (64-bit) UMP representation"""
         header = (self.ump_type << 28) | (self.group << 24) | (self.message_type << 20) | (self.channel << 16)
         return [header | (self.data_word_1 & 0xFFFF), self.data_word_2]
@@ -77,7 +77,7 @@ class MIDI2ChannelVoicePacket(UMPPacket):
         return struct.pack('>II', words[0], words[1])
     
     @classmethod
-    def from_words(cls, words: List[int]) -> Optional['MIDI2ChannelVoicePacket']:
+    def from_words(cls, words: list[int]) -> MIDI2ChannelVoicePacket | None:
         """Parse from 2-word (64-bit) UMP representation"""
         if len(words) < 2:
             return None
@@ -99,7 +99,7 @@ class MIDI2ChannelVoicePacket(UMPPacket):
         """Get the MIDI 2.0 status byte"""
         return (self.message_type << 4) | self.channel
     
-    def get_property_data(self) -> Tuple[int, int, int, int]:
+    def get_property_data(self) -> tuple[int, int, int, int]:
         """Get property data fields (for Property Exchange messages)"""
         # For property exchange messages, data is organized differently
         property_id = (self.data_word_1 >> 24) & 0xFF
@@ -125,7 +125,7 @@ class MIDI1ChannelVoicePacket(UMPPacket):
         self.data1 = data1
         self.data2 = data2
     
-    def to_words(self) -> List[int]:
+    def to_words(self) -> list[int]:
         """Convert to 1-word (32-bit) UMP representation"""
         header = (self.ump_type << 28) | (self.group << 24) | (self.status_byte << 16) | (self.data1 << 8) | self.data2
         return [header]
@@ -136,7 +136,7 @@ class MIDI1ChannelVoicePacket(UMPPacket):
         return struct.pack('>I', word)
     
     @classmethod
-    def from_words(cls, words: List[int]) -> Optional['MIDI1ChannelVoicePacket']:
+    def from_words(cls, words: list[int]) -> MIDI1ChannelVoicePacket | None:
         """Parse from 1-word (32-bit) UMP representation"""
         if len(words) < 1:
             return None
@@ -162,7 +162,7 @@ class SysExUMP(UMPPacket):
         self.sys_ex_data = sys_ex_data
         self.complete = complete  # True if this is a complete SysEx message
     
-    def to_words(self) -> List[int]:
+    def to_words(self) -> list[int]:
         """Convert to UMP word array (variable length)"""
         # Calculate number of 32-bit words needed
         data_len = len(self.sys_ex_data)
@@ -191,7 +191,7 @@ class SysExUMP(UMPPacket):
         return byte_data
     
     @classmethod
-    def from_words(cls, words: List[int]) -> Optional['SysExUMP']:
+    def from_words(cls, words: list[int]) -> SysExUMP | None:
         """Parse from UMP word array"""
         if len(words) < 1:
             return None
@@ -233,7 +233,7 @@ class UtilityUMP(UMPPacket):
         self.utility_type = utility_type  # 0x0=Reserved, 0x1=JRTS, 0x2=MIDI Time Code, etc.
         self.data = data
     
-    def to_words(self) -> List[int]:
+    def to_words(self) -> list[int]:
         """Convert to 1-word (32-bit) UMP representation"""
         header = (self.ump_type << 28) | (self.group << 24) | (self.utility_type << 16) | self.data
         return [header]
@@ -244,7 +244,7 @@ class UtilityUMP(UMPPacket):
         return struct.pack('>I', word)
     
     @classmethod
-    def from_words(cls, words: List[int]) -> Optional['UtilityUMP']:
+    def from_words(cls, words: list[int]) -> UtilityUMP | None:
         """Parse from 1-word (32-bit) UMP representation"""
         if len(words) < 1:
             return None
@@ -265,7 +265,7 @@ class UMPParser:
     """Universal MIDI Packet Parser for MIDI 2.0"""
     
     @staticmethod
-    def parse_packet(packet_bytes: bytes) -> Optional[UMPPacket]:
+    def parse_packet(packet_bytes: bytes) -> UMPPacket | None:
         """Parse a UMP packet from bytes"""
         if len(packet_bytes) < 4:
             return None
@@ -309,7 +309,7 @@ class UMPParser:
             return None
     
     @staticmethod
-    def parse_packet_stream(data: bytes) -> List[UMPPacket]:
+    def parse_packet_stream(data: bytes) -> list[UMPPacket]:
         """Parse a stream of UMP packets"""
         packets = []
         offset = 0
@@ -401,7 +401,7 @@ class MIDI1ToMIDI2Converter:
         return MIDI2ChannelVoicePacket(UMPGroup(0), channel, message_type, data_word_1, data_word_2)
     
     @staticmethod
-    def midi2_to_midi1_channel_voice(packet: MIDI2ChannelVoicePacket) -> Tuple[int, int, int]:
+    def midi2_to_midi1_channel_voice(packet: MIDI2ChannelVoicePacket) -> tuple[int, int, int]:
         """Convert MIDI 2.0 channel voice message to MIDI 1.0 format"""
         status_byte = (packet.message_type << 4) | packet.channel
         

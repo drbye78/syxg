@@ -4,9 +4,11 @@ Style Dynamics Control
 Implements the Style Dynamics Control feature that adjusts
 the intensity/energy of accompaniment playback.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable
+from typing import Any
+from collections.abc import Callable
 from enum import Enum
 import threading
 
@@ -25,7 +27,7 @@ class DynamicsParameter(Enum):
     ENDING_LENGTH = "ending_length"
 
 
-@dataclass
+@dataclass(slots=True)
 class DynamicsCurve:
     """Defines how dynamics affect a parameter"""
 
@@ -59,7 +61,7 @@ class DynamicsCurve:
         return self.min_value + (self.max_value - self.min_value) * normalized
 
 
-@dataclass
+@dataclass(slots=True)
 class StyleDynamics:
     """
     Style Dynamics Control - Controls the energy/intensity of accompaniment.
@@ -76,8 +78,8 @@ class StyleDynamics:
     _dynamics_value: int = 64
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
-    _curves: Dict[DynamicsParameter, DynamicsCurve] = field(default_factory=dict)
-    _callbacks: List[Callable[[int, Dict[DynamicsParameter, float]], None]] = field(
+    _curves: dict[DynamicsParameter, DynamicsCurve] = field(default_factory=dict)
+    _callbacks: list[Callable[[int, dict[DynamicsParameter, float]], None]] = field(
         default_factory=list, repr=False
     )
 
@@ -171,7 +173,7 @@ class StyleDynamics:
                 return self._curves[parameter].apply(self._dynamics_value)
             return 0.5
 
-    def get_all_parameters(self) -> Dict[DynamicsParameter, float]:
+    def get_all_parameters(self) -> dict[DynamicsParameter, float]:
         """Get all parameter values affected by dynamics"""
         with self._lock:
             return {
@@ -180,14 +182,14 @@ class StyleDynamics:
             }
 
     def add_callback(
-        self, callback: Callable[[int, Dict[DynamicsParameter, float]], None]
+        self, callback: Callable[[int, dict[DynamicsParameter, float]], None]
     ):
         """Add callback for dynamics changes"""
         if callback not in self._callbacks:
             self._callbacks.append(callback)
 
     def remove_callback(
-        self, callback: Callable[[int, Dict[DynamicsParameter, float]], None]
+        self, callback: Callable[[int, dict[DynamicsParameter, float]], None]
     ):
         """Remove callback"""
         if callback in self._callbacks:
@@ -217,7 +219,7 @@ class StyleDynamics:
         """Get tempo scaling factor"""
         return self.get_parameter(DynamicsParameter.TEMPO)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get dynamics status"""
         with self._lock:
             params = {
@@ -230,7 +232,7 @@ class StyleDynamics:
                 "parameters": params,
             }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Export to dictionary"""
         return {
             "dynamics_value": self._dynamics_value,
@@ -245,7 +247,7 @@ class StyleDynamics:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StyleDynamics":
+    def from_dict(cls, data: dict[str, Any]) -> StyleDynamics:
         """Create from dictionary"""
         dynamics = cls()
 

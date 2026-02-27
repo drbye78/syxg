@@ -21,11 +21,13 @@ XG Effect Coverage Validation:
 - EQ Effects: 10 preset curves
 - Total: 118 XG effect implementations
 """
+from __future__ import annotations
 
 import numpy as np
 import time
 import threading
-from typing import Dict, List, Tuple, Optional, Any, Callable
+from typing import Any
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
 
@@ -50,7 +52,7 @@ class XGValidationResult(IntEnum):
     PERFORMANCE_FAIL = 4
 
 
-@dataclass
+@dataclass(slots=True)
 class XGValidationTest:
     """Individual XG Effect Validation Test"""
     effect_type: int
@@ -89,7 +91,7 @@ class XGValidationSuite:
         self.performance_monitor = XGPerformanceMonitor()
 
         # Test results
-        self.test_results: Dict[Tuple[XGEffectCategory, int], XGValidationTest] = {}
+        self.test_results: dict[tuple[XGEffectCategory, int], XGValidationTest] = {}
         self.suite_stats = {
             'total_tests': 0,
             'passed_tests': 0,
@@ -108,7 +110,7 @@ class XGValidationSuite:
         # Thread safety
         self.lock = threading.RLock()
 
-    def run_full_validation(self, verbose: bool = True) -> Dict[str, Any]:
+    def run_full_validation(self, verbose: bool = True) -> dict[str, Any]:
         """
         Run complete validation suite for all XG effects.
 
@@ -308,7 +310,7 @@ class XGValidationSuite:
 
         return test
 
-    def _create_effect_instance(self, category: XGEffectCategory, effect_type: int) -> Optional[Any]:
+    def _create_effect_instance(self, category: XGEffectCategory, effect_type: int) -> Any | None:
         """Create an effect instance for testing."""
         try:
             if category == XGEffectCategory.VARIATION:
@@ -461,7 +463,7 @@ class XGValidationSuite:
             elif test.result == XGValidationResult.PERFORMANCE_FAIL:
                 self.suite_stats['performance_fails'] += 1
 
-    def generate_validation_report(self) -> Dict[str, Any]:
+    def generate_validation_report(self) -> dict[str, Any]:
         """
         Generate comprehensive validation report.
 
@@ -504,7 +506,7 @@ class XGValidationSuite:
                 'recommendations': self._generate_recommendations(compliance_percent),
             }
 
-    def _generate_category_breakdown(self) -> Dict[str, Dict[str, int]]:
+    def _generate_category_breakdown(self) -> dict[str, dict[str, int]]:
         """Generate results breakdown by category."""
         breakdown = {}
 
@@ -526,7 +528,7 @@ class XGValidationSuite:
 
         return breakdown
 
-    def _generate_recommendations(self, compliance_percent: float) -> List[str]:
+    def _generate_recommendations(self, compliance_percent: float) -> list[str]:
         """Generate implementation recommendations."""
         recommendations = []
 
@@ -565,7 +567,7 @@ class XGComplianceCertifier:
             'XG_REFERENCE': {'min_compliance': 99.0, 'name': 'XG Reference Implementation'},
         }
 
-    def certify_implementation(self, validation_report: Dict[str, Any]) -> Dict[str, Any]:
+    def certify_implementation(self, validation_report: dict[str, Any]) -> dict[str, Any]:
         """
         Certify XG effects implementation.
 
@@ -602,7 +604,7 @@ class XGComplianceCertifier:
 
 # Global validation functions
 def validate_xg_effects_implementation(sample_rate: int = 44100,
-                                     block_size: int = 1024) -> Dict[str, Any]:
+                                     block_size: int = 1024) -> dict[str, Any]:
     """
     Validate complete XG effects implementation.
 
@@ -623,7 +625,7 @@ def validate_xg_effects_implementation(sample_rate: int = 44100,
     return report
 
 
-def print_validation_summary(report: Dict[str, Any]) -> None:
+def print_validation_summary(report: dict[str, Any]) -> None:
     """
     Print formatted validation summary.
 

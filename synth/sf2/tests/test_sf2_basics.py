@@ -6,6 +6,7 @@ Tests for core SF2 functionality:
 - Basic instantiation
 - Parameter validation
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np

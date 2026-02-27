@@ -5,9 +5,11 @@ Abstract base classes and interfaces for the modular engine plugin architecture.
 Provides the foundation for extending synthesis engines with synthesizer-specific
 features without code duplication.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, Callable, Type
+from typing import Any
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
@@ -30,7 +32,7 @@ class PluginCompatibility(Enum):
     UNIVERSAL = "universal"      # Works with any engine
 
 
-@dataclass
+@dataclass(slots=True)
 class PluginMetadata:
     """Metadata for engine plugins."""
     name: str
@@ -39,9 +41,9 @@ class PluginMetadata:
     author: str
     plugin_type: PluginType
     compatibility: PluginCompatibility
-    target_engines: List[str]  # Engine types this plugin works with
-    dependencies: List[str] = None  # Required plugins
-    parameters: Dict[str, Dict[str, Any]] = None  # Plugin parameters
+    target_engines: list[str]  # Engine types this plugin works with
+    dependencies: list[str] = None  # Required plugins
+    parameters: dict[str, dict[str, Any]] = None  # Plugin parameters
 
     def __post_init__(self):
         if self.dependencies is None:
@@ -54,12 +56,12 @@ class PluginLoadContext:
     """Context provided to plugins during loading."""
 
     def __init__(self, engine_instance: Any, sample_rate: int, block_size: int,
-                 plugin_registry: 'PluginRegistry'):
+                 plugin_registry: PluginRegistry):
         self.engine_instance = engine_instance
         self.sample_rate = sample_rate
         self.block_size = block_size
         self.plugin_registry = plugin_registry
-        self.shared_data: Dict[str, Any] = {}  # For inter-plugin communication
+        self.shared_data: dict[str, Any] = {}  # For inter-plugin communication
 
 
 class BaseEnginePlugin(ABC):
@@ -74,7 +76,7 @@ class BaseEnginePlugin(ABC):
         self.metadata = metadata
         self.is_loaded = False
         self.is_enabled = True
-        self.load_context: Optional[PluginLoadContext] = None
+        self.load_context: PluginLoadContext | None = None
 
     @abstractmethod
     def get_metadata(self) -> PluginMetadata:
@@ -146,7 +148,7 @@ class BaseEnginePlugin(ABC):
         """
         return audio_block
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
                         block_size: int) -> Any:
         """
         Generate additional audio samples (for synthesis feature plugins).
@@ -162,7 +164,7 @@ class BaseEnginePlugin(ABC):
         """
         return None
 
-    def get_modulation_sources(self) -> Dict[str, Callable[[], float]]:
+    def get_modulation_sources(self) -> dict[str, Callable[[], float]]:
         """
         Get additional modulation sources provided by this plugin.
 
@@ -171,7 +173,7 @@ class BaseEnginePlugin(ABC):
         """
         return {}
 
-    def get_modulation_destinations(self) -> Dict[str, Callable[[float], None]]:
+    def get_modulation_destinations(self) -> dict[str, Callable[[float], None]]:
         """
         Get additional modulation destinations provided by this plugin.
 
@@ -180,7 +182,7 @@ class BaseEnginePlugin(ABC):
         """
         return {}
 
-    def get_parameters(self) -> Dict[str, Any]:
+    def get_parameters(self) -> dict[str, Any]:
         """
         Get plugin parameters.
 
@@ -216,7 +218,7 @@ class BaseEnginePlugin(ABC):
         """
         return False
 
-    def get_presets(self) -> Dict[str, Dict[str, Any]]:
+    def get_presets(self) -> dict[str, dict[str, Any]]:
         """
         Get plugin presets.
 
@@ -257,7 +259,7 @@ class SynthesisFeaturePlugin(BaseEnginePlugin):
     Examples: formant filters, ring modulation, advanced wavetable features.
     """
 
-    def get_synthesis_features(self) -> Dict[str, Any]:
+    def get_synthesis_features(self) -> dict[str, Any]:
         """
         Get synthesis features provided by this plugin.
 
@@ -274,7 +276,7 @@ class ModulationPlugin(BaseEnginePlugin):
     Examples: additional LFO shapes, envelope curves, modulation matrix extensions.
     """
 
-    def get_modulation_features(self) -> Dict[str, Any]:
+    def get_modulation_features(self) -> dict[str, Any]:
         """
         Get modulation features provided by this plugin.
 
@@ -291,7 +293,7 @@ class EffectsPlugin(BaseEnginePlugin):
     Examples: distortion, chorus, phaser built into the engine.
     """
 
-    def get_effects_chain(self) -> List[Dict[str, Any]]:
+    def get_effects_chain(self) -> list[dict[str, Any]]:
         """
         Get the effects chain provided by this plugin.
 
@@ -308,7 +310,7 @@ class MIDIPlugin(BaseEnginePlugin):
     Examples: SysEx handling, NRPN processing, custom MIDI mappings.
     """
 
-    def get_midi_features(self) -> Dict[str, Any]:
+    def get_midi_features(self) -> dict[str, Any]:
         """
         Get MIDI features provided by this plugin.
 
@@ -323,7 +325,7 @@ PluginFactory = Callable[[], BaseEnginePlugin]
 
 
 def create_plugin_from_metadata(metadata: PluginMetadata,
-                               plugin_class: Type[BaseEnginePlugin]) -> BaseEnginePlugin:
+                               plugin_class: type[BaseEnginePlugin]) -> BaseEnginePlugin:
     """
     Create a plugin instance from metadata and class.
 

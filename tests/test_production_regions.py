@@ -7,10 +7,11 @@ Tests cover:
 - PhysicalRegion with multiple models
 - Engine integration with new regions
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np
-from typing import Dict, Any
+from typing import Any
 
 from synth.engine.region_descriptor import RegionDescriptor
 from synth.engine.preset_info import PresetInfo

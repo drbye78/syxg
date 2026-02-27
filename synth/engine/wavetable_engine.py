@@ -5,8 +5,10 @@ Efficient, high-quality wavetable synthesis with real-time morphing capabilities
 Provides wavetable-based synthesis as an alternative to sample playback.
 """
 
+from __future__ import annotations
+
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 from pathlib import Path
 import math
 
@@ -125,7 +127,7 @@ class WavetableOscillator:
 
     def __init__(self, sample_rate: int = 44100):
         self.sample_rate = sample_rate
-        self.wavetable: Optional[Wavetable] = None
+        self.wavetable: Wavetable | None = None
 
         # Oscillator state
         self.phase = 0.0
@@ -166,8 +168,7 @@ class WavetableOscillator:
         """Set amplitude (0.0 to 1.0)."""
         self.amplitude = max(0.0, min(amplitude, 1.0))
 
-    def update_modulation(self, freq_mod: float = 0.0, amp_mod: float = 0.0,
-                         wt_pos: float = 0.0):
+    def update_modulation(self, freq_mod: float = 0.0, amp_mod: float = 0.0, wt_pos: float = 0.0):
         """Update modulation inputs."""
         self.frequency_mod = freq_mod
         self.amplitude_mod = amp_mod
@@ -237,8 +238,8 @@ class WavetableBank:
 
     def __init__(self, max_wavetables: int = 64):
         self.max_wavetables = max_wavetables
-        self.wavetables: Dict[str, Wavetable] = {}
-        self.morph_groups: Dict[str, List[str]] = {}
+        self.wavetables: dict[str, Wavetable] = {}
+        self.morph_groups: dict[str, list[str]] = {}
 
     def add_wavetable(self, wavetable: Wavetable, name: str) -> bool:
         """
@@ -257,8 +258,9 @@ class WavetableBank:
         self.wavetables[name] = wavetable
         return True
 
-    def load_wavetable_from_file(self, file_path: str, name: str,
-                                sample_manager: Optional[PyAVSampleManager] = None) -> bool:
+    def load_wavetable_from_file(
+        self, file_path: str, name: str, sample_manager: PyAVSampleManager | None = None
+    ) -> bool:
         """
         Load wavetable from audio file.
 
@@ -288,7 +290,7 @@ class WavetableBank:
             print(f"Failed to load wavetable from {file_path}: {e}")
             return False
 
-    def _load_wav_file(self, file_path: str) -> Tuple[np.ndarray, int]:
+    def _load_wav_file(self, file_path: str) -> tuple[np.ndarray, int]:
         """
         Basic WAV file loader implementation.
 
@@ -298,10 +300,10 @@ class WavetableBank:
         Returns:
             Tuple of (audio_data, sample_rate)
         """
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             # Read RIFF header
             riff_header = f.read(12)
-            if riff_header[:4] != b'RIFF' or riff_header[8:12] != b'WAVE':
+            if riff_header[:4] != b"RIFF" or riff_header[8:12] != b"WAVE":
                 raise ValueError("Not a valid WAV file")
 
             # Find fmt and data chunks
@@ -314,11 +316,11 @@ class WavetableBank:
                     break
 
                 chunk_id = chunk_header[:4]
-                chunk_size = int.from_bytes(chunk_header[4:8], byteorder='little')
+                chunk_size = int.from_bytes(chunk_header[4:8], byteorder="little")
 
-                if chunk_id == b'fmt ':
+                if chunk_id == b"fmt ":
                     fmt_chunk = f.read(chunk_size)
-                elif chunk_id == b'data':
+                elif chunk_id == b"data":
                     data_chunk = f.read(chunk_size)
                     break  # Data chunk is usually last
                 else:
@@ -329,13 +331,13 @@ class WavetableBank:
                 raise ValueError("WAV file missing fmt or data chunk")
 
             # Parse fmt chunk
-            audio_format = int.from_bytes(fmt_chunk[0:2], byteorder='little')
+            audio_format = int.from_bytes(fmt_chunk[0:2], byteorder="little")
             if audio_format != 1:
                 raise ValueError("Only PCM WAV files are supported")
 
-            num_channels = int.from_bytes(fmt_chunk[2:4], byteorder='little')
-            sample_rate = int.from_bytes(fmt_chunk[4:8], byteorder='little')
-            bits_per_sample = int.from_bytes(fmt_chunk[14:16], byteorder='little')
+            num_channels = int.from_bytes(fmt_chunk[2:4], byteorder="little")
+            sample_rate = int.from_bytes(fmt_chunk[4:8], byteorder="little")
+            bits_per_sample = int.from_bytes(fmt_chunk[14:16], byteorder="little")
 
             if bits_per_sample not in [8, 16, 24, 32]:
                 raise ValueError(f"Unsupported bits per sample: {bits_per_sample}")
@@ -356,8 +358,8 @@ class WavetableBank:
                 data = np.zeros(len(data_chunk) // 3, dtype=np.float32)
                 for i in range(len(data_chunk) // 3):
                     # Read 3 bytes as 24-bit signed integer
-                    bytes_24 = data_chunk[i*3:(i+1)*3]
-                    value = int.from_bytes(bytes_24, byteorder='little', signed=True)
+                    bytes_24 = data_chunk[i * 3 : (i + 1) * 3]
+                    value = int.from_bytes(bytes_24, byteorder="little", signed=True)
                     # Convert to float (-1.0 to 1.0)
                     data[i] = value / 8388608.0
             elif bits_per_sample == 32:
@@ -374,8 +376,9 @@ class WavetableBank:
 
             return data, sample_rate
 
-    def create_wavetable_from_waveform(self, waveform_type: str, name: str,
-                                      size: int = 2048, harmonics: int = 16) -> bool:
+    def create_wavetable_from_waveform(
+        self, waveform_type: str, name: str, size: int = 2048, harmonics: int = 16
+    ) -> bool:
         """
         Create wavetable from mathematical waveform.
 
@@ -392,19 +395,19 @@ class WavetableBank:
             # Generate single cycle
             t = np.linspace(0, 2 * np.pi, size, endpoint=False)
 
-            if waveform_type == 'sine':
-                data = np.sin(t)
-            elif waveform_type == 'triangle':
-                data = np.abs((t % (2 * np.pi)) - np.pi) / (np.pi / 2) - 1
-            elif waveform_type == 'square':
-                data = np.sign(np.sin(t))
-            elif waveform_type == 'sawtooth':
-                data = (t % (2 * np.pi)) / np.pi - 1
-            elif waveform_type == 'noise':
-                data = np.random.uniform(-1, 1, size)
-            else:
-                # Default to sine
-                data = np.sin(t)
+            match waveform_type:
+                case "sine":
+                    data = np.sin(t)
+                case "triangle":
+                    data = np.abs((t % (2 * np.pi)) - np.pi) / (np.pi / 2) - 1
+                case "square":
+                    data = np.sign(np.sin(t))
+                case "sawtooth":
+                    data = (t % (2 * np.pi)) / np.pi - 1
+                case "noise":
+                    data = np.random.uniform(-1, 1, size)
+                case _:
+                    data = np.sin(t)
 
             wavetable = Wavetable(data, 44100, name)
             return self.add_wavetable(wavetable, name)
@@ -413,11 +416,11 @@ class WavetableBank:
             print(f"Failed to create wavetable '{name}': {e}")
             return False
 
-    def get_wavetable(self, name: str) -> Optional[Wavetable]:
+    def get_wavetable(self, name: str) -> Wavetable | None:
         """Get wavetable by name."""
         return self.wavetables.get(name)
 
-    def get_morphed_wavetable(self, sources: List[str], position: float) -> Optional[Wavetable]:
+    def get_morphed_wavetable(self, sources: list[str], position: float) -> Wavetable | None:
         """
         Get morphed wavetable between multiple sources.
 
@@ -447,35 +450,34 @@ class WavetableBank:
 
         # Ensure same length for morphing
         min_length = min(wt1.length, wt2.length)
-        morphed_data = (wt1.data[:min_length] * (1.0 - position) +
-                       wt2.data[:min_length] * position)
+        morphed_data = wt1.data[:min_length] * (1.0 - position) + wt2.data[:min_length] * position
 
         morphed_name = f"morph_{sources[0]}_{sources[-1]}_{position:.2f}"
         return Wavetable(morphed_data, wt1.sample_rate, morphed_name)
 
-    def create_morph_group(self, group_name: str, wavetable_names: List[str]):
+    def create_morph_group(self, group_name: str, wavetable_names: list[str]):
         """Create a morph group for easy access."""
         self.morph_groups[group_name] = wavetable_names.copy()
 
-    def get_morph_group(self, group_name: str) -> List[str]:
+    def get_morph_group(self, group_name: str) -> list[str]:
         """Get wavetable names in a morph group."""
         return self.morph_groups.get(group_name, [])
 
-    def list_wavetables(self) -> List[str]:
+    def list_wavetables(self) -> list[str]:
         """Get list of all wavetable names."""
         return list(self.wavetables.keys())
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get wavetable bank statistics."""
         total_samples = sum(wt.length for wt in self.wavetables.values())
         avg_length = total_samples / len(self.wavetables) if self.wavetables else 0
 
         return {
-            'total_wavetables': len(self.wavetables),
-            'total_samples': total_samples,
-            'average_length': avg_length,
-            'morph_groups': len(self.morph_groups),
-            'memory_usage_mb': total_samples * 4 / (1024 * 1024)  # float32 = 4 bytes
+            "total_wavetables": len(self.wavetables),
+            "total_samples": total_samples,
+            "average_length": avg_length,
+            "morph_groups": len(self.morph_groups),
+            "memory_usage_mb": total_samples * 4 / (1024 * 1024),  # float32 = 4 bytes
         }
 
 
@@ -486,8 +488,7 @@ class WavetablePartial(SynthesisPartial):
     Implements the SynthesisPartial interface for wavetable-based synthesis.
     """
 
-    def __init__(self, params: Dict[str, Any], sample_rate: int,
-                 wavetable_bank: WavetableBank):
+    def __init__(self, params: dict[str, Any], sample_rate: int, wavetable_bank: WavetableBank):
         """
         Initialize wavetable partial.
 
@@ -506,18 +507,18 @@ class WavetablePartial(SynthesisPartial):
     def _configure_oscillator(self):
         """Configure the oscillator based on current parameters."""
         # Set wavetable
-        wt_name = self.params.get('wavetable', 'sine')
+        wt_name = self.params.get("wavetable", "sine")
         wavetable = self.wavetable_bank.get_wavetable(wt_name)
         if wavetable:
             self.oscillator.set_wavetable(wavetable)
 
         # Set other parameters
-        if 'frequency' in self.params:
-            self.oscillator.set_frequency(self.params['frequency'])
-        if 'amplitude' in self.params:
-            self.oscillator.set_amplitude(self.params['amplitude'])
+        if "frequency" in self.params:
+            self.oscillator.set_frequency(self.params["frequency"])
+        if "amplitude" in self.params:
+            self.oscillator.set_amplitude(self.params["amplitude"])
 
-    def generate_samples(self, block_size: int, modulation: Dict[str, float]) -> np.ndarray:
+    def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
         """
         Generate audio samples.
 
@@ -532,9 +533,9 @@ class WavetablePartial(SynthesisPartial):
             return np.zeros(block_size * 2, dtype=np.float32)
 
         # Apply modulation
-        freq_mod = modulation.get('pitch', 0.0) / 1200.0  # Convert cents to ratio
-        amp_mod = modulation.get('volume', 0.0)
-        wt_pos = modulation.get('timbre', 0.0)
+        freq_mod = modulation.get("pitch", 0.0) / 1200.0  # Convert cents to ratio
+        amp_mod = modulation.get("volume", 0.0)
+        wt_pos = modulation.get("timbre", 0.0)
 
         self.oscillator.update_modulation(freq_mod, amp_mod, wt_pos)
 
@@ -562,12 +563,12 @@ class WavetablePartial(SynthesisPartial):
         self.oscillator.note_off()
         # Keep partial active for release if needed
 
-    def apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def apply_modulation(self, modulation: dict[str, float]) -> None:
         """Apply modulation changes."""
         # Update oscillator modulation
-        freq_mod = modulation.get('pitch', 0.0) / 1200.0
-        amp_mod = modulation.get('volume', 0.0)
-        wt_pos = modulation.get('timbre', 0.0)
+        freq_mod = modulation.get("pitch", 0.0) / 1200.0
+        amp_mod = modulation.get("volume", 0.0)
+        wt_pos = modulation.get("timbre", 0.0)
 
         self.oscillator.update_modulation(freq_mod, amp_mod, wt_pos)
 
@@ -581,7 +582,7 @@ class WavetablePartial(SynthesisPartial):
         super().update_parameter(param_name, value)
 
         # Reconfigure oscillator if relevant parameters changed
-        if param_name in ['wavetable', 'frequency', 'amplitude']:
+        if param_name in ["wavetable", "frequency", "amplitude"]:
             self._configure_oscillator()
 
 
@@ -592,7 +593,7 @@ class WavetableRegion(Region):
     A region that uses wavetable synthesis with oscillator-based playback.
     """
 
-    def __init__(self, region_params: Dict[str, Any], wavetable_bank: WavetableBank):
+    def __init__(self, region_params: dict[str, Any], wavetable_bank: WavetableBank):
         """
         Initialize wavetable region.
 
@@ -610,8 +611,8 @@ class WavetableRegion(Region):
     def _configure_oscillator(self):
         """Configure the oscillator for this region."""
         # Set wavetable from sample_path or default
-        wt_name = 'sine'  # Default
-        if hasattr(self, 'sample_path') and self.sample_path:
+        wt_name = "sine"  # Default
+        if hasattr(self, "sample_path") and self.sample_path:
             # Try to load wavetable from file
             if self.wavetable_bank.load_wavetable_from_file(self.sample_path, self.sample_path):
                 wt_name = self.sample_path
@@ -620,7 +621,7 @@ class WavetableRegion(Region):
         if wavetable:
             self.oscillator.set_wavetable(wavetable)
 
-    def _create_envelope(self, env_type: str, params: Dict[str, float]):
+    def _create_envelope(self, env_type: str, params: dict[str, float]):
         """
         Create envelope for this region.
 
@@ -636,11 +637,11 @@ class WavetableRegion(Region):
 
             # Create envelope with region parameters
             envelope = UltraFastADSREnvelope(
-                attack=params.get('attack', 0.01),
-                decay=params.get('decay', 0.1),
-                sustain=params.get('sustain', 0.8),
-                release=params.get('release', 0.2),
-                sample_rate=44100
+                attack=params.get("attack", 0.01),
+                decay=params.get("decay", 0.1),
+                sustain=params.get("sustain", 0.8),
+                release=params.get("release", 0.2),
+                sample_rate=44100,
             )
 
             return envelope
@@ -666,22 +667,19 @@ class WavetableRegion(Region):
 
             # Map SFZ filter types to internal types
             filter_map = {
-                'lpf_1p': 'lowpass_1p',
-                'lpf_2p': 'lowpass_2p',
-                'hpf_1p': 'highpass_1p',
-                'hpf_2p': 'highpass_2p',
-                'bpf_2p': 'bandpass',
-                'notch': 'notch'
+                "lpf_1p": "lowpass_1p",
+                "lpf_2p": "lowpass_2p",
+                "hpf_1p": "highpass_1p",
+                "hpf_2p": "highpass_2p",
+                "bpf_2p": "bandpass",
+                "notch": "notch",
             }
 
-            internal_type = filter_map.get(filter_type, 'lowpass_2p')
+            internal_type = filter_map.get(filter_type, "lowpass_2p")
 
             # Create filter
             filter_instance = BiquadFilter(
-                filter_type=internal_type,
-                cutoff=cutoff,
-                resonance=resonance,
-                sample_rate=44100
+                filter_type=internal_type, cutoff=cutoff, resonance=resonance, sample_rate=44100
             )
 
             return filter_instance
@@ -712,7 +710,7 @@ class WavetableRegion(Region):
             print(f"Failed to create modulation matrix: {e}")
             return None
 
-    def generate_samples(self, block_size: int, modulation: Dict[str, float]) -> np.ndarray:
+    def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
         """
         Generate audio samples for this region.
 
@@ -740,8 +738,8 @@ class WavetableRegion(Region):
         self.oscillator.set_amplitude(amplitude)
 
         # Apply modulation
-        freq_mod = modulation.get('pitch', 0.0) / 1200.0
-        amp_mod = modulation.get('volume', 0.0)
+        freq_mod = modulation.get("pitch", 0.0) / 1200.0
+        amp_mod = modulation.get("volume", 0.0)
         self.oscillator.update_modulation(freq_mod, amp_mod, 0.0)
 
         # Generate mono samples
@@ -777,8 +775,7 @@ class WavetableEngine(SynthesisEngine):
     multiple oscillators, and advanced modulation capabilities.
     """
 
-    def __init__(self, sample_rate: int = 44100, block_size: int = 1024,
-                 max_oscillators: int = 64):
+    def __init__(self, sample_rate: int = 44100, block_size: int = 1024, max_oscillators: int = 64):
         """
         Initialize wavetable synthesis engine.
 
@@ -795,7 +792,7 @@ class WavetableEngine(SynthesisEngine):
         self.sample_manager = PyAVSampleManager()
 
         # Engine state
-        self.active_oscillators: List[int] = []  # Indices of active oscillators
+        self.active_oscillators: list[int] = []  # Indices of active oscillators
         self.current_wavetable = "sine"  # Default wavetable
 
         # Initialize with basic wavetables
@@ -803,12 +800,12 @@ class WavetableEngine(SynthesisEngine):
 
         # Plugin system
         self._plugin_registry = get_global_plugin_registry()
-        self._loaded_plugins: Dict[str, SynthesisFeaturePlugin] = {}
+        self._loaded_plugins: dict[str, SynthesisFeaturePlugin] = {}
         self._plugin_integration_points = {
-            'pre_synthesis': [],      # Called before synthesis
-            'post_synthesis': [],     # Called after synthesis
-            'midi_processing': [],    # MIDI message handlers
-            'parameter_processing': [] # Parameter processing
+            "pre_synthesis": [],  # Called before synthesis
+            "post_synthesis": [],  # Called after synthesis
+            "midi_processing": [],  # MIDI message handlers
+            "parameter_processing": [],  # Parameter processing
         }
 
         # Auto-load Jupiter-X digital plugin if available
@@ -816,22 +813,20 @@ class WavetableEngine(SynthesisEngine):
 
     def _initialize_basic_wavetables(self):
         """Initialize engine with basic mathematical wavetables."""
-        basic_waveforms = ['sine', 'triangle', 'square', 'sawtooth']
+        basic_waveforms = ["sine", "triangle", "square", "sawtooth"]
 
         for waveform in basic_waveforms:
-            self.wavetable_bank.create_wavetable_from_waveform(
-                waveform, waveform, size=2048
-            )
+            self.wavetable_bank.create_wavetable_from_waveform(waveform, waveform, size=2048)
 
         # Set default wavetable for all oscillators
-        default_wt = self.wavetable_bank.get_wavetable('sine')
+        default_wt = self.wavetable_bank.get_wavetable("sine")
         if default_wt:
             for osc in self.oscillators:
                 osc.set_wavetable(default_wt)
 
     def get_engine_type(self) -> str:
         """Return engine type identifier."""
-        return 'wavetable'
+        return "wavetable"
 
     def load_wavetable(self, file_path: str, name: str) -> bool:
         """
@@ -844,12 +839,9 @@ class WavetableEngine(SynthesisEngine):
         Returns:
             True if loaded successfully
         """
-        return self.wavetable_bank.load_wavetable_from_file(
-            file_path, name, self.sample_manager
-        )
+        return self.wavetable_bank.load_wavetable_from_file(file_path, name, self.sample_manager)
 
-    def create_wavetable(self, waveform_type: str, name: str,
-                        size: int = 2048) -> bool:
+    def create_wavetable(self, waveform_type: str, name: str, size: int = 2048) -> bool:
         """
         Create mathematical wavetable.
 
@@ -861,9 +853,7 @@ class WavetableEngine(SynthesisEngine):
         Returns:
             True if created successfully
         """
-        return self.wavetable_bank.create_wavetable_from_waveform(
-            waveform_type, name, size
-        )
+        return self.wavetable_bank.create_wavetable_from_waveform(waveform_type, name, size)
 
     def set_wavetable(self, name: str):
         """
@@ -879,21 +869,24 @@ class WavetableEngine(SynthesisEngine):
             for osc in self.oscillators:
                 osc.set_wavetable(wavetable)
 
-    def create_morph_group(self, group_name: str, wavetable_names: List[str]):
+    def create_morph_group(self, group_name: str, wavetable_names: list[str]):
         """Create a wavetable morph group."""
         self.wavetable_bank.create_morph_group(group_name, wavetable_names)
 
-    def get_morph_group(self, group_name: str) -> List[str]:
+    def get_morph_group(self, group_name: str) -> list[str]:
         """Get wavetable names in morph group."""
         return self.wavetable_bank.get_morph_group(group_name)
 
-    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> List[Any]:
+    def get_regions_for_note(
+        self, note: int, velocity: int, program: int = 0, bank: int = 0
+    ) -> list[Any]:
         """
         Get regions for note (wavetable engine creates regions dynamically).
 
         Returns:
             List containing a single dynamic region
         """
+
         # Wavetable engine creates regions on-demand
         # Return a placeholder that indicates wavetable synthesis should be used
         class WavetableRegion:
@@ -907,7 +900,7 @@ class WavetableEngine(SynthesisEngine):
 
         return [WavetableRegion(note, velocity, self.current_wavetable)]
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> SynthesisPartial:
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> SynthesisPartial:
         """
         Create wavetable partial for synthesis.
 
@@ -920,7 +913,7 @@ class WavetableEngine(SynthesisEngine):
         """
         return WavetablePartial(partial_params, sample_rate, self.wavetable_bank)
 
-    def create_region(self, region_params: Dict[str, Any], sample_rate: int) -> Optional[Region]:
+    def create_region(self, region_params: dict[str, Any], sample_rate: int) -> Region | None:
         """
         Create a wavetable region instance.
 
@@ -933,15 +926,17 @@ class WavetableEngine(SynthesisEngine):
         """
         try:
             # Load wavetable from file if specified
-            sample_path = region_params.get('sample', region_params.get('sample_path'))
+            sample_path = region_params.get("sample", region_params.get("sample_path"))
             if sample_path:
                 # Try to load wavetable from the sample file
                 wt_name = str(sample_path)
-                if self.wavetable_bank.load_wavetable_from_file(sample_path, wt_name, self.sample_manager):
-                    region_params['wavetable_name'] = wt_name
+                if self.wavetable_bank.load_wavetable_from_file(
+                    sample_path, wt_name, self.sample_manager
+                ):
+                    region_params["wavetable_name"] = wt_name
                 else:
                     # Fall back to default wavetable
-                    region_params['wavetable_name'] = self.current_wavetable
+                    region_params["wavetable_name"] = self.current_wavetable
 
             return WavetableRegion(region_params, self.wavetable_bank)
 
@@ -949,8 +944,9 @@ class WavetableEngine(SynthesisEngine):
             print(f"Failed to create wavetable region: {e}")
             return None
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
-                        block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Generate audio samples using wavetable synthesis.
 
@@ -973,9 +969,9 @@ class WavetableEngine(SynthesisEngine):
         oscillator.set_note(note, velocity)
 
         # Apply modulation
-        freq_mod = modulation.get('pitch', 0.0) / 1200.0  # Convert cents to ratio
-        amp_mod = modulation.get('volume', 0.0)
-        wt_pos = modulation.get('timbre', 0.0)  # Use timbre for wavetable position
+        freq_mod = modulation.get("pitch", 0.0) / 1200.0  # Convert cents to ratio
+        amp_mod = modulation.get("volume", 0.0)
+        wt_pos = modulation.get("timbre", 0.0)  # Use timbre for wavetable position
 
         oscillator.update_modulation(freq_mod, amp_mod, wt_pos)
 
@@ -990,7 +986,7 @@ class WavetableEngine(SynthesisEngine):
 
         return stereo_audio
 
-    def _find_or_allocate_oscillator(self, note: int) -> Optional[WavetableOscillator]:
+    def _find_or_allocate_oscillator(self, note: int) -> WavetableOscillator | None:
         """Find existing oscillator for note or allocate new one."""
         # First, check if we already have an oscillator for this note
         for idx in self.active_oscillators:
@@ -1013,27 +1009,28 @@ class WavetableEngine(SynthesisEngine):
         # No free oscillators
         return None
 
-    def _apply_modulation(self, audio: np.ndarray, modulation: Dict[str, float],
-                         block_size: int) -> np.ndarray:
+    def _apply_modulation(
+        self, audio: np.ndarray, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """Apply additional modulation effects to generated audio."""
         # Pan modulation
-        if 'pan' in modulation:
-            pan = np.clip(modulation['pan'], -1.0, 1.0)
+        if "pan" in modulation:
+            pan = np.clip(modulation["pan"], -1.0, 1.0)
             left_gain = 1.0 - max(0.0, pan)
             right_gain = 1.0 - max(0.0, -pan)
             audio[:, 0] *= left_gain
             audio[:, 1] *= right_gain
 
         # Filter modulation (simple lowpass)
-        if 'cutoff' in modulation:
-            cutoff_norm = np.clip(modulation['cutoff'] / 20000.0, 0.0, 1.0)
+        if "cutoff" in modulation:
+            cutoff_norm = np.clip(modulation["cutoff"] / 20000.0, 0.0, 1.0)
             # Simple smoothing filter based on cutoff
             alpha = 0.1 + cutoff_norm * 0.8  # Higher cutoff = less smoothing
 
             # Apply simple lowpass per channel
             for ch in range(2):
                 for i in range(1, block_size):
-                    audio[i, ch] = alpha * audio[i, ch] + (1 - alpha) * audio[i-1, ch]
+                    audio[i, ch] = alpha * audio[i, ch] + (1 - alpha) * audio[i - 1, ch]
 
         return audio
 
@@ -1041,80 +1038,86 @@ class WavetableEngine(SynthesisEngine):
         """Check if note is supported (all notes supported in wavetable synthesis)."""
         return 0 <= note <= 127
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """Get supported file formats for wavetable loading."""
-        return ['.wav', '.aiff', '.flac', '.ogg']
+        return [".wav", ".aiff", ".flac", ".ogg"]
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get comprehensive engine information."""
         bank_stats = self.wavetable_bank.get_stats()
 
         return {
-            'name': 'Wavetable Synthesis Engine',
-            'type': 'wavetable',
-            'version': '1.0',
-            'capabilities': [
-                'wavetable_synthesis', 'real_time_morphing', 'mathematical_waveforms',
-                'frequency_modulation', 'amplitude_modulation', 'multi_oscillator',
-                'unison_detuning', 'wavetable_scanning'
+            "name": "Wavetable Synthesis Engine",
+            "type": "wavetable",
+            "version": "1.0",
+            "capabilities": [
+                "wavetable_synthesis",
+                "real_time_morphing",
+                "mathematical_waveforms",
+                "frequency_modulation",
+                "amplitude_modulation",
+                "multi_oscillator",
+                "unison_detuning",
+                "wavetable_scanning",
             ],
-            'formats': self.get_supported_formats(),
-            'max_oscillators': len(self.oscillators),
-            'active_oscillators': len(self.active_oscillators),
-            'wavetable_bank': bank_stats,
-            'parameters': [
-                'wavetable', 'frequency', 'amplitude', 'pan', 'cutoff',
-                'pitch_mod', 'amp_mod', 'timbre_mod'
+            "formats": self.get_supported_formats(),
+            "max_oscillators": len(self.oscillators),
+            "active_oscillators": len(self.active_oscillators),
+            "wavetable_bank": bank_stats,
+            "parameters": [
+                "wavetable",
+                "frequency",
+                "amplitude",
+                "pan",
+                "cutoff",
+                "pitch_mod",
+                "amp_mod",
+                "timbre_mod",
             ],
-            'modulation_sources': [
-                'velocity', 'key', 'cc1-cc127', 'pitch_bend', 'aftertouch'
+            "modulation_sources": ["velocity", "key", "cc1-cc127", "pitch_bend", "aftertouch"],
+            "modulation_destinations": [
+                "frequency",
+                "amplitude",
+                "pan",
+                "cutoff",
+                "wavetable_position",
             ],
-            'modulation_destinations': [
-                'frequency', 'amplitude', 'pan', 'cutoff', 'wavetable_position'
-            ]
         }
 
     # ========== NEW REGION-BASED METHODS (STUBS) ==========
-    
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """Get wavetable preset info (stub)."""
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
-        
+
         descriptor = RegionDescriptor(
             region_id=0,
-            engine_type='wavetable',
+            engine_type="wavetable",
             key_range=(0, 127),
             velocity_range=(0, 127),
-            algorithm_params={'wavetable': 'default'}
+            algorithm_params={"wavetable": "default"},
         )
-        
+
         return PresetInfo(
-            bank=bank, program=program,
-            name=f'Wavetable {bank}:{program}',
-            engine_type='wavetable',
-            region_descriptors=[descriptor]
+            bank=bank,
+            program=program,
+            name=f"Wavetable {bank}:{program}",
+            engine_type="wavetable",
+            region_descriptors=[descriptor],
         )
-    
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
-    
-    def create_region(
-        self,
-        descriptor: 'RegionDescriptor',
-        sample_rate: int
-    ) -> 'IRegion':
+
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create region instance. Base implementation wraps with S.Art2.
         """
         return self._create_base_region(descriptor, sample_rate)
 
-    def _create_base_region(
-        self,
-        descriptor: 'RegionDescriptor',
-        sample_rate: int
-    ) -> 'IRegion':
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create WavetableRegion base region without S.Art2 wrapper.
 
@@ -1126,27 +1129,27 @@ class WavetableEngine(SynthesisEngine):
             WavetableRegion instance
         """
         from ..partial.wavetable_region import WavetableRegion
-        return WavetableRegion(descriptor, sample_rate)
-    
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+        return WavetableRegion(descriptor, sample_rate)
+
+    def load_sample_for_region(self, region: IRegion) -> bool:
         return True
 
-    def get_available_wavetables(self) -> List[str]:
+    def get_available_wavetables(self) -> list[str]:
         """Get list of available wavetable names."""
         return self.wavetable_bank.list_wavetables()
 
-    def get_wavetable_info(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_wavetable_info(self, name: str) -> dict[str, Any] | None:
         """Get information about a specific wavetable."""
         wavetable = self.wavetable_bank.get_wavetable(name)
         if not wavetable:
             return None
 
         return {
-            'name': wavetable.name,
-            'length': wavetable.length,
-            'sample_rate': wavetable.sample_rate,
-            'duration_ms': (wavetable.length / wavetable.sample_rate) * 1000
+            "name": wavetable.name,
+            "length": wavetable.length,
+            "sample_rate": wavetable.sample_rate,
+            "duration_ms": (wavetable.length / wavetable.sample_rate) * 1000,
         }
 
     def reset(self) -> None:
@@ -1163,9 +1166,11 @@ class WavetableEngine(SynthesisEngine):
     def __str__(self) -> str:
         """String representation."""
         info = self.get_engine_info()
-        return (f"WavetableEngine(oscillators={info['max_oscillators']}, "
-                f"active={info['active_oscillators']}, "
-                f"wavetables={info['wavetable_bank']['total_wavetables']})")
+        return (
+            f"WavetableEngine(oscillators={info['max_oscillators']}, "
+            f"active={info['active_oscillators']}, "
+            f"wavetables={info['wavetable_bank']['total_wavetables']})"
+        )
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -1176,8 +1181,8 @@ class WavetableEngine(SynthesisEngine):
         """Automatically load Jupiter-X digital plugin if available."""
         try:
             # Check if Jupiter-X digital plugin is available
-            available_plugins = self._plugin_registry.get_plugins_for_engine('wavetable')
-            jupiter_digital_plugin = 'jupiter_x.digital_extensions.JupiterXDigitalPlugin'
+            available_plugins = self._plugin_registry.get_plugins_for_engine("wavetable")
+            jupiter_digital_plugin = "jupiter_x.digital_extensions.JupiterXDigitalPlugin"
 
             if jupiter_digital_plugin in available_plugins:
                 success = self.load_plugin(jupiter_digital_plugin)
@@ -1207,7 +1212,7 @@ class WavetableEngine(SynthesisEngine):
                 plugin_name,
                 engine_instance=self,
                 sample_rate=self.sample_rate,
-                block_size=self.block_size
+                block_size=self.block_size,
             )
 
             if success:
@@ -1258,7 +1263,7 @@ class WavetableEngine(SynthesisEngine):
             print(f"❌ Wavetable Engine: Failed to unload plugin '{plugin_name}': {e}")
             return False
 
-    def get_loaded_plugins(self) -> Dict[str, SynthesisFeaturePlugin]:
+    def get_loaded_plugins(self) -> dict[str, SynthesisFeaturePlugin]:
         """Get all plugins loaded for this engine."""
         return self._loaded_plugins.copy()
 
@@ -1282,12 +1287,12 @@ class WavetableEngine(SynthesisEngine):
             pass
 
         # Register MIDI processing
-        if hasattr(plugin, 'process_midi_message'):
-            self._plugin_integration_points['midi_processing'].append(plugin)
+        if hasattr(plugin, "process_midi_message"):
+            self._plugin_integration_points["midi_processing"].append(plugin)
 
         # Register parameter processing
-        if hasattr(plugin, 'set_parameter'):
-            self._plugin_integration_points['parameter_processing'].append(plugin)
+        if hasattr(plugin, "set_parameter"):
+            self._plugin_integration_points["parameter_processing"].append(plugin)
 
     def _unregister_plugin_integration_points(self, plugin: SynthesisFeaturePlugin):
         """
@@ -1314,7 +1319,7 @@ class WavetableEngine(SynthesisEngine):
             True if any plugin handled the message
         """
         handled = False
-        for plugin in self._plugin_integration_points['midi_processing']:
+        for plugin in self._plugin_integration_points["midi_processing"]:
             if plugin.process_midi_message(status, data1, data2):
                 handled = True
 
@@ -1354,7 +1359,7 @@ class WavetableEngine(SynthesisEngine):
             return params.get(param_name)
         return None
 
-    def get_plugin_info(self, plugin_name: str) -> Optional[Dict[str, Any]]:
+    def get_plugin_info(self, plugin_name: str) -> dict[str, Any] | None:
         """
         Get information about a loaded plugin.
 

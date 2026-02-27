@@ -1,29 +1,29 @@
-# XG Synthesizer - Core Requirements
-# ===================================
+# XG Synthesizer - Core Requirements (Python 3.11+)
+# ===================================================
 # Install with: pip install -r requirements.txt
 # For full workstation features: pip install -r requirements.txt -r requirements_optional.txt
 
 # =============================================================================
-# Core Dependencies (Required)
+# Core Dependencies (Required - Python 3.11+ Compatible)
 # =============================================================================
 
 # Core scientific libraries
-numpy>=1.21.0,<2.0.0
-scipy>=1.7.0,<2.0.0
+numpy>=1.24.0,<2.0.0          # Python 3.11 support from 1.24+
+scipy>=1.10.0,<2.0.0          # Python 3.11 support from 1.10+
 
 # Audio processing and I/O (PyAV - FFmpeg bindings)
 # PyAV handles all audio file reading/writing/conversion
-av>=9.0.0,<12.0.0
+av>=10.0.0,<13.0.0            # Python 3.11 support from 10.0+
 
 # Performance optimization (JIT compilation)
-numba>=0.56.0,<0.60.0
+numba>=0.57.0,<0.61.0         # Python 3.11 support from 0.57+
 
 # System monitoring
-psutil>=5.9.0,<6.0.0
+psutil>=5.9.5,<7.0.0          # Python 3.11 compatible
 
 # Configuration and data formats
-PyYAML>=6.0,<7.0.0
-jsonschema>=4.0.0,<5.0.0
+PyYAML>=6.0.1,<8.0.0          # Python 3.11 compatible
+jsonschema>=4.17.0,<5.0.0     # Python 3.11 compatible
 
-# Type hints support (Python 3.8+)
-typing-extensions>=4.0.0,<5.0.0
+# Type hints support (Python 3.11+ backports)
+typing-extensions>=4.5.0,<5.0.0  # Backport of 3.11+ typing features

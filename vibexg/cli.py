@@ -4,6 +4,7 @@ Vibexg CLI - Command Line Interface
 This module provides the command-line interface for the vibexg
 workstation, including argument parsing and the main entry point.
 """
+from __future__ import annotations
 
 import argparse
 import logging
@@ -11,7 +12,7 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from synth.midi import get_input_names, get_output_names, RTMIDI_AVAILABLE
 
@@ -118,7 +119,7 @@ Examples:
     return parser.parse_args()
 
 
-def parse_input_spec(spec: str) -> Dict[str, Any]:
+def parse_input_spec(spec: str) -> dict[str, Any]:
     """
     Parse MIDI input specification string.
 
@@ -152,7 +153,7 @@ def parse_input_spec(spec: str) -> Dict[str, Any]:
         return {'type': spec}
 
 
-def parse_output_spec(spec: str) -> Dict[str, Any]:
+def parse_output_spec(spec: str) -> dict[str, Any]:
     """
     Parse audio output specification string.
 

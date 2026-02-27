@@ -4,12 +4,13 @@ SF2 SoundFont Specification Constants
 Complete SF2 specification constants for 100% compliance.
 Includes all generators, modulators, sample types, and controller mappings.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Any
+from typing import Any
 
 
 # SF2 Generator Types (SF2.01 Specification Section 8.1)
-SF2_GENERATORS: Dict[int, Dict[str, Any]] = {
+SF2_GENERATORS: dict[int, dict[str, Any]] = {
     # Address Offsets (SF2 2.01 - deprecated in favor of coarse+fine)
     0: {"name": "startAddrsOffset", "default": 0, "range": (-32768, 32767)},
     1: {"name": "endAddrsOffset", "default": 0, "range": (-32768, 32767)},
@@ -104,7 +105,7 @@ SF2_GENERATORS: Dict[int, Dict[str, Any]] = {
 }
 
 # SF2 Modulator Sources (SF2.01 Specification Section 8.2.1)
-SF2_MODULATOR_SOURCES: Dict[int, str] = {
+SF2_MODULATOR_SOURCES: dict[int, str] = {
     # General Controllers
     0: "none",
     2: "velocity",
@@ -122,7 +123,7 @@ SF2_MODULATOR_SOURCES: Dict[int, str] = {
 }
 
 # SF2 Modulator Destinations (SF2.01 Specification Section 8.2.2)
-SF2_MODULATOR_DESTINATIONS: Dict[int, str] = {
+SF2_MODULATOR_DESTINATIONS: dict[int, str] = {
     0: "none",
     7: "endAddrsCoarseOffset",
     8: "volEnvDelay",
@@ -167,14 +168,14 @@ SF2_MODULATOR_DESTINATIONS: Dict[int, str] = {
 }
 
 # SF2 Modulator Transform Types (SF2.01 Specification Section 8.2.3)
-SF2_MODULATOR_TRANSFORMS: Dict[int, str] = {
+SF2_MODULATOR_TRANSFORMS: dict[int, str] = {
     0: "linear",
     1: "absolute_value",
     2: "bipolar_to_unipolar",
 }
 
 # Sample Types (SF2.01 Specification Section 3.6)
-SF2_SAMPLE_TYPES: Dict[int, Dict[str, any]] = {
+SF2_SAMPLE_TYPES: dict[int, dict[str, any]] = {
     0x0001: {"name": "mono", "channels": 1, "bit_depth": 16, "loop_support": False},
     0x0002: {
         "name": "right",
@@ -210,7 +211,7 @@ SF2_SAMPLE_TYPES: Dict[int, Dict[str, any]] = {
 }
 
 # SF2 Chunk IDs (SF2.01 Specification)
-SF2_CHUNK_IDS: Dict[str, str] = {
+SF2_CHUNK_IDS: dict[str, str] = {
     # Main chunks
     "RIFF": "RIFF header",
     "sfbk": "SoundFont bank",
@@ -267,7 +268,7 @@ SF2_MODULATOR_FORMAT = (
 )
 
 # Sample loop modes
-SF2_LOOP_MODES: Dict[int, str] = {
+SF2_LOOP_MODES: dict[int, str] = {
     0: "no_loop",
     1: "forward_loop",
     2: "backward_loop",

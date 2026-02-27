@@ -252,8 +252,9 @@ ARCHITECTURAL PRINCIPLES:
 - DEPENDENCY INVERSION: Abstract hardware interfaces for flexible implementation
 - COMPOSITION OVER INHERITANCE: Modular hardware integration assembly
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import numpy as np
 import threading
 
@@ -317,7 +318,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
         # Jupiter-X supports full MIDI note range
         return 0 <= note <= 127
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get engine information."""
         return {
             "name": self.name,
@@ -327,7 +328,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
             "jupiter_x_info": self.jupiter_x_synth.get_system_info(),
         }
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int):
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int):
         """Create a partial instance for this engine."""
         # Jupiter-X doesn't use the traditional partial system
         # Instead, it uses its own internal synthesis architecture
@@ -354,7 +355,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
 
     # ========== NEW REGION-BASED ARCHITECTURE METHODS ==========
 
-    def get_preset_info(self, bank: int, program: int) -> Optional["PresetInfo"]:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get Jupiter-X preset info with region descriptors.
 
@@ -399,7 +400,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
 
     def get_all_region_descriptors(
         self, bank: int, program: int
-    ) -> List["RegionDescriptor"]:
+    ) -> list[RegionDescriptor]:
         """
         Get ALL region descriptors for a Jupiter-X preset.
 
@@ -418,8 +419,8 @@ class JupiterXEngineIntegration(SynthesisEngine):
         return []
 
     def _create_base_region(
-        self, descriptor: "RegionDescriptor", sample_rate: int
-    ) -> "IRegion":
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
         """
         Create Jupiter-X base region without S.Art2 wrapper.
 
@@ -445,11 +446,11 @@ class JupiterXEngineIntegration(SynthesisEngine):
                 self.note = 60
                 self.velocity = 100
 
-            def _load_sample_data(self) -> Optional[np.ndarray]:
+            def _load_sample_data(self) -> np.ndarray | None:
                 """Load sample data - not needed for algorithmic synthesis."""
                 return None
 
-            def _create_partial(self) -> Optional[Any]:
+            def _create_partial(self) -> Any | None:
                 """Create synthesis partial - not needed for Jupiter-X."""
                 return None
 
@@ -474,7 +475,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
                 self.jupiter_x_engine.note_off(self.note)
 
             def generate_samples(
-                self, block_size: int, modulation: Dict = None
+                self, block_size: int, modulation: dict = None
             ) -> np.ndarray:
                 """Generate samples."""
                 if not self.active:
@@ -495,7 +496,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
 
         return JupiterXRegion(self, descriptor, sample_rate)
 
-    def load_sample_for_region(self, region: "IRegion") -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for Jupiter-X region.
 
@@ -516,7 +517,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
         print("⚠️  Jupiter-X Engine: Sample rate changes require engine recreation")
 
     def generate_samples(
-        self, note: int, velocity: int, modulation: Dict[str, float], block_size: int
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
     ) -> np.ndarray:
         """
         Generate audio samples using Jupiter-X synthesis.
@@ -669,7 +670,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
             preset_name = f"program_{program_number}"
             return self.jupiter_x_synth.save_preset(preset_name)
 
-    def get_program_info(self, program_number: int) -> Optional[Dict[str, Any]]:
+    def get_program_info(self, program_number: int) -> dict[str, Any] | None:
         """Get program information."""
         with self.lock:
             # Jupiter-X preset system doesn't have detailed program info
@@ -735,7 +736,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
         with self.lock:
             return self.jupiter_x_synth.enable_mpe(enable)
 
-    def get_jupiter_x_status(self) -> Dict[str, Any]:
+    def get_jupiter_x_status(self) -> dict[str, Any]:
         """Get Jupiter-X system status."""
         with self.lock:
             return self.jupiter_x_synth.get_system_info()

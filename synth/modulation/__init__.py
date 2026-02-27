@@ -2,6 +2,7 @@
 Modulation system for XG synthesizer.
 Contains modulation sources, destinations, routes, and matrix.
 """
+from __future__ import annotations
 
 from .sources import ModulationSource
 from .destinations import ModulationDestination

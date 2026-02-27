@@ -4,8 +4,10 @@ MPE (Microtonal Expression) System - Complete MPE Implementation
 Production-quality Microtonal Expression system with per-note pitch bending,
 timbre control, and slide/lift parameters for expressive synthesis control.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -252,7 +254,7 @@ class MPESystem:
                 if hasattr(voice, "update"):
                     voice.update()
 
-    def get_mpe_info(self) -> Dict[str, Any]:
+    def get_mpe_info(self) -> dict[str, Any]:
         """
         Get MPE system information.
 
@@ -297,7 +299,7 @@ class MPESystem:
         """
         return self.mpe_enabled and self.mpe_manager is not None
 
-    def get_active_mpe_notes(self, channel: Optional[int] = None) -> List[Any]:
+    def get_active_mpe_notes(self, channel: int | None = None) -> list[Any]:
         """
         Get active MPE notes.
 

@@ -9,8 +9,9 @@ AdditiveRegion implements additive synthesis with:
 - Individual partial envelopes
 - Brightness and spread control
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -73,15 +74,15 @@ class AdditiveRegion(IRegion):
         self._velocity_to_brightness = algo_params.get('velocity_to_brightness', 0.0)
         
         # Runtime state
-        self._spectrum: Optional[Any] = None
-        self._target_spectrum: Optional[Any] = None
-        self._partial_envelopes: List[Any] = []
+        self._spectrum: Any | None = None
+        self._target_spectrum: Any | None = None
+        self._partial_envelopes: list[Any] = []
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """No sample data for additive (algorithmic synthesis)."""
         return None
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create additive synthesis partial bank.
         
@@ -127,7 +128,7 @@ class AdditiveRegion(IRegion):
             logger.error(f"Failed to create additive partial: {e}")
             return None
     
-    def _create_spectrum(self, spectrum_type: str) -> Optional[Any]:
+    def _create_spectrum(self, spectrum_type: str) -> Any | None:
         """
         Create harmonic spectrum.
         
@@ -285,7 +286,7 @@ class AdditiveRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from additive partial.
@@ -324,7 +325,7 @@ class AdditiveRegion(IRegion):
             logger.error(f"Additive sample generation failed: {e}")
             return np.zeros(block_size * 2, dtype=np.float32)
     
-    def _apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """
         Apply modulation to additive parameters.
         
@@ -339,7 +340,7 @@ class AdditiveRegion(IRegion):
             if self._partial and hasattr(self._partial, 'set_brightness'):
                 self._partial.set_brightness(self._brightness * (1.0 + brightness_mod))
     
-    def update_modulation(self, modulation: Dict[str, float]) -> None:
+    def update_modulation(self, modulation: dict[str, float]) -> None:
         """
         Update modulation state.
         
@@ -359,7 +360,7 @@ class AdditiveRegion(IRegion):
         
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

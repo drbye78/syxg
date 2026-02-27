@@ -4,8 +4,9 @@ Sequencer Data Types and Constants
 Core data structures for the built-in sequencer including notes,
 patterns, songs, and configuration types.
 """
+from __future__ import annotations
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 from dataclasses import dataclass
 from enum import Enum
 import time
@@ -40,7 +41,7 @@ class RecordingMode(Enum):
     REPLACE = 3
 
 
-@dataclass
+@dataclass(slots=True)
 class NoteEvent:
     """Represents a MIDI note event in the sequencer"""
     time: float          # Time in beats (quarter notes)
@@ -50,7 +51,7 @@ class NoteEvent:
     channel: int = 0     # MIDI channel (0-15)
     track_id: int = 0    # Track identifier
 
-    def to_midi_bytes(self) -> Tuple[bytes, bytes]:
+    def to_midi_bytes(self) -> tuple[bytes, bytes]:
         """Convert to MIDI message bytes"""
         # Note on: 0x90 + channel, note, velocity
         note_on = bytes([0x90 + self.channel, self.note_number, self.velocity])
@@ -63,7 +64,7 @@ class NoteEvent:
         return self.time + self.duration
 
 
-@dataclass
+@dataclass(slots=True)
 class ControlEvent:
     """Represents a MIDI control change event"""
     time: float          # Time in beats
@@ -78,7 +79,7 @@ class ControlEvent:
         return bytes([0xB0 + self.channel, self.controller, self.value])
 
 
-@dataclass
+@dataclass(slots=True)
 class Pattern:
     """A sequencer pattern containing note and control events"""
     id: int
@@ -87,12 +88,12 @@ class Pattern:
     resolution: int = 96 # PPQ (pulses per quarter note)
 
     # Event storage
-    notes: List[NoteEvent] = None
-    controls: List[ControlEvent] = None
+    notes: list[NoteEvent] = None
+    controls: list[ControlEvent] = None
 
     # Pattern settings
     tempo: float = 120.0
-    time_signature: Tuple[int, int] = (4, 4)  # numerator, denominator
+    time_signature: tuple[int, int] = (4, 4)  # numerator, denominator
     swing_amount: float = 0.0  # 0.0 to 1.0
     quantize_mode: QuantizeMode = QuantizeMode.OFF
 
@@ -138,7 +139,7 @@ class Pattern:
         self.controls.clear()
         self._update_modified_time()
 
-    def get_notes_in_range(self, start_time: float, end_time: float) -> List[NoteEvent]:
+    def get_notes_in_range(self, start_time: float, end_time: float) -> list[NoteEvent]:
         """Get all notes within a time range"""
         return [note for note in self.notes
                 if note.time >= start_time and note.time < end_time]
@@ -189,7 +190,7 @@ class Pattern:
         """Update the modification timestamp"""
         self.modified_time = time.time()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert pattern to dictionary for serialization"""
         return {
             'id': self.id,
@@ -226,7 +227,7 @@ class Pattern:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Pattern':
+    def from_dict(cls, data: dict[str, Any]) -> Pattern:
         """Create pattern from dictionary"""
         pattern = cls(
             id=data['id'],
@@ -268,7 +269,7 @@ class Pattern:
         return pattern
 
 
-@dataclass
+@dataclass(slots=True)
 class Track:
     """A track within a song containing pattern references and settings"""
     id: int
@@ -281,7 +282,7 @@ class Track:
     pan: int = 64         # Track pan (0-127, 64=center)
 
     # Pattern sequence for this track (pattern_id, start_time, length_multiplier)
-    sequence: List[Tuple[int, float, float]] = None
+    sequence: list[tuple[int, float, float]] = None
 
     def __post_init__(self):
         if self.sequence is None:
@@ -297,7 +298,7 @@ class Track:
         if 0 <= index < len(self.sequence):
             del self.sequence[index]
 
-    def get_patterns_at_time(self, time: float) -> List[Tuple[int, float, float]]:
+    def get_patterns_at_time(self, time: float) -> list[tuple[int, float, float]]:
         """Get all pattern instances that should play at the given time"""
         active_patterns = []
         for pattern_id, start_time, length_mult in self.sequence:
@@ -311,16 +312,16 @@ class Track:
         self.sequence.clear()
 
 
-@dataclass
+@dataclass(slots=True)
 class Song:
     """A song containing multiple tracks and arrangement data"""
     id: int
     name: str
     tempo: float = 120.0
-    time_signature: Tuple[int, int] = (4, 4)
+    time_signature: tuple[int, int] = (4, 4)
 
     # Track management
-    tracks: List[Track] = None
+    tracks: list[Track] = None
 
     # Song structure (could be expanded for more complex arrangements)
     length: int = 16  # Length in measures
@@ -347,14 +348,14 @@ class Song:
         self.tracks = [t for t in self.tracks if t.id != track_id]
         self._update_modified_time()
 
-    def get_track(self, track_id: int) -> Optional[Track]:
+    def get_track(self, track_id: int) -> Track | None:
         """Get track by ID"""
         for track in self.tracks:
             if track.id == track_id:
                 return track
         return None
 
-    def get_active_tracks_at_time(self, time: float) -> List[Track]:
+    def get_active_tracks_at_time(self, time: float) -> list[Track]:
         """Get tracks that have content at the given time"""
         active_tracks = []
         for track in self.tracks:
@@ -366,7 +367,7 @@ class Song:
         """Update modification timestamp"""
         self.modified_time = time.time()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert song to dictionary for serialization"""
         return {
             'id': self.id,
@@ -393,7 +394,7 @@ class Song:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Song':
+    def from_dict(cls, data: dict[str, Any]) -> Song:
         """Create song from dictionary"""
         song = cls(
             id=data['id'],

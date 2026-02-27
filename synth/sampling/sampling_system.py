@@ -5,9 +5,11 @@ Complete sampling and sample management system providing professional
 workstation-grade recording, editing, and manipulation capabilities.
 Provides authentic Motif-compatible sampling workflow.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -118,7 +120,7 @@ class Sample:
             self.sample_rate = new_sample_rate
             self.length = len(self.data)
 
-    def get_sample_info(self) -> Dict[str, Any]:
+    def get_sample_info(self) -> dict[str, Any]:
         """Get comprehensive sample information"""
         return {
             'name': self.name,
@@ -156,7 +158,7 @@ class AudioRecorder:
         self.pre_roll_samples = 0
 
         # Callbacks
-        self.level_callback: Optional[Callable] = None
+        self.level_callback: Callable | None = None
 
     def start_recording(self):
         """Start audio recording"""
@@ -164,7 +166,7 @@ class AudioRecorder:
         self.recorded_data = []
         print(f"🎤 Started recording: {self.channels}ch @ {self.sample_rate}Hz")
 
-    def stop_recording(self) -> Optional[Sample]:
+    def stop_recording(self) -> Sample | None:
         """Stop recording and return recorded sample"""
         if not self.is_recording:
             return None
@@ -207,7 +209,7 @@ class SampleEditor:
     """
 
     def __init__(self):
-        self.current_sample: Optional[Sample] = None
+        self.current_sample: Sample | None = None
 
     def load_sample(self, sample: Sample):
         """Load sample for editing"""
@@ -383,7 +385,7 @@ class WaveformGenerator:
         sample = Sample(data, self.sample_rate, f"Impulse_{duration}s")
         return sample
 
-    def combine_samples(self, samples: List[Sample], mode: str = "mix") -> Optional[Sample]:
+    def combine_samples(self, samples: list[Sample], mode: str = "mix") -> Sample | None:
         """Combine multiple samples"""
         if not samples:
             return None
@@ -420,7 +422,7 @@ class SampleManager:
     """
 
     def __init__(self, max_samples: int = 1000, max_memory_mb: int = 512):
-        self.samples: Dict[str, Sample] = {}
+        self.samples: dict[str, Sample] = {}
         self.max_samples = max_samples
         self.max_memory_mb = max_memory_mb
 
@@ -491,11 +493,11 @@ class SampleManager:
         print(f"🗑️ Removed sample: {name}")
         return True
 
-    def get_sample(self, name: str) -> Optional[Sample]:
+    def get_sample(self, name: str) -> Sample | None:
         """Get sample by name"""
         return self.samples.get(name)
 
-    def list_samples(self, category: Optional[str] = None) -> List[str]:
+    def list_samples(self, category: str | None = None) -> list[str]:
         """List samples, optionally by category"""
         if category and category in self.categories:
             return self.categories[category].copy()
@@ -531,7 +533,7 @@ class SampleManager:
             print(f"❌ Failed to save sample: {e}")
             return False
 
-    def load_sample_from_file(self, file_path: str, name: Optional[str] = None) -> bool:
+    def load_sample_from_file(self, file_path: str, name: str | None = None) -> bool:
         """Load sample from WAV file"""
         try:
             with wave.open(file_path, 'rb') as wav_file:
@@ -574,7 +576,7 @@ class SampleManager:
         self.recorder.start_recording()
         return True
 
-    def stop_recording(self, name: Optional[str] = None) -> Optional[str]:
+    def stop_recording(self, name: str | None = None) -> str | None:
         """Stop recording and add recorded sample"""
         recorded_sample = self.recorder.stop_recording()
         if recorded_sample:
@@ -584,7 +586,7 @@ class SampleManager:
                 return recorded_sample.name
         return None
 
-    def generate_waveform(self, waveform_type: str, **params) -> Optional[str]:
+    def generate_waveform(self, waveform_type: str, **params) -> str | None:
         """Generate waveform sample"""
         try:
             if waveform_type == "sine":
@@ -640,7 +642,7 @@ class SampleManager:
             print(f"❌ Failed to edit sample: {e}")
             return False
 
-    def get_manager_status(self) -> Dict[str, Any]:
+    def get_manager_status(self) -> dict[str, Any]:
         """Get comprehensive manager status"""
         total_samples = len(self.samples)
         total_duration = sum(s.get_duration() for s in self.samples.values())

@@ -5,8 +5,10 @@ Part of the unified region-based synthesis architecture.
 RegionPool reduces allocation overhead by reusing region objects
 instead of creating new instances for every note-on event.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Callable, Type
+from typing import Any
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import threading
 import logging
@@ -20,7 +22,7 @@ if __name__ == '__annotations__':
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class PoolStats:
     """Statistics for a region pool."""
     region_type: str
@@ -57,10 +59,10 @@ class RegionPool:
         self.max_pooled_per_type = max_pooled_per_type
         
         # Pool per region type: type_name -> [regions]
-        self._pools: Dict[str, List[Any]] = {}
+        self._pools: dict[str, list[Any]] = {}
         
         # Statistics per type
-        self._stats: Dict[str, PoolStats] = {}
+        self._stats: dict[str, PoolStats] = {}
         
         # Lock for thread safety
         self._lock = threading.RLock()
@@ -69,7 +71,7 @@ class RegionPool:
         self, 
         region_type: str,
         factory: Callable[[], Any],
-        descriptor: Optional[RegionDescriptor] = None
+        descriptor: RegionDescriptor | None = None
     ) -> Any:
         """
         Acquire region from pool or create new.
@@ -144,7 +146,7 @@ class RegionPool:
                 stats.pooled_count = len(pool)
             # else: let it be garbage collected
     
-    def release_all(self, regions: List[Any]) -> None:
+    def release_all(self, regions: list[Any]) -> None:
         """
         Release multiple regions back to pool.
         
@@ -168,7 +170,7 @@ class RegionPool:
             self._pools.clear()
             self._stats.clear()
     
-    def get_stats(self) -> Dict[str, PoolStats]:
+    def get_stats(self) -> dict[str, PoolStats]:
         """
         Get pool statistics.
         
@@ -178,7 +180,7 @@ class RegionPool:
         with self._lock:
             return self._stats.copy()
     
-    def get_total_stats(self) -> Dict[str, Any]:
+    def get_total_stats(self) -> dict[str, Any]:
         """
         Get aggregated statistics across all region types.
         
@@ -293,7 +295,7 @@ class RegionPool:
 
 
 # Global region pool instance (lazy initialized)
-_global_pool: Optional[RegionPool] = None
+_global_pool: RegionPool | None = None
 _global_pool_lock = threading.Lock()
 
 

@@ -3,6 +3,7 @@ Sample Editor - Basic Sample Editing Capabilities
 
 Provides basic sample editing functionality for the XG synthesizer.
 """
+from __future__ import annotations
 
 class SampleEditor:
     """

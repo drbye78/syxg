@@ -7,10 +7,11 @@ Tests cover:
 - Voice lazy region selection
 - Multi-zone preset handling (key splits, velocity splits)
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 # Import architecture components
 from synth.engine.region_descriptor import RegionDescriptor
@@ -37,10 +38,10 @@ class MockRegion(IRegion):
         self._initialized = True
         self._sample_data = np.zeros(44100, dtype=np.float32)  # 1 second of silence
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         return self._sample_data
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         return None
     
     def _init_envelopes(self) -> None:
@@ -52,7 +53,7 @@ class MockRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         if not self._initialized:
             return np.zeros(block_size * 2, dtype=np.float32)
@@ -64,7 +65,7 @@ class MockEngine(SynthesisEngine):
     
     def __init__(self, sample_rate: int = 44100, block_size: int = 1024):
         super().__init__(sample_rate, block_size)
-        self._presets: Dict[tuple, PresetInfo] = {}
+        self._presets: dict[tuple, PresetInfo] = {}
     
     def register_preset(
         self, 
@@ -75,14 +76,14 @@ class MockEngine(SynthesisEngine):
         """Register a preset for testing."""
         self._presets[(bank, program)] = preset_info
     
-    def get_preset_info(self, bank: int, program: int) -> Optional[PresetInfo]:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         return self._presets.get((bank, program))
     
     def get_all_region_descriptors(
         self, 
         bank: int, 
         program: int
-    ) -> List[RegionDescriptor]:
+    ) -> list[RegionDescriptor]:
         preset_info = self.get_preset_info(bank, program)
         if preset_info:
             return preset_info.region_descriptors
@@ -102,7 +103,7 @@ class MockEngine(SynthesisEngine):
         self, 
         note: int, 
         velocity: int, 
-        modulation: Dict[str, float],
+        modulation: dict[str, float],
         block_size: int
     ) -> np.ndarray:
         return np.zeros(block_size * 2, dtype=np.float32)
@@ -110,7 +111,7 @@ class MockEngine(SynthesisEngine):
     def is_note_supported(self, note: int) -> bool:
         return 0 <= note <= 127
     
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         return {
             'name': 'Mock Engine',
             'type': 'mock',

@@ -8,10 +8,11 @@ Tests cover:
 - Integration with all synthesis engines
 - Performance benchmarks
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np
-from typing import Dict, Any
+from typing import Any
 
 from synth.xg.sart.sart2_region import SArt2Region, SArt2RegionFactory
 from synth.xg.sart.articulation_controller import ArticulationController

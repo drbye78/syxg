@@ -4,10 +4,11 @@ Chord Detection System - Real-time Musical Chord Recognition
 Provides comprehensive chord detection for auto-accompaniment,
 supporting multiple detection algorithms and chord types.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict, List, Optional, Set, Tuple, Callable
+from collections.abc import Callable
 import threading
 import time
 import numpy as np
@@ -48,11 +49,11 @@ class ChordRoot(Enum):
         return names.get(self.value, "C")
 
     @classmethod
-    def from_midi(cls, note: int) -> "ChordRoot":
+    def from_midi(cls, note: int) -> ChordRoot:
         return cls(note % 12)
 
     @classmethod
-    def from_name(cls, name: str) -> "ChordRoot":
+    def from_name(cls, name: str) -> ChordRoot:
         mapping = {
             "c": 0,
             "c#": 1,
@@ -107,7 +108,7 @@ class ChordType(Enum):
     UNKNOWN = auto()
 
     @property
-    def intervals(self) -> List[int]:
+    def intervals(self) -> list[int]:
         """Return interval semitones from root"""
         intervals = {
             ChordType.MAJOR: [0, 4, 7],
@@ -168,12 +169,12 @@ class ChordType(Enum):
         return names.get(self, "")
 
     @property
-    def bass_interval(self) -> Optional[int]:
+    def bass_interval(self) -> int | None:
         """Interval for bass note (inversions)"""
         return None
 
     @classmethod
-    def from_intervals(cls, intervals: List[int]) -> "ChordType":
+    def from_intervals(cls, intervals: list[int]) -> ChordType:
         """Identify chord type from intervals"""
         normalized = sorted(set(i % 12 for i in intervals))
 
@@ -197,7 +198,7 @@ class ChordType(Enum):
         return type_mapping.get(tuple(normalized), ChordType.UNKNOWN)
 
     @classmethod
-    def from_name(cls, name: str) -> "ChordType":
+    def from_name(cls, name: str) -> ChordType:
         """Parse chord type from name string"""
         name = name.lower().replace("♭", "b").replace("♯", "#").replace("Δ", "maj7")
 
@@ -247,17 +248,17 @@ class ChordType(Enum):
             return ChordType.MAJOR
 
 
-@dataclass
+@dataclass(slots=True)
 class DetectedChord:
     """Result of chord detection"""
 
     root: ChordRoot
     chord_type: ChordType
-    bass_note: Optional[int] = None
+    bass_note: int | None = None
     inversion: int = 0
     confidence: float = 0.0
-    notes: List[int] = field(default_factory=list)
-    timestamps: Dict[int, float] = field(default_factory=dict)
+    notes: list[int] = field(default_factory=list)
+    timestamps: dict[int, float] = field(default_factory=dict)
     is_inversion: bool = False
     chord_name: str = ""
 
@@ -273,15 +274,15 @@ class DetectedChord:
         return self.root.value
 
     @property
-    def intervals(self) -> List[int]:
+    def intervals(self) -> list[int]:
         return self.chord_type.intervals
 
-    def get_notes_for_root(self, root_midi: int, octave: int = 3) -> List[int]:
+    def get_notes_for_root(self, root_midi: int, octave: int = 3) -> list[int]:
         """Get actual MIDI notes for this chord"""
         base = root_midi + (octave * 12)
         return [base + i for i in self.chord_type.intervals]
 
-    def get_all_notes(self, min_note: int = 36, max_note: int = 84) -> List[int]:
+    def get_all_notes(self, min_note: int = 36, max_note: int = 84) -> list[int]:
         """Get all notes in the chord within range"""
         if not self.notes:
             return []
@@ -296,7 +297,7 @@ class DetectedChord:
         return sorted(set(result))
 
 
-@dataclass
+@dataclass(slots=True)
 class ChordDetectionConfig:
     """Configuration for chord detection"""
 
@@ -311,7 +312,7 @@ class ChordDetectionConfig:
     ignore_root_octave: bool = True
     chroma_weighting: bool = True
     template_matching: bool = True
-    on_chord_change: Optional[Callable[[DetectedChord], None]] = None
+    on_chord_change: Callable[[DetectedChord], None] | None = None
 
 
 class ChordDetector:
@@ -326,15 +327,15 @@ class ChordDetector:
     - Real-time callbacks
     """
 
-    CHORD_TEMPLATES: Dict[Tuple[int, ...], ChordType] = {}
+    CHORD_TEMPLATES: dict[tuple[int, ...], ChordType] = {}
 
-    def __init__(self, config: Optional[ChordDetectionConfig] = None):
+    def __init__(self, config: ChordDetectionConfig | None = None):
         self.config = config or ChordDetectionConfig()
         self._lock = threading.RLock()
 
-        self._active_notes: Dict[int, Tuple[int, float]] = {}
-        self._last_chord: Optional[DetectedChord] = None
-        self._chord_history: List[DetectedChord] = []
+        self._active_notes: dict[int, tuple[int, float]] = {}
+        self._last_chord: DetectedChord | None = None
+        self._chord_history: list[DetectedChord] = []
         self._detection_count = 0
 
         self._initialize_chord_templates()
@@ -367,7 +368,7 @@ class ChordDetector:
         }
 
     def note_on(
-        self, note: int, velocity: int = 100, timestamp: Optional[float] = None
+        self, note: int, velocity: int = 100, timestamp: float | None = None
     ):
         """Register a note-on event"""
         if timestamp is None:
@@ -389,7 +390,7 @@ class ChordDetector:
                 del self._active_notes[note]
                 self._detect_chord()
 
-    def get_active_notes(self) -> List[int]:
+    def get_active_notes(self) -> list[int]:
         """Get currently active notes in detection zone"""
         with self._lock:
             return list(self._active_notes.keys())
@@ -425,7 +426,7 @@ class ChordDetector:
             if self.config.on_chord_change:
                 self.config.on_chord_change(chord)
 
-    def _template_matching_detection(self, notes: List[int]) -> Optional[DetectedChord]:
+    def _template_matching_detection(self, notes: list[int]) -> DetectedChord | None:
         """Template-matching based chord detection"""
         if not notes:
             return None
@@ -460,7 +461,7 @@ class ChordDetector:
 
         return chord
 
-    def _interval_based_detection(self, notes: List[int]) -> Optional[DetectedChord]:
+    def _interval_based_detection(self, notes: list[int]) -> DetectedChord | None:
         """Interval-based chord detection"""
         if not notes:
             return None
@@ -490,7 +491,7 @@ class ChordDetector:
             is_inversion=bass_note is not None and bass_note % 12 != root,
         )
 
-    def _compute_chroma(self, notes: List[int]) -> np.ndarray:
+    def _compute_chroma(self, notes: list[int]) -> np.ndarray:
         """Compute chromagram from notes"""
         chroma = np.zeros(12)
         for note in notes:
@@ -502,7 +503,7 @@ class ChordDetector:
             chroma = chroma * weights
         return chroma / (np.sum(chroma) + 0.001)
 
-    def _calculate_confidence(self, notes: List[int], chord_type: ChordType) -> float:
+    def _calculate_confidence(self, notes: list[int], chord_type: ChordType) -> float:
         """Calculate detection confidence"""
         if not notes:
             return 0.0
@@ -517,18 +518,18 @@ class ChordDetector:
 
         return min(1.0, confidence * 0.7 + note_count_bonus * 0.3)
 
-    def get_current_chord(self) -> Optional[DetectedChord]:
+    def get_current_chord(self) -> DetectedChord | None:
         """Get the currently detected chord"""
         with self._lock:
             return self._last_chord
 
-    def get_chord_history(self, count: int = 10) -> List[DetectedChord]:
+    def get_chord_history(self, count: int = 10) -> list[DetectedChord]:
         """Get recent chord detection history"""
         with self._lock:
             return self._chord_history[-count:]
 
     def force_chord(
-        self, root: ChordRoot, chord_type: ChordType, bass_note: Optional[int] = None
+        self, root: ChordRoot, chord_type: ChordType, bass_note: int | None = None
     ):
         """Force a specific chord (for manual input)"""
         chord = DetectedChord(
@@ -554,7 +555,7 @@ class ChordDetector:
     def detection_count(self) -> int:
         return self._detection_count
 
-    def get_detailed_info(self) -> Dict:
+    def get_detailed_info(self) -> dict:
         """Get detailed detector information"""
         with self._lock:
             return {

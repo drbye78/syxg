@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """
 XG DRUM KIT STATE MANAGER
@@ -14,7 +15,7 @@ Provides:
 """
 
 import numpy as np
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 from enum import Enum
 from ..core.constants import XG_CONSTANTS
 
@@ -110,17 +111,17 @@ class XGDrumKitStateManager:
         self.lock = threading.Lock()
 
         # Kit parameters: channel -> kit_number -> param_name -> value
-        self.kit_parameters: Dict[int, Dict[int, Dict[str, Any]]] = {}
+        self.kit_parameters: dict[int, dict[int, dict[str, Any]]] = {}
 
         # Drum detail parameters: channel -> note -> param_name -> value
-        self.drum_detail_parameters: Dict[int, Dict[int, Dict[str, Any]]] = {}
+        self.drum_detail_parameters: dict[int, dict[int, dict[str, Any]]] = {}
 
         # Current kit selections per channel
-        self.channel_kit_selections: Dict[int, int] = {}
+        self.channel_kit_selections: dict[int, int] = {}
 
         # Parameter caches for performance
         self._parameter_cache_dirty: bool = True
-        self._parameter_cache: Dict[int, Dict[int, Dict[str, Any]]] = {}
+        self._parameter_cache: dict[int, dict[int, dict[str, Any]]] = {}
 
         # Initialize default state
         self._initialize_xg_drum_defaults()
@@ -139,7 +140,7 @@ class XGDrumKitStateManager:
             for note in range(128):  # All possible MIDI notes
                 self.drum_detail_parameters[channel][note] = self._create_default_drum_detail_parameters()
 
-    def _create_default_kit_parameters(self) -> Dict[str, Any]:
+    def _create_default_kit_parameters(self) -> dict[str, Any]:
         """Create default XG kit parameters."""
         return {
             'kit_number': 0,
@@ -152,7 +153,7 @@ class XGDrumKitStateManager:
             # Individual drum assignments would go here
         }
 
-    def _create_default_drum_detail_parameters(self) -> Dict[str, Any]:
+    def _create_default_drum_detail_parameters(self) -> dict[str, Any]:
         """Create default XG drum detail parameters."""
         return {
             'wave_number': 0,
@@ -406,13 +407,13 @@ class XGDrumKitStateManager:
         # Parameter-specific validation could be added here
         return True
 
-    def get_current_kit_parameters(self, channel: int) -> Dict[str, Any]:
+    def get_current_kit_parameters(self, channel: int) -> dict[str, Any]:
         """Get parameters for currently selected kit on channel."""
         with self.lock:
             kit_number = self.channel_kit_selections.get(channel, 0)
             return self.kit_parameters.get(channel, {}).get(kit_number, self._create_default_kit_parameters())
 
-    def get_drum_note_parameters(self, channel: int, note: int) -> Dict[str, Any]:
+    def get_drum_note_parameters(self, channel: int, note: int) -> dict[str, Any]:
         """Get all parameters for a specific drum note on channel."""
         with self.lock:
             # Combine kit parameters and note-specific parameters
@@ -479,11 +480,11 @@ class XGDrumKitStateManager:
         """Get the name of a drum kit."""
         return self.XG_DRUM_KITS.get(kit_number, f"Custom Kit {kit_number}")
 
-    def list_available_kits(self) -> Dict[int, str]:
+    def list_available_kits(self) -> dict[int, str]:
         """Get dictionary of available XG drum kits."""
         return self.XG_DRUM_KITS.copy()
 
-    def export_kit_to_bulk_dump(self, channel: int, kit_number: int) -> List[int]:
+    def export_kit_to_bulk_dump(self, channel: int, kit_number: int) -> list[int]:
         """
         Export drum kit parameters to XG bulk dump format.
 
@@ -494,7 +495,7 @@ class XGDrumKitStateManager:
         # This would serialize all kit parameters into XG SysEx format
         return []  # Placeholder
 
-    def import_kit_from_bulk_dump(self, channel: int, kit_number: int, data: List[int]) -> bool:
+    def import_kit_from_bulk_dump(self, channel: int, kit_number: int, data: list[int]) -> bool:
         """
         Import drum kit parameters from XG bulk dump format.
 

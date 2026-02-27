@@ -3,6 +3,7 @@ Tests for vibexg.types module
 
 Tests data classes, enums, and constants.
 """
+from __future__ import annotations
 
 import pytest
 from vibexg.types import (

@@ -4,10 +4,11 @@ Style Data Model - Core Style Classes
 Defines the complete style data structure based on Yamaha SFF format,
 extended with additional capabilities.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 from pathlib import Path
 import json
 
@@ -154,7 +155,7 @@ class TrackType(Enum):
         return self in (TrackType.CHORD_1, TrackType.CHORD_2, TrackType.PAD)
 
 
-@dataclass
+@dataclass(slots=True)
 class StyleMetadata:
     """Style metadata and header information"""
 
@@ -173,10 +174,10 @@ class StyleMetadata:
     author: str = ""
     version: str = "1.0"
     description: str = ""
-    tags: List[str] = field(default_factory=list)
-    characteristics: Dict[str, Any] = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
+    characteristics: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "category": self.category.name,
@@ -197,7 +198,7 @@ class StyleMetadata:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StyleMetadata":
+    def from_dict(cls, data: dict[str, Any]) -> StyleMetadata:
         return cls(
             name=data.get("name", "New Style"),
             category=StyleCategory[data.get("category", "POP")],
@@ -223,7 +224,7 @@ class StyleMetadata:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class NoteEvent:
     """A single note event in a style pattern"""
 
@@ -234,7 +235,7 @@ class NoteEvent:
     gate_time: float = 0.8
     variation: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "tick": self.tick,
             "note": self.note,
@@ -245,7 +246,7 @@ class NoteEvent:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "NoteEvent":
+    def from_dict(cls, data: dict[str, Any]) -> NoteEvent:
         return cls(
             tick=data.get("tick", 0),
             note=data.get("note", 60),
@@ -256,7 +257,7 @@ class NoteEvent:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class CCEvent:
     """MIDI Control Change event"""
 
@@ -264,7 +265,7 @@ class CCEvent:
     controller: int = 7
     value: int = 100
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "tick": self.tick,
             "controller": self.controller,
@@ -272,7 +273,7 @@ class CCEvent:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CCEvent":
+    def from_dict(cls, data: dict[str, Any]) -> CCEvent:
         return cls(
             tick=data.get("tick", 0),
             controller=data.get("controller", 7),
@@ -280,12 +281,12 @@ class CCEvent:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class StyleTrackData:
     """Note data for a single track in a section"""
 
-    notes: List[NoteEvent] = field(default_factory=list)
-    cc_events: List[CCEvent] = field(default_factory=list)
+    notes: list[NoteEvent] = field(default_factory=list)
+    cc_events: list[CCEvent] = field(default_factory=list)
     mute: bool = False
     solo: bool = False
     volume: float = 1.0
@@ -300,7 +301,7 @@ class StyleTrackData:
     velocity_curve: str = "linear"
     humanize: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "notes": [n.to_dict() for n in self.notes],
             "cc_events": [c.to_dict() for c in self.cc_events],
@@ -320,7 +321,7 @@ class StyleTrackData:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StyleTrackData":
+    def from_dict(cls, data: dict[str, Any]) -> StyleTrackData:
         return cls(
             notes=[NoteEvent.from_dict(n) for n in data.get("notes", [])],
             cc_events=[CCEvent.from_dict(c) for c in data.get("cc_events", [])],
@@ -340,22 +341,22 @@ class StyleTrackData:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class StyleSection:
     """A single section of a style (Intro, Main, Fill, Ending)"""
 
     section_type: StyleSectionType = StyleSectionType.MAIN_A
     length_bars: int = 4
     length_ticks: int = 1920
-    tempo: Optional[int] = None
-    time_signature_numerator: Optional[int] = None
-    time_signature_denominator: Optional[int] = None
-    tracks: Dict[TrackType, StyleTrackData] = field(default_factory=dict)
+    tempo: int | None = None
+    time_signature_numerator: int | None = None
+    time_signature_denominator: int | None = None
+    tracks: dict[TrackType, StyleTrackData] = field(default_factory=dict)
     fade_in_time: float = 0.0
     fade_out_time: float = 0.0
     count_in_bars: int = 0
     auto_fill: bool = True
-    variation_link: Optional[StyleSectionType] = None
+    variation_link: StyleSectionType | None = None
 
     def __post_init__(self):
         if not self.tracks:
@@ -365,7 +366,7 @@ class StyleSection:
     def get_track(self, track_type: TrackType) -> StyleTrackData:
         return self.tracks.get(track_type, StyleTrackData())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "section_type": self.section_type.value,
             "length_bars": self.length_bars,
@@ -387,7 +388,7 @@ class StyleSection:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StyleSection":
+    def from_dict(cls, data: dict[str, Any]) -> StyleSection:
         section_type = StyleSectionType(data.get("section_type", "main_a"))
         time_sig = (
             data.get("time_signature", "4/4").split("/")
@@ -418,18 +419,18 @@ class StyleSection:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class ChordTable:
     """Chord-to-note mapping table for a style section"""
 
     section: StyleSectionType = StyleSectionType.MAIN_A
-    chord_type_mappings: Dict[str, Dict[TrackType, List[int]]] = field(
+    chord_type_mappings: dict[str, dict[TrackType, list[int]]] = field(
         default_factory=dict
     )
 
     def get_notes_for_chord(
         self, chord_root: int, chord_type: str, track_type: TrackType
-    ) -> List[int]:
+    ) -> list[int]:
         """Get note offsets for a specific chord"""
         key = f"{chord_root}_{chord_type}"
         if (
@@ -439,7 +440,7 @@ class ChordTable:
             return self.chord_type_mappings[key][track_type]
         return []
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "section": self.section.value,
             "mappings": {
@@ -449,7 +450,7 @@ class ChordTable:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChordTable":
+    def from_dict(cls, data: dict[str, Any]) -> ChordTable:
         mappings = {}
         for key, track_mappings in data.get("mappings", {}).items():
             mappings[key] = {
@@ -461,7 +462,7 @@ class ChordTable:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class Style:
     """
     Complete Style data structure (YAML-based SFF format)
@@ -478,15 +479,15 @@ class Style:
     """
 
     metadata: StyleMetadata = field(default_factory=StyleMetadata)
-    sections: Dict[StyleSectionType, StyleSection] = field(default_factory=dict)
-    chord_tables: Dict[StyleSectionType, ChordTable] = field(default_factory=dict)
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    sections: dict[StyleSectionType, StyleSection] = field(default_factory=dict)
+    chord_tables: dict[StyleSectionType, ChordTable] = field(default_factory=dict)
+    parameters: dict[str, Any] = field(default_factory=dict)
 
     default_section: StyleSectionType = StyleSectionType.MAIN_A
     fade_master: bool = True
     tempo_lock: bool = True
 
-    _file_path: Optional[Path] = field(default=None, repr=False)
+    _file_path: Path | None = field(default=None, repr=False)
 
     def __post_init__(self):
         if not self.sections:
@@ -520,28 +521,28 @@ class Style:
     def get_section(self, section_type: StyleSectionType) -> StyleSection:
         return self.sections.get(section_type, StyleSection(section_type=section_type))
 
-    def get_main_sections(self) -> List[StyleSection]:
+    def get_main_sections(self) -> list[StyleSection]:
         return [
             self.sections[st]
             for st in StyleSectionType
             if st.is_main and st in self.sections
         ]
 
-    def get_intro_sections(self) -> List[StyleSection]:
+    def get_intro_sections(self) -> list[StyleSection]:
         return [
             self.sections[st]
             for st in StyleSectionType
             if st.is_intro and st in self.sections
         ]
 
-    def get_ending_sections(self) -> List[StyleSection]:
+    def get_ending_sections(self) -> list[StyleSection]:
         return [
             self.sections[st]
             for st in StyleSectionType
             if st.is_ending and st in self.sections
         ]
 
-    def get_fill_for_main(self, main_section: StyleSectionType) -> List[StyleSection]:
+    def get_fill_for_main(self, main_section: StyleSectionType) -> list[StyleSection]:
         """Get fill sections associated with a main section"""
         fills = []
         var = main_section.value.split("_")[-1]
@@ -550,7 +551,7 @@ class Style:
                 fills.append(self.sections.get(st, StyleSection(section_type=st)))
         return fills
 
-    def get_next_main(self, current: StyleSectionType) -> Optional[StyleSectionType]:
+    def get_next_main(self, current: StyleSectionType) -> StyleSectionType | None:
         """Get next main section in sequence"""
         main_order = [
             StyleSectionType.MAIN_A,
@@ -564,7 +565,7 @@ class Style:
         except ValueError:
             return StyleSectionType.MAIN_A
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "style_format_version": "1.0",
             "metadata": self.metadata.to_dict(),
@@ -585,7 +586,7 @@ class Style:
         return yaml.dump(self.to_dict(), default_flow_style=False, sort_keys=False)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Style":
+    def from_dict(cls, data: dict[str, Any]) -> Style:
         sections = {}
         for key, section_data in data.get("sections", {}).items():
             try:
@@ -613,21 +614,21 @@ class Style:
         )
 
     @classmethod
-    def from_yaml(cls, yaml_str: str) -> "Style":
+    def from_yaml(cls, yaml_str: str) -> Style:
         import yaml
 
         data = yaml.safe_load(yaml_str)
         return cls.from_dict(data)
 
     @classmethod
-    def from_file(cls, file_path: Path) -> "Style":
-        with open(file_path, "r") as f:
+    def from_file(cls, file_path: Path) -> Style:
+        with open(file_path) as f:
             data = yaml.safe_load(f)
         style = cls.from_dict(data)
         style._file_path = file_path
         return style
 
-    def save(self, file_path: Optional[Path] = None):
+    def save(self, file_path: Path | None = None):
         """Save style to YAML file"""
         path = file_path or self._file_path
         if path is None:
@@ -638,7 +639,7 @@ class Style:
         self._file_path = path
 
     @property
-    def file_path(self) -> Optional[Path]:
+    def file_path(self) -> Path | None:
         return self._file_path
 
     @property

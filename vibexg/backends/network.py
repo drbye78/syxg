@@ -3,11 +3,12 @@ Vibexg Network Backend - RTP-MIDI / AppleMIDI implementation
 
 This module provides network MIDI (RTP-MIDI / AppleMIDI) connection handling.
 """
+from __future__ import annotations
 
 import logging
 import socket
 import threading
-from typing import Callable, List, Optional, Tuple
+from collections.abc import Callable
 
 from synth.midi import MIDIMessage
 
@@ -32,9 +33,9 @@ class NetworkMIDIHandler:
         self.port = port
         self.socket = None
         self.running = False
-        self.thread: Optional[threading.Thread] = None
-        self.connected_peers: List[Tuple[str, int]] = []
-        self.message_callback: Optional[Callable] = None
+        self.thread: threading.Thread | None = None
+        self.connected_peers: list[tuple[str, int]] = []
+        self.message_callback: Callable | None = None
 
     def start(self, callback: Callable):
         """
@@ -86,13 +87,13 @@ class NetworkMIDIHandler:
                     if self.message_callback:
                         self.message_callback(msg)
 
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except Exception as e:
                 if self.running:
                     logger.error(f"Network MIDI receive error: {e}")
 
-    def _parse_rtpmidi_packet(self, data: bytes) -> List[MIDIMessage]:
+    def _parse_rtpmidi_packet(self, data: bytes) -> list[MIDIMessage]:
         """
         Parse RTP-MIDI packet to MIDIMessages.
 
@@ -146,7 +147,7 @@ class NetworkMIDIHandler:
 
         return messages
 
-    def _create_midimessage(self, status: int, data1: int, data2: int) -> Optional[MIDIMessage]:
+    def _create_midimessage(self, status: int, data1: int, data2: int) -> MIDIMessage | None:
         """
         Create MIDIMessage from status and data bytes.
 

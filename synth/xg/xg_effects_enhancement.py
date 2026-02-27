@@ -11,8 +11,9 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import math
 import threading
@@ -168,19 +169,19 @@ class XGSystemEffectsEnhancement:
         print(f"   {len(self.XG_VARIATION_TYPES)} variation types, {len(self.XG_INSERTION_TYPES)} insertion types")
         print("   Complete XG effects specification now available")
 
-    def get_reverb_type_info(self, type_value: int) -> Optional[Dict[str, Any]]:
+    def get_reverb_type_info(self, type_value: int) -> dict[str, Any] | None:
         """Get information about a reverb type."""
         return self.XG_REVERB_TYPES.get(type_value)
 
-    def get_chorus_type_info(self, type_value: int) -> Optional[Dict[str, Any]]:
+    def get_chorus_type_info(self, type_value: int) -> dict[str, Any] | None:
         """Get information about a chorus type."""
         return self.XG_CHORUS_TYPES.get(type_value)
 
-    def get_variation_type_info(self, type_value: int) -> Optional[Dict[str, Any]]:
+    def get_variation_type_info(self, type_value: int) -> dict[str, Any] | None:
         """Get information about a variation type."""
         return self.XG_VARIATION_TYPES.get(type_value)
 
-    def get_insertion_type_info(self, type_value: int) -> Optional[Dict[str, Any]]:
+    def get_insertion_type_info(self, type_value: int) -> dict[str, Any] | None:
         """Get information about an insertion type."""
         return self.XG_INSERTION_TYPES.get(type_value)
 
@@ -259,7 +260,7 @@ class XGSystemEffectsEnhancement:
         # This would switch effect types and parameters
         pass
 
-    def get_effect_capabilities(self) -> Dict[str, Any]:
+    def get_effect_capabilities(self) -> dict[str, Any]:
         """
         Get comprehensive effect capabilities information.
 
@@ -324,7 +325,7 @@ class XGSystemEffectsEnhancement:
 
         return info.get('name', 'Unknown') if info else 'Unknown'
 
-    def list_all_xg_effect_types(self) -> Dict[str, Dict[int, str]]:
+    def list_all_xg_effect_types(self) -> dict[str, dict[int, str]]:
         """
         List all XG effect types organized by category.
 
@@ -338,7 +339,7 @@ class XGSystemEffectsEnhancement:
             'insertion': {k: v['name'] for k, v in self.XG_INSERTION_TYPES.items()},
         }
 
-    def get_xg_compliance_report(self) -> Dict[str, Any]:
+    def get_xg_compliance_report(self) -> dict[str, Any]:
         """
         Generate XG effects compliance report.
 
@@ -361,7 +362,7 @@ class XGSystemEffectsEnhancement:
             'missing_types': max(0, 62 - total_types)
         }
 
-    def create_effect_processor(self, effect_category: str, type_value: int) -> Optional[Any]:
+    def create_effect_processor(self, effect_category: str, type_value: int) -> Any | None:
         """
         Create an effect processor for the specified XG effect type.
 
@@ -376,7 +377,7 @@ class XGSystemEffectsEnhancement:
         # Implementation would integrate with existing effects system
         return None
 
-    def get_effect_parameters_for_type(self, effect_category: str, type_value: int) -> Optional[Dict[str, Any]]:
+    def get_effect_parameters_for_type(self, effect_category: str, type_value: int) -> dict[str, Any] | None:
         """
         Get default parameters for an XG effect type.
 

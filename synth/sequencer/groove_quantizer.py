@@ -5,9 +5,10 @@ Provides advanced quantization and groove processing capabilities
 for the built-in sequencer, including swing, shuffle, and custom
 groove templates.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 import math
 
 from .sequencer_types import QuantizeMode, GrooveTemplate, NoteEvent
@@ -16,8 +17,8 @@ from .sequencer_types import QuantizeMode, GrooveTemplate, NoteEvent
 class GrooveTemplateData:
     """Container for groove template data"""
 
-    def __init__(self, name: str, timing_offsets: List[float],
-                 velocity_multipliers: Optional[List[float]] = None):
+    def __init__(self, name: str, timing_offsets: list[float],
+                 velocity_multipliers: list[float] | None = None):
         """
         Initialize groove template.
 
@@ -57,7 +58,7 @@ class GrooveQuantizer:
 
     def __init__(self):
         """Initialize groove quantizer"""
-        self.templates: Dict[GrooveTemplate, GrooveTemplateData] = {}
+        self.templates: dict[GrooveTemplate, GrooveTemplateData] = {}
         self._init_builtin_templates()
 
         # Current settings
@@ -208,8 +209,8 @@ class GrooveQuantizer:
         """Set swing amount (0.0 = straight, 1.0 = full swing)"""
         self.swing_amount = max(0.0, min(1.0, amount))
 
-    def quantize_notes(self, notes: List[NoteEvent], mode: QuantizeMode = None,
-                      template: GrooveTemplate = None) -> List[NoteEvent]:
+    def quantize_notes(self, notes: list[NoteEvent], mode: QuantizeMode = None,
+                      template: GrooveTemplate = None) -> list[NoteEvent]:
         """
         Quantize a list of notes with groove processing.
 
@@ -362,8 +363,8 @@ class GrooveQuantizer:
 
         return time
 
-    def create_custom_template(self, name: str, timing_offsets: List[float],
-                             velocity_multipliers: Optional[List[float]] = None) -> GrooveTemplate:
+    def create_custom_template(self, name: str, timing_offsets: list[float],
+                             velocity_multipliers: list[float] | None = None) -> GrooveTemplate:
         """
         Create a custom groove template.
 
@@ -386,11 +387,11 @@ class GrooveQuantizer:
         # Return synthetic template identifier
         return synthetic_key
 
-    def get_available_templates(self) -> List[Tuple[GrooveTemplate, str]]:
+    def get_available_templates(self) -> list[tuple[GrooveTemplate, str]]:
         """Get list of available groove templates"""
         return [(template, data.name) for template, data in self.templates.items()]
 
-    def get_template_info(self, template: GrooveTemplate) -> Optional[Dict[str, Any]]:
+    def get_template_info(self, template: GrooveTemplate) -> dict[str, Any] | None:
         """Get information about a groove template"""
         if template in self.templates:
             data = self.templates[template]
@@ -401,7 +402,7 @@ class GrooveQuantizer:
             }
         return None
 
-    def analyze_groove(self, notes: List[NoteEvent]) -> Dict[str, Any]:
+    def analyze_groove(self, notes: list[NoteEvent]) -> dict[str, Any]:
         """
         Analyze the groove characteristics of a sequence of notes.
 

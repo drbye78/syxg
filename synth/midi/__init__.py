@@ -4,6 +4,7 @@ XG Synthesizer MIDI Module
 Unified MIDI processing for both real-time and file-based applications.
 Provides clean, consistent interfaces for all MIDI operations.
 """
+from __future__ import annotations
 
 # Core message system
 from .message import MIDIMessage, midimessage_to_bytes

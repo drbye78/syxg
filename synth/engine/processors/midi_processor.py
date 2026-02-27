@@ -4,8 +4,10 @@ MIDI Processing System - Complete MIDI Message Handling
 Production-quality MIDI message processing for XG/GS/MPE synthesizer with
 complete protocol support and sample-perfect timing.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -435,7 +437,7 @@ class MIDIMessageProcessor:
 
         return modified_message
 
-    def _calculate_pan_gains(self, pan_position: float) -> Tuple[float, float]:
+    def _calculate_pan_gains(self, pan_position: float) -> tuple[float, float]:
         """
         Calculate left and right channel gains for pan position using constant power pan law.
 

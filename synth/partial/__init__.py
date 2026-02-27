@@ -3,6 +3,7 @@ Partial abstraction layer for XG synthesizer.
 
 Provides synthesis partial implementations and engine-agnostic partial interfaces.
 """
+from __future__ import annotations
 
 from .partial import SynthesisPartial
 from .partial_generator import XGPartialGenerator

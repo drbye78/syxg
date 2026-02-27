@@ -4,9 +4,10 @@ XG Multi-Band Equalizer Implementation
 Conforms to MIDI XG specification for system equalizer effects.
 Provides 5-band parametric EQ with XG-compliant parameter ranges and control.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any
 import math
 
 try:
@@ -517,7 +518,7 @@ class XGMultiBandEqualizer:
 
         return response
 
-    def get_parameters(self) -> Dict[str, Any]:
+    def get_parameters(self) -> dict[str, Any]:
         """Get current EQ parameters"""
         return {
             "eq_type": self.eq_type,
@@ -530,7 +531,7 @@ class XGMultiBandEqualizer:
             "q_factor": self.q_factor
         }
 
-    def set_parameters(self, params: Dict[str, Any]):
+    def set_parameters(self, params: dict[str, Any]):
         """Set EQ parameters"""
         if "eq_type" in params:
             self.set_eq_type(params["eq_type"])

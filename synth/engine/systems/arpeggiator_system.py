@@ -4,8 +4,10 @@ Arpeggiator System - Yamaha Motif Compatible Arpeggiation
 Complete arpeggiator system with multi-arpeggiator support, pattern sequencing,
 and SYSEX/NRPN control for professional workstation-style arpeggiation.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -171,7 +173,7 @@ class ArpeggiatorSystem:
         # Arpeggiator is inactive - don't handle
         return False
 
-    def get_arpeggiator_status(self) -> Dict[str, Any]:
+    def get_arpeggiator_status(self) -> dict[str, Any]:
         """
         Get arpeggiator system status.
 
@@ -216,7 +218,7 @@ class ArpeggiatorSystem:
             if arpeggiator:
                 arpeggiator.set_pattern(pattern_id)
 
-    def get_arpeggiator_info(self, channel: int) -> Optional[Dict[str, Any]]:
+    def get_arpeggiator_info(self, channel: int) -> dict[str, Any] | None:
         """
         Get information about arpeggiator on a specific channel.
 
@@ -247,7 +249,7 @@ class ArpeggiatorSystem:
         if self.arpeggiator_manager:
             self.arpeggiator_manager.reset_all()
 
-    def get_available_patterns(self) -> List[str]:
+    def get_available_patterns(self) -> list[str]:
         """
         Get list of available arpeggiator patterns.
 
@@ -272,7 +274,7 @@ class ArpeggiatorSystem:
             return self.arpeggiator_manager.load_pattern_set(pattern_set_name)
         return False
 
-    def get_pattern_sets(self) -> List[str]:
+    def get_pattern_sets(self) -> list[str]:
         """
         Get list of available pattern sets.
 

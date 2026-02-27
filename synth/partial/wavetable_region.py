@@ -8,8 +8,9 @@ WavetableRegion implements wavetable synthesis with:
 - Filter with envelope modulation
 - Wavetable position modulation
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -48,7 +49,7 @@ class WavetableRegion(IRegion):
         self, 
         descriptor: RegionDescriptor, 
         sample_rate: int = 44100,
-        wavetable_bank: Optional[Any] = None
+        wavetable_bank: Any | None = None
     ):
         """
         Initialize wavetable region.
@@ -83,15 +84,15 @@ class WavetableRegion(IRegion):
         self._aftertouch_to_morph = algo_params.get('aftertouch_to_morph', 0.0)
         
         # Runtime state (initialized on demand)
-        self._oscillators: List[Any] = []
-        self._filter: Optional[Any] = None
-        self._envelope: Optional[Any] = None
+        self._oscillators: list[Any] = []
+        self._filter: Any | None = None
+        self._envelope: Any | None = None
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """No sample data for wavetable (uses wavetable bank)."""
         return None
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create wavetable oscillator bank.
         
@@ -143,7 +144,7 @@ class WavetableRegion(IRegion):
             logger.error(f"Failed to create wavetable partial: {e}")
             return None
     
-    def _load_wavetable(self) -> Optional[Any]:
+    def _load_wavetable(self) -> Any | None:
         """
         Load wavetable from bank.
         
@@ -180,7 +181,7 @@ class WavetableRegion(IRegion):
         self, 
         wavetable: Any, 
         base_frequency: float
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Create unison oscillator parameters.
         
@@ -308,7 +309,7 @@ class WavetableRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from wavetable partial.
@@ -345,7 +346,7 @@ class WavetableRegion(IRegion):
             logger.error(f"Wavetable sample generation failed: {e}")
             return np.zeros(block_size * 2, dtype=np.float32)
     
-    def _apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """
         Apply modulation to wavetable parameters.
         
@@ -362,7 +363,7 @@ class WavetableRegion(IRegion):
         if self._partial and hasattr(self._partial, 'set_wavetable_position'):
             self._partial.set_wavetable_position(self._wavetable_position)
     
-    def update_modulation(self, modulation: Dict[str, float]) -> None:
+    def update_modulation(self, modulation: dict[str, float]) -> None:
         """
         Update modulation state.
         
@@ -382,7 +383,7 @@ class WavetableRegion(IRegion):
         
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

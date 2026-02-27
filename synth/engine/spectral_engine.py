@@ -4,9 +4,10 @@ Spectral Synthesis Engine
 FFT-based spectral synthesis and processing for advanced sound design.
 Provides real-time spectral analysis, synthesis, and manipulation.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 from scipy import signal
 import math
 
@@ -376,8 +377,8 @@ class GranularEngine:
         self.grain_spread = 0.0  # Random position spread
 
         # Internal state
-        self.grains: List[Dict[str, Any]] = []
-        self.source_audio: Optional[np.ndarray] = None
+        self.grains: list[dict[str, Any]] = []
+        self.source_audio: np.ndarray | None = None
         self.source_length = 0
 
         # Random number generator for grain scattering
@@ -401,7 +402,7 @@ class GranularEngine:
         self.grain_position = max(0.0, min(position, 1.0))  # Position in source (0-1)
         self.grain_spread = max(0.0, min(spread, 1.0))  # Position randomization
 
-    def generate_grains(self, duration: float) -> List[Dict[str, Any]]:
+    def generate_grains(self, duration: float) -> list[dict[str, Any]]:
         """
         Generate grain schedule for given duration.
 
@@ -449,7 +450,7 @@ class GranularEngine:
 
         return grains
 
-    def process_grains(self, grains: List[Dict[str, Any]], block_size: int,
+    def process_grains(self, grains: list[dict[str, Any]], block_size: int,
                       current_time: float) -> np.ndarray:
         """
         Process grains for current time block.
@@ -482,7 +483,7 @@ class GranularEngine:
 
         return output
 
-    def _synthesize_grain(self, grain: Dict[str, Any], block_size: int,
+    def _synthesize_grain(self, grain: dict[str, Any], block_size: int,
                          block_start: float) -> np.ndarray:
         """Synthesize a single grain."""
         start_sample = grain['start_sample']
@@ -554,7 +555,7 @@ class SpectralSynthesizer:
         self.morph_position = 0.0  # For spectral morphing
         self.noise_amount = 0.0
         self.freeze_spectrum = False
-        self.frozen_spectrum: Optional[np.ndarray] = None
+        self.frozen_spectrum: np.ndarray | None = None
 
     def analyze_audio(self, audio: np.ndarray) -> np.ndarray:
         """Analyze audio into spectral representation."""
@@ -804,7 +805,7 @@ class SpectralEngine(SynthesisEngine):
 
         # Granular synthesis integration
         self.use_granular = False
-        self.grain_schedule: List[Dict[str, Any]] = []
+        self.grain_schedule: list[dict[str, Any]] = []
         self.current_time = 0.0
 
         # Engine state
@@ -852,7 +853,7 @@ class SpectralEngine(SynthesisEngine):
         """Load audio for granular processing."""
         self.spectral_synth.granular_engine.set_source_audio(audio)
 
-    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> List[Any]:
+    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> list[Any]:
         """
         Get regions for note (spectral engine creates dynamic regions).
 
@@ -869,7 +870,7 @@ class SpectralEngine(SynthesisEngine):
 
         return [SpectralRegion(note, velocity, self.processing_mode)]
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> SpectralSynthesizer:
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> SpectralSynthesizer:
         """
         Create spectral synthesizer instance.
 
@@ -884,7 +885,7 @@ class SpectralEngine(SynthesisEngine):
         # In a full implementation, this might create separate instances
         return self.spectral_synth
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
                         block_size: int) -> np.ndarray:
         """
         Generate audio samples using spectral synthesis.
@@ -946,7 +947,7 @@ class SpectralEngine(SynthesisEngine):
 
         return stereo_audio
 
-    def _apply_modulation(self, audio: np.ndarray, modulation: Dict[str, float],
+    def _apply_modulation(self, audio: np.ndarray, modulation: dict[str, float],
                          block_size: int) -> np.ndarray:
         """Apply modulation effects to generated audio."""
         # Filter modulation (affects spectral content)
@@ -973,11 +974,11 @@ class SpectralEngine(SynthesisEngine):
         """Check if note is supported (all notes supported in spectral synthesis)."""
         return 0 <= note <= 127
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """Get supported file formats for spectral processing."""
         return ['.wav', '.aiff', '.flac', '.ogg']  # For loading source material
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get comprehensive engine information."""
         return {
             'name': 'Spectral Synthesis Engine',
@@ -1007,7 +1008,7 @@ class SpectralEngine(SynthesisEngine):
         }
     # ========== NEW REGION-BASED METHODS (STUBS) ==========
     
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """Get preset info (stub)."""
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
@@ -1027,15 +1028,15 @@ class SpectralEngine(SynthesisEngine):
             region_descriptors=[descriptor]
         )
     
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
     
     def create_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create region instance. Base implementation wraps with S.Art2.
         """
@@ -1043,9 +1044,9 @@ class SpectralEngine(SynthesisEngine):
 
     def _create_base_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create SpectralRegion base region without S.Art2 wrapper.
 
@@ -1060,12 +1061,12 @@ class SpectralEngine(SynthesisEngine):
         return SpectralRegion(descriptor, sample_rate)
     
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         return True
 
 
 
-    def get_spectral_info(self) -> Dict[str, Any]:
+    def get_spectral_info(self) -> dict[str, Any]:
         """Get detailed spectral processing information."""
         return {
             'fft_size': self.spectral_synth.fft_processor.fft_size,

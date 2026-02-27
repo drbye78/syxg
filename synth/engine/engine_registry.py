@@ -29,12 +29,13 @@ PROFESSIONAL SYNTHESIS ENGINES (Medium Priority):
 - SF2 (8): SoundFont 2.0 - Professional sample playback
 - FM (6): Frequency Modulation - Algorithmic synthesis
 """
+from __future__ import annotations
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-from typing import Dict, List, Any, Optional
+from typing import Any
 from .synthesis_engine import SynthesisEngineRegistry
 from .fdsp_engine import FDSPSynthesisEngine
 from .an_engine import ANEngine
@@ -240,7 +241,7 @@ class XGEngineRegistry:
         except Exception as e:
             logger.warning(f"Spectral Engine registration failed: {e}")
 
-    def get_engine_for_file(self, file_path: str) -> Optional[str]:
+    def get_engine_for_file(self, file_path: str) -> str | None:
         """
         Get appropriate engine for a file based on extension and content.
 
@@ -252,7 +253,7 @@ class XGEngineRegistry:
         """
         return self.registry.detect_engine_for_file(file_path)
 
-    def get_engines_for_format(self, file_format: str) -> List[str]:
+    def get_engines_for_format(self, file_format: str) -> list[str]:
         """
         Get all engines that support a specific file format.
 
@@ -264,7 +265,7 @@ class XGEngineRegistry:
         """
         return self.registry.get_engines_for_format(file_format)
 
-    def create_engine(self, engine_type: str, **kwargs) -> Optional[Any]:
+    def create_engine(self, engine_type: str, **kwargs) -> Any | None:
         """
         Create a new instance of a synthesis engine.
 
@@ -281,7 +282,7 @@ class XGEngineRegistry:
 
         return self.registry.create_engine(engine_type, **kwargs)
 
-    def get_engine_info(self, engine_type: str) -> Optional[Dict[str, Any]]:
+    def get_engine_info(self, engine_type: str) -> dict[str, Any] | None:
         """
         Get information about a specific engine type.
 
@@ -296,7 +297,7 @@ class XGEngineRegistry:
             return engine.get_engine_info()
         return None
 
-    def get_registered_engines(self) -> Dict[str, Dict[str, Any]]:
+    def get_registered_engines(self) -> dict[str, dict[str, Any]]:
         """Get information about all registered engines"""
         return self.registry.get_registered_engines()
 
@@ -325,7 +326,7 @@ class XGEngineRegistry:
             # Note: Would need to re-register engine with new priority
             # This is a simplified implementation
 
-    def get_engine_capabilities(self, engine_type: str) -> List[str]:
+    def get_engine_capabilities(self, engine_type: str) -> list[str]:
         """
         Get capabilities of an engine type.
 
@@ -337,7 +338,7 @@ class XGEngineRegistry:
         """
         return self.engine_capabilities.get(engine_type, [])
 
-    def find_engines_with_capability(self, capability: str) -> List[str]:
+    def find_engines_with_capability(self, capability: str) -> list[str]:
         """
         Find all engines that have a specific capability.
 
@@ -353,7 +354,7 @@ class XGEngineRegistry:
                 matching_engines.append(engine_type)
         return matching_engines
 
-    def get_s90_s70_engines(self) -> List[str]:
+    def get_s90_s70_engines(self) -> list[str]:
         """
         Get engines that provide S90/S70 compatibility features.
 
@@ -371,7 +372,7 @@ class XGEngineRegistry:
             if self.registry.get_engine(engine) is not None
         ]
 
-    def get_workstation_engines(self) -> List[str]:
+    def get_workstation_engines(self) -> list[str]:
         """
         Get engines that provide workstation-grade features.
 
@@ -393,7 +394,7 @@ class XGEngineRegistry:
             if self.registry.get_engine(engine) is not None
         ]
 
-    def get_experimental_engines(self) -> List[str]:
+    def get_experimental_engines(self) -> list[str]:
         """
         Get experimental/advanced synthesis engines.
 
@@ -412,7 +413,7 @@ class XGEngineRegistry:
             if self.registry.get_engine(engine) is not None
         ]
 
-    def get_engine_statistics(self) -> Dict[str, Any]:
+    def get_engine_statistics(self) -> dict[str, Any]:
         """Get comprehensive engine registry statistics"""
         registered_engines = self.get_registered_engines()
 
@@ -430,7 +431,7 @@ class XGEngineRegistry:
 
         return stats
 
-    def _get_all_supported_formats(self) -> List[str]:
+    def _get_all_supported_formats(self) -> list[str]:
         """Get all supported file formats across all engines"""
         formats = set()
         for engine_info in self.get_registered_engines().values():
@@ -438,8 +439,8 @@ class XGEngineRegistry:
         return sorted(list(formats))
 
     def _get_priority_distribution(
-        self, registered_engines: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, int]:
+        self, registered_engines: dict[str, dict[str, Any]]
+    ) -> dict[str, int]:
         """Get distribution of engine priorities"""
         distribution = {}
         for engine_type, engine_data in registered_engines.items():
@@ -447,7 +448,7 @@ class XGEngineRegistry:
             distribution[engine_type] = priority
         return distribution
 
-    def validate_engine_compatibility(self, engine_type: str) -> Dict[str, Any]:
+    def validate_engine_compatibility(self, engine_type: str) -> dict[str, Any]:
         """
         Validate engine compatibility and requirements.
 
@@ -487,7 +488,7 @@ class XGEngineRegistry:
 
         return compatibility
 
-    def get_engine_requirements(self, engine_type: str) -> Dict[str, Any]:
+    def get_engine_requirements(self, engine_type: str) -> dict[str, Any]:
         """
         Get system requirements for an engine type.
 
@@ -528,8 +529,8 @@ class XGEngineRegistry:
         return requirements
 
     def optimize_engine_selection(
-        self, available_resources: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, available_resources: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Optimize engine selection based on available system resources.
 
@@ -573,7 +574,7 @@ class XGEngineRegistry:
 
 
 # Global registry instance
-_global_registry: Optional[XGEngineRegistry] = None
+_global_registry: XGEngineRegistry | None = None
 
 
 def get_global_engine_registry(sample_rate: int = 44100) -> XGEngineRegistry:

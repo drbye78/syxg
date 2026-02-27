@@ -4,9 +4,10 @@ XG Channel Renderer
 Handles audio synthesis for individual MIDI channels using vectorized operations.
 Supports XG specification features including voice allocation, modulation, and effects routing.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 import math
 
 # Import internal modules
@@ -68,7 +69,7 @@ class VectorizedChannelRenderer:
         self.mono_portamento = False  # XG mono portamento mode
 
         # Active notes on this channel
-        self.active_notes: Dict[int, "ChannelNote"] = {}  # note -> ChannelNote
+        self.active_notes: dict[int, ChannelNote] = {}  # note -> ChannelNote
 
         # Controller state with CORRECTED default values
         self.controllers = [0] * 128
@@ -298,7 +299,7 @@ class VectorizedChannelRenderer:
         """Setup default modulation matrix - calls XG-compliant implementation."""
         self._setup_xg_modulation_matrix()
 
-    def _get_controller_mapping(self) -> Dict[int, str]:
+    def _get_controller_mapping(self) -> dict[int, str]:
         """Map controllers to parameter types for generic handling."""
         return {
             # XG Sound Controllers
@@ -438,7 +439,7 @@ class VectorizedChannelRenderer:
         self.parameter_cache.clear()
         self.parameter_dirty = False
 
-    def get_channel_state(self) -> Dict[str, Any]:
+    def get_channel_state(self) -> dict[str, Any]:
         """Get the current channel state for note generation with optimized access."""
         return {
             "program": self.program,
@@ -906,7 +907,7 @@ class VectorizedChannelRenderer:
 
         return len(self.active_notes) > 0
 
-    def generate_silence(self, block_size: int) -> Tuple[np.ndarray, np.ndarray]:
+    def generate_silence(self, block_size: int) -> tuple[np.ndarray, np.ndarray]:
         ch_left = self.left_buffer[:block_size]
         ch_right = self.right_buffer[:block_size]
         ch_left.fill(0.0)
@@ -915,7 +916,7 @@ class VectorizedChannelRenderer:
 
     def generate_sample_block_vectorized(
         self, block_size: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Generate audio sample block for this channel using vectorized operations.
 
@@ -985,7 +986,7 @@ class VectorizedChannelRenderer:
         global_pitch_mod: float,
         left_batch,
         right_batch,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Process active notes using block-based sample generation.
 

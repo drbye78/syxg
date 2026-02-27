@@ -4,8 +4,9 @@ Granular Partial Implementation
 Provides granular synthesis partial for the voice-based architecture.
 Wraps GranularEngine functionality for integration with the Voice system.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional
+from typing import Any
 import numpy as np
 
 from .partial import SynthesisPartial
@@ -19,7 +20,7 @@ class GranularPartial(SynthesisPartial):
     within the voice-based architecture.
     """
 
-    def __init__(self, params: Dict[str, Any], sample_rate: int):
+    def __init__(self, params: dict[str, Any], sample_rate: int):
         """
         Initialize granular partial.
 
@@ -56,7 +57,7 @@ class GranularPartial(SynthesisPartial):
         if source_buffer is not None:
             self.granular_engine.set_source_buffer(np.array(source_buffer))
 
-    def generate_samples(self, block_size: int, modulation: Dict[str, float]) -> np.ndarray:
+    def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
         """
         Generate granular samples.
 
@@ -115,7 +116,7 @@ class GranularPartial(SynthesisPartial):
         """
         return self.active and self.granular_engine.is_active()
 
-    def apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def apply_modulation(self, modulation: dict[str, float]) -> None:
         """
         Apply modulation changes to partial parameters.
 
@@ -173,7 +174,7 @@ class GranularPartial(SynthesisPartial):
             }
             self.granular_engine.set_cloud_parameters(0, cloud_params)
 
-    def get_partial_info(self) -> Dict[str, Any]:
+    def get_partial_info(self) -> dict[str, Any]:
         """Get granular partial information."""
         info = super().get_partial_info()
         info.update({

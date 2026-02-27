@@ -4,10 +4,12 @@ Auto-Accompaniment Engine - Main Style Playback System
 This is the core engine that generates real-time accompaniment based on
 detected chords and style data.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict, List, Optional, Callable, Any, Tuple
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -37,7 +39,7 @@ class StylePlaybackState(Enum):
     FADING_OUT = auto()     # Fade-out in progress
 
 
-@dataclass
+@dataclass(slots=True)
 class TrackState:
     """Runtime state for a single style track"""
 
@@ -49,10 +51,10 @@ class TrackState:
     current_tick: int = 0
     loop_count: int = 0
     velocity_scale: float = 1.0
-    note_events: List[Any] = field(default_factory=list)
+    note_events: list[Any] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(slots=True)
 class AutoAccompanimentConfig:
     """Configuration for auto-accompaniment"""
 
@@ -75,7 +77,7 @@ class AutoAccompanimentConfig:
     swing_amount: float = 0.0
 
 
-@dataclass
+@dataclass(slots=True)
 class TransitionRequest:
     """
     Represents a pending section transition request.
@@ -93,7 +95,7 @@ class TransitionRequest:
     use_fill: bool = True
     trigger_tick: int = 0
     fill_length_bars: int = 1
-    execute_at_bar: Optional[int] = None
+    execute_at_bar: int | None = None
 
 
 class StyleEvent:
@@ -117,7 +119,7 @@ class StyleEvent:
         self.track_type = track_type
         self.section = section
         self.played = False
-        self.timestamp: Optional[float] = None
+        self.timestamp: float | None = None
 
 
 class AutoAccompaniment:
@@ -135,7 +137,7 @@ class AutoAccompaniment:
         self,
         style: Any,
         synthesizer: Any,
-        config: Optional[AutoAccompanimentConfig] = None,
+        config: AutoAccompanimentConfig | None = None,
         sample_rate: int = 44100,
     ):
         self.style = style
@@ -161,11 +163,11 @@ class AutoAccompaniment:
         self._current_section: Any = None
         self._next_section: Any = None
         self._target_section: Any = None
-        self._fill_section: Optional[Any] = None
+        self._fill_section: Any | None = None
         self._is_filling = False
 
         # Transition scheduler
-        self._pending_transition: Optional[TransitionRequest] = None
+        self._pending_transition: TransitionRequest | None = None
         self._transition_queued: bool = False
 
         self._tick_position: int = 0
@@ -181,18 +183,18 @@ class AutoAccompaniment:
         self._ticks_per_bar: int = self._tick_per_beat * self._time_signature_num
         self._ms_per_tick: float = 60000.0 / (self._tempo * self._tick_per_beat)
 
-        self._track_states: Dict[Any, TrackState] = {}
-        self._scheduled_events: List[StyleEvent] = []
-        self._active_notes: Dict[Tuple[int, int], int] = {}
+        self._track_states: dict[Any, TrackState] = {}
+        self._scheduled_events: list[StyleEvent] = []
+        self._active_notes: dict[tuple[int, int], int] = {}
 
         self._running = False
-        self._processing_thread: Optional[threading.Thread] = None
+        self._processing_thread: threading.Thread | None = None
         self._internal_mode = False  # Prevent recursive note triggering
 
-        self._on_note_on: Optional[Callable[[int, int, int], None]] = None
-        self._on_note_off: Optional[Callable[[int, int], None]] = None
-        self._on_section_change: Optional[Callable[[Any, Any], None]] = None
-        self._on_chord_change: Optional[Callable[[Any], None]] = None
+        self._on_note_on: Callable[[int, int, int], None] | None = None
+        self._on_note_off: Callable[[int, int], None] | None = None
+        self._on_section_change: Callable[[Any, Any], None] | None = None
+        self._on_chord_change: Callable[[Any], None] | None = None
 
         # Groove and humanize
         self._groove_enabled = False
@@ -235,8 +237,8 @@ class AutoAccompaniment:
 
     def set_note_callbacks(
         self,
-        note_on: Optional[Callable[[int, int, int], None]] = None,
-        note_off: Optional[Callable[[int, int], None]] = None,
+        note_on: Callable[[int, int, int], None] | None = None,
+        note_off: Callable[[int, int], None] | None = None,
     ):
         """Set MIDI output callbacks"""
         self._on_note_on = note_on
@@ -251,7 +253,7 @@ class AutoAccompaniment:
         self._on_chord_change = callback
         self.chord_detector.config.on_chord_change = callback
 
-    def start(self, section: Optional[Any] = None):
+    def start(self, section: Any | None = None):
         """
         Start auto-accompaniment with proper state machine initialization.
         
@@ -746,7 +748,7 @@ class AutoAccompaniment:
 
     def _map_note_to_chord(
         self, note: int, track_type: Any, chord: Any
-    ) -> Optional[int]:
+    ) -> int | None:
         """Map a style note to the current chord using chord tables"""
         if chord is None:
             return note
@@ -780,7 +782,7 @@ class AutoAccompaniment:
 
     def _map_using_chord_table(
         self, note: int, track_type: Any, chord: Any
-    ) -> Optional[int]:
+    ) -> int | None:
         """Map note using style's chord table"""
         if not self.style or not self._current_section:
             return None
@@ -1018,7 +1020,7 @@ class AutoAccompaniment:
         ):
             self.chord_detector.note_off(note)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current status information"""
         return {
             "mode": self.mode.name,

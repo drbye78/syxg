@@ -278,8 +278,10 @@ ARCHITECTURAL PRINCIPLES:
 - DEPENDENCY INVERSION: Abstract interfaces for modulation components
 - COMPOSITION OVER INHERITANCE: Flexible modulation system assembly
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+from typing import Any
+from collections.abc import Callable
 from .routes import ModulationRoute
 
 

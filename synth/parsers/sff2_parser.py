@@ -18,10 +18,11 @@ Usage:
     style = parser.parse_file("path/to/style.sty")
     style.save("path/to/style.yaml")  # Convert to YAML
 """
+from __future__ import annotations
 
 import struct
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple, BinaryIO
+from typing import Any, BinaryIO
 from pathlib import Path
 from enum import Enum, IntEnum
 import io
@@ -132,7 +133,7 @@ SECTION_TYPE_MAP = {
 # Data Classes
 # ============================================================
 
-@dataclass
+@dataclass(slots=True)
 class SFF2Header:
     """SFF2 file header."""
     magic: bytes = b''
@@ -147,7 +148,7 @@ class SFF2Header:
     category: str = ''
     
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'SFF2Header':
+    def from_bytes(cls, data: bytes) -> SFF2Header:
         """Parse header from bytes."""
         header = cls()
         
@@ -185,7 +186,7 @@ class SFF2Header:
         return header
 
 
-@dataclass
+@dataclass(slots=True)
 class SFF2NoteEvent:
     """SFF2 note event."""
     tick: int = 0
@@ -195,7 +196,7 @@ class SFF2NoteEvent:
     gate_time: float = 0.8
     track: int = 0
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for YAML export."""
         return {
             'tick': self.tick,
@@ -206,7 +207,7 @@ class SFF2NoteEvent:
         }
 
 
-@dataclass
+@dataclass(slots=True)
 class SFF2CCEvent:
     """SFF2 control change event."""
     tick: int = 0
@@ -214,7 +215,7 @@ class SFF2CCEvent:
     value: int = 100
     track: int = 0
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for YAML export."""
         return {
             'tick': self.tick,
@@ -223,19 +224,19 @@ class SFF2CCEvent:
         }
 
 
-@dataclass
+@dataclass(slots=True)
 class SFF2TrackData:
     """SFF2 track data for a section."""
     track_type: int = 0
-    notes: List[SFF2NoteEvent] = field(default_factory=list)
-    cc_events: List[SFF2CCEvent] = field(default_factory=list)
+    notes: list[SFF2NoteEvent] = field(default_factory=list)
+    cc_events: list[SFF2CCEvent] = field(default_factory=list)
     volume: float = 1.0
     pan: int = 64
     reverb_send: int = 0
     chorus_send: int = 0
     mute: bool = False
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for YAML export."""
         return {
             'notes': [n.to_dict() for n in self.notes],
@@ -248,16 +249,16 @@ class SFF2TrackData:
         }
 
 
-@dataclass
+@dataclass(slots=True)
 class SFF2Section:
     """SFF2 section data."""
     section_type: int = 0
     length_bars: int = 4
     length_ticks: int = 1920
     tempo: int = 120
-    tracks: Dict[int, SFF2TrackData] = field(default_factory=dict)
+    tracks: dict[int, SFF2TrackData] = field(default_factory=dict)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for YAML export."""
         return {
             'length_bars': self.length_bars,
@@ -270,15 +271,15 @@ class SFF2Section:
         }
 
 
-@dataclass
+@dataclass(slots=True)
 class SFF2ChordTable:
     """SFF2 chord table entry."""
     section_type: int = 0
     chord_root: int = 0
     chord_type: int = 0
-    track_voicings: Dict[int, List[int]] = field(default_factory=dict)
+    track_voicings: dict[int, list[int]] = field(default_factory=dict)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for YAML export."""
         chord_key = f"{self.chord_root}_{self._get_chord_type_name()}"
         return {
@@ -305,18 +306,18 @@ class SFF2ChordTable:
         return names.get(self.chord_type, 'major')
 
 
-@dataclass
+@dataclass(slots=True)
 class SFF2OTS:
     """SFF2 One Touch Setting."""
     preset_id: int = 0
     name: str = ''
-    program_changes: List[int] = field(default_factory=list)
-    bank_msb: List[int] = field(default_factory=list)
-    bank_lsb: List[int] = field(default_factory=list)
-    volume: List[int] = field(default_factory=list)
-    pan: List[int] = field(default_factory=list)
+    program_changes: list[int] = field(default_factory=list)
+    bank_msb: list[int] = field(default_factory=list)
+    bank_lsb: list[int] = field(default_factory=list)
+    volume: list[int] = field(default_factory=list)
+    pan: list[int] = field(default_factory=list)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for YAML export."""
         parts = []
         for i in range(min(4, len(self.program_changes))):
@@ -362,11 +363,11 @@ class SFF2Parser:
     """
     
     def __init__(self):
-        self.header: Optional[SFF2Header] = None
-        self.sections: Dict[int, SFF2Section] = {}
-        self.chord_tables: List[SFF2ChordTable] = []
-        self.ots_presets: List[SFF2OTS] = []
-        self.casm_data: Dict[str, Any] = {}
+        self.header: SFF2Header | None = None
+        self.sections: dict[int, SFF2Section] = {}
+        self.chord_tables: list[SFF2ChordTable] = []
+        self.ots_presets: list[SFF2OTS] = []
+        self.casm_data: dict[str, Any] = {}
         
     def parse_file(self, file_path: str) -> Any:
         """
@@ -942,13 +943,13 @@ class SFFGEParser(SFF2Parser):
     
     def __init__(self):
         super().__init__()
-        self.guitar_data: Dict[str, Any] = {}
+        self.guitar_data: dict[str, Any] = {}
     
     def _parse_casm(self, data: bytes):
         """Override to use extended CASM parsing."""
         self._parse_casm_extended(data)
     
-    def _parse_guitar_techniques(self, data: bytes, offset: int) -> Tuple[int, Dict]:
+    def _parse_guitar_techniques(self, data: bytes, offset: int) -> tuple[int, dict]:
         """
         Parse guitar technique markers.
         
@@ -986,7 +987,7 @@ class SFFGEParser(SFF2Parser):
         
         return offset, techniques
     
-    def get_guitar_chord_diagram(self, chord_root: int, chord_type: int) -> Optional[Dict]:
+    def get_guitar_chord_diagram(self, chord_root: int, chord_type: int) -> dict | None:
         """
         Get guitar chord diagram for a chord.
         

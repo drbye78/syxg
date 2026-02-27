@@ -5,9 +5,10 @@ Provides sophisticated time stretching algorithms for sample manipulation,
 including phase vocoder, granular synthesis, and hybrid approaches for
 professional audio processing in the XG synthesizer.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 
 
@@ -52,7 +53,7 @@ class TimeStretchingEngine:
         # Granular synthesis state
         self.grain_size = 1024
         self.grain_overlap = 0.5
-        self.grains: List[np.ndarray] = []
+        self.grains: list[np.ndarray] = []
 
         # Threading
         self.lock = threading.RLock()
@@ -355,7 +356,7 @@ class TimeStretchingEngine:
 
         return np.interp(x_new, x_old, audio).astype(np.float32)
 
-    def get_stretch_info(self) -> Dict[str, Any]:
+    def get_stretch_info(self) -> dict[str, Any]:
         """
         Get current time stretching configuration.
 
@@ -412,10 +413,10 @@ class TimeStretchingEngine:
 
         return latency <= max_realtime_latency
 
-    def get_supported_algorithms(self) -> List[str]:
+    def get_supported_algorithms(self) -> list[str]:
         """Get list of supported algorithms."""
         return ["phase_vocoder", "granular", "hybrid"]
 
-    def get_supported_qualities(self) -> List[str]:
+    def get_supported_qualities(self) -> list[str]:
         """Get list of supported quality levels."""
         return ["fast", "standard", "high"]

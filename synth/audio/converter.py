@@ -4,10 +4,10 @@ Audio Converter Engine
 Core conversion logic for MIDI and XGML to audio conversion.
 Separated from frontend CLI interface for better modularity.
 """
+from __future__ import annotations
 
 import threading
 import time
-from typing import List, Optional, Tuple
 
 from synth.audio.writer import AudioWriter
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
@@ -30,7 +30,7 @@ class AudioConverter:
         self.synthesizer = synthesizer
         self.audio_writer = audio_writer
 
-    def parse_audio_file(self, file_path: str) -> Tuple[Optional[List], Optional[float]]:
+    def parse_audio_file(self, file_path: str) -> tuple[list | None, float | None]:
         """
         Parse audio file (MIDI or XGML) and return MIDI messages and duration.
 
@@ -134,9 +134,9 @@ class AudioConverter:
         tempo: float = 1.0,
         volume: float = 0.8,
         silent: bool = False,
-        render_limit: Optional[float] = None,
-        abort_event: Optional[threading.Event] = None,
-        timeout_seconds: Optional[float] = None
+        render_limit: float | None = None,
+        abort_event: threading.Event | None = None,
+        timeout_seconds: float | None = None
     ) -> bool:
         """
         Convert a single audio file (MIDI or XGML) to audio using buffered processing mode.

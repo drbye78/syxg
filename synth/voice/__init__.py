@@ -3,6 +3,7 @@ Voice management components for XG synthesizer.
 
 Contains voice allocation, priority management, voice stealing, and new Voice abstraction layer.
 """
+from __future__ import annotations
 
 # Legacy voice management (backward compatibility)
 from .voice_priority import VoicePriority

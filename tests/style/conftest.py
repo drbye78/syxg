@@ -3,6 +3,7 @@ Pytest fixtures for style engine tests.
 
 Provides shared fixtures for unit, integration, and acceptance tests.
 """
+from __future__ import annotations
 
 import pytest
 from unittest.mock import Mock, MagicMock

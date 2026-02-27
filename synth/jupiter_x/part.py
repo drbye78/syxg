@@ -6,11 +6,14 @@ containing 4 synthesis engines (Analog, Digital, FM, External) with
 comprehensive parameter control.
 """
 
-from typing import Dict, List, Any, Optional, Tuple
+from __future__ import annotations
+
+from typing import Any
 import threading
 import numpy as np
 
 from .constants import *
+
 # Jupiter-X engines are now consolidated into base engines with plugins
 # from .analog_engine import JupiterXAnalogEngine  # REMOVED - use AdditiveEngine + JupiterXAnalogPlugin
 from ..core.oscillator import UltraFastXGLFO, OscillatorPool
@@ -46,30 +49,30 @@ class JupiterXEnvelope:
         self.release_velocity_sens = 0.0
 
         # ===== ADVANCED TRIGGERING MODES (Jupiter-X Enhanced) =====
-        self.legato_mode = False      # Legato mode (smooth transitions)
-        self.trigger_mode = 0         # 0=Single, 1=Multi, 2=Alternate, 3=Ping-Pong, 4=Random
+        self.legato_mode = False  # Legato mode (smooth transitions)
+        self.trigger_mode = 0  # 0=Single, 1=Multi, 2=Alternate, 3=Ping-Pong, 4=Random
 
         # Advanced triggering options
         self.retrigger_sensitivity = 0.5  # How sensitive to retrigger (0.0-1.0)
-        self.note_overlap_mode = 0        # 0=Normal, 1=Stack, 2=Replace, 3=Velocity Layer
-        self.velocity_curve = 0           # 0=Linear, 1=Convex, 2=Concave, 3=Switch
-        self.aftertouch_mode = 0          # 0=Off, 1=Poly, 2=Channel, 3=MPE
+        self.note_overlap_mode = 0  # 0=Normal, 1=Stack, 2=Replace, 3=Velocity Layer
+        self.velocity_curve = 0  # 0=Linear, 1=Convex, 2=Concave, 3=Switch
+        self.aftertouch_mode = 0  # 0=Off, 1=Poly, 2=Channel, 3=MPE
 
         # Portamento/Glissando
-        self.portamento_mode = 0          # 0=Off, 1=Linear, 2=Exponential, 3=Glissando
-        self.portamento_time = 0.0        # Portamento time (0.0-10.0 seconds)
-        self.portamento_curve = 0         # 0=Linear, 1=Convex, 2=Concave
+        self.portamento_mode = 0  # 0=Off, 1=Linear, 2=Exponential, 3=Glissando
+        self.portamento_time = 0.0  # Portamento time (0.0-10.0 seconds)
+        self.portamento_curve = 0  # 0=Linear, 1=Convex, 2=Concave
 
         # Advanced release modes
-        self.release_mode = 0             # 0=Normal, 1=Hold, 2=Fade, 3=Loop
+        self.release_mode = 0  # 0=Normal, 1=Hold, 2=Fade, 3=Loop
         self.release_time_override = 0.0  # Override release time (0.0 = use envelope)
 
         # Note priority and voice management
-        self.note_priority = 0            # 0=Last, 1=Low, 2=High, 3=Round Robin
-        self.voice_steal_mode = 0         # 0=Off, 1=Oldest, 2=Quietest, 3=Nearest
+        self.note_priority = 0  # 0=Last, 1=Low, 2=High, 3=Round Robin
+        self.voice_steal_mode = 0  # 0=Off, 1=Oldest, 2=Quietest, 3=Nearest
 
         # Internal state
-        self.phase = 'idle'  # idle, attack, decay, sustain, release
+        self.phase = "idle"  # idle, attack, decay, sustain, release
         self.current_level = 0.0
         self.current_velocity = 0
 
@@ -93,7 +96,7 @@ class JupiterXEnvelope:
             if should_retrigger:
                 # Normal retrigger
                 self.current_velocity = velocity
-                self.phase = 'attack'
+                self.phase = "attack"
                 self.phase_start_time = 0.0
                 self.phase_duration = self._apply_velocity_sensitivity(
                     self.attack_time, velocity, self.attack_velocity_sens
@@ -105,8 +108,8 @@ class JupiterXEnvelope:
     def release(self):
         """Release envelope to release phase."""
         with self.lock:
-            if self.phase != 'idle':
-                self.phase = 'release'
+            if self.phase != "idle":
+                self.phase = "release"
                 self.phase_start_time = 0.0
                 self.phase_duration = self._apply_velocity_sensitivity(
                     self.release_time, self.current_velocity, self.release_velocity_sens
@@ -126,20 +129,20 @@ class JupiterXEnvelope:
             # Update phase timing
             self.phase_start_time += delta_time
 
-            if self.phase == 'idle':
+            if self.phase == "idle":
                 self.current_level = 0.0
-            elif self.phase == 'attack':
+            elif self.phase == "attack":
                 if self.phase_duration > 0:
                     progress = min(1.0, self.phase_start_time / self.phase_duration)
                     shaped_progress = self._apply_curve(progress, self.attack_curve)
                     self.current_level = shaped_progress
                     if progress >= 1.0:
-                        self.phase = 'decay'
+                        self.phase = "decay"
                         self.phase_start_time = 0.0
                         self.phase_duration = self._apply_velocity_sensitivity(
                             self.decay_time, self.current_velocity, self.decay_velocity_sens
                         )
-            elif self.phase == 'decay':
+            elif self.phase == "decay":
                 sustain_level = self._apply_velocity_sensitivity(
                     self.sustain_level, self.current_velocity, self.sustain_velocity_sens
                 )
@@ -148,18 +151,18 @@ class JupiterXEnvelope:
                     shaped_progress = self._apply_curve(progress, self.decay_curve)
                     self.current_level = 1.0 - (1.0 - sustain_level) * shaped_progress
                     if progress >= 1.0:
-                        self.phase = 'sustain'
-            elif self.phase == 'sustain':
+                        self.phase = "sustain"
+            elif self.phase == "sustain":
                 self.current_level = self._apply_velocity_sensitivity(
                     self.sustain_level, self.current_velocity, self.sustain_velocity_sens
                 )
-            elif self.phase == 'release':
+            elif self.phase == "release":
                 if self.phase_duration > 0:
                     progress = min(1.0, self.phase_start_time / self.phase_duration)
                     shaped_progress = self._apply_curve(progress, self.release_curve)
                     self.current_level = self.current_level * (1.0 - shaped_progress)
                     if progress >= 1.0:
-                        self.phase = 'idle'
+                        self.phase = "idle"
                         self.current_level = 0.0
 
             return self.current_level
@@ -175,7 +178,9 @@ class JupiterXEnvelope:
         else:
             return value
 
-    def _apply_velocity_sensitivity(self, base_value: float, velocity: int, sensitivity: float) -> float:
+    def _apply_velocity_sensitivity(
+        self, base_value: float, velocity: int, sensitivity: float
+    ) -> float:
         """Apply velocity sensitivity to envelope parameter."""
         if sensitivity == 0.0:
             return base_value
@@ -183,12 +188,16 @@ class JupiterXEnvelope:
         vel_norm = velocity / 127.0
 
         # Different scaling for different parameter types
-        if 'time' in str(base_value).lower() or 'attack' in str(base_value).lower() or \
-           'decay' in str(base_value).lower() or 'release' in str(base_value).lower():
+        if (
+            "time" in str(base_value).lower()
+            or "attack" in str(base_value).lower()
+            or "decay" in str(base_value).lower()
+            or "release" in str(base_value).lower()
+        ):
             # Time parameters: higher velocity = shorter times
             velocity_factor = 1.0 - (vel_norm * sensitivity)
             return base_value * max(0.1, velocity_factor)
-        elif 'sustain' in str(base_value).lower():
+        elif "sustain" in str(base_value).lower():
             # Sustain level: higher velocity = higher sustain
             velocity_factor = vel_norm * sensitivity
             return min(1.0, base_value + velocity_factor)
@@ -198,7 +207,7 @@ class JupiterXEnvelope:
 
     def _should_retrigger(self, velocity: int) -> bool:
         """Determine if envelope should retrigger based on triggering modes."""
-        if self.legato_mode and self.phase != 'idle':
+        if self.legato_mode and self.phase != "idle":
             return False
 
         if self.trigger_mode == 0:  # Single
@@ -213,17 +222,22 @@ class JupiterXEnvelope:
     def reset(self):
         """Reset envelope to idle state."""
         with self.lock:
-            self.phase = 'idle'
+            self.phase = "idle"
             self.current_level = 0.0
             self.phase_start_time = 0.0
             self.phase_duration = 0.0
 
     def is_finished(self) -> bool:
         """Check if envelope has finished."""
-        return self.phase == 'idle'
+        return self.phase == "idle"
 
-    def set_parameters(self, attack: float = None, decay: float = None,
-                      sustain: float = None, release: float = None):
+    def set_parameters(
+        self,
+        attack: float = None,
+        decay: float = None,
+        sustain: float = None,
+        release: float = None,
+    ):
         """Set envelope parameters."""
         with self.lock:
             if attack is not None:
@@ -235,7 +249,9 @@ class JupiterXEnvelope:
             if release is not None:
                 self.release_time = max(0.001, release)
 
-    def set_curves(self, attack_curve: int = None, decay_curve: int = None, release_curve: int = None):
+    def set_curves(
+        self, attack_curve: int = None, decay_curve: int = None, release_curve: int = None
+    ):
         """Set envelope curve types."""
         with self.lock:
             if attack_curve is not None:
@@ -245,8 +261,13 @@ class JupiterXEnvelope:
             if release_curve is not None:
                 self.release_curve = max(0, min(2, release_curve))
 
-    def set_velocity_sensitivity(self, attack_sens: float = None, decay_sens: float = None,
-                                sustain_sens: float = None, release_sens: float = None):
+    def set_velocity_sensitivity(
+        self,
+        attack_sens: float = None,
+        decay_sens: float = None,
+        sustain_sens: float = None,
+        release_sens: float = None,
+    ):
         """Set velocity sensitivity per stage."""
         with self.lock:
             if attack_sens is not None:
@@ -267,7 +288,7 @@ class JupiterXEngine:
     and implements specific synthesis algorithms.
     """
 
-    def __init__(self, engine_type: int, part: 'JupiterXPart', sample_rate: int = 44100):
+    def __init__(self, engine_type: int, part: JupiterXPart, sample_rate: int = 44100):
         self.engine_type = engine_type
         self.part = part
         self.sample_rate = sample_rate
@@ -281,15 +302,15 @@ class JupiterXEngine:
             rate=5.0,
             depth=1.0,
             delay=0.0,
-            sample_rate=sample_rate
+            sample_rate=sample_rate,
         )
 
         # LFO modulation parameters
-        self.lfo_to_pitch = 0.0       # LFO -> pitch modulation depth
-        self.lfo_to_filter = 0.0      # LFO -> filter modulation depth
-        self.lfo_to_amplitude = 0.0   # LFO -> amplitude modulation depth
-        self.lfo_to_pan = 0.0         # LFO -> pan modulation depth (Jupiter-X)
-        self.lfo_to_pwm = 0.0         # LFO -> PWM modulation depth (Jupiter-X)
+        self.lfo_to_pitch = 0.0  # LFO -> pitch modulation depth
+        self.lfo_to_filter = 0.0  # LFO -> filter modulation depth
+        self.lfo_to_amplitude = 0.0  # LFO -> amplitude modulation depth
+        self.lfo_to_pan = 0.0  # LFO -> pan modulation depth (Jupiter-X)
+        self.lfo_to_pwm = 0.0  # LFO -> PWM modulation depth (Jupiter-X)
 
         # Per-engine envelope system (Jupiter-X feature)
         self.amp_envelope = JupiterXEnvelope(sample_rate)  # Dedicated envelope per engine
@@ -300,7 +321,7 @@ class JupiterXEngine:
         # Thread safety
         self.lock = threading.RLock()
 
-    def _get_default_parameters(self) -> Dict[str, Any]:
+    def _get_default_parameters(self) -> dict[str, Any]:
         """Get default parameters for this engine type."""
         return {}
 
@@ -317,8 +338,9 @@ class JupiterXEngine:
         with self.lock:
             return self.parameters.get(param_name)
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
-                        block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Generate audio samples for this engine.
 
@@ -348,46 +370,46 @@ class JupiterXDigitalEngine(JupiterXEngine):
     modulation and advanced digital signal processing.
     """
 
-    def __init__(self, part: 'JupiterXPart', sample_rate: int = 44100):
+    def __init__(self, part: JupiterXPart, sample_rate: int = 44100):
         super().__init__(ENGINE_DIGITAL, part, sample_rate)
 
         # Wavetable Core
-        self.wavetable_position = 0.0      # Current position in wavetable (0.0-1.0)
-        self.wavetable_speed = 1.0         # Playback speed multiplier
-        self.wavetable_start = 0.0         # Loop start position (0.0-1.0)
-        self.wavetable_end = 1.0           # Loop end position (0.0-1.0)
-        self.wavetable_loop = True         # Enable/disable looping
+        self.wavetable_position = 0.0  # Current position in wavetable (0.0-1.0)
+        self.wavetable_speed = 1.0  # Playback speed multiplier
+        self.wavetable_start = 0.0  # Loop start position (0.0-1.0)
+        self.wavetable_end = 1.0  # Loop end position (0.0-1.0)
+        self.wavetable_loop = True  # Enable/disable looping
 
         # Morphing & Wave Shaping
-        self.morph_amount = 0.0            # Wavetable morphing (0.0-1.0)
-        self.morph_position = 0.0          # Position in morph sequence
-        self.morph_speed = 1.0             # Morphing speed
+        self.morph_amount = 0.0  # Wavetable morphing (0.0-1.0)
+        self.morph_position = 0.0  # Position in morph sequence
+        self.morph_speed = 1.0  # Morphing speed
 
         # Digital Processing
-        self.bit_crush_depth = 0.0         # Bit crushing amount (0.0-1.0)
-        self.bit_crush_bits = 16           # Bit depth for crushing (1-16)
-        self.sample_rate_reduction = 0.0   # Sample rate reduction (0.0-1.0)
+        self.bit_crush_depth = 0.0  # Bit crushing amount (0.0-1.0)
+        self.bit_crush_bits = 16  # Bit depth for crushing (1-16)
+        self.sample_rate_reduction = 0.0  # Sample rate reduction (0.0-1.0)
 
         # Formant Processing
-        self.formant_shift = 0.0           # Formant frequency shift (-2.0 to +2.0 octaves)
-        self.formant_resonance = 0.0       # Formant resonance (0.0-1.0)
-        self.formant_mix = 1.0             # Dry/wet mix for formant processing
+        self.formant_shift = 0.0  # Formant frequency shift (-2.0 to +2.0 octaves)
+        self.formant_resonance = 0.0  # Formant resonance (0.0-1.0)
+        self.formant_mix = 1.0  # Dry/wet mix for formant processing
 
         # Advanced Digital Features
-        self.wavefolding_amount = 0.0      # Wavefolding distortion (0.0-1.0)
-        self.wavefolding_symmetry = 0.0    # Wavefolding symmetry (-1.0 to +1.0)
-        self.ring_mod_frequency = 0.0      # Ring modulation frequency (Hz)
-        self.ring_mod_mix = 0.0            # Ring modulation mix (0.0-1.0)
+        self.wavefolding_amount = 0.0  # Wavefolding distortion (0.0-1.0)
+        self.wavefolding_symmetry = 0.0  # Wavefolding symmetry (-1.0 to +1.0)
+        self.ring_mod_frequency = 0.0  # Ring modulation frequency (Hz)
+        self.ring_mod_mix = 0.0  # Ring modulation mix (0.0-1.0)
 
         # Filter Integration (Digital engine has its own filter)
-        self.digital_filter_type = 0       # 0=LPF, 1=HPF, 2=BPF, 3=Notch
-        self.digital_filter_cutoff = 1.0   # Filter cutoff (0.0-1.0)
-        self.digital_filter_resonance = 0.0 # Filter resonance (0.0-1.0)
+        self.digital_filter_type = 0  # 0=LPF, 1=HPF, 2=BPF, 3=Notch
+        self.digital_filter_cutoff = 1.0  # Filter cutoff (0.0-1.0)
+        self.digital_filter_resonance = 0.0  # Filter resonance (0.0-1.0)
         self.digital_filter_envelope = 0.0  # Filter envelope amount
 
         # Internal State
-        self.phase = 0.0                   # Current phase for wavetable playback
-        self.last_sample = 0.0             # Last output sample for filtering
+        self.phase = 0.0  # Current phase for wavetable playback
+        self.last_sample = 0.0  # Last output sample for filtering
 
         # Wavetable Data (placeholder - would load actual wavetables)
         self.wavetables = self._generate_default_wavetables()
@@ -395,7 +417,7 @@ class JupiterXDigitalEngine(JupiterXEngine):
         # Initialize parameters dict
         self.parameters = self._get_default_parameters()
 
-    def _generate_default_wavetables(self) -> Dict[str, np.ndarray]:
+    def _generate_default_wavetables(self) -> dict[str, np.ndarray]:
         """Generate default wavetable set for digital engine."""
         wavetables = {}
 
@@ -404,54 +426,55 @@ class JupiterXDigitalEngine(JupiterXEngine):
         x = np.linspace(0, 2 * np.pi, size, endpoint=False)
 
         # Sine wave
-        wavetables['sine'] = np.sin(x)
+        wavetables["sine"] = np.sin(x)
 
         # Triangle wave
-        wavetables['triangle'] = 2 * np.abs((x / np.pi) % 2 - 1) - 1
+        wavetables["triangle"] = 2 * np.abs((x / np.pi) % 2 - 1) - 1
 
         # Square wave
-        wavetables['square'] = np.sign(np.sin(x))
+        wavetables["square"] = np.sign(np.sin(x))
 
         # Sawtooth wave
-        wavetables['sawtooth'] = 2 * (x / (2 * np.pi) - np.floor(x / (2 * np.pi) + 0.5))
+        wavetables["sawtooth"] = 2 * (x / (2 * np.pi) - np.floor(x / (2 * np.pi) + 0.5))
 
         # White noise
-        wavetables['noise'] = np.random.uniform(-1, 1, size)
+        wavetables["noise"] = np.random.uniform(-1, 1, size)
 
         # Complex waveforms (placeholders for more advanced wavetables)
-        wavetables['complex1'] = np.sin(x) + 0.5 * np.sin(2 * x) + 0.25 * np.sin(4 * x)
-        wavetables['complex2'] = np.sin(x) * np.cos(3 * x)
+        wavetables["complex1"] = np.sin(x) + 0.5 * np.sin(2 * x) + 0.25 * np.sin(4 * x)
+        wavetables["complex2"] = np.sin(x) * np.cos(3 * x)
 
         return wavetables
 
-    def _get_default_parameters(self) -> Dict[str, Any]:
+    def _get_default_parameters(self) -> dict[str, Any]:
         return {
-            'wavetable_position': self.wavetable_position,
-            'wavetable_speed': self.wavetable_speed,
-            'wavetable_start': self.wavetable_start,
-            'wavetable_end': self.wavetable_end,
-            'wavetable_loop': self.wavetable_loop,
-            'morph_amount': self.morph_amount,
-            'morph_position': self.morph_position,
-            'morph_speed': self.morph_speed,
-            'bit_crush_depth': self.bit_crush_depth,
-            'bit_crush_bits': self.bit_crush_bits,
-            'sample_rate_reduction': self.sample_rate_reduction,
-            'formant_shift': self.formant_shift,
-            'formant_resonance': self.formant_resonance,
-            'formant_mix': self.formant_mix,
-            'wavefolding_amount': self.wavefolding_amount,
-            'wavefolding_symmetry': self.wavefolding_symmetry,
-            'ring_mod_frequency': self.ring_mod_frequency,
-            'ring_mod_mix': self.ring_mod_mix,
-            'digital_filter_type': self.digital_filter_type,
-            'digital_filter_cutoff': self.digital_filter_cutoff,
-            'digital_filter_resonance': self.digital_filter_resonance,
-            'digital_filter_envelope': self.digital_filter_envelope,
+            "wavetable_position": self.wavetable_position,
+            "wavetable_speed": self.wavetable_speed,
+            "wavetable_start": self.wavetable_start,
+            "wavetable_end": self.wavetable_end,
+            "wavetable_loop": self.wavetable_loop,
+            "morph_amount": self.morph_amount,
+            "morph_position": self.morph_position,
+            "morph_speed": self.morph_speed,
+            "bit_crush_depth": self.bit_crush_depth,
+            "bit_crush_bits": self.bit_crush_bits,
+            "sample_rate_reduction": self.sample_rate_reduction,
+            "formant_shift": self.formant_shift,
+            "formant_resonance": self.formant_resonance,
+            "formant_mix": self.formant_mix,
+            "wavefolding_amount": self.wavefolding_amount,
+            "wavefolding_symmetry": self.wavefolding_symmetry,
+            "ring_mod_frequency": self.ring_mod_frequency,
+            "ring_mod_mix": self.ring_mod_mix,
+            "digital_filter_type": self.digital_filter_type,
+            "digital_filter_cutoff": self.digital_filter_cutoff,
+            "digital_filter_resonance": self.digital_filter_resonance,
+            "digital_filter_envelope": self.digital_filter_envelope,
         }
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
-                        block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """Generate digital synthesis audio with full wavetable processing."""
         # Calculate base frequency
         base_freq = 440.0 * (2.0 ** ((note - 69) / 12.0))
@@ -463,7 +486,7 @@ class JupiterXDigitalEngine(JupiterXEngine):
         if self.lfo and self.lfo_to_pitch > 0.0:
             lfo_buffer = np.zeros(block_size, dtype=np.float32)
             self.lfo.generate_block(lfo_buffer, block_size)
-            effective_speed *= (1.0 + lfo_buffer * self.lfo_to_pitch)
+            effective_speed *= 1.0 + lfo_buffer * self.lfo_to_pitch
 
         # Generate samples
         samples = np.zeros((block_size, 2), dtype=np.float32)
@@ -475,7 +498,9 @@ class JupiterXDigitalEngine(JupiterXEngine):
             # Apply morphing
             if self.morph_amount > 0.0:
                 morph_sample = self._get_morph_sample(self.phase, self.morph_position)
-                wavetable_sample = wavetable_sample * (1.0 - self.morph_amount) + morph_sample * self.morph_amount
+                wavetable_sample = (
+                    wavetable_sample * (1.0 - self.morph_amount) + morph_sample * self.morph_amount
+                )
 
             # Apply digital processing
             processed_sample = self._apply_digital_processing(wavetable_sample)
@@ -524,9 +549,9 @@ class JupiterXDigitalEngine(JupiterXEngine):
             # Handle looping
             if self.wavetable_loop:
                 while self.phase >= self.wavetable_end:
-                    self.phase -= (self.wavetable_end - self.wavetable_start)
+                    self.phase -= self.wavetable_end - self.wavetable_start
                 while self.phase < self.wavetable_start:
-                    self.phase += (self.wavetable_end - self.wavetable_start)
+                    self.phase += self.wavetable_end - self.wavetable_start
             else:
                 self.phase = np.clip(self.phase, self.wavetable_start, self.wavetable_end)
 
@@ -541,22 +566,22 @@ class JupiterXDigitalEngine(JupiterXEngine):
     def _get_wavetable_sample(self, phase: float) -> float:
         """Get sample from current wavetable at given phase."""
         # Map phase to wavetable index
-        wavetable_size = len(self.wavetables['sine'])  # Assume all wavetables same size
+        wavetable_size = len(self.wavetables["sine"])  # Assume all wavetables same size
         index = int(phase * wavetable_size) % wavetable_size
 
         # For now, use sine wave as primary wavetable
-        return self.wavetables['sine'][index]
+        return self.wavetables["sine"][index]
 
     def _get_morph_sample(self, phase: float, morph_pos: float) -> float:
         """Get morphed sample between wavetables."""
-        wavetable_size = len(self.wavetables['sine'])
+        wavetable_size = len(self.wavetables["sine"])
 
         # Morph between sine and triangle waves
         sine_idx = int(phase * wavetable_size) % wavetable_size
         triangle_idx = int(phase * wavetable_size) % wavetable_size
 
-        sine_sample = self.wavetables['sine'][sine_idx]
-        triangle_sample = self.wavetables['triangle'][triangle_idx]
+        sine_sample = self.wavetables["sine"][sine_idx]
+        triangle_sample = self.wavetables["triangle"][triangle_idx]
 
         return sine_sample * (1.0 - morph_pos) + triangle_sample * morph_pos
 
@@ -576,7 +601,7 @@ class JupiterXDigitalEngine(JupiterXEngine):
             # Very basic sample rate reduction simulation
             reduction_factor = 1.0 + self.sample_rate_reduction * 10.0
             # In a real implementation, this would use proper downsampling/upsampling
-            processed *= (1.0 - self.sample_rate_reduction * 0.5)
+            processed *= 1.0 - self.sample_rate_reduction * 0.5
 
         # Wavefolding
         if self.wavefolding_amount > 0.0:
@@ -587,7 +612,9 @@ class JupiterXDigitalEngine(JupiterXEngine):
                     folded = 2.0 - folded
                 elif folded < -1.0:
                     folded = -2.0 - folded
-            processed = folded * (1.0 - self.wavefolding_amount) + processed * self.wavefolding_amount
+            processed = (
+                folded * (1.0 - self.wavefolding_amount) + processed * self.wavefolding_amount
+            )
 
         return processed
 
@@ -599,7 +626,7 @@ class JupiterXDigitalEngine(JupiterXEngine):
             # Frequency shift simulation
             shift_amount = self.formant_shift * 0.1  # Scale down for subtle effect
             # Very basic frequency shifting (placeholder)
-            sample *= (1.0 + shift_amount)
+            sample *= 1.0 + shift_amount
 
         # Add resonance
         if self.formant_resonance > 0.0:
@@ -656,13 +683,16 @@ class JupiterXDigitalEngine(JupiterXEngine):
         """Load custom wavetable data."""
         self.wavetables[name] = np.clip(wavetable_data, -1.0, 1.0)
 
-
         # For sustain level: higher velocity = higher sustain
-        if 'attack' in str(base_value).lower() or 'decay' in str(base_value).lower() or 'release' in str(base_value).lower():
+        if (
+            "attack" in str(base_value).lower()
+            or "decay" in str(base_value).lower()
+            or "release" in str(base_value).lower()
+        ):
             # Time parameters: velocity makes them shorter
             velocity_factor = 1.0 - (vel_norm * sensitivity)
             return base_value * max(0.1, velocity_factor)  # Minimum 10% of original time
-        elif 'sustain' in str(base_value).lower():
+        elif "sustain" in str(base_value).lower():
             # Sustain level: velocity makes it higher
             velocity_factor = vel_norm * sensitivity
             return min(1.0, base_value + velocity_factor)
@@ -683,7 +713,7 @@ class JupiterXDigitalEngine(JupiterXEngine):
             True if envelope should retrigger, False for legato behavior
         """
         # Check if legato mode is enabled and another note is already playing
-        if self.legato_mode and self.envelope_phase != 'idle':
+        if self.legato_mode and self.envelope_phase != "idle":
             # In legato mode, don't retrigger if envelope is active
             return False
 
@@ -709,7 +739,7 @@ class JupiterXDigitalEngine(JupiterXEngine):
         if should_retrigger:
             # Normal retrigger behavior
             self.current_velocity = velocity
-            self.envelope_phase = 'attack'
+            self.envelope_phase = "attack"
             self.envelope_value = 0.0
             self.filter_envelope_value = 0.0
         else:
@@ -719,7 +749,7 @@ class JupiterXDigitalEngine(JupiterXEngine):
 
     def note_off(self):
         """Release note."""
-        self.envelope_phase = 'release'
+        self.envelope_phase = "release"
 
 
 class JupiterXPart:
@@ -758,10 +788,16 @@ class JupiterXPart:
 
         # Synthesis engines (4 per part) - consolidated with base engines + plugins
         self.engines = {
-            ENGINE_ANALOG: AdditiveEngine(max_partials=64, sample_rate=sample_rate),  # Analog (Additive)
-            ENGINE_DIGITAL: JupiterXEngine(ENGINE_DIGITAL, self, sample_rate),        # Digital (placeholder)
-            ENGINE_FM: JupiterXEngine(ENGINE_FM, self, sample_rate),                   # FM (placeholder)
-            ENGINE_EXTERNAL: JupiterXEngine(ENGINE_EXTERNAL, self, sample_rate),      # External (placeholder)
+            ENGINE_ANALOG: AdditiveEngine(
+                max_partials=64, sample_rate=sample_rate
+            ),  # Analog (Additive)
+            ENGINE_DIGITAL: JupiterXEngine(
+                ENGINE_DIGITAL, self, sample_rate
+            ),  # Digital (placeholder)
+            ENGINE_FM: JupiterXEngine(ENGINE_FM, self, sample_rate),  # FM (placeholder)
+            ENGINE_EXTERNAL: JupiterXEngine(
+                ENGINE_EXTERNAL, self, sample_rate
+            ),  # External (placeholder)
         }
 
         # Load Jupiter-X plugins on engines that support them
@@ -769,8 +805,8 @@ class JupiterXPart:
 
         # Engine mix levels
         self.engine_levels = {
-            ENGINE_ANALOG: 1.0,    # Analog enabled by default
-            ENGINE_DIGITAL: 0.0,   # Others disabled
+            ENGINE_ANALOG: 1.0,  # Analog enabled by default
+            ENGINE_DIGITAL: 0.0,  # Others disabled
             ENGINE_FM: 0.0,
             ENGINE_EXTERNAL: 0.0,
         }
@@ -830,88 +866,95 @@ class JupiterXPart:
     def set_parameter_by_name(self, param_name: str, value: int) -> bool:
         """Set part parameter by name (for NRPN parameter mapping)."""
         with self.lock:
-            # Oscillator parameters (0x00-0x0B range)
-            if param_name == 'osc1_waveform':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc1_waveform', value)
-            elif param_name == 'osc1_coarse_tune':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc1_coarse_tune', value - 24)  # -24 to +24
-            elif param_name == 'osc1_fine_tune':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc1_fine_tune', value - 50)  # -50 to +50
-            elif param_name == 'osc1_level':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc1_level', value)
-            elif param_name == 'osc1_supersaw_spread':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc1_supersaw_spread', value)
-            elif param_name == 'osc2_waveform':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc2_waveform', value)
-            elif param_name == 'osc2_coarse_tune':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc2_coarse_tune', value - 24)
-            elif param_name == 'osc2_fine_tune':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc2_fine_tune', value - 50)
-            elif param_name == 'osc2_level':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc2_level', value)
-            elif param_name == 'osc2_detune':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc2_detune', value - 50)
-            elif param_name == 'osc_sync':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'osc_sync', value)
-            elif param_name == 'ring_modulation':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'ring_modulation', value)
+            match param_name:
+                # Oscillator parameters (0x00-0x0B range)
+                case "osc1_waveform":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc1_waveform", value)
+                case "osc1_coarse_tune":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc1_coarse_tune", value - 24)
+                case "osc1_fine_tune":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc1_fine_tune", value - 50)
+                case "osc1_level":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc1_level", value)
+                case "osc1_supersaw_spread":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc1_supersaw_spread", value)
+                case "osc2_waveform":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc2_waveform", value)
+                case "osc2_coarse_tune":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc2_coarse_tune", value - 24)
+                case "osc2_fine_tune":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc2_fine_tune", value - 50)
+                case "osc2_level":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc2_level", value)
+                case "osc2_detune":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc2_detune", value - 50)
+                case "osc_sync":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "osc_sync", value)
+                case "ring_modulation":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "ring_modulation", value)
 
-            # Filter parameters (0x10-0x19 range)
-            elif param_name == 'filter_type':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_type', value)
-            elif param_name == 'filter_cutoff':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_cutoff', value)
-            elif param_name == 'filter_resonance':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_resonance', value)
-            elif param_name == 'filter_drive':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_drive', value)
-            elif param_name == 'filter_key_tracking':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_key_tracking', (value - 64) * 2)  # -64 to +63
-            elif param_name == 'filter_envelope_amount':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_envelope_amount', (value - 64) * 2)
-            elif param_name == 'filter_attack':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_attack', value)
-            elif param_name == 'filter_decay':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_decay', value)
-            elif param_name == 'filter_sustain':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_sustain', value)
-            elif param_name == 'filter_release':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'filter_release', value)
+                # Filter parameters (0x10-0x19 range)
+                case "filter_type":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "filter_type", value)
+                case "filter_cutoff":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "filter_cutoff", value)
+                case "filter_resonance":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "filter_resonance", value)
+                case "filter_drive":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "filter_drive", value)
+                case "filter_key_tracking":
+                    return self.set_engine_parameter(
+                        ENGINE_ANALOG, "filter_key_tracking", (value - 64) * 2
+                    )
+                case "filter_envelope_amount":
+                    return self.set_engine_parameter(
+                        ENGINE_ANALOG, "filter_envelope_amount", (value - 64) * 2
+                    )
+                case "filter_attack":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "filter_attack", value)
+                case "filter_decay":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "filter_decay", value)
+                case "filter_sustain":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "filter_sustain", value)
+                case "filter_release":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "filter_release", value)
 
-            # Amplifier parameters (0x20-0x25 range)
-            elif param_name == 'amp_level':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'amp_level', value)
-            elif param_name == 'amp_attack':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'amp_attack', value)
-            elif param_name == 'amp_decay':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'amp_decay', value)
-            elif param_name == 'amp_sustain':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'amp_sustain', value)
-            elif param_name == 'amp_release':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'amp_release', value)
-            elif param_name == 'amp_velocity_sensitivity':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'amp_velocity_sensitivity', value)
+                # Amplifier parameters (0x20-0x25 range)
+                case "amp_level":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "amp_level", value)
+                case "amp_attack":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "amp_attack", value)
+                case "amp_decay":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "amp_decay", value)
+                case "amp_sustain":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "amp_sustain", value)
+                case "amp_release":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "amp_release", value)
+                case "amp_velocity_sensitivity":
+                    return self.set_engine_parameter(
+                        ENGINE_ANALOG, "amp_velocity_sensitivity", value
+                    )
 
-            # LFO parameters (0x28-0x2F range)
-            elif param_name == 'lfo1_waveform':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'lfo1_waveform', value)
-            elif param_name == 'lfo1_rate':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'lfo1_rate', value)
-            elif param_name == 'lfo1_depth':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'lfo1_depth', value)
-            elif param_name == 'lfo1_sync':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'lfo1_sync', value)
-            elif param_name == 'lfo2_waveform':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'lfo2_waveform', value)
-            elif param_name == 'lfo2_rate':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'lfo2_rate', value)
-            elif param_name == 'lfo2_depth':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'lfo2_depth', value)
-            elif param_name == 'lfo2_sync':
-                return self.set_engine_parameter(ENGINE_ANALOG, 'lfo2_sync', value)
+                # LFO parameters (0x28-0x2F range)
+                case "lfo1_waveform":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "lfo1_waveform", value)
+                case "lfo1_rate":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "lfo1_rate", value)
+                case "lfo1_depth":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "lfo1_depth", value)
+                case "lfo1_sync":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "lfo1_sync", value)
+                case "lfo2_waveform":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "lfo2_waveform", value)
+                case "lfo2_rate":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "lfo2_rate", value)
+                case "lfo2_depth":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "lfo2_depth", value)
+                case "lfo2_sync":
+                    return self.set_engine_parameter(ENGINE_ANALOG, "lfo2_sync", value)
 
-            else:
-                return False
+                case _:
+                    return False
 
         return True
 
@@ -988,8 +1031,10 @@ class JupiterXPart:
                 return False
 
             # Check key/velocity ranges
-            if not (self.key_range_low <= note <= self.key_range_high and
-                    self.velocity_range_low <= velocity <= self.velocity_range_high):
+            if not (
+                self.key_range_low <= note <= self.key_range_high
+                and self.velocity_range_low <= velocity <= self.velocity_range_high
+            ):
                 return False
 
             self.current_note = note
@@ -1043,8 +1088,7 @@ class JupiterXPart:
     def should_receive_midi(self, channel: int) -> bool:
         """Check if this part should receive MIDI on the given channel."""
         with self.lock:
-            return (self.receive_channel == channel or
-                    self.receive_channel == 255)  # ALL channels
+            return self.receive_channel == channel or self.receive_channel == 255  # ALL channels
 
     def reset(self):
         """Reset part to default state."""
@@ -1055,37 +1099,37 @@ class JupiterXPart:
             for engine in self.engines.values():
                 engine.reset()
 
-    def get_part_info(self) -> Dict[str, Any]:
+    def get_part_info(self) -> dict[str, Any]:
         """Get comprehensive part information."""
         with self.lock:
             return {
-                'part_number': self.part_number,
-                'active': self.active,
-                'volume': self.volume,
-                'pan': self.pan,
-                'tune': {'coarse': self.coarse_tune, 'fine': self.fine_tune},
-                'midi': {
-                    'receive_channel': self.receive_channel,
-                    'polyphony_mode': 'MONO' if self.polyphony_mode == 0 else 'POLY',
-                    'portamento_time': self.portamento_time,
+                "part_number": self.part_number,
+                "active": self.active,
+                "volume": self.volume,
+                "pan": self.pan,
+                "tune": {"coarse": self.coarse_tune, "fine": self.fine_tune},
+                "midi": {
+                    "receive_channel": self.receive_channel,
+                    "polyphony_mode": "MONO" if self.polyphony_mode == 0 else "POLY",
+                    "portamento_time": self.portamento_time,
                 },
-                'ranges': {
-                    'key': (self.key_range_low, self.key_range_high),
-                    'velocity': (self.velocity_range_low, self.velocity_range_high),
+                "ranges": {
+                    "key": (self.key_range_low, self.key_range_high),
+                    "velocity": (self.velocity_range_low, self.velocity_range_high),
                 },
-                'effects_sends': {
-                    'reverb': self.reverb_send,
-                    'chorus': self.chorus_send,
-                    'delay': self.delay_send,
+                "effects_sends": {
+                    "reverb": self.reverb_send,
+                    "chorus": self.chorus_send,
+                    "delay": self.delay_send,
                 },
-                'engines': {
+                "engines": {
                     engine_name: {
-                        'enabled': self.engines[engine_type].enabled,
-                        'level': self.engine_levels[engine_type],
-                        'type': engine_type,
+                        "enabled": self.engines[engine_type].enabled,
+                        "level": self.engine_levels[engine_type],
+                        "type": engine_type,
                     }
                     for engine_type, engine_name in ENGINE_NAMES.items()
                 },
-                'current_note': self.current_note,
-                'current_velocity': self.current_velocity,
+                "current_note": self.current_note,
+                "current_velocity": self.current_velocity,
             }

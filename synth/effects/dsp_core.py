@@ -10,10 +10,11 @@ This module provides fundamental DSP components used across multiple XG effects:
 
 All components are optimized for low-latency, real-time processing.
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import List, Tuple, Optional, Callable
+from collections.abc import Callable
 from scipy.signal import firwin, lfilter
 import threading
 
@@ -201,7 +202,7 @@ class MultibandFilterBank:
     """
 
     def __init__(self, sample_rate: int, num_bands: int = 16,
-                 freq_range: Tuple[float, float] = (100, 8000)):
+                 freq_range: tuple[float, float] = (100, 8000)):
         """
         Initialize multiband filter bank.
 
@@ -235,7 +236,7 @@ class MultibandFilterBank:
             if 0 <= band_idx < self.num_bands:
                 self.band_gains[band_idx] = gain
 
-    def process_sample(self, input_sample: float) -> List[float]:
+    def process_sample(self, input_sample: float) -> list[float]:
         """
         Process a sample through the filter bank.
 
@@ -395,7 +396,7 @@ class AdvancedEnvelopeFollower:
         """Convert time in seconds to filter coefficient."""
         return math.exp(-1.0 / (time * self.sample_rate))
 
-    def process_sample(self, input_sample: float, sidechain_sample: Optional[float] = None) -> float:
+    def process_sample(self, input_sample: float, sidechain_sample: float | None = None) -> float:
         """
         Process a sample through the envelope follower.
 
@@ -484,7 +485,7 @@ class ProfessionalDelayNetwork:
         # Thread safety
         self.lock = threading.RLock()
 
-    def configure_taps(self, tap_configs: List[Tuple[float, float]]) -> None:
+    def configure_taps(self, tap_configs: list[tuple[float, float]]) -> None:
         """
         Configure delay taps.
 
@@ -570,7 +571,7 @@ class FFTProcessor:
         return np.fft.rfft(input_frame) / len(input_frame)
 
     @staticmethod
-    def irfft(spectrum: np.ndarray, length: Optional[int] = None) -> np.ndarray:
+    def irfft(spectrum: np.ndarray, length: int | None = None) -> np.ndarray:
         """Inverse real FFT with proper scaling."""
         if length is None:
             length = (len(spectrum) - 1) * 2

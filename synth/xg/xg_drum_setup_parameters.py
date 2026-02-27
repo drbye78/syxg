@@ -12,8 +12,9 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import threading
 
 
@@ -254,7 +255,7 @@ class XGDrumSetupParameters:
             for param_name, param_info in self.XG_DRUM_NOTE_PARAMETERS.items():
                 self.drum_note_parameters[channel][kit_number][note][param_name] = param_info['default']
 
-    def get_drum_kit_parameter(self, channel: int, kit: int, param_lsb: int) -> Optional[int]:
+    def get_drum_kit_parameter(self, channel: int, kit: int, param_lsb: int) -> int | None:
         """
         Get a drum kit parameter value.
 
@@ -272,7 +273,7 @@ class XGDrumSetupParameters:
             except KeyError:
                 return None
 
-    def get_drum_note_parameter(self, channel: int, kit: int, note: int, param_name: str) -> Optional[int]:
+    def get_drum_note_parameter(self, channel: int, kit: int, note: int, param_name: str) -> int | None:
         """
         Get a drum note parameter value.
 
@@ -348,7 +349,7 @@ class XGDrumSetupParameters:
             self._notify_parameter_change(f'drum_note_ch{channel}_kit{kit}_note{note}_{param_name}', value)
             return True
 
-    def get_drum_kit_info(self, channel: int) -> Dict[str, Any]:
+    def get_drum_kit_info(self, channel: int) -> dict[str, Any]:
         """
         Get information about the current drum kit for a channel.
 
@@ -370,7 +371,7 @@ class XGDrumSetupParameters:
                 'available_kits': self.XG_DRUM_KITS
             }
 
-    def get_drum_note_info(self, channel: int, note: int) -> Dict[str, Any]:
+    def get_drum_note_info(self, channel: int, note: int) -> dict[str, Any]:
         """
         Get information about a specific drum note in the current kit.
 
@@ -392,7 +393,7 @@ class XGDrumSetupParameters:
                 'parameter_info': self.XG_DRUM_NOTE_PARAMETERS
             }
 
-    def get_all_drum_kits(self) -> Dict[int, str]:
+    def get_all_drum_kits(self) -> dict[int, str]:
         """
         Get all available XG drum kits.
 
@@ -418,7 +419,7 @@ class XGDrumSetupParameters:
                 self.reset_channel_to_defaults(channel)
             print("🥁 XG DRUM: Reset all channels to XG defaults")
 
-    def export_drum_setup(self, channel: int) -> Dict[str, Any]:
+    def export_drum_setup(self, channel: int) -> dict[str, Any]:
         """Export drum setup for a channel."""
         with self.lock:
             return {
@@ -429,7 +430,7 @@ class XGDrumSetupParameters:
                 'version': '1.0'
             }
 
-    def import_drum_setup(self, channel: int, setup_data: Dict[str, Any]) -> bool:
+    def import_drum_setup(self, channel: int, setup_data: dict[str, Any]) -> bool:
         """Import drum setup for a channel."""
         try:
             with self.lock:
@@ -444,7 +445,7 @@ class XGDrumSetupParameters:
             print(f"❌ XG DRUM: Import failed - {e}")
             return False
 
-    def get_drum_setup_status(self) -> Dict[str, Any]:
+    def get_drum_setup_status(self) -> dict[str, Any]:
         """Get comprehensive drum setup status."""
         with self.lock:
             channels_with_drums = []

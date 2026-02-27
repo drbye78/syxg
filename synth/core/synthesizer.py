@@ -36,11 +36,15 @@ Memory Management:
 - Component-local buffer allocation to prevent contention
 - Automatic cleanup on component destruction
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional
+from typing import Any, TYPE_CHECKING
 import threading
 import time
+
+if TYPE_CHECKING:
+    from typing import Self
 
 from ..engine.engine_registry import XGEngineRegistry, get_global_engine_registry
 from ..effects.effects_coordinator import XGEffectsCoordinator
@@ -224,7 +228,7 @@ class Synthesizer:
         self.parameter_router = ParameterRouter(self)  # Pass synthesizer reference
 
         # Synthesis engines
-        self.engines: Dict[str, Any] = {}
+        self.engines: dict[str, Any] = {}
 
         # Sample management
         self.sample_manager = SampleManager(max_memory_mb=512)
@@ -252,17 +256,17 @@ class Synthesizer:
         self.groove_quantizer = GrooveQuantizer()
 
         # Style Engine (auto-accompaniment)
-        self.style_player: Optional[StylePlayer] = None
+        self.style_player: StylePlayer | None = None
         self.style_engine_enabled = False
         self._chord_detection_channel = 0  # Channel for chord detection
         self._chord_detection_low_note = 36  # Low note for chord detection
         self._chord_detection_high_note = 60  # High note for chord detection
         
         # Style Engine Integrations
-        self.style_integrations: Optional[Any] = None
+        self.style_integrations: Any | None = None
 
         # Registration Memory
-        self.registration_memory: Optional[RegistrationMemory] = None
+        self.registration_memory: RegistrationMemory | None = None
         self._registration_enabled = False
 
         # Audio output buffers
@@ -270,7 +274,7 @@ class Synthesizer:
 
         # Threading and synchronization
         self.lock = threading.RLock()
-        self.audio_thread: Optional[threading.Thread] = None
+        self.audio_thread: threading.Thread | None = None
         self.running = False
 
         # Performance monitoring
@@ -588,7 +592,7 @@ class Synthesizer:
         # Apply master processing
         self._apply_master_processing()
 
-    def _generate_voice_audio(self, voice_info: Dict[str, Any]) -> Optional[np.ndarray]:
+    def _generate_voice_audio(self, voice_info: dict[str, Any]) -> np.ndarray | None:
         """Generate audio for a single voice."""
 
         engine_type = voice_info.get("engine_type", "xg")
@@ -625,7 +629,7 @@ class Synthesizer:
         self.effects_coordinator.process_block(self.output_buffer)
 
     def _apply_voice_effects(
-        self, audio: np.ndarray, effects: List[Dict[str, Any]]
+        self, audio: np.ndarray, effects: list[dict[str, Any]]
     ) -> np.ndarray:
         """Apply per-voice effects."""
         processed = audio.copy()
@@ -820,12 +824,12 @@ class Synthesizer:
         with self.lock:
             return self.output_buffer.copy()
 
-    def get_performance_stats(self) -> Dict[str, Any]:
+    def get_performance_stats(self) -> dict[str, Any]:
         """Get current performance statistics."""
         with self.lock:
             return self.performance_stats.copy()
 
-    def get_system_info(self) -> Dict[str, Any]:
+    def get_system_info(self) -> dict[str, Any]:
         """Get comprehensive system information."""
         with self.lock:
             return {
@@ -955,7 +959,7 @@ class Synthesizer:
             print(f"Style Engine: Failed to load style - {e}")
             return False
 
-    def load_style(self, style: "Style") -> bool:
+    def load_style(self, style: Style) -> bool:
         """
         Load a Style object.
 
@@ -978,7 +982,7 @@ class Synthesizer:
                 print(f"Style Engine: Failed to load style - {e}")
         return False
 
-    def start_style(self, section: Optional[str] = None) -> bool:
+    def start_style(self, section: str | None = None) -> bool:
         """
         Start auto-accompaniment.
 
@@ -1118,27 +1122,35 @@ class Synthesizer:
             print(f"Style Engine: Failed to set dynamics - {e}")
             return False
 
-    def set_chord_detection_range(self, low_note: int = 36, high_note: int = 60):
+    def set_chord_detection_range(self, low_note: int = 36, high_note: int = 60) -> Self:
         """
         Set the note range for chord detection.
-
+        
         Args:
             low_note: Lowest note for chord detection (default: 36)
             high_note: Highest note for chord detection (default: 60)
+        
+        Returns:
+            Self for method chaining
         """
         self._chord_detection_low_note = max(0, min(127, low_note))
         self._chord_detection_high_note = max(0, min(127, high_note))
+        return self
 
-    def set_chord_detection_channel(self, channel: int):
+    def set_chord_detection_channel(self, channel: int) -> Self:
         """
         Set the MIDI channel for chord detection.
-
+        
         Args:
             channel: MIDI channel (0-15)
+        
+        Returns:
+            Self for method chaining
         """
         self._chord_detection_channel = max(0, min(15, channel))
+        return self
 
-    def get_style_status(self) -> Dict[str, Any]:
+    def get_style_status(self) -> dict[str, Any]:
         """
         Get style engine status.
 
@@ -1241,7 +1253,7 @@ class Synthesizer:
 
     def process_midi_learn(
         self, cc_number: int, channel: int, value: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Process incoming MIDI CC for MIDI Learn.
 
@@ -1293,7 +1305,7 @@ class Synthesizer:
         if hasattr(self, "midi_learn") and self.midi_learn:
             self.midi_learn.cancel_learn()
 
-    def get_midi_learn_status(self) -> Dict[str, Any]:
+    def get_midi_learn_status(self) -> dict[str, Any]:
         """Get MIDI Learn status."""
         if hasattr(self, "midi_learn") and self.midi_learn:
             return self.midi_learn.get_status()
@@ -1358,7 +1370,7 @@ class Synthesizer:
         return self.registration_memory.recall(bank, slot)
 
     def store_registration(
-        self, name: str = "", bank: Optional[int] = None, slot: Optional[int] = None
+        self, name: str = "", bank: int | None = None, slot: int | None = None
     ) -> bool:
         """
         Store current setup to a registration.
@@ -1395,7 +1407,7 @@ class Synthesizer:
             return self.registration_memory.set_slot(slot)
         return False
 
-    def get_registration_status(self) -> Dict[str, Any]:
+    def get_registration_status(self) -> dict[str, Any]:
         """Get registration memory status."""
         if self.registration_memory:
             return self.registration_memory.get_status()

@@ -4,8 +4,9 @@ Jupiter-X Main Synthesizer Class
 Complete Jupiter-X synthesizer implementation integrating all components
 into a unified, production-ready synthesizer interface.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 import numpy as np
 
@@ -253,7 +254,7 @@ class JupiterXSynthesizer:
         # Placeholder - would update pattern
         return True
 
-    def get_arpeggiator_status(self, part_num: int) -> Dict[str, Any]:
+    def get_arpeggiator_status(self, part_num: int) -> dict[str, Any]:
         """Get arpeggiator status."""
         with self.lock:
             if self.arpeggiator:
@@ -262,7 +263,7 @@ class JupiterXSynthesizer:
                     return arpeggiator.get_status()
         return {'enabled': False, 'pattern': None}
 
-    def get_arpeggiator_patterns(self) -> List[Dict[str, Any]]:
+    def get_arpeggiator_patterns(self) -> list[dict[str, Any]]:
         """Get available arpeggiator patterns."""
         with self.lock:
             if self.arpeggiator:
@@ -328,7 +329,7 @@ class JupiterXSynthesizer:
                 if note in self.mpe_manager.active_notes[channel]:
                     self.mpe_manager.active_notes[channel][note].update_from_midi(pressure=pressure)
 
-    def get_mpe_note_data(self, channel: int, note: int) -> Optional[Dict[str, Any]]:
+    def get_mpe_note_data(self, channel: int, note: int) -> dict[str, Any] | None:
         """Get MPE data for a note."""
         with self.lock:
             if self.mpe_manager:
@@ -434,7 +435,7 @@ class JupiterXSynthesizer:
                 return self.parameter_system.load_preset(name, bank)
         return False
 
-    def get_preset_banks(self) -> Dict[str, List[str]]:
+    def get_preset_banks(self) -> dict[str, list[str]]:
         """Get available preset banks."""
         with self.lock:
             if self.parameter_system:
@@ -498,21 +499,21 @@ class JupiterXSynthesizer:
 
     # ===== PERFORMANCE MONITORING =====
 
-    def get_performance_metrics(self) -> Dict[str, Any]:
+    def get_performance_metrics(self) -> dict[str, Any]:
         """Get performance metrics."""
         with self.lock:
             if self.performance_optimizer:
                 return self.performance_optimizer.get_performance_report()
         return {}
 
-    def get_optimization_recommendations(self) -> List[str]:
+    def get_optimization_recommendations(self) -> list[str]:
         """Get performance optimization recommendations."""
         with self.lock:
             if self.performance_optimizer:
                 return self.performance_optimizer.get_optimization_recommendations()
         return []
 
-    def optimize_for_realtime(self) -> Dict[str, Any]:
+    def optimize_for_realtime(self) -> dict[str, Any]:
         """Apply real-time optimizations."""
         with self.lock:
             if self.performance_optimizer:
@@ -528,7 +529,7 @@ class JupiterXSynthesizer:
                     max_cpu=max_cpu, max_memory=max_memory, max_latency=max_latency
                 )
 
-    def benchmark_engine(self, part_num: int, duration_blocks: int = 100) -> Dict[str, Any]:
+    def benchmark_engine(self, part_num: int, duration_blocks: int = 100) -> dict[str, Any]:
         """Benchmark synthesis engine."""
         with self.lock:
             if self.performance_optimizer:
@@ -544,7 +545,7 @@ class JupiterXSynthesizer:
             # Placeholder - would load sample into external engine
             return True
 
-    def run_performance_test(self, duration: int = 30) -> Dict[str, Any]:
+    def run_performance_test(self, duration: int = 30) -> dict[str, Any]:
         """Run performance test for specified duration."""
         with self.lock:
             if self.performance_optimizer:
@@ -592,7 +593,7 @@ class JupiterXSynthesizer:
 
     # ===== UTILITY METHODS =====
 
-    def get_system_info(self) -> Dict[str, Any]:
+    def get_system_info(self) -> dict[str, Any]:
         """Get system information."""
         return {
             'jupiter_x_enabled': self.jupiter_x_enabled,

@@ -5,9 +5,10 @@ Provides complete Jupiter-X style arpeggiator with authentic patterns,
 real-time control, and advanced sequencing features that perfectly
 replicate the original Jupiter-X arpeggiator behavior.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 from enum import Enum
 import threading
 import time
@@ -67,11 +68,11 @@ class JupiterXArpeggiator:
         self.motif_length = 16 # Motif length for complex patterns
 
         # Pattern state
-        self.active_notes: List[int] = []  # MIDI note numbers
+        self.active_notes: list[int] = []  # MIDI note numbers
         self.current_step = 0
         self.current_octave = 0
         self.direction_up = True
-        self.motif_data: List[Dict[str, Any]] = []
+        self.motif_data: list[dict[str, Any]] = []
 
         # Timing
         self.step_time = self._calculate_step_time()
@@ -79,8 +80,8 @@ class JupiterXArpeggiator:
         self.phase_accumulator = 0.0
 
         # Output
-        self.pending_notes: List[Dict[str, Any]] = []
-        self.active_notes_out: List[Dict[str, Any]] = []
+        self.pending_notes: list[dict[str, Any]] = []
+        self.active_notes_out: list[dict[str, Any]] = []
 
         # Threading
         self.lock = threading.RLock()
@@ -189,7 +190,7 @@ class JupiterXArpeggiator:
                 else:
                     self._update_pattern()
 
-    def process_step(self, current_time: float) -> List[Dict[str, Any]]:
+    def process_step(self, current_time: float) -> list[dict[str, Any]]:
         """
         Process one arpeggiator step.
 
@@ -220,7 +221,7 @@ class JupiterXArpeggiator:
 
             return []
 
-    def _generate_step_events(self, current_time: float) -> List[Dict[str, Any]]:
+    def _generate_step_events(self, current_time: float) -> list[dict[str, Any]]:
         """Generate note events for current step."""
         events = []
 
@@ -274,7 +275,7 @@ class JupiterXArpeggiator:
 
         return events
 
-    def _get_current_note_index(self) -> Tuple[int, int]:
+    def _get_current_note_index(self) -> tuple[int, int]:
         """Get current note index and octave offset based on mode."""
         note_count = len(self.active_notes)
 
@@ -373,7 +374,7 @@ class JupiterXArpeggiator:
         with self.lock:
             self.hold = hold
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         Get arpeggiator status.
 
@@ -461,7 +462,7 @@ class JupiterXArpPattern:
     }
 
     @classmethod
-    def get_pattern(cls, pattern_name: str) -> Optional[Dict[str, Any]]:
+    def get_pattern(cls, pattern_name: str) -> dict[str, Any] | None:
         """
         Get predefined pattern.
 
@@ -474,9 +475,9 @@ class JupiterXArpPattern:
         return cls.PATTERNS.get(pattern_name)
 
     @classmethod
-    def create_custom_pattern(cls, name: str, steps: List[int],
-                            gates: Optional[List[float]] = None,
-                            velocities: Optional[List[int]] = None) -> Dict[str, Any]:
+    def create_custom_pattern(cls, name: str, steps: list[int],
+                            gates: list[float] | None = None,
+                            velocities: list[int] | None = None) -> dict[str, Any]:
         """
         Create custom pattern.
 
@@ -509,6 +510,6 @@ class JupiterXArpPattern:
         }
 
     @classmethod
-    def get_available_patterns(cls) -> List[str]:
+    def get_available_patterns(cls) -> list[str]:
         """Get list of available pattern names."""
         return list(cls.PATTERNS.keys())

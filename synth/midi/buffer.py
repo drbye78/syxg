@@ -4,9 +4,9 @@ Unified Buffered MIDI Processing
 Time-ordered message buffering and processing for both real-time and sequenced MIDI.
 Provides a clean interface for managing MIDI message timing and delivery.
 """
+from __future__ import annotations
 
 import heapq
-from typing import List, Optional, Tuple
 import threading
 
 from .message import MIDIMessage
@@ -31,8 +31,8 @@ class MessageBuffer:
         self.sample_rate = sample_rate
 
         # Message heaps for time-ordered processing
-        self.message_heap: List[Tuple[float, int, MIDIMessage]] = []  # (time, priority, message)
-        self.sysex_heap: List[Tuple[float, int, MIDIMessage]] = []    # (time, priority, message)
+        self.message_heap: list[tuple[float, int, MIDIMessage]] = []  # (time, priority, message)
+        self.sysex_heap: list[tuple[float, int, MIDIMessage]] = []    # (time, priority, message)
 
         # Current time tracking
         self.current_time = 0.0
@@ -44,7 +44,7 @@ class MessageBuffer:
         # Thread safety
         self.lock = threading.RLock()
 
-    def send_message(self, message: MIDIMessage, timestamp: Optional[float] = None):
+    def send_message(self, message: MIDIMessage, timestamp: float | None = None):
         """
         Send a MIDI message at specified time.
 
@@ -59,7 +59,7 @@ class MessageBuffer:
 
             heapq.heappush(self.message_heap, (send_time, priority, message))
 
-    def send_sysex_message(self, message: MIDIMessage, timestamp: Optional[float] = None):
+    def send_sysex_message(self, message: MIDIMessage, timestamp: float | None = None):
         """
         Send a System Exclusive message at specified time.
 
@@ -74,7 +74,7 @@ class MessageBuffer:
 
             heapq.heappush(self.sysex_heap, (send_time, priority, message))
 
-    def process_until_time(self, target_time: float) -> List[MIDIMessage]:
+    def process_until_time(self, target_time: float) -> list[MIDIMessage]:
         """
         Process all messages up to specified time.
 
@@ -99,7 +99,7 @@ class MessageBuffer:
 
             return processed
 
-    def get_messages_in_range(self, start_time: float, end_time: float) -> List[MIDIMessage]:
+    def get_messages_in_range(self, start_time: float, end_time: float) -> list[MIDIMessage]:
         """
         Get all messages within a time range.
 
@@ -127,7 +127,7 @@ class MessageBuffer:
 
             return messages
 
-    def get_next_message_time(self) -> Optional[float]:
+    def get_next_message_time(self) -> float | None:
         """Get timestamp of next pending message."""
         with self.lock:
             next_times = []
@@ -139,7 +139,7 @@ class MessageBuffer:
 
             return min(next_times) if next_times else None
 
-    def peek_next_message(self) -> Optional[MIDIMessage]:
+    def peek_next_message(self) -> MIDIMessage | None:
         """Peek at the next message without removing it."""
         with self.lock:
             candidates = []

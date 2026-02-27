@@ -5,8 +5,9 @@ Integrates XG-specific effects with MIDI 2.0 parameter resolution and per-note c
 Provides comprehensive support for XG system effects, insertion effects, and variation effects
 with 32-bit parameter precision.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 from enum import IntEnum
 import math
@@ -112,17 +113,17 @@ class XGSystemReverb(EffectProcessor):
         self.bypass = False
         
         # Effect parameters with XG-specific ranges and MIDI 2.0 support
-        self.parameters: Dict[str, EffectParameter] = {}
+        self.parameters: dict[str, EffectParameter] = {}
         self._initialize_xg_parameters()
         
         # Per-note parameter values (for MIDI 2.0 per-note control)
-        self.per_note_parameters: Dict[int, Dict[str, float]] = {}
+        self.per_note_parameters: dict[int, dict[str, float]] = {}
         
         # Internal reverb state
-        self.comb_buffers: List[np.ndarray] = []
-        self.allpass_buffers: List[np.ndarray] = []
-        self.allpass_feedback: List[float] = []
-        self.late_stage_buffers: List[np.ndarray] = []
+        self.comb_buffers: list[np.ndarray] = []
+        self.allpass_buffers: list[np.ndarray] = []
+        self.allpass_feedback: list[float] = []
+        self.late_stage_buffers: list[np.ndarray] = []
         
         # Setup reverb structure based on type
         self._setup_reverb_structure()
@@ -227,7 +228,7 @@ class XGSystemReverb(EffectProcessor):
             delay_line = np.zeros(delay_samples)
             self.allpass_buffers.append(delay_line)
     
-    def _apply_effect(self, audio_input: np.ndarray, note: Optional[int] = None) -> np.ndarray:
+    def _apply_effect(self, audio_input: np.ndarray, note: int | None = None) -> np.ndarray:
         """Apply XG reverb effect processing."""
         if audio_input.ndim == 1:
             # Convert mono to stereo
@@ -349,11 +350,11 @@ class XGVariationEffect(EffectProcessor):
         self.bypass = False
         
         # Effect parameters with XG-specific ranges and MIDI 2.0 support
-        self.parameters: Dict[str, EffectParameter] = {}
+        self.parameters: dict[str, EffectParameter] = {}
         self._initialize_xg_variation_parameters()
         
         # Per-note parameter values (for MIDI 2.0 per-note control)
-        self.per_note_parameters: Dict[int, Dict[str, float]] = {}
+        self.per_note_parameters: dict[int, dict[str, float]] = {}
         
         # Internal effect state
         self.lfo_phase = 0.0
@@ -443,7 +444,7 @@ class XGVariationEffect(EffectProcessor):
             description='Variation send level'
         )
     
-    def _apply_effect(self, audio_input: np.ndarray, note: Optional[int] = None) -> np.ndarray:
+    def _apply_effect(self, audio_input: np.ndarray, note: int | None = None) -> np.ndarray:
         """Apply XG variation effect processing."""
         if audio_input.ndim == 1:
             # Convert mono to stereo
@@ -542,11 +543,11 @@ class XGInsertionEffect(EffectProcessor):
         self.bypass = False
         
         # Effect parameters with XG-specific ranges and MIDI 2.0 support
-        self.parameters: Dict[str, EffectParameter] = {}
+        self.parameters: dict[str, EffectParameter] = {}
         self._initialize_xg_insertion_parameters()
         
         # Per-note parameter values (for MIDI 2.0 per-note control)
-        self.per_note_parameters: Dict[int, Dict[str, float]] = {}
+        self.per_note_parameters: dict[int, dict[str, float]] = {}
         
         # Internal effect state
         self.left_delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 sec max delay
@@ -626,7 +627,7 @@ class XGInsertionEffect(EffectProcessor):
             description='Effect parameter 4'
         )
     
-    def _apply_effect(self, audio_input: np.ndarray, note: Optional[int] = None) -> np.ndarray:
+    def _apply_effect(self, audio_input: np.ndarray, note: int | None = None) -> np.ndarray:
         """Apply XG insertion effect processing."""
         if audio_input.ndim == 1:
             # Convert mono to stereo
@@ -752,10 +753,10 @@ class XGMIDIEffectsProcessor:
         self.enabled = True
         
         # XG effect slots
-        self.system_reverb: Optional[XGSystemReverb] = None
-        self.system_chorus: Optional[EffectProcessor] = None
-        self.variation_effect: Optional[XGVariationEffect] = None
-        self.insertion_effects: List[XGInsertionEffect] = []
+        self.system_reverb: XGSystemReverb | None = None
+        self.system_chorus: EffectProcessor | None = None
+        self.variation_effect: XGVariationEffect | None = None
+        self.insertion_effects: list[XGInsertionEffect] = []
         
         # Initialize default XG effects
         self._initialize_xg_effects()
@@ -813,7 +814,7 @@ class XGMIDIEffectsProcessor:
         return False
     
     def process_audio_with_xg_effects(self, audio_input: np.ndarray, 
-                                     part: int = 0, note: Optional[int] = None) -> np.ndarray:
+                                     part: int = 0, note: int | None = None) -> np.ndarray:
         """
         Process audio through XG effects chain.
 

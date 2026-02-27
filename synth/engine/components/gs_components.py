@@ -4,8 +4,10 @@ GS Component System - Complete GS Implementation
 Production-quality GS synthesizer components with complete GS specification compliance.
 Contains GS MIDI processor and state management for Roland GS compatibility.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -135,7 +137,7 @@ class GSStateManager:
         getter = self.parameter_cache.get(param_name)
         return getter() if getter else None
 
-    def get_effects_config(self) -> Dict[str, Any]:
+    def get_effects_config(self) -> dict[str, Any]:
         """Get effects configuration for audio processing"""
         return {
             'reverb_enabled': self.get_parameter('reverb_level') > 0,

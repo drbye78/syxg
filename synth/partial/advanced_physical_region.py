@@ -8,8 +8,9 @@ AdvancedPhysicalRegion implements advanced physical modeling with:
 - Environmental modeling
 - Complex resonator networks
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -82,14 +83,14 @@ class AdvancedPhysicalRegion(IRegion):
         self._modal_frequencies = algo_params.get('modal_frequencies', None)
         
         # Runtime state
-        self._advanced_model: Optional[Any] = None
-        self._resonator_network: List[Any] = []
+        self._advanced_model: Any | None = None
+        self._resonator_network: list[Any] = []
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """No sample data for advanced physical modeling."""
         return None
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create advanced physical modeling partial.
         
@@ -131,7 +132,7 @@ class AdvancedPhysicalRegion(IRegion):
             logger.error(f"Failed to create advanced physical partial: {e}")
             return None
     
-    def _create_advanced_model(self) -> Optional[Any]:
+    def _create_advanced_model(self) -> Any | None:
         """
         Create advanced physical model instance.
         
@@ -235,7 +236,7 @@ class AdvancedPhysicalRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from advanced physical model.
@@ -263,7 +264,7 @@ class AdvancedPhysicalRegion(IRegion):
             logger.error(f"Advanced physical sample generation failed: {e}")
             return np.zeros(block_size * 2, dtype=np.float32)
     
-    def _apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """Apply modulation to advanced physical parameters."""
         # Aftertouch to nonlinearity
         aftertouch = modulation.get('channel_aftertouch', 0.0)
@@ -272,7 +273,7 @@ class AdvancedPhysicalRegion(IRegion):
                 nonlin = self._nonlinearity * (1.0 + aftertouch * 2.0)
                 self._advanced_model.set_nonlinearity(min(1.0, nonlin))
     
-    def update_modulation(self, modulation: Dict[str, float]) -> None:
+    def update_modulation(self, modulation: dict[str, float]) -> None:
         """Update modulation state."""
         super().update_modulation(modulation)
         self._apply_modulation(modulation)
@@ -292,7 +293,7 @@ class AdvancedPhysicalRegion(IRegion):
         
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

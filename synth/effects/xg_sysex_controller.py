@@ -14,9 +14,10 @@ XG SYSEX Format: F0 43 [dev] 4C [cmd] [data] F7
 
 Copyright (c) 2025 XG Synthesis Core
 """
+from __future__ import annotations
 
 import struct
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Any
 from enum import IntEnum
 
 
@@ -69,7 +70,7 @@ class XGSYSEXController:
             XGSYSEXCommand.SYSTEM_INFO: self._handle_system_info,
         }
 
-    def process_sysex(self, data: List[int]) -> Optional[List[int]]:
+    def process_sysex(self, data: list[int]) -> list[int] | None:
         """
         Process XG SYSEX message.
 
@@ -111,7 +112,7 @@ class XGSYSEXController:
         print(f"XG SYSEX: Unknown command 0x{command:02X}")
         return None
 
-    def _handle_bulk_dump(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_bulk_dump(self, data: list[int]) -> list[int] | None:
         """
         Handle bulk parameter dump SYSEX (F0 43 [dev] 4C 00 [data] F7).
 
@@ -141,7 +142,7 @@ class XGSYSEXController:
         print(f"XG SYSEX: Applied {applied_params}/{param_count} bulk parameters for effect type {effect_type}")
         return None  # No response needed
 
-    def _handle_parameter_change(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_parameter_change(self, data: list[int]) -> list[int] | None:
         """
         Handle individual parameter change SYSEX (F0 43 [dev] 4C 01 [data] F7).
 
@@ -162,7 +163,7 @@ class XGSYSEXController:
 
         return None
 
-    def _handle_dump_request(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_dump_request(self, data: list[int]) -> list[int] | None:
         """
         Handle dump request SYSEX (F0 43 [dev] 4C 02 [data] F7).
 
@@ -181,7 +182,7 @@ class XGSYSEXController:
             # Request specific effect dump
             return self._create_effect_dump(effect_type)
 
-    def _handle_receive_channel(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_receive_channel(self, data: list[int]) -> list[int] | None:
         """
         Handle receive channel assignment SYSEX (F0 43 [dev] 4C 08 [part] [channel] F7).
 
@@ -197,7 +198,7 @@ class XGSYSEXController:
         print(f"XG SYSEX: Receive channel assignment - Part {part_id} -> MIDI CH {midi_channel}")
         return None
 
-    def _handle_effect_setup(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_effect_setup(self, data: list[int]) -> list[int] | None:
         """
         Handle effect setup/configuration SYSEX (F0 43 [dev] 4C 10 [data] F7).
 
@@ -219,7 +220,7 @@ class XGSYSEXController:
         print(f"XG SYSEX: Unknown effect setup command 0x{setup_command:02X}")
         return None
 
-    def _handle_preset_dump(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_preset_dump(self, data: list[int]) -> list[int] | None:
         """
         Handle effect preset dump SYSEX (F0 43 [dev] 4C 20 [preset_id] [data] F7).
 
@@ -238,7 +239,7 @@ class XGSYSEXController:
             # Apply preset data
             return self._apply_preset_dump(preset_id, preset_data)
 
-    def _handle_system_info(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_system_info(self, data: list[int]) -> list[int] | None:
         """
         Handle system information request SYSEX (F0 43 [dev] 4C 30 [info_type] F7).
 
@@ -352,7 +353,7 @@ class XGSYSEXController:
 
     # ===== SYSEX RESPONSE CREATION =====
 
-    def _create_full_effects_dump(self) -> List[int]:
+    def _create_full_effects_dump(self) -> list[int]:
         """Create a full effects configuration dump."""
         # This would create a comprehensive dump of all effect parameters
         # For now, return a basic response
@@ -364,7 +365,7 @@ class XGSYSEXController:
         ]
         return [0x43, 0x4C, self.device_id, 0x00] + dump_data
 
-    def _create_effect_dump(self, effect_type: int) -> List[int]:
+    def _create_effect_dump(self, effect_type: int) -> list[int]:
         """Create a dump for a specific effect type."""
         # Get current state from coordinator
         state = self.coordinator.get_current_state()
@@ -387,18 +388,18 @@ class XGSYSEXController:
 
         return [0x43, 0x4C, self.device_id, 0x00] + dump_data
 
-    def _create_preset_dump(self, preset_id: int) -> List[int]:
+    def _create_preset_dump(self, preset_id: int) -> list[int]:
         """Create a preset dump response."""
         # This would return the preset configuration
         dump_data = [preset_id, 0x00]  # Preset ID, empty data for now
         return [0x43, 0x4C, self.device_id, 0x20] + dump_data
 
-    def _apply_preset_dump(self, preset_id: int, data: List[int]) -> Optional[List[int]]:
+    def _apply_preset_dump(self, preset_id: int, data: list[int]) -> list[int] | None:
         """Apply a preset dump (would save preset configuration)."""
         print(f"XG SYSEX: Received preset {preset_id} dump ({len(data)} bytes)")
         return None
 
-    def _create_system_capabilities(self) -> List[int]:
+    def _create_system_capabilities(self) -> list[int]:
         """Create system capabilities response."""
         caps_data = [
             0x01,  # Version
@@ -408,7 +409,7 @@ class XGSYSEXController:
         ]
         return [0x43, 0x4C, self.device_id, 0x30] + caps_data
 
-    def _create_effect_status(self) -> List[int]:
+    def _create_effect_status(self) -> list[int]:
         """Create current effect status response."""
         state = self.coordinator.get_current_state()
         status_data = [
@@ -418,7 +419,7 @@ class XGSYSEXController:
         ]
         return [0x43, 0x4C, self.device_id, 0x30] + status_data
 
-    def _create_firmware_info(self) -> List[int]:
+    def _create_firmware_info(self) -> list[int]:
         """Create firmware version information."""
         version_data = [
             0x02, 0x00, 0x00,  # Version 2.0.0
@@ -432,11 +433,11 @@ class XGSYSEXController:
         """Set the device ID for SYSEX filtering."""
         self.device_id = device_id & 0x7F
 
-    def get_supported_commands(self) -> List[int]:
+    def get_supported_commands(self) -> list[int]:
         """Get list of supported SYSEX commands."""
         return list(self.sysex_handlers.keys())
 
-    def create_sysex_message(self, command: int, data: List[int]) -> List[int]:
+    def create_sysex_message(self, command: int, data: list[int]) -> list[int]:
         """
         Create a properly formatted XG SYSEX message.
 
@@ -452,7 +453,7 @@ class XGSYSEXController:
 
     # ===== IMPLEMENTED SYSEX EFFECT CONTROL METHODS =====
 
-    def _handle_effect_enable_disable(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_effect_enable_disable(self, data: list[int]) -> list[int] | None:
         """
         Handle effect enable/disable commands (F0 43 [dev] 4C 10 00 [data] F7).
 
@@ -480,7 +481,7 @@ class XGSYSEXController:
         print(f"XG SYSEX: Invalid effect unit {effect_unit} or enable flag {enable_flag}")
         return None
 
-    def _handle_effect_chain_config(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_effect_chain_config(self, data: list[int]) -> list[int] | None:
         """
         Handle effect chain configuration (F0 43 [dev] 4C 10 01 [data] F7).
 
@@ -543,7 +544,7 @@ class XGSYSEXController:
         print(f"XG SYSEX: Unknown chain configuration type {chain_type}")
         return None
 
-    def _handle_global_effect_settings(self, data: List[int]) -> Optional[List[int]]:
+    def _handle_global_effect_settings(self, data: list[int]) -> list[int] | None:
         """
         Handle global effect settings (F0 43 [dev] 4C 10 02 [data] F7).
 

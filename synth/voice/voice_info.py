@@ -2,9 +2,9 @@
 Voice information for XG synthesizer voice management.
 Contains information about active voices for allocation decisions.
 """
+from __future__ import annotations
 
 import time
-from typing import Optional
 from .voice_priority import VoicePriority
 from ..channel.channel_note import ChannelNote
 
@@ -41,7 +41,7 @@ class VoiceInfo:
         self.is_releasing = True
         self.release_time = time.time()
 
-    def reset(self, note: int, velocity: int, channel_note: Optional[ChannelNote], priority: int = VoicePriority.NORMAL):
+    def reset(self, note: int, velocity: int, channel_note: ChannelNote | None, priority: int = VoicePriority.NORMAL):
         """Reset voice info for reuse from pool"""
         self.note = note
         self.velocity = velocity

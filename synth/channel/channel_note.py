@@ -4,11 +4,13 @@ XG channel note implementation.
 Provides classes for managing active notes on MIDI channels,
 including partial synthesis and modulation routing.
 """
+from __future__ import annotations
 
 import math
 import threading
 from collections import OrderedDict, deque
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any
+from collections.abc import Callable
 
 import numpy as np
 
@@ -55,7 +57,7 @@ class PartialGeneratorPool:
         velocity: int,
         program: int,
         partial_id: int,
-        partial_params: Dict,
+        partial_params: dict,
         is_drum: bool = False,
         sample_rate: int = 44100,
         bank: int = 0,
@@ -144,7 +146,7 @@ class PartialGeneratorPool:
                 # Pool full, cleanup this partial
                 partial.cleanup()
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         """Get pool statistics for monitoring."""
         with self.lock:
             stats = self._stats.copy()

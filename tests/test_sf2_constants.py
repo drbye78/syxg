@@ -4,6 +4,7 @@ Test suite for SF2 constants and conversion functions.
 Tests SF2_GENERATORS, SF2_MODULATOR_SOURCES, SF2_MODULATOR_DESTINATIONS,
 and all conversion functions for specification compliance.
 """
+from __future__ import annotations
 
 import pytest
 import math

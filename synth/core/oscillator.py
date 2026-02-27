@@ -18,10 +18,12 @@ Architecture:
 - Contiguous memory layouts optimized for cache efficiency
 - Per-channel LFO resources (not per-note) per XG specification
 """
+from __future__ import annotations
 
 import math
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 from collections import deque
 import numba as nb
@@ -231,7 +233,7 @@ class OscillatorPool:
             self.pool.append(oscillator)
 
     def acquire_oscillator(self, id: int = 0, waveform: str = "sine", rate: float = 5.0,
-                          depth: float = 1.0, delay: float = 0.0) -> 'UltraFastXGLFO':
+                          depth: float = 1.0, delay: float = 0.0) -> UltraFastXGLFO:
         """
         ULTRA-FAST: Acquire oscillator from pool or create new one.
 
@@ -263,7 +265,7 @@ class OscillatorPool:
                 sample_rate=self.sample_rate
             )
 
-    def release_oscillator(self, oscillator: 'UltraFastXGLFO') -> None:
+    def release_oscillator(self, oscillator: UltraFastXGLFO) -> None:
         """
         ULTRA-FAST: Return oscillator to pool.
 
@@ -284,7 +286,7 @@ class OscillatorPool:
             # Error during reset - just discard
             pass
 
-    def get_pool_stats(self) -> Dict[str, int]:
+    def get_pool_stats(self) -> dict[str, int]:
         """Get pool statistics for monitoring."""
         return {
             'pooled_oscillators': len(self.pool),
@@ -471,7 +473,7 @@ class UltraFastXGLFO:
         # Convert frequency to phase step
         return modulated_rate * 2.0 * math.pi / self.sample_rate
 
-    def set_pitch_modulation(self, delay: Optional[float] = None, fade_in: Optional[float] = None, depth: Optional[int] = None):
+    def set_pitch_modulation(self, delay: float | None = None, fade_in: float | None = None, depth: int | None = None):
         """Set XG pitch modulation parameters per specification."""
         if delay is not None:
             self.pitch_delay = max(0.0, min(5.0, delay))
@@ -482,7 +484,7 @@ class UltraFastXGLFO:
 
         self._dirty = True
 
-    def set_tremolo_depth(self, depth: Optional[float] = None):
+    def set_tremolo_depth(self, depth: float | None = None):
         """Set XG tremolo depth parameter."""
         if depth is not None:
             self.tremolo_depth = max(0.0, min(1.0, depth))
@@ -700,7 +702,7 @@ class UltraFastXGLFO:
             self.phase = phase_radians
             self.delay_counter = 0  # Also reset delay counter for fresh start
 
-    def get_jupiter_x_lfo_info(self) -> Dict[str, Any]:
+    def get_jupiter_x_lfo_info(self) -> dict[str, Any]:
         """
         Get Jupiter-X specific LFO information for debugging/monitoring.
 
@@ -716,8 +718,8 @@ class UltraFastXGLFO:
             'jupiter_x_compatible': True
         }
 
-    def set_parameters(self, waveform: Optional[str] = None, rate: Optional[float] = None,
-                      depth: Optional[float] = None, delay: Optional[float] = None):
+    def set_parameters(self, waveform: str | None = None, rate: float | None = None,
+                      depth: float | None = None, delay: float | None = None):
         """Update LFO parameters dynamically."""
         if waveform is not None:
             self.waveform = self._validate_waveform(waveform)
@@ -733,7 +735,7 @@ class UltraFastXGLFO:
         if any([rate is not None, delay is not None]):
             self.reset()
 
-    def generate_block(self, output_buffer: np.ndarray, num_samples: Optional[int] = None) -> np.ndarray:
+    def generate_block(self, output_buffer: np.ndarray, num_samples: int | None = None) -> np.ndarray:
         """
         ULTRA-FAST: Generate LFO block using caller-provided buffer with minimal overhead.
 

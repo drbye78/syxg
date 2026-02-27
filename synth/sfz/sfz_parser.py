@@ -4,16 +4,17 @@ SFZ Parser - Complete SFZ v2 Format Parser
 Parses SFZ (Sample Format Zipped) files with full v2 specification support.
 Handles all standard opcodes, sections, and advanced features.
 """
+from __future__ import annotations
 
 import re
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 from pathlib import Path
 
 
 class SFZOpcode:
     """Represents a single SFZ opcode with value and optional parameters."""
 
-    def __init__(self, name: str, value: Any, parameters: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, value: Any, parameters: dict[str, Any] | None = None):
         self.name = name
         self.value = value
         self.parameters = parameters or {}
@@ -32,14 +33,14 @@ class SFZRegion:
     """Represents a single SFZ region with all its opcodes."""
 
     def __init__(self):
-        self.opcodes: Dict[str, SFZOpcode] = {}
-        self.comments: List[str] = []
+        self.opcodes: dict[str, SFZOpcode] = {}
+        self.comments: list[str] = []
 
     def set_opcode(self, opcode: SFZOpcode):
         """Set an opcode value for this region."""
         self.opcodes[opcode.name] = opcode
 
-    def get_opcode(self, name: str) -> Optional[SFZOpcode]:
+    def get_opcode(self, name: str) -> SFZOpcode | None:
         """Get an opcode by name."""
         return self.opcodes.get(name)
 
@@ -52,7 +53,7 @@ class SFZRegion:
         """Check if region has a specific opcode."""
         return name in self.opcodes
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert region to dictionary for processing."""
         result = {}
         for name, opcode in self.opcodes.items():
@@ -71,9 +72,9 @@ class SFZGroup:
     """Represents an SFZ group section."""
 
     def __init__(self):
-        self.opcodes: Dict[str, SFZOpcode] = {}
-        self.regions: List[SFZRegion] = []
-        self.comments: List[str] = []
+        self.opcodes: dict[str, SFZOpcode] = {}
+        self.regions: list[SFZRegion] = []
+        self.comments: list[str] = []
 
     def set_opcode(self, opcode: SFZOpcode):
         """Set an opcode value for this group."""
@@ -88,7 +89,7 @@ class SFZGroup:
         opcode = self.opcodes.get(name)
         return opcode.value if opcode else default
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert group to dictionary for processing."""
         result = {'regions': [region.to_dict() for region in self.regions]}
         for name, opcode in self.opcodes.items():
@@ -105,17 +106,17 @@ class SFZGroup:
 class SFZInstrument:
     """Represents a complete SFZ instrument."""
 
-    def __init__(self, path: Optional[str] = None):
+    def __init__(self, path: str | None = None):
         self.path = path
         self.filename = Path(path).name if path else "unnamed.sfz"
 
         # Main sections
-        self.global_opcodes: Dict[str, SFZOpcode] = {}
-        self.groups: List[SFZGroup] = []
-        self.control_opcodes: Dict[str, SFZOpcode] = {}
+        self.global_opcodes: dict[str, SFZOpcode] = {}
+        self.groups: list[SFZGroup] = []
+        self.control_opcodes: dict[str, SFZOpcode] = {}
 
         # Metadata
-        self.comments: List[str] = []
+        self.comments: list[str] = []
 
     def set_global_opcode(self, opcode: SFZOpcode):
         """Set a global opcode."""
@@ -139,14 +140,14 @@ class SFZInstrument:
         opcode = self.control_opcodes.get(name)
         return opcode.value if opcode else default
 
-    def get_all_regions(self) -> List[SFZRegion]:
+    def get_all_regions(self) -> list[SFZRegion]:
         """Get all regions from all groups."""
         regions = []
         for group in self.groups:
             regions.extend(group.regions)
         return regions
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert instrument to dictionary."""
         return {
             'filename': self.filename,
@@ -256,7 +257,7 @@ class SFZParser:
 
         self.current_sfz_directory = sfz_path.parent
 
-        with open(sfz_path, 'r', encoding='utf-8', errors='replace') as f:
+        with open(sfz_path, encoding='utf-8', errors='replace') as f:
             content = f.read()
 
         return self.parse_string(content, str(sfz_path))
@@ -300,7 +301,7 @@ class SFZParser:
 
         return instrument
 
-    def _preprocess_content(self, content: str) -> List[str]:
+    def _preprocess_content(self, content: str) -> list[str]:
         """Preprocess SFZ content into lines."""
         # Remove carriage returns and split into lines
         lines = content.replace('\r\n', '\n').replace('\r', '\n').split('\n')
@@ -325,7 +326,7 @@ class SFZParser:
 
         return processed_lines
 
-    def _parse_opcodes(self, line: str) -> List[SFZOpcode]:
+    def _parse_opcodes(self, line: str) -> list[SFZOpcode]:
         """Parse opcodes from a line."""
         opcodes = []
 
@@ -345,7 +346,7 @@ class SFZParser:
 
         return opcodes
 
-    def _split_preserving_quotes(self, line: str) -> List[str]:
+    def _split_preserving_quotes(self, line: str) -> list[str]:
         """Split line by whitespace while preserving quoted strings."""
         parts = []
         current_part = ""
@@ -445,7 +446,7 @@ class SFZParser:
         return str(resolved_path)
 
     def _apply_opcode(self, instrument: SFZInstrument, section: str,
-                     group: Optional[SFZGroup], opcode: SFZOpcode):
+                     group: SFZGroup | None, opcode: SFZOpcode):
         """Apply an opcode to the appropriate section."""
         if section == '<global>':
             instrument.set_global_opcode(opcode)
@@ -469,11 +470,11 @@ class SFZParser:
                     instrument.groups[-1].add_region(SFZRegion())
                 instrument.groups[-1].regions[-1].set_opcode(opcode)
 
-    def get_supported_opcodes(self) -> List[str]:
+    def get_supported_opcodes(self) -> list[str]:
         """Get list of supported opcodes."""
         return list(self.STANDARD_OPCODES.keys())
 
-    def validate_sfz_file(self, sfz_path: str) -> Tuple[bool, List[str]]:
+    def validate_sfz_file(self, sfz_path: str) -> tuple[bool, list[str]]:
         """
         Validate an SFZ file for syntax errors.
 

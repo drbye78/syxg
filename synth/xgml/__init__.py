@@ -4,6 +4,7 @@ XGML (XG Markup Language) Parser and Translator
 Provides high-level YAML-based interface for XG synthesizer control,
 converting XGML documents to MIDI message sequences.
 """
+from __future__ import annotations
 
 from .parser import XGMLParser
 from .translator import XGMLToMIDITranslator

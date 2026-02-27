@@ -7,6 +7,7 @@ Tests verify that SF2Region properly uses:
 - SF2 modulation engine
 - Mip-map anti-aliasing
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np

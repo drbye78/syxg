@@ -3,8 +3,9 @@ XG Synthesizer Drum Manager
 
 Handles drum kit management and XG drum specifications.
 """
+from __future__ import annotations
 
-from typing import List, Dict, Tuple, Optional, Any
+from typing import Any
 from ..core.constants import XG_CONSTANTS, DEFAULT_DRUM_KIT_NOTES, DEFAULT_DRUM_PARAMETERS
 
 
@@ -29,15 +30,15 @@ class DrumManager:
         self.num_channels = num_channels
 
         # Drum parameters for each channel - dict[note] -> dict[param_name] -> value
-        self.drum_parameters: List[Dict[int, Dict[str, Any]]] = [
+        self.drum_parameters: list[dict[int, dict[str, Any]]] = [
             {} for _ in range(num_channels)
         ]
 
         # Current drum note for parameter setup (per channel)
-        self.current_drum_notes: List[Optional[int]] = [None] * num_channels
+        self.current_drum_notes: list[int | None] = [None] * num_channels
 
         # Drum kit information
-        self.drum_kits: Dict[int, str] = {}  # kit_number -> kit_name
+        self.drum_kits: dict[int, str] = {}  # kit_number -> kit_name
 
         # Initialize default drum parameters
         self._initialize_default_drum_parameters()
@@ -98,7 +99,7 @@ class DrumManager:
             return self.drum_parameters[channel][note].get(parameter)
         return None
 
-    def get_drum_parameters_for_note(self, channel: int, note: int) -> Dict[str, Any]:
+    def get_drum_parameters_for_note(self, channel: int, note: int) -> dict[str, Any]:
         """
         Get all drum parameters for a specific note on a channel.
 
@@ -137,7 +138,7 @@ class DrumManager:
 
         self.current_drum_notes[channel] = note
 
-    def get_current_drum_note(self, channel: int) -> Optional[int]:
+    def get_current_drum_note(self, channel: int) -> int | None:
         """
         Get the current drum note for parameter setup on a channel.
 
@@ -200,7 +201,7 @@ class DrumManager:
         for channel in range(self.num_channels):
             self.reset_channel_drum_parameters(channel)
 
-    def get_drum_instrument_name(self, note: int) -> Optional[str]:
+    def get_drum_instrument_name(self, note: int) -> str | None:
         """
         Get the XG drum instrument name for a MIDI note.
 
@@ -224,7 +225,7 @@ class DrumManager:
         """
         return note in XG_CONSTANTS["XG_DRUM_MAP"]
 
-    def get_all_drum_notes_for_channel(self, channel: int) -> List[int]:
+    def get_all_drum_notes_for_channel(self, channel: int) -> list[int]:
         """
         Get all drum notes that have parameters set for a channel.
 
@@ -242,7 +243,7 @@ class DrumManager:
 
         return list(self.drum_parameters[channel].keys())
 
-    def get_channel_drum_parameters(self, channel: int) -> Dict[int, Dict[str, Any]]:
+    def get_channel_drum_parameters(self, channel: int) -> dict[int, dict[str, Any]]:
         """
         Get all drum parameters for a channel.
 
@@ -654,7 +655,7 @@ class DrumManager:
             # Set default drum kit
             self.set_drum_kit_for_channel(channel, 0)
 
-    def get_drum_kit_info(self, channel: int) -> Optional[str]:
+    def get_drum_kit_info(self, channel: int) -> str | None:
         """
         Get drum kit information for a channel.
 

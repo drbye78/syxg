@@ -2,9 +2,10 @@
 OPTIMIZED COEFFICIENT MANAGER - PERFORMANCE OPTIMIZATION
 Manages pre-computed coefficients with lazy updates to eliminate expensive calculations from inner loops.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Tuple, Dict, Any
+from typing import Any
 import threading
 
 
@@ -99,7 +100,7 @@ class OptimizedCoefficientManager:
         ]
         self._dirty_pan[pan_value] = False
 
-    def get_pan_gains(self, pan_value: int) -> Tuple[float, float]:
+    def get_pan_gains(self, pan_value: int) -> tuple[float, float]:
         """Get pre-computed panning gains."""
         if pan_value < 0 or pan_value > 127:
             return 1.0, 1.0  # Center pan fallback
@@ -109,7 +110,7 @@ class OptimizedCoefficientManager:
     LEFT_PAN = (1.0, 0.0)
     RIGHT_PAN = (0.0, 1.0)
 
-    def get_panning(self, pan: float) -> Tuple[float, float]:
+    def get_panning(self, pan: float) -> tuple[float, float]:
         if pan <= 0.0:
             return OptimizedCoefficientManager.LEFT_PAN
         if pan >= 1.0:
@@ -193,7 +194,7 @@ class OptimizedCoefficientManager:
 
     # EXPANSION: Filter coefficient caching for performance optimization
     def get_filter_coefficients(self, cutoff_hz: float, resonance: float, filter_type: str,
-                               sample_rate: int) -> Tuple[float, float, float, float, float]:
+                               sample_rate: int) -> tuple[float, float, float, float, float]:
         """
         Get cached filter coefficients for common filter configurations.
 
@@ -231,7 +232,7 @@ class OptimizedCoefficientManager:
             return coeffs
 
     def _calculate_filter_coefficients(self, cutoff_hz: float, resonance: float,
-                                     filter_type: str, sample_rate: int) -> Tuple[float, float, float, float, float]:
+                                     filter_type: str, sample_rate: int) -> tuple[float, float, float, float, float]:
         """Calculate biquad filter coefficients."""
         # Clamp inputs to reasonable ranges
         cutoff_hz = max(20.0, min(cutoff_hz, sample_rate / 2.5))
@@ -321,7 +322,7 @@ class OptimizedCoefficientManager:
 
     # EXPANSION: LFO coefficient caching
     def get_lfo_coefficients(self, rate_hz: float, depth: float, waveform: str,
-                           sample_rate: int) -> Tuple[float, float]:
+                           sample_rate: int) -> tuple[float, float]:
         """
         Get cached LFO increment and depth coefficients.
 
@@ -365,7 +366,7 @@ class OptimizedCoefficientManager:
             return coeffs
 
     # EXPANSION: Performance monitoring and cache statistics
-    def get_cache_statistics(self) -> Dict[str, Any]:
+    def get_cache_statistics(self) -> dict[str, Any]:
         """
         Get statistics about coefficient caches for performance monitoring.
 

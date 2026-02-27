@@ -3,6 +3,7 @@ Tests for vibexg.utils module
 
 Tests MIDI conversion utilities.
 """
+from __future__ import annotations
 
 import pytest
 from synth.midi import MIDIMessage
@@ -160,6 +161,6 @@ class TestBytesToMIDIMessage:
 
     def test_empty_bytes(self):
         """Test parsing empty bytes."""
-        data = bytes()
+        data = b''
         messages = bytes_to_midimessage(data)
         assert len(messages) == 0

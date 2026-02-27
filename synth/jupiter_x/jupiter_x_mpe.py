@@ -5,9 +5,10 @@ Provides complete MPE (MIDI Polyphonic Expression) support for Jupiter-X,
 enabling per-note control of timbre, pitch bend, pressure, and other
 parameters with hardware-accurate behavior and real-time performance.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 from enum import Enum
 import threading
 
@@ -37,7 +38,7 @@ class MPEChannel:
         self.zone = zone
 
         # Per-note expression data
-        self.active_notes: Dict[int, Dict[str, Any]] = {}  # note -> expression data
+        self.active_notes: dict[int, dict[str, Any]] = {}  # note -> expression data
 
         # Channel-wide parameters
         self.pitch_bend_range = 48  # semitones (MPE default)
@@ -134,7 +135,7 @@ class MPEChannel:
             self.active_notes[note]['slide'] = value / 127.0
             self.active_notes[note]['last_update'] = self._get_current_time()
 
-    def get_note_expression(self, note: int) -> Optional[Dict[str, Any]]:
+    def get_note_expression(self, note: int) -> dict[str, Any] | None:
         """
         Get expression data for specific note.
 
@@ -146,7 +147,7 @@ class MPEChannel:
         """
         return self.active_notes.get(note)
 
-    def get_all_active_notes(self) -> Dict[int, Dict[str, Any]]:
+    def get_all_active_notes(self) -> dict[int, dict[str, Any]]:
         """
         Get all active notes with their expression data.
 
@@ -176,7 +177,7 @@ class JupiterXMPEManager:
     def __init__(self):
         """Initialize Jupiter-X MPE manager."""
         self.enabled = False
-        self.zones: Dict[MPEZone, Dict[str, Any]] = {}
+        self.zones: dict[MPEZone, dict[str, Any]] = {}
 
         # Initialize zones
         self._initialize_zones()
@@ -254,7 +255,7 @@ class JupiterXMPEManager:
                     for channel in self.zones[zone]['channels'].values():
                         channel.clear_channel()
 
-    def configure_zone(self, zone: MPEZone, master_channel: int, member_channels: List[int],
+    def configure_zone(self, zone: MPEZone, master_channel: int, member_channels: list[int],
                       pitch_bend_range: int = 48, timbre_cc: int = 74):
         """
         Configure MPE zone parameters.
@@ -282,7 +283,7 @@ class JupiterXMPEManager:
                     zone_config['channels'][ch_num].pitch_bend_range = pitch_bend_range
                     zone_config['channels'][ch_num].timbre_cc = timbre_cc
 
-    def process_midi_message(self, message_type: str, channel: int, data1: int, data2: int = 0) -> List[Dict[str, Any]]:
+    def process_midi_message(self, message_type: str, channel: int, data1: int, data2: int = 0) -> list[dict[str, Any]]:
         """
         Process MIDI message for MPE.
 
@@ -378,7 +379,7 @@ class JupiterXMPEManager:
 
             return events
 
-    def _get_channel_for_message(self, channel: int) -> Tuple[Optional[MPEZone], Optional[MPEChannel]]:
+    def _get_channel_for_message(self, channel: int) -> tuple[MPEZone | None, MPEChannel | None]:
         """
         Get MPE zone and channel for MIDI channel.
 
@@ -395,7 +396,7 @@ class JupiterXMPEManager:
 
         return None, None
 
-    def _get_last_note_on_channel(self, channel: int) -> Optional[int]:
+    def _get_last_note_on_channel(self, channel: int) -> int | None:
         """
         Get the last note played on a channel.
 
@@ -415,7 +416,7 @@ class JupiterXMPEManager:
 
         return None
 
-    def get_note_expression(self, channel: int, note: int) -> Optional[Dict[str, Any]]:
+    def get_note_expression(self, channel: int, note: int) -> dict[str, Any] | None:
         """
         Get expression data for specific note on channel.
 
@@ -432,7 +433,7 @@ class JupiterXMPEManager:
                 return mpe_channel.get_note_expression(note)
             return None
 
-    def get_channel_expression(self, channel: int) -> Dict[int, Dict[str, Any]]:
+    def get_channel_expression(self, channel: int) -> dict[int, dict[str, Any]]:
         """
         Get all expression data for channel.
 
@@ -448,7 +449,7 @@ class JupiterXMPEManager:
                 return mpe_channel.get_all_active_notes()
             return {}
 
-    def get_zone_status(self, zone: MPEZone) -> Optional[Dict[str, Any]]:
+    def get_zone_status(self, zone: MPEZone) -> dict[str, Any] | None:
         """
         Get status of MPE zone.
 
@@ -467,7 +468,7 @@ class JupiterXMPEManager:
                 return zone_config
             return None
 
-    def get_mpe_status(self) -> Dict[str, Any]:
+    def get_mpe_status(self) -> dict[str, Any]:
         """
         Get complete MPE status.
 
@@ -523,7 +524,7 @@ class JupiterXMPEManager:
                         for channel in zone_config['channels'].values():
                             channel.pitch_bend_range = 48
 
-    def export_mpe_configuration(self) -> Dict[str, Any]:
+    def export_mpe_configuration(self) -> dict[str, Any]:
         """
         Export MPE configuration.
 
@@ -546,7 +547,7 @@ class JupiterXMPEManager:
 
             return config
 
-    def import_mpe_configuration(self, config: Dict[str, Any]):
+    def import_mpe_configuration(self, config: dict[str, Any]):
         """
         Import MPE configuration.
 

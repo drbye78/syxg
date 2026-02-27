@@ -6,8 +6,10 @@ Implements the complete SYSEX protocol for arpeggiator management.
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 
 
@@ -63,7 +65,7 @@ class YamahaArpeggiatorSysexController:
 
         print("🎹 Yamaha Arpeggiator SYSEX Controller: Initialized")
 
-    def process_sysex_message(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def process_sysex_message(self, data: bytes) -> dict[str, Any] | None:
         """
         Process SYSEX message for arpeggiator control.
 
@@ -101,7 +103,7 @@ class YamahaArpeggiatorSysexController:
             print(f"❌ Arpeggiator SYSEX processing error: {e}")
             return None
 
-    def _handle_arp_switch(self, device_id: int, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_arp_switch(self, device_id: int, data: bytes) -> dict[str, Any] | None:
         """Handle arpeggiator on/off: F0 43 [dev] 7E 0A [part] [on/off] [checksum] F7"""
         if len(data) < 2:
             return None
@@ -118,7 +120,7 @@ class YamahaArpeggiatorSysexController:
             }
         return None
 
-    def _handle_arp_pattern(self, device_id: int, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_arp_pattern(self, device_id: int, data: bytes) -> dict[str, Any] | None:
         """Handle pattern select: F0 43 [dev] 7E 0B [part] [pattern_msb] [pattern_lsb] [checksum] F7"""
         if len(data) < 3:
             return None
@@ -137,7 +139,7 @@ class YamahaArpeggiatorSysexController:
             }
         return None
 
-    def _handle_arp_hold(self, device_id: int, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_arp_hold(self, device_id: int, data: bytes) -> dict[str, Any] | None:
         """Handle hold mode: F0 43 [dev] 7E 0C [part] [hold_mode] [checksum] F7"""
         if len(data) < 2:
             return None
@@ -154,7 +156,7 @@ class YamahaArpeggiatorSysexController:
             }
         return None
 
-    def _handle_arp_velocity(self, device_id: int, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_arp_velocity(self, device_id: int, data: bytes) -> dict[str, Any] | None:
         """Handle velocity mode: F0 43 [dev] 7E 0D [part] [velocity_mode] [checksum] F7"""
         if len(data) < 2:
             return None
@@ -171,7 +173,7 @@ class YamahaArpeggiatorSysexController:
             }
         return None
 
-    def _handle_arp_octave(self, device_id: int, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_arp_octave(self, device_id: int, data: bytes) -> dict[str, Any] | None:
         """Handle octave range: F0 43 [dev] 7E 0E [part] [octave_range] [checksum] F7"""
         if len(data) < 2:
             return None
@@ -188,7 +190,7 @@ class YamahaArpeggiatorSysexController:
             }
         return None
 
-    def _handle_arp_gate(self, device_id: int, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_arp_gate(self, device_id: int, data: bytes) -> dict[str, Any] | None:
         """Handle gate time: F0 43 [dev] 7E 0F [part] [gate_time] [checksum] F7"""
         if len(data) < 2:
             return None
@@ -205,7 +207,7 @@ class YamahaArpeggiatorSysexController:
             }
         return None
 
-    def _handle_arp_swing(self, device_id: int, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_arp_swing(self, device_id: int, data: bytes) -> dict[str, Any] | None:
         """Handle swing amount: F0 43 [dev] 7E 10 [part] [swing] [checksum] F7"""
         if len(data) < 2:
             return None
@@ -222,7 +224,7 @@ class YamahaArpeggiatorSysexController:
             }
         return None
 
-    def _handle_bulk_dump(self, device_id: int, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_bulk_dump(self, device_id: int, data: bytes) -> dict[str, Any] | None:
         """Handle bulk dump request: F0 43 [dev] 7E 11 [type] [checksum] F7"""
         if len(data) < 1:
             return None
@@ -248,7 +250,7 @@ class YamahaArpeggiatorSysexController:
             'expected_size': self.bulk_expected_size
         }
 
-    def _handle_bulk_data(self, device_id: int, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_bulk_data(self, device_id: int, data: bytes) -> dict[str, Any] | None:
         """Handle bulk data transfer: F0 43 [dev] 7E 12 [data...] [checksum] F7"""
         if not self.bulk_transfer_active:
             return None
@@ -275,7 +277,7 @@ class YamahaArpeggiatorSysexController:
             'expected_size': self.bulk_expected_size
         }
 
-    def _process_bulk_data(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _process_bulk_data(self, data: bytes) -> dict[str, Any] | None:
         """Process complete bulk data transfer."""
         try:
             # Yamaha Motif Arpeggiator Bulk Data Format
@@ -303,7 +305,7 @@ class YamahaArpeggiatorSysexController:
             print(f"❌ Bulk data processing error: {e}")
             return None
 
-    def _process_bulk_arpeggiator_settings(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _process_bulk_arpeggiator_settings(self, data: bytes) -> dict[str, Any] | None:
         """Process bulk arpeggiator settings for all parts."""
         try:
             # Expected format: 16 parts × 16 parameters per part = 256 bytes
@@ -377,7 +379,7 @@ class YamahaArpeggiatorSysexController:
             print(f"❌ Error applying bulk settings for part {part}: {e}")
             return False
 
-    def _process_bulk_pattern_library(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _process_bulk_pattern_library(self, data: bytes) -> dict[str, Any] | None:
         """Process bulk pattern library data."""
         try:
             # Pattern library bulk format would contain pattern definitions
@@ -454,7 +456,7 @@ class YamahaArpeggiatorSysexController:
         # Create bulk data message (type 0 = arpeggiator settings)
         return self.create_bulk_data_message(0, bulk_data, device_id)
 
-    def get_bulk_dump_capabilities(self) -> Dict[str, Any]:
+    def get_bulk_dump_capabilities(self) -> dict[str, Any]:
         """Get bulk dump capabilities information."""
         return {
             'supported_dump_types': [
@@ -524,7 +526,7 @@ class YamahaArpeggiatorSysexController:
         # Create full message: F0 [data] [checksum] F7
         return bytes([0xF0]) + data + bytes([checksum, 0xF7])
 
-    def get_supported_commands(self) -> List[Dict[str, Any]]:
+    def get_supported_commands(self) -> list[dict[str, Any]]:
         """Get list of supported SYSEX commands."""
         return [
             {

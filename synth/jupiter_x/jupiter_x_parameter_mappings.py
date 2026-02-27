@@ -5,8 +5,9 @@ Provides complete Jupiter-X parameter mappings with authentic hardware behavior,
 including parameter ranges, curves, and MIDI CC assignments that match
 the original Jupiter-X synthesizer exactly.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import math
 from ..types.unified_parameters import JupiterXParameterMapping
 
@@ -503,7 +504,7 @@ class JupiterXParameterMappings:
     }
 
     @classmethod
-    def get_jupiter_x_parameter(cls, param_name: str) -> Optional[Dict[str, Any]]:
+    def get_jupiter_x_parameter(cls, param_name: str) -> dict[str, Any] | None:
         """
         Get Jupiter-X parameter definition.
 
@@ -516,7 +517,7 @@ class JupiterXParameterMappings:
         return cls.ALL_PARAMETERS.get(param_name)
 
     @classmethod
-    def get_parameter_range(cls, param_name: str) -> Optional[Tuple[float, float]]:
+    def get_parameter_range(cls, param_name: str) -> tuple[float, float] | None:
         """
         Get parameter range for Jupiter-X parameter.
 
@@ -532,7 +533,7 @@ class JupiterXParameterMappings:
         return None
 
     @classmethod
-    def get_parameter_default(cls, param_name: str) -> Optional[float]:
+    def get_parameter_default(cls, param_name: str) -> float | None:
         """
         Get default value for Jupiter-X parameter.
 
@@ -586,7 +587,7 @@ class JupiterXParameterMappings:
         return min_val + curved * (max_val - min_val)
 
     @classmethod
-    def get_midi_cc_mapping(cls, param_name: str) -> Optional[int]:
+    def get_midi_cc_mapping(cls, param_name: str) -> int | None:
         """
         Get MIDI CC number for Jupiter-X parameter.
 
@@ -602,7 +603,7 @@ class JupiterXParameterMappings:
         return None
 
     @classmethod
-    def get_parameter_by_cc(cls, cc_number: int) -> Optional[str]:
+    def get_parameter_by_cc(cls, cc_number: int) -> str | None:
         """
         Get parameter name for MIDI CC number.
 
@@ -636,7 +637,7 @@ class JupiterXParameterMappings:
         return value
 
     @classmethod
-    def get_parameter_description(cls, param_name: str) -> Optional[str]:
+    def get_parameter_description(cls, param_name: str) -> str | None:
         """
         Get parameter description.
 
@@ -652,7 +653,7 @@ class JupiterXParameterMappings:
         return None
 
     @classmethod
-    def get_parameter_values(cls, param_name: str) -> Optional[List[str]]:
+    def get_parameter_values(cls, param_name: str) -> list[str] | None:
         """
         Get discrete parameter values for enumerated parameters.
 
@@ -668,7 +669,7 @@ class JupiterXParameterMappings:
         return None
 
     @classmethod
-    def get_all_parameters(cls) -> Dict[str, Dict[str, Any]]:
+    def get_all_parameters(cls) -> dict[str, dict[str, Any]]:
         """
         Get all Jupiter-X parameter definitions.
 
@@ -678,7 +679,7 @@ class JupiterXParameterMappings:
         return cls.ALL_PARAMETERS.copy()
 
     @classmethod
-    def get_parameters_by_category(cls, category: str) -> Dict[str, Dict[str, Any]]:
+    def get_parameters_by_category(cls, category: str) -> dict[str, dict[str, Any]]:
         """
         Get parameters by category.
 
@@ -703,7 +704,7 @@ class JupiterXParameterMappings:
         return category_map.get(category.lower(), {}).copy()
 
     @classmethod
-    def create_jupiter_x_patch(cls) -> Dict[str, Any]:
+    def create_jupiter_x_patch(cls) -> dict[str, Any]:
         """
         Create a complete Jupiter-X patch with default values.
 
@@ -716,7 +717,7 @@ class JupiterXParameterMappings:
         return patch
 
     @classmethod
-    def validate_jupiter_x_patch(cls, patch: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_jupiter_x_patch(cls, patch: dict[str, Any]) -> dict[str, Any]:
         """
         Validate and correct a Jupiter-X patch.
 

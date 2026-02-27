@@ -12,8 +12,10 @@ Features:
 - Save/load mappings
 - Callback-based parameter updates
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Callable, Tuple
+from typing import Any
+from collections.abc import Callable
 from enum import Enum
 import threading
 import json
@@ -171,7 +173,7 @@ class MIDILearnMapping:
         self.last_value = mapped_value
         return mapped_value
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "cc_number": self.cc_number,
             "channel": self.channel,
@@ -189,7 +191,7 @@ class MIDILearnMapping:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MIDILearnMapping":
+    def from_dict(cls, data: dict[str, Any]) -> MIDILearnMapping:
         return cls(
             cc_number=data["cc_number"],
             channel=data["channel"],
@@ -255,20 +257,20 @@ class MIDILearn:
 
     def __init__(self):
         self.lock = threading.RLock()
-        self.mappings: Dict[Tuple[int, int], MIDILearnMapping] = {}
-        self.pending_learn: Optional[Tuple[LearnTargetType, str]] = None
-        self.callbacks: Dict[LearnTargetType, List[Callable]] = {}
+        self.mappings: dict[tuple[int, int], MIDILearnMapping] = {}
+        self.pending_learn: tuple[LearnTargetType, str] | None = None
+        self.callbacks: dict[LearnTargetType, list[Callable]] = {}
         self.learn_enabled = False
         
         # Active values for momentary controls
-        self.active_values: Dict[Tuple[int, int], float] = {}
+        self.active_values: dict[tuple[int, int], float] = {}
         
         # Learn timeout (auto-cancel after N seconds)
         self.learn_timeout: float = 10.0
-        self.learn_start_time: Optional[float] = None
+        self.learn_start_time: float | None = None
         
         # Mapping groups (for organizing by function)
-        self.groups: Dict[str, List[Tuple[int, int]]] = {
+        self.groups: dict[str, list[tuple[int, int]]] = {
             "transport": [],
             "sections": [],
             "fills": [],
@@ -279,7 +281,7 @@ class MIDILearn:
         }
 
     def start_learn(self, target_type: LearnTargetType, target_param: str = "", 
-                    timeout: Optional[float] = None) -> None:
+                    timeout: float | None = None) -> None:
         """
         Start learn mode for a specific target.
         
@@ -312,7 +314,7 @@ class MIDILearn:
 
     def process_midi(
         self, cc_number: int, channel: int, value: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Process incoming MIDI CC message.
 
@@ -374,7 +376,7 @@ class MIDILearn:
 
             return None
 
-    def _add_to_group(self, target_type: LearnTargetType, key: Tuple[int, int]) -> None:
+    def _add_to_group(self, target_type: LearnTargetType, key: tuple[int, int]) -> None:
         """Add mapping to appropriate group."""
         group_map = {
             LearnTargetType.STYLE_START_STOP: "transport",
@@ -465,17 +467,17 @@ class MIDILearn:
                 return True
             return False
 
-    def get_mapping(self, cc_number: int, channel: int) -> Optional[MIDILearnMapping]:
+    def get_mapping(self, cc_number: int, channel: int) -> MIDILearnMapping | None:
         """Get mapping for a CC."""
         with self.lock:
             return self.mappings.get((cc_number, channel))
 
-    def get_all_mappings(self) -> List[MIDILearnMapping]:
+    def get_all_mappings(self) -> list[MIDILearnMapping]:
         """Get all mappings."""
         with self.lock:
             return list(self.mappings.values())
 
-    def get_mappings_by_group(self, group: str) -> List[MIDILearnMapping]:
+    def get_mappings_by_group(self, group: str) -> list[MIDILearnMapping]:
         """Get all mappings in a group."""
         with self.lock:
             if group not in self.groups:
@@ -512,11 +514,11 @@ class MIDILearn:
                 self._add_to_group(mapping.target_type, key)
             return True
 
-    def export_mappings(self) -> List[Dict[str, Any]]:
+    def export_mappings(self) -> list[dict[str, Any]]:
         """Export all mappings as serializable list."""
         return [m.to_dict() for m in self.mappings.values()]
 
-    def import_mappings(self, data: List[Dict[str, Any]]) -> bool:
+    def import_mappings(self, data: list[dict[str, Any]]) -> bool:
         """Import mappings from serialized list."""
         try:
             with self.lock:
@@ -547,7 +549,7 @@ class MIDILearn:
     def load_from_file(self, filepath: str) -> bool:
         """Load mappings from JSON file."""
         try:
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 data = json.load(f)
             
             with self.lock:
@@ -566,7 +568,7 @@ class MIDILearn:
         except Exception:
             return False
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get MIDI learn status."""
         with self.lock:
             return {

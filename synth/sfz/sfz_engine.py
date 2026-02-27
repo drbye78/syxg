@@ -5,8 +5,9 @@ Complete SFZ v2 synthesis engine implementation that integrates with the
 modern synthesizer architecture. Provides professional sample playback
 with advanced features like velocity layers, round robin, crossfading, etc.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import numpy as np
 import os
 
@@ -36,7 +37,7 @@ class SFZEngine(SynthesisEngine):
     """
 
     def __init__(self, sample_rate: int = 44100, block_size: int = 1024,
-                 sample_manager: Optional[PyAVSampleManager] = None):
+                 sample_manager: PyAVSampleManager | None = None):
         """
         Initialize SFZ synthesis engine.
 
@@ -52,11 +53,11 @@ class SFZEngine(SynthesisEngine):
         self.sfz_parser = SFZParser()
 
         # Instrument management
-        self.loaded_instruments: Dict[str, SFZInstrument] = {}
-        self.current_instrument: Optional[SFZInstrument] = None
+        self.loaded_instruments: dict[str, SFZInstrument] = {}
+        self.current_instrument: SFZInstrument | None = None
 
         # Region cache for performance
-        self.region_cache: Dict[str, List[SFZRegion]] = {}
+        self.region_cache: dict[str, list[SFZRegion]] = {}
 
         # Channel-level parameters (XG/GS compatibility)
         self._channel_transpose: int = 0
@@ -65,7 +66,7 @@ class SFZEngine(SynthesisEngine):
         self._drum_kit: int = 0
 
         # XG receive channel mapping
-        self.receive_channels: Dict[int, int] = {}
+        self.receive_channels: dict[int, int] = {}
 
         # GS part parameters
         self._gs_volume: float = 1.0
@@ -74,7 +75,7 @@ class SFZEngine(SynthesisEngine):
         self._gs_chorus_send: float = 0.0
 
         # Voice reserve system
-        self.voice_reserve: Optional[int] = None
+        self.voice_reserve: int | None = None
         self.active_voices: set = set()
 
         # Voice-level effects processor
@@ -163,7 +164,7 @@ class SFZEngine(SynthesisEngine):
 
         self.region_cache[key] = regions
 
-    def apply_channel_parameters(self, channel_params: Dict) -> None:
+    def apply_channel_parameters(self, channel_params: dict) -> None:
         """
         Apply channel-level parameters to SFZ regions.
 
@@ -208,7 +209,7 @@ class SFZEngine(SynthesisEngine):
         self.receive_channels[part_id] = midi_channel
         return True
 
-    def get_receive_channel(self, part_id: int) -> Optional[int]:
+    def get_receive_channel(self, part_id: int) -> int | None:
         """
         Get receive channel for a part.
 
@@ -220,7 +221,7 @@ class SFZEngine(SynthesisEngine):
         """
         return self.receive_channels.get(part_id)
 
-    def apply_gs_part_parameters(self, part_params: Dict) -> None:
+    def apply_gs_part_parameters(self, part_params: dict) -> None:
         """
         Apply GS part parameters.
 
@@ -252,7 +253,7 @@ class SFZEngine(SynthesisEngine):
             return True
         return len(self.active_voices) < self.voice_reserve
 
-    def allocate_voice(self, note: int, velocity: int) -> Optional[SFZRegion]:
+    def allocate_voice(self, note: int, velocity: int) -> SFZRegion | None:
         """
         Allocate a voice with reserve checking.
 
@@ -296,7 +297,7 @@ class SFZEngine(SynthesisEngine):
         """
         self.active_voices.discard(region)
 
-    def get_channel_info(self) -> Dict[str, Any]:
+    def get_channel_info(self) -> dict[str, Any]:
         """
         Get channel information.
 
@@ -316,7 +317,7 @@ class SFZEngine(SynthesisEngine):
             'active_voices': len(self.active_voices)
         }
 
-    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> List[SFZRegion]:
+    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> list[SFZRegion]:
         """
         Get all regions that should play for a given note/velocity.
 
@@ -347,7 +348,7 @@ class SFZEngine(SynthesisEngine):
         selected_regions = []
 
         # Group regions by round robin groups for proper selection
-        rr_groups: Dict[int, List[SFZRegion]] = {}
+        rr_groups: dict[int, list[SFZRegion]] = {}
 
         for region in regions:
             # Check if region should play for this note/velocity
@@ -373,7 +374,7 @@ class SFZEngine(SynthesisEngine):
 
         return selected_regions
 
-    def _select_round_robin_region(self, regions: List[SFZRegion], note: int, velocity: int) -> Optional[SFZRegion]:
+    def _select_round_robin_region(self, regions: list[SFZRegion], note: int, velocity: int) -> SFZRegion | None:
         """
         Select a region from a round robin group.
 
@@ -387,7 +388,7 @@ class SFZEngine(SynthesisEngine):
         index = note % len(regions)
         return regions[index]
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> SFZRegion:
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> SFZRegion:
         """
         Create an SFZ region (used for compatibility with SynthesisEngine interface).
 
@@ -402,7 +403,7 @@ class SFZEngine(SynthesisEngine):
 
     # ========== NEW REGION-BASED ARCHITECTURE METHODS ==========
 
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get SFZ preset info with region descriptors.
 
@@ -438,7 +439,7 @@ class SFZEngine(SynthesisEngine):
             chorus_send=0.0
         )
 
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get ALL region descriptors for an SFZ preset.
 
@@ -454,7 +455,7 @@ class SFZEngine(SynthesisEngine):
 
         return self._get_all_region_descriptors()
 
-    def _get_all_region_descriptors(self) -> List['RegionDescriptor']:
+    def _get_all_region_descriptors(self) -> list[RegionDescriptor]:
         """
         Internal method to get all region descriptors from current instrument.
 
@@ -523,8 +524,8 @@ class SFZEngine(SynthesisEngine):
 
         return descriptors
 
-    def _create_base_region(self, descriptor: 'RegionDescriptor',
-                           sample_rate: int) -> 'IRegion':
+    def _create_base_region(self, descriptor: RegionDescriptor,
+                           sample_rate: int) -> IRegion:
         """
         Create SFZ base region without S.Art2 wrapper.
 
@@ -553,7 +554,7 @@ class SFZEngine(SynthesisEngine):
 
         return region
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for SFZ region.
 
@@ -577,7 +578,7 @@ class SFZEngine(SynthesisEngine):
 
     # ========== END NEW REGION-BASED ARCHITECTURE METHODS ==========
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
                         block_size: int) -> np.ndarray:
         """
         Generate audio samples for a note using SFZ synthesis.
@@ -631,11 +632,11 @@ class SFZEngine(SynthesisEngine):
         regions = self.get_regions_for_note(note, 127)  # Use max velocity for checking
         return len(regions) > 0
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """Get list of supported file formats."""
         return ['.sfz']
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get SFZ engine information and capabilities."""
         if self._engine_info is None:
             self._engine_info = {
@@ -669,7 +670,7 @@ class SFZEngine(SynthesisEngine):
 
         return self._engine_info
 
-    def get_loaded_instruments(self) -> List[str]:
+    def get_loaded_instruments(self) -> list[str]:
         """Get list of loaded instrument names."""
         return list(self.loaded_instruments.keys())
 
@@ -715,7 +716,7 @@ class SFZEngine(SynthesisEngine):
             return True
         return False
 
-    def get_memory_usage(self) -> Dict[str, Any]:
+    def get_memory_usage(self) -> dict[str, Any]:
         """Get current memory usage statistics."""
         cache_stats = self.sample_manager.get_cache_stats()
 
@@ -745,7 +746,7 @@ class SFZEngine(SynthesisEngine):
         self.loaded_instruments.clear()
         self.current_instrument = None
 
-    def validate_sfz_file(self, sfz_path: str) -> Tuple[bool, List[str]]:
+    def validate_sfz_file(self, sfz_path: str) -> tuple[bool, list[str]]:
         """
         Validate an SFZ file for compatibility with this engine.
 

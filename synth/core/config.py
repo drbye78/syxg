@@ -4,31 +4,32 @@ Synthesizer Configuration Management
 Central configuration system for synthesizer settings, hardware profiles,
 performance presets, and system parameters.
 """
+from __future__ import annotations
 
 import json
 import os
-from typing import Dict, List, Any, Optional
+from typing import Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
 
-@dataclass
+@dataclass(slots=True)
 class AudioConfig:
     """Audio system configuration"""
     sample_rate: int = 44100
     buffer_size: int = 1024
     channels: int = 2
     bit_depth: int = 24
-    device_name: Optional[str] = None
+    device_name: str | None = None
     latency_ms: float = 10.0
 
 
-@dataclass
+@dataclass(slots=True)
 class EngineConfig:
     """Synthesis engine configuration"""
-    default_engine_priority: Optional[Dict[str, int]] = None
-    max_voices_per_engine: Optional[Dict[str, int]] = None
-    engine_enabled: Optional[Dict[str, bool]] = None
+    default_engine_priority: dict[str, int] | None = None
+    max_voices_per_engine: dict[str, int] | None = None
+    engine_enabled: dict[str, bool] | None = None
 
     def __post_init__(self):
         if self.default_engine_priority is None:
@@ -48,7 +49,7 @@ class EngineConfig:
             }
 
 
-@dataclass
+@dataclass(slots=True)
 class MemoryConfig:
     """Memory management configuration"""
     sample_cache_mb: int = 512
@@ -58,7 +59,7 @@ class MemoryConfig:
     garbage_collection_interval_s: int = 60
 
 
-@dataclass
+@dataclass(slots=True)
 class PerformanceConfig:
     """Performance optimization settings"""
     polyphony_limit: int = 64
@@ -69,7 +70,7 @@ class PerformanceConfig:
     real_time_priority: bool = True
 
 
-@dataclass
+@dataclass(slots=True)
 class HardwareConfig:
     """Hardware compatibility configuration"""
     model: str = 'S90'  # 'S70', 'S90', 'S90ES'
@@ -78,11 +79,11 @@ class HardwareConfig:
     authentic_voice_allocation: bool = True
 
 
-@dataclass
+@dataclass(slots=True)
 class MIDIConfig:
     """MIDI system configuration"""
-    input_device: Optional[str] = None
-    output_device: Optional[str] = None
+    input_device: str | None = None
+    output_device: str | None = None
     midi_through: bool = False
     sysex_enabled: bool = True
     nrpn_enabled: bool = True
@@ -90,11 +91,11 @@ class MIDIConfig:
     midi_clock_source: str = 'internal'  # 'internal', 'external', 'auto'
 
 
-@dataclass
+@dataclass(slots=True)
 class PathConfig:
     """File system paths configuration"""
-    sample_directories: List[str] = None
-    preset_directories: List[str] = None
+    sample_directories: list[str] = None
+    preset_directories: list[str] = None
     user_data_directory: str = '~/.syxg'
     temp_directory: str = '/tmp/syxg'
     log_directory: str = '~/.syxg/logs'
@@ -113,14 +114,14 @@ class PathConfig:
             ]
 
 
-@dataclass
+@dataclass(slots=True)
 class InterfaceConfig:
     """User interface configuration"""
     theme: str = 'dark'
     language: str = 'en'
     show_tooltips: bool = True
     auto_save_settings: bool = True
-    keyboard_shortcuts: Dict[str, str] = None
+    keyboard_shortcuts: dict[str, str] = None
 
     def __post_init__(self):
         if self.keyboard_shortcuts is None:
@@ -140,7 +141,7 @@ class SynthConfig:
     providing validation, persistence, and runtime configuration updates.
     """
 
-    def __init__(self, config_file: Optional[str] = None):
+    def __init__(self, config_file: str | None = None):
         """Initialize configuration manager"""
         self.config_file = config_file or self._get_default_config_path()
 
@@ -168,7 +169,7 @@ class SynthConfig:
         config_dir.mkdir(exist_ok=True)
         return str(config_dir / 'config.json')
 
-    def load(self, config_file: Optional[str] = None) -> bool:
+    def load(self, config_file: str | None = None) -> bool:
         """
         Load configuration from file.
 
@@ -182,7 +183,7 @@ class SynthConfig:
 
         try:
             if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
+                with open(config_path) as f:
                     data = json.load(f)
 
                 # Load configuration sections
@@ -210,7 +211,7 @@ class SynthConfig:
             print(f"Error loading configuration: {e}")
             return False
 
-    def save(self, config_file: Optional[str] = None) -> bool:
+    def save(self, config_file: str | None = None) -> bool:
         """
         Save configuration to file.
 
@@ -255,55 +256,55 @@ class SynthConfig:
             print(f"Error saving configuration: {e}")
             return False
 
-    def _load_audio_config(self, data: Dict[str, Any]):
+    def _load_audio_config(self, data: dict[str, Any]):
         """Load audio configuration"""
         for key, value in data.items():
             if hasattr(self.audio, key):
                 setattr(self.audio, key, value)
 
-    def _load_engine_config(self, data: Dict[str, Any]):
+    def _load_engine_config(self, data: dict[str, Any]):
         """Load engine configuration"""
         for key, value in data.items():
             if hasattr(self.engine, key):
                 setattr(self.engine, key, value)
 
-    def _load_memory_config(self, data: Dict[str, Any]):
+    def _load_memory_config(self, data: dict[str, Any]):
         """Load memory configuration"""
         for key, value in data.items():
             if hasattr(self.memory, key):
                 setattr(self.memory, key, value)
 
-    def _load_performance_config(self, data: Dict[str, Any]):
+    def _load_performance_config(self, data: dict[str, Any]):
         """Load performance configuration"""
         for key, value in data.items():
             if hasattr(self.performance, key):
                 setattr(self.performance, key, value)
 
-    def _load_hardware_config(self, data: Dict[str, Any]):
+    def _load_hardware_config(self, data: dict[str, Any]):
         """Load hardware configuration"""
         for key, value in data.items():
             if hasattr(self.hardware, key):
                 setattr(self.hardware, key, value)
 
-    def _load_midi_config(self, data: Dict[str, Any]):
+    def _load_midi_config(self, data: dict[str, Any]):
         """Load MIDI configuration"""
         for key, value in data.items():
             if hasattr(self.midi, key):
                 setattr(self.midi, key, value)
 
-    def _load_path_config(self, data: Dict[str, Any]):
+    def _load_path_config(self, data: dict[str, Any]):
         """Load path configuration"""
         for key, value in data.items():
             if hasattr(self.paths, key):
                 setattr(self.paths, key, value)
 
-    def _load_interface_config(self, data: Dict[str, Any]):
+    def _load_interface_config(self, data: dict[str, Any]):
         """Load interface configuration"""
         for key, value in data.items():
             if hasattr(self.interface, key):
                 setattr(self.interface, key, value)
 
-    def _expand_paths(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _expand_paths(self, config_data: dict[str, Any]) -> dict[str, Any]:
         """Expand user paths in configuration"""
         expanded = config_data.copy()
 
@@ -334,7 +335,7 @@ class SynthConfig:
         expanded.log_directory = os.path.expanduser(self.paths.log_directory)
         return expanded
 
-    def validate_configuration(self) -> List[str]:
+    def validate_configuration(self) -> list[str]:
         """
         Validate current configuration.
 
@@ -380,7 +381,7 @@ class SynthConfig:
         self.paths = PathConfig()
         self.interface = InterfaceConfig()
 
-    def get_performance_preset(self, preset_name: str) -> Optional[Dict[str, Any]]:
+    def get_performance_preset(self, preset_name: str) -> dict[str, Any] | None:
         """
         Get performance preset configuration.
 
@@ -436,7 +437,7 @@ class SynthConfig:
             return True
         return False
 
-    def get_hardware_profile(self, model: str) -> Optional[Dict[str, Any]]:
+    def get_hardware_profile(self, model: str) -> dict[str, Any] | None:
         """
         Get hardware profile configuration.
 
@@ -490,7 +491,7 @@ class SynthConfig:
             return True
         return False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary"""
         return {
             'version': self.version,
@@ -506,7 +507,7 @@ class SynthConfig:
             'created': self.created
         }
 
-    def from_dict(self, data: Dict[str, Any]):
+    def from_dict(self, data: dict[str, Any]):
         """Load configuration from dictionary"""
         self.version = data.get('version', self.version)
         self._load_audio_config(data.get('audio', {}))
@@ -526,7 +527,7 @@ class SynthConfig:
 
 
 # Global configuration instance
-_global_config: Optional[SynthConfig] = None
+_global_config: SynthConfig | None = None
 
 
 def get_global_config() -> SynthConfig:

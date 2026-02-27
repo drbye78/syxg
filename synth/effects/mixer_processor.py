@@ -12,9 +12,10 @@ Key Features:
 - Solo/mute functionality
 - Zero-allocation processing for realtime performance
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any
 import threading
 
 # Import our types and utilities
@@ -116,9 +117,9 @@ class XGChannelMixer:
                                        main_mix_left: np.ndarray,
                                        main_mix_right: np.ndarray,
                                        num_samples: int,
-                                       reverb_send_buffers: Optional[List[np.ndarray]] = None,
-                                       chorus_send_buffers: Optional[List[np.ndarray]] = None,
-                                       variation_send_buffers: Optional[List[np.ndarray]] = None) -> None:
+                                       reverb_send_buffers: list[np.ndarray] | None = None,
+                                       chorus_send_buffers: list[np.ndarray] | None = None,
+                                       variation_send_buffers: list[np.ndarray] | None = None) -> None:
         """
         Apply channel mixing with panning and effect sends to separate buffers.
 
@@ -380,9 +381,9 @@ class XGChannelMixerProcessor:
                 return success
             return False
 
-    def mix_channels_to_stereo_zero_alloc(self, channel_inputs: List[np.ndarray],
+    def mix_channels_to_stereo_zero_alloc(self, channel_inputs: list[np.ndarray],
                                          stereo_output: np.ndarray, num_samples: int,
-                                         effect_send_outputs: Optional[Dict[str, List[np.ndarray]]] = None) -> None:
+                                         effect_send_outputs: dict[str, list[np.ndarray]] | None = None) -> None:
         """
         Mix multiple channel inputs to stereo output with XG-compliant processing.
 
@@ -391,7 +392,7 @@ class XGChannelMixerProcessor:
             stereo_output: Output stereo buffer (num_samples, 2) - modified in-place
             num_samples: Number of samples to process
             effect_send_outputs: Optional dict of effect send buffers by type
-                               ('reverb', 'chorus', 'variation' -> List[buffer])
+                               ('reverb', 'chorus', 'variation' -> list[buffer])
         """
         with self.lock:
             # Clear output buffers
@@ -441,14 +442,14 @@ class XGChannelMixerProcessor:
         with self.lock:
             return self.master_mixer.set_master_params(**params)
 
-    def get_channel_params(self, channel: int) -> Optional[XGChannelMixerParams]:
+    def get_channel_params(self, channel: int) -> XGChannelMixerParams | None:
         """Get current parameters for a channel."""
         with self.lock:
             if 0 <= channel < len(self.channel_mixers):
                 return self.channel_mixers[channel].params
             return None
 
-    def get_master_status(self) -> Dict[str, Any]:
+    def get_master_status(self) -> dict[str, Any]:
         """Get master mixer status."""
         with self.lock:
             return {
@@ -465,7 +466,7 @@ class XGChannelMixerProcessor:
                 mixer.params = XG_CHANNEL_MIXER_DEFAULT._replace()
             self.solo_channels.clear()
 
-    def _get_active_channels(self, num_inputs: int) -> List[int]:
+    def _get_active_channels(self, num_inputs: int) -> list[int]:
         """
         Determine which channels should be mixed based on solo/mute state.
 

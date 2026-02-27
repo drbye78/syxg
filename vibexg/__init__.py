@@ -16,6 +16,7 @@ A professional real-time MIDI workstation emulator with complete implementation 
 Author: Roger
 License: MIT
 """
+from __future__ import annotations
 
 __version__ = '1.0.0'
 __author__ = 'Roger'

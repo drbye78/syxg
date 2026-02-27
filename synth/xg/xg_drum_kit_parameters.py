@@ -19,8 +19,9 @@ XG Drum Parameter Map (NRPN MSB 40-41):
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Optional, NamedTuple, Any
+from typing import NamedTuple, Any
 import numpy as np
 import threading
 
@@ -141,7 +142,7 @@ class XGDrumKitParameters:
         self.max_drums = max_drums
 
         # Parameter storage: dict of drum_note -> XGDrumNoteParameters
-        self.drum_parameters: Dict[int, XGDrumNoteParameters] = {}
+        self.drum_parameters: dict[int, XGDrumNoteParameters] = {}
 
         # NRPN state tracking for drum parameters
         self.current_drum_note = 0  # Which drum note we are editing (0-127)
@@ -249,7 +250,7 @@ class XGDrumKitParameters:
         self.drum_parameters[drum_note] = new_params
         return True
 
-    def get_drum_parameter(self, drum_note: int, param_type: int) -> Optional[int]:
+    def get_drum_parameter(self, drum_note: int, param_type: int) -> int | None:
         """
         Get a specific drum parameter value
 
@@ -293,7 +294,7 @@ class XGDrumKitParameters:
 
         return None
 
-    def get_drum_parameters(self, drum_note: int) -> Optional[XGDrumNoteParameters]:
+    def get_drum_parameters(self, drum_note: int) -> XGDrumNoteParameters | None:
         """
         Get all parameters for a specific drum note
 
@@ -347,7 +348,7 @@ class XGDrumKitParameters:
         with self.lock:
             self._initialize_default_parameters()
 
-    def export_drum_kit_state(self, kit_number: int = 0) -> Dict[str, Any]:
+    def export_drum_kit_state(self, kit_number: int = 0) -> dict[str, Any]:
         """
         Export complete drum kit state for serialization
 
@@ -368,7 +369,7 @@ class XGDrumKitParameters:
                 }
             }
 
-    def import_drum_kit_state(self, state: Dict[str, Any]) -> bool:
+    def import_drum_kit_state(self, state: dict[str, Any]) -> bool:
         """
         Import drum kit state from dictionary
 
@@ -461,7 +462,7 @@ class XGDrumKitParameters:
         """
         return self.get_drum_parameter(drum_note, self.PARAM_ASSIGN) or 1
 
-    def get_drum_filter_params(self, drum_note: int) -> Tuple[float, float]:
+    def get_drum_filter_params(self, drum_note: int) -> tuple[float, float]:
         """
         Get filter parameters for a drum note
 
@@ -479,7 +480,7 @@ class XGDrumKitParameters:
 
         return (cutoff_ratio, resonance_ratio)
 
-    def get_drum_envelope_params(self, drum_note: int) -> Tuple[float, float]:
+    def get_drum_envelope_params(self, drum_note: int) -> tuple[float, float]:
         """
         Get envelope parameters for a drum note
 
@@ -497,7 +498,7 @@ class XGDrumKitParameters:
 
         return (attack_ratio, decay_ratio)
 
-    def get_drum_effect_sends(self, drum_note: int) -> Tuple[float, float]:
+    def get_drum_effect_sends(self, drum_note: int) -> tuple[float, float]:
         """
         Get effect send levels for a drum note
 
@@ -569,7 +570,7 @@ class XGDrumKitParameters:
         # Apply effect sends (would be handled by effects manager)
         # The sends are stored here and would be used during mixing
 
-    def list_modified_drums(self) -> List[Tuple[int, XGDrumNoteParameters]]:
+    def list_modified_drums(self) -> list[tuple[int, XGDrumNoteParameters]]:
         """
         List all drum notes that have parameters different from XG defaults
 
@@ -585,7 +586,7 @@ class XGDrumKitParameters:
 
         return modified_drums
 
-    def get_parameter_info(self, param_type: int) -> Optional[Dict[str, Any]]:
+    def get_parameter_info(self, param_type: int) -> dict[str, Any] | None:
         """
         Get information about a drum parameter type
 
@@ -597,7 +598,7 @@ class XGDrumKitParameters:
         """
         return self.DRUM_PARAM_DEFS.get(param_type)
 
-    def list_all_parameter_types(self) -> Dict[int, Dict[str, Any]]:
+    def list_all_parameter_types(self) -> dict[int, dict[str, Any]]:
         """
         List all available drum parameter types with their information
 

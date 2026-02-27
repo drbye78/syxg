@@ -3,6 +3,7 @@ XG Synthesizer Constants
 
 Contains all MIDI constants, XG-specific constants, and default configuration values.
 """
+from __future__ import annotations
 
 # MIDI System Status Constants
 MIDI_CONSTANTS = {

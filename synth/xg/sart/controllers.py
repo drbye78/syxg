@@ -4,9 +4,11 @@ Articulation Controllers for S.Art2 System.
 Contains ArticulationController class that manages articulation state
 and processes NRPN/SYSEX messages. Extracted for better code organization.
 """
+from __future__ import annotations
 
 import logging
-from typing import Dict, Tuple, Optional, Any, Callable, List
+from typing import Any
+from collections.abc import Callable
 import numpy as np
 
 from .mappings import NRPN_ARTICULATION_MAP, MSB_CATEGORIES, get_nrpn_for_articulation
@@ -44,13 +46,13 @@ class ArticulationController:
         self.compatibility_mode = "sart2"
 
         # Current articulation parameters
-        self.articulation_params: Dict[str, Any] = {}
+        self.articulation_params: dict[str, Any] = {}
 
         # Articulation change callbacks
-        self._callbacks: List[Callable[[str], None]] = []
+        self._callbacks: list[Callable[[str], None]] = []
 
         # Custom articulation handlers
-        self._custom_articulations: Dict[str, Dict[str, Any]] = {}
+        self._custom_articulations: dict[str, dict[str, Any]] = {}
 
     def set_compatibility_mode(self, mode: str) -> None:
         """Set compatibility mode."""
@@ -93,7 +95,7 @@ class ArticulationController:
 
         return articulation
 
-    def process_sysex(self, sysex: bytes) -> Optional[Dict[str, Any]]:
+    def process_sysex(self, sysex: bytes) -> dict[str, Any] | None:
         """
         Process Yamaha SYSEX message for articulations.
 
@@ -123,7 +125,7 @@ class ArticulationController:
 
         return None
 
-    def _parse_sysex_articulation_set(self, sysex: bytes) -> Dict[str, Any]:
+    def _parse_sysex_articulation_set(self, sysex: bytes) -> dict[str, Any]:
         """Parse SYSEX articulation set message."""
         if len(sysex) < 8:
             return {}
@@ -139,7 +141,7 @@ class ArticulationController:
             "art_index": art_index,
         }
 
-    def _parse_sysex_parameter_set(self, sysex: bytes) -> Dict[str, Any]:
+    def _parse_sysex_parameter_set(self, sysex: bytes) -> dict[str, Any]:
         """Parse SYSEX parameter set message."""
         if len(sysex) < 9:
             return {}
@@ -157,7 +159,7 @@ class ArticulationController:
             "value": (value_msb << 7) | value_lsb,
         }
 
-    def _parse_sysex_articulation_release(self, sysex: bytes) -> Dict[str, Any]:
+    def _parse_sysex_articulation_release(self, sysex: bytes) -> dict[str, Any]:
         """Parse SYSEX articulation release message."""
         if len(sysex) < 6:
             return {}
@@ -223,8 +225,8 @@ class ArticulationController:
         return self.current_articulation
 
     def get_articulation_params(
-        self, articulation: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, articulation: str | None = None
+    ) -> dict[str, Any]:
         """Get parameters for articulation."""
         art = articulation or self.current_articulation
 
@@ -249,11 +251,11 @@ class ArticulationController:
         """Set parameter for current articulation."""
         self.articulation_params[param] = value
 
-    def get_available_articulations(self) -> List[str]:
+    def get_available_articulations(self) -> list[str]:
         """Get list of available articulations."""
         return list(set(self.NRPN_ARTICULATION_MAP.values()))
 
-    def get_articulations_by_category(self, category: str) -> List[str]:
+    def get_articulations_by_category(self, category: str) -> list[str]:
         """Get articulations by category."""
         result = []
         for (msb, _), art in self.NRPN_ARTICULATION_MAP.items():

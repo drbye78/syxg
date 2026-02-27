@@ -303,9 +303,11 @@ PROFESSIONAL MUSIC PRODUCTION:
 - RECORDING COMPATIBILITY: Professional recording session integration
 - POST-PRODUCTION: Advanced editing capabilities for music production
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import List, Dict, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 
@@ -327,7 +329,7 @@ class PatternSequencer:
     - Pattern library management
     """
 
-    def __init__(self, groove_quantizer: Optional[GrooveQuantizer] = None):
+    def __init__(self, groove_quantizer: GrooveQuantizer | None = None):
         """
         Initialize pattern sequencer.
 
@@ -337,11 +339,11 @@ class PatternSequencer:
         self.groove_quantizer = groove_quantizer or GrooveQuantizer()
 
         # Pattern storage
-        self.patterns: Dict[int, Pattern] = {}
+        self.patterns: dict[int, Pattern] = {}
         self.next_pattern_id = 1
 
         # Playback state
-        self.current_pattern_id: Optional[int] = None
+        self.current_pattern_id: int | None = None
         self.is_playing = False
         self.loop_enabled = True
         self.current_position = 0.0  # In beats
@@ -359,17 +361,17 @@ class PatternSequencer:
         self.step_input_duration = 0.25  # Quarter beat
 
         # Pattern chain
-        self.pattern_chain: List[int] = []
+        self.pattern_chain: list[int] = []
         self.current_chain_index = 0
 
         # Callbacks
-        self.note_on_callback: Optional[Callable[[int, int, int], None]] = None
-        self.note_off_callback: Optional[Callable[[int, int], None]] = None
-        self.control_callback: Optional[Callable[[int, int, int], None]] = None
+        self.note_on_callback: Callable[[int, int, int], None] | None = None
+        self.note_off_callback: Callable[[int, int], None] | None = None
+        self.control_callback: Callable[[int, int, int], None] | None = None
 
         # Threading
         self.lock = threading.RLock()
-        self.playback_thread: Optional[threading.Thread] = None
+        self.playback_thread: threading.Thread | None = None
 
     def create_pattern(self, name: str, length: int = 16,
                       resolution: int = 96) -> int:
@@ -423,12 +425,12 @@ class PatternSequencer:
                 return True
             return False
 
-    def get_pattern(self, pattern_id: int) -> Optional[Pattern]:
+    def get_pattern(self, pattern_id: int) -> Pattern | None:
         """Get pattern by ID."""
         with self.lock:
             return self.patterns.get(pattern_id)
 
-    def duplicate_pattern(self, source_id: int, new_name: str) -> Optional[int]:
+    def duplicate_pattern(self, source_id: int, new_name: str) -> int | None:
         """
         Duplicate a pattern.
 
@@ -622,7 +624,7 @@ class PatternSequencer:
                 return True
             return False
 
-    def start_playback(self, pattern_id: Optional[int] = None,
+    def start_playback(self, pattern_id: int | None = None,
                       loop: bool = True) -> bool:
         """
         Start pattern playback.
@@ -768,7 +770,7 @@ class PatternSequencer:
         with self.lock:
             self.step_input_enabled = False
 
-    def input_step_note(self, step: int, pattern_id: Optional[int] = None) -> bool:
+    def input_step_note(self, step: int, pattern_id: int | None = None) -> bool:
         """
         Input a note using step input.
 
@@ -792,7 +794,7 @@ class PatternSequencer:
                 self.step_input_velocity, self.step_input_duration
             )
 
-    def set_pattern_chain(self, pattern_ids: List[int]) -> None:
+    def set_pattern_chain(self, pattern_ids: list[int]) -> None:
         """
         Set pattern chain for sequential playback.
 
@@ -803,7 +805,7 @@ class PatternSequencer:
             self.pattern_chain = pattern_ids.copy()
             self.current_chain_index = 0
 
-    def get_next_pattern_in_chain(self) -> Optional[int]:
+    def get_next_pattern_in_chain(self) -> int | None:
         """Get next pattern in chain."""
         with self.lock:
             if not self.pattern_chain:
@@ -813,7 +815,7 @@ class PatternSequencer:
             self.current_chain_index = (self.current_chain_index + 1) % len(self.pattern_chain)
             return pattern_id
 
-    def get_grid_data(self, pattern_id: int, track_id: int = 0) -> List[List[Optional[int]]]:
+    def get_grid_data(self, pattern_id: int, track_id: int = 0) -> list[list[int | None]]:
         """
         Get grid representation of pattern for UI display.
 
@@ -830,7 +832,7 @@ class PatternSequencer:
                 return []
 
             # Initialize grid (128 notes x grid_length steps)
-            grid: List[List[Optional[int]]] = [[None for _ in range(self.grid_length)] for _ in range(128)]
+            grid: list[list[int | None]] = [[None for _ in range(self.grid_length)] for _ in range(128)]
 
             # Fill grid with notes
             for note in pattern.notes:
@@ -858,7 +860,7 @@ class PatternSequencer:
             # Update grid length based on resolution (4 bars)
             self.grid_length = 4 * self.grid_resolution
 
-    def get_pattern_list(self) -> List[Dict[str, Any]]:
+    def get_pattern_list(self) -> list[dict[str, Any]]:
         """Get list of all patterns with metadata."""
         with self.lock:
             return [
@@ -875,7 +877,7 @@ class PatternSequencer:
                 for pattern in self.patterns.values()
             ]
 
-    def get_playback_status(self) -> Dict[str, Any]:
+    def get_playback_status(self) -> dict[str, Any]:
         """Get current playback status."""
         with self.lock:
             return {
@@ -912,7 +914,7 @@ class PatternSequencer:
             except Exception:
                 return False
 
-    def load_pattern_from_file(self, filename: str) -> Optional[int]:
+    def load_pattern_from_file(self, filename: str) -> int | None:
         """
         Load pattern from JSON file.
 
@@ -925,7 +927,7 @@ class PatternSequencer:
         with self.lock:
             try:
                 import json
-                with open(filename, 'r') as f:
+                with open(filename) as f:
                     data = json.load(f)
 
                 pattern = Pattern.from_dict(data)

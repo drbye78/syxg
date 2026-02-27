@@ -6,11 +6,16 @@ providing multi-part operation, effects management, and XG parameter control.
 
 Part of S90/S70 compatibility - Core Infrastructure (Phase 1).
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any, TYPE_CHECKING
+from collections.abc import Callable
 import threading
 from dataclasses import dataclass
 from enum import Enum
+
+if TYPE_CHECKING:
+    from typing import Self
 
 
 class XGParameterType(Enum):
@@ -30,7 +35,7 @@ class XGMultiPartMode(Enum):
     PERFORMANCE = "performance"
 
 
-@dataclass
+@dataclass(slots=True)
 class XGPart:
     """XG multi-part configuration"""
 
@@ -57,14 +62,14 @@ class XGPart:
     vibrato_depth: int = 0
     vibrato_delay: int = 0
     part_mode: XGMultiPartMode = XGMultiPartMode.MULTI_TIMBRAL
-    drum_note: Optional[int] = None  # For drum parts
+    drum_note: int | None = None  # For drum parts
     rpn_msb: int = 0
     rpn_lsb: int = 0
     data_entry_msb: int = 0
     data_entry_lsb: int = 0
 
 
-@dataclass
+@dataclass(slots=True)
 class XGSystemParameters:
     """XG system parameters"""
 
@@ -102,8 +107,8 @@ class XGSystem:
     def __init__(self):
         """Initialize XG system"""
         self.system_params = XGSystemParameters()
-        self.parts: Dict[int, XGPart] = {}
-        self.drum_setup: Dict[int, Dict[str, Any]] = {}  # Note -> drum parameters
+        self.parts: dict[int, XGPart] = {}
+        self.drum_setup: dict[int, dict[str, Any]] = {}  # Note -> drum parameters
 
         # XG parameter ranges and defaults
         self._init_parameter_ranges()
@@ -112,8 +117,8 @@ class XGSystem:
         self.lock = threading.RLock()
 
         # Callbacks for parameter changes
-        self.parameter_change_callback: Optional[Callable[[str, Any, Any], None]] = None
-        self.part_change_callback: Optional[Callable[[int, str, Any], None]] = None
+        self.parameter_change_callback: Callable[[str, Any, Any], None] | None = None
+        self.part_change_callback: Callable[[int, str, Any], None] | None = None
 
         # Initialize default multi-part setup
         self._init_default_parts()
@@ -181,13 +186,31 @@ class XGSystem:
         with self.lock:
             self.initialize()
 
-    def set_engine_registry(self, registry):
-        """Set synthesis engine registry reference"""
+    def set_engine_registry(self, registry) -> Self:
+        """
+        Set synthesis engine registry reference.
+        
+        Args:
+            registry: Engine registry instance
+        
+        Returns:
+            Self for method chaining
+        """
         self.engine_registry = registry
+        return self
 
-    def set_effects_coordinator(self, coordinator):
-        """Set effects coordinator reference"""
+    def set_effects_coordinator(self, coordinator) -> Self:
+        """
+        Set effects coordinator reference.
+        
+        Args:
+            coordinator: Effects coordinator instance
+        
+        Returns:
+            Self for method chaining
+        """
         self.effects_coordinator = coordinator
+        return self
 
     def get_engine_for_channel(self, channel: int) -> str:
         """
@@ -431,7 +454,7 @@ class XGSystem:
                 return channel
         return 15  # Fallback to channel 16
 
-    def set_drum_note(self, part_number: int, note: int, parameters: Dict[str, Any]):
+    def set_drum_note(self, part_number: int, note: int, parameters: dict[str, Any]):
         """
         Set drum note parameters for drum parts.
 
@@ -453,7 +476,7 @@ class XGSystem:
 
             self.drum_setup[note].update(parameters)
 
-    def get_drum_parameters(self, note: int) -> Optional[Dict[str, Any]]:
+    def get_drum_parameters(self, note: int) -> dict[str, Any] | None:
         """
         Get drum parameters for a note.
 
@@ -466,7 +489,7 @@ class XGSystem:
         with self.lock:
             return self.drum_setup.get(note)
 
-    def load_preset(self, preset_data: Dict[str, Any]) -> bool:
+    def load_preset(self, preset_data: dict[str, Any]) -> bool:
         """
         Load XG preset data.
 
@@ -501,7 +524,7 @@ class XGSystem:
                 print(f"Error loading XG preset: {e}")
                 return False
 
-    def get_current_preset_data(self) -> Dict[str, Any]:
+    def get_current_preset_data(self) -> dict[str, Any]:
         """
         Get current XG system state as preset data.
 
@@ -530,7 +553,7 @@ class XGSystem:
                 "drum_setup": self.drum_setup.copy(),
             }
 
-    def get_multi_part_info(self) -> Dict[str, Any]:
+    def get_multi_part_info(self) -> dict[str, Any]:
         """Get information about current multi-part setup"""
         with self.lock:
             channel_assignments = {}
@@ -555,7 +578,7 @@ class XGSystem:
                 },
             }
 
-    def validate_xg_data(self, data: Dict[str, Any]) -> List[str]:
+    def validate_xg_data(self, data: dict[str, Any]) -> list[str]:
         """
         Validate XG data structure.
 
@@ -598,7 +621,7 @@ class XGSystem:
 
         return errors
 
-    def get_xg_system_status(self) -> Dict[str, Any]:
+    def get_xg_system_status(self) -> dict[str, Any]:
         """Get comprehensive XG system status"""
         with self.lock:
             return {
@@ -1245,7 +1268,7 @@ class XGSystem:
             return True
         return False
 
-    def start_accompaniment(self, section: Optional[str] = None) -> bool:
+    def start_accompaniment(self, section: str | None = None) -> bool:
         """Start auto-accompaniment"""
         player = self.get_style_player()
         if player:
@@ -1310,7 +1333,7 @@ class XGSystem:
             else:
                 player.process_midi_note_off(channel, note)
 
-    def get_accompaniment_status(self) -> Dict[str, Any]:
+    def get_accompaniment_status(self) -> dict[str, Any]:
         """Get auto-accompaniment status"""
         player = self.get_style_player()
         if player:

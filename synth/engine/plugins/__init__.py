@@ -10,6 +10,7 @@ This system enables:
 - Plugin-based architecture for maintainability
 - Clean separation of core engine functionality from extensions
 """
+from __future__ import annotations
 
 from .base_plugin import BaseEnginePlugin, PluginMetadata
 from .plugin_registry import PluginRegistry, PluginLoadError, PluginDependencyError

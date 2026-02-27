@@ -83,8 +83,10 @@ ERROR HANDLING:
 - Thread-safe operations prevent race conditions
 - Validation of input parameters
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Callable, Set
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 from dataclasses import dataclass
@@ -110,7 +112,7 @@ class VoiceStealingStrategy(Enum):
     PRIORITY = "priority"  # Priority-based stealing (engine-specific)
 
 
-@dataclass
+@dataclass(slots=True)
 class VoiceInfo:
     """Information about an allocated voice"""
     voice_id: int
@@ -121,8 +123,8 @@ class VoiceInfo:
     state: VoiceState
     start_time: float
     priority: int = 0
-    effects_chain: Optional[List[str]] = None
-    modulation_data: Optional[Dict[str, Any]] = None
+    effects_chain: list[str] | None = None
+    modulation_data: dict[str, Any] | None = None
 
 
 class VoiceManager:
@@ -169,9 +171,9 @@ class VoiceManager:
 
     DATA STRUCTURES:
     ===============
-    - active_voices: Dict[int, VoiceInfo] - O(1) voice lookup by ID
-    - free_voice_ids: Set[int] - O(1) free voice detection
-    - voice_lifetimes: List[float] - Bounded history for statistics
+    - active_voices: dict[int, VoiceInfo] - O(1) voice lookup by ID
+    - free_voice_ids: set[int] - O(1) free voice detection
+    - voice_lifetimes: list[float] - Bounded history for statistics
     - allocation_stats: Dict - Real-time performance metrics
 
     INTEGRATION CONTRACTS:
@@ -228,8 +230,8 @@ class VoiceManager:
             max_voices: Maximum number of simultaneous voices
         """
         self.max_voices = max_voices
-        self.active_voices: Dict[int, VoiceInfo] = {}
-        self.free_voice_ids: Set[int] = set(range(max_voices))
+        self.active_voices: dict[int, VoiceInfo] = {}
+        self.free_voice_ids: set[int] = set(range(max_voices))
         self.next_voice_id = max_voices
 
         # Voice stealing configuration
@@ -257,19 +259,19 @@ class VoiceManager:
         }
 
         # Voice lifetime tracking
-        self.voice_lifetimes: List[float] = []
+        self.voice_lifetimes: list[float] = []
         self.max_lifetime_history = 1000
 
         # Thread safety
         self.lock = threading.RLock()
 
         # Callbacks
-        self.voice_allocated_callback: Optional[Callable[[VoiceInfo], None]] = None
-        self.voice_deallocated_callback: Optional[Callable[[int], None]] = None
-        self.voice_stolen_callback: Optional[Callable[[VoiceInfo, VoiceInfo], None]] = None
+        self.voice_allocated_callback: Callable[[VoiceInfo], None] | None = None
+        self.voice_deallocated_callback: Callable[[int], None] | None = None
+        self.voice_stolen_callback: Callable[[VoiceInfo, VoiceInfo], None] | None = None
 
     def allocate_voice(self, channel: int, note: int, velocity: int,
-                      engine_type: str) -> Optional[int]:
+                      engine_type: str) -> int | None:
         """
         Allocate a voice for note playback.
 
@@ -304,7 +306,7 @@ class VoiceManager:
             self.allocation_stats['allocation_failures'] += 1
             return None
 
-    def _allocate_free_voice(self) -> Optional[int]:
+    def _allocate_free_voice(self) -> int | None:
         """Allocate a free voice if available"""
         if self.free_voice_ids:
             return self.free_voice_ids.pop()
@@ -364,7 +366,7 @@ class VoiceManager:
         return voice_id
 
     def _steal_voice(self, channel: int, note: int, velocity: int,
-                    engine_type: str) -> Optional[int]:
+                    engine_type: str) -> int | None:
         """
         Attempt to steal a voice using the configured strategy.
 
@@ -389,7 +391,7 @@ class VoiceManager:
         else:
             return self._steal_oldest()  # Default fallback
 
-    def _steal_by_priority(self, requesting_priority: int) -> Optional[int]:
+    def _steal_by_priority(self, requesting_priority: int) -> int | None:
         """Steal voice with lowest priority"""
         lowest_priority = requesting_priority + 1  # Only steal lower priority
         candidate_voice = None
@@ -401,7 +403,7 @@ class VoiceManager:
 
         return candidate_voice
 
-    def _steal_oldest(self) -> Optional[int]:
+    def _steal_oldest(self) -> int | None:
         """Steal the oldest allocated voice"""
         oldest_time = float('inf')
         oldest_voice = None
@@ -413,7 +415,7 @@ class VoiceManager:
 
         return oldest_voice
 
-    def _steal_quietest(self) -> Optional[int]:
+    def _steal_quietest(self) -> int | None:
         """Steal the voice with lowest velocity"""
         lowest_velocity = float('inf')
         quietest_voice = None
@@ -425,7 +427,7 @@ class VoiceManager:
 
         return quietest_voice
 
-    def _steal_lowest(self) -> Optional[int]:
+    def _steal_lowest(self) -> int | None:
         """Steal the voice with lowest note"""
         lowest_note = float('inf')
         lowest_voice = None
@@ -437,7 +439,7 @@ class VoiceManager:
 
         return lowest_voice
 
-    def _steal_highest(self) -> Optional[int]:
+    def _steal_highest(self) -> int | None:
         """Steal the voice with highest note"""
         highest_note = float('-inf')
         highest_voice = None
@@ -484,7 +486,7 @@ class VoiceManager:
                 return True
             return False
 
-    def find_voice(self, channel: int, note: int) -> Optional[int]:
+    def find_voice(self, channel: int, note: int) -> int | None:
         """
         Find voice playing a specific note on a channel.
 
@@ -501,12 +503,12 @@ class VoiceManager:
                     return voice_id
             return None
 
-    def get_active_voices(self) -> List[VoiceInfo]:
+    def get_active_voices(self) -> list[VoiceInfo]:
         """Get list of all active voices"""
         with self.lock:
             return list(self.active_voices.values())
 
-    def get_voice_info(self, voice_id: int) -> Optional[VoiceInfo]:
+    def get_voice_info(self, voice_id: int) -> VoiceInfo | None:
         """Get information about a specific voice"""
         with self.lock:
             return self.active_voices.get(voice_id)
@@ -595,7 +597,7 @@ class VoiceManager:
 
         return True
 
-    def get_voice_statistics(self) -> Dict[str, Any]:
+    def get_voice_statistics(self) -> dict[str, Any]:
         """Get comprehensive voice statistics"""
         with self.lock:
             active_count = len(self.active_voices)
@@ -625,7 +627,7 @@ class VoiceManager:
                 'voice_priorities': self.voice_priorities.copy()
             }
 
-    def get_channel_info(self, channel: int) -> Dict[str, Any]:
+    def get_channel_info(self, channel: int) -> dict[str, Any]:
         """
         Get information about voices on a specific channel.
 
@@ -654,7 +656,7 @@ class VoiceManager:
                 'voices': channel_voices
             }
 
-    def optimize_polyphony(self, target_utilization: float = 0.8) -> Dict[str, Any]:
+    def optimize_polyphony(self, target_utilization: float = 0.8) -> dict[str, Any]:
         """
         Optimize polyphony settings based on usage patterns.
 

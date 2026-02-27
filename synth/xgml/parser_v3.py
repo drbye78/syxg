@@ -8,10 +8,11 @@ Advanced parser for XGML v3.0 with complete feature support including:
 - Intelligent defaults expansion
 - Backward compatibility
 """
+from __future__ import annotations
 
 import yaml
 import json
-from typing import Dict, Any, List, Optional, Union
+from typing import Any
 from pathlib import Path
 from datetime import datetime
 import jsonschema
@@ -47,30 +48,30 @@ class ConfigurationSection(Enum):
     SEQUENCING = "sequencing"
 
 
-@dataclass
+@dataclass(slots=True)
 class XGMLConfigV3:
     """XGML v3.0 configuration container."""
 
     # Metadata
     version: str = "3.0"
-    description: Optional[str] = None
-    timestamp: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    description: str | None = None
+    timestamp: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     # Configuration sections
-    synthesizer_core: Dict[str, Any] = field(default_factory=dict)
-    workstation_features: Dict[str, Any] = field(default_factory=dict)
-    synthesis_engines: Dict[str, Any] = field(default_factory=dict)
-    effects_processing: Dict[str, Any] = field(default_factory=dict)
-    modulation_system: Dict[str, Any] = field(default_factory=dict)
-    performance_controls: Dict[str, Any] = field(default_factory=dict)
-    sequencing: Dict[str, Any] = field(default_factory=dict)
+    synthesizer_core: dict[str, Any] = field(default_factory=dict)
+    workstation_features: dict[str, Any] = field(default_factory=dict)
+    synthesis_engines: dict[str, Any] = field(default_factory=dict)
+    effects_processing: dict[str, Any] = field(default_factory=dict)
+    modulation_system: dict[str, Any] = field(default_factory=dict)
+    performance_controls: dict[str, Any] = field(default_factory=dict)
+    sequencing: dict[str, Any] = field(default_factory=dict)
 
     # Template information
-    template: Optional[str] = None
-    template_overrides: Dict[str, Any] = field(default_factory=dict)
+    template: str | None = None
+    template_overrides: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         result = {
             "xg_dsl_version": self.version,
@@ -100,7 +101,7 @@ class TemplateManager:
     def __init__(self):
         self.templates = self._load_builtin_templates()
 
-    def _load_builtin_templates(self) -> Dict[str, Dict[str, Any]]:
+    def _load_builtin_templates(self) -> dict[str, dict[str, Any]]:
         """Load built-in configuration templates."""
         return {
             "childrens_piano": {
@@ -190,14 +191,14 @@ class TemplateManager:
             }
         }
 
-    def get_template(self, name: str) -> Dict[str, Any]:
+    def get_template(self, name: str) -> dict[str, Any]:
         """Get template configuration."""
         if name not in self.templates:
             raise TemplateNotFoundError(f"Template '{name}' not found")
         return self.templates[name].copy()
 
-    def apply_template(self, base_config: Dict[str, Any], template_name: str,
-                      overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def apply_template(self, base_config: dict[str, Any], template_name: str,
+                      overrides: dict[str, Any] | None = None) -> dict[str, Any]:
         """Apply template to base configuration with optional overrides."""
         template = self.get_template(template_name)
 
@@ -210,7 +211,7 @@ class TemplateManager:
 
         return result
 
-    def _deep_merge(self, base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
+    def _deep_merge(self, base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
         """Deep merge two dictionaries."""
         result = base.copy()
 
@@ -229,7 +230,7 @@ class DefaultsExpander:
     def __init__(self):
         self.defaults = self._load_defaults()
 
-    def _load_defaults(self) -> Dict[str, Any]:
+    def _load_defaults(self) -> dict[str, Any]:
         """Load comprehensive default values."""
         return {
             "xg_dsl_version": "3.0",
@@ -307,15 +308,15 @@ class DefaultsExpander:
             }
         }
 
-    def expand(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def expand(self, config: dict[str, Any]) -> dict[str, Any]:
         """Expand configuration with defaults."""
         return self._deep_merge(self.defaults, config)
 
-    def get_full_defaults(self) -> Dict[str, Any]:
+    def get_full_defaults(self) -> dict[str, Any]:
         """Get complete default configuration."""
         return self.defaults.copy()
 
-    def _deep_merge(self, base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
+    def _deep_merge(self, base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
         """Deep merge two dictionaries."""
         result = base.copy()
 
@@ -334,11 +335,11 @@ class SchemaValidator:
     def __init__(self):
         self.schema = self._load_schema()
 
-    def _load_schema(self) -> Dict[str, Any]:
+    def _load_schema(self) -> dict[str, Any]:
         """Load XGML v3.0 JSON schema."""
         schema_path = Path(__file__).parent.parent / "docs" / "xgml_v3_schema.json"
         try:
-            with open(schema_path, 'r', encoding='utf-8') as f:
+            with open(schema_path, encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
             # Fallback to embedded minimal schema
@@ -353,7 +354,7 @@ class SchemaValidator:
                 "required": ["xg_dsl_version"]
             }
 
-    def validate(self, config: Dict[str, Any]) -> List[str]:
+    def validate(self, config: dict[str, Any]) -> list[str]:
         """Validate configuration against schema."""
         try:
             jsonschema.validate(config, self.schema)
@@ -380,10 +381,10 @@ class XGMLParserV3:
         self.template_manager = TemplateManager()
         self.defaults_expander = DefaultsExpander()
         self.schema_validator = SchemaValidator()
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
 
-    def parse_file(self, file_path: Union[str, Path]) -> Optional[XGMLConfigV3]:
+    def parse_file(self, file_path: str | Path) -> XGMLConfigV3 | None:
         """Parse XGML v3.0 file."""
         try:
             path = Path(file_path)
@@ -391,7 +392,7 @@ class XGMLParserV3:
                 self.errors.append(f"File not found: {file_path}")
                 return None
 
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 content = f.read()
 
             return self.parse_string(content)
@@ -400,7 +401,7 @@ class XGMLParserV3:
             self.errors.append(f"Error reading file: {e}")
             return None
 
-    def parse_string(self, yaml_string: str) -> Optional[XGMLConfigV3]:
+    def parse_string(self, yaml_string: str) -> XGMLConfigV3 | None:
         """Parse XGML v3.0 from string."""
         try:
             data = yaml.safe_load(yaml_string)
@@ -409,7 +410,7 @@ class XGMLParserV3:
             self.errors.append(f"YAML parsing error: {e}")
             return None
 
-    def parse_data(self, data: Dict[str, Any]) -> Optional[XGMLConfigV3]:
+    def parse_data(self, data: dict[str, Any]) -> XGMLConfigV3 | None:
         """Parse XGML v3.0 from dictionary data."""
         self.errors = []
         self.warnings = []
@@ -467,16 +468,16 @@ class XGMLParserV3:
             self.errors.append(f"Error creating configuration: {e}")
             return None
 
-    def get_expanded_config(self) -> Optional[XGMLConfigV3]:
+    def get_expanded_config(self) -> XGMLConfigV3 | None:
         """Get fully expanded default configuration."""
         defaults = self.defaults_expander.get_full_defaults()
         return self.parse_data(defaults)
 
-    def get_errors(self) -> List[str]:
+    def get_errors(self) -> list[str]:
         """Get parsing errors."""
         return self.errors.copy()
 
-    def get_warnings(self) -> List[str]:
+    def get_warnings(self) -> list[str]:
         """Get parsing warnings."""
         return self.warnings.copy()
 

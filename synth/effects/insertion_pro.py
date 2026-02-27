@@ -25,10 +25,11 @@ Effects implemented:
 
 All implementations use proper DSP algorithms from variation effects.
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import Dict, Any, Optional, List
+from typing import Any
 import threading
 
 # Reuse components from variation effects
@@ -68,7 +69,7 @@ class ProductionPhaserProcessor:
 
         self.lock = threading.RLock()
 
-    def process_sample(self, input_sample: float, params: Dict[str, float]) -> float:
+    def process_sample(self, input_sample: float, params: dict[str, float]) -> float:
         """Process sample through professional phaser."""
         with self.lock:
             self.lfo_rate = params.get("rate", 1.0)
@@ -147,7 +148,7 @@ class ProductionFlangerProcessor:
 
         self.lock = threading.RLock()
 
-    def process_sample(self, input_sample: float, params: Dict[str, float]) -> float:
+    def process_sample(self, input_sample: float, params: dict[str, float]) -> float:
         """Process sample through professional flanger."""
         with self.lock:
             self.lfo_rate = params.get("rate", 0.5)
@@ -225,7 +226,7 @@ class ProfessionalRotarySpeaker:
 
         self.lock = threading.RLock()
 
-    def process_sample(self, input_sample: float, params: Dict[str, float]) -> float:
+    def process_sample(self, input_sample: float, params: dict[str, float]) -> float:
         """Process sample through rotary speaker simulation."""
         with self.lock:
             speed = params.get("speed", 0.5)
@@ -330,7 +331,7 @@ class ProductionEnvelopeFilter:
             self.a1 /= norm
             self.a2 /= norm
 
-    def process_sample(self, input_sample: float, params: Dict[str, float]) -> float:
+    def process_sample(self, input_sample: float, params: dict[str, float]) -> float:
         """Process sample through envelope filter."""
         with self.lock:
             self.sensitivity = params.get("sensitivity", 0.5)
@@ -493,11 +494,11 @@ class ProductionXGInsertionEffectsProcessor:
         self.early_reflections = EnhancedEarlyReflections(sample_rate)
 
         # Current insertion effects configuration
-        self.insertion_types: List[int] = [0, 0, 0]  # Effect types for slots 0-2
-        self.insertion_bypass: List[bool] = [True, True, True]  # Bypass flags
+        self.insertion_types: list[int] = [0, 0, 0]  # Effect types for slots 0-2
+        self.insertion_bypass: list[bool] = [True, True, True]  # Bypass flags
 
         # XG parameter storage per slot
-        self.slot_parameters: List[Dict[str, float]] = [
+        self.slot_parameters: list[dict[str, float]] = [
             {}, {}, {}  # One dict per slot
         ]
 
@@ -519,7 +520,7 @@ class ProductionXGInsertionEffectsProcessor:
         else:
             self.slot_parameters[slot] = {}
 
-    def get_xg_parameter_info(self, effect_type: int) -> Dict[str, Dict]:
+    def get_xg_parameter_info(self, effect_type: int) -> dict[str, dict]:
         """Get XG parameter information for an effect type."""
         return self.XG_INSERTION_PARAMS.get(effect_type, {})
 
@@ -544,7 +545,7 @@ class ProductionXGInsertionEffectsProcessor:
             self.slot_parameters[slot][param_name] = clamped_value
             return True
 
-    def get_xg_parameter(self, slot: int, param_name: str) -> Optional[float]:
+    def get_xg_parameter(self, slot: int, param_name: str) -> float | None:
         """Get an XG parameter value for a specific slot."""
         with self.lock:
             if 0 <= slot < 3:
@@ -575,7 +576,7 @@ class ProductionXGInsertionEffectsProcessor:
 
     def apply_insertion_effect_to_channel_zero_alloc(self, target_buffer: np.ndarray,
                                                    channel_array: np.ndarray,
-                                                   insertion_params: Dict[str, Any],
+                                                   insertion_params: dict[str, Any],
                                                    num_samples: int,
                                                    channel_idx: int) -> None:
         """Apply complete insertion effects chain to a channel buffer."""
@@ -609,7 +610,7 @@ class ProductionXGInsertionEffectsProcessor:
                 target_buffer[:num_samples, 1] = mono_output
 
     def _apply_single_effect_to_samples(self, samples: np.ndarray, num_samples: int,
-                                      effect_type: int, params: Dict[str, float]) -> None:
+                                      effect_type: int, params: dict[str, float]) -> None:
         """Apply a single insertion effect to mono samples using XG parameters."""
 
         # Get XG parameters for this effect slot (find which slot this is for)

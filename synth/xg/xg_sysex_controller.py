@@ -8,8 +8,10 @@ XG SYSEX Format: F0 43 [device] 4C [model] [command] [data...] F7
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Callable, Any, Tuple
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 
@@ -172,7 +174,7 @@ class XGSystemExclusiveController:
         self.parameters['master_tune'] = 0.0      # ±100 cents
         self.parameters['master_transpose'] = 0   # ±24 semitones
 
-    def process_midi_data(self, data: bytes) -> List[Dict[str, Any]]:
+    def process_midi_data(self, data: bytes) -> list[dict[str, Any]]:
         """
         Process MIDI data stream for SYSEX messages.
 
@@ -201,7 +203,7 @@ class XGSystemExclusiveController:
 
         return processed_messages
 
-    def _process_sysex_message(self, message_data: List[int]) -> Optional[Dict[str, Any]]:
+    def _process_sysex_message(self, message_data: list[int]) -> dict[str, Any] | None:
         """
         Process a complete SYSEX message.
 
@@ -251,7 +253,7 @@ class XGSystemExclusiveController:
             print(f"❌ XG SYSEX: Error processing message: {e}")
             return None
 
-    def _process_xg_command(self, command: int, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _process_xg_command(self, command: int, data: list[int]) -> dict[str, Any] | None:
         """
         Process XG command with data.
 
@@ -282,7 +284,7 @@ class XGSystemExclusiveController:
 
         return None
 
-    def _calculate_checksum(self, data: List[int]) -> int:
+    def _calculate_checksum(self, data: list[int]) -> int:
         """
         Calculate XG SYSEX checksum.
 
@@ -300,7 +302,7 @@ class XGSystemExclusiveController:
 
     # XG Command Handlers
 
-    def _handle_system_parameters(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_system_parameters(self, data: list[int]) -> dict[str, Any] | None:
         """Handle system parameter changes."""
         if len(data) < 3:
             return None
@@ -327,7 +329,7 @@ class XGSystemExclusiveController:
             'value': value
         }
 
-    def _handle_xg_system_on(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_xg_system_on(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG System ON command."""
         if self.system_command_callback:
             self.system_command_callback('xg_on')
@@ -335,7 +337,7 @@ class XGSystemExclusiveController:
         print("🎹 XG SYSEX: XG System ON")
         return {'type': 'system_command', 'command': 'xg_on'}
 
-    def _handle_xg_system_off(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_xg_system_off(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG System OFF command."""
         if self.system_command_callback:
             self.system_command_callback('xg_off')
@@ -343,7 +345,7 @@ class XGSystemExclusiveController:
         print("🎹 XG SYSEX: XG System OFF")
         return {'type': 'system_command', 'command': 'xg_off'}
 
-    def _handle_xg_reset(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_xg_reset(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG Reset command."""
         # Reset all parameters to defaults
         self._initialize_default_parameters()
@@ -354,7 +356,7 @@ class XGSystemExclusiveController:
         print("🎹 XG SYSEX: XG Reset - All parameters reset to defaults")
         return {'type': 'system_command', 'command': 'xg_reset'}
 
-    def _handle_parameter_change(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_parameter_change(self, data: list[int]) -> dict[str, Any] | None:
         """
         Handle parameter change command.
 
@@ -391,7 +393,7 @@ class XGSystemExclusiveController:
             'value': value
         }
 
-    def _handle_master_tune(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_master_tune(self, data: list[int]) -> dict[str, Any] | None:
         """Handle master tune command."""
         if len(data) < 2:
             return None
@@ -412,7 +414,7 @@ class XGSystemExclusiveController:
             'unit': 'semitones'
         }
 
-    def _handle_master_transpose(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_master_transpose(self, data: list[int]) -> dict[str, Any] | None:
         """Handle master transpose command."""
         if len(data) < 1:
             return None
@@ -434,7 +436,7 @@ class XGSystemExclusiveController:
             'unit': 'semitones'
         }
 
-    def _handle_display_message(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_display_message(self, data: list[int]) -> dict[str, Any] | None:
         """Handle display message command."""
         # Convert data to ASCII string
         try:
@@ -450,7 +452,7 @@ class XGSystemExclusiveController:
         except:
             return None
 
-    def _handle_led_control(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_led_control(self, data: list[int]) -> dict[str, Any] | None:
         """Handle LED control command."""
         if len(data) < 2:
             return None
@@ -467,7 +469,7 @@ class XGSystemExclusiveController:
             'led_state': led_state
         }
 
-    def _handle_xg_dump_request(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_xg_dump_request(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG dump request - returns all XG parameters."""
         # Generate comprehensive XG parameter dump
         dump_data = self._generate_xg_parameter_dump()
@@ -479,7 +481,7 @@ class XGSystemExclusiveController:
             'data_length': len(dump_data)
         }
 
-    def _handle_xg_bulk_dump(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_xg_bulk_dump(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG bulk dump - processes XG parameter data."""
         if len(data) < 2:
             return {'type': 'bulk_dump', 'status': 'error', 'error': 'insufficient_data'}
@@ -498,12 +500,12 @@ class XGSystemExclusiveController:
             'data_length': len(parameter_data)
         }
 
-    def _handle_xg_dump(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_xg_dump(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG dump - similar to bulk dump but XG-specific format."""
         # For XG dump, we handle it the same as bulk dump
         return self._handle_xg_bulk_dump(data)
 
-    def _handle_bulk_dump(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_bulk_dump(self, data: list[int]) -> dict[str, Any] | None:
         """Handle general bulk dump - processes parameter data."""
         if len(data) < 1:
             return {'type': 'bulk_dump', 'status': 'error', 'error': 'no_data'}
@@ -528,7 +530,7 @@ class XGSystemExclusiveController:
             'data_length': len(dump_data)
         }
 
-    def _handle_bulk_dump_request(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_bulk_dump_request(self, data: list[int]) -> dict[str, Any] | None:
         """Handle bulk dump request - returns requested parameter data."""
         if len(data) < 1:
             return {'type': 'bulk_dump_request', 'status': 'error', 'error': 'no_request_type'}
@@ -554,7 +556,7 @@ class XGSystemExclusiveController:
             'data_length': len(dump_data)
         }
 
-    def _handle_special_message(self, data: List[int]) -> Optional[Dict[str, Any]]:
+    def _handle_special_message(self, data: list[int]) -> dict[str, Any] | None:
         """Handle special message."""
         return {'type': 'special_message', 'data': data}
 
@@ -619,7 +621,7 @@ class XGSystemExclusiveController:
             return True
         return False
 
-    def create_sysex_message(self, command: int, data: List[int]) -> bytes:
+    def create_sysex_message(self, command: int, data: list[int]) -> bytes:
         """
         Create a properly formatted XG SYSEX message.
 
@@ -641,7 +643,7 @@ class XGSystemExclusiveController:
 
         return bytes(message)
 
-    def get_supported_commands(self) -> Dict[int, str]:
+    def get_supported_commands(self) -> dict[int, str]:
         """
         Get all supported XG commands.
 
@@ -650,7 +652,7 @@ class XGSystemExclusiveController:
         """
         return self.XG_COMMANDS.copy()
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         Get SYSEX controller status.
 
@@ -671,7 +673,7 @@ class XGSystemExclusiveController:
 
     # Bulk Dump Data Processing and Generation Methods
 
-    def _generate_xg_parameter_dump(self) -> List[int]:
+    def _generate_xg_parameter_dump(self) -> list[int]:
         """
         Generate comprehensive XG parameter dump data.
 
@@ -698,7 +700,7 @@ class XGSystemExclusiveController:
         return dump_data
 
     def _process_xg_bulk_dump_data(self, address_msb: int, address_lsb: int,
-                                  parameter_data: List[int]) -> bool:
+                                  parameter_data: list[int]) -> bool:
         """
         Process XG bulk dump parameter data.
 
@@ -738,7 +740,7 @@ class XGSystemExclusiveController:
             print(f"❌ XG SYSEX: Error processing bulk dump data: {e}")
             return False
 
-    def _generate_system_bulk_dump(self) -> List[int]:
+    def _generate_system_bulk_dump(self) -> list[int]:
         """
         Generate system parameter bulk dump data.
 
@@ -757,7 +759,7 @@ class XGSystemExclusiveController:
 
         return dump_data
 
-    def _generate_effect_bulk_dump(self) -> List[int]:
+    def _generate_effect_bulk_dump(self) -> list[int]:
         """
         Generate effect parameter bulk dump data.
 
@@ -778,7 +780,7 @@ class XGSystemExclusiveController:
 
         return dump_data
 
-    def _generate_multipart_bulk_dump(self) -> List[int]:
+    def _generate_multipart_bulk_dump(self) -> list[int]:
         """
         Generate multi-part parameter bulk dump data.
 
@@ -807,7 +809,7 @@ class XGSystemExclusiveController:
 
         return dump_data
 
-    def _process_system_bulk_dump(self, dump_data: List[int]) -> bool:
+    def _process_system_bulk_dump(self, dump_data: list[int]) -> bool:
         """
         Process system parameter bulk dump data.
 
@@ -837,7 +839,7 @@ class XGSystemExclusiveController:
             print(f"❌ XG SYSEX: Error processing system bulk dump: {e}")
             return False
 
-    def _process_effect_bulk_dump(self, dump_data: List[int]) -> bool:
+    def _process_effect_bulk_dump(self, dump_data: list[int]) -> bool:
         """
         Process effect parameter bulk dump data.
 
@@ -850,7 +852,7 @@ class XGSystemExclusiveController:
         # For now, handle the same as system bulk dump
         return self._process_system_bulk_dump(dump_data)
 
-    def _process_multipart_bulk_dump(self, dump_data: List[int]) -> bool:
+    def _process_multipart_bulk_dump(self, dump_data: list[int]) -> bool:
         """
         Process multi-part parameter bulk dump data.
 

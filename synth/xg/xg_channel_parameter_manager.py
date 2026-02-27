@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """
 XG CHANNEL PARAMETER MANAGER - Professional XG Parameter Control Architecture
@@ -241,7 +242,7 @@ RESEARCH FEATURES:
 - Predictive parameter modulation
 """
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import threading
 import math
 
@@ -264,7 +265,7 @@ class XGChannelParameters:
         # XG Channel Parameters (MSB 3-31 range mapping)
         self.parameters = self._initialize_default_parameters()
 
-    def _initialize_default_parameters(self) -> Dict[str, Any]:
+    def _initialize_default_parameters(self) -> dict[str, Any]:
         """Initialize all XG channel parameters to XG defaults."""
         return {
             # MSB 3: Basic Channel Parameters (0-31)
@@ -404,7 +405,7 @@ class XGChannelParameters:
             return True
         return False
 
-    def _lsb_to_parameter_key(self, msb: int, lsb: int) -> Optional[str]:
+    def _lsb_to_parameter_key(self, msb: int, lsb: int) -> str | None:
         """Convert MSB/LSB to parameter key for XG channel parameters."""
         if msb == 3:  # Basic channel parameters
             lsb_map = {
@@ -550,14 +551,14 @@ class XGChannelParameters:
         # MSB 20-31: Reserved for future XG parameters
         return None
 
-    def get_parameter_value(self, msb: int, lsb: int) -> Optional[int]:
+    def get_parameter_value(self, msb: int, lsb: int) -> int | None:
         """Get parameter value for given MSB/LSB."""
         param_key = self._lsb_to_parameter_key(msb, lsb)
         if param_key and param_key in self.parameters:
             return self.parameters[param_key]
         return None
 
-    def get_synthesis_parameters(self) -> Dict[str, Any]:
+    def get_synthesis_parameters(self) -> dict[str, Any]:
         """Get synthesis-relevant parameters for real-time processing."""
         with self.lock:
             return {
@@ -612,7 +613,7 @@ class XGChannelParameters:
         with self.lock:
             self.parameters = self._initialize_default_parameters()
 
-    def get_current_state(self) -> Dict[str, Any]:
+    def get_current_state(self) -> dict[str, Any]:
         """Get current parameter state."""
         with self.lock:
             return self.parameters.copy()
@@ -681,14 +682,14 @@ class XGChannelParameterManager:
                 return self.channels[channel].update_from_nrpn(nrpn_msb, nrpn_lsb, data_value)
         return False
 
-    def get_channel_synthesis_parameters(self, channel: int) -> Dict[str, Any]:
+    def get_channel_synthesis_parameters(self, channel: int) -> dict[str, Any]:
         """Get synthesis-relevant parameters for a channel."""
         with self.lock:
             if 0 <= channel < self.num_channels:
                 return self.channels[channel].get_synthesis_parameters()
         return {}
 
-    def get_channel_parameter_value(self, channel: int, nrpn_msb: int, nrpn_lsb: int) -> Optional[int]:
+    def get_channel_parameter_value(self, channel: int, nrpn_msb: int, nrpn_lsb: int) -> int | None:
         """Get parameter value for given channel and NRPN."""
         with self.lock:
             if 0 <= channel < self.num_channels and 3 <= nrpn_msb <= 31:
@@ -708,14 +709,14 @@ class XGChannelParameterManager:
                 self.channels[channel].reset_to_xg_defaults()
             print("🎼 ALL XG CHANNEL PARAMETERS RESET TO DEFAULTS")
 
-    def get_channel_state(self, channel: int) -> Dict[str, Any]:
+    def get_channel_state(self, channel: int) -> dict[str, Any]:
         """Get complete parameter state for a channel."""
         with self.lock:
             if 0 <= channel < self.num_channels:
                 return self.channels[channel].get_current_state()
         return {}
 
-    def get_bulk_parameter_dump(self, channel: int) -> List[int]:
+    def get_bulk_parameter_dump(self, channel: int) -> list[int]:
         """
         Generate bulk parameter dump for channel (XG bulk dump format).
 
@@ -759,7 +760,7 @@ class XGChannelParameterManager:
                         if param_key in self.channels[channel].parameters:
                             self.channels[channel].parameters[param_key] = value
 
-    def get_xg_compliance_report(self) -> Dict[str, Any]:
+    def get_xg_compliance_report(self) -> dict[str, Any]:
         """Generate XG compliance report for channel parameters."""
         compliance = {}
 

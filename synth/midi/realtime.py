@@ -5,9 +5,11 @@ Handles real-time MIDI input processing for live synthesizer control.
 Converts raw MIDI bytes to structured messages and manages real-time message buffering.
 Supports both MIDI 1.0 and MIDI 2.0 Universal MIDI Packet (UMP) formats.
 """
+from __future__ import annotations
 
 import time
-from typing import List, Optional, Callable, Dict, Any
+from typing import Any
+from collections.abc import Callable
 import threading
 import struct
 
@@ -29,9 +31,9 @@ class RealtimeParser:
     def __init__(self):
         """Initialize the real-time MIDI parser."""
         self.last_status = 0x00  # For running status support
-        self.sysex_buffer: List[int] = []
+        self.sysex_buffer: list[int] = []
         self.in_sysex = False
-        self.pending_message: Optional[Dict[str, Any]] = None  # For multi-byte messages
+        self.pending_message: dict[str, Any] | None = None  # For multi-byte messages
         self.lock = threading.RLock()
         
         # UMP-specific state
@@ -39,7 +41,7 @@ class RealtimeParser:
         self.ump_buffer: bytes = b""
         self.is_ump_mode = False  # Whether we're currently in UMP mode
 
-    def parse_bytes(self, data: bytes) -> List[MIDIMessage]:
+    def parse_bytes(self, data: bytes) -> list[MIDIMessage]:
         """
         Parse raw MIDI bytes into structured messages.
         Supports both MIDI 1.0 and MIDI 2.0 UMP formats.
@@ -85,7 +87,7 @@ class RealtimeParser:
 
             return messages
 
-    def _convert_ump_to_midimessage(self, packet: UMPPacket) -> Optional[MIDIMessage]:
+    def _convert_ump_to_midimessage(self, packet: UMPPacket) -> MIDIMessage | None:
         """
         Convert a UMP packet to a MIDIMessage object.
 
@@ -118,7 +120,7 @@ class RealtimeParser:
                 timestamp=time.time()
             )
 
-    def _convert_midi2_packet_to_message(self, packet: MIDI2ChannelVoicePacket) -> Optional[MIDIMessage]:
+    def _convert_midi2_packet_to_message(self, packet: MIDI2ChannelVoicePacket) -> MIDIMessage | None:
         """
         Convert MIDI 2.0 UMP packet to MIDIMessage.
 
@@ -202,7 +204,7 @@ class RealtimeParser:
 
         return None
 
-    def _convert_midi1_packet_to_message(self, packet: MIDI1ChannelVoicePacket) -> Optional[MIDIMessage]:
+    def _convert_midi1_packet_to_message(self, packet: MIDI1ChannelVoicePacket) -> MIDIMessage | None:
         """
         Convert MIDI 1.0 UMP packet to MIDIMessage.
 
@@ -269,7 +271,7 @@ class RealtimeParser:
 
         return None
 
-    def _convert_sysex_packet_to_message(self, packet: SysExUMP) -> Optional[MIDIMessage]:
+    def _convert_sysex_packet_to_message(self, packet: SysExUMP) -> MIDIMessage | None:
         """
         Convert SysEx UMP packet to MIDIMessage.
 
@@ -285,7 +287,7 @@ class RealtimeParser:
             timestamp=time.time()
         )
 
-    def _convert_utility_packet_to_message(self, packet: UtilityUMP) -> Optional[MIDIMessage]:
+    def _convert_utility_packet_to_message(self, packet: UtilityUMP) -> MIDIMessage | None:
         """
         Convert Utility UMP packet to MIDIMessage.
 
@@ -305,7 +307,7 @@ class RealtimeParser:
 
         return None
 
-    def _parse_byte(self, byte: int) -> Optional[MIDIMessage]:
+    def _parse_byte(self, byte: int) -> MIDIMessage | None:
         """
         Parse a single MIDI byte with complete message type support.
 
@@ -317,110 +319,119 @@ class RealtimeParser:
         """
         # Handle system exclusive
         if self.in_sysex:
-            if byte == MIDIStatus.END_OF_EXCLUSIVE:
-                # End of sysex
-                self.in_sysex = False
-                sysex_data = self.sysex_buffer.copy()
-                self.sysex_buffer.clear()
-
-                # Create sysex message
-                return MIDIMessage(
-                    type='sysex',
-                    data={'raw_data': sysex_data}
-                )
-            else:
-                # Continue collecting sysex data
-                # Prevent buffer overflow by limiting sysex buffer size
-                if len(self.sysex_buffer) < 1024:  # Reasonable limit for sysex messages
+            match byte:
+                case MIDIStatus.END_OF_EXCLUSIVE:
+                    # End of sysex
+                    self.in_sysex = False
+                    sysex_data = self.sysex_buffer.copy()
+                    self.sysex_buffer.clear()
+                    return MIDIMessage(type='sysex', data={'raw_data': sysex_data})
+                
+                case _ if len(self.sysex_buffer) < 1024:
+                    # Continue collecting sysex data
                     self.sysex_buffer.append(byte)
-                else:
+                    return None
+                
+                case _:
                     # Buffer overflow - reset parser state
                     self.reset()
-                return None
+                    return None
 
         # Check for status byte
         if byte & 0x80:
-            # Status byte - handle system messages and start new channel messages
-            if byte == MIDIStatus.SYSTEM_EXCLUSIVE:
-                # Start of system exclusive
-                self.in_sysex = True
-                self.sysex_buffer.clear()
-                self.pending_message = None  # Cancel any pending message
-                return None
-            elif byte >= MIDIStatus.TIMING_CLOCK and byte <= MIDIStatus.SYSTEM_RESET:
-                # System real-time message (doesn't affect running status)
-                return self._parse_system_message(byte)
-            elif (byte >= MIDIStatus.TIME_CODE and byte <= MIDIStatus.SONG_SELECT) or byte == MIDIStatus.TUNE_REQUEST:
-                # System common messages - handle immediately
-                return self._parse_system_common_message(byte)
-            elif (byte & 0xF0) in [0x80, 0x90, 0xA0, 0xB0, 0xC0, 0xD0, 0xE0]:
-                # Channel message status - update running status and start new message
-                self.last_status = byte
-                self.pending_message = None  # Cancel any pending message
-                return None
-            else:
-                # Unknown status byte - reset parser to prevent corruption
-                self.reset()
-                return None
+            # Status byte - handle based on type
+            match byte:
+                case MIDIStatus.SYSTEM_EXCLUSIVE:
+                    # Start of system exclusive
+                    self.in_sysex = True
+                    self.sysex_buffer.clear()
+                    self.pending_message = None
+                    return None
+                
+                case MIDIStatus.TIMING_CLOCK | MIDIStatus.START | MIDIStatus.CONTINUE | \
+                     MIDIStatus.STOP | MIDIStatus.ACTIVE_SENSING | MIDIStatus.SYSTEM_RESET:
+                    # System real-time message (doesn't affect running status)
+                    return self._parse_system_message(byte)
+                
+                case MIDIStatus.TIME_CODE | MIDIStatus.SONG_POSITION | \
+                     MIDIStatus.SONG_SELECT | MIDIStatus.TUNE_REQUEST:
+                    # System common messages
+                    return self._parse_system_common_message(byte)
+                
+                case status if (status & 0xF0) in [0x80, 0x90, 0xA0, 0xB0, 0xC0, 0xD0, 0xE0]:
+                    # Channel message status - update running status
+                    self.last_status = byte
+                    self.pending_message = None
+                    return None
+                
+                case _:
+                    # Unknown status byte - reset parser
+                    self.reset()
+                    return None
         else:
             # Data byte - handle based on current state
-            if self.pending_message:
-                # Continue building pending message
-                return self._continue_channel_message(byte)
-            elif self.last_status and (self.last_status & 0xF0) in [0x80, 0x90, 0xA0, 0xB0, 0xE0]:
-                # Start building a 2-byte channel message
-                return self._start_channel_message(self.last_status, byte)
-            elif self.last_status and (self.last_status & 0xF0) in [0xC0, 0xD0]:
-                # 1-byte channel message with running status
-                return self._parse_channel_message_single(self.last_status, byte)
-            elif self.pending_message and self.pending_message.get('type') in ['time_code', 'song_select']:
-                # Handle system common messages that need data
-                return self._continue_system_common_message(byte)
-            elif self.pending_message and self.pending_message.get('type') == 'song_position':
-                # Start song position with first data byte
-                self.pending_message['first_data'] = byte
-                return None
-            else:
-                # Unexpected data byte - ignore and possibly reset if too many consecutive
-                return None
+            match (self.pending_message, self.last_status):
+                case (pending, _) if pending:
+                    # Continue building pending message
+                    return self._continue_channel_message(byte)
+                
+                case (_, last) if last and (last & 0xF0) in [0x80, 0x90, 0xA0, 0xB0, 0xE0]:
+                    # Start building a 2-byte channel message
+                    return self._start_channel_message(self.last_status, byte)
+                
+                case (_, last) if last and (last & 0xF0) in [0xC0, 0xD0]:
+                    # 1-byte channel message with running status
+                    return self._parse_channel_message_single(self.last_status, byte)
+                
+                case (pending, _) if pending and pending.get('type') in ['time_code', 'song_select']:
+                    # Handle system common messages that need data
+                    return self._continue_system_common_message(byte)
+                
+                case (pending, _) if pending and pending.get('type') == 'song_position':
+                    # Start song position with first data byte
+                    self.pending_message['first_data'] = byte
+                    return None
+                
+                case _:
+                    # Unexpected data byte - ignore
+                    return None
 
-    def _parse_system_message(self, status: int) -> Optional[MIDIMessage]:
+    def _parse_system_message(self, status: int) -> MIDIMessage | None:
         """Parse system real-time message."""
         message_type = get_message_type_from_status(status)
         # System real-time messages have no data
         return MIDIMessage(type=message_type)
 
-    def _parse_system_common_message(self, status: int) -> Optional[MIDIMessage]:
+    def _parse_system_common_message(self, status: int) -> MIDIMessage | None:
         """
         Parse system common messages (time code, song position, song select, tune request).
         """
         message_type = get_message_type_from_status(status)
 
-        if message_type == 'time_code':
-            # Time code needs 1 data byte - start pending message
-            self.pending_message = {
-                'type': 'time_code'
-            }
-            return None
-        elif message_type == 'song_position':
-            # Song position needs 2 data bytes - start pending message
-            self.pending_message = {
-                'type': 'song_position'
-            }
-            return None
-        elif message_type == 'song_select':
-            # Song select needs 1 data byte - start pending message
-            self.pending_message = {
-                'type': 'song_select'
-            }
-            return None
-        elif message_type == 'tune_request':
-            # Tune request has no data
-            return MIDIMessage(type='tune_request')
+        match message_type:
+            case 'time_code':
+                # Time code needs 1 data byte - start pending message
+                self.pending_message = {'type': 'time_code'}
+                return None
+            
+            case 'song_position':
+                # Song position needs 2 data bytes - start pending message
+                self.pending_message = {'type': 'song_position'}
+                return None
+            
+            case 'song_select':
+                # Song select needs 1 data byte - start pending message
+                self.pending_message = {'type': 'song_select'}
+                return None
+            
+            case 'tune_request':
+                # Tune request has no data
+                return MIDIMessage(type='tune_request')
+            
+            case _:
+                return None
 
-        return None
-
-    def _start_channel_message(self, status: int, first_data: int) -> Optional[MIDIMessage]:
+    def _start_channel_message(self, status: int, first_data: int) -> MIDIMessage | None:
         """
         Start parsing a 2-byte channel message.
         """
@@ -436,7 +447,7 @@ class RealtimeParser:
         }
         return None  # Wait for second data byte
 
-    def _continue_channel_message(self, byte: int) -> Optional[MIDIMessage]:
+    def _continue_channel_message(self, byte: int) -> MIDIMessage | None:
         """
         Continue parsing a pending message with the second data byte.
         """
@@ -454,85 +465,89 @@ class RealtimeParser:
             channel = msg['channel']
             first_data = msg['first_data']
 
-            # Parse based on message type
-            if message_type == 'note_off':
-                return MIDIMessage(
-                    type='note_off',
-                    channel=channel,
-                    data={'note': first_data, 'velocity': byte}
-                )
-            elif message_type == 'note_on':
-                return MIDIMessage(
-                    type='note_on',
-                    channel=channel,
-                    data={'note': first_data, 'velocity': byte}
-                )
-            elif message_type == 'poly_pressure':
-                return MIDIMessage(
-                    type='poly_pressure',
-                    channel=channel,
-                    data={'note': first_data, 'pressure': byte}
-                )
-            elif message_type == 'control_change':
-                return MIDIMessage(
-                    type='control_change',
-                    channel=channel,
-                    data={'controller': first_data, 'value': byte}
-                )
-            elif message_type == 'pitch_bend':
-                # Combine LSB and MSB into 14-bit value
-                pitch_value = (byte << 7) | first_data
-                return MIDIMessage(
-                    type='pitch_bend',
-                    channel=channel,
-                    data={'value': pitch_value}
-                )
+            match message_type:
+                case 'note_off':
+                    return MIDIMessage(
+                        type='note_off',
+                        channel=channel,
+                        data={'note': first_data, 'velocity': byte}
+                    )
+                
+                case 'note_on':
+                    return MIDIMessage(
+                        type='note_on',
+                        channel=channel,
+                        data={'note': first_data, 'velocity': byte}
+                    )
+                
+                case 'poly_pressure':
+                    return MIDIMessage(
+                        type='poly_pressure',
+                        channel=channel,
+                        data={'note': first_data, 'pressure': byte}
+                    )
+                
+                case 'control_change':
+                    return MIDIMessage(
+                        type='control_change',
+                        channel=channel,
+                        data={'controller': first_data, 'value': byte}
+                    )
+                
+                case 'pitch_bend':
+                    # Combine LSB and MSB into 14-bit value
+                    pitch_value = (byte << 7) | first_data
+                    return MIDIMessage(
+                        type='pitch_bend',
+                        channel=channel,
+                        data={'value': pitch_value}
+                    )
+                
+                case _:
+                    return None
         else:
             # Handle system common messages
-            if message_type == 'time_code':
-                return MIDIMessage(
-                    type='time_code',
-                    data={'value': byte}
-                )
-            elif message_type == 'song_select':
-                return MIDIMessage(
-                    type='song_select',
-                    data={'song': byte}
-                )
-            elif message_type == 'song_position':
-                # For song position, we need the first data byte
-                first_data = msg.get('first_data', 0)
-                position = (byte << 7) | first_data
-                return MIDIMessage(
-                    type='song_position',
-                    data={'position': position}
-                )
+            match message_type:
+                case 'time_code':
+                    return MIDIMessage(type='time_code', data={'value': byte})
+                
+                case 'song_select':
+                    return MIDIMessage(type='song_select', data={'song': byte})
+                
+                case 'song_position':
+                    first_data = msg.get('first_data', 0)
+                    position = (byte << 7) | first_data
+                    return MIDIMessage(type='song_position', data={'position': position})
+                
+                case _:
+                    return None
 
-        return None
-
-    def _parse_channel_message_single(self, status: int, data: int) -> Optional[MIDIMessage]:
+    def _parse_channel_message_single(self, status: int, data: int) -> MIDIMessage | None:
         """
         Parse a 1-byte channel message (program change, channel pressure).
         """
         message_type = get_message_type_from_status(status)
         channel = status & 0x0F
 
-        if message_type == 'program_change':
-            return MIDIMessage(
-                type='program_change',
-                channel=channel,
-                data={'program': data}
-            )
-        elif message_type == 'channel_pressure':
-            return MIDIMessage(
-                type='channel_pressure',
-                channel=channel,
-                data={'pressure': data}
-            )
+        match message_type:
+            case 'program_change':
+                return MIDIMessage(
+                    type='program_change',
+                    channel=channel,
+                    data={'program': data}
+                )
+            
+            case 'channel_pressure':
+                return MIDIMessage(
+                    type='channel_pressure',
+                    channel=channel,
+                    data={'pressure': data}
+                )
+            
+            case _:
+                return None
 
-        return None
-
-    def _continue_system_common_message(self, byte: int) -> Optional[MIDIMessage]:
+    def _continue_system_common_message(self, byte: int) -> MIDIMessage | None:
         """
         Continue parsing a system common message with data byte.
         """
@@ -546,18 +561,15 @@ class RealtimeParser:
         self.pending_message = None
 
         # Handle system common messages
-        if message_type == 'time_code':
-            return MIDIMessage(
-                type='time_code',
-                data={'value': byte}
-            )
-        elif message_type == 'song_select':
-            return MIDIMessage(
-                type='song_select',
-                data={'song': byte}
-            )
-
-        return None
+        match message_type:
+            case 'time_code':
+                return MIDIMessage(type='time_code', data={'value': byte})
+            
+            case 'song_select':
+                return MIDIMessage(type='song_select', data={'song': byte})
+            
+            case _:
+                return None
 
     def reset(self):
         """Reset parser to clean state."""

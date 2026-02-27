@@ -4,8 +4,9 @@ S90/S70 Preset Compatibility
 Handles authentic preset compatibility, parameter mapping,
 and behavior for S90/S70 synthesizer presets.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Any
 import json
 import os
 
@@ -25,16 +26,16 @@ class S90S70PresetBank:
         self.bank_name = bank_name
         self.bank_id = bank_id
         self.max_presets = max_presets
-        self.presets: Dict[int, Dict[str, Any]] = {}
+        self.presets: dict[int, dict[str, Any]] = {}
 
-    def add_preset(self, preset_number: int, preset_data: Dict[str, Any]) -> bool:
+    def add_preset(self, preset_number: int, preset_data: dict[str, Any]) -> bool:
         """Add preset to bank"""
         if 0 <= preset_number < self.max_presets:
             self.presets[preset_number] = preset_data.copy()
             return True
         return False
 
-    def get_preset(self, preset_number: int) -> Optional[Dict[str, Any]]:
+    def get_preset(self, preset_number: int) -> dict[str, Any] | None:
         """Get preset from bank"""
         return self.presets.get(preset_number)
 
@@ -45,7 +46,7 @@ class S90S70PresetBank:
             return True
         return False
 
-    def get_bank_info(self) -> Dict[str, Any]:
+    def get_bank_info(self) -> dict[str, Any]:
         """Get bank information"""
         return {
             'name': self.bank_name,
@@ -66,7 +67,7 @@ class S90S70PresetCompatibility:
 
     def __init__(self):
         """Initialize preset compatibility manager"""
-        self.banks: Dict[str, S90S70PresetBank] = {}
+        self.banks: dict[str, S90S70PresetBank] = {}
         self.current_bank = 'USER'
         self.current_preset = 0
 
@@ -228,8 +229,8 @@ class S90S70PresetCompatibility:
         """Get current bank name"""
         return self.current_bank
 
-    def save_preset(self, preset_number: int, preset_data: Dict[str, Any],
-                   bank_name: Optional[str] = None) -> bool:
+    def save_preset(self, preset_number: int, preset_data: dict[str, Any],
+                   bank_name: str | None = None) -> bool:
         """
         Save preset to bank.
 
@@ -254,7 +255,7 @@ class S90S70PresetCompatibility:
 
         return self.banks[bank].add_preset(preset_number, compatible_data)
 
-    def load_preset(self, preset_number: int, bank_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def load_preset(self, preset_number: int, bank_name: str | None = None) -> dict[str, Any] | None:
         """
         Load preset from bank.
 
@@ -276,7 +277,7 @@ class S90S70PresetCompatibility:
         # Apply current hardware compatibility
         return self._apply_hardware_compatibility(preset_data)
 
-    def delete_preset(self, preset_number: int, bank_name: Optional[str] = None) -> bool:
+    def delete_preset(self, preset_number: int, bank_name: str | None = None) -> bool:
         """
         Delete preset from bank.
 
@@ -316,7 +317,7 @@ class S90S70PresetCompatibility:
 
         return self.banks[dest_bank].add_preset(dest_preset, preset_data.copy())
 
-    def get_bank_info(self, bank_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_bank_info(self, bank_name: str | None = None) -> dict[str, Any] | None:
         """Get information about a bank"""
         bank = bank_name or self.current_bank
         if bank not in self.banks:
@@ -324,7 +325,7 @@ class S90S70PresetCompatibility:
 
         return self.banks[bank].get_bank_info()
 
-    def get_all_bank_info(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_bank_info(self) -> dict[str, dict[str, Any]]:
         """Get information about all banks"""
         return {name: bank.get_bank_info() for name, bank in self.banks.items()}
 
@@ -370,7 +371,7 @@ class S90S70PresetCompatibility:
             return False
 
         try:
-            with open(filename, 'r') as f:
+            with open(filename) as f:
                 import_data = json.load(f)
 
             bank = self.banks[target_bank]
@@ -386,7 +387,7 @@ class S90S70PresetCompatibility:
         except Exception:
             return False
 
-    def _validate_preset_structure(self, preset_data: Dict[str, Any]) -> bool:
+    def _validate_preset_structure(self, preset_data: dict[str, Any]) -> bool:
         """
         Validate preset data structure against S90/S70 specifications.
 
@@ -434,7 +435,7 @@ class S90S70PresetCompatibility:
 
         return True
 
-    def _apply_compatibility_transforms(self, preset_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_compatibility_transforms(self, preset_data: dict[str, Any]) -> dict[str, Any]:
         """
         Apply compatibility transformations to preset data.
 
@@ -458,7 +459,7 @@ class S90S70PresetCompatibility:
 
         return transformed
 
-    def _apply_hardware_compatibility(self, preset_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_hardware_compatibility(self, preset_data: dict[str, Any]) -> dict[str, Any]:
         """
         Apply hardware compatibility transformations for loading.
 
@@ -502,7 +503,7 @@ class S90S70PresetCompatibility:
 
         return param_value
 
-    def create_default_preset(self, preset_type: str = 'awm') -> Dict[str, Any]:
+    def create_default_preset(self, preset_type: str = 'awm') -> dict[str, Any]:
         """
         Create a default preset of specified type.
 
@@ -581,7 +582,7 @@ class S90S70PresetCompatibility:
 
         return base_preset
 
-    def get_preset_statistics(self) -> Dict[str, Any]:
+    def get_preset_statistics(self) -> dict[str, Any]:
         """Get statistics about loaded presets"""
         total_presets = 0
         bank_usage = {}

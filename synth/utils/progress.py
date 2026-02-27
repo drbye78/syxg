@@ -1,12 +1,12 @@
+from __future__ import annotations
 import time
-from typing import Optional
 
 class ProgressReporter:
     """Elegant progress reporting with timing and formatting"""
     
     def __init__(self, silent: bool = False):
         self.silent = silent
-        self.start_time: Optional[float] = None
+        self.start_time: float | None = None
         self.total: float = 0
         self.processed: float = 0
         

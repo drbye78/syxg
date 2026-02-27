@@ -3,8 +3,9 @@ XGML to MIDI Translator
 
 Converts XGML documents to MIDI message sequences that can be fed to the XG synthesizer.
 """
+from __future__ import annotations
 
-from typing import List, Dict, Any, Optional, Union, Tuple
+from typing import Any
 import math
 from collections import defaultdict
 
@@ -32,7 +33,7 @@ class XGMLToMIDITranslator:
         self.errors = []
         self.warnings = []
 
-    def translate_document(self, xgml_document) -> List[MIDIMessage]:
+    def translate_document(self, xgml_document) -> list[MIDIMessage]:
         """
         Translate complete XGML document to MIDI message sequence.
 
@@ -79,7 +80,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_basic_messages(self, doc) -> List[MIDIMessage]:
+    def _translate_basic_messages(self, doc) -> list[MIDIMessage]:
         """Translate basic MIDI messages section."""
         messages = []
 
@@ -143,7 +144,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_rpn_parameters(self, doc) -> List[MIDIMessage]:
+    def _translate_rpn_parameters(self, doc) -> list[MIDIMessage]:
         """Translate RPN parameters section."""
         messages = []
 
@@ -167,7 +168,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_channel_parameters(self, doc) -> List[MIDIMessage]:
+    def _translate_channel_parameters(self, doc) -> list[MIDIMessage]:
         """Translate XG channel parameters (NRPN MSB 3-31)."""
         messages = []
 
@@ -184,7 +185,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_drum_parameters(self, doc) -> List[MIDIMessage]:
+    def _translate_drum_parameters(self, doc) -> list[MIDIMessage]:
         """Translate XG drum parameters (NRPN MSB 40-41)."""
         messages = []
 
@@ -204,7 +205,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_system_exclusive(self, doc) -> List[MIDIMessage]:
+    def _translate_system_exclusive(self, doc) -> list[MIDIMessage]:
         """Translate system exclusive messages."""
         messages = []
 
@@ -221,7 +222,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_effects(self, doc) -> List[MIDIMessage]:
+    def _translate_effects(self, doc) -> list[MIDIMessage]:
         """Translate effects configuration."""
         messages = []
 
@@ -243,7 +244,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_sequences(self, doc) -> List[MIDIMessage]:
+    def _translate_sequences(self, doc) -> list[MIDIMessage]:
         """Translate time-bound sequences."""
         messages = []
 
@@ -274,7 +275,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _process_track(self, track_data: Dict, tempo: float) -> List[MIDIMessage]:
+    def _process_track(self, track_data: dict, tempo: float) -> list[MIDIMessage]:
         """Process a single track from sequence."""
         messages = []
 
@@ -306,7 +307,7 @@ class XGMLToMIDITranslator:
             return int(channel_name.split('_')[1]) - 1  # Convert to 0-based
         return int(channel_name) - 1  # Assume 1-based input
 
-    def _parse_note_name(self, note_name: Union[str, int]) -> int:
+    def _parse_note_name(self, note_name: str | int) -> int:
         """Parse note name to MIDI note number."""
         if isinstance(note_name, int):
             return note_name
@@ -324,17 +325,17 @@ class XGMLToMIDITranslator:
 
         return int(note_name)  # Fallback
 
-    def _resolve_program_name(self, program: Union[str, int]) -> int:
+    def _resolve_program_name(self, program: str | int) -> int:
         """Resolve program name to MIDI program number."""
         if isinstance(program, int):
             return program
         return PROGRAM_NAMES.get(program, 0)
 
-    def _resolve_controller_name(self, controller: str) -> Optional[int]:
+    def _resolve_controller_name(self, controller: str) -> int | None:
         """Resolve controller name to MIDI controller number."""
         return CONTROLLER_NAMES.get(controller)
 
-    def _resolve_controller_value(self, controller: str, value: Union[str, int, bool, Dict]) -> int:
+    def _resolve_controller_value(self, controller: str, value: str | int | bool | dict) -> int:
         """Resolve controller value to MIDI value."""
         if isinstance(value, dict):
             # Handle complex values with 'from', 'to', etc.
@@ -353,7 +354,7 @@ class XGMLToMIDITranslator:
 
         return int(value)
 
-    def _parse_time(self, time_spec: Union[str, float], tempo: float) -> float:
+    def _parse_time(self, time_spec: str | float, tempo: float) -> float:
         """Parse time specification to seconds."""
         if isinstance(time_spec, (int, float)):
             return float(time_spec)
@@ -376,7 +377,7 @@ class XGMLToMIDITranslator:
 
     # MIDI message generation methods
 
-    def _generate_rpn_messages(self, params: Dict, channel: Optional[int]) -> List[MIDIMessage]:
+    def _generate_rpn_messages(self, params: dict, channel: int | None) -> list[MIDIMessage]:
         """Generate RPN messages for parameters."""
         messages = []
 
@@ -394,7 +395,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_rpn_sequence(self, channel: Optional[int], msb: int, lsb: int, value: int) -> List[MIDIMessage]:
+    def _generate_rpn_sequence(self, channel: int | None, msb: int, lsb: int, value: int) -> list[MIDIMessage]:
         """Generate RPN parameter change sequence."""
         messages = []
 
@@ -427,7 +428,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_nrpn_sequence(self, channel: Optional[int], msb: int, lsb: int, value: int) -> List[MIDIMessage]:
+    def _generate_nrpn_sequence(self, channel: int | None, msb: int, lsb: int, value: int) -> list[MIDIMessage]:
         """Generate NRPN parameter change sequence."""
         messages = []
 
@@ -463,7 +464,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_channel_nrpn_messages(self, params: Dict, channel: int) -> List[MIDIMessage]:
+    def _generate_channel_nrpn_messages(self, params: dict, channel: int) -> list[MIDIMessage]:
         """Generate NRPN messages for channel parameters (NRPN MSB 3-31)."""
         messages = []
 
@@ -712,7 +713,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_drum_nrpn_messages(self, params: Dict, channel: int, note: int) -> List[MIDIMessage]:
+    def _generate_drum_nrpn_messages(self, params: dict, channel: int, note: int) -> list[MIDIMessage]:
         """Generate NRPN messages for XG drum parameters (MSB 40-41)."""
         messages = []
 
@@ -756,7 +757,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_sysex_message(self, cmd: Dict) -> MIDIMessage:
+    def _generate_sysex_message(self, cmd: dict) -> MIDIMessage:
         """Generate system exclusive message."""
         # Simplified SYSEX generation
         manufacturer = 0x43  # Yamaha
@@ -768,7 +769,7 @@ class XGMLToMIDITranslator:
             time=0.0
         )
 
-    def _generate_system_effects_messages(self, effects: Dict) -> List[MIDIMessage]:
+    def _generate_system_effects_messages(self, effects: dict) -> list[MIDIMessage]:
         """Generate XG system effects NRPN messages (MSB 1-2)."""
         messages = []
 
@@ -819,7 +820,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_variation_effects_messages(self, effects: Dict) -> List[MIDIMessage]:
+    def _generate_variation_effects_messages(self, effects: dict) -> list[MIDIMessage]:
         """Generate XG variation effects NRPN messages (MSB 3)."""
         messages = []
 
@@ -842,7 +843,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_insertion_effects_messages(self, effects: Dict) -> List[MIDIMessage]:
+    def _generate_insertion_effects_messages(self, effects: dict) -> list[MIDIMessage]:
         """Generate XG insertion effects NRPN messages (MSB 4-6)."""
         messages = []
 
@@ -885,7 +886,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_parameter_messages(self, params: Dict, channel: int, time: float) -> List[MIDIMessage]:
+    def _generate_parameter_messages(self, params: dict, channel: int, time: float) -> list[MIDIMessage]:
         """Generate parameter messages for track/channel."""
         messages = []
 
@@ -903,7 +904,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _generate_event_messages(self, event_data: Dict, channel: int, time: float) -> List[MIDIMessage]:
+    def _generate_event_messages(self, event_data: dict, channel: int, time: float) -> list[MIDIMessage]:
         """Generate messages for sequence events."""
         messages = []
 
@@ -959,11 +960,11 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def get_errors(self) -> List[str]:
+    def get_errors(self) -> list[str]:
         """Get list of translation errors."""
         return self.errors.copy()
 
-    def get_warnings(self) -> List[str]:
+    def get_warnings(self) -> list[str]:
         """Get list of translation warnings."""
         return self.warnings.copy()
 
@@ -977,7 +978,7 @@ class XGMLToMIDITranslator:
 
     # Modern v2.0 translation methods
 
-    def _translate_synthesis_engines(self, doc) -> List[MIDIMessage]:
+    def _translate_synthesis_engines(self, doc) -> list[MIDIMessage]:
         """Translate synthesis engines configuration."""
         messages = []
 
@@ -992,7 +993,7 @@ class XGMLToMIDITranslator:
         self.warnings.append("Synthesis engine configuration requires synthesizer-level implementation")
         return messages
 
-    def _translate_gs_configuration(self, doc) -> List[MIDIMessage]:
+    def _translate_gs_configuration(self, doc) -> list[MIDIMessage]:
         """Translate GS configuration."""
         messages = []
 
@@ -1033,7 +1034,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_mpe_configuration(self, doc) -> List[MIDIMessage]:
+    def _translate_mpe_configuration(self, doc) -> list[MIDIMessage]:
         """Translate MPE configuration."""
         messages = []
 
@@ -1055,7 +1056,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_modulation_matrix(self, doc) -> List[MIDIMessage]:
+    def _translate_modulation_matrix(self, doc) -> list[MIDIMessage]:
         """Translate modulation matrix configuration."""
         messages = []
 
@@ -1070,7 +1071,7 @@ class XGMLToMIDITranslator:
         self.warnings.append("Modulation matrix configuration requires extended NRPN/SYSEX support")
         return messages
 
-    def _translate_effects_configuration(self, doc) -> List[MIDIMessage]:
+    def _translate_effects_configuration(self, doc) -> list[MIDIMessage]:
         """Translate advanced effects configuration."""
         messages = []
 
@@ -1152,7 +1153,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_arpeggiator_configuration(self, doc) -> List[MIDIMessage]:
+    def _translate_arpeggiator_configuration(self, doc) -> list[MIDIMessage]:
         """Translate arpeggiator configuration."""
         messages = []
 
@@ -1167,7 +1168,7 @@ class XGMLToMIDITranslator:
         self.warnings.append("Arpeggiator configuration requires SYSEX implementation for target device")
         return messages
 
-    def _translate_microtonal_tuning(self, doc) -> List[MIDIMessage]:
+    def _translate_microtonal_tuning(self, doc) -> list[MIDIMessage]:
         """Translate microtonal tuning configuration."""
         messages = []
 
@@ -1216,7 +1217,7 @@ class XGMLToMIDITranslator:
 
         return messages
 
-    def _translate_advanced_features(self, doc) -> List[MIDIMessage]:
+    def _translate_advanced_features(self, doc) -> list[MIDIMessage]:
         """Translate advanced features configuration."""
         messages = []
 
@@ -1233,7 +1234,7 @@ class XGMLToMIDITranslator:
 
     # XGML v2.1 Advanced Engine Translation Methods
 
-    def _translate_fm_x_engine(self, doc) -> List[MIDIMessage]:
+    def _translate_fm_x_engine(self, doc) -> list[MIDIMessage]:
         """Translate FM-X engine configuration to MIDI messages."""
         messages = []
 
@@ -1293,7 +1294,7 @@ class XGMLToMIDITranslator:
         self.warnings.append("FM-X engine configuration requires comprehensive SYSEX implementation")
         return messages
 
-    def _translate_sfz_engine(self, doc) -> List[MIDIMessage]:
+    def _translate_sfz_engine(self, doc) -> list[MIDIMessage]:
         """Translate SFZ engine configuration to MIDI messages."""
         messages = []
 
@@ -1351,7 +1352,7 @@ class XGMLToMIDITranslator:
         self.warnings.append("SFZ engine configuration requires instrument-level implementation")
         return messages
 
-    def _translate_physical_engine(self, doc) -> List[MIDIMessage]:
+    def _translate_physical_engine(self, doc) -> list[MIDIMessage]:
         """Translate physical modeling engine configuration to MIDI messages."""
         messages = []
 
@@ -1401,7 +1402,7 @@ class XGMLToMIDITranslator:
         self.warnings.append("Physical modeling engine requires comprehensive SYSEX implementation")
         return messages
 
-    def _translate_spectral_engine(self, doc) -> List[MIDIMessage]:
+    def _translate_spectral_engine(self, doc) -> list[MIDIMessage]:
         """Translate spectral processing engine configuration to MIDI messages."""
         messages = []
 

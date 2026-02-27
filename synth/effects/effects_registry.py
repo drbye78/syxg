@@ -20,9 +20,11 @@ XG Effect Coverage:
 - Insertion Effects: 18 types (across 5 categories)
 - Channel EQ: 10 types (timbre presets)
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any, Type, Callable
+from typing import Any
+from collections.abc import Callable
 from enum import IntEnum
 from dataclasses import dataclass
 import threading
@@ -53,7 +55,7 @@ class XGEffectCategory(IntEnum):
     EQUALIZER = 3   # EQ effects (10 types)
 
 
-@dataclass
+@dataclass(slots=True)
 class XGEffectMetadata:
     """XG Effect Metadata Structure"""
     effect_type: int
@@ -62,7 +64,7 @@ class XGEffectMetadata:
     short_name: str
     description: str
     has_parameters: bool
-    processor_class: Optional[Type] = None
+    processor_class: type | None = None
 
 
 class XGEffectRegistry:
@@ -75,8 +77,8 @@ class XGEffectRegistry:
 
     def __init__(self):
         """Initialize the XG effects registry with all effect types."""
-        self._effects: Dict[Tuple[XGEffectCategory, int], XGEffectMetadata] = {}
-        self._name_to_type: Dict[str, Tuple[XGEffectCategory, int]] = {}
+        self._effects: dict[tuple[XGEffectCategory, int], XGEffectMetadata] = {}
+        self._name_to_type: dict[str, tuple[XGEffectCategory, int]] = {}
 
         # Thread safety
         self.lock = threading.RLock()
@@ -176,7 +178,7 @@ class XGEffectRegistry:
         for effect in variation_effects:
             self._register_effect(effect)
 
-    def _create_delay_effects(self) -> List[XGEffectMetadata]:
+    def _create_delay_effects(self) -> list[XGEffectMetadata]:
         """Create all delay-type variation effects (0-9)."""
         return [
             XGEffectMetadata(0, XGEffectCategory.VARIATION, "Delay L/C/R", "DLCR", "3-channel delay with stereo width", True),
@@ -191,7 +193,7 @@ class XGEffectRegistry:
             XGEffectMetadata(9, XGEffectCategory.VARIATION, "Auto-pan", "APAN", "Stereo panning modulation", True),
         ]
 
-    def _create_chorus_effects(self) -> List[XGEffectMetadata]:
+    def _create_chorus_effects(self) -> list[XGEffectMetadata]:
         """Create all chorus-type variation effects (10-31)."""
         return [
             XGEffectMetadata(10, XGEffectCategory.VARIATION, "Chorus 1", "CHO1", "Multi-tap chorus with LFO modulation", True),
@@ -218,7 +220,7 @@ class XGEffectRegistry:
             XGEffectMetadata(31, XGEffectCategory.VARIATION, "Reverb Auto-Pan", "RVAP", "Reverb with auto-panning", True),
         ]
 
-    def _create_modulation_effects(self) -> List[XGEffectMetadata]:
+    def _create_modulation_effects(self) -> list[XGEffectMetadata]:
         """Create all modulation variation effects (32-42)."""
         return [
             XGEffectMetadata(32, XGEffectCategory.VARIATION, "Auto Pan", "APAN", "Automatic stereo panning", True),
@@ -234,7 +236,7 @@ class XGEffectRegistry:
             XGEffectMetadata(42, XGEffectCategory.VARIATION, "Step Pan Down", "SPAN_D", "Stepped panning downward sweep", True),
         ]
 
-    def _create_distortion_effects(self) -> List[XGEffectMetadata]:
+    def _create_distortion_effects(self) -> list[XGEffectMetadata]:
         """Create all distortion variation effects (43-52)."""
         return [
             XGEffectMetadata(43, XGEffectCategory.VARIATION, "Overdrive 1", "OVD1", "Light tube overdrive", True),
@@ -249,7 +251,7 @@ class XGEffectRegistry:
             XGEffectMetadata(52, XGEffectCategory.VARIATION, "Multi Band Compressor", "MB_CMP", "Multi-band compression", True),
         ]
 
-    def _create_dynamics_effects(self) -> List[XGEffectMetadata]:
+    def _create_dynamics_effects(self) -> list[XGEffectMetadata]:
         """Create all dynamics variation effects (53-57)."""
         return [
             XGEffectMetadata(53, XGEffectCategory.VARIATION, "Expander", "EXP", "Dynamic expander", True),
@@ -259,7 +261,7 @@ class XGEffectRegistry:
             XGEffectMetadata(57, XGEffectCategory.VARIATION, "Overdrive 4", "OVD4", "Additional overdrive variation", True),
         ]
 
-    def _create_enhancer_effects(self) -> List[XGEffectMetadata]:
+    def _create_enhancer_effects(self) -> list[XGEffectMetadata]:
         """Create all enhancer variation effects (58-61)."""
         return [
             XGEffectMetadata(58, XGEffectCategory.VARIATION, "Stereo Imager", "STEREO", "Stereo field enhancement", True),
@@ -268,7 +270,7 @@ class XGEffectRegistry:
             XGEffectMetadata(61, XGEffectCategory.VARIATION, "Sub Woofer", "SUBWOOFER", "Sub-bass enhancement", True),
         ]
 
-    def _create_vocoder_effects(self) -> List[XGEffectMetadata]:
+    def _create_vocoder_effects(self) -> list[XGEffectMetadata]:
         """Create all vocoder variation effects (62-65)."""
         return [
             XGEffectMetadata(62, XGEffectCategory.VARIATION, "Vocoder Comb Filter", "VOC_COMB", "Comb filter vocoder", True),
@@ -277,7 +279,7 @@ class XGEffectRegistry:
             XGEffectMetadata(65, XGEffectCategory.VARIATION, "Vocoder Ensemble", "VOC_ENS", "Ensemble vocoder", True),
         ]
 
-    def _create_pitch_effects(self) -> List[XGEffectMetadata]:
+    def _create_pitch_effects(self) -> list[XGEffectMetadata]:
         """Create all pitch variation effects (66-69)."""
         return [
             XGEffectMetadata(66, XGEffectCategory.VARIATION, "Pitch Shift Up Minor 3rd", "PSH_M3U", "Minor 3rd up", True),
@@ -286,7 +288,7 @@ class XGEffectRegistry:
             XGEffectMetadata(69, XGEffectCategory.VARIATION, "Pitch Shift Down Major 3rd", "PSH_M3D", "Major 3rd down", True),
         ]
 
-    def _create_er_effects(self) -> List[XGEffectMetadata]:
+    def _create_er_effects(self) -> list[XGEffectMetadata]:
         """Create all early reflection variation effects (70-77)."""
         return [
             XGEffectMetadata(70, XGEffectCategory.VARIATION, "ER Hall Small", "ERH_SM", "Small hall early reflections", True),
@@ -299,7 +301,7 @@ class XGEffectRegistry:
             XGEffectMetadata(77, XGEffectCategory.VARIATION, "ER Spring", "ER_SPR", "Spring reverb early reflections", True),
         ]
 
-    def _create_gate_reverb_effects(self) -> List[XGEffectMetadata]:
+    def _create_gate_reverb_effects(self) -> list[XGEffectMetadata]:
         """Create all gate reverb variation effects (78-80)."""
         return [
             XGEffectMetadata(78, XGEffectCategory.VARIATION, "Gate Reverb Fast Attack", "GTR_FAST", "Fast attack gate reverb", True),
@@ -307,7 +309,7 @@ class XGEffectRegistry:
             XGEffectMetadata(80, XGEffectCategory.VARIATION, "Gate Reverb Normal", "GTR_NORM", "Normal gate reverb", True),
         ]
 
-    def _create_special_effects(self) -> List[XGEffectMetadata]:
+    def _create_special_effects(self) -> list[XGEffectMetadata]:
         """Create all special variation effects (81-83)."""
         return [
             XGEffectMetadata(81, XGEffectCategory.VARIATION, "Voice Cancel", "VOICECAN", "Voice cancellation", True),
@@ -388,17 +390,17 @@ class XGEffectRegistry:
         for effect in eq_effects:
             self._register_effect(effect)
 
-    def get_effect_metadata(self, category: XGEffectCategory, effect_type: int) -> Optional[XGEffectMetadata]:
+    def get_effect_metadata(self, category: XGEffectCategory, effect_type: int) -> XGEffectMetadata | None:
         """Get effect metadata for a specific effect type."""
         with self.lock:
             return self._effects.get((category, effect_type))
 
-    def get_effect_by_name(self, name: str) -> Optional[Tuple[XGEffectCategory, int]]:
+    def get_effect_by_name(self, name: str) -> tuple[XGEffectCategory, int] | None:
         """Get effect type by name (case-insensitive)."""
         with self.lock:
             return self._name_to_type.get(name.lower().replace(' ', '_'))
 
-    def get_all_effects_in_category(self, category: XGEffectCategory) -> List[XGEffectMetadata]:
+    def get_all_effects_in_category(self, category: XGEffectCategory) -> list[XGEffectMetadata]:
         """Get all effects in a specific category."""
         with self.lock:
             return [effect for (cat, _), effect in self._effects.items() if cat == category]
@@ -408,7 +410,7 @@ class XGEffectRegistry:
         with self.lock:
             return (category, effect_type) in self._effects
 
-    def get_effect_count(self, category: Optional[XGEffectCategory] = None) -> int:
+    def get_effect_count(self, category: XGEffectCategory | None = None) -> int:
         """Get total number of effects, optionally filtered by category."""
         with self.lock:
             if category is None:
@@ -435,14 +437,14 @@ class XGEffectFactory:
         self.registry = XGEffectRegistry()
 
         # Instance pooling for performance
-        self._instance_pool: Dict[str, List[Any]] = {}
+        self._instance_pool: dict[str, list[Any]] = {}
         self._max_pool_size = 8  # Maximum instances to keep in pool
 
         # Thread safety
         self.lock = threading.RLock()
 
     def create_system_effect(self, effect_type: XGReverbType,
-                           **params) -> Optional[Any]:
+                           **params) -> Any | None:
         """
         Create a system effect processor.
 
@@ -461,7 +463,7 @@ class XGEffectFactory:
             return None
 
     def create_variation_effect(self, effect_type: int,
-                              max_delay_samples: int = 22050) -> Optional[XGVariationEffectsProcessor]:
+                              max_delay_samples: int = 22050) -> XGVariationEffectsProcessor | None:
         """
         Create a variation effect processor.
 
@@ -504,7 +506,7 @@ class XGEffectFactory:
                 return None
 
     def create_insertion_effect(self, effect_type: int,
-                              max_delay_samples: int = 22050) -> Optional[XGInsertionEffectsProcessor]:
+                              max_delay_samples: int = 22050) -> XGInsertionEffectsProcessor | None:
         """
         Create an insertion effect processor.
 
@@ -536,7 +538,7 @@ class XGEffectFactory:
             except Exception:
                 return None
 
-    def create_channel_eq(self, eq_type: int) -> Optional[XGMultiBandEqualizer]:
+    def create_channel_eq(self, eq_type: int) -> XGMultiBandEqualizer | None:
         """
         Create a channel EQ processor using XGMultiBandEqualizer.
 
@@ -565,7 +567,7 @@ class XGEffectFactory:
             except Exception:
                 return None
 
-    def create_master_eq(self) -> Optional[XGMultiBandEqualizer]:
+    def create_master_eq(self) -> XGMultiBandEqualizer | None:
         """
         Create a master EQ processor using XGMultiBandEqualizer.
 
@@ -608,7 +610,7 @@ class XGEffectFactory:
                     processor.reset_state()
                 self._instance_pool[pool_key].append(processor)
 
-    def get_pool_stats(self) -> Dict[str, Any]:
+    def get_pool_stats(self) -> dict[str, Any]:
         """Get statistics about the instance pool."""
         with self.lock:
             total_instances = sum(len(pool) for pool in self._instance_pool.values())
@@ -628,7 +630,7 @@ class XGEffectFactory:
         max_ir_length = 44100 * 2  # 2 seconds max at 44.1kHz
         return XGSystemReverbProcessor(self.sample_rate, max_ir_length)
 
-    def _create_system_chorus(self, **params) -> Optional[XGSystemChorusProcessor]:
+    def _create_system_chorus(self, **params) -> XGSystemChorusProcessor | None:
         """
         Create system chorus processor with XG-compliant parameters.
 
@@ -672,8 +674,8 @@ class XGParameterManager:
 
     def __init__(self):
         """Initialize parameter manager."""
-        self.parameter_ranges: Dict[str, Tuple[float, float]] = {}
-        self.default_presets: Dict[str, Dict[str, Any]] = {}
+        self.parameter_ranges: dict[str, tuple[float, float]] = {}
+        self.default_presets: dict[str, dict[str, Any]] = {}
 
         # Thread safety
         self.lock = threading.RLock()
@@ -740,7 +742,7 @@ class XGParameterManager:
             'default_channel': XG_CHANNEL_MIXER_DEFAULT._asdict(),
         }
 
-    def validate_parameter(self, param_name: str, value: float) -> Tuple[bool, float]:
+    def validate_parameter(self, param_name: str, value: float) -> tuple[bool, float]:
         """
         Validate and clamp a parameter value.
 
@@ -759,12 +761,12 @@ class XGParameterManager:
             clamped_value = max(min_val, min(max_val, value))
             return True, clamped_value
 
-    def get_default_preset(self, preset_name: str) -> Optional[Dict[str, Any]]:
+    def get_default_preset(self, preset_name: str) -> dict[str, Any] | None:
         """Get a default parameter preset."""
         with self.lock:
             return self.default_presets.get(preset_name)
 
-    def get_parameter_range(self, param_name: str) -> Optional[Tuple[float, float]]:
+    def get_parameter_range(self, param_name: str) -> tuple[float, float] | None:
         """Get parameter range for a given parameter."""
         with self.lock:
             return self.parameter_ranges.get(param_name)

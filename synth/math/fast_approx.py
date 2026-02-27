@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """
 XG Mathematical Optimization Architecture - Professional DSP Performance Framework
@@ -297,7 +298,6 @@ PROFESSIONAL CERTIFICATION:
 """
 
 import numpy as np
-from typing import Union
 
 
 class FastMath:
@@ -383,7 +383,7 @@ class FastMath:
             x = (i / (self.table_size - 1)) * 2.0 * np.pi  # Range 0.0 to 2π
             self.cos_table[i] = np.cos(x)  # Pre-compute cosine values
     
-    def fast_exp(self, x: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+    def fast_exp(self, x: float | np.ndarray) -> float | np.ndarray:
         """
         FAST EXPONENTIAL APPROXIMATION - PHASE 4 ALGORITHMIC OPTIMIZATIONS
         
@@ -426,7 +426,7 @@ class FastMath:
             # Lookup value from pre-computed table
             return self.exp_table[index]
     
-    def fast_log(self, x: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+    def fast_log(self, x: float | np.ndarray) -> float | np.ndarray:
         """
         FAST LOGARITHM APPROXIMATION - PHASE 4 ALGORITHMIC OPTIMIZATIONS
         
@@ -469,7 +469,7 @@ class FastMath:
             # Lookup value from pre-computed table
             return self.log_table[index]
     
-    def fast_pow(self, x: Union[float, np.ndarray], power: float) -> Union[float, np.ndarray]:
+    def fast_pow(self, x: float | np.ndarray, power: float) -> float | np.ndarray:
         """
         FAST POWER APPROXIMATION - PHASE 4 ALGORITHMIC OPTIMIZATIONS
         
@@ -519,7 +519,7 @@ class FastMath:
             # Lookup value from pre-computed table
             return self.pow_table[index, power_index]
     
-    def fast_sin(self, x: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+    def fast_sin(self, x: float | np.ndarray) -> float | np.ndarray:
         """
         FAST SINE APPROXIMATION - PHASE 4 ALGORITHMIC OPTIMIZATIONS
         
@@ -562,7 +562,7 @@ class FastMath:
             # Lookup value from pre-computed table
             return self.sin_table[index]
     
-    def fast_cos(self, x: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+    def fast_cos(self, x: float | np.ndarray) -> float | np.ndarray:
         """
         FAST COSINE APPROXIMATION - PHASE 4 ALGORITHMIC OPTIMIZATIONS
         

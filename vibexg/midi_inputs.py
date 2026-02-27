@@ -9,6 +9,7 @@ This module provides various MIDI input interfaces including:
 - MIDI file playback
 - Stdin MIDI input for scripting
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -16,7 +17,7 @@ import os
 import sys
 import threading
 import time
-from typing import Callable, Dict, List, Optional
+from collections.abc import Callable
 
 from synth.midi import MIDIMessage, RealtimeParser, get_input_names, open_input, open_output, RTMIDI_AVAILABLE
 
@@ -46,7 +47,7 @@ class MIDIInputInterface:
         self.message_callback = message_callback
         self.parser = RealtimeParser()
         self.running = False
-        self.thread: Optional[threading.Thread] = None
+        self.thread: threading.Thread | None = None
 
     def start(self):
         """Start the MIDI input interface."""
@@ -198,7 +199,7 @@ class KeyboardInput(MIDIInputInterface):
         super().__init__(config, message_callback)
         self.key_map = self._create_key_map()
 
-    def _create_key_map(self) -> Dict[str, int]:
+    def _create_key_map(self) -> dict[str, int]:
         """
         Create keyboard to MIDI note mapping.
 

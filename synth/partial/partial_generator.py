@@ -9,9 +9,11 @@ filtering, and XG-compliant modulation matrix routing.
 Uses Numba-compiled functions for efficient block-based processing of waveform
 generation, envelope application, and filtering with bilinear transform.
 """
+from __future__ import annotations
 
 import math
-from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+from typing import Any
+from collections.abc import Callable
 import numpy as np
 import numba as nb
 from numba import jit, float32, int32, boolean
@@ -430,7 +432,7 @@ class XGPartialGenerator:
     PITCH_BEND_CENTS = 1200  # XG pitch bend range in cents
     VELOCITY_SENSE_SCALING = 0.023  # XG velocity sensitivity formula
 
-    def _set_partial_parameters(self, partial_params: Dict, is_drum: bool):
+    def _set_partial_parameters(self, partial_params: dict, is_drum: bool):
         """Set XG partial parameters from configuration dictionary.
 
         This method contains the common parameter setting logic used by both
@@ -503,7 +505,7 @@ class XGPartialGenerator:
         self.filter_key_follow = filter_config.get("key_follow", 0.5)
 
     def __init__(self, synth, note: int, velocity: int, program: int,
-                  partial_id: int, partial_params: Dict, is_drum: bool = False,
+                  partial_id: int, partial_params: dict, is_drum: bool = False,
                   sample_rate: int = 44100, bank: int = 0, use_modulation_matrix: bool = False):
         """
         Initialize XG partial generator.
@@ -523,7 +525,7 @@ class XGPartialGenerator:
         self.synth = synth
         # Handle case where synth is None (for testing)
         if synth is not None and hasattr(synth, 'sf2_manager') and synth.sf2_manager is not None:
-            self.wavetable: Optional[WavetableManager] = synth.sf2_manager.get_manager()
+            self.wavetable: WavetableManager | None = synth.sf2_manager.get_manager()
         else:
             self.wavetable = None
         self.partial_id = partial_id
@@ -920,7 +922,7 @@ class XGPartialGenerator:
             # No loop information available
             self.loop_mode = 0
 
-    def _initialize_envelopes(self, partial_params: Dict):
+    def _initialize_envelopes(self, partial_params: dict):
         """Initialize XG-compliant envelopes with proper parameter scaling."""
         # XG Amplitude Envelope - always present - use envelope pool
         self.amp_envelope = self.synth.envelope_pool.acquire_envelope(
@@ -1025,7 +1027,7 @@ class XGPartialGenerator:
                 self.amp_envelope and
                 self.amp_envelope.state != EnvelopeState.IDLE)
 
-    def generate_sample_block(self, block_size: int, left_block: np.ndarray, right_block: np.ndarray, lfos: List[XGLFO],
+    def generate_sample_block(self, block_size: int, left_block: np.ndarray, right_block: np.ndarray, lfos: list[XGLFO],
                               global_pitch_mod: float = 0.0,
                               velocity_crossfade: float = 0.0,
                               note_crossfade: float = 0.0) -> None:
@@ -1214,7 +1216,7 @@ class XGPartialGenerator:
                 self.loop_start, self.loop_end, block_size, self.loop_direction
             )
 
-    def _generate_lfo_pitch_modulation_block(self, lfos: List[XGLFO], block_size: int) -> np.ndarray:
+    def _generate_lfo_pitch_modulation_block(self, lfos: list[XGLFO], block_size: int) -> np.ndarray:
         """Generate time-varying LFO pitch modulation block for XG compliance.
 
         CRITICAL FIX: Use dedicated partial LFOs instead of shared channel LFOs to avoid contention.
@@ -1251,7 +1253,7 @@ class XGPartialGenerator:
 
         return pitch_mod_block
 
-    def _generate_lfo_filter_modulation_block(self, lfos: List[XGLFO], block_size: int) -> np.ndarray:
+    def _generate_lfo_filter_modulation_block(self, lfos: list[XGLFO], block_size: int) -> np.ndarray:
         """Generate time-varying LFO filter modulation block for XG compliance.
 
         CRITICAL FIX: Use dedicated partial LFOs instead of shared channel LFOs to avoid contention.
@@ -1288,7 +1290,7 @@ class XGPartialGenerator:
 
         return filter_mod_block
 
-    def _generate_lfo_amplitude_modulation_block(self, lfos: List[XGLFO], block_size: int) -> np.ndarray:
+    def _generate_lfo_amplitude_modulation_block(self, lfos: list[XGLFO], block_size: int) -> np.ndarray:
         """Generate time-varying LFO amplitude modulation block for XG tremolo.
 
         CRITICAL FIX: Use dedicated partial LFOs instead of shared channel LFOs to avoid contention.
@@ -1479,7 +1481,7 @@ class XGPartialGenerator:
         self.loop_position = 0.0
 
     def _reconfigure(self, synth, note: int, velocity: int, program: int,
-                    partial_id: int, partial_params: Dict, is_drum: bool = False,
+                    partial_id: int, partial_params: dict, is_drum: bool = False,
                     sample_rate: int = 44100, bank: int = 0):
         """Reconfigure existing partial generator with new parameters."""
         # Update basic properties
@@ -1550,7 +1552,7 @@ class XGPartialGenerator:
         self.lfo_rate_modulation = {}  # {lfo_index: rate_mod_value}
         self.lfo_depth_modulation = {}  # {lfo_index: depth_mod_value}
 
-    def apply_lfo_modulation(self, lfo_modulation_values: Dict[str, float]):
+    def apply_lfo_modulation(self, lfo_modulation_values: dict[str, float]):
         """
         Consume LFO modulation destinations and apply to dedicated LFOs.
 
@@ -1589,7 +1591,7 @@ class XGPartialGenerator:
                 self.dedicated_lfos[2].apply_rate_modulation(lfo3_rate_mod)
                 self.dedicated_lfos[2].apply_depth_modulation(lfo3_depth_mod)
 
-    def apply_envelope_modulation(self, envelope_modulation_values: Dict[str, float]):
+    def apply_envelope_modulation(self, envelope_modulation_values: dict[str, float]):
         """
         Consume envelope modulation destinations for dynamic envelope control.
 
@@ -1637,7 +1639,7 @@ class XGPartialGenerator:
                 sustain_mod=pitch_sustain_mod, release_mod=pitch_release_mod
             )
 
-    def apply_advanced_modulation(self, advanced_modulation_values: Dict[str, float]):
+    def apply_advanced_modulation(self, advanced_modulation_values: dict[str, float]):
         """
         Consume advanced synthesis modulation destinations.
 
@@ -2038,7 +2040,7 @@ class XGPartialGenerator:
                 polarity, velocity_sensitivity, key_scaling
             )
 
-    def get_matrix_route(self, index: int) -> Optional[Dict[str, any]]:
+    def get_matrix_route(self, index: int) -> dict[str, any] | None:
         """
         Get modulation matrix route configuration.
 
@@ -2092,7 +2094,7 @@ class XGPartialGenerator:
 
         self._setup_modulation_matrix_routes()
 
-    def get_matrix_status(self) -> Dict[str, any]:
+    def get_matrix_status(self) -> dict[str, any]:
         """
         Get modulation matrix status and configuration.
 

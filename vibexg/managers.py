@@ -6,6 +6,7 @@ This module provides:
 - MIDILearnManager: MIDI CC to parameter mapping
 - StyleEngineIntegration: Auto-accompaniment style engine integration
 """
+from __future__ import annotations
 
 import hashlib
 import json
@@ -14,7 +15,7 @@ import math
 import pickle
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from synth.core.synthesizer import Synthesizer
 
@@ -53,8 +54,8 @@ class PresetManager:
         """
         self.preset_dir = Path(preset_dir)
         self.preset_dir.mkdir(parents=True, exist_ok=True)
-        self.current_preset: Optional[PresetData] = None
-        self.preset_history: List[PresetData] = []
+        self.current_preset: PresetData | None = None
+        self.preset_history: list[PresetData] = []
 
     def create_preset(self, name: str = "New Preset") -> PresetData:
         """
@@ -70,7 +71,7 @@ class PresetManager:
         self.current_preset = preset
         return preset
 
-    def save_preset(self, preset: Optional[PresetData] = None, filename: Optional[str] = None) -> Path:
+    def save_preset(self, preset: PresetData | None = None, filename: str | None = None) -> Path:
         """
         Save preset to file.
 
@@ -105,7 +106,7 @@ class PresetManager:
         logger.info(f"Preset saved: {filepath}")
         return filepath
 
-    def load_preset(self, filename: str) -> Optional[PresetData]:
+    def load_preset(self, filename: str) -> PresetData | None:
         """
         Load preset from file.
 
@@ -139,7 +140,7 @@ class PresetManager:
             logger.error(f"Failed to load preset: {e}")
             return None
 
-    def list_presets(self) -> List[Path]:
+    def list_presets(self) -> list[Path]:
         """
         List all available presets.
 
@@ -165,7 +166,7 @@ class PresetManager:
             return True
         return False
 
-    def export_preset_json(self, preset: Optional[PresetData] = None, filename: str = None) -> Path:
+    def export_preset_json(self, preset: PresetData | None = None, filename: str = None) -> Path:
         """
         Export preset as JSON for human readability.
 
@@ -201,7 +202,7 @@ class PresetManager:
         logger.info(f"Preset exported: {filepath}")
         return filepath
 
-    def _preset_to_dict(self, preset: PresetData) -> Dict[str, Any]:
+    def _preset_to_dict(self, preset: PresetData) -> dict[str, Any]:
         """Convert PresetData to dictionary."""
         return {
             'name': preset.name,
@@ -218,7 +219,7 @@ class PresetManager:
             'modified_at': preset.modified_at,
         }
 
-    def _dict_to_preset(self, data: Dict[str, Any]) -> PresetData:
+    def _dict_to_preset(self, data: dict[str, Any]) -> PresetData:
         """Convert dictionary to PresetData."""
         return PresetData(
             name=data.get('name', 'Init'),
@@ -253,10 +254,10 @@ class MIDILearnManager:
             synthesizer: Synthesizer instance to control
         """
         self.synthesizer = synthesizer
-        self.mappings: Dict[int, Dict[str, Any]] = {}  # cc_number -> mapping
+        self.mappings: dict[int, dict[str, Any]] = {}  # cc_number -> mapping
         self.learning_mode = False
-        self.last_cc_received: Optional[int] = None
-        self.last_cc_value: Optional[int] = None
+        self.last_cc_received: int | None = None
+        self.last_cc_value: int | None = None
 
     def add_mapping(self, cc_number: int, target_param: str, channel: int = 0,
                    min_val: int = 0, max_val: int = 127, curve: str = 'linear',
@@ -386,7 +387,7 @@ class MIDILearnManager:
         """Set master parameter."""
         logger.debug(f"Master {param_name} = {value}")
 
-    def get_mappings(self) -> Dict[int, Dict[str, Any]]:
+    def get_mappings(self) -> dict[int, dict[str, Any]]:
         """
         Get all mappings.
 
@@ -395,7 +396,7 @@ class MIDILearnManager:
         """
         return self.mappings.copy()
 
-    def export_mappings(self) -> Dict[str, Any]:
+    def export_mappings(self) -> dict[str, Any]:
         """
         Export mappings as dictionary.
 
@@ -407,7 +408,7 @@ class MIDILearnManager:
             'learning_mode': self.learning_mode
         }
 
-    def import_mappings(self, data: Dict[str, Any]):
+    def import_mappings(self, data: dict[str, Any]):
         """
         Import mappings from dictionary.
 
@@ -434,12 +435,12 @@ class StyleEngineIntegration:
             synthesizer: Synthesizer instance to control
         """
         self.synthesizer = synthesizer
-        self.style_player: Optional[StylePlayer] = None
-        self.style_loader: Optional[StyleLoader] = None
-        self.loaded_styles: Dict[int, Style] = {}  # channel -> style
-        self.style_paths: List[Path] = []
+        self.style_player: StylePlayer | None = None
+        self.style_loader: StyleLoader | None = None
+        self.loaded_styles: dict[int, Style] = {}  # channel -> style
+        self.style_paths: list[Path] = []
 
-    def initialize(self, style_paths: List[str] = None) -> bool:
+    def initialize(self, style_paths: list[str] = None) -> bool:
         """
         Initialize style engine.
 
@@ -564,7 +565,7 @@ class StyleEngineIntegration:
         if self.style_player:
             self.style_player.set_section(section)
 
-    def get_loaded_styles(self) -> Dict[int, str]:
+    def get_loaded_styles(self) -> dict[int, str]:
         """
         Get loaded styles.
 

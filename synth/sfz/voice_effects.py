@@ -4,8 +4,9 @@ SFZ Voice-Level Effects Processing System
 Provides per-voice effects processing for SFZ instruments with
 professional-quality chorus, reverb, delay, and other effects.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional
+from typing import Any
 import numpy as np
 import math
 
@@ -57,7 +58,7 @@ class SFZChorusProcessor:
         """Convert milliseconds to samples."""
         return int((ms / 1000.0) * self.sample_rate)
 
-    def set_parameters(self, params: Dict[str, float]) -> None:
+    def set_parameters(self, params: dict[str, float]) -> None:
         """
         Set chorus parameters.
 
@@ -230,7 +231,7 @@ class SFZReverbProcessor:
             self.allpass_filters_left.append(self._create_allpass_filter(scaled_delay))
             self.allpass_filters_right.append(self._create_allpass_filter(scaled_delay + 5))
 
-    def _create_comb_filter(self, delay_samples: int) -> Dict[str, Any]:
+    def _create_comb_filter(self, delay_samples: int) -> dict[str, Any]:
         """Create a comb filter for reverb."""
         return {
             'buffer': np.zeros(delay_samples),
@@ -240,7 +241,7 @@ class SFZReverbProcessor:
             'damp': self.damping
         }
 
-    def _create_allpass_filter(self, delay_samples: int) -> Dict[str, Any]:
+    def _create_allpass_filter(self, delay_samples: int) -> dict[str, Any]:
         """Create an allpass filter for reverb."""
         return {
             'buffer': np.zeros(delay_samples),
@@ -249,7 +250,7 @@ class SFZReverbProcessor:
             'feedback': 0.5  # Allpass feedback
         }
 
-    def set_parameters(self, params: Dict[str, float]) -> None:
+    def set_parameters(self, params: dict[str, float]) -> None:
         """
         Set reverb parameters.
 
@@ -334,7 +335,7 @@ class SFZReverbProcessor:
 
         return output
 
-    def _process_comb_filter(self, filt: Dict[str, Any], input_sample: float) -> float:
+    def _process_comb_filter(self, filt: dict[str, Any], input_sample: float) -> float:
         """Process sample through comb filter."""
         buffer = filt['buffer']
         pos = filt['pos']
@@ -357,7 +358,7 @@ class SFZReverbProcessor:
 
         return output
 
-    def _process_allpass_filter(self, filt: Dict[str, Any], input_sample: float) -> float:
+    def _process_allpass_filter(self, filt: dict[str, Any], input_sample: float) -> float:
         """Process sample through allpass filter."""
         buffer = filt['buffer']
         pos = filt['pos']
@@ -437,7 +438,7 @@ class SFZDelayProcessor:
         """Convert milliseconds to samples."""
         return int((ms / 1000.0) * self.sample_rate)
 
-    def set_parameters(self, params: Dict[str, float]) -> None:
+    def set_parameters(self, params: dict[str, float]) -> None:
         """
         Set delay parameters.
 
@@ -561,7 +562,7 @@ class SFZVoiceEffectsProcessor:
         self.reverb_enabled = True
         self.delay_enabled = True
 
-    def set_effect_parameters(self, effect_name: str, params: Dict[str, float]) -> bool:
+    def set_effect_parameters(self, effect_name: str, params: dict[str, float]) -> bool:
         """
         Set parameters for a specific effect.
 
@@ -657,7 +658,7 @@ class SFZVoiceEffectsProcessor:
 
         return processed
 
-    def get_effect_info(self) -> Dict[str, Any]:
+    def get_effect_info(self) -> dict[str, Any]:
         """
         Get information about all effects.
 
@@ -694,7 +695,7 @@ class SFZVoiceEffectsProcessor:
         self.reverb.reset()
         self.delay.reset()
 
-    def get_memory_usage(self) -> Dict[str, int]:
+    def get_memory_usage(self) -> dict[str, int]:
         """
         Get memory usage of all effects.
 

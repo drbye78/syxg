@@ -4,13 +4,14 @@ S90/S70 Hardware Specifications
 Authentic hardware characteristics, parameters, and behaviors
 specific to Yamaha S90 and S70 synthesizers.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 from dataclasses import dataclass
 import math
 
 
-@dataclass
+@dataclass(slots=True)
 class S90S70HardwareProfile:
     """Hardware profile for S90/S70 synthesizers"""
 
@@ -189,7 +190,7 @@ class S90S70HardwareSpecs:
             return True
         return False
 
-    def get_hardware_limits(self) -> Dict[str, Any]:
+    def get_hardware_limits(self) -> dict[str, Any]:
         """Get hardware limits for the current profile"""
         profile = self.current_profile
         return {
@@ -206,7 +207,7 @@ class S90S70HardwareSpecs:
             'wave_rom_mb': profile.wave_rom_size_mb
         }
 
-    def get_awm_voice_resources(self) -> Dict[str, int]:
+    def get_awm_voice_resources(self) -> dict[str, int]:
         """Get AWM voice resource allocation"""
         return {
             'samples_per_voice': self.current_profile.awm_samples_per_voice,
@@ -216,7 +217,7 @@ class S90S70HardwareSpecs:
             'modulation_matrix_size': 8  # Simultaneous modulation routings
         }
 
-    def get_an_engine_resources(self) -> Dict[str, Any]:
+    def get_an_engine_resources(self) -> dict[str, Any]:
         """Get AN engine resource allocation (S90 only)"""
         if self.current_profile.an_engines == 0:
             return {'available': False}
@@ -234,7 +235,7 @@ class S90S70HardwareSpecs:
             'waveforms': self.an_engine_specs['waveforms']
         }
 
-    def get_fdsp_resources(self) -> Dict[str, Any]:
+    def get_fdsp_resources(self) -> dict[str, Any]:
         """Get FDSP engine resource allocation"""
         return {
             'available': True,
@@ -247,16 +248,16 @@ class S90S70HardwareSpecs:
             'max_polyphony': self.current_profile.fdsp_polyphony
         }
 
-    def get_hardware_timings(self) -> Dict[str, float]:
+    def get_hardware_timings(self) -> dict[str, float]:
         """Get hardware-specific timing characteristics"""
         return self.hardware_timing.copy()
 
-    def get_memory_characteristics(self) -> Dict[str, Any]:
+    def get_memory_characteristics(self) -> dict[str, Any]:
         """Get memory management characteristics"""
         return self.memory_specs.copy()
 
     def apply_hardware_filter_characteristics(self, filter_type: str,
-                                            frequency: float, resonance: float) -> Tuple[float, float]:
+                                            frequency: float, resonance: float) -> tuple[float, float]:
         """
         Apply hardware-specific filter characteristics.
 
@@ -288,7 +289,7 @@ class S90S70HardwareSpecs:
 
         return adjusted_freq, adjusted_resonance
 
-    def get_hardware_compatible_parameter_range(self, parameter_name: str) -> Optional[Tuple[float, float]]:
+    def get_hardware_compatible_parameter_range(self, parameter_name: str) -> tuple[float, float] | None:
         """
         Get hardware-compatible parameter range.
 
@@ -340,7 +341,7 @@ class S90S70HardwareSpecs:
 
         return min(requested_voices, max_voices)
 
-    def get_hardware_performance_metrics(self) -> Dict[str, Any]:
+    def get_hardware_performance_metrics(self) -> dict[str, Any]:
         """Get hardware performance characteristics"""
         return {
             'model': self.current_profile.model_name,

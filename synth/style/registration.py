@@ -12,9 +12,11 @@ Features:
 - Callback system for recall/store events
 - Thread-safe operations
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Set
+from typing import Any
+from collections.abc import Callable
 from enum import Enum
 import json
 import threading
@@ -43,7 +45,7 @@ class RegistrationParameter(Enum):
     KNOB_ASSIGNMENT = "knob_assignment"
 
 
-@dataclass
+@dataclass(slots=True)
 class Registration:
     """
     Single registration memory entry.
@@ -51,7 +53,7 @@ class Registration:
 
     slot_id: int = 0
     name: str = "New Registration"
-    voice_parts: Dict[int, Dict[str, Any]] = field(default_factory=dict)
+    voice_parts: dict[int, dict[str, Any]] = field(default_factory=dict)
     style_name: str = ""
     style_tempo: int = 120
     ots_preset: int = 0
@@ -67,15 +69,15 @@ class Registration:
     variation_type: int = 0
     variation_parameter: int = 64
     scale_type: str = "equal"
-    micro_tuning: Dict[str, Any] = field(default_factory=dict)
-    custom_parameters: Dict[str, Any] = field(default_factory=dict)
+    micro_tuning: dict[str, Any] = field(default_factory=dict)
+    custom_parameters: dict[str, Any] = field(default_factory=dict)
     color: str = "#FFFFFF"
     icon: str = ""
     created_at: float = field(default_factory=time.time)
     modified_at: float = field(default_factory=time.time)
-    freeze_mask: Set[RegistrationParameter] = field(default_factory=set)
+    freeze_mask: set[RegistrationParameter] = field(default_factory=set)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "slot_id": self.slot_id,
             "name": self.name,
@@ -105,7 +107,7 @@ class Registration:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Registration":
+    def from_dict(cls, data: dict[str, Any]) -> Registration:
         freeze_mask = set()
         for p_value in data.get("freeze_mask", []):
             try:
@@ -152,19 +154,19 @@ class Registration:
         return parameter in self.freeze_mask
 
 
-@dataclass
+@dataclass(slots=True)
 class RegistrationBank:
     """A bank containing multiple registration slots"""
 
     bank_id: int = 0
     name: str = "Bank 1"
-    registrations: List[Registration] = field(default_factory=list)
+    registrations: list[Registration] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.registrations:
             self.registrations = [Registration(slot_id=i) for i in range(16)]
 
-    def get_registration(self, slot: int) -> Optional[Registration]:
+    def get_registration(self, slot: int) -> Registration | None:
         for reg in self.registrations:
             if reg.slot_id == slot:
                 return reg
@@ -177,7 +179,7 @@ class RegistrationBank:
                 return True
         return False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "bank_id": self.bank_id,
             "name": self.name,
@@ -185,7 +187,7 @@ class RegistrationBank:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "RegistrationBank":
+    def from_dict(cls, data: dict[str, Any]) -> RegistrationBank:
         registrations = [Registration.from_dict(r) for r in data.get("registrations", [])]
         return cls(
             bank_id=data.get("bank_id", 0),
@@ -201,16 +203,16 @@ class RegistrationMemory:
         self.num_banks = num_banks
         self.slots_per_bank = slots_per_bank
         self._lock = threading.RLock()
-        self._banks: Dict[int, RegistrationBank] = {}
+        self._banks: dict[int, RegistrationBank] = {}
         self._current_bank: int = 0
         self._current_slot: int = 0
         self._synthesizer: Any = None
         self._style_player: Any = None
         self._ots: Any = None
-        self._global_freeze: Set[RegistrationParameter] = set()
-        self._on_recall_callback: Optional[Callable[[Registration], None]] = None
-        self._on_store_callback: Optional[Callable[[int, int, Registration], None]] = None
-        self._on_change_callback: Optional[Callable[[], None]] = None
+        self._global_freeze: set[RegistrationParameter] = set()
+        self._on_recall_callback: Callable[[Registration], None] | None = None
+        self._on_store_callback: Callable[[int, int, Registration], None] | None = None
+        self._on_change_callback: Callable[[], None] | None = None
         self._initialize_banks()
 
     def _initialize_banks(self):
@@ -267,12 +269,12 @@ class RegistrationMemory:
             self._current_slot = (self._current_slot - 1) % self.slots_per_bank
             self._notify_change()
 
-    def get_current_registration(self) -> Optional[Registration]:
+    def get_current_registration(self) -> Registration | None:
         with self._lock:
             bank = self.get_current_bank()
             return bank.get_registration(self._current_slot)
 
-    def recall(self, bank: Optional[int] = None, slot: Optional[int] = None, 
+    def recall(self, bank: int | None = None, slot: int | None = None, 
                ignore_freeze: bool = False) -> bool:
         with self._lock:
             target_bank = bank if bank is not None else self._current_bank
@@ -347,8 +349,8 @@ class RegistrationMemory:
             except Exception:
                 pass
 
-    def store(self, name: str = "", bank: Optional[int] = None, 
-              slot: Optional[int] = None, capture_all: bool = True) -> bool:
+    def store(self, name: str = "", bank: int | None = None, 
+              slot: int | None = None, capture_all: bool = True) -> bool:
         with self._lock:
             target_bank = bank if bank is not None else self._current_bank
             target_slot = slot if slot is not None else self._current_slot
@@ -420,7 +422,7 @@ class RegistrationMemory:
             self._notify_change()
             return True
 
-    def clear_slot(self, bank: Optional[int] = None, slot: Optional[int] = None) -> bool:
+    def clear_slot(self, bank: int | None = None, slot: int | None = None) -> bool:
         with self._lock:
             target_bank = bank if bank is not None else self._current_bank
             target_slot = slot if slot is not None else self._current_slot
@@ -439,7 +441,7 @@ class RegistrationMemory:
             else:
                 self._global_freeze.discard(parameter)
 
-    def get_global_freeze(self) -> Set[RegistrationParameter]:
+    def get_global_freeze(self) -> set[RegistrationParameter]:
         with self._lock:
             return self._global_freeze.copy()
 
@@ -463,7 +465,7 @@ class RegistrationMemory:
             except Exception:
                 pass
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "num_banks": self.num_banks,
@@ -483,9 +485,9 @@ class RegistrationMemory:
             return False
 
     @classmethod
-    def load_from_file(cls, filepath: str) -> Optional["RegistrationMemory"]:
+    def load_from_file(cls, filepath: str) -> RegistrationMemory | None:
         try:
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 data = json.load(f)
             mem = cls(
                 num_banks=data.get("num_banks", 8),
@@ -505,7 +507,7 @@ class RegistrationMemory:
         except Exception:
             return None
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         with self._lock:
             current = self.get_current_registration()
             return {

@@ -2,8 +2,8 @@
 Modulation destinations for XG synthesizer.
 Defines all available modulation destinations.
 """
+from __future__ import annotations
 
-from typing import List
 
 
 class ModulationDestination:

@@ -2,8 +2,10 @@
 Modulation routes for XG synthesizer.
 Defines modulation route configuration and processing.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+from typing import Any
+from collections.abc import Callable
 
 
 class ModulationRoute:

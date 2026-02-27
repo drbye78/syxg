@@ -4,10 +4,11 @@ SF2 Generator Mapping Tests
 Comprehensive tests for SF2 generator ID mappings to ensure
 correct parameter extraction and application.
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np
-from typing import Dict, Any
+from typing import Any
 
 
 class TestSF2GeneratorIDs:

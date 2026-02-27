@@ -4,8 +4,9 @@ SF2 partial implementation for XG synthesizer.
 Implements the SynthesisPartial interface for SoundFont 2 wavetable synthesis
 with full integration into modern XG synthesizer infrastructure.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import numpy as np
 
 from .partial import SynthesisPartial
@@ -83,7 +84,7 @@ class SF2Partial(SynthesisPartial):
         'base_phase_step'
     ]
 
-    def __init__(self, params: Dict, synth: 'ModernXGSynthesizer'):
+    def __init__(self, params: dict, synth: ModernXGSynthesizer):
         """
         Initialize SF2 partial with modern synth infrastructure integration.
 
@@ -182,7 +183,7 @@ class SF2Partial(SynthesisPartial):
                 self.vib_lfo = self._create_simple_lfo_simulation(1, synth.sample_rate)
 
         # SF2-specific state
-        self.sample_data: Optional[np.ndarray] = None
+        self.sample_data: np.ndarray | None = None
         self.phase_step: float = 1.0
         self.base_phase_step: float = 1.0      # Base phase step without modulation
         self.sample_position: float = 0.0
@@ -308,7 +309,7 @@ class SF2Partial(SynthesisPartial):
             delay=vib_lfo_params.get('delay', 0.0)
         )
 
-    def generate_samples(self, block_size: int, modulation: Dict) -> np.ndarray:
+    def generate_samples(self, block_size: int, modulation: dict) -> np.ndarray:
         """
         Generate SF2 wavetable samples with professional-grade real-time modulation.
 
@@ -366,7 +367,7 @@ class SF2Partial(SynthesisPartial):
             # For now, return silence to prevent audio glitches
             return np.zeros(block_size * 2, dtype=np.float32)
 
-    def _apply_global_modulation(self, modulation: Dict):
+    def _apply_global_modulation(self, modulation: dict):
         """
         Apply comprehensive global modulation from the modulation matrix.
 
@@ -733,7 +734,7 @@ class SF2Partial(SynthesisPartial):
         if hasattr(self, '_mod_env_state'):
             self._mod_env_state['stage'] = 'release'
 
-    def apply_modulation(self, modulation: Dict) -> None:
+    def apply_modulation(self, modulation: dict) -> None:
         """
         Apply modulation changes to partial parameters.
 
@@ -751,7 +752,7 @@ class SF2Partial(SynthesisPartial):
         # This allows external modulation to affect SF2 internal modulation
         pass
 
-    def apply_global_parameters(self, global_params: Dict) -> None:
+    def apply_global_parameters(self, global_params: dict) -> None:
         """
         Apply global synthesizer parameters to SF2 partial.
 
@@ -869,7 +870,7 @@ class SF2Partial(SynthesisPartial):
     # LEGACY METHOD - DEPRECATED
     # This method is kept for backward compatibility but should be replaced
     # with the new ParameterUpdate-based methods above
-    def apply_channel_parameters(self, channel_params: Dict) -> None:
+    def apply_channel_parameters(self, channel_params: dict) -> None:
         """
         DEPRECATED: Legacy method for backward compatibility.
 
@@ -891,7 +892,7 @@ class SF2Partial(SynthesisPartial):
             )
             self.apply_channel_parameter(param_update)
 
-    def get_effect_send_levels(self) -> Dict[str, float]:
+    def get_effect_send_levels(self) -> dict[str, float]:
         """
         Get current effect send levels for routing through global effects coordinator.
 
@@ -914,7 +915,7 @@ class SF2Partial(SynthesisPartial):
         """
         return getattr(self, '_channel_pan', 0.0)
 
-    def get_parameter_state(self) -> Dict[str, Any]:
+    def get_parameter_state(self) -> dict[str, Any]:
         """
         Get current parameter state for debugging/monitoring.
 
@@ -976,7 +977,7 @@ class SF2Partial(SynthesisPartial):
         self._volume_mod_vector = None
         self._pan_mod_vector = None
 
-    def get_partial_info(self) -> Dict[str, Any]:
+    def get_partial_info(self) -> dict[str, Any]:
         """Get SF2 partial information for debugging."""
         info = super().get_partial_info()
         info.update({
@@ -1110,7 +1111,7 @@ class SF2Partial(SynthesisPartial):
         # MODULATION MATRIX INTEGRATION - SF2 modulation outputs
         self._modulation_outputs = {}       # SF2 sources for matrix feedback
 
-    def get_modulation_outputs(self) -> Dict[str, float]:
+    def get_modulation_outputs(self) -> dict[str, float]:
         """
         Provide SF2 modulation sources to global modulation matrix.
 
@@ -1148,7 +1149,7 @@ class SF2Partial(SynthesisPartial):
 
         return outputs
 
-    def apply_modulation_matrix_parameters(self, matrix_params: Dict):
+    def apply_modulation_matrix_parameters(self, matrix_params: dict):
         """
         Apply modulation matrix parameter changes to SF2 synthesis parameters.
 
@@ -1233,7 +1234,7 @@ class SF2Partial(SynthesisPartial):
             pitch_mod = matrix_params['pitch_mod']
             self.pitch_mod = max(-24.0, min(24.0, pitch_mod))  # Clamp to ±24 semitones
 
-    def update_global_effects_routing(self, global_effects: Dict):
+    def update_global_effects_routing(self, global_effects: dict):
         """
         Update integration with global effects system.
 

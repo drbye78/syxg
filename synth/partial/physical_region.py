@@ -8,8 +8,9 @@ PhysicalRegion implements physical modeling synthesis with:
 - Multiple physical models (string, tube, membrane)
 - Physical parameter control (tension, damping, material)
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -76,14 +77,14 @@ class PhysicalRegion(IRegion):
         self._brightness = algo_params.get('brightness', 0.5)
         
         # Runtime state
-        self._waveguide: Optional[Any] = None
-        self._excitation_signal: Optional[np.ndarray] = None
+        self._waveguide: Any | None = None
+        self._excitation_signal: np.ndarray | None = None
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """No sample data for physical modeling (algorithmic)."""
         return None
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create physical modeling partial.
         
@@ -121,7 +122,7 @@ class PhysicalRegion(IRegion):
             logger.error(f"Failed to create physical partial: {e}")
             return None
     
-    def _create_waveguide(self) -> Optional[Any]:
+    def _create_waveguide(self) -> Any | None:
         """
         Create digital waveguide for physical model.
         
@@ -177,7 +178,7 @@ class PhysicalRegion(IRegion):
             logger.error(f"Failed to create waveguide: {e}")
             return None
     
-    def _create_excitation(self) -> Optional[np.ndarray]:
+    def _create_excitation(self) -> np.ndarray | None:
         """
         Create excitation signal for physical model.
         
@@ -302,7 +303,7 @@ class PhysicalRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from physical model.
@@ -352,7 +353,7 @@ class PhysicalRegion(IRegion):
         
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

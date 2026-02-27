@@ -4,6 +4,7 @@ Vibexg TUI - Text User Interface control surface
 This module provides a Rich-based terminal user interface for the
 workstation, displaying real-time status and providing visual feedback.
 """
+from __future__ import annotations
 
 import logging
 import time
@@ -51,7 +52,7 @@ class TUIControlSurface:
     - Tempo and volume settings
     """
 
-    def __init__(self, workstation: 'XGWorkstation'):
+    def __init__(self, workstation: XGWorkstation):
         """
         Initialize the TUI control surface.
 

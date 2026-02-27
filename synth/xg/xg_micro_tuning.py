@@ -13,8 +13,9 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import threading
 import math
 
@@ -109,7 +110,7 @@ class XGScaleTuning:
         self.scale_tuning = [0.0] * 12
         self.master_tuning_offset = 0.0
 
-    def get_scale_tuning_status(self) -> Dict[str, Any]:
+    def get_scale_tuning_status(self) -> dict[str, Any]:
         """Get current scale tuning status."""
         return {
             'scale_tuning': self.scale_tuning.copy(),
@@ -230,7 +231,7 @@ class XGTemperamentSystem:
         """Get current temperament name."""
         return self.current_temperament
 
-    def get_temperament_tuning(self, temperament_name: str = None) -> List[float]:
+    def get_temperament_tuning(self, temperament_name: str = None) -> list[float]:
         """
         Get tuning offsets for a temperament.
 
@@ -245,7 +246,7 @@ class XGTemperamentSystem:
             return self.custom_tuning.copy()
         return self.TEMPERAMENTS.get(name, self.TEMPERAMENTS['equal']).copy()
 
-    def set_custom_tuning(self, tuning: List[float]) -> bool:
+    def set_custom_tuning(self, tuning: list[float]) -> bool:
         """
         Set custom temperament tuning.
 
@@ -260,11 +261,11 @@ class XGTemperamentSystem:
             return True
         return False
 
-    def get_available_temperaments(self) -> List[str]:
+    def get_available_temperaments(self) -> list[str]:
         """Get list of available temperament names."""
         return list(self.TEMPERAMENTS.keys()) + ['custom']
 
-    def get_temperament_info(self, temperament_name: str) -> Dict[str, Any]:
+    def get_temperament_info(self, temperament_name: str) -> dict[str, Any]:
         """Get information about a temperament."""
         return {
             'name': temperament_name,
@@ -591,7 +592,7 @@ class XGMicroTuning:
                 return True
             return False
 
-    def get_micro_tuning_status(self) -> Dict[str, Any]:
+    def get_micro_tuning_status(self) -> dict[str, Any]:
         """Get comprehensive micro tuning status."""
         with self.lock:
             return {
@@ -619,7 +620,7 @@ class XGMicroTuning:
 
         print("🎹 XG MICRO TUNING: Reset to concert pitch (A4 = 440Hz)")
 
-    def export_tuning_setup(self) -> Dict[str, Any]:
+    def export_tuning_setup(self) -> dict[str, Any]:
         """Export complete tuning setup."""
         with self.lock:
             return {
@@ -635,7 +636,7 @@ class XGMicroTuning:
                 'version': '1.0'
             }
 
-    def import_tuning_setup(self, setup_data: Dict[str, Any]) -> bool:
+    def import_tuning_setup(self, setup_data: dict[str, Any]) -> bool:
         """Import tuning setup."""
         try:
             with self.lock:

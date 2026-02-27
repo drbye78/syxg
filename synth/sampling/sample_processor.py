@@ -4,9 +4,10 @@ Sample Processor - Advanced Sample Processing
 Provides advanced sample processing capabilities including real-time effects,
 pitch shifting, time stretching, and format conversion.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 
 
@@ -35,7 +36,7 @@ class SampleProcessor:
         self.filter_cutoff = 20000.0
         self.filter_resonance = 0.707
 
-    def process_sample(self, sample_data: np.ndarray, processing_params: Dict[str, Any]) -> np.ndarray:
+    def process_sample(self, sample_data: np.ndarray, processing_params: dict[str, Any]) -> np.ndarray:
         """
         Process sample with given parameters.
 
@@ -113,7 +114,7 @@ class SampleProcessor:
         return np.interp(np.linspace(0, len(sample_data)-1, new_length),
                         np.arange(len(sample_data)), sample_data)
 
-    def _apply_filter(self, sample_data: np.ndarray, filter_params: Dict[str, Any]) -> np.ndarray:
+    def _apply_filter(self, sample_data: np.ndarray, filter_params: dict[str, Any]) -> np.ndarray:
         """Apply filter to sample."""
         from scipy import signal
 
@@ -174,7 +175,7 @@ class SampleProcessor:
         else:
             raise ValueError(f"Unsupported target format: {to_format}")
 
-    def get_processing_info(self) -> Dict[str, Any]:
+    def get_processing_info(self) -> dict[str, Any]:
         """Get information about current processing state."""
         return {
             'sample_rate': self.sample_rate,

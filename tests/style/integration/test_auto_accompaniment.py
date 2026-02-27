@@ -8,6 +8,7 @@ Integration tests for the AutoAccompaniment class including:
 - Track mute/solo
 - Tempo changes
 """
+from __future__ import annotations
 
 import pytest
 import time

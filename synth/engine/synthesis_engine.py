@@ -19,9 +19,10 @@ Features:
 - XGML v3.0 engine registry integration
 - Performance monitoring and resource management
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, Tuple, Union
+from typing import Any
 import numpy as np
 import threading
 import time
@@ -77,7 +78,7 @@ class SynthesisEngine(ABC):
     # ========== PRESET MANAGEMENT (NEW) ==========
 
     @abstractmethod
-    def get_preset_info(self, bank: int, program: int) -> Optional[PresetInfo]:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get preset metadata without loading regions.
 
@@ -96,7 +97,7 @@ class SynthesisEngine(ABC):
     @abstractmethod
     def get_all_region_descriptors(
         self, bank: int, program: int
-    ) -> List[RegionDescriptor]:
+    ) -> list[RegionDescriptor]:
         """
         Get ALL region descriptors for a preset.
 
@@ -115,8 +116,8 @@ class SynthesisEngine(ABC):
     # ========== REGION CREATION (NEW) ==========
 
     def create_region(
-        self, descriptor: "RegionDescriptor", sample_rate: int
-    ) -> "IRegion":
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
         """
         Create a region instance from a descriptor.
 
@@ -141,8 +142,8 @@ class SynthesisEngine(ABC):
 
     @abstractmethod
     def _create_base_region(
-        self, descriptor: "RegionDescriptor", sample_rate: int
-    ) -> "IRegion":
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
         """
         Create base region without S.Art2 wrapper.
 
@@ -158,7 +159,7 @@ class SynthesisEngine(ABC):
         pass
 
     @abstractmethod
-    def load_sample_for_region(self, region: "IRegion") -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for a region (SF2/SFZ only).
 
@@ -178,7 +179,7 @@ class SynthesisEngine(ABC):
 
     def get_voice_parameters(
         self, program: int, bank: int = 0, note: int = 60, velocity: int = 100
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get voice parameters for a program/bank combination.
 
@@ -216,8 +217,8 @@ class SynthesisEngine(ABC):
         return "unknown"
 
     def create_partial(
-        self, partial_params: Dict[str, Any], sample_rate: int
-    ) -> "SynthesisPartial":
+        self, partial_params: dict[str, Any], sample_rate: int
+    ) -> SynthesisPartial:
         """
         Create a partial instance for this engine.
 
@@ -236,7 +237,7 @@ class SynthesisEngine(ABC):
             "create_partial() not implemented. Use create_region()."
         )
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """
         Get list of supported file formats.
 
@@ -266,7 +267,7 @@ class SynthesisEngine(ABC):
         """
         return modulation_type in ["pitch", "filter", "amp"]
 
-    def get_parameter_info(self, parameter_name: str) -> Optional[Dict[str, Any]]:
+    def get_parameter_info(self, parameter_name: str) -> dict[str, Any] | None:
         """
         Get information about a parameter.
 
@@ -278,7 +279,7 @@ class SynthesisEngine(ABC):
         """
         return None
 
-    def validate_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         """
         Validate and normalize parameters.
 
@@ -291,7 +292,7 @@ class SynthesisEngine(ABC):
         # Default implementation: pass through unchanged
         return parameters.copy()
 
-    def get_memory_usage(self) -> Dict[str, Any]:
+    def get_memory_usage(self) -> dict[str, Any]:
         """
         Get current memory usage statistics.
 
@@ -326,7 +327,7 @@ class EnginePluginManager:
     the synthesizer with custom synthesis engines.
     """
 
-    def __init__(self, plugin_dirs: Optional[List[Union[str, Path]]] = None):
+    def __init__(self, plugin_dirs: list[str | Path] | None = None):
         """
         Initialize plugin manager.
 
@@ -334,10 +335,10 @@ class EnginePluginManager:
             plugin_dirs: Directories to search for plugins
         """
         self.plugin_dirs = plugin_dirs or [Path(__file__).parent / "plugins"]
-        self.loaded_plugins: Dict[str, Dict[str, Any]] = {}
+        self.loaded_plugins: dict[str, dict[str, Any]] = {}
         self.plugin_lock = threading.RLock()
 
-    def discover_plugins(self) -> Dict[str, Dict[str, Any]]:
+    def discover_plugins(self) -> dict[str, dict[str, Any]]:
         """
         Discover available plugins in configured directories.
 
@@ -455,7 +456,7 @@ class EnginePluginManager:
             print(f"✅ Unloaded plugin {plugin_name}")
             return True
 
-    def get_loaded_plugins(self) -> Dict[str, Dict[str, Any]]:
+    def get_loaded_plugins(self) -> dict[str, dict[str, Any]]:
         """
         Get information about loaded plugins.
 
@@ -472,7 +473,7 @@ class EnginePluginManager:
                 for name, data in self.loaded_plugins.items()
             }
 
-    def _analyze_plugin_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
+    def _analyze_plugin_file(self, file_path: Path) -> dict[str, Any] | None:
         """
         Analyze a Python file to determine if it's a valid plugin.
 
@@ -484,7 +485,7 @@ class EnginePluginManager:
         """
         try:
             # Read file content
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             # Look for plugin metadata in comments or docstrings
@@ -567,7 +568,7 @@ class ContentAnalyzer:
         self.analysis_cache = {}
         self.cache_lock = threading.RLock()
 
-    def analyze_content(self, content_info: Dict[str, Any]) -> Dict[str, Any]:
+    def analyze_content(self, content_info: dict[str, Any]) -> dict[str, Any]:
         """
         Analyze content characteristics to recommend engines.
 
@@ -592,7 +593,7 @@ class ContentAnalyzer:
 
         return analysis
 
-    def _perform_content_analysis(self, content_info: Dict[str, Any]) -> Dict[str, Any]:
+    def _perform_content_analysis(self, content_info: dict[str, Any]) -> dict[str, Any]:
         """
         Perform detailed content analysis.
 
@@ -652,7 +653,7 @@ class ContentAnalyzer:
 
         return results
 
-    def _get_cache_key(self, content_info: Dict[str, Any]) -> str:
+    def _get_cache_key(self, content_info: dict[str, Any]) -> str:
         """Generate cache key for content analysis."""
         file_path = content_info.get("file_path", "")
         mtime = content_info.get("mtime", 0)
@@ -672,7 +673,7 @@ class PerformanceOptimizer:
         self.performance_history = {}
         self.optimization_lock = threading.RLock()
 
-    def update_performance_metrics(self, engine_type: str, metrics: Dict[str, Any]):
+    def update_performance_metrics(self, engine_type: str, metrics: dict[str, Any]):
         """
         Update performance metrics for an engine.
 
@@ -691,7 +692,7 @@ class PerformanceOptimizer:
             if len(history) > 100:
                 history.pop(0)
 
-    def get_optimization_recommendations(self, engine_type: str) -> Dict[str, Any]:
+    def get_optimization_recommendations(self, engine_type: str) -> dict[str, Any]:
         """
         Get optimization recommendations for an engine.
 
@@ -743,7 +744,7 @@ class PerformanceOptimizer:
             return {"recommendations": recommendations}
 
     def apply_optimization(
-        self, engine: SynthesisEngine, recommendation: Dict[str, Any]
+        self, engine: SynthesisEngine, recommendation: dict[str, Any]
     ) -> bool:
         """
         Apply an optimization recommendation to an engine.
@@ -796,10 +797,10 @@ class SynthesisEngineRegistry:
         self.lock = threading.RLock()
 
         # Core registry data
-        self._engines: Dict[str, Dict[str, Any]] = {}
-        self._engine_classes: Dict[str, type] = {}
-        self._format_map: Dict[str, List[str]] = {}
-        self._priority_order: List[str] = []
+        self._engines: dict[str, dict[str, Any]] = {}
+        self._engine_classes: dict[str, type] = {}
+        self._format_map: dict[str, list[str]] = {}
+        self._priority_order: list[str] = []
 
         # Advanced components
         self.plugin_manager = EnginePluginManager()
@@ -807,10 +808,10 @@ class SynthesisEngineRegistry:
         self.performance_optimizer = PerformanceOptimizer()
 
         # XGML v3.0 integration
-        self.xgml_engine_config: Dict[str, Any] = {}
+        self.xgml_engine_config: dict[str, Any] = {}
 
         # Runtime monitoring
-        self.engine_usage_stats: Dict[str, Dict[str, Any]] = {}
+        self.engine_usage_stats: dict[str, dict[str, Any]] = {}
         self.last_optimization_check = time.time()
 
     def register_engine(
@@ -818,7 +819,7 @@ class SynthesisEngineRegistry:
         engine: SynthesisEngine,
         engine_type: str,
         priority: int = 0,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """
         Register a synthesis engine with enhanced metadata support.
@@ -907,8 +908,8 @@ class SynthesisEngineRegistry:
         return engines_loaded
 
     def select_engine_for_content(
-        self, content_info: Dict[str, Any], context: Optional[Dict[str, Any]] = None
-    ) -> Optional[str]:
+        self, content_info: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> str | None:
         """
         Select optimal engine for content using advanced analysis.
 
@@ -942,7 +943,7 @@ class SynthesisEngineRegistry:
             # Return highest priority match
             return max(available_matches, key=lambda x: self._engines[x]["priority"])
 
-    def configure_from_xgml(self, xgml_config: Dict[str, Any]) -> bool:
+    def configure_from_xgml(self, xgml_config: dict[str, Any]) -> bool:
         """
         Configure registry from XGML v3.0 synthesis_engines section.
 
@@ -997,7 +998,7 @@ class SynthesisEngineRegistry:
                 print(f"❌ Failed to apply XGML engine configuration: {e}")
                 return False
 
-    def optimize_performance(self) -> Dict[str, Any]:
+    def optimize_performance(self) -> dict[str, Any]:
         """
         Perform automatic performance optimization across all engines.
 
@@ -1040,7 +1041,7 @@ class SynthesisEngineRegistry:
 
             return report
 
-    def get_engine(self, engine_type: str) -> Optional[SynthesisEngine]:
+    def get_engine(self, engine_type: str) -> SynthesisEngine | None:
         """
         Get engine instance by type with usage tracking.
 
@@ -1063,11 +1064,11 @@ class SynthesisEngineRegistry:
                 return engine_data["instance"]
         return None
 
-    def get_engine_class(self, engine_type: str) -> Optional[type]:
+    def get_engine_class(self, engine_type: str) -> type | None:
         """Get engine class by type."""
         return self._engine_classes.get(engine_type)
 
-    def create_engine(self, engine_type: str, **kwargs) -> Optional[SynthesisEngine]:
+    def create_engine(self, engine_type: str, **kwargs) -> SynthesisEngine | None:
         """
         Create new engine instance with validation.
 
@@ -1101,14 +1102,14 @@ class SynthesisEngineRegistry:
                     return None
         return None
 
-    def get_engines_for_format(self, file_format: str) -> List[str]:
+    def get_engines_for_format(self, file_format: str) -> list[str]:
         """Get engine types that support a file format, ordered by priority."""
         engine_types = self._format_map.get(file_format.lower(), [])
         return sorted(
             engine_types, key=lambda x: self._engines[x]["priority"], reverse=True
         )
 
-    def get_registered_engines(self) -> Dict[str, Dict[str, Any]]:
+    def get_registered_engines(self) -> dict[str, dict[str, Any]]:
         """Get comprehensive information about all registered engines."""
         with self.lock:
             result = {}
@@ -1129,7 +1130,7 @@ class SynthesisEngineRegistry:
                 }
             return result
 
-    def detect_engine_for_file(self, file_path: str) -> Optional[str]:
+    def detect_engine_for_file(self, file_path: str) -> str | None:
         """Detect appropriate engine for a file using content analysis."""
         content_info = {
             "file_path": file_path,
@@ -1157,7 +1158,7 @@ class SynthesisEngineRegistry:
         else:
             raise ValueError(f"Engine type '{engine_type}' not found in registry")
 
-    def get_registry_status(self) -> Dict[str, Any]:
+    def get_registry_status(self) -> dict[str, Any]:
         """
         Get comprehensive registry status.
 
@@ -1176,7 +1177,7 @@ class SynthesisEngineRegistry:
                 "usage_stats": self.engine_usage_stats.copy(),
             }
 
-    def _update_format_mapping(self, engine_type: str, formats: List[str]):
+    def _update_format_mapping(self, engine_type: str, formats: list[str]):
         """Update format to engine mapping."""
         for fmt in formats:
             if fmt not in self._format_map:
@@ -1193,8 +1194,8 @@ class SynthesisEngineRegistry:
         )
 
     def _apply_context_filters(
-        self, analysis: Dict[str, Any], context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, analysis: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Apply context-based filtering to analysis results.
 
@@ -1228,7 +1229,7 @@ class SynthesisEngineRegistry:
 
         return filtered
 
-    def get_priority_order(self) -> List[str]:
+    def get_priority_order(self) -> list[str]:
         """Get engine types ordered by priority."""
         return self._priority_order.copy()
 

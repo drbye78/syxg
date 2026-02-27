@@ -5,8 +5,10 @@ Comprehensive real-time performance optimization system providing
 monitoring, profiling, and optimization tools for maximum synthesis
 performance and stability.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import psutil
@@ -90,7 +92,7 @@ class PerformanceMetrics:
         """Record engine processing load."""
         self.engine_load[engine_name] = load_percentage
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get performance metrics summary."""
         return {
             'cpu': {
@@ -138,7 +140,7 @@ class MemoryOptimizer:
             'uncollectable_objects': 0,
         }
 
-    def analyze_memory_usage(self) -> Dict[str, Any]:
+    def analyze_memory_usage(self) -> dict[str, Any]:
         """Analyze current memory usage patterns."""
         memory = psutil.virtual_memory()
 
@@ -173,7 +175,7 @@ class MemoryOptimizer:
         else:
             return 'normal'
 
-    def optimize_memory_usage(self) -> Dict[str, Any]:
+    def optimize_memory_usage(self) -> dict[str, Any]:
         """Perform memory optimization operations."""
         results = {
             'gc_collections': 0,
@@ -214,7 +216,7 @@ class CPUOptimizer:
         self.target_cpu_usage = 70.0  # Target 70% CPU usage
         self.max_cpu_usage = 90.0     # Maximum allowed CPU usage
 
-    def analyze_cpu_usage(self) -> Dict[str, Any]:
+    def analyze_cpu_usage(self) -> dict[str, Any]:
         """Analyze CPU usage patterns."""
         cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
         cpu_freq = psutil.cpu_freq(percpu=True) if hasattr(psutil, 'cpu_freq') else None
@@ -228,7 +230,7 @@ class CPUOptimizer:
             'load_average': os.getloadavg() if hasattr(os, 'getloadavg') else None,
         }
 
-    def optimize_threading(self) -> Dict[str, Any]:
+    def optimize_threading(self) -> dict[str, Any]:
         """Optimize threading configuration for performance."""
         results = {
             'thread_count': threading.active_count(),
@@ -254,7 +256,7 @@ class CPUOptimizer:
 
         return results
 
-    def set_cpu_affinity(self, cpu_cores: List[int]) -> bool:
+    def set_cpu_affinity(self, cpu_cores: list[int]) -> bool:
         """Set CPU affinity for the process."""
         try:
             import os
@@ -301,7 +303,7 @@ class BufferOptimizer:
         self.buffer_sizes = {}
         self.latency_measurements = deque(maxlen=1000)
 
-    def analyze_buffer_usage(self) -> Dict[str, Any]:
+    def analyze_buffer_usage(self) -> dict[str, Any]:
         """Analyze buffer usage patterns."""
         return {
             'pool_stats': self.buffer_pool_stats.copy(),
@@ -313,7 +315,7 @@ class BufferOptimizer:
             },
         }
 
-    def optimize_buffer_sizes(self, target_latency: float = 5.0) -> Dict[str, Any]:
+    def optimize_buffer_sizes(self, target_latency: float = 5.0) -> dict[str, Any]:
         """Optimize buffer sizes for target latency."""
         # Calculate optimal buffer size based on sample rate and target latency
         sample_rate = 44100  # Assume 44.1kHz
@@ -365,7 +367,7 @@ class ProfilingTools:
             }
             self.active_profiles.add(profile_name)
 
-    def end_profile(self, profile_name: str) -> Dict[str, Any]:
+    def end_profile(self, profile_name: str) -> dict[str, Any]:
         """End profiling and return results."""
         if profile_name in self.active_profiles:
             profile = self.profiles[profile_name]
@@ -405,7 +407,7 @@ class ProfilingTools:
         return wrapper
 
     def benchmark_operation(self, operation_name: str, operation: Callable,
-                           iterations: int = 100) -> Dict[str, Any]:
+                           iterations: int = 100) -> dict[str, Any]:
         """Benchmark an operation over multiple iterations."""
         times = []
 
@@ -492,7 +494,7 @@ class JupiterXPerformanceOptimizer:
         with self.lock:
             self.metrics.record_engine_load(engine_name, load_percentage)
 
-    def perform_auto_optimization(self) -> Dict[str, Any]:
+    def perform_auto_optimization(self) -> dict[str, Any]:
         """Perform automatic optimization based on current metrics."""
         with self.lock:
             optimizations_applied = []
@@ -535,7 +537,7 @@ class JupiterXPerformanceOptimizer:
                 'success': len(optimizations_applied) > 0,
             }
 
-    def get_performance_report(self) -> Dict[str, Any]:
+    def get_performance_report(self) -> dict[str, Any]:
         """Generate comprehensive performance report."""
         with self.lock:
             return {
@@ -555,7 +557,7 @@ class JupiterXPerformanceOptimizer:
 
     def benchmark_synthesis_engine(self, engine_name: str, engine_instance,
                                  note: int = 60, velocity: int = 100,
-                                 duration_blocks: int = 100) -> Dict[str, Any]:
+                                 duration_blocks: int = 100) -> dict[str, Any]:
         """Benchmark synthesis engine performance."""
         def benchmark_operation():
             # Generate audio for one block
@@ -567,7 +569,7 @@ class JupiterXPerformanceOptimizer:
             f"{engine_name}_synthesis", benchmark_operation, duration_blocks
         )
 
-    def optimize_for_realtime(self) -> Dict[str, Any]:
+    def optimize_for_realtime(self) -> dict[str, Any]:
         """Apply all optimizations for real-time performance."""
         with self.lock:
             results = {
@@ -630,7 +632,7 @@ class JupiterXPerformanceOptimizer:
             print(f"Performance data export error: {e}")
             return False
 
-    def get_optimization_recommendations(self) -> List[str]:
+    def get_optimization_recommendations(self) -> list[str]:
         """Get optimization recommendations based on current metrics."""
         recommendations = []
         metrics = self.metrics.get_summary()

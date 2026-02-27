@@ -31,6 +31,7 @@ Usage:
     scale_detector.add_note(60)
     current_scale = scale_detector.get_current_scale()
 """
+from __future__ import annotations
 
 from .style import Style, StyleCategory, StyleSection, StyleSectionType
 from .style_track import StyleTrack, TrackType

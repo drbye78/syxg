@@ -5,8 +5,9 @@ Plugin that adds Jupiter-X specific analog synthesis features to the base analog
 Eliminates duplication by extending the existing analog synthesis rather than creating
 a parallel implementation.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import numpy as np
 
 from ..base_plugin import (
@@ -237,7 +238,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Envelope curves: A={self.attack_curve}, D={self.decay_curve}, S={self.sustain_curve}, R={self.release_curve}")
 
-    def set_envelope_levels_times(self, levels: Optional[List[float]] = None, times: Optional[List[float]] = None):
+    def set_envelope_levels_times(self, levels: list[float] | None = None, times: list[float] | None = None):
         """Set envelope level and time values for all stages."""
         if levels is None:
             levels = [0.0, 1.0, 0.7, 0.0]  # Default ADSR
@@ -482,7 +483,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         self.envelope_stage_time = 0.0
         self.envelope_loop_count = 0
 
-    def get_advanced_envelope_features(self) -> Dict[str, Any]:
+    def get_advanced_envelope_features(self) -> dict[str, Any]:
         """Get status of all advanced envelope features."""
         return {
             'multi_stage_config': {
@@ -608,7 +609,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
             self.analog_engine.set_envelope_shape('amplitude', self.envelope_shape)
             self.analog_engine.set_envelope_shape('filter', self.envelope_shape)
 
-    def get_synthesis_features(self) -> Dict[str, Any]:
+    def get_synthesis_features(self) -> dict[str, Any]:
         """Get Jupiter-X analog synthesis features."""
         return {
             'dual_oscillator': {
@@ -669,7 +670,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def get_parameters(self) -> Dict[str, Any]:
+    def get_parameters(self) -> dict[str, Any]:
         """Get current parameter values."""
         return {
             "dual_oscillator_mode": self.dual_oscillator_mode,
@@ -776,7 +777,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def get_available_waveforms(self) -> List[str]:
+    def get_available_waveforms(self) -> list[str]:
         """Get available Jupiter-X waveforms."""
         return list(self.jupiter_x_waveforms.keys())
 
@@ -812,8 +813,8 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         # Filtered noise for better sound
         return np.random.uniform(-1.0, 1.0)
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
-                        block_size: int) -> Optional[np.ndarray]:
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
+                        block_size: int) -> np.ndarray | None:
         """
         Generate additional analog samples with Jupiter-X features.
 
@@ -880,7 +881,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         self.noise_level = max(0.0, min(1.0, level))
         print(f"🎛️ Noise: {self.noise_color} color, level {self.noise_level:.2f}")
 
-    def _apply_oscillator_sync(self, osc1_freq: float, osc2_freq: float, sample_rate: float) -> Tuple[float, float]:
+    def _apply_oscillator_sync(self, osc1_freq: float, osc2_freq: float, sample_rate: float) -> tuple[float, float]:
         """
         Apply oscillator sync effects.
 
@@ -902,7 +903,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         return osc1_freq, osc2_freq
 
-    def _apply_cross_modulation(self, osc1_sample: float, osc2_sample: float) -> Tuple[float, float]:
+    def _apply_cross_modulation(self, osc1_sample: float, osc2_sample: float) -> tuple[float, float]:
         """Apply cross-modulation between oscillators."""
         if not self.cross_modulation_enabled or self.cross_modulation_amount <= 0.0:
             return osc1_sample, osc2_sample
@@ -1012,7 +1013,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         return 0.0
 
-    def get_advanced_oscillator_features(self) -> Dict[str, Any]:
+    def get_advanced_oscillator_features(self) -> dict[str, Any]:
         """Get status of all advanced oscillator features."""
         return {
             'sync_modes': {
@@ -1181,7 +1182,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         return max(20.0, min(20000.0, base_cutoff * tracking_factor))
 
-    def _apply_velocity_to_filter(self, base_cutoff: float, base_resonance: float, velocity: int) -> Tuple[float, float]:
+    def _apply_velocity_to_filter(self, base_cutoff: float, base_resonance: float, velocity: int) -> tuple[float, float]:
         """Apply velocity sensitivity to filter parameters."""
         cutoff = base_cutoff
         resonance = base_resonance
@@ -1313,7 +1314,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
             self.filter2_z1 = 0.0
             self.filter2_z2 = 0.0
 
-    def get_advanced_filter_features(self) -> Dict[str, Any]:
+    def get_advanced_filter_features(self) -> dict[str, Any]:
         """Get status of all advanced filter features."""
         return {
             'multi_mode_filters': {
@@ -1356,7 +1357,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
             }
         }
 
-    def get_analog_engine_status(self) -> Dict[str, Any]:
+    def get_analog_engine_status(self) -> dict[str, Any]:
         """Get Jupiter-X analog engine status."""
         return {
             'dual_oscillator_mode': self.dual_oscillator_mode,

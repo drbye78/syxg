@@ -4,8 +4,9 @@ Jupiter-X AN (Analog Physical Modeling) Extensions
 Plugin that adds Yamaha AN synthesis features to the base synthesis system.
 Provides Motif-compatible physical modeling capabilities with advanced controls.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import numpy as np
 
 from ..base_plugin import (
@@ -177,7 +178,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
         if hasattr(self.an_engine, 'reset'):
             self.an_engine.reset()
 
-    def get_synthesis_features(self) -> Dict[str, Any]:
+    def get_synthesis_features(self) -> dict[str, Any]:
         """Get Jupiter-X AN synthesis features."""
         return {
             'physical_modeling': {
@@ -240,7 +241,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def get_parameters(self) -> Dict[str, Any]:
+    def get_parameters(self) -> dict[str, Any]:
         """Get current parameter values."""
         return {
             "oscillator_model": self.oscillator_model,
@@ -290,8 +291,8 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
-                        block_size: int) -> Optional[np.ndarray]:
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
+                        block_size: int) -> np.ndarray | None:
         """
         Generate additional AN samples with Jupiter-X features.
 
@@ -350,7 +351,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
         print(f"🎛️ Applied material '{material_name}' to voice {voice_id}")
         return True
 
-    def get_an_x_status(self) -> Dict[str, Any]:
+    def get_an_x_status(self) -> dict[str, Any]:
         """Get Jupiter-X AN engine status."""
         return {
             'oscillator_model': self.oscillator_model,
@@ -366,7 +367,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
             'features_active': self.is_active()
         }
 
-    def get_advanced_an_features(self) -> Dict[str, Any]:
+    def get_advanced_an_features(self) -> dict[str, Any]:
         """Get advanced AN physical modeling features."""
         return {
             'material_simulation': {

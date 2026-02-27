@@ -220,8 +220,9 @@ PROFESSIONAL MUSIC PRODUCTION:
 - LOW LATENCY PERFORMANCE: Real-time performance with minimal delay
 - COMPREHENSIVE MONITORING: Detailed performance and diagnostic information
 """
+from __future__ import annotations
 
-from typing import Dict, Optional, Any, List
+from typing import Any
 import numpy as np
 
 from .channel_note import ChannelNote
@@ -260,8 +261,13 @@ class Channel:
         self.sample_rate = sample_rate
         self.synthesizer = synthesizer  # Reference to parent synthesizer
 
-        # Polyphonic voice management - multiple simultaneous voices
-        self.active_voices: Dict[int, VoiceInstance] = {}  # note -> VoiceInstance
+        # Polyphonic voice management with unique voice IDs
+        # CRITICAL FIX: Use unique voice IDs instead of note numbers as keys
+        # This enables true polyphony where multiple voices can play the same note
+        self.active_voices: dict[int, VoiceInstance] = {}  # voice_id -> VoiceInstance
+        self.note_to_voice_ids: dict[int, list[int]] = {}  # note -> [voice_id, ...]
+        self._next_voice_id = 0  # Incrementing voice ID counter
+        
         self.program = 0
         self.bank_msb = 0
         self.bank_lsb = 0
@@ -292,7 +298,7 @@ class Channel:
 
         # Channel pressure and key pressure
         self._channel_pressure = 0
-        self.key_pressure_values: Dict[int, int] = {}
+        self.key_pressure_values: dict[int, int] = {}
 
         # Pitch bend state
         self.pitch_bend_value = 8192  # Center position
@@ -329,7 +335,7 @@ class Channel:
         # GS integration
         self.gs_part = None  # Reference to GS part when in GS mode
 
-    def update_xg_state_from_message(self, xg_metadata: Dict[str, Any]):
+    def update_xg_state_from_message(self, xg_metadata: dict[str, Any]):
         """
         Update XG channel state from message metadata.
 
@@ -535,24 +541,23 @@ class Channel:
         if not (self.key_range_low <= transposed_note <= self.key_range_high):
             return False
 
-        # Check if we already have a voice instance for this note
-        if transposed_note in self.active_voices:
-            # Retrigger existing voice (for monophonic instruments)
-            existing_voice = self.active_voices[transposed_note]
-            existing_voice.note_on(velocity)
-            return True
-
         # Get articulation for this note/velocity
         articulation, art_params = self.get_articulation_for_note(
             transposed_note, velocity
         )
 
+        # Allocate unique voice ID for true polyphony
+        voice_id = self._allocate_voice_id()
+
         # Create new VoiceInstance for this note with articulation
+        # CRITICAL: Always create new voice instance for true polyphony
+        # Don't check for existing voices - allow multiple voices per note
         voice_instance = VoiceInstance(
             transposed_note,
             velocity,
             self.channel_number,
             self.sample_rate,
+            voice_id=voice_id,  # Pass unique voice ID
             articulation=articulation
         )
         
@@ -589,14 +594,62 @@ class Channel:
         # Trigger note-on for the voice instance
         voice_instance.note_on(velocity)
 
-        # Store the active voice instance
-        self.active_voices[transposed_note] = voice_instance
+        # Store the active voice instance with unique ID
+        self.active_voices[voice_id] = voice_instance
+        
+        # Track this voice ID for this note (supports multiple voices per note)
+        if transposed_note not in self.note_to_voice_ids:
+            self.note_to_voice_ids[transposed_note] = []
+        self.note_to_voice_ids[transposed_note].append(voice_id)
 
         return True
+
+    def _allocate_voice_id(self) -> int:
+        """
+        Allocate a unique voice ID.
+        
+        Returns:
+            Unique voice ID for this voice instance
+        """
+        voice_id = self._next_voice_id
+        self._next_voice_id += 1
+        return voice_id
+    
+    def _find_voices_for_note(self, note: int) -> list[int]:
+        """
+        Find all voice IDs playing a specific note.
+        
+        Args:
+            note: MIDI note number (after transposition)
+            
+        Returns:
+            List of voice IDs playing this note
+        """
+        return self.note_to_voice_ids.get(note, [])
+    
+    def _remove_voice_id(self, voice_id: int, note: int) -> None:
+        """
+        Remove a voice ID from tracking.
+        
+        Args:
+            voice_id: Voice ID to remove
+            note: Note associated with this voice
+        """
+        if voice_id in self.active_voices:
+            del self.active_voices[voice_id]
+        
+        if note in self.note_to_voice_ids:
+            if voice_id in self.note_to_voice_ids[note]:
+                self.note_to_voice_ids[note].remove(voice_id)
+            if not self.note_to_voice_ids[note]:
+                del self.note_to_voice_ids[note]
 
     def note_off(self, note: int, velocity: int = 64):
         """
         Handle note-off event with polyphony support.
+        
+        CRITICAL FIX: Release ALL voices playing this note, not just one.
+        This enables true polyphony where multiple voices can play the same note.
 
         Args:
             note: MIDI note number (0-127)
@@ -605,16 +658,19 @@ class Channel:
         # Apply channel transposition
         transposed_note = note + self.transpose
 
-        # Check if we have a voice instance for this note
-        if transposed_note in self.active_voices:
-            voice_instance = self.active_voices[transposed_note]
-            voice_instance.note_off(velocity)
-
-            # Note: We don't remove the voice instance here - it will be
-            # removed in generate_samples() when it's no longer active
-            # This allows for proper release phase handling
-        else:
-            # Fallback to legacy single voice
+        # Find ALL voice instances playing this note (supports polyphony)
+        voice_ids = self._find_voices_for_note(transposed_note)
+        
+        # Release all voices for this note
+        for voice_id in voice_ids:
+            if voice_id in self.active_voices:
+                voice_instance = self.active_voices[voice_id]
+                voice_instance.note_off(velocity)
+                # Mark for removal during cleanup (allows release phase to complete)
+                voice_instance._pending_removal = True
+        
+        # Fallback to legacy single voice if no voices found
+        if not voice_ids:
             if self.current_voice:
                 self.current_voice.note_off(transposed_note)
 
@@ -775,7 +831,7 @@ class Channel:
             self.pitch_bend_range = value
         # Other RPN parameters can be handled here
 
-    def pitch_bend(self, lsb: int, msb: int, pitch_32bit: Optional[int] = None):
+    def pitch_bend(self, lsb: int, msb: int, pitch_32bit: int | None = None):
         """
         Handle pitch bend event with support for both MIDI 1.0 and MIDI 2.0.
 
@@ -850,7 +906,7 @@ class Channel:
         # Convert to 7-bit for backward compatibility
         self.channel_pressure = self._convert_32bit_to_7bit(pressure_32bit)
 
-    def key_pressure(self, note: int, pressure: int, pressure_32bit: Optional[int] = None):
+    def key_pressure(self, note: int, pressure: int, pressure_32bit: int | None = None):
         """
         Handle polyphonic key pressure with support for MIDI 2.0.
 
@@ -874,7 +930,7 @@ class Channel:
                 self.key_pressure_32bit_values[note] = {}
             self.key_pressure_32bit_values[note] = self._convert_7bit_to_32bit(pressure)
 
-    def _collect_modulation_values(self) -> Dict[str, float]:
+    def _collect_modulation_values(self) -> dict[str, float]:
         """
         Collect modulation values from controllers and channel state.
 
@@ -1031,10 +1087,15 @@ class Channel:
         self.load_program(program, self.bank_msb, self.bank_lsb)
 
     def all_notes_off(self):
-        """Turn off all notes on this channel."""
+        """
+        Turn off all notes on this channel.
+        
+        CRITICAL FIX: Release all voices using voice IDs.
+        """
         # Send note-off to all active voice instances
-        for voice_instance in list(self.active_voices.values()):
+        for voice_id, voice_instance in list(self.active_voices.items()):
             voice_instance.note_off()
+            voice_instance._pending_removal = True
 
         # Fallback to legacy single voice
         if self.current_voice:
@@ -1042,13 +1103,18 @@ class Channel:
                 self.current_voice.note_off(note)
 
     def all_sound_off(self):
-        """Immediately silence all sounds on this channel."""
+        """
+        Immediately silence all sounds on this channel.
+        
+        CRITICAL FIX: Clear all voice tracking structures.
+        """
         # Immediately silence all active voice instances
         for voice_instance in list(self.active_voices.values()):
             voice_instance.all_notes_off()
 
-        # Clear active voices
+        # Clear all voice tracking structures
         self.active_voices.clear()
+        self.note_to_voice_ids.clear()
 
         # Fallback to legacy single voice
         if self.current_voice:
@@ -1083,7 +1149,9 @@ class Channel:
 
         # Generate samples from all active voice instances
         active_voice_count = 0
-        for voice_instance in list(self.active_voices.values()):
+        voices_to_remove = []
+        
+        for voice_id, voice_instance in list(self.active_voices.items()):
             if voice_instance.is_active():
                 # Get samples from this voice instance
                 voice_audio = voice_instance.generate_samples(block_size)
@@ -1091,13 +1159,13 @@ class Channel:
                 # Mix voice into channel output
                 output += voice_audio
                 active_voice_count += 1
-
-                # Remove inactive voices to prevent accumulation
-                if not voice_instance.is_active():
-                    del self.active_voices[voice_instance.note]
             else:
-                # Remove inactive voices
-                del self.active_voices[voice_instance.note]
+                # Mark inactive voices for removal
+                voices_to_remove.append((voice_id, voice_instance.note))
+
+        # Remove inactive voices (after iteration to avoid dict modification during iteration)
+        for voice_id, note in voices_to_remove:
+            self._remove_voice_id(voice_id, note)
 
         # Apply channel-level processing if we have active voices
         if active_voice_count > 0:
@@ -1119,7 +1187,7 @@ class Channel:
 
         return output
 
-    def _collect_modulation_values(self) -> Dict[str, float]:
+    def _collect_modulation_values(self) -> dict[str, float]:
         """
         Collect modulation values from controllers and channel state.
 
@@ -1151,7 +1219,7 @@ class Channel:
 
         return modulation
 
-    def get_channel_info(self) -> Dict[str, Any]:
+    def get_channel_info(self) -> dict[str, Any]:
         """
         Get information about this channel.
 

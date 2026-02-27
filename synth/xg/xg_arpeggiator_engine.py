@@ -7,8 +7,10 @@ and real-time control.
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -28,9 +30,9 @@ class ArpeggiatorPattern:
         self.category = category
 
         # Pattern data
-        self.notes: List[Dict[str, Any]] = []  # Note sequence with timing/velocity
+        self.notes: list[dict[str, Any]] = []  # Note sequence with timing/velocity
         self.length_beats = 1.0  # Pattern length in beats
-        self.chord_types: List[str] = []  # Compatible chord types
+        self.chord_types: list[str] = []  # Compatible chord types
         self.octave_range = 1  # Default octave range
 
         # Timing parameters
@@ -40,7 +42,7 @@ class ArpeggiatorPattern:
         # Velocity parameters
         self.velocity_mode = 0  # 0=Original, 1=Fixed, 2=Accent pattern
         self.fixed_velocity = 100
-        self.accent_pattern: List[float] = []  # Velocity multipliers
+        self.accent_pattern: list[float] = []  # Velocity multipliers
 
     def add_note(self, step: float, note_offset: int, velocity_mult: float = 1.0):
         """Add a note to the pattern."""
@@ -50,8 +52,8 @@ class ArpeggiatorPattern:
             'velocity_mult': velocity_mult  # Velocity multiplier
         })
 
-    def get_notes_for_chord(self, root_note: int, chord_notes: List[int],
-                           octave_range: int = 1) -> List[Dict[str, Any]]:
+    def get_notes_for_chord(self, root_note: int, chord_notes: list[int],
+                           octave_range: int = 1) -> list[dict[str, Any]]:
         """
         Generate note sequence for a specific chord.
 
@@ -132,8 +134,8 @@ class ChordDetector:
     }
 
     def __init__(self):
-        self.active_notes: Dict[int, int] = {}  # note -> velocity
-        self.detected_chord: Optional[Dict[str, Any]] = None
+        self.active_notes: dict[int, int] = {}  # note -> velocity
+        self.detected_chord: dict[str, Any] | None = None
 
     def note_on(self, note: int, velocity: int):
         """Register a note-on event."""
@@ -191,7 +193,7 @@ class ChordDetector:
                 'confidence': 0.5
             }
 
-    def get_current_chord(self) -> Optional[Dict[str, Any]]:
+    def get_current_chord(self) -> dict[str, Any] | None:
         """Get currently detected chord."""
         return self.detected_chord.copy() if self.detected_chord else None
 
@@ -210,7 +212,7 @@ class ArpeggiatorZone:
         self.enabled = False
 
         # Zone-specific parameters
-        self.pattern: Optional[ArpeggiatorPattern] = None
+        self.pattern: ArpeggiatorPattern | None = None
         self.octave_range = 1
         self.gate_time = 0.8
         self.swing_amount = 0.0
@@ -221,7 +223,7 @@ class ArpeggiatorZone:
         """Check if a note falls within this zone."""
         return self.lower_note <= note <= self.upper_note
 
-    def get_zone_settings(self) -> Dict[str, Any]:
+    def get_zone_settings(self) -> dict[str, Any]:
         """Get zone-specific settings."""
         return {
             'enabled': self.enabled,
@@ -250,7 +252,7 @@ class ArpeggiatorInstance:
         # State
         self.enabled = False
         self.hold_mode = False
-        self.current_pattern: Optional[ArpeggiatorPattern] = None
+        self.current_pattern: ArpeggiatorPattern | None = None
 
         # Parameters
         self.octave_range = 1
@@ -266,22 +268,22 @@ class ArpeggiatorInstance:
 
         # Active notes and chord detection
         self.chord_detector = ChordDetector()
-        self.active_arpeggio_notes: List[Dict[str, Any]] = []
-        self.note_cache: Dict[int, Dict[str, Any]] = {}  # Cache for active notes
+        self.active_arpeggio_notes: list[dict[str, Any]] = []
+        self.note_cache: dict[int, dict[str, Any]] = {}  # Cache for active notes
 
         # Zone support
         self.zones_enabled = False
-        self.zones: List[ArpeggiatorZone] = []
+        self.zones: list[ArpeggiatorZone] = []
         self._initialize_zones()
 
         # Performance optimizations
-        self.pattern_cache: Dict[int, List[Dict[str, Any]]] = {}  # Cache generated patterns
+        self.pattern_cache: dict[int, list[dict[str, Any]]] = {}  # Cache generated patterns
         self.last_chord_hash = None  # For chord change detection
-        self.velocity_scale_cache: Dict[int, int] = {}  # Cache velocity scaling
+        self.velocity_scale_cache: dict[int, int] = {}  # Cache velocity scaling
 
         # Callbacks
-        self.note_on_callback: Optional[Callable] = None
-        self.note_off_callback: Optional[Callable] = None
+        self.note_on_callback: Callable | None = None
+        self.note_off_callback: Callable | None = None
 
     def _initialize_zones(self):
         """Initialize default zones (can be customized)."""
@@ -290,7 +292,7 @@ class ArpeggiatorInstance:
         self.zones = [default_zone]
 
     def set_zone(self, zone_index: int, lower_note: int, upper_note: int,
-                pattern_id: Optional[int] = None, **zone_params):
+                pattern_id: int | None = None, **zone_params):
         """Configure an arpeggiator zone."""
         if 0 <= zone_index < len(self.zones):
             zone = self.zones[zone_index]
@@ -311,7 +313,7 @@ class ArpeggiatorInstance:
         """Enable or disable zone functionality."""
         self.zones_enabled = enabled
 
-    def get_active_zone_for_note(self, note: int) -> Optional[ArpeggiatorZone]:
+    def get_active_zone_for_note(self, note: int) -> ArpeggiatorZone | None:
         """Get the active zone for a given note."""
         if not self.zones_enabled:
             return self.zones[0] if self.zones else None
@@ -438,7 +440,7 @@ class YamahaArpeggiatorEngine:
         self.arpeggiators = [ArpeggiatorInstance(i, self) for i in range(16)]
 
         # Pattern library
-        self.patterns: Dict[int, ArpeggiatorPattern] = {}
+        self.patterns: dict[int, ArpeggiatorPattern] = {}
         self._initialize_builtin_patterns()
 
         # Global settings
@@ -446,8 +448,8 @@ class YamahaArpeggiatorEngine:
         self.tempo_sync = True
 
         # Callbacks for note events
-        self.note_on_callback: Optional[Callable] = None
-        self.note_off_callback: Optional[Callable] = None
+        self.note_on_callback: Callable | None = None
+        self.note_off_callback: Callable | None = None
 
         print("🎹 Yamaha Arpeggiator Engine: Initialized")
 
@@ -657,7 +659,7 @@ class YamahaArpeggiatorEngine:
         print(f"   Categories: Basic, Seventh, Extended, Rhythmic, World, Special, Inversions, Drum")
         print(f"   Chord Types: {len(chord_types)} supported ({', '.join(list(chord_types.keys())[:5])}...)")
 
-    def get_arpeggiator(self, channel: int) -> Optional[ArpeggiatorInstance]:
+    def get_arpeggiator(self, channel: int) -> ArpeggiatorInstance | None:
         """Get arpeggiator instance for a channel."""
         with self.lock:
             if 0 <= channel < 16:
@@ -730,7 +732,7 @@ class YamahaArpeggiatorEngine:
                 if self.note_off_callback:
                     self.note_off_callback(channel, note)
 
-    def get_pattern_list(self) -> List[Dict[str, Any]]:
+    def get_pattern_list(self) -> list[dict[str, Any]]:
         """Get list of available patterns."""
         with self.lock:
             return [{
@@ -740,7 +742,7 @@ class YamahaArpeggiatorEngine:
                 'chord_types': pattern.chord_types.copy()
             } for pattern in self.patterns.values()]
 
-    def get_arpeggiator_status(self, channel: int) -> Optional[Dict[str, Any]]:
+    def get_arpeggiator_status(self, channel: int) -> dict[str, Any] | None:
         """Get status of arpeggiator for a channel."""
         with self.lock:
             arpeggiator = self.get_arpeggiator(channel)
@@ -761,7 +763,7 @@ class YamahaArpeggiatorEngine:
         return None
 
     def set_arpeggiator_zone(self, channel: int, zone_index: int, lower_note: int, upper_note: int,
-                           pattern_id: Optional[int] = None, **zone_params) -> bool:
+                           pattern_id: int | None = None, **zone_params) -> bool:
         """Configure an arpeggiator zone for a channel."""
         with self.lock:
             arpeggiator = self.get_arpeggiator(channel)
@@ -779,7 +781,7 @@ class YamahaArpeggiatorEngine:
                 return True
         return False
 
-    def get_arpeggiator_zones(self, channel: int) -> Optional[List[Dict[str, Any]]]:
+    def get_arpeggiator_zones(self, channel: int) -> list[dict[str, Any]] | None:
         """Get zone configuration for a channel."""
         with self.lock:
             arpeggiator = self.get_arpeggiator(channel)

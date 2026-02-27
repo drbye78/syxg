@@ -235,7 +235,9 @@ INDUSTRY COMPLIANCE:
 - IEEE AUDIO ENGINEERING: Technical standards for audio processing
 """
 
-from typing import Dict, Any, Optional
+from __future__ import annotations
+
+from typing import Any, Self
 import time
 
 
@@ -251,15 +253,20 @@ class MIDIMessage:
         timestamp (float): Message timestamp in seconds (from epoch for real-time,
                           from file start for file parsing)
         type (str): Message type ('note_on', 'note_off', 'control_change', etc.)
-        channel (Optional[int]): MIDI channel (0-15) or None for system messages
-        data (Dict[str, Any]): Type-specific message data
+        channel (int | None): MIDI channel (0-15) or None for system messages
+        data (dict[str, Any]): Type-specific message data
     """
 
-    __slots__ = ('timestamp', 'type', 'channel', 'data', '_xg_metadata')
+    __slots__ = ("timestamp", "type", "channel", "data", "_xg_metadata")
 
-    def __init__(self, type: str, channel: Optional[int] = None,
-                 data: Optional[Dict[str, Any]] = None,
-                 timestamp: Optional[float] = None, **kwargs):
+    def __init__(
+        self,
+        type: str,
+        channel: int | None = None,
+        data: dict[str, Any] | None = None,
+        timestamp: float | None = None,
+        **kwargs,
+    ):
         """
         Initialize a MIDI message.
 
@@ -288,93 +295,87 @@ class MIDIMessage:
         """Human-readable string representation."""
         return self.__repr__()
 
-    def copy(self) -> 'MIDIMessage':
+    def copy(self) -> Self:
         """Create a copy of this message."""
         return MIDIMessage(
-            type=self.type,
-            channel=self.channel,
-            data=self.data.copy(),
-            timestamp=self.timestamp
+            type=self.type, channel=self.channel, data=self.data.copy(), timestamp=self.timestamp
         )
 
-    def with_timestamp(self, timestamp: float) -> 'MIDIMessage':
+    def with_timestamp(self, timestamp: float) -> MIDIMessage:
         """Create a new message with different timestamp."""
         return MIDIMessage(
-            type=self.type,
-            channel=self.channel,
-            data=self.data,
-            timestamp=timestamp
+            type=self.type, channel=self.channel, data=self.data, timestamp=timestamp
         )
 
     # Convenience properties for common message data
     @property
-    def note(self) -> Optional[int]:
+    def note(self) -> int | None:
         """Note number for note messages."""
-        return self.data.get('note')
+        return self.data.get("note")
 
     @property
-    def velocity(self) -> Optional[int]:
+    def velocity(self) -> int | None:
         """Velocity for note messages."""
-        return self.data.get('velocity')
+        return self.data.get("velocity")
 
     @property
-    def controller(self) -> Optional[int]:
+    def controller(self) -> int | None:
         """Controller number for CC messages."""
-        return self.data.get('controller')
+        return self.data.get("controller")
 
     @property
-    def value(self) -> Optional[int]:
+    def value(self) -> int | None:
         """Controller value for CC messages."""
-        return self.data.get('value')
+        return self.data.get("value")
 
     @property
-    def program(self) -> Optional[int]:
+    def program(self) -> int | None:
         """Program number for program change messages."""
-        return self.data.get('program')
+        return self.data.get("program")
 
     @property
-    def pressure(self) -> Optional[int]:
+    def pressure(self) -> int | None:
         """Pressure value for pressure messages."""
-        return self.data.get('pressure')
+        return self.data.get("pressure")
 
     @property
-    def pitch(self) -> Optional[int]:
+    def pitch(self) -> int | None:
         """Pitch bend value."""
-        return self.data.get('pitch')
+        return self.data.get("pitch")
 
     @property
-    def bend_value(self) -> Optional[int]:
+    def bend_value(self) -> int | None:
         """Alias for pitch bend value."""
-        return self.data.get('value', self.data.get('pitch'))
+        return self.data.get("value", self.data.get("pitch"))
 
     # Message type checking
     def is_note_on(self) -> bool:
         """Check if this is a note on message."""
-        return self.type == 'note_on'
+        return self.type == "note_on"
 
     def is_note_off(self) -> bool:
         """Check if this is a note off message."""
-        return self.type == 'note_off'
+        return self.type == "note_off"
 
     def is_control_change(self) -> bool:
         """Check if this is a control change message."""
-        return self.type == 'control_change'
+        return self.type == "control_change"
 
     def is_program_change(self) -> bool:
         """Check if this is a program change message."""
-        return self.type == 'program_change'
+        return self.type == "program_change"
 
     def is_pitch_bend(self) -> bool:
         """Check if this is a pitch bend message."""
-        return self.type == 'pitch_bend'
+        return self.type == "pitch_bend"
 
     def is_channel_pressure(self) -> bool:
         """Check if this is a channel pressure message."""
-        return self.type == 'channel_pressure'
+        return self.type == "channel_pressure"
 
     def is_poly_pressure(self) -> bool:
         """Check if this is a polyphonic pressure message."""
-        return self.type == 'poly_pressure'
+        return self.type == "poly_pressure"
 
     def is_system_message(self) -> bool:
         """Check if this is a system message."""
@@ -389,16 +390,17 @@ class MIDIMessage:
 # Message Conversion Utilities
 # ============================================================================
 
-def midimessage_to_bytes(msg: 'MIDIMessage') -> bytes:
+
+def midimessage_to_bytes(msg: MIDIMessage) -> bytes:
     """
     Convert MIDIMessage to MIDI byte stream.
-    
+
     Args:
         msg: MIDIMessage to convert
-    
+
     Returns:
         Raw MIDI bytes
-    
+
     Example:
         >>> msg = MIDIMessage(type='note_on', channel=0, data={'note': 60, 'velocity': 80})
         >>> data = midimessage_to_bytes(msg)
@@ -407,53 +409,53 @@ def midimessage_to_bytes(msg: 'MIDIMessage') -> bytes:
     """
     result = bytearray()
     channel = msg.channel or 0
-    
-    if msg.type == 'note_on':
+
+    if msg.type == "note_on":
         status = 0x90 | channel
         result.append(status)
         result.append(msg.note or 0)
         result.append(msg.velocity or 0)
-    
-    elif msg.type == 'note_off':
+
+    elif msg.type == "note_off":
         status = 0x80 | channel
         result.append(status)
         result.append(msg.note or 0)
         result.append(msg.velocity or 0)
-    
-    elif msg.type == 'control_change':
+
+    elif msg.type == "control_change":
         status = 0xB0 | channel
         result.append(status)
         result.append(msg.controller or 0)
         result.append(msg.value or 0)
-    
-    elif msg.type == 'program_change':
+
+    elif msg.type == "program_change":
         status = 0xC0 | channel
         result.append(status)
         result.append(msg.program or 0)
-    
-    elif msg.type == 'channel_pressure':
+
+    elif msg.type == "channel_pressure":
         status = 0xD0 | channel
         result.append(status)
         result.append(msg.pressure or 0)
-    
-    elif msg.type == 'poly_pressure':
+
+    elif msg.type == "poly_pressure":
         status = 0xA0 | channel
         result.append(status)
         result.append(msg.note or 0)
         result.append(msg.pressure or 0)
-    
-    elif msg.type == 'pitch_bend':
+
+    elif msg.type == "pitch_bend":
         status = 0xE0 | channel
         result.append(status)
         value = msg.bend_value or 8192
         result.append(value & 0x7F)
         result.append((value >> 7) & 0x7F)
-    
-    elif msg.type == 'sysex':
+
+    elif msg.type == "sysex":
         result.append(0xF0)
-        raw_data = msg.data.get('raw_data', [])
+        raw_data = msg.data.get("raw_data", [])
         for byte in raw_data:
             result.append(byte & 0x7F)
         result.append(0xF7)
-    
+
     return bytes(result)

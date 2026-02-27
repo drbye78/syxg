@@ -4,8 +4,10 @@ SFZ Voice-Level Modulation Matrix
 Provides advanced modulation routing at the voice level for SFZ instruments,
 enabling complex modulation chains and professional control over synthesis parameters.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Callable
+from typing import Any
+from collections.abc import Callable
 import math
 
 
@@ -106,14 +108,14 @@ class SFZVoiceModulationMatrix:
             max_routes: Maximum number of simultaneous modulation routes
         """
         self.max_routes = max_routes
-        self.routes: List[ModulationRoute] = []
-        self.source_values: Dict[str, float] = {}
+        self.routes: list[ModulationRoute] = []
+        self.source_values: dict[str, float] = {}
 
         # Initialize common modulation sources
         self._initialize_default_sources()
 
         # Route groups for organization
-        self.route_groups: Dict[str, List[int]] = {}
+        self.route_groups: dict[str, list[int]] = {}
 
     def _initialize_default_sources(self):
         """Initialize default modulation source values."""
@@ -263,7 +265,7 @@ class SFZVoiceModulationMatrix:
         if source_name in self.source_values:
             self.source_values[source_name] = value
 
-    def update_sources(self, source_updates: Dict[str, float]) -> None:
+    def update_sources(self, source_updates: dict[str, float]) -> None:
         """
         Update multiple modulation source values.
 
@@ -272,7 +274,7 @@ class SFZVoiceModulationMatrix:
         """
         self.source_values.update(source_updates)
 
-    def process(self) -> Dict[str, float]:
+    def process(self) -> dict[str, float]:
         """
         Process the modulation matrix and return parameter updates.
 
@@ -294,7 +296,7 @@ class SFZVoiceModulationMatrix:
 
         return parameter_updates
 
-    def get_route_info(self, route_index: int) -> Optional[Dict[str, Any]]:
+    def get_route_info(self, route_index: int) -> dict[str, Any] | None:
         """
         Get information about a specific route.
 
@@ -319,7 +321,7 @@ class SFZVoiceModulationMatrix:
             }
         return None
 
-    def get_all_routes(self) -> List[Dict[str, Any]]:
+    def get_all_routes(self) -> list[dict[str, Any]]:
         """
         Get information about all routes.
 
@@ -328,7 +330,7 @@ class SFZVoiceModulationMatrix:
         """
         return [self.get_route_info(i) for i in range(len(self.routes))]
 
-    def get_group_routes(self, group_name: str) -> List[Dict[str, Any]]:
+    def get_group_routes(self, group_name: str) -> list[dict[str, Any]]:
         """
         Get all routes in a specific group.
 
@@ -356,7 +358,7 @@ class SFZVoiceModulationMatrix:
         """
         return self.source_values.get(source_name, 0.0)
 
-    def get_all_source_values(self) -> Dict[str, float]:
+    def get_all_source_values(self) -> dict[str, float]:
         """
         Get all modulation source values.
 
@@ -365,7 +367,7 @@ class SFZVoiceModulationMatrix:
         """
         return self.source_values.copy()
 
-    def get_matrix_info(self) -> Dict[str, Any]:
+    def get_matrix_info(self) -> dict[str, Any]:
         """
         Get comprehensive matrix information.
 
@@ -382,7 +384,7 @@ class SFZVoiceModulationMatrix:
             'utilization_percent': (len(self.routes) / self.max_routes) * 100
         }
 
-    def create_preset(self, preset_name: str) -> Dict[str, Any]:
+    def create_preset(self, preset_name: str) -> dict[str, Any]:
         """
         Create a modulation matrix preset.
 
@@ -435,7 +437,7 @@ class SFZVoiceModulationMatrix:
 
         return {'name': 'Unknown Preset', 'routes': []}
 
-    def load_preset(self, preset_config: Dict[str, Any]) -> bool:
+    def load_preset(self, preset_config: dict[str, Any]) -> bool:
         """
         Load a modulation matrix preset.
 
@@ -462,7 +464,7 @@ class SFZVoiceModulationMatrix:
         except (KeyError, TypeError):
             return False
 
-    def export_matrix(self) -> Dict[str, Any]:
+    def export_matrix(self) -> dict[str, Any]:
         """
         Export modulation matrix configuration.
 
@@ -488,7 +490,7 @@ class SFZVoiceModulationMatrix:
             'source_values': self.source_values.copy()
         }
 
-    def import_matrix(self, data: Dict[str, Any]) -> bool:
+    def import_matrix(self, data: dict[str, Any]) -> bool:
         """
         Import modulation matrix configuration.
 

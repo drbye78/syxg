@@ -12,8 +12,9 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import threading
 
 
@@ -276,7 +277,7 @@ class XGControllerAssignments:
 
         return 0  # Linear
 
-    def get_controller_range(self, channel: int, slot: int) -> Tuple[int, int]:
+    def get_controller_range(self, channel: int, slot: int) -> tuple[int, int]:
         """
         Get controller range for a channel and slot.
 
@@ -295,7 +296,7 @@ class XGControllerAssignments:
         return (0, 127)
 
     def apply_controller_value(self, channel: int, controller_number: int,
-                             controller_value: int) -> Dict[str, Any]:
+                             controller_value: int) -> dict[str, Any]:
         """
         Apply a controller value to assigned destinations.
 
@@ -390,7 +391,7 @@ class XGControllerAssignments:
         ]
         return destinations[slot] if slot < len(destinations) else f'slot_{slot}'
 
-    def get_channel_assignments(self, channel: int) -> Dict[str, Any]:
+    def get_channel_assignments(self, channel: int) -> dict[str, Any]:
         """
         Get all controller assignments for a channel.
 
@@ -435,7 +436,7 @@ class XGControllerAssignments:
 
         print("🎛️ XG CONTROLLER ASSIGNMENTS: Reset all channels to XG defaults")
 
-    def export_assignments(self) -> Dict[str, Any]:
+    def export_assignments(self) -> dict[str, Any]:
         """Export all controller assignments."""
         with self.lock:
             return {
@@ -445,7 +446,7 @@ class XGControllerAssignments:
                 'version': '1.0'
             }
 
-    def import_assignments(self, data: Dict[str, Any]) -> bool:
+    def import_assignments(self, data: dict[str, Any]) -> bool:
         """Import controller assignments."""
         try:
             with self.lock:
@@ -462,7 +463,7 @@ class XGControllerAssignments:
             print(f"❌ XG CONTROLLER ASSIGNMENTS: Import failed - {e}")
             return False
 
-    def get_controller_assignment_info(self, assignment: int) -> Dict[str, Any]:
+    def get_controller_assignment_info(self, assignment: int) -> dict[str, Any]:
         """
         Get information about a controller assignment.
 
@@ -476,7 +477,7 @@ class XGControllerAssignments:
         info['assignment_number'] = assignment
         return info
 
-    def list_available_assignments(self) -> Dict[int, Dict[str, Any]]:
+    def list_available_assignments(self) -> dict[int, dict[str, Any]]:
         """
         List all available controller assignments.
 

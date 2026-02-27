@@ -10,10 +10,11 @@ Features:
 - Scale-aware chord voicing suggestions
 - Real-time scale detection from note history
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 import threading
 import time
 import numpy as np
@@ -40,7 +41,7 @@ class ScaleType(Enum):
     CUSTOM = "custom"
 
 
-@dataclass
+@dataclass(slots=True)
 class ScalePattern:
     """
     Scale pattern definition.
@@ -53,8 +54,8 @@ class ScalePattern:
     """
     name: str
     scale_type: ScaleType
-    intervals: List[int]
-    chroma_profile: List[float] = field(default_factory=list)
+    intervals: list[int]
+    chroma_profile: list[float] = field(default_factory=list)
 
 
 # Krumhansl-Schmiedler key profiles for major and minor keys
@@ -63,7 +64,7 @@ MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.2
 MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
 
 # Scale patterns with intervals and chroma profiles
-SCALE_PATTERNS: Dict[ScaleType, ScalePattern] = {
+SCALE_PATTERNS: dict[ScaleType, ScalePattern] = {
     ScaleType.MAJOR: ScalePattern(
         name="Major (Ionian)",
         scale_type=ScaleType.MAJOR,
@@ -157,7 +158,7 @@ SCALE_PATTERNS: Dict[ScaleType, ScalePattern] = {
 }
 
 
-@dataclass
+@dataclass(slots=True)
 class DetectedScale:
     """
     Result of scale/key detection.
@@ -173,9 +174,9 @@ class DetectedScale:
     root: int
     scale_type: ScaleType
     confidence: float = 0.0
-    chroma: Optional[np.ndarray] = None
+    chroma: np.ndarray | None = None
     fit_score: float = 0.0
-    notes_in_scale: List[int] = field(default_factory=list)
+    notes_in_scale: list[int] = field(default_factory=list)
 
     @property
     def root_name(self) -> str:
@@ -213,7 +214,7 @@ class DetectedScale:
             ScaleType.BLUES_MINOR,
         ]
 
-    def get_scale_notes(self, root_midi: int = 60, octaves: int = 2) -> List[int]:
+    def get_scale_notes(self, root_midi: int = 60, octaves: int = 2) -> list[int]:
         """
         Get all MIDI note numbers in the scale.
         
@@ -279,7 +280,7 @@ class DetectedScale:
         return "avoid"
 
 
-@dataclass
+@dataclass(slots=True)
 class ScaleDetectionConfig:
     """
     Configuration for scale detection.
@@ -315,21 +316,21 @@ class ScaleDetector:
     - Scale-aware suggestions
     """
 
-    def __init__(self, config: Optional[ScaleDetectionConfig] = None):
+    def __init__(self, config: ScaleDetectionConfig | None = None):
         self.config = config or ScaleDetectionConfig()
         self._lock = threading.RLock()
 
         # Note history for chroma computation
-        self._note_history: List[Tuple[int, float]] = []  # (note, timestamp)
-        self._chord_history: List[Any] = []  # DetectedChord objects
+        self._note_history: list[tuple[int, float]] = []  # (note, timestamp)
+        self._chord_history: list[Any] = []  # DetectedChord objects
         self._chroma: np.ndarray = np.zeros(12)
 
         # Current detection
-        self._current_scale: Optional[DetectedScale] = None
+        self._current_scale: DetectedScale | None = None
         self._last_update: float = 0.0
         self._detection_count: int = 0
 
-    def add_note(self, note: int, velocity: int = 100, timestamp: Optional[float] = None):
+    def add_note(self, note: int, velocity: int = 100, timestamp: float | None = None):
         """
         Add a note to the detection history.
         
@@ -493,7 +494,7 @@ class ScaleDetector:
 
         return in_scale / len(recent_notes)
 
-    def _get_scale_notes_in_range(self, root: int, scale_type: ScaleType) -> List[int]:
+    def _get_scale_notes_in_range(self, root: int, scale_type: ScaleType) -> list[int]:
         """Get scale notes in typical playing range."""
         pattern = SCALE_PATTERNS[scale_type]
         notes = []
@@ -506,12 +507,12 @@ class ScaleDetector:
 
         return sorted(notes)
 
-    def get_current_scale(self) -> Optional[DetectedScale]:
+    def get_current_scale(self) -> DetectedScale | None:
         """Get the currently detected scale."""
         with self._lock:
             return self._current_scale
 
-    def get_suggested_voicing(self, chord_root: int, chord_type: str) -> List[int]:
+    def get_suggested_voicing(self, chord_root: int, chord_type: str) -> list[int]:
         """
         Get a scale-appropriate voicing for a chord.
         
@@ -584,7 +585,7 @@ class ScaleDetector:
 
         return True
 
-    def get_diatonic_chords(self) -> Dict[int, str]:
+    def get_diatonic_chords(self) -> dict[int, str]:
         """
         Get all diatonic chords in the current scale.
         
@@ -631,7 +632,7 @@ class ScaleDetector:
             self._current_scale = None
             self._last_update = 0.0
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get detector status."""
         with self._lock:
             return {
@@ -645,7 +646,7 @@ class ScaleDetector:
 
 
 # Global scale detector instance
-_default_scale_detector: Optional[ScaleDetector] = None
+_default_scale_detector: ScaleDetector | None = None
 
 
 def get_scale_detector() -> ScaleDetector:

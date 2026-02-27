@@ -3,6 +3,7 @@ Test suite for SF2 data model classes.
 
 Tests SF2Zone, SF2Instrument, SF2Preset, SF2Sample, and RangeTree.
 """
+from __future__ import annotations
 
 import pytest
 from synth.sf2 import sf2_data_model

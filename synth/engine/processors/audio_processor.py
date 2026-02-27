@@ -5,8 +5,10 @@ Production-quality audio processing for XG/GS/MPE synthesizer with
 sample-perfect MIDI timing, buffered message processing, and
 professional audio effects integration.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -36,12 +38,12 @@ class AudioProcessor:
         self.lock = threading.RLock()
 
         # Buffered message processing state
-        self._message_sequence: List[Any] = []  # List of MIDIMessage objects
+        self._message_sequence: list[Any] = []  # List of MIDIMessage objects
         self._current_message_index: int = 0
         self._current_time: float = 0.0
         self._minimum_time_slice = 0.002  # Minimum time slice for processing (2ms)
 
-    def generate_audio_block(self, block_size: Optional[int] = None) -> np.ndarray:
+    def generate_audio_block(self, block_size: int | None = None) -> np.ndarray:
         """
         Generate audio block with buffered MIDI message processing support.
 
@@ -364,7 +366,7 @@ class AudioProcessor:
             channel_audio_list, self.synthesizer.output_buffer[:block_size], block_size
         )
 
-    def send_midi_message_block(self, messages: List[Any]):
+    def send_midi_message_block(self, messages: list[Any]):
         """
         Send block of MIDI messages for buffered processing.
         Messages are stored in a sorted sequence for efficient consumption during rendering.

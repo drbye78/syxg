@@ -7,6 +7,7 @@ Performance benchmarks for the style engine including:
 - Polyphony stress tests
 - Memory usage tests
 """
+from __future__ import annotations
 
 import pytest
 import time

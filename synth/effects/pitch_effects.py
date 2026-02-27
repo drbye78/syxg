@@ -16,10 +16,11 @@ Effects implemented:
 
 All implementations use the phase vocoder engine for high-quality results.
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import Dict, Any, Optional, List
+from typing import Any
 import threading
 
 from .dsp_core import PhaseVocoderEngine, MultibandFilterBank, AdvancedEnvelopeFollower
@@ -58,7 +59,7 @@ class VocoderCombFilterProcessor:
             self.delay_lines.append(delay_line)
             self.feedback_gains.append(0.7)  # Moderate feedback
 
-    def process_sample(self, input_sample: float, params: Dict[str, float]) -> float:
+    def process_sample(self, input_sample: float, params: dict[str, float]) -> float:
         """Process sample through comb filter vocoder."""
         with self.lock:
             frequency = params.get("parameter1", 0.5) * 1000.0  # 0-1000 Hz
@@ -117,7 +118,7 @@ class VocoderPhaserProcessor:
                 'coeff': 0.5  # All-pass coefficient
             })
 
-    def process_sample(self, input_sample: float, params: Dict[str, float]) -> float:
+    def process_sample(self, input_sample: float, params: dict[str, float]) -> float:
         """Process sample through phaser vocoder."""
         with self.lock:
             frequency = params.get("parameter1", 0.5) * 1000.0
@@ -310,7 +311,7 @@ class ProductionPitchEffectsProcessor:
         self.detune_voices[2].set_pitch_ratio(0.995)        # -5 cents
 
     def process_effect(self, effect_type: int, stereo_mix: np.ndarray,
-                      num_samples: int, params: Dict[str, float]) -> None:
+                      num_samples: int, params: dict[str, float]) -> None:
         """Process pitch effect."""
         with self.lock:
             if effect_type == 58:
@@ -331,7 +332,7 @@ class ProductionPitchEffectsProcessor:
                 self._process_detune(stereo_mix, num_samples, params)
 
     def _process_vocoder_comb(self, stereo_mix: np.ndarray, num_samples: int,
-                             params: Dict[str, float]) -> None:
+                             params: dict[str, float]) -> None:
         """Process Vocoder Comb Filter effect."""
         for i in range(num_samples):
             # Use left channel as modulator, right as carrier
@@ -347,7 +348,7 @@ class ProductionPitchEffectsProcessor:
             stereo_mix[i, 1] = carrier * (1 - mix) + vocoded * mix
 
     def _process_vocoder_phaser(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """Process Vocoder Phaser effect."""
         for i in range(num_samples):
             modulator = stereo_mix[i, 0]
@@ -360,7 +361,7 @@ class ProductionPitchEffectsProcessor:
             stereo_mix[i, 1] = carrier * (1 - mix) + vocoded * mix
 
     def _process_pitch_shift(self, ratio: float, stereo_mix: np.ndarray,
-                           num_samples: int, params: Dict[str, float]) -> None:
+                           num_samples: int, params: dict[str, float]) -> None:
         """Process pitch shift effect using phase vocoder."""
         self.pitch_shifter.set_pitch_ratio(ratio)
 
@@ -376,7 +377,7 @@ class ProductionPitchEffectsProcessor:
             stereo_mix[i, 1] = right_in * (1 - mix) + right_out * mix * level
 
     def _process_harmonizer(self, stereo_mix: np.ndarray, num_samples: int,
-                           params: Dict[str, float]) -> None:
+                           params: dict[str, float]) -> None:
         """Process harmonizer effect with multiple voices."""
         mix = params.get("parameter4", 0.5)
 
@@ -397,7 +398,7 @@ class ProductionPitchEffectsProcessor:
             stereo_mix[i, 1] = right_in * (1 - mix) + harmonized_r * mix
 
     def _process_detune(self, stereo_mix: np.ndarray, num_samples: int,
-                       params: Dict[str, float]) -> None:
+                       params: dict[str, float]) -> None:
         """Process detune effect for chorus-like sound."""
         mix = params.get("parameter3", 0.5)
         level = params.get("parameter4", 0.5)

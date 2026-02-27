@@ -4,9 +4,10 @@ SFZ Region Implementation
 SFZ-specific region implementation with sample playback, envelopes,
 filters, and modulation according to the SFZ v2 specification.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import math
 
 from ..partial.region import Region
@@ -18,7 +19,7 @@ from ..core.oscillator import UltraFastXGLFO
 class SFZEnvelope:
     """SFZ Envelope implementation with AHDSR (Attack, Hold, Decay, Sustain, Release)."""
 
-    def __init__(self, params: Dict[str, float]):
+    def __init__(self, params: dict[str, float]):
         # Envelope parameters (in seconds)
         self.attack = params.get('attack', 0.0)
         self.hold = params.get('hold', 0.0)
@@ -217,7 +218,7 @@ class SFZRegion(Region):
     filters, and advanced modulation according to SFZ specification.
     """
 
-    def __init__(self, region_params: Dict[str, Any], sample_manager: Optional[PyAVSampleManager] = None):
+    def __init__(self, region_params: dict[str, Any], sample_manager: PyAVSampleManager | None = None):
         super().__init__(region_params)
 
         # SFZ-specific initialization
@@ -251,7 +252,7 @@ class SFZRegion(Region):
         self.playback_position = 0
         self.loop_count = 0
 
-    def _create_lfo(self, lfo_params: Dict[str, Any], lfo_id: int) -> Optional[UltraFastXGLFO]:
+    def _create_lfo(self, lfo_params: dict[str, Any], lfo_id: int) -> UltraFastXGLFO | None:
         """
         Create an LFO from SFZ parameters.
 
@@ -293,7 +294,7 @@ class SFZRegion(Region):
             print(f"Failed to create LFO {lfo_id}: {e}")
             return None
 
-    def generate_samples(self, block_size: int, modulation: Dict[str, float]) -> np.ndarray:
+    def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
         """
         Generate audio samples for this SFZ region.
 
@@ -491,7 +492,7 @@ class SFZRegion(Region):
 
         return a * samples[0] + b * samples[1] + c * samples[2] + d * samples[3]
 
-    def _apply_pitch_modulation(self, modulation: Dict[str, float]) -> float:
+    def _apply_pitch_modulation(self, modulation: dict[str, float]) -> float:
         """
         Apply pitch modulation with proper semitone conversion.
 
@@ -512,7 +513,7 @@ class SFZRegion(Region):
 
         return 2.0 ** (pitch_semitones / 12.0)
 
-    def _apply_lfo_modulation(self, block_size: int) -> Dict[str, np.ndarray]:
+    def _apply_lfo_modulation(self, block_size: int) -> dict[str, np.ndarray]:
         """
         Apply LFO modulation for this block.
 
@@ -592,7 +593,7 @@ class SFZRegion(Region):
         sample_active = bool(self.sample and self.playback_position < len(self.sample.data))
         return envelope_active or sample_active
 
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get detailed region information."""
         info = super().get_region_info()
         info.update({
@@ -606,7 +607,7 @@ class SFZRegion(Region):
         })
         return info
 
-    def apply_channel_parameters(self, channel_params: Dict) -> None:
+    def apply_channel_parameters(self, channel_params: dict) -> None:
         """
         Apply channel-level parameters to this SFZ region.
 

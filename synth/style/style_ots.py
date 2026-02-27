@@ -4,9 +4,10 @@ One Touch Settings (OTS) System
 Provides quick voice preset functionality that links to styles.
 Each style has multiple OTS presets that can be instantly recalled.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Any
 from enum import Enum
 
 
@@ -21,7 +22,7 @@ class OTSSection(Enum):
     ENDING = "ending"
 
 
-@dataclass
+@dataclass(slots=True)
 class OTSPart:
     """
     Single part configuration within an OTS preset.
@@ -52,7 +53,7 @@ class OTSPart:
     def midi_channel(self) -> int:
         return self.part_id
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "part_id": self.part_id,
             "enabled": self.enabled,
@@ -71,7 +72,7 @@ class OTSPart:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OTSPart":
+    def from_dict(cls, data: dict[str, Any]) -> OTSPart:
         return cls(
             part_id=data.get("part_id", 0),
             enabled=data.get("enabled", True),
@@ -90,7 +91,7 @@ class OTSPart:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class OTSPreset:
     """
     Complete One Touch Setting preset.
@@ -102,7 +103,7 @@ class OTSPreset:
 
     preset_id: int = 0
     name: str = "New OTS"
-    parts: List[OTSPart] = field(default_factory=lambda: [OTSPart(i) for i in range(4)])
+    parts: list[OTSPart] = field(default_factory=lambda: [OTSPart(i) for i in range(4)])
 
     master_volume: int = 100
     master_tempo: int = 0
@@ -116,7 +117,7 @@ class OTSPreset:
     variation_type: int = 0
     variation_parameter: int = 64
 
-    linked_section: Optional[OTSSection] = None
+    linked_section: OTSSection | None = None
 
     # Extended fields
     description: str = ""
@@ -140,7 +141,7 @@ class OTSPreset:
                 return part
         return OTSPart(part_id)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "preset_id": self.preset_id,
             "name": self.name,
@@ -170,7 +171,7 @@ class OTSPreset:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OTSPreset":
+    def from_dict(cls, data: dict[str, Any]) -> OTSPreset:
         parts = [OTSPart.from_dict(p) for p in data.get("parts", [])]
         while len(parts) < 4:
             parts.append(OTSPart(len(parts)))
@@ -204,7 +205,7 @@ class OTSPreset:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class OneTouchSettings:
     """
     Complete OTS management for a style.
@@ -213,7 +214,7 @@ class OneTouchSettings:
     loading/applying them to the synthesizer.
     """
 
-    presets: List[OTSPreset] = field(default_factory=list)
+    presets: list[OTSPreset] = field(default_factory=list)
     active_preset_id: int = 0
     ots_link_enabled: bool = True
 
@@ -296,7 +297,7 @@ class OneTouchSettings:
             except Exception:
                 pass
 
-    def get_preset(self, preset_id: int) -> Optional[OTSPreset]:
+    def get_preset(self, preset_id: int) -> OTSPreset | None:
         """Get preset by ID"""
         for preset in self.presets:
             if preset.preset_id == preset_id:
@@ -338,7 +339,7 @@ class OneTouchSettings:
             return True
         return False
 
-    def get_preset_for_section(self, section: OTSSection) -> Optional[OTSPreset]:
+    def get_preset_for_section(self, section: OTSSection) -> OTSPreset | None:
         """Get the OTS preset linked to a specific section"""
         for preset in self.presets:
             if preset.linked_section == section:
@@ -459,11 +460,11 @@ class OneTouchSettings:
             print(f"Error storing to preset: {e}")
             return False
 
-    def get_preset_names(self) -> List[str]:
+    def get_preset_names(self) -> list[str]:
         """Get list of all preset names"""
         return [p.name for p in self.presets]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "presets": [p.to_dict() for p in self.presets],
             "active_preset_id": self.active_preset_id,
@@ -472,8 +473,8 @@ class OneTouchSettings:
 
     @classmethod
     def from_dict(
-        cls, data: Dict[str, Any], synthesizer: Any = None
-    ) -> "OneTouchSettings":
+        cls, data: dict[str, Any], synthesizer: Any = None
+    ) -> OneTouchSettings:
         presets = [OTSPreset.from_dict(p) for p in data.get("presets", [])]
         ots = cls(
             presets=presets,
@@ -483,7 +484,7 @@ class OneTouchSettings:
         )
         return ots
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get OTS status"""
         return {
             "active_preset_id": self.active_preset_id,

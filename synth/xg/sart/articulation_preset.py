@@ -4,9 +4,10 @@ S.Art2 Articulation Preset System
 Provides articulation preset management for Modern XG Synth.
 Supports program-specific articulation configurations with velocity/key splits.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any
 from enum import Enum
 import json
 
@@ -30,14 +31,14 @@ class ArticulationType(Enum):
     # ... more articulations
 
 
-@dataclass
+@dataclass(slots=True)
 class VelocitySplit:
     """Velocity-based articulation split."""
 
     vel_low: int
     vel_high: int
     articulation: str
-    parameters: Dict[str, float] = field(default_factory=dict)
+    parameters: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self):
         self.vel_low = max(0, min(127, self.vel_low))
@@ -45,21 +46,21 @@ class VelocitySplit:
         if self.vel_low > self.vel_high:
             self.vel_low, self.vel_high = self.vel_high, self.vel_low
 
-    def get_articulation(self, velocity: int) -> Optional[str]:
+    def get_articulation(self, velocity: int) -> str | None:
         """Get articulation for velocity."""
         if self.vel_low <= velocity <= self.vel_high:
             return self.articulation
         return None
 
 
-@dataclass
+@dataclass(slots=True)
 class KeySplit:
     """Key-based articulation split."""
 
     key_low: int
     key_high: int
     articulation: str
-    parameters: Dict[str, float] = field(default_factory=dict)
+    parameters: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self):
         self.key_low = max(0, min(127, self.key_low))
@@ -67,14 +68,14 @@ class KeySplit:
         if self.key_low > self.key_high:
             self.key_low, self.key_high = self.key_high, self.key_low
 
-    def get_articulation(self, note: int) -> Optional[str]:
+    def get_articulation(self, note: int) -> str | None:
         """Get articulation for note."""
         if self.key_low <= note <= self.key_high:
             return self.articulation
         return None
 
 
-@dataclass
+@dataclass(slots=True)
 class ArticulationPreset:
     """
     Articulation preset for a program.
@@ -92,11 +93,11 @@ class ArticulationPreset:
     default_articulation: str = "normal"
 
     # Splits
-    velocity_splits: List[VelocitySplit] = field(default_factory=list)
-    key_splits: List[KeySplit] = field(default_factory=list)
+    velocity_splits: list[VelocitySplit] = field(default_factory=list)
+    key_splits: list[KeySplit] = field(default_factory=list)
 
     # Global parameters
-    parameters: Dict[str, float] = field(default_factory=dict)
+    parameters: dict[str, float] = field(default_factory=dict)
 
     # Metadata
     description: str = ""
@@ -105,7 +106,7 @@ class ArticulationPreset:
 
     def get_articulation(
         self, note: int, velocity: int
-    ) -> Tuple[str, Dict[str, float]]:
+    ) -> tuple[str, dict[str, float]]:
         """
         Get articulation and parameters for note/velocity.
 
@@ -166,7 +167,7 @@ class ArticulationPreset:
         )
         self.key_splits.append(split)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "name": self.name,
@@ -199,7 +200,7 @@ class ArticulationPreset:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ArticulationPreset":
+    def from_dict(cls, data: dict[str, Any]) -> ArticulationPreset:
         """Create from dictionary."""
         preset = cls(
             name=data["name"],
@@ -240,7 +241,7 @@ class ArticulationPreset:
         return json.dumps(self.to_dict(), indent=indent)
 
     @classmethod
-    def from_json(cls, json_str: str) -> "ArticulationPreset":
+    def from_json(cls, json_str: str) -> ArticulationPreset:
         """Create from JSON string."""
         return cls.from_dict(json.loads(json_str))
 
@@ -256,13 +257,13 @@ class ArticulationPresetManager:
     def __init__(self):
         """Initialize preset manager."""
         # Presets indexed by (bank, program)
-        self.presets: Dict[Tuple[int, int], ArticulationPreset] = {}
+        self.presets: dict[tuple[int, int], ArticulationPreset] = {}
 
         # Category-based indexing
-        self.by_category: Dict[str, List[ArticulationPreset]] = {}
+        self.by_category: dict[str, list[ArticulationPreset]] = {}
 
         # Instrument-based indexing
-        self.by_instrument: Dict[str, List[ArticulationPreset]] = {}
+        self.by_instrument: dict[str, list[ArticulationPreset]] = {}
 
     def add_preset(self, preset: ArticulationPreset) -> None:
         """Add articulation preset."""
@@ -281,19 +282,19 @@ class ArticulationPresetManager:
                 self.by_instrument[preset.instrument] = []
             self.by_instrument[preset.instrument].append(preset)
 
-    def get_preset(self, bank: int, program: int) -> Optional[ArticulationPreset]:
+    def get_preset(self, bank: int, program: int) -> ArticulationPreset | None:
         """Get preset for bank/program."""
         return self.presets.get((bank, program))
 
-    def get_presets_by_category(self, category: str) -> List[ArticulationPreset]:
+    def get_presets_by_category(self, category: str) -> list[ArticulationPreset]:
         """Get all presets in a category."""
         return self.by_category.get(category, [])
 
-    def get_presets_by_instrument(self, instrument: str) -> List[ArticulationPreset]:
+    def get_presets_by_instrument(self, instrument: str) -> list[ArticulationPreset]:
         """Get all presets for an instrument."""
         return self.by_instrument.get(instrument, [])
 
-    def get_all_presets(self) -> List[ArticulationPreset]:
+    def get_all_presets(self) -> list[ArticulationPreset]:
         """Get all presets."""
         return list(self.presets.values())
 
@@ -326,7 +327,7 @@ class ArticulationPresetManager:
 
     def load_from_file(self, filepath: str) -> int:
         """Load presets from JSON file."""
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             data = json.load(f)
 
         count = 0

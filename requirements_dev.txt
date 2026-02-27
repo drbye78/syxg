@@ -1,0 +1,81 @@
+# XG Synthesizer - Development Dependencies (Python 3.11+)
+# =========================================================
+# Install with: pip install -r requirements_dev.txt
+# Or use: pip install -e ".[dev]"
+
+# =============================================================================
+# Type Checking
+# =============================================================================
+mypy>=1.5.0,<1.10.0
+types-PyYAML>=6.0.0
+types-jsonschema>=4.17.0
+types-numpy>=1.24.0
+
+# =============================================================================
+# Linting & Code Quality
+# =============================================================================
+ruff>=0.1.0,<0.5.0
+flake8>=6.1.0,<8.0.0
+black>=23.0.0,<25.0.0
+isort>=5.12.0,<6.0.0
+
+# =============================================================================
+# Testing
+# =============================================================================
+pytest>=7.3.0,<9.0.0
+pytest-cov>=4.1.0,<5.0.0
+pytest-asyncio>=0.21.0,<0.24.0
+pytest-benchmark>=4.0.0,<5.0.0
+pytest-xdist>=3.3.0,<4.0.0     # Parallel test execution
+
+# =============================================================================
+# Performance Profiling
+# =============================================================================
+py-spy>=0.3.14                # Sampling profiler
+memory-profiler>=0.61.0       # Memory usage profiling
+line-profiler>=4.0.0          # Line-by-line profiling
+
+# =============================================================================
+# Documentation
+# =============================================================================
+sphinx>=7.0.0,<8.0.0
+sphinx-rtd-theme>=2.0.0
+sphinx-autobuild>=2021.3.14
+myst-parser>=2.0.0
+
+# =============================================================================
+# Pre-commit Hooks
+# =============================================================================
+pre-commit>=3.4.0
+
+# =============================================================================
+# Build & Release
+# =============================================================================
+build>=1.0.0,<2.0.0
+twine>=4.0.0,<6.0.0
+wheel>=0.41.0,<0.43.0
+
+# =============================================================================
+# Installation
+# =============================================================================
+# Install all development dependencies:
+#   pip install -r requirements_dev.txt
+#
+# Or install from pyproject.toml:
+#   pip install -e ".[dev]"
+#
+# Install pre-commit hooks:
+#   pre-commit install
+#
+# Run all checks:
+#   pre-commit run --all-files
+#
+# Run tests:
+#   pytest tests/ -v
+#
+# Run type checking:
+#   mypy synth/ vibexg/
+#
+# Run linting:
+#   ruff check synth/ vibexg/
+#   black --check synth/ vibexg/

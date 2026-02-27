@@ -4,9 +4,11 @@ Yamaha Motif Effects System
 Implementation of Yamaha Motif effects processing with multiple effect types
 and individual part processing.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import math
 from ..math.fast_approx import fast_math
 
@@ -515,7 +517,7 @@ class MotifEffectsProcessor:
         if part in self.part_routing:
             self.part_routing[part][f'{effect_type}_send'] = max(0, min(127, send_level))
 
-    def set_part_insertion_effect(self, part: int, effect_type: int, parameters: Dict[str, Any]):
+    def set_part_insertion_effect(self, part: int, effect_type: int, parameters: dict[str, Any]):
         """Set insertion effect for a part"""
         if part in self.part_routing:
             self.part_routing[part]['insertion_effect'] = {
@@ -523,7 +525,7 @@ class MotifEffectsProcessor:
                 'parameters': parameters
             }
 
-    def set_system_effect(self, effect_category: str, effect_type: int, parameters: Dict[str, Any]):
+    def set_system_effect(self, effect_category: str, effect_type: int, parameters: dict[str, Any]):
         """Set system effect parameters"""
         if effect_category in self.effects:
             effect = self.effects[effect_category]
@@ -617,7 +619,7 @@ class MotifEffectsProcessor:
 
         return output
 
-    def _apply_insertion_effect(self, input_sample: float, effect_config: Dict[str, Any]) -> float:
+    def _apply_insertion_effect(self, input_sample: float, effect_config: dict[str, Any]) -> float:
         """Apply insertion effect to sample"""
         effect_type = effect_config['type']
         parameters = effect_config['parameters']
@@ -636,7 +638,7 @@ class MotifEffectsProcessor:
         # Default: pass through
         return input_sample
 
-    def get_effect_capabilities(self) -> Dict[str, Any]:
+    def get_effect_capabilities(self) -> dict[str, Any]:
         """Get effect system capabilities"""
         return {
             'total_effect_types': 40,
@@ -661,7 +663,7 @@ class MotifEffectsProcessor:
             # Reset would be implemented in each effect class
             pass
 
-    def get_effects_status(self) -> Dict[str, Any]:
+    def get_effects_status(self) -> dict[str, Any]:
         """Get current effects status"""
         return {
             'system_effects_active': {

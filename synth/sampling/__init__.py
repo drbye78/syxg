@@ -6,6 +6,7 @@ for workstation-grade sampling functionality.
 
 Part of S90/S70 compatibility implementation - Phase 3.
 """
+from __future__ import annotations
 
 from .sample_manager import SampleManager
 from .sample_editor import SampleEditor

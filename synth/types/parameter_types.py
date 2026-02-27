@@ -4,8 +4,9 @@ Parameter types and protocols for the Modern XG Synthesizer.
 This module defines the standardized parameter update protocol and types
 used throughout the synthesizer architecture for hierarchical parameter routing.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional, Union
+from typing import Any
 from dataclasses import dataclass
 from enum import Enum
 
@@ -41,7 +42,7 @@ class ParameterSource(Enum):
     AUTOMATION = "automation"  # DAW automation
 
 
-@dataclass
+@dataclass(slots=True)
 class ParameterUpdate:
     """
     Standardized parameter update protocol for hierarchical routing.
@@ -50,12 +51,12 @@ class ParameterUpdate:
     parameter passing between architectural layers.
     """
     name: str                           # Parameter name (e.g., 'filter_cutoff', 'reverb_time')
-    value: Union[float, int, str, bool] # Parameter value (pre-scaled to appropriate range)
+    value: float | int | str | bool # Parameter value (pre-scaled to appropriate range)
     scope: ParameterScope              # Scope level (global/channel/voice/partial)
-    channel: Optional[int]             # MIDI channel (0-15) for channel-scoped parameters
+    channel: int | None             # MIDI channel (0-15) for channel-scoped parameters
     source: ParameterSource            # Source of the parameter update
-    synthesizer_type: Optional[SynthesizerType] = None  # Target synthesizer type
-    metadata: Optional[Dict[str, Any]] = None  # Additional context information
+    synthesizer_type: SynthesizerType | None = None  # Target synthesizer type
+    metadata: dict[str, Any] | None = None  # Additional context information
 
     def __post_init__(self):
         """Validate parameter update after initialization"""
@@ -258,11 +259,11 @@ def validate_parameter_update(update: ParameterUpdate) -> bool:
 
 def create_parameter_update(
     name: str,
-    value: Union[float, int, str, bool],
+    value: float | int | str | bool,
     scope: ParameterScope,
     source: ParameterSource,
-    channel: Optional[int] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    channel: int | None = None,
+    metadata: dict[str, Any] | None = None
 ) -> ParameterUpdate:
     """
     Factory function to create validated ParameterUpdate instances.

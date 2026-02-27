@@ -4,9 +4,10 @@ SF2 Advanced Sample Processor
 Handles mono/stereo sample processing, mip-mapping, interpolation, and caching.
 Optimized for real-time synthesis with high-quality sample playback.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Any
 from collections import OrderedDict
 import threading
 import math
@@ -54,7 +55,7 @@ class SampleMipMap:
         """
         self.original_data = original_data
         self.original_sample_rate = original_sample_rate
-        self.levels: Dict[int, MipMapLevel] = {}
+        self.levels: dict[int, MipMapLevel] = {}
         self.max_levels = max_levels
 
         # Generate mip-map levels on demand
@@ -65,7 +66,7 @@ class SampleMipMap:
         level0 = MipMapLevel(0, self.original_data, self.original_sample_rate, 1.0)
         self.levels[0] = level0
 
-    def get_level(self, level: int) -> Optional[np.ndarray]:
+    def get_level(self, level: int) -> np.ndarray | None:
         """
         Get sample data for a specific mip level.
 
@@ -219,7 +220,7 @@ class MipLevelSelector:
     def __init__(self):
         """Initialize mip level selector."""
         # Cache for pitch ratio to level mappings
-        self._pitch_cache: Dict[float, int] = {}
+        self._pitch_cache: dict[float, int] = {}
         self._cache_lock = threading.Lock()
 
     def select_stable_level(self, pitch_ratio: float) -> int:
@@ -274,7 +275,7 @@ class Interpolator:
         }
 
     def interpolate(self, sample_data: np.ndarray, ratio: float,
-                   target_length: Optional[int] = None) -> np.ndarray:
+                   target_length: int | None = None) -> np.ndarray:
         """
         Interpolate sample data to new length.
 
@@ -353,7 +354,7 @@ class StereoProcessor:
 
     def __init__(self):
         """Initialize stereo processor."""
-        self.stereo_pairs: Dict[str, Tuple[str, str]] = {}  # logical -> (left, right)
+        self.stereo_pairs: dict[str, tuple[str, str]] = {}  # logical -> (left, right)
         self.width_control = 1.0  # Stereo width (0.0 = mono, 1.0 = full stereo)
 
     def register_stereo_pair(self, logical_name: str, left_sample: str, right_sample: str) -> None:
@@ -367,7 +368,7 @@ class StereoProcessor:
         """
         self.stereo_pairs[logical_name] = (left_sample, right_sample)
 
-    def get_stereo_samples(self, sample_name: str) -> Optional[Tuple[str, str]]:
+    def get_stereo_samples(self, sample_name: str) -> tuple[str, str] | None:
         """
         Get stereo sample pair.
 
@@ -380,7 +381,7 @@ class StereoProcessor:
         return self.stereo_pairs.get(sample_name)
 
     def process_stereo_width(self, left_data: np.ndarray, right_data: np.ndarray,
-                           width: float = 1.0) -> Tuple[np.ndarray, np.ndarray]:
+                           width: float = 1.0) -> tuple[np.ndarray, np.ndarray]:
         """
         Process stereo width control.
 
@@ -441,10 +442,10 @@ class SF2SampleCache:
         """
         self.max_memory = max_memory_mb * 1024 * 1024  # Convert to bytes
         self.current_memory = 0
-        self.cache: OrderedDict[str, Tuple[np.ndarray, int]] = {}  # key -> (data, size)
+        self.cache: Ordereddict[str, tuple[np.ndarray, int]] = {}  # key -> (data, size)
         self.lock = threading.RLock()
 
-    def get(self, key: str) -> Optional[np.ndarray]:
+    def get(self, key: str) -> np.ndarray | None:
         """
         Get sample from cache.
 
@@ -500,7 +501,7 @@ class SF2SampleCache:
             self.cache.clear()
             self.current_memory = 0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         with self.lock:
             return {
@@ -527,8 +528,8 @@ class SF2SampleProcessor:
             cache_memory_mb: Memory limit for sample caching
         """
         self.sample_cache = SF2SampleCache(cache_memory_mb)
-        self.mip_maps: Dict[str, SampleMipMap] = {}
-        self.mip_selectors: Dict[str, MipLevelSelector] = {}
+        self.mip_maps: dict[str, SampleMipMap] = {}
+        self.mip_selectors: dict[str, MipLevelSelector] = {}
         self.interpolator = Interpolator('linear')  # Default to linear
         self.stereo_processor = StereoProcessor()
 
@@ -536,8 +537,8 @@ class SF2SampleProcessor:
         self.cache_hits = 0
         self.cache_misses = 0
 
-    def process_sample(self, raw_data: bytes, sample_info: Dict[str, Any],
-                      pitch_ratio: float = 1.0, interpolation: str = 'linear') -> Optional[np.ndarray]:
+    def process_sample(self, raw_data: bytes, sample_info: dict[str, Any],
+                      pitch_ratio: float = 1.0, interpolation: str = 'linear') -> np.ndarray | None:
         """
         Process sample data with all enhancements.
 
@@ -573,8 +574,8 @@ class SF2SampleProcessor:
 
         return processed_data
 
-    def _process_sample_data(self, raw_data: bytes, sample_info: Dict[str, Any],
-                           pitch_ratio: float, interpolation: str) -> Optional[np.ndarray]:
+    def _process_sample_data(self, raw_data: bytes, sample_info: dict[str, Any],
+                           pitch_ratio: float, interpolation: str) -> np.ndarray | None:
         """Internal sample processing."""
         try:
             # Parse sample format
@@ -672,7 +673,7 @@ class SF2SampleProcessor:
 
             return np.array(samples, dtype=np.float32)
 
-    def _apply_mip_mapping(self, sample_data: np.ndarray, sample_info: Dict[str, Any],
+    def _apply_mip_mapping(self, sample_data: np.ndarray, sample_info: dict[str, Any],
                           pitch_ratio: float) -> np.ndarray:
         """Apply mip-mapping for high-pitch playback."""
         sample_name = sample_info.get('name', 'unknown')
@@ -742,7 +743,7 @@ class SF2SampleProcessor:
         """
         self.stereo_processor.register_stereo_pair(logical_name, left_sample, right_sample)
 
-    def get_stereo_samples(self, sample_name: str) -> Optional[Tuple[str, str]]:
+    def get_stereo_samples(self, sample_name: str) -> tuple[str, str] | None:
         """
         Get stereo sample pair.
 
@@ -768,7 +769,7 @@ class SF2SampleProcessor:
             self.mip_maps[sample_name] = SampleMipMap(sample_data, sample_rate)
             self.mip_selectors[sample_name] = MipLevelSelector()
 
-    def get_performance_stats(self) -> Dict[str, Any]:
+    def get_performance_stats(self) -> dict[str, Any]:
         """
         Get performance statistics.
 

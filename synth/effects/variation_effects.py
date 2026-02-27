@@ -16,10 +16,11 @@ Current modules:
 - delay_variations.py: Delay effects (types 0-9)
 - [Future]: chorus_modulation.py, distortion_dynamics.py, special_variations.py
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import Dict, Any
+from typing import Any
 import threading
 
 # Import from our type definitions
@@ -114,7 +115,7 @@ class XGVariationEffectsProcessor:
                 # Unknown effect type - pass through
                 pass
 
-    def get_variation_status(self) -> Dict[str, Any]:
+    def get_variation_status(self) -> dict[str, Any]:
         """Get current variation effect status."""
         with self.lock:
             return {

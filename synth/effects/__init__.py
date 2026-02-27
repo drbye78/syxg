@@ -4,6 +4,7 @@ Audio effects processing for XG synthesizer.
 Provides reverb, chorus, delay, distortion, EQ, and other audio effects
 with XG specification compliance and MIDI control support.
 """
+from __future__ import annotations
 
 # Core System Imports
 from .effects_coordinator import XGEffectsCoordinator

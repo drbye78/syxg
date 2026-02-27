@@ -5,10 +5,10 @@ This module provides audio output engines including:
 - Real-time audio output via sounddevice
 - File-based audio rendering with proper finalization
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional
 
 import numpy as np
 
@@ -126,10 +126,10 @@ class FileAudioOutput(AudioOutputEngine):
 
     def __init__(self, config: AudioOutputConfig, synthesizer: Synthesizer):
         super().__init__(config, synthesizer)
-        self.audio_writer: Optional[AudioWriter] = None
+        self.audio_writer: AudioWriter | None = None
         self.av_writer = None
         self.total_samples = 0
-        self.samples_buffer: List[np.ndarray] = []
+        self.samples_buffer: list[np.ndarray] = []
 
     def _start_output(self):
         try:

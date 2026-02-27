@@ -7,11 +7,12 @@ Provides reusable fixtures for SF2 testing including:
 - Sample data fixtures
 - Mock synthesizer instances
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
 from unittest.mock import Mock, MagicMock
 
 
@@ -212,7 +213,7 @@ def mock_sf2_soundfont():
 # ============================================================================
 
 @pytest.fixture
-def minimal_partial_params() -> Dict[str, Any]:
+def minimal_partial_params() -> dict[str, Any]:
     """Create minimal valid parameters for SF2Partial."""
     return {
         'sample_data': np.zeros(44100, dtype=np.float32),  # 1 second silence
@@ -264,7 +265,7 @@ def minimal_partial_params() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def nested_partial_params(minimal_partial_params) -> Dict[str, Any]:
+def nested_partial_params(minimal_partial_params) -> dict[str, Any]:
     """Create parameters with nested structure (SF2 spec compliant)."""
     params = minimal_partial_params.copy()
     # Already nested, but could add more detail
@@ -272,7 +273,7 @@ def nested_partial_params(minimal_partial_params) -> Dict[str, Any]:
 
 
 @pytest.fixture
-def flat_partial_params() -> Dict[str, Any]:
+def flat_partial_params() -> dict[str, Any]:
     """Create parameters with flat structure (backward compatibility)."""
     return {
         'sample_data': np.zeros(44100, dtype=np.float32),
@@ -341,7 +342,7 @@ def create_test_tone():
 @pytest.fixture
 def create_sf2_generators():
     """Factory function for creating SF2 generator dictionaries."""
-    def _create_generators(overrides: Optional[Dict[int, int]] = None) -> Dict[int, int]:
+    def _create_generators(overrides: dict[int, int] | None = None) -> dict[int, int]:
         """Create generator dict with SF2 default values."""
         defaults = {
             8: -12000,   # volEnvDelay

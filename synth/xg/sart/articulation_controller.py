@@ -7,6 +7,7 @@ Please import from the new modular structure:
     from synth.xg.sart.modifiers import SF2SampleModifier
     from synth.xg.sart.mappings import NRPN_ARTICULATION_MAP
 """
+from __future__ import annotations
 
 # Re-export from new modular structure for backward compatibility
 from .controllers import ArticulationController, create_articulation_controller

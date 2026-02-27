@@ -13,8 +13,10 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 
 
@@ -104,15 +106,15 @@ class XGCompatibilityModes:
         print(f"   Current mode: {self.current_mode}")
         print(f"   Available modes: {', '.join(self.MODE_DEFAULTS.keys())}")
 
-    def set_mode_change_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
+    def set_mode_change_callback(self, callback: Callable[[str, dict[str, Any]], None]):
         """Set callback for mode changes (mode, mode_info)."""
         self.mode_change_callback = callback
 
-    def set_sysex_callback(self, callback: Callable[[bytes], Optional[Dict[str, Any]]]):
+    def set_sysex_callback(self, callback: Callable[[bytes], dict[str, Any] | None]):
         """Set callback for SYSEX message processing."""
         self.sysex_callback = callback
 
-    def process_sysex_message(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def process_sysex_message(self, data: bytes) -> dict[str, Any] | None:
         """
         Process SYSEX message for mode switching.
 
@@ -147,7 +149,7 @@ class XGCompatibilityModes:
 
         return None
 
-    def _handle_xg_mode_switch(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_xg_mode_switch(self, data: bytes) -> dict[str, Any] | None:
         """Handle XG ON/OFF: F0 43 [dev] 4C 02 [mode] F7"""
         if len(data) < 1:
             return None
@@ -171,7 +173,7 @@ class XGCompatibilityModes:
 
         return None
 
-    def _handle_gm_mode_switch(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_gm_mode_switch(self, data: bytes) -> dict[str, Any] | None:
         """Handle GM/GM2 mode switch: F0 43 [dev] 4C 03 [mode] F7"""
         if len(data) < 1:
             return None
@@ -195,7 +197,7 @@ class XGCompatibilityModes:
 
         return None
 
-    def _handle_xg_reset(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _handle_xg_reset(self, data: bytes) -> dict[str, Any] | None:
         """Handle XG reset: F0 43 [dev] 4C 04 F7"""
         # Reset to XG mode with defaults
         self.set_compatibility_mode(self.MODE_XG, reset_parameters=True)
@@ -244,7 +246,7 @@ class XGCompatibilityModes:
         with self.lock:
             return self.current_mode
 
-    def get_mode_info(self, mode: str = None) -> Optional[Dict[str, Any]]:
+    def get_mode_info(self, mode: str = None) -> dict[str, Any] | None:
         """
         Get information about a compatibility mode.
 
@@ -261,7 +263,7 @@ class XGCompatibilityModes:
             return info
         return None
 
-    def get_available_modes(self) -> List[str]:
+    def get_available_modes(self) -> list[str]:
         """Get list of available compatibility modes."""
         return list(self.MODE_DEFAULTS.keys())
 
@@ -277,7 +279,7 @@ class XGCompatibilityModes:
         """Check if currently in XG mode."""
         return self.current_mode == self.MODE_XG
 
-    def get_mode_specific_defaults(self, mode: str = None) -> Optional[Dict[str, Any]]:
+    def get_mode_specific_defaults(self, mode: str = None) -> dict[str, Any] | None:
         """
         Get parameter defaults for a specific mode.
 
@@ -396,7 +398,7 @@ class XGCompatibilityModes:
 
         return bytes(message)
 
-    def _calculate_checksum(self, data: List[int]) -> int:
+    def _calculate_checksum(self, data: list[int]) -> int:
         """Calculate XG SYSEX checksum."""
         checksum = 0
         for byte in data:
@@ -436,7 +438,7 @@ class XGCompatibilityModes:
 
         return False
 
-    def get_mode_compatibility_report(self) -> Dict[str, Any]:
+    def get_mode_compatibility_report(self) -> dict[str, Any]:
         """
         Generate mode compatibility report.
 
@@ -460,7 +462,7 @@ class XGCompatibilityModes:
 
     # Status and monitoring
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get compatibility modes status."""
         with self.lock:
             return {

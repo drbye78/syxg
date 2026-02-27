@@ -12,11 +12,12 @@ This test suite provides in-depth validation of:
 
 Uses tests/ref.sf2 as reference soundfont for real-world testing.
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any
 import time
 import logging
 
@@ -91,7 +92,7 @@ def voice_factory(engine_registry) -> VoiceFactory:
 
 
 @pytest.fixture(scope='module')
-def available_programs(sf2_manager) -> List[tuple]:
+def available_programs(sf2_manager) -> list[tuple]:
     """Get list of available programs from reference soundfont."""
     programs = []
     for filepath in sf2_manager.file_order:

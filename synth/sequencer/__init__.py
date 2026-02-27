@@ -7,6 +7,7 @@ step input, song mode, and groove quantization.
 
 Part of S90/S70 compatibility implementation - Phase 1.
 """
+from __future__ import annotations
 
 from .pattern_sequencer import PatternSequencer
 from .song_mode import SongMode

@@ -4,8 +4,9 @@ Additive Partial Implementation
 Provides additive synthesis partial for the voice-based architecture.
 Wraps AdditiveEngine functionality for integration with the Voice system.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional
+from typing import Any
 import numpy as np
 
 from .partial import SynthesisPartial
@@ -19,7 +20,7 @@ class AdditivePartial(SynthesisPartial):
     within the voice-based architecture.
     """
 
-    def __init__(self, params: Dict[str, Any], sample_rate: int):
+    def __init__(self, params: dict[str, Any], sample_rate: int):
         """
         Initialize additive partial.
 
@@ -53,7 +54,7 @@ class AdditivePartial(SynthesisPartial):
             if isinstance(harmonic_idx, int) and 0 <= harmonic_idx < self.num_partials:
                 self.additive_engine.set_partial_parameters(harmonic_idx, harmonic_params)
 
-    def generate_samples(self, block_size: int, modulation: Dict[str, float]) -> np.ndarray:
+    def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
         """
         Generate additive synthesis samples.
 
@@ -100,7 +101,7 @@ class AdditivePartial(SynthesisPartial):
         """
         return self.active and self.additive_engine.is_active()
 
-    def apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def apply_modulation(self, modulation: dict[str, float]) -> None:
         """
         Apply modulation changes to partial parameters.
 
@@ -117,7 +118,7 @@ class AdditivePartial(SynthesisPartial):
         if hasattr(self, 'additive_engine'):
             self.additive_engine.reset()
 
-    def get_partial_info(self) -> Dict[str, Any]:
+    def get_partial_info(self) -> dict[str, Any]:
         """Get additive partial information."""
         info = super().get_partial_info()
         info.update({

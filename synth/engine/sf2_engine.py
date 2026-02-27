@@ -190,8 +190,9 @@ ADVANCED FEATURES:
 - CONVOLUTION ENGINES: Impulse response convolution for reverb
 - PHYSICAL MODELING: Integration with modal synthesis engines
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import numpy as np
 import logging
 
@@ -215,10 +216,10 @@ class SF2Engine(SynthesisEngine):
 
     def __init__(
         self,
-        sf2_file_path: Optional[str] = None,
+        sf2_file_path: str | None = None,
         sample_rate: int = 44100,
         block_size: int = 1024,
-        synth: Optional["ModernXGSynthesizer"] = None,
+        synth: ModernXGSynthesizer | None = None,
         max_memory_mb: int = 512,
     ):
         """
@@ -277,8 +278,8 @@ class SF2Engine(SynthesisEngine):
         return "sf2"
 
     def _create_base_region(
-        self, descriptor: "RegionDescriptor", sample_rate: int
-    ) -> "IRegion":
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
         """
         Create SF2 base region without S.Art2 wrapper.
 
@@ -293,7 +294,7 @@ class SF2Engine(SynthesisEngine):
 
         return SF2Region(descriptor, sample_rate, self.soundfont_manager)
 
-    def create_partial(self, partial_params: Dict, sample_rate: int) -> SF2Partial:
+    def create_partial(self, partial_params: dict, sample_rate: int) -> SF2Partial:
         """
         Create an SF2 partial with modern synth integration.
 
@@ -391,7 +392,7 @@ class SF2Engine(SynthesisEngine):
 
     # ========== NEW REGION-BASED METHODS ==========
 
-    def get_preset_info(self, bank: int, program: int) -> Optional["PresetInfo"]:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get SF2 preset info with all zone descriptors.
 
@@ -443,7 +444,7 @@ class SF2Engine(SynthesisEngine):
 
     def get_all_region_descriptors(
         self, bank: int, program: int
-    ) -> List["RegionDescriptor"]:
+    ) -> list[RegionDescriptor]:
         """
         Get ALL region descriptors for an SF2 preset.
 
@@ -460,8 +461,8 @@ class SF2Engine(SynthesisEngine):
         return []
 
     def create_region(
-        self, descriptor: "RegionDescriptor", sample_rate: int
-    ) -> "IRegion":
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
         """
         Create SF2 region instance from descriptor.
 
@@ -478,7 +479,7 @@ class SF2Engine(SynthesisEngine):
             descriptor, sample_rate, self.soundfont_manager, synth=self.synth
         )
 
-    def load_sample_for_region(self, region: "IRegion") -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for SF2 region.
 
@@ -494,7 +495,7 @@ class SF2Engine(SynthesisEngine):
 
     def _zone_to_descriptor(
         self, zone: Any, zone_idx: int, filepath: str
-    ) -> "RegionDescriptor":
+    ) -> RegionDescriptor:
         """
         Convert SF2 zone to region descriptor.
 
@@ -535,7 +536,7 @@ class SF2Engine(SynthesisEngine):
             generator_params=generator_params,
         )
 
-    def _extract_generator_params(self, zone: Any) -> Dict[str, Any]:
+    def _extract_generator_params(self, zone: Any) -> dict[str, Any]:
         """
         Extract generator parameters from SF2 zone.
 
@@ -595,7 +596,7 @@ class SF2Engine(SynthesisEngine):
 
     def get_voice_parameters(
         self, program: int, bank: int = 0, note: int = 60, velocity: int = 100
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Get SF2 voice parameters for a program/bank.
 
@@ -619,7 +620,7 @@ class SF2Engine(SynthesisEngine):
         # Fallback to default parameters if no soundfonts loaded
         return self._get_default_voice_params()
 
-    def _preset_to_voice_params(self, preset) -> Dict:
+    def _preset_to_voice_params(self, preset) -> dict:
         """Convert SF2 preset to XG voice parameters."""
         # Get preset zones for middle C at full velocity
         zones = preset.get_matching_zones(60, 100)
@@ -646,7 +647,7 @@ class SF2Engine(SynthesisEngine):
             "partials": [partial_params],
         }
 
-    def _zone_to_partial_params(self, zone) -> Dict:
+    def _zone_to_partial_params(self, zone) -> dict:
         """Convert SF2 zone to partial parameters."""
         # Extract parameters from zone generators
         params = self.get_default_partial_params()
@@ -701,7 +702,7 @@ class SF2Engine(SynthesisEngine):
 
         return params
 
-    def _zones_to_voice_params(self, zones: List, program: int, bank: int) -> Dict:
+    def _zones_to_voice_params(self, zones: list, program: int, bank: int) -> dict:
         """Convert SF2 zones to XG voice parameters."""
         if not zones:
             return self._get_default_voice_params()
@@ -756,7 +757,7 @@ class SF2Engine(SynthesisEngine):
         }
         return sf2_features.get(feature, False)
 
-    def get_default_partial_params(self) -> Dict:
+    def get_default_partial_params(self) -> dict:
         """Get default SF2 partial parameters."""
         return {
             "level": 1.0,
@@ -797,7 +798,7 @@ class SF2Engine(SynthesisEngine):
             "sample_mode": 0,
         }
 
-    def _get_default_voice_params(self) -> Dict:
+    def _get_default_voice_params(self) -> dict:
         """Get default XG voice parameters."""
         return {
             "name": "Default SF2 Voice",
@@ -809,7 +810,7 @@ class SF2Engine(SynthesisEngine):
             "partials": [self.get_default_partial_params()],
         }
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get SF2 engine information."""
         if self._engine_info is None:
             capabilities = [
@@ -856,7 +857,7 @@ class SF2Engine(SynthesisEngine):
         self,
         note: int,
         velocity: int,
-        modulation: Dict[str, float],
+        modulation: dict[str, float],
         block_size: int,
         bank: int = 0,
         program: int = 0,
@@ -941,7 +942,7 @@ class SF2Engine(SynthesisEngine):
         """Get list of supported file formats."""
         return [".sf2"]
 
-    def get_memory_usage(self) -> Dict[str, Any]:
+    def get_memory_usage(self) -> dict[str, Any]:
         """Get SF2 engine memory usage."""
         stats = self.soundfont_manager.get_performance_stats()
         return stats.get("memory_usage", {"total_mb": 0})
@@ -953,7 +954,7 @@ class SF2Engine(SynthesisEngine):
 
     # ===== MODERN SYNTH INTEGRATION METHODS =====
 
-    def apply_global_parameters(self, global_params: Dict) -> None:
+    def apply_global_parameters(self, global_params: dict) -> None:
         """
         Apply global synthesizer parameters.
 
@@ -964,7 +965,7 @@ class SF2Engine(SynthesisEngine):
         if self.synth and hasattr(self.synth, "apply_global_parameters_to_engine"):
             self.synth.apply_global_parameters_to_engine("sf2", global_params)
 
-    def get_modulation_destinations(self) -> Dict[str, str]:
+    def get_modulation_destinations(self) -> dict[str, str]:
         """
         Get available modulation destinations for SF2 engine.
 
@@ -980,7 +981,7 @@ class SF2Engine(SynthesisEngine):
             "chorus_send": "Chorus send level",
         }
 
-    def get_effect_send_levels(self) -> Dict[str, float]:
+    def get_effect_send_levels(self) -> dict[str, float]:
         """
         Get current effect send levels for global effects routing.
 
@@ -991,7 +992,7 @@ class SF2Engine(SynthesisEngine):
         # For now, return defaults
         return {"reverb": 0.0, "chorus": 0.0, "variation": 0.0, "delay": 0.0}
 
-    def get_performance_stats(self) -> Dict[str, Any]:
+    def get_performance_stats(self) -> dict[str, Any]:
         """
         Get SF2 engine performance statistics.
 

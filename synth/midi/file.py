@@ -4,9 +4,9 @@ File-based MIDI Processing
 Handles MIDI file parsing for SMF (Standard MIDI Files) and UMP (Universal MIDI Packet) formats.
 Provides high-level file parsing with proper timing and metadata handling.
 """
+from __future__ import annotations
 
 import os
-from typing import List, Optional, Tuple
 import struct
 
 from .message import MIDIMessage
@@ -39,7 +39,7 @@ class FileParser:
         except ImportError:
             self.ump_parser = None
 
-    def parse_file(self, filename: str) -> List[MIDIMessage]:
+    def parse_file(self, filename: str) -> list[MIDIMessage]:
         """
         Parse a MIDI file and return structured messages.
 
@@ -80,7 +80,7 @@ class FileParser:
         self.time_base = 0
         self.smpte_offset = 0.0
 
-    def _parse_smf_file(self, file_handle) -> List[MIDIMessage]:
+    def _parse_smf_file(self, file_handle) -> list[MIDIMessage]:
         """
         Parse Standard MIDI File format.
 
@@ -148,7 +148,7 @@ class FileParser:
         except Exception as e:
             raise ValueError(f"Unexpected error parsing MIDI file: {e}")
 
-    def _parse_ump_file(self, file_handle) -> List[MIDIMessage]:
+    def _parse_ump_file(self, file_handle) -> list[MIDIMessage]:
         """
         Parse Universal MIDI Packet file format.
 
@@ -196,7 +196,7 @@ class FileParser:
 
         return all_messages
 
-    def _convert_ump_packets_to_messages(self, ump_packets: List) -> List[MIDIMessage]:
+    def _convert_ump_packets_to_messages(self, ump_packets: list) -> list[MIDIMessage]:
         """
         Convert UMP packets to MIDIMessage objects.
 
@@ -235,7 +235,7 @@ class FileParser:
         
         return messages
 
-    def _convert_midi2_packet_to_message(self, packet) -> Optional[MIDIMessage]:
+    def _convert_midi2_packet_to_message(self, packet) -> MIDIMessage | None:
         """
         Convert MIDI 2.0 UMP packet to MIDIMessage.
 
@@ -304,7 +304,7 @@ class FileParser:
         
         return None
 
-    def _convert_midi1_packet_to_message(self, packet) -> Optional[MIDIMessage]:
+    def _convert_midi1_packet_to_message(self, packet) -> MIDIMessage | None:
         """
         Convert MIDI 1.0 UMP packet to MIDIMessage.
 
@@ -357,7 +357,7 @@ class FileParser:
         
         return None
 
-    def _convert_sysex_packet_to_message(self, packet) -> Optional[MIDIMessage]:
+    def _convert_sysex_packet_to_message(self, packet) -> MIDIMessage | None:
         """
         Convert SysEx UMP packet to MIDIMessage.
 
@@ -373,7 +373,7 @@ class FileParser:
             timestamp=0.0
         )
 
-    def _convert_utility_packet_to_message(self, packet) -> Optional[MIDIMessage]:
+    def _convert_utility_packet_to_message(self, packet) -> MIDIMessage | None:
         """
         Convert Utility UMP packet to MIDIMessage.
 
@@ -393,7 +393,7 @@ class FileParser:
         
         return None
 
-    def _parse_and_merge_tracks(self) -> List[MIDIMessage]:
+    def _parse_and_merge_tracks(self) -> list[MIDIMessage]:
         """Parse all tracks and merge into chronological order."""
         all_messages = []
 
@@ -411,7 +411,7 @@ class FileParser:
 
         return all_messages
 
-    def _parse_track(self, track_data: bytes, track_index: int) -> List[MIDIMessage]:
+    def _parse_track(self, track_data: bytes, track_index: int) -> list[MIDIMessage]:
         """Parse a single track into messages."""
         messages = []
         offset = 0
@@ -502,7 +502,7 @@ class FileParser:
 
         return messages
 
-    def _parse_meta_event(self, meta_type: int, data: List[int], timestamp: float) -> Optional[MIDIMessage]:
+    def _parse_meta_event(self, meta_type: int, data: list[int], timestamp: float) -> MIDIMessage | None:
         """Parse MIDI meta event."""
         if meta_type == 0x00 and len(data) == 2:  # Sequence Number
             seq_num = (data[0] << 8) | data[1]
@@ -629,7 +629,7 @@ class FileParser:
             data={'meta_type': meta_type, 'data': data}
         )
 
-    def _parse_channel_event(self, status: int, data: bytes, offset: int, timestamp: float) -> Optional[MIDIMessage]:
+    def _parse_channel_event(self, status: int, data: bytes, offset: int, timestamp: float) -> MIDIMessage | None:
         """Parse MIDI channel event."""
         channel = status & 0x0F
         command = status & 0xF0
@@ -697,7 +697,7 @@ class FileParser:
             data=message_data
         )
 
-    def _read_variable_length(self, data: bytes, offset: int) -> Tuple[int, int]:
+    def _read_variable_length(self, data: bytes, offset: int) -> tuple[int, int]:
         """Read variable-length quantity from MIDI data."""
         value = 0
         # Limit to maximum 4 bytes to prevent infinite loops with malformed data

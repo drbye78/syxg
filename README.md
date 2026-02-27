@@ -318,6 +318,19 @@ cmake --build . --config Release --target XGWorkstationVST3_AAX
 - **[Architecture](docs/developer/architecture.md)** - System design
 - **[Contributing](CONTRIBUTING.md)** - Development guidelines
 - **[Testing](docs/developer/testing.md)** - Test suite documentation
+- **[Python 3.11 Migration](docs/PYTHON_311_MIGRATION.md)** - Migration guide and new features
+
+### 🐍 **Python 3.11 Features**
+
+The XG Synthesizer now requires **Python 3.11+** and leverages modern Python features:
+
+- **Pattern Matching** - Clean MIDI message handling with `match`/`case`
+- **Type Safety** - Comprehensive type hints with `typing.Self`, `TypeAlias`, `Annotated`
+- **Exception Groups** - Better batch error handling with `ExceptionGroup` and `except*`
+- **Exception Notes** - Rich error context with `add_note()`
+- **Performance** - 10-60% faster audio processing (automatic Python 3.11 improvement)
+
+See [`docs/PYTHON_311_FEATURES.md`](docs/PYTHON_311_FEATURES.md) for details.
 
 ### 🎓 **Examples & Tutorials**
 - **[Basic Synthesis](examples/tutorials/basic-synthesis.md)** - Simple patches

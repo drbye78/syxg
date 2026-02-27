@@ -4,8 +4,10 @@ Jupiter-X Arpeggiator Implementation
 Grid-based arpeggiator system for Jupiter-X with pattern sequencing,
 velocity control, and real-time parameter modulation.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import numpy as np
@@ -30,7 +32,7 @@ class JupiterXArpeggiatorPattern:
         self.grid_height = ARPEGGIATOR_GRID_HEIGHT # 8
 
         # Pattern grid: 1 = note on, 0 = note off
-        self.grid: List[List[int]] = [[0 for _ in range(self.grid_width)]
+        self.grid: list[list[int]] = [[0 for _ in range(self.grid_width)]
                                      for _ in range(self.grid_height)]
 
         # ===== PHASE 3: ADVANCED 64-STEP PATTERNS =====
@@ -39,7 +41,7 @@ class JupiterXArpeggiatorPattern:
         self.grid_height = 8   # 8 rows for notes (was 8)
 
         # Reinitialize grid for 128 steps (16 beats x 8 steps per beat)
-        self.grid: List[List[int]] = [[0 for _ in range(self.grid_width)]
+        self.grid: list[list[int]] = [[0 for _ in range(self.grid_width)]
                                      for _ in range(self.grid_height)]
 
         # Pattern parameters - enhanced for 64-step support
@@ -52,7 +54,7 @@ class JupiterXArpeggiatorPattern:
         self.trigger_mode = 'normal'  # normal, retrigger, legato, alternate
         self.note_order = 'up'        # up, down, up-down, random, chord
         self.velocity_mode = 'original'  # original, fixed, accent, scale
-        self.accent_pattern: List[float] = [1.0] * 64  # Per-step accent (was 16)
+        self.accent_pattern: list[float] = [1.0] * 64  # Per-step accent (was 16)
 
         # Pattern looping and sequencing
         self.loop_enabled = True
@@ -103,7 +105,7 @@ class JupiterXArpeggiatorPattern:
             for x in range(self.grid_width):
                 self.grid[y][x] = 0
 
-    def get_active_steps(self, chord_notes: List[int]) -> List[Dict[str, Any]]:
+    def get_active_steps(self, chord_notes: list[int]) -> list[dict[str, Any]]:
         """
         Get all active steps for the current chord.
 
@@ -183,7 +185,7 @@ class JupiterXArpeggiatorPattern:
             pattern_index = step % len(self.accent_pattern)
             return int(self.fixed_velocity * self.accent_pattern[pattern_index])
 
-    def get_pattern_info(self) -> Dict[str, Any]:
+    def get_pattern_info(self) -> dict[str, Any]:
         """Get comprehensive pattern information."""
         active_cells = sum(sum(row) for row in self.grid)
 
@@ -213,19 +215,19 @@ class JupiterXArpeggiatorEngine:
         self.lock = threading.RLock()
 
         # Pattern library
-        self.patterns: Dict[int, JupiterXArpeggiatorPattern] = {}
+        self.patterns: dict[int, JupiterXArpeggiatorPattern] = {}
         self._initialize_builtin_patterns()
 
         # Arpeggiator instances (one per part)
-        self.arpeggiators: Dict[int, 'JupiterXArpeggiatorInstance'] = {}
+        self.arpeggiators: dict[int, JupiterXArpeggiatorInstance] = {}
 
         # Global settings
         self.master_tempo = DEFAULT_ARPEGGIATOR_TEMPO
         self.tempo_sync = True
 
         # Callbacks
-        self.note_on_callback: Optional[Callable] = None
-        self.note_off_callback: Optional[Callable] = None
+        self.note_on_callback: Callable | None = None
+        self.note_off_callback: Callable | None = None
 
         print("🎹 Jupiter-X Arpeggiator: Initialized with pattern library")
 
@@ -328,7 +330,7 @@ class JupiterXArpeggiatorEngine:
                 self.patterns[pattern_id] = pattern
                 pattern_id += 1
 
-    def get_arpeggiator(self, part_number: int) -> Optional['JupiterXArpeggiatorInstance']:
+    def get_arpeggiator(self, part_number: int) -> JupiterXArpeggiatorInstance | None:
         """Get or create arpeggiator instance for a part."""
         with self.lock:
             if part_number not in self.arpeggiators:
@@ -373,7 +375,7 @@ class JupiterXArpeggiatorEngine:
             if arpeggiator:
                 arpeggiator.note_off(note)
 
-    def get_pattern_list(self) -> List[Dict[str, Any]]:
+    def get_pattern_list(self) -> list[dict[str, Any]]:
         """Get list of available patterns."""
         with self.lock:
             return [pattern.get_pattern_info() for pattern in self.patterns.values()]
@@ -404,16 +406,16 @@ class JupiterXArpeggiatorInstance:
 
         # State
         self.enabled = False
-        self.current_pattern: Optional[JupiterXArpeggiatorPattern] = None
+        self.current_pattern: JupiterXArpeggiatorPattern | None = None
 
         # Chord detection
-        self.active_notes: Dict[int, int] = {}  # note -> velocity
+        self.active_notes: dict[int, int] = {}  # note -> velocity
         self.current_root_note = None
 
         # Playback state
         self.current_step = 0.0
         self.pattern_start_time = 0.0
-        self.active_arpeggio_notes: List[Dict[str, Any]] = []
+        self.active_arpeggio_notes: list[dict[str, Any]] = []
 
         # Timing
         self.step_duration = 0.125  # 16th notes at 120 BPM
@@ -559,7 +561,7 @@ class JupiterXArpeggiatorInstance:
             self.enabled = False
             self._stop_pattern()
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get arpeggiator status."""
         with self.lock:
             return {

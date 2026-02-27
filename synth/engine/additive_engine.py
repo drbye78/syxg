@@ -4,8 +4,9 @@ Additive Synthesis Engine
 Implements additive synthesis with up to 128 partials supporting real-time
 harmonic control, morphing, and bandwidth optimization for high partial counts.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional, List
+from typing import Any
 import numpy as np
 import math
 
@@ -49,7 +50,7 @@ class AdditivePartialOscillator:
         self.frequency_mod = 0.0
         self.phase_mod = 0.0
 
-    def set_parameters(self, params: Dict[str, Any]):
+    def set_parameters(self, params: dict[str, Any]):
         """Set partial parameters."""
         self.frequency_ratio = params.get('frequency_ratio', 1.0)
         self.amplitude = params.get('amplitude', 0.0)
@@ -160,7 +161,7 @@ class HarmonicSpectrum:
     def __init__(self, name: str = "custom"):
         """Initialize harmonic spectrum."""
         self.name = name
-        self.harmonics: Dict[int, Dict[str, float]] = {}  # harmonic_number -> {'amplitude': float, 'phase': float}
+        self.harmonics: dict[int, dict[str, float]] = {}  # harmonic_number -> {'amplitude': float, 'phase': float}
 
     def set_harmonic(self, harmonic_number: int, amplitude: float, phase: float = 0.0):
         """Set parameters for a specific harmonic."""
@@ -169,7 +170,7 @@ class HarmonicSpectrum:
             'phase': phase
         }
 
-    def get_harmonic(self, harmonic_number: int) -> Optional[Dict[str, float]]:
+    def get_harmonic(self, harmonic_number: int) -> dict[str, float] | None:
         """Get parameters for a specific harmonic."""
         return self.harmonics.get(harmonic_number)
 
@@ -209,7 +210,7 @@ class HarmonicSpectrum:
             phase = 0.0
             self.set_harmonic(i, amplitude, phase)
 
-    def morph_to(self, target_spectrum: 'HarmonicSpectrum', morph_factor: float) -> 'HarmonicSpectrum':
+    def morph_to(self, target_spectrum: HarmonicSpectrum, morph_factor: float) -> HarmonicSpectrum:
         """
         Morph this spectrum towards another spectrum.
 
@@ -291,7 +292,7 @@ class AdditiveEngine(SynthesisEngine):
 
         # Plugin system
         self._plugin_registry = get_global_plugin_registry()
-        self._loaded_plugins: Dict[str, SynthesisFeaturePlugin] = {}
+        self._loaded_plugins: dict[str, SynthesisFeaturePlugin] = {}
         self._plugin_integration_points = {
             'pre_synthesis': [],      # Called before synthesis
             'post_synthesis': [],     # Called after synthesis
@@ -302,7 +303,7 @@ class AdditiveEngine(SynthesisEngine):
         # Auto-load Jupiter-X analog plugin if available
         self._auto_load_jupiter_x_plugin()
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get additive engine information."""
         return {
             'name': 'Additive Synthesis Engine',
@@ -317,7 +318,7 @@ class AdditiveEngine(SynthesisEngine):
     # ========== NEW REGION-BASED METHODS (STUBS) ==========
     # TODO: Implement full region-based architecture for additive engine
     
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """Get additive preset info (stub - returns basic spectrum)."""
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
@@ -343,7 +344,7 @@ class AdditiveEngine(SynthesisEngine):
             region_descriptors=[descriptor]
         )
     
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """Get all region descriptors for additive preset."""
         preset_info = self.get_preset_info(bank, program)
         if preset_info:
@@ -352,9 +353,9 @@ class AdditiveEngine(SynthesisEngine):
     
     def create_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create region instance. Base implementation wraps with S.Art2.
         """
@@ -362,9 +363,9 @@ class AdditiveEngine(SynthesisEngine):
 
     def _create_base_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create AdditiveRegion base region without S.Art2 wrapper.
 
@@ -379,11 +380,11 @@ class AdditiveEngine(SynthesisEngine):
         return AdditiveRegion(descriptor, sample_rate)
     
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         """Load sample for additive region (no-op - algorithmic synthesis)."""
         return True
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float], block_size: int) -> np.ndarray:
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float], block_size: int) -> np.ndarray:
         """
         Generate additive synthesis audio samples.
 
@@ -460,7 +461,7 @@ class AdditiveEngine(SynthesisEngine):
         """Check if a note is supported."""
         return 0 <= note <= 127
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> 'AdditivePartial':
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> AdditivePartial:
         """Create additive partial."""
         from ..partial.additive_partial import AdditivePartial
         return AdditivePartial(partial_params, sample_rate)
@@ -521,7 +522,7 @@ class AdditiveEngine(SynthesisEngine):
         """
         self.spread = max(0.0, min(1.0, spread))
 
-    def set_partial_parameters(self, partial_idx: int, params: Dict[str, Any]):
+    def set_partial_parameters(self, partial_idx: int, params: dict[str, Any]):
         """
         Set parameters for a specific partial.
 
@@ -532,7 +533,7 @@ class AdditiveEngine(SynthesisEngine):
         if 0 <= partial_idx < self.max_partials:
             self.partials[partial_idx].set_parameters(params)
 
-    def get_partial_parameters(self, partial_idx: int) -> Dict[str, Any]:
+    def get_partial_parameters(self, partial_idx: int) -> dict[str, Any]:
         """
         Get parameters for a specific partial.
 
@@ -636,11 +637,11 @@ class AdditiveEngine(SynthesisEngine):
         for partial in self.partials:
             partial.reset()
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """Get supported file formats."""
         return ['.add', '.harm']
 
-    def load_preset(self, preset_data: Dict[str, Any]):
+    def load_preset(self, preset_data: dict[str, Any]):
         """
         Load additive preset data.
 
@@ -661,7 +662,7 @@ class AdditiveEngine(SynthesisEngine):
         # Apply settings
         self.apply_brightness_to_partials()
 
-    def save_preset(self) -> Dict[str, Any]:
+    def save_preset(self) -> dict[str, Any]:
         """
         Save current preset data.
 
@@ -678,7 +679,7 @@ class AdditiveEngine(SynthesisEngine):
             'harmonics': self.current_spectrum.harmonics.copy()
         }
 
-    def get_spectrum_info(self) -> Dict[str, Any]:
+    def get_spectrum_info(self) -> dict[str, Any]:
         """Get current spectrum information."""
         return {
             'name': self.current_spectrum.name,
@@ -777,7 +778,7 @@ class AdditiveEngine(SynthesisEngine):
             print(f"❌ Additive Engine: Failed to unload plugin '{plugin_name}': {e}")
             return False
 
-    def get_loaded_plugins(self) -> Dict[str, SynthesisFeaturePlugin]:
+    def get_loaded_plugins(self) -> dict[str, SynthesisFeaturePlugin]:
         """Get all plugins loaded for this engine."""
         return self._loaded_plugins.copy()
 
@@ -873,7 +874,7 @@ class AdditiveEngine(SynthesisEngine):
             return params.get(param_name)
         return None
 
-    def get_plugin_info(self, plugin_name: str) -> Optional[Dict[str, Any]]:
+    def get_plugin_info(self, plugin_name: str) -> dict[str, Any] | None:
         """
         Get information about a loaded plugin.
 

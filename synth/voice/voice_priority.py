@@ -2,6 +2,7 @@
 Voice priority levels for XG voice allocation.
 Defines priority constants for voice management.
 """
+from __future__ import annotations
 
 
 class VoicePriority:

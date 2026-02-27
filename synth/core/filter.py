@@ -18,10 +18,12 @@ Architecture:
 - Contiguous memory layouts optimized for cache efficiency
 - Stereo processing with channel-specific coefficients
 """
+from __future__ import annotations
 
 import math
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+from typing import Any
+from collections.abc import Callable
 from ..math.fast_approx import fast_math
 import threading
 from collections import deque
@@ -192,7 +194,7 @@ class FilterPool:
             self.pool.append(filter_obj)
 
     def acquire_filter(self, cutoff=1000.0, resonance=0.7, filter_type="lowpass",
-                      key_follow=0.5, stereo_width=0.5) -> 'UltraFastResonantFilter':
+                      key_follow=0.5, stereo_width=0.5) -> UltraFastResonantFilter:
         """
         ULTRA-FAST: Acquire filter from pool or create new one.
 
@@ -228,7 +230,7 @@ class FilterPool:
                 sample_rate=self.sample_rate
             )
 
-    def release_filter(self, filter_obj: 'UltraFastResonantFilter') -> None:
+    def release_filter(self, filter_obj: UltraFastResonantFilter) -> None:
         """
         ULTRA-FAST: Return filter to pool.
 
@@ -249,7 +251,7 @@ class FilterPool:
             # Error during reset - just discard
             pass
 
-    def get_pool_stats(self) -> Dict[str, int]:
+    def get_pool_stats(self) -> dict[str, int]:
         """Get pool statistics for monitoring."""
         return {
             'pooled_filters': len(self.pool),
@@ -591,9 +593,9 @@ class UltraFastResonantFilter:
         self.coeffs_dirty = True
 
     def process_block(self, input_left: np.ndarray, input_right: np.ndarray,
-                     output_left: Optional[np.ndarray] = None, 
-                     output_right: Optional[np.ndarray] = None,
-                     num_samples: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+                     output_left: np.ndarray | None = None, 
+                     output_right: np.ndarray | None = None,
+                     num_samples: int | None = None) -> tuple[np.ndarray, np.ndarray]:
         """
         ULTRA-FAST: Process block of stereo samples through the filter.
 

@@ -1,16 +1,17 @@
+from __future__ import annotations
 import sys
 import platform
 import threading
 import time
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
 class KeyboardListener:
     """Sexy cross-platform keyboard listener with event callbacks"""
     
     def __init__(self):
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
-        self._callbacks: List[Callable[[str], None]] = []
+        self._thread: threading.Thread | None = None
+        self._callbacks: list[Callable[[str], None]] = []
         
     def add_callback(self, callback: Callable[[str], None]):
         """Add a callback function to be called on key press"""

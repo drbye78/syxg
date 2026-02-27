@@ -11,8 +11,9 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import threading
 
 
@@ -114,7 +115,7 @@ class XGSystemEffectParameters:
         print("🎹 XG SYSTEM PARAMETERS: Initialized")
         print("   Reverb, Chorus, and Variation effect parameters ready")
 
-    def _create_default_reverb(self) -> Dict[str, Any]:
+    def _create_default_reverb(self) -> dict[str, Any]:
         """Create default XG reverb parameters."""
         return {
             'type': 0x01,           # Hall 1
@@ -125,7 +126,7 @@ class XGSystemEffectParameters:
             'name': 'Hall 1'
         }
 
-    def _create_default_chorus(self) -> Dict[str, Any]:
+    def _create_default_chorus(self) -> dict[str, Any]:
         """Create default XG chorus parameters."""
         return {
             'type': 0x41,           # Chorus 1
@@ -136,7 +137,7 @@ class XGSystemEffectParameters:
             'name': 'Chorus 1'
         }
 
-    def _create_default_variation(self) -> Dict[str, Any]:
+    def _create_default_variation(self) -> dict[str, Any]:
         """Create default XG variation parameters."""
         return {
             'type': 0x10,           # Chorus 1
@@ -301,7 +302,7 @@ class XGSystemEffectParameters:
 
         return False
 
-    def _handle_delay_variation(self, lsb: int, data_value: int, var_info: Dict) -> bool:
+    def _handle_delay_variation(self, lsb: int, data_value: int, var_info: dict) -> bool:
         """Handle delay variation parameters."""
         if lsb == 5:  # Delay Time
             delay_time = 0.001 + (data_value / 16383.0) * 4.999  # 1ms-5s
@@ -320,7 +321,7 @@ class XGSystemEffectParameters:
             return True
         return False
 
-    def _handle_chorus_variation(self, lsb: int, data_value: int, var_info: Dict) -> bool:
+    def _handle_chorus_variation(self, lsb: int, data_value: int, var_info: dict) -> bool:
         """Handle chorus variation parameters."""
         if lsb == 5:  # LFO Frequency
             lfo_freq = (data_value / 16383.0) * 39.7
@@ -339,7 +340,7 @@ class XGSystemEffectParameters:
             return True
         return False
 
-    def _handle_flanger_variation(self, lsb: int, data_value: int, var_info: Dict) -> bool:
+    def _handle_flanger_variation(self, lsb: int, data_value: int, var_info: dict) -> bool:
         """Handle flanger variation parameters."""
         if lsb == 5:  # LFO Frequency
             lfo_freq = (data_value / 16383.0) * 39.7
@@ -358,7 +359,7 @@ class XGSystemEffectParameters:
             return True
         return False
 
-    def _handle_distortion_variation(self, lsb: int, data_value: int, var_info: Dict) -> bool:
+    def _handle_distortion_variation(self, lsb: int, data_value: int, var_info: dict) -> bool:
         """Handle distortion variation parameters."""
         if lsb == 5:  # Drive
             drive = data_value / 16383.0
@@ -386,17 +387,17 @@ class XGSystemEffectParameters:
         """Set parameter change callback."""
         self.parameter_change_callback = callback
 
-    def get_system_reverb_parameters(self) -> Dict[str, Any]:
+    def get_system_reverb_parameters(self) -> dict[str, Any]:
         """Get current system reverb parameters."""
         with self.lock:
             return self.system_reverb.copy()
 
-    def get_system_chorus_parameters(self) -> Dict[str, Any]:
+    def get_system_chorus_parameters(self) -> dict[str, Any]:
         """Get current system chorus parameters."""
         with self.lock:
             return self.system_chorus.copy()
 
-    def get_system_variation_parameters(self) -> Dict[str, Any]:
+    def get_system_variation_parameters(self) -> dict[str, Any]:
         """Get current system variation parameters."""
         with self.lock:
             return self.system_variation.copy()
@@ -413,7 +414,7 @@ class XGSystemEffectParameters:
         """Get variation type name from type value."""
         return self.XG_VARIATION_TYPES.get(type_value, {}).get('name', f'Unknown ({type_value:02X})')
 
-    def get_effect_parameter_ranges(self) -> Dict[str, Dict[str, Any]]:
+    def get_effect_parameter_ranges(self) -> dict[str, dict[str, Any]]:
         """
         Get parameter ranges for all XG system effects.
 
@@ -450,7 +451,7 @@ class XGSystemEffectParameters:
 
         print("🎹 XG SYSTEM PARAMETERS: Reset to XG defaults")
 
-    def export_parameters(self) -> Dict[str, Any]:
+    def export_parameters(self) -> dict[str, Any]:
         """Export all system effect parameters."""
         with self.lock:
             return {
@@ -460,7 +461,7 @@ class XGSystemEffectParameters:
                 'version': '1.0'
             }
 
-    def import_parameters(self, params: Dict[str, Any]) -> bool:
+    def import_parameters(self, params: dict[str, Any]) -> bool:
         """Import system effect parameters."""
         try:
             with self.lock:
@@ -475,7 +476,7 @@ class XGSystemEffectParameters:
             print(f"❌ XG SYSTEM PARAMETERS: Import failed - {e}")
             return False
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get system effect parameters status."""
         with self.lock:
             return {

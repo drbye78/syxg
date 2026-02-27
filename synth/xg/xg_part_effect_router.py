@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """
 XG PART EFFECT ROUTER
@@ -13,7 +14,7 @@ Provides:
 """
 
 import threading
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 from enum import Enum
 
 
@@ -58,13 +59,13 @@ class XGPartEffectRouter:
 
         # Effect routing assignments: channel -> effect_type -> assigned_unit
         # Values: 0 = off/bypass, 1-127 = effect unit number (1-127)
-        self.effect_assignments: Dict[int, Dict[str, int]] = {}
+        self.effect_assignments: dict[int, dict[str, int]] = {}
 
         # Raw NRPN MSB 32-39 parameter values: channel -> msb_value -> lsb -> value
-        self.routing_parameters: Dict[int, Dict[int, Dict[int, int]]] = {}
+        self.routing_parameters: dict[int, dict[int, dict[int, int]]] = {}
 
         # Parameter caches for performance
-        self._assignment_cache: Dict[str, Any] = {}
+        self._assignment_cache: dict[str, Any] = {}
         self._cache_dirty = True
 
         # Initialize default state
@@ -129,7 +130,7 @@ class XGPartEffectRouter:
             # XG Default: All channels send to effect unit 1 by default
             return 1
 
-    def get_channel_effect_assignment(self, channel: int) -> Dict[str, int]:
+    def get_channel_effect_assignment(self, channel: int) -> dict[str, int]:
         """
         Get all effect assignments for a channel.
 
@@ -234,7 +235,7 @@ class XGPartEffectRouter:
 
         return self.handle_nrpn_msb32_to39(channel, nrpn_msb, nrpn_lsb, data_value)
 
-    def get_all_routing_status(self) -> Dict[str, Any]:
+    def get_all_routing_status(self) -> dict[str, Any]:
         """
         Get complete current status of effect routing.
 
@@ -257,7 +258,7 @@ class XGPartEffectRouter:
 
             return status
 
-    def get_routing_summary(self) -> Dict[str, Any]:
+    def get_routing_summary(self) -> dict[str, Any]:
         """
         Get summary statistics of current effect routing configuration.
 
@@ -324,7 +325,7 @@ class XGPartEffectRouter:
             self._cache_dirty = True
             self._initialize_xg_defaults()
 
-    def export_routing_to_bulk_dump(self, channel: int) -> List[int]:
+    def export_routing_to_bulk_dump(self, channel: int) -> list[int]:
         """
         Export effect routing parameters to XG bulk dump format.
 
@@ -349,7 +350,7 @@ class XGPartEffectRouter:
 
         return data
 
-    def import_routing_from_bulk_dump(self, channel: int, data: List[int]) -> bool:
+    def import_routing_from_bulk_dump(self, channel: int, data: list[int]) -> bool:
         """
         Import effect routing parameters from XG bulk dump format.
 

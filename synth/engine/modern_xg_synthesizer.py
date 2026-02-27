@@ -305,8 +305,10 @@ RESEARCH FEATURES:
 - Real-time acoustic analysis
 - Adaptive performance optimization
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import numpy as np
 import threading
 import time
@@ -690,7 +692,7 @@ class ModernXGSynthesizer:
         # XG components are ready for use in MIDI/audio processing
 
         # Buffered message processing for complete MIDI sequence rendering
-        self._message_sequence: List[Any] = []  # List of MIDIMessage objects
+        self._message_sequence: list[Any] = []  # List of MIDIMessage objects
         self._current_message_index: int = 0
         self._current_time: float = 0.0
         self._minimum_time_slice = 0.002  # Minimum time slice for processing (2ms)
@@ -983,7 +985,7 @@ class ModernXGSynthesizer:
         """Process MIDI message with XG/GS integration using structured MIDIMessage objects"""
         self.midi_processor.process_midi_message(message_bytes)
 
-    def send_midi_message_block(self, messages: List[Any]):
+    def send_midi_message_block(self, messages: list[Any]):
         """
         Send block of MIDI messages for buffered processing.
         Messages are stored in a sorted sequence for efficient consumption during rendering.
@@ -1050,7 +1052,7 @@ class ModernXGSynthesizer:
         """
         return self.audio_processor.get_total_duration()
 
-    def generate_audio_block(self, block_size: Optional[int] = None) -> np.ndarray:
+    def generate_audio_block(self, block_size: int | None = None) -> np.ndarray:
         """
         Generate audio block with buffered MIDI message processing support.
 
@@ -1131,7 +1133,7 @@ class ModernXGSynthesizer:
             )
         return False
 
-    def get_receive_channel(self, part_id: int) -> Optional[int]:
+    def get_receive_channel(self, part_id: int) -> int | None:
         """
         Get XG receive channel for a specific part.
 
@@ -1145,7 +1147,7 @@ class ModernXGSynthesizer:
             return self.receive_channel_manager.get_receive_channel(part_id)
         return None
 
-    def get_parts_for_midi_channel(self, midi_channel: int) -> List[int]:
+    def get_parts_for_midi_channel(self, midi_channel: int) -> list[int]:
         """
         Get all XG parts that receive from a specific MIDI channel.
 
@@ -1164,7 +1166,7 @@ class ModernXGSynthesizer:
         if self.xg_enabled and hasattr(self, "receive_channel_manager"):
             self.receive_channel_manager.reset_to_xg_defaults()
 
-    def get_receive_channel_mapping(self) -> Dict[str, Any]:
+    def get_receive_channel_mapping(self) -> dict[str, Any]:
         """Get comprehensive receive channel mapping status."""
         if self.xg_enabled and hasattr(self, "receive_channel_manager"):
             return self.receive_channel_manager.get_channel_mapping_status()
@@ -1254,7 +1256,7 @@ class ModernXGSynthesizer:
                 program, (bank >> 7) & 0x7F, bank & 0x7F
             )
 
-    def get_channel_info(self, channel: int) -> Optional[Dict[str, Any]]:
+    def get_channel_info(self, channel: int) -> dict[str, Any] | None:
         """Get channel information"""
         if 0 <= channel < len(self.channels):
             info = self.channels[channel].get_channel_info()
@@ -1266,7 +1268,7 @@ class ModernXGSynthesizer:
             return info
         return None
 
-    def get_synthesizer_info(self) -> Dict[str, Any]:
+    def get_synthesizer_info(self) -> dict[str, Any]:
         """Get comprehensive synthesizer information"""
         active_channels = sum(1 for ch in self.channels if ch.is_active())
 
@@ -1361,7 +1363,7 @@ class ModernXGSynthesizer:
             if hasattr(self.effects_coordinator, "cleanup"):
                 self.effects_coordinator.cleanup()
 
-    def get_xg_compliance_report(self) -> Dict[str, Any]:
+    def get_xg_compliance_report(self) -> dict[str, Any]:
         """Get XG compliance report"""
         if not self.xg_enabled:
             return {"compliance": "XG disabled"}
@@ -1400,7 +1402,7 @@ class ModernXGSynthesizer:
         self._update_all_channel_parameters()
         print(f"🎹 GS/XG mode set to: {mode.upper()}")
 
-    def get_gs_system_info(self) -> Dict[str, Any]:
+    def get_gs_system_info(self) -> dict[str, Any]:
         """Get GS system status"""
         if self.gs_enabled and self.gs_components:
             return self.gs_components.get_system_info()
@@ -1435,7 +1437,7 @@ class ModernXGSynthesizer:
             self._update_all_channel_parameters()
 
     # MPE-specific API methods
-    def get_mpe_info(self) -> Dict[str, Any]:
+    def get_mpe_info(self) -> dict[str, Any]:
         """Get MPE system information"""
         if hasattr(self, "mpe_system") and self.mpe_system:
             return self.mpe_system.get_mpe_info()
@@ -1618,7 +1620,7 @@ class ModernXGSynthesizer:
 
     def enable_config_hot_reloading(
         self,
-        watch_paths: Optional[List[Union[str, Path]]] = None,
+        watch_paths: list[str | Path] | None = None,
         check_interval: float = 1.0,
     ) -> bool:
         """
@@ -1649,7 +1651,7 @@ class ModernXGSynthesizer:
             return self.config_system.disable_config_hot_reloading()
         return False
 
-    def add_hot_reload_watch_path(self, path: Union[str, Path]) -> bool:
+    def add_hot_reload_watch_path(self, path: str | Path) -> bool:
         """
         Add a path to watch for configuration changes.
 
@@ -1663,7 +1665,7 @@ class ModernXGSynthesizer:
             return self.config_system.add_hot_reload_watch_path(path)
         return False
 
-    def remove_hot_reload_watch_path(self, path: Union[str, Path]) -> bool:
+    def remove_hot_reload_watch_path(self, path: str | Path) -> bool:
         """
         Remove a path from hot-reload watching.
 
@@ -1677,7 +1679,7 @@ class ModernXGSynthesizer:
             return self.config_system.remove_hot_reload_watch_path(path)
         return False
 
-    def get_hot_reload_status(self) -> Dict[str, Any]:
+    def get_hot_reload_status(self) -> dict[str, Any]:
         """
         Get hot-reloading status information.
 
@@ -1689,7 +1691,7 @@ class ModernXGSynthesizer:
         return {"enabled": False, "status": "Config system not available"}
 
     def trigger_manual_config_reload(
-        self, path: Optional[Union[str, Path]] = None
+        self, path: str | Path | None = None
     ) -> bool:
         """
         Manually trigger configuration reload.
@@ -1706,7 +1708,7 @@ class ModernXGSynthesizer:
 
     # XGML v3.0 Integration Methods
 
-    def load_xgml_config(self, xgml_path: Union[str, Path]) -> bool:
+    def load_xgml_config(self, xgml_path: str | Path) -> bool:
         """
         Load XGML v3.0 configuration from file.
 
@@ -1745,7 +1747,7 @@ class ModernXGSynthesizer:
             return self.config_system.get_xgml_config_template()
         return ""
 
-    def create_xgml_config_from_current_state(self) -> Optional[str]:
+    def create_xgml_config_from_current_state(self) -> str | None:
         """
         Create an XGML v3.0 configuration from the current synthesizer state.
 
@@ -1778,7 +1780,7 @@ class ModernXGSynthesizer:
     # Configuration System
     # ============================================================
 
-    def configure_from_config(self, config: "ConfigManager"):
+    def configure_from_config(self, config: ConfigManager):
         """
         Apply configuration from ConfigManager to synthesizer.
 

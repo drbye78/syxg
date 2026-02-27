@@ -4,8 +4,9 @@ SFZ Dynamic Parameter Modulation System
 Provides real-time modulation from audio signals including envelope followers,
 sidechain detection, and audio-derived modulation sources.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional
+from typing import Any
 import numpy as np
 import math
 
@@ -523,7 +524,7 @@ class SFZDynamicModulation:
         }
 
     def process_audio_modulation(self, audio: np.ndarray,
-                               modulation_params: Dict[str, Any]) -> Dict[str, np.ndarray]:
+                               modulation_params: dict[str, Any]) -> dict[str, np.ndarray]:
         """
         Process audio signal and generate dynamic modulation sources.
 
@@ -623,7 +624,7 @@ class SFZDynamicModulation:
 
         return True
 
-    def get_modulation_info(self) -> Dict[str, Any]:
+    def get_modulation_info(self) -> dict[str, Any]:
         """
         Get information about modulation sources and their status.
 
@@ -665,7 +666,7 @@ class SFZDynamicModulation:
         self.noise_generator.reset()
         self.external_input.reset()
 
-    def get_available_sources(self) -> List[str]:
+    def get_available_sources(self) -> list[str]:
         """
         Get list of available modulation sources.
 

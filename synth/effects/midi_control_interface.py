@@ -23,9 +23,11 @@ XG Control Specification:
 - CC 94: Variation Send
 - CC 200-209: Effect Unit Activation
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any, Callable
+from typing import Any
+from collections.abc import Callable
 from enum import IntEnum
 import threading
 
@@ -103,7 +105,7 @@ class XGNRPNParameters:
     CHANNEL_PARAM_INCREMENT = 16  # 16 parameters per channel
 
     @classmethod
-    def get_parameter_mapping(cls, bank: int, param: int) -> Optional[Tuple[str, Callable]]:
+    def get_parameter_mapping(cls, bank: int, param: int) -> tuple[str, Callable] | None:
         """Get parameter name and scaling function for given bank/parameter."""
         if bank == XGNRPNBanks.SYSTEM_REVERB:
             return cls.REVERB_PARAMS.get(param)
@@ -126,7 +128,7 @@ class XGNRPNController:
     then CC 38 (LSB) + CC 6 (MSB) for parameter value.
     """
 
-    def __init__(self, effects_coordinator: Optional[Any] = None):
+    def __init__(self, effects_coordinator: Any | None = None):
         """
         Initialize NRPN controller.
 
@@ -150,7 +152,7 @@ class XGNRPNController:
         self.lock = threading.RLock()
 
         # Parameter change callbacks
-        self.parameter_callbacks: Dict[Tuple[int, int], List[Callable]] = {}
+        self.parameter_callbacks: dict[tuple[int, int], list[Callable]] = {}
 
     def register_callback(self, bank: int, param: int, callback: Callable) -> None:
         """Register a callback for parameter changes."""
@@ -333,9 +335,9 @@ class XGMIDIController:
     Provides the main interface for MIDI control of XG effects.
     """
 
-    def __init__(self, effects_coordinator: Optional[Any] = None,
-                 eq_processor: Optional[Any] = None,
-                 mixer_processor: Optional[Any] = None):
+    def __init__(self, effects_coordinator: Any | None = None,
+                 eq_processor: Any | None = None,
+                 mixer_processor: Any | None = None):
         """
         Initialize MIDI controller.
 
@@ -365,7 +367,7 @@ class XGMIDIController:
         # MIDI CC mapping
         self.cc_mappings = self._initialize_cc_mappings()
 
-    def _initialize_cc_mappings(self) -> Dict[int, str]:
+    def _initialize_cc_mappings(self) -> dict[int, str]:
         """Initialize MIDI CC to XG parameter mappings."""
         cc_map = {
             # XG Standard effect sends
@@ -492,7 +494,7 @@ class XGMIDIController:
             return self.mixer_processor.set_master_params(volume=value * 2.0)
         return False
 
-    def get_current_send_levels(self) -> Dict[str, np.ndarray]:
+    def get_current_send_levels(self) -> dict[str, np.ndarray]:
         """Get current effect send levels for all channels."""
         with self.lock:
             return {
@@ -523,7 +525,7 @@ class XGSysExController:
     Supports XG model ID (0x43) and device ID parameter updates.
     """
 
-    def __init__(self, effects_coordinator: Optional[Any] = None):
+    def __init__(self, effects_coordinator: Any | None = None):
         """
         Initialize SysEx controller.
 

@@ -4,11 +4,11 @@ Vibexg Demo Mode - Demo patterns for testing audio output
 This module provides demo patterns to test the audio output and
 synthesizer functionality without requiring external MIDI input.
 """
+from __future__ import annotations
 
 import logging
 import threading
 import time
-from typing import Optional
 
 from synth.core.synthesizer import Synthesizer
 from synth.midi import MIDIMessage
@@ -35,7 +35,7 @@ class DemoMode:
         """
         self.synthesizer = synthesizer
         self.running = False
-        self.thread: Optional[threading.Thread] = None
+        self.thread: threading.Thread | None = None
 
     def start(self, pattern: str = "scale"):
         """
@@ -62,12 +62,19 @@ class DemoMode:
         Args:
             pattern: Pattern name to execute
         """
-        if pattern == "scale":
-            self._play_scale()
-        elif pattern == "chords":
-            self._play_chords()
-        elif pattern == "arpeggio":
-            self._play_arpeggio()
+        match pattern:
+            case "scale":
+                self._play_scale()
+            
+            case "chords":
+                self._play_chords()
+            
+            case "arpeggio":
+                self._play_arpeggio()
+            
+            case _:
+                logger.warning(f"Unknown demo pattern: {pattern}")
+                self._play_scale()  # Default to scale
 
     def _send_note_on(self, note: int, velocity: int = 80, channel: int = 0):
         """

@@ -4,8 +4,9 @@ MIDI 2.0 Capability Discovery System
 Advanced system for discovering and negotiating device capabilities in MIDI 2.0 environments.
 Implements comprehensive device interrogation and capability reporting with profile negotiation.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Set, Tuple
+from typing import Any
 import struct
 import json
 from enum import IntEnum
@@ -170,11 +171,11 @@ class CapabilityDiscoverySystem:
     
     def __init__(self):
         """Initialize the capability discovery system."""
-        self.device_capabilities: Dict[str, Dict[CapabilityType, Any]] = {}
+        self.device_capabilities: dict[str, dict[CapabilityType, Any]] = {}
         self.profile_negotiation_enabled = True
         self.property_exchange_enabled = True
-        self.discovery_callbacks: List[callable] = []
-        self.device_identifiers: Set[str] = set()
+        self.discovery_callbacks: list[callable] = []
+        self.device_identifiers: set[str] = set()
         
         # Initialize with default capabilities for common device types
         self._initialize_default_capabilities()
@@ -288,7 +289,7 @@ class CapabilityDiscoverySystem:
         
         self.device_capabilities['default_gm_device'] = gm_caps
     
-    def discover_device_capabilities(self, device_id: str, device_type: str = 'auto') -> Dict[CapabilityType, Any]:
+    def discover_device_capabilities(self, device_id: str, device_type: str = 'auto') -> dict[CapabilityType, Any]:
         """
         Discover capabilities of a MIDI device.
 
@@ -359,7 +360,7 @@ class CapabilityDiscoverySystem:
             # Default to XG for modern implementations
             return 'xg'
     
-    def _create_xg_capabilities(self) -> Dict[CapabilityType, Any]:
+    def _create_xg_capabilities(self) -> dict[CapabilityType, Any]:
         """Create XG-specific capabilities."""
         return {
             CapabilityType.MIDI_VERSION: 2.0,
@@ -541,7 +542,7 @@ class CapabilityDiscoverySystem:
             CapabilityType.PER_NOTE_EG_AUTO_IMAGER: True,
         }
     
-    def _create_gm_capabilities(self) -> Dict[CapabilityType, Any]:
+    def _create_gm_capabilities(self) -> dict[CapabilityType, Any]:
         """Create GM-specific capabilities."""
         return {
             CapabilityType.MIDI_VERSION: 1.0,
@@ -588,7 +589,7 @@ class CapabilityDiscoverySystem:
             CapabilityType.PER_NOTE_EXPRESSIONS: False,
         }
     
-    def _create_gs_capabilities(self) -> Dict[CapabilityType, Any]:
+    def _create_gs_capabilities(self) -> dict[CapabilityType, Any]:
         """Create GS-specific capabilities."""
         caps = self._create_gm_capabilities()
         caps.update({
@@ -636,7 +637,7 @@ class CapabilityDiscoverySystem:
         })
         return caps
     
-    def _create_mpe_capabilities(self) -> Dict[CapabilityType, Any]:
+    def _create_mpe_capabilities(self) -> dict[CapabilityType, Any]:
         """Create MPE-specific capabilities."""
         caps = self._create_gm_capabilities()
         caps.update({
@@ -687,7 +688,7 @@ class CapabilityDiscoverySystem:
         })
         return caps
     
-    def query_capability(self, device_id: str, capability_type: CapabilityType) -> Optional[Any]:
+    def query_capability(self, device_id: str, capability_type: CapabilityType) -> Any | None:
         """
         Query a specific capability of a device.
 
@@ -705,7 +706,7 @@ class CapabilityDiscoverySystem:
         device_caps = self.device_capabilities.get(device_id, {})
         return device_caps.get(capability_type)
     
-    def get_device_summary(self, device_id: str) -> Dict[str, Any]:
+    def get_device_summary(self, device_id: str) -> dict[str, Any]:
         """
         Get a summary of device capabilities.
 
@@ -820,7 +821,7 @@ class CapabilityDiscoverySystem:
         except (json.JSONDecodeError, TypeError):
             return False
     
-    def clear_device_cache(self, device_id: Optional[str] = None):
+    def clear_device_cache(self, device_id: str | None = None):
         """
         Clear device capability cache.
 
@@ -836,7 +837,7 @@ class CapabilityDiscoverySystem:
             self.device_capabilities.clear()
             self.device_identifiers.clear()
     
-    def get_all_known_devices(self) -> List[str]:
+    def get_all_known_devices(self) -> list[str]:
         """
         Get list of all known device IDs.
 

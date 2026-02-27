@@ -22,8 +22,10 @@ Example:
     while True:
         time.sleep(1)
 """
+from __future__ import annotations
 
-from typing import List, Optional, Callable, Any
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import logging
@@ -46,16 +48,16 @@ except ImportError:
 class MIDIBackend:
     """Abstract base class for MIDI backends."""
     
-    def get_input_names(self) -> List[str]:
+    def get_input_names(self) -> list[str]:
         raise NotImplementedError
     
-    def get_output_names(self) -> List[str]:
+    def get_output_names(self) -> list[str]:
         raise NotImplementedError
     
-    def open_input(self, name: str, callback: Callable[[MIDIMessage], None]) -> 'MIDIInputPort':
+    def open_input(self, name: str, callback: Callable[[MIDIMessage], None]) -> MIDIInputPort:
         raise NotImplementedError
     
-    def open_output(self, name: str, virtual: bool = False) -> 'MIDIOutputPort':
+    def open_output(self, name: str, virtual: bool = False) -> MIDIOutputPort:
         raise NotImplementedError
 
 
@@ -69,7 +71,7 @@ class RtMidiBackend(MIDIBackend):
         self.midi_out = rtmidi.MidiOut()
         self._input_ports = {}  # Keep references to prevent GC
     
-    def get_input_names(self) -> List[str]:
+    def get_input_names(self) -> list[str]:
         """Get list of available MIDI input port names."""
         try:
             return list(self.midi_in.get_ports())
@@ -77,7 +79,7 @@ class RtMidiBackend(MIDIBackend):
             logger.error(f"Failed to get MIDI input ports: {e}")
             return []
     
-    def get_output_names(self) -> List[str]:
+    def get_output_names(self) -> list[str]:
         """Get list of available MIDI output port names."""
         try:
             return list(self.midi_out.get_ports())
@@ -85,13 +87,13 @@ class RtMidiBackend(MIDIBackend):
             logger.error(f"Failed to get MIDI output ports: {e}")
             return []
     
-    def open_input(self, name: str, callback: Callable[[MIDIMessage], None]) -> 'MIDIInputPort':
+    def open_input(self, name: str, callback: Callable[[MIDIMessage], None]) -> MIDIInputPort:
         """Open a MIDI input port."""
         port = MIDIInputPort(name, self, callback)
         self._input_ports[name] = port
         return port
     
-    def open_output(self, name: str, virtual: bool = False) -> 'MIDIOutputPort':
+    def open_output(self, name: str, virtual: bool = False) -> MIDIOutputPort:
         """Open or create a MIDI output port."""
         return MIDIOutputPort(name, self, virtual)
 
@@ -254,7 +256,7 @@ class MIDIOutputPort:
 
 
 # Global backend instance
-_default_backend: Optional[MIDIBackend] = None
+_default_backend: MIDIBackend | None = None
 
 
 def _get_backend() -> MIDIBackend:
@@ -278,7 +280,7 @@ def _reset_backend():
 
 
 # High-level API (mido-compatible)
-def get_input_names() -> List[str]:
+def get_input_names() -> list[str]:
     """
     Get list of available MIDI input port names.
     
@@ -295,7 +297,7 @@ def get_input_names() -> List[str]:
     return _get_backend().get_input_names()
 
 
-def get_output_names() -> List[str]:
+def get_output_names() -> list[str]:
     """
     Get list of available MIDI output port names.
     
@@ -312,7 +314,7 @@ def get_output_names() -> List[str]:
     return _get_backend().get_output_names()
 
 
-def open_input(name: Optional[str] = None, callback: Optional[Callable[[MIDIMessage], None]] = None) -> MIDIInputPort:
+def open_input(name: str | None = None, callback: Callable[[MIDIMessage], None] | None = None) -> MIDIInputPort:
     """
     Open a MIDI input port.
     
@@ -347,7 +349,7 @@ def open_input(name: Optional[str] = None, callback: Optional[Callable[[MIDIMess
     return backend.open_input(name, callback)
 
 
-def open_output(name: Optional[str] = None, virtual: bool = False) -> MIDIOutputPort:
+def open_output(name: str | None = None, virtual: bool = False) -> MIDIOutputPort:
     """
     Open a MIDI output port.
     

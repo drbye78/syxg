@@ -2,6 +2,7 @@
 Core synthesis components for XG synthesizer.
 Contains fundamental building blocks for sound synthesis.
 """
+from __future__ import annotations
 
 from .envelope import ADSREnvelope
 from .oscillator import XGLFO

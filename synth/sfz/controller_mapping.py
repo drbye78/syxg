@@ -4,8 +4,10 @@ SFZ Advanced Controller Mapping System
 Provides sophisticated MIDI controller mapping with custom curves,
 ranges, and bipolar support for professional SFZ control.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Callable
+from typing import Any
+from collections.abc import Callable
 import math
 
 
@@ -55,9 +57,9 @@ class SFZControllerMapper:
 
     def __init__(self):
         """Initialize the controller mapper."""
-        self.controller_mappings: Dict[int, Dict[str, Any]] = {}
-        self.controller_groups: Dict[str, List[int]] = {}
-        self.smoothing_filters: Dict[int, float] = {}
+        self.controller_mappings: dict[int, dict[str, Any]] = {}
+        self.controller_groups: dict[str, list[int]] = {}
+        self.smoothing_filters: dict[int, float] = {}
         self.curve_functions = {
             'linear': ControllerCurve.linear,
             'exponential': lambda v: ControllerCurve.exponential(v, 2.0),
@@ -69,7 +71,7 @@ class SFZControllerMapper:
     def map_controller(self, cc_number: int, parameter: str,
                       curve: str = 'linear', min_val: float = 0.0,
                       max_val: float = 1.0, bipolar: bool = False,
-                      smoothing: float = 0.0, group: Optional[str] = None) -> bool:
+                      smoothing: float = 0.0, group: str | None = None) -> bool:
         """
         Map a MIDI CC to an SFZ parameter with advanced options.
 
@@ -151,7 +153,7 @@ class SFZControllerMapper:
             return True
         return False
 
-    def process_controller(self, cc_number: int, value: int) -> Dict[str, float]:
+    def process_controller(self, cc_number: int, value: int) -> dict[str, float]:
         """
         Process a MIDI controller value and return parameter updates.
 
@@ -196,7 +198,7 @@ class SFZControllerMapper:
 
         return {mapping['parameter']: param_value}
 
-    def process_controller_group(self, group_name: str, values: Dict[int, int]) -> Dict[str, float]:
+    def process_controller_group(self, group_name: str, values: dict[int, int]) -> dict[str, float]:
         """
         Process multiple controllers in a group simultaneously.
 
@@ -236,7 +238,7 @@ class SFZControllerMapper:
         alpha = 1.0 - smoothing
         return alpha * new_value + (1.0 - alpha) * last_value
 
-    def get_controller_mapping(self, cc_number: int) -> Optional[Dict[str, Any]]:
+    def get_controller_mapping(self, cc_number: int) -> dict[str, Any] | None:
         """
         Get the mapping for a specific controller.
 
@@ -248,7 +250,7 @@ class SFZControllerMapper:
         """
         return self.controller_mappings.get(cc_number)
 
-    def get_all_mappings(self) -> Dict[int, Dict[str, Any]]:
+    def get_all_mappings(self) -> dict[int, dict[str, Any]]:
         """
         Get all controller mappings.
 
@@ -257,7 +259,7 @@ class SFZControllerMapper:
         """
         return self.controller_mappings.copy()
 
-    def get_group_controllers(self, group_name: str) -> List[int]:
+    def get_group_controllers(self, group_name: str) -> list[int]:
         """
         Get all controllers in a group.
 
@@ -269,7 +271,7 @@ class SFZControllerMapper:
         """
         return self.controller_groups.get(group_name, []).copy()
 
-    def get_parameter_controllers(self, parameter: str) -> List[int]:
+    def get_parameter_controllers(self, parameter: str) -> list[int]:
         """
         Get all controllers mapped to a specific parameter.
 
@@ -291,7 +293,7 @@ class SFZControllerMapper:
         self.controller_groups.clear()
         self.smoothing_filters.clear()
 
-    def create_factory_preset(self, preset_name: str) -> Dict[str, Any]:
+    def create_factory_preset(self, preset_name: str) -> dict[str, Any]:
         """
         Create a factory preset mapping configuration.
 
@@ -344,7 +346,7 @@ class SFZControllerMapper:
 
         return {'name': 'Unknown Preset', 'mappings': []}
 
-    def load_preset(self, preset_config: Dict[str, Any]) -> bool:
+    def load_preset(self, preset_config: dict[str, Any]) -> bool:
         """
         Load a controller mapping preset.
 
@@ -373,7 +375,7 @@ class SFZControllerMapper:
         except (KeyError, TypeError):
             return False
 
-    def export_mappings(self) -> Dict[str, Any]:
+    def export_mappings(self) -> dict[str, Any]:
         """
         Export all controller mappings for serialization.
 
@@ -386,7 +388,7 @@ class SFZControllerMapper:
             'smoothing_filters': self.smoothing_filters.copy()
         }
 
-    def import_mappings(self, data: Dict[str, Any]) -> bool:
+    def import_mappings(self, data: dict[str, Any]) -> bool:
         """
         Import controller mappings from serialized data.
 

@@ -18,9 +18,10 @@ Architecture:
 - Pre-calculated phase transition points for zero-branch execution
 - Contiguous memory layouts optimized for cache efficiency
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Any
 import threading
 from collections import deque
 import numba as nb
@@ -241,7 +242,7 @@ class EnvelopePool:
             self.pool.append(envelope)
 
     def acquire_envelope(self, delay=0.0, attack=0.01, hold=0.0, decay=0.3,
-                        sustain=0.7, release=0.5, velocity_sense=1.0, key_scaling=0.0) -> 'UltraFastADSREnvelope':
+                        sustain=0.7, release=0.5, velocity_sense=1.0, key_scaling=0.0) -> UltraFastADSREnvelope:
         """
         ULTRA-FAST: Acquire envelope from pool or create new one.
 
@@ -279,7 +280,7 @@ class EnvelopePool:
                 memory_pool=self.memory_pool, sample_rate=self.sample_rate
             )
 
-    def release_envelope(self, envelope: 'UltraFastADSREnvelope') -> None:
+    def release_envelope(self, envelope: UltraFastADSREnvelope) -> None:
         """
         ULTRA-FAST: Return envelope to pool.
 
@@ -300,7 +301,7 @@ class EnvelopePool:
             # Error during reset - just discard
             pass
 
-    def get_pool_stats(self) -> Dict[str, int]:
+    def get_pool_stats(self) -> dict[str, int]:
         """Get pool statistics for monitoring."""
         return {
             'pooled_envelopes': len(self.pool),
@@ -637,7 +638,7 @@ class UltraFastADSREnvelope:
 
         self.parameter_transition_counter += 1
 
-    def generate_block(self, output_buffer: np.ndarray, num_samples: Optional[int] = None) -> np.ndarray:
+    def generate_block(self, output_buffer: np.ndarray, num_samples: int | None = None) -> np.ndarray:
         """
         ULTRA-FAST: Generate envelope block using caller-provided buffer.
 

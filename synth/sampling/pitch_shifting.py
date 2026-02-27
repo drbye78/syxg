@@ -5,9 +5,10 @@ Provides sophisticated pitch shifting algorithms for sample manipulation,
 including formant preservation, phase vocoder, and harmonic manipulation
 for professional audio processing in the XG synthesizer.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 
 
@@ -489,7 +490,7 @@ class PitchShiftingEngine:
                 return True
             return False
 
-    def get_pitch_info(self) -> Dict[str, Any]:
+    def get_pitch_info(self) -> dict[str, Any]:
         """
         Get current pitch shifting configuration.
 
@@ -546,15 +547,15 @@ class PitchShiftingEngine:
 
         return latency <= max_realtime_latency
 
-    def get_supported_algorithms(self) -> List[str]:
+    def get_supported_algorithms(self) -> list[str]:
         """Get list of supported algorithms."""
         return ["phase_vocoder", "resampling", "harmonic"]
 
-    def get_supported_qualities(self) -> List[str]:
+    def get_supported_qualities(self) -> list[str]:
         """Get list of supported quality levels."""
         return ["fast", "standard", "high"]
 
-    def get_pitch_range(self) -> Tuple[float, float]:
+    def get_pitch_range(self) -> tuple[float, float]:
         """
         Get supported pitch ratio range.
 
@@ -563,7 +564,7 @@ class PitchShiftingEngine:
         """
         return (0.25, 4.0)
 
-    def get_formant_range(self) -> Tuple[float, float]:
+    def get_formant_range(self) -> tuple[float, float]:
         """
         Get supported formant ratio range.
 

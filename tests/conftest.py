@@ -1,6 +1,7 @@
 """
 Pytest fixtures for vibexg tests
 """
+from __future__ import annotations
 
 import pytest
 import tempfile

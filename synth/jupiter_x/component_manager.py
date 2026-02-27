@@ -4,8 +4,9 @@ Jupiter-X Component Manager
 Central hub for all Jupiter-X components, managing the 16-part multitimbral
 system, global parameters, and integration with the modern synthesizer.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 import numpy as np
 
@@ -184,7 +185,7 @@ class JupiterXEffectsParameters:
 
             return True
 
-    def get_parameter(self, addr_high: int, addr_mid: int, addr_low: int) -> Optional[int]:
+    def get_parameter(self, addr_high: int, addr_mid: int, addr_low: int) -> int | None:
         """Get effects parameter by address."""
         with self.lock:
             # Reverb parameters
@@ -261,7 +262,7 @@ class JupiterXComponentManager:
         self.parts = [JupiterXPart(i, sample_rate) for i in range(16)]
 
         # Voice allocation (monophonic per part)
-        self.active_parts: Dict[int, bool] = {i: False for i in range(16)}
+        self.active_parts: dict[int, bool] = {i: False for i in range(16)}
 
         # Thread safety
         self.lock = threading.RLock()
@@ -304,7 +305,7 @@ class JupiterXComponentManager:
 
             return False
 
-    def get_parameter_value(self, address: bytes) -> Optional[int]:
+    def get_parameter_value(self, address: bytes) -> int | None:
         """
         Get parameter value by address.
 
@@ -397,7 +398,7 @@ class JupiterXComponentManager:
 
             return output
 
-    def get_part(self, part_number: int) -> Optional[JupiterXPart]:
+    def get_part(self, part_number: int) -> JupiterXPart | None:
         """Get part by number."""
         with self.lock:
             if 0 <= part_number < 16:
@@ -418,7 +419,7 @@ class JupiterXComponentManager:
                     return part.set_parameter(param_id, value)
         return False
 
-    def _map_nrpn_to_part_param(self, param_id: int) -> Optional[str]:
+    def _map_nrpn_to_part_param(self, param_id: int) -> str | None:
         """Map NRPN parameter ID to part parameter name."""
         # Oscillator parameters (0x00-0x0B)
         if param_id == 0x00:
@@ -502,7 +503,7 @@ class JupiterXComponentManager:
 
         return None
 
-    def get_part_parameter(self, part_number: int, param_id: int) -> Optional[int]:
+    def get_part_parameter(self, part_number: int, param_id: int) -> int | None:
         """Get parameter from a specific part."""
         with self.lock:
             part = self.get_part(part_number)
@@ -556,7 +557,7 @@ class JupiterXComponentManager:
                             return engine.set_parameter(param_name, value)
         return False
 
-    def _map_engine_param_id_to_name(self, engine_type: int, param_id: int) -> Optional[str]:
+    def _map_engine_param_id_to_name(self, engine_type: int, param_id: int) -> str | None:
         """Map engine parameter ID to parameter name based on engine type."""
         # Import here to avoid circular imports
         from .constants import (ENGINE_ANALOG, ANALOG_OSC1_WAVEFORM, ANALOG_OSC1_COARSE_TUNE,
@@ -612,7 +613,7 @@ class JupiterXComponentManager:
             self.system_params.reset_to_defaults()
             self.effects_params.reset_to_defaults()
 
-    def get_system_info(self) -> Dict[str, Any]:
+    def get_system_info(self) -> dict[str, Any]:
         """Get comprehensive Jupiter-X system information."""
         with self.lock:
             return {

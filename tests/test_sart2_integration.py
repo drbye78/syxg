@@ -3,10 +3,11 @@ S.Art2 Integration Tests
 
 Tests for full S.Art2 integration with Modern XG Synth.
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np
-from typing import Dict, Any
+from typing import Any
 
 from synth.xg.sart.articulation_controller import ArticulationController
 from synth.xg.sart.articulation_preset import ArticulationPreset, ArticulationPresetManager

@@ -7,6 +7,7 @@ Tests for the StyleLoader class including:
 - Style validation
 - Style creation utilities
 """
+from __future__ import annotations
 
 import pytest
 import tempfile

@@ -4,6 +4,7 @@ S90/S70 Specific Features Implementation
 Hardware-specific parameters, behaviors, and compatibility features
 for authentic S90/S70 emulation.
 """
+from __future__ import annotations
 
 from .hardware_specifications import S90S70HardwareSpecs
 from .preset_compatibility import S90S70PresetCompatibility

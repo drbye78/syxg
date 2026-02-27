@@ -5,8 +5,10 @@ Complete XGML v3.0 configuration management with hot-reloading support,
 workstation features, and smooth parameter transitions for professional
 synthesizer configuration and real-time parameter updates.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -42,7 +44,7 @@ class XGMLConfigSystem:
         self._hot_reload_last_check = time.time()
         self._hot_reload_thread = None
 
-    def load_xgml_config(self, xgml_path: Union[str, Path]) -> bool:
+    def load_xgml_config(self, xgml_path: str | Path) -> bool:
         """
         Load XGML v3.0 configuration from file.
 
@@ -234,7 +236,7 @@ class XGMLConfigSystem:
                 print(f"❌ Rollback also failed: {rollback_error}")
             return False
 
-    def _apply_effects_processing_with_transitions(self, effects_config: Dict[str, Any]):
+    def _apply_effects_processing_with_transitions(self, effects_config: dict[str, Any]):
         """
         Apply effects processing with smooth parameter transitions.
 
@@ -254,7 +256,7 @@ class XGMLConfigSystem:
         # 2. Apply changes gradually over several audio blocks
         # 3. Handle crossfading between different effect types
 
-    def _capture_current_state(self) -> Dict[str, Any]:
+    def _capture_current_state(self) -> dict[str, Any]:
         """Capture current synthesizer state for potential rollback."""
         # In a full implementation, this would capture all configurable state
         # For now, return minimal state
@@ -263,7 +265,7 @@ class XGMLConfigSystem:
             'description': 'Captured state for hot-reload rollback'
         }
 
-    def _capture_effects_state(self) -> Dict[str, Any]:
+    def _capture_effects_state(self) -> dict[str, Any]:
         """Capture current effects processing state."""
         # Capture current effect parameters for smooth transitions
         return {
@@ -273,13 +275,13 @@ class XGMLConfigSystem:
             'timestamp': time.time()
         }
 
-    def _restore_state(self, state: Dict[str, Any]):
+    def _restore_state(self, state: dict[str, Any]):
         """Restore synthesizer state from captured snapshot."""
         # In a full implementation, this would restore all state
         # For now, this is a placeholder
         print(f"🔄 Attempting to restore state from {state.get('timestamp', 'unknown time')}")
 
-    def _apply_synthesizer_core_config(self, core_config: Dict[str, Any]):
+    def _apply_synthesizer_core_config(self, core_config: dict[str, Any]):
         """Apply synthesizer core configuration."""
         if 'audio' in core_config:
             audio_config = core_config['audio']
@@ -300,7 +302,7 @@ class XGMLConfigSystem:
             if monitor_config.get('enabled', False):
                 print("ℹ️  Performance monitoring enabled")
 
-    def _apply_workstation_features_config(self, features_config: Dict[str, Any]):
+    def _apply_workstation_features_config(self, features_config: dict[str, Any]):
         """Apply workstation features configuration."""
         # Motif arpeggiator system
         if 'motif_integration' in features_config:
@@ -322,7 +324,7 @@ class XGMLConfigSystem:
             channels = multi_config.get('channels', 16)
             print(f"🎹 Multi-timbral channels: {channels}")
 
-    def _apply_synthesis_engines_config(self, engines_config: Dict[str, Any]):
+    def _apply_synthesis_engines_config(self, engines_config: dict[str, Any]):
         """Apply synthesis engines configuration."""
         registry_config = engines_config.get('registry', {})
 
@@ -357,7 +359,7 @@ class XGMLConfigSystem:
             if engine_config and engine_config.get('enabled', True):
                 print(f"🎹 {engine_name.upper()} configured")
 
-    def _apply_effects_processing_config(self, effects_config: Dict[str, Any]):
+    def _apply_effects_processing_config(self, effects_config: dict[str, Any]):
         """Apply effects processing configuration."""
         if 'coordinator' in effects_config:
             coord_config = effects_config['coordinator']
@@ -379,7 +381,7 @@ class XGMLConfigSystem:
             ins_effects = effects_config['insertion_effects']
             print(f"🎹 {len(ins_effects)} insertion effects configured")
 
-    def _apply_modulation_system_config(self, modulation_config: Dict[str, Any]):
+    def _apply_modulation_system_config(self, modulation_config: dict[str, Any]):
         """Apply modulation system configuration."""
         matrix_config = modulation_config.get('matrix', {})
 
@@ -391,7 +393,7 @@ class XGMLConfigSystem:
                 routes = matrix_config['routes']
                 print(f"🎹 {len(routes)} modulation routes configured")
 
-    def _apply_performance_controls_config(self, controls_config: Dict[str, Any]):
+    def _apply_performance_controls_config(self, controls_config: dict[str, Any]):
         """Apply performance controls configuration."""
         if 'assignable_knobs' in controls_config:
             knobs = controls_config['assignable_knobs']
@@ -405,7 +407,7 @@ class XGMLConfigSystem:
             snapshots = controls_config['snapshots']
             print(f"🎹 {len(snapshots)} performance snapshots configured")
 
-    def _apply_sequencing_config(self, sequencing_config: Dict[str, Any]):
+    def _apply_sequencing_config(self, sequencing_config: dict[str, Any]):
         """Apply sequencing configuration."""
         if 'sequencer_core' in sequencing_config:
             seq_core = sequencing_config['sequencer_core']
@@ -417,7 +419,7 @@ class XGMLConfigSystem:
             patterns = sequencing_config['patterns']
             print(f"🎹 {len(patterns)} sequence patterns loaded")
 
-    def enable_config_hot_reloading(self, watch_paths: Optional[List[Union[str, Path]]] = None,
+    def enable_config_hot_reloading(self, watch_paths: list[str | Path] | None = None,
                                    check_interval: float = 1.0) -> bool:
         """
         Enable configuration hot-reloading for XGML files.
@@ -482,7 +484,7 @@ class XGMLConfigSystem:
             print(f"❌ Failed to disable hot-reloading: {e}")
             return False
 
-    def add_hot_reload_watch_path(self, path: Union[str, Path]) -> bool:
+    def add_hot_reload_watch_path(self, path: str | Path) -> bool:
         """
         Add a path to watch for configuration changes.
 
@@ -508,7 +510,7 @@ class XGMLConfigSystem:
             print(f"❌ Failed to add watch path {path}: {e}")
             return False
 
-    def remove_hot_reload_watch_path(self, path: Union[str, Path]) -> bool:
+    def remove_hot_reload_watch_path(self, path: str | Path) -> bool:
         """
         Remove a path from hot-reload watching.
 
@@ -530,7 +532,7 @@ class XGMLConfigSystem:
             print(f"❌ Failed to remove watch path {path}: {e}")
             return False
 
-    def get_hot_reload_status(self) -> Dict[str, Any]:
+    def get_hot_reload_status(self) -> dict[str, Any]:
         """
         Get hot-reloading status information.
 
@@ -646,7 +648,7 @@ class XGMLConfigSystem:
         except Exception as e:
             print(f"❌ Error reloading configuration from {path}: {e}")
 
-    def trigger_manual_config_reload(self, path: Optional[Union[str, Path]] = None) -> bool:
+    def trigger_manual_config_reload(self, path: str | Path | None = None) -> bool:
         """
         Manually trigger configuration reload.
 
@@ -737,7 +739,7 @@ basic_messages:
 """
         return template
 
-    def create_xgml_config_from_current_state(self) -> Optional[str]:
+    def create_xgml_config_from_current_state(self) -> str | None:
         """
         Create an XGML v3.0 configuration from the current synthesizer state.
 

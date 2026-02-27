@@ -4,9 +4,10 @@ Recording Engine - Real-time MIDI and Audio Recording
 Provides comprehensive recording capabilities for the XG sequencer,
 including MIDI sequence recording, audio recording, and overdub features.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 import time
 import os
@@ -38,7 +39,7 @@ class RecordingEngine:
         self.recording_start_time = 0
 
         # Track management
-        self.tracks: Dict[int, Dict[str, Any]] = {}
+        self.tracks: dict[int, dict[str, Any]] = {}
         self.active_record_tracks: set = set()
 
         # Recording parameters
@@ -61,12 +62,12 @@ class RecordingEngine:
         self.record_monitoring = True
 
         # Audio recording buffers
-        self.audio_buffers: Dict[int, List[np.ndarray]] = {}
-        self.current_audio_buffer: Optional[np.ndarray] = None
+        self.audio_buffers: dict[int, list[np.ndarray]] = {}
+        self.current_audio_buffer: np.ndarray | None = None
 
         # Threading
         self.lock = threading.RLock()
-        self.recording_thread: Optional[threading.Thread] = None
+        self.recording_thread: threading.Thread | None = None
 
     def start_recording(
         self, track_number: int, record_type: str = "midi", start_position: int = 0
@@ -130,7 +131,7 @@ class RecordingEngine:
             print("⏹️  Recording stopped")
             return True
 
-    def record_midi_event(self, track_number: int, event_data: Dict[str, Any]) -> bool:
+    def record_midi_event(self, track_number: int, event_data: dict[str, Any]) -> bool:
         """
         Record a MIDI event on a track.
 
@@ -309,7 +310,7 @@ class RecordingEngine:
             self.replace_enabled = not enabled
             return True
 
-    def get_recording_status(self) -> Dict[str, Any]:
+    def get_recording_status(self) -> dict[str, Any]:
         """
         Get current recording status.
 
@@ -332,7 +333,7 @@ class RecordingEngine:
                 "time_signature": self.time_signature,
             }
 
-    def get_track_data(self, track_number: int) -> Optional[Dict[str, Any]]:
+    def get_track_data(self, track_number: int) -> dict[str, Any] | None:
         """
         Get recorded data for a track.
 
@@ -394,7 +395,7 @@ class RecordingEngine:
             else:
                 return False
 
-    def _export_midi(self, track: Dict[str, Any], filename: str) -> bool:
+    def _export_midi(self, track: dict[str, Any], filename: str) -> bool:
         """Export MIDI track to file."""
         from ..midi.file_writer import MIDIFileWriter
 
@@ -440,7 +441,7 @@ class RecordingEngine:
             print(f"Error exporting MIDI: {e}")
             return False
 
-    def _export_wav(self, track: Dict[str, Any], filename: str) -> bool:
+    def _export_wav(self, track: dict[str, Any], filename: str) -> bool:
         """Export audio track to WAV file."""
         try:
             import wave
@@ -655,7 +656,7 @@ class RecordingEngine:
             self.quantize_grid = grid_size
             return True
 
-    def get_recording_stats(self) -> Dict[str, Any]:
+    def get_recording_stats(self) -> dict[str, Any]:
         """
         Get recording statistics.
 

@@ -5,8 +5,9 @@ Plugin that adds Jupiter-X specific FM synthesis features to the base FM engine.
 Eliminates duplication by extending the existing FMEngine rather than creating
 a parallel implementation.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import numpy as np
 
 from ..base_plugin import (
@@ -144,7 +145,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         }
 
         # Ring modulation connections
-        self.ring_mod_connections: List[Tuple[int, int]] = []
+        self.ring_mod_connections: list[tuple[int, int]] = []
 
         # Operator detuning and pitch modulation
         self.operator_detune_amounts = [0.0] * 6  # In semitones
@@ -213,7 +214,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
             self.fm_engine.add_ring_modulation_connection(2, 3)
             self.ring_mod_connections = [(0, 1), (2, 3)]
 
-    def get_synthesis_features(self) -> Dict[str, Any]:
+    def get_synthesis_features(self) -> dict[str, Any]:
         """Get Jupiter-X FM synthesis features."""
         return {
             'vocal_formants': {
@@ -254,7 +255,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def get_parameters(self) -> Dict[str, Any]:
+    def get_parameters(self) -> dict[str, Any]:
         """Get current parameter values."""
         return {
             "vocal_formants": self.vocal_formants_enabled,
@@ -323,8 +324,8 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
             if hasattr(self.fm_engine, 'configure_formant_operator'):
                 self.fm_engine.configure_formant_operator(3, self.vowel_formants[vowel])
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
-                        block_size: int) -> Optional[np.ndarray]:
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
+                        block_size: int) -> np.ndarray | None:
         """
         Generate additional FM samples with Jupiter-X features.
 
@@ -392,7 +393,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Operator stereo {'enabled' if enabled else 'disabled'}")
 
-    def set_operator_pan_positions(self, pan_positions: List[float]):
+    def set_operator_pan_positions(self, pan_positions: list[float]):
         """Set pan positions for each operator (-1.0 to 1.0)."""
         self.operator_pan_positions = [max(-1.0, min(1.0, p)) for p in pan_positions[:6]]
 
@@ -401,7 +402,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Operator pan positions set: {self.operator_pan_positions}")
 
-    def set_operator_velocity_scaling(self, scaling_factors: List[float]):
+    def set_operator_velocity_scaling(self, scaling_factors: list[float]):
         """Set velocity scaling for each operator."""
         self.operator_velocity_scaling = [max(0.0, min(2.0, s)) for s in scaling_factors[:6]]
 
@@ -410,7 +411,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Operator velocity scaling: {self.operator_velocity_scaling}")
 
-    def set_operator_key_scaling(self, scaling_factors: List[float]):
+    def set_operator_key_scaling(self, scaling_factors: list[float]):
         """Set key scaling for each operator."""
         self.operator_key_scaling = [max(0.0, min(2.0, s)) for s in scaling_factors[:6]]
 
@@ -458,7 +459,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Dynamic algorithm switching {'enabled' if enabled else 'disabled'} (threshold: {self.algorithm_switch_threshold:.2f})")
 
-    def set_operator_detuning(self, detune_amounts: List[float]):
+    def set_operator_detuning(self, detune_amounts: list[float]):
         """Set detuning amounts for each operator (in semitones)."""
         self.operator_detune_amounts = [max(-12.0, min(12.0, d)) for d in detune_amounts[:6]]
 
@@ -467,7 +468,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Operator detuning: {self.operator_detune_amounts}")
 
-    def set_operator_pitch_modulation(self, modulation_depths: List[float]):
+    def set_operator_pitch_modulation(self, modulation_depths: list[float]):
         """Set pitch modulation depths for each operator."""
         self.operator_pitch_modulation = [max(0.0, min(1.0, m)) for m in modulation_depths[:6]]
 
@@ -476,7 +477,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Operator pitch modulation: {self.operator_pitch_modulation}")
 
-    def set_operator_amplitude_modulation(self, modulation_depths: List[float]):
+    def set_operator_amplitude_modulation(self, modulation_depths: list[float]):
         """Set amplitude modulation depths for each operator."""
         self.operator_amplitude_modulation = [max(0.0, min(1.0, m)) for m in modulation_depths[:6]]
 
@@ -485,7 +486,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Operator amplitude modulation: {self.operator_amplitude_modulation}")
 
-    def create_custom_algorithm(self, name: str, connections: List[Tuple[int, int, float]]) -> bool:
+    def create_custom_algorithm(self, name: str, connections: list[tuple[int, int, float]]) -> bool:
         """Create a custom FM algorithm with specified operator connections."""
         if not self.fm_engine or not hasattr(self.fm_engine, 'create_custom_algorithm'):
             return False
@@ -519,7 +520,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         return self.fm_engine.apply_formant_to_operator(operator_index, self.vowel_formants[vowel])
 
-    def set_feedback_routing_matrix(self, routing_matrix: List[List[float]]) -> bool:
+    def set_feedback_routing_matrix(self, routing_matrix: list[list[float]]) -> bool:
         """Set custom feedback routing matrix for operators."""
         if not self.multiple_feedback_paths or not self.fm_engine:
             return False
@@ -536,7 +537,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         return self.fm_engine.set_feedback_routing_matrix(clamped_matrix)
 
-    def get_advanced_fm_features(self) -> Dict[str, Any]:
+    def get_advanced_fm_features(self) -> dict[str, Any]:
         """Get status of all advanced FM features."""
         return {
             'algorithm_morphing': {
@@ -582,7 +583,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
             }
         }
 
-    def get_fm_x_status(self) -> Dict[str, Any]:
+    def get_fm_x_status(self) -> dict[str, Any]:
         """Get Jupiter-X FM engine status."""
         return {
             'vocal_formants': self.vocal_formants_enabled,

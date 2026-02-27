@@ -5,9 +5,10 @@ Part of the unified region-based synthesis architecture.
 IRegion defines the common interface for all region types (SF2, FM, Additive, etc.)
 with support for lazy initialization and on-demand sample loading.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 from enum import IntEnum
 import numpy as np
 
@@ -70,18 +71,18 @@ class IRegion(ABC):
         self.current_velocity = 0
         
         # Lazy-loaded resources
-        self._sample_data: Optional[np.ndarray] = None
-        self._partial: Optional[Any] = None
+        self._sample_data: np.ndarray | None = None
+        self._partial: Any | None = None
         self._initialized = False
         
         # Processing
-        self._modulation_state: Dict[str, float] = {}
-        self._envelopes: Dict[str, Any] = {}
-        self._filters: Dict[str, Any] = {}
+        self._modulation_state: dict[str, float] = {}
+        self._envelopes: dict[str, Any] = {}
+        self._filters: dict[str, Any] = {}
         
         # Buffers (allocated on demand)
-        self._output_buffer: Optional[np.ndarray] = None
-        self._work_buffer: Optional[np.ndarray] = None
+        self._output_buffer: np.ndarray | None = None
+        self._work_buffer: np.ndarray | None = None
     
     # ========== LIFECYCLE MANAGEMENT ==========
     
@@ -128,7 +129,7 @@ class IRegion(ABC):
             return False
     
     @abstractmethod
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """
         Load sample data (SF2/SFZ override, others return None).
         
@@ -138,7 +139,7 @@ class IRegion(ABC):
         pass
     
     @abstractmethod
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create synthesis partial for audio generation.
         
@@ -213,7 +214,7 @@ class IRegion(ABC):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate audio samples for this region.
@@ -227,7 +228,7 @@ class IRegion(ABC):
         """
         pass
     
-    def update_modulation(self, modulation: Dict[str, float]) -> None:
+    def update_modulation(self, modulation: dict[str, float]) -> None:
         """
         Update modulation state.
         
@@ -327,7 +328,7 @@ class IRegion(ABC):
     
     # ========== UTILITY METHODS ==========
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """
         Get information about this region.
         

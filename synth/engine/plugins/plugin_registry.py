@@ -4,11 +4,12 @@ Plugin Registry System
 Manages discovery, loading, and lifecycle of engine plugins.
 Provides dependency resolution, compatibility checking, and plugin management.
 """
+from __future__ import annotations
 
 import importlib
 import inspect
 import pkgutil
-from typing import Dict, List, Any, Optional, Type, Set
+from typing import Any
 from pathlib import Path
 import traceback
 
@@ -37,11 +38,11 @@ class PluginRegistry:
     """
 
     def __init__(self):
-        self._plugins: Dict[str, BaseEnginePlugin] = {}  # name -> plugin instance
-        self._plugin_classes: Dict[str, Type[BaseEnginePlugin]] = {}  # name -> plugin class
-        self._loaded_plugins: Set[str] = set()  # Currently loaded plugin names
-        self._plugin_dependencies: Dict[str, Set[str]] = {}  # plugin -> dependencies
-        self._reverse_dependencies: Dict[str, Set[str]] = {}  # plugin -> dependents
+        self._plugins: dict[str, BaseEnginePlugin] = {}  # name -> plugin instance
+        self._plugin_classes: dict[str, type[BaseEnginePlugin]] = {}  # name -> plugin class
+        self._loaded_plugins: set[str] = set()  # Currently loaded plugin names
+        self._plugin_dependencies: dict[str, set[str]] = {}  # plugin -> dependencies
+        self._reverse_dependencies: dict[str, set[str]] = {}  # plugin -> dependents
 
         # Plugin search paths
         self._search_paths = [
@@ -51,7 +52,7 @@ class PluginRegistry:
             # Add more synthesizer-specific plugin directories as needed
         ]
 
-    def register_plugin_class(self, name: str, plugin_class: Type[BaseEnginePlugin]) -> bool:
+    def register_plugin_class(self, name: str, plugin_class: type[BaseEnginePlugin]) -> bool:
         """
         Register a plugin class with the registry.
 
@@ -198,7 +199,7 @@ class PluginRegistry:
             print(f"Failed to unload plugin '{name}': {e}")
             return False
 
-    def get_plugin(self, name: str) -> Optional[BaseEnginePlugin]:
+    def get_plugin(self, name: str) -> BaseEnginePlugin | None:
         """
         Get a loaded plugin instance.
 
@@ -222,7 +223,7 @@ class PluginRegistry:
         """
         return name in self._loaded_plugins
 
-    def get_loaded_plugins(self) -> Dict[str, BaseEnginePlugin]:
+    def get_loaded_plugins(self) -> dict[str, BaseEnginePlugin]:
         """
         Get all currently loaded plugins.
 
@@ -231,7 +232,7 @@ class PluginRegistry:
         """
         return self._plugins.copy()
 
-    def get_available_plugins(self) -> Dict[str, Type[BaseEnginePlugin]]:
+    def get_available_plugins(self) -> dict[str, type[BaseEnginePlugin]]:
         """
         Get all registered plugin classes.
 
@@ -321,7 +322,7 @@ class PluginRegistry:
             if dep not in self._loaded_plugins:
                 self.load_plugin(dep)
 
-    def get_plugin_info(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_plugin_info(self, name: str) -> dict[str, Any] | None:
         """
         Get information about a plugin.
 
@@ -373,7 +374,7 @@ class PluginRegistry:
 
         return None
 
-    def get_plugins_by_type(self, plugin_type: PluginType) -> List[str]:
+    def get_plugins_by_type(self, plugin_type: PluginType) -> list[str]:
         """
         Get all plugins of a specific type.
 
@@ -400,7 +401,7 @@ class PluginRegistry:
 
         return matching_plugins
 
-    def get_plugins_for_engine(self, engine_type: str) -> List[str]:
+    def get_plugins_for_engine(self, engine_type: str) -> list[str]:
         """
         Get all plugins compatible with a specific engine type.
 
@@ -447,7 +448,7 @@ class PluginRegistry:
 
         return plugin.check_compatibility(engine_type, engine_version)
 
-    def get_dependency_graph(self) -> Dict[str, List[str]]:
+    def get_dependency_graph(self) -> dict[str, list[str]]:
         """
         Get the plugin dependency graph.
 

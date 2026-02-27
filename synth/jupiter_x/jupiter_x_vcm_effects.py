@@ -5,9 +5,10 @@ Provides Jupiter-X style VCM (Virtual Circuit Modeling) effects that accurately
 replicate the analog circuit behavior of classic effects processors, including
 distortion, phaser, chorus, delay, and reverb algorithms.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import math
 from ..effects.effects_coordinator import XGEffectsCoordinator
 
@@ -53,7 +54,7 @@ class JupiterXVCMEffects:
         self.vcm_delay = JupiterXVCMDelay(self.sample_rate)
         self.vcm_reverb = JupiterXVCMReverb(self.sample_rate)
 
-    def process_vcm_chain(self, audio: np.ndarray, parameters: Optional[Dict[str, Any]] = None) -> np.ndarray:
+    def process_vcm_chain(self, audio: np.ndarray, parameters: dict[str, Any] | None = None) -> np.ndarray:
         """
         Process audio through the complete Jupiter-X VCM effects chain.
 
@@ -107,7 +108,7 @@ class JupiterXVCMEffects:
 
         return self.output_buffer[:len(audio)]
 
-    def _apply_vcm_parameters(self, parameters: Dict[str, Any]):
+    def _apply_vcm_parameters(self, parameters: dict[str, Any]):
         """Apply VCM parameter settings to individual processors."""
         # Distortion parameters
         if 'distortion_drive' in parameters:
@@ -166,7 +167,7 @@ class JupiterXVCMEffects:
         if effect_name in effect_map:
             effect_map[effect_name].enabled = enabled
 
-    def get_vcm_status(self) -> Dict[str, Any]:
+    def get_vcm_status(self) -> dict[str, Any]:
         """
         Get current VCM effects status.
 

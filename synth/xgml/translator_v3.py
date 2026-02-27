@@ -8,8 +8,9 @@ Advanced translator for XGML v3.0 with complete feature support including:
 - Real-time parameter mapping
 - Performance optimization
 """
+from __future__ import annotations
 
-from typing import Dict, Any, List, Optional, Union
+from typing import Any
 from dataclasses import dataclass
 from enum import Enum
 
@@ -25,7 +26,7 @@ class TranslationError(Exception):
 class EngineTranslator:
     """Base class for engine-specific translators."""
 
-    def translate(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def translate(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate engine configuration to MIDI messages."""
         raise NotImplementedError
 
@@ -33,7 +34,7 @@ class EngineTranslator:
 class SF2EngineTranslator(EngineTranslator):
     """SF2 engine configuration translator."""
 
-    def translate(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def translate(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate SF2 engine configuration."""
         messages = []
 
@@ -77,7 +78,7 @@ class SF2EngineTranslator(EngineTranslator):
 class FMXEngineTranslator(EngineTranslator):
     """FM-X engine configuration translator."""
 
-    def translate(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def translate(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate FM-X engine configuration."""
         messages = []
 
@@ -135,7 +136,7 @@ class FMXEngineTranslator(EngineTranslator):
 
         return messages
 
-    def _generate_rpn_sequence(self, channel: int, msb: int, lsb: int, value: int) -> List[MIDIMessage]:
+    def _generate_rpn_sequence(self, channel: int, msb: int, lsb: int, value: int) -> list[MIDIMessage]:
         """Generate RPN parameter sequence."""
         return [
             MIDIMessage(type='control_change', channel=channel, data={'controller': 101, 'value': msb}),  # RPN MSB
@@ -147,7 +148,7 @@ class FMXEngineTranslator(EngineTranslator):
 class PhysicalEngineTranslator(EngineTranslator):
     """Physical modeling engine configuration translator."""
 
-    def translate(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def translate(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate physical modeling engine configuration."""
         messages = []
 
@@ -175,7 +176,7 @@ class PhysicalEngineTranslator(EngineTranslator):
 
         return messages
 
-    def _translate_string_model(self, params: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_string_model(self, params: dict[str, Any]) -> list[MIDIMessage]:
         """Translate string model parameters."""
         messages = []
 
@@ -191,19 +192,19 @@ class PhysicalEngineTranslator(EngineTranslator):
 
         return messages
 
-    def _translate_woodwind_model(self, params: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_woodwind_model(self, params: dict[str, Any]) -> list[MIDIMessage]:
         """Translate woodwind model parameters."""
         messages = []
         # Implementation depends on target synthesizer capabilities
         return messages
 
-    def _translate_brass_model(self, params: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_brass_model(self, params: dict[str, Any]) -> list[MIDIMessage]:
         """Translate brass model parameters."""
         messages = []
         # Implementation depends on target synthesizer capabilities
         return messages
 
-    def _translate_percussion_model(self, params: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_percussion_model(self, params: dict[str, Any]) -> list[MIDIMessage]:
         """Translate percussion model parameters."""
         messages = []
         # Implementation depends on target synthesizer capabilities
@@ -213,7 +214,7 @@ class PhysicalEngineTranslator(EngineTranslator):
 class SpectralEngineTranslator(EngineTranslator):
     """Spectral processing engine configuration translator."""
 
-    def translate(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def translate(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate spectral processing engine configuration."""
         messages = []
 
@@ -271,7 +272,7 @@ class SpectralEngineTranslator(EngineTranslator):
 class WorkstationTranslator:
     """Workstation feature translator."""
 
-    def translate(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def translate(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate workstation features to MIDI messages."""
         messages = []
 
@@ -299,7 +300,7 @@ class WorkstationTranslator:
 
         return messages
 
-    def _translate_motif_arpeggiator(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_motif_arpeggiator(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate Motif arpeggiator configuration."""
         messages = []
 
@@ -317,7 +318,7 @@ class WorkstationTranslator:
 
         return messages
 
-    def _translate_awm_stereo(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_awm_stereo(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate S90/S70 AWM Stereo configuration."""
         messages = []
 
@@ -335,7 +336,7 @@ class WorkstationTranslator:
 
         return messages
 
-    def _translate_multi_timbral(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_multi_timbral(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate multi-timbral configuration."""
         messages = []
 
@@ -347,7 +348,7 @@ class WorkstationTranslator:
 
         return messages
 
-    def _translate_xg_effects(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_xg_effects(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate XG effects configuration."""
         messages = []
 
@@ -371,7 +372,7 @@ class WorkstationTranslator:
 
         return messages
 
-    def _generate_nrpn_sequence(self, channel: Optional[int], msb: int, lsb: int, value: int) -> List[MIDIMessage]:
+    def _generate_nrpn_sequence(self, channel: int | None, msb: int, lsb: int, value: int) -> list[MIDIMessage]:
         """Generate NRPN parameter sequence."""
         actual_channel = channel if channel is not None else 0
         return [
@@ -384,7 +385,7 @@ class WorkstationTranslator:
 class EffectsTranslator:
     """Effects processing configuration translator."""
 
-    def translate(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def translate(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate effects configuration."""
         messages = []
 
@@ -411,7 +412,7 @@ class EffectsTranslator:
 
         return messages
 
-    def _translate_system_effects(self, effects: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_system_effects(self, effects: dict[str, Any]) -> list[MIDIMessage]:
         """Translate system effects."""
         messages = []
 
@@ -456,7 +457,7 @@ class EffectsTranslator:
 
         return messages
 
-    def _translate_variation_effects(self, effects: List[Dict[str, Any]]) -> List[MIDIMessage]:
+    def _translate_variation_effects(self, effects: list[dict[str, Any]]) -> list[MIDIMessage]:
         """Translate variation effects."""
         messages = []
 
@@ -475,7 +476,7 @@ class EffectsTranslator:
 
         return messages
 
-    def _translate_insertion_effects(self, effects: List[Dict[str, Any]]) -> List[MIDIMessage]:
+    def _translate_insertion_effects(self, effects: list[dict[str, Any]]) -> list[MIDIMessage]:
         """Translate insertion effects."""
         messages = []
 
@@ -493,7 +494,7 @@ class EffectsTranslator:
 
         return messages
 
-    def _translate_master_processing(self, processing: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_master_processing(self, processing: dict[str, Any]) -> list[MIDIMessage]:
         """Translate master processing."""
         messages = []
 
@@ -517,7 +518,7 @@ class EffectsTranslator:
 
         return messages
 
-    def _generate_nrpn_sequence(self, channel: Optional[int], msb: int, lsb: int, value: int) -> List[MIDIMessage]:
+    def _generate_nrpn_sequence(self, channel: int | None, msb: int, lsb: int, value: int) -> list[MIDIMessage]:
         """Generate NRPN parameter sequence."""
         actual_channel = channel if channel is not None else 0
         return [
@@ -530,7 +531,7 @@ class EffectsTranslator:
 class ModulationTranslator:
     """Modulation system configuration translator."""
 
-    def translate(self, config: Dict[str, Any]) -> List[MIDIMessage]:
+    def translate(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate modulation system configuration."""
         messages = []
 
@@ -582,8 +583,8 @@ class XGMLTranslatorV3:
     """
 
     def __init__(self):
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
 
         # Initialize translators
         self.engine_translators = {
@@ -598,7 +599,7 @@ class XGMLTranslatorV3:
         self.effects_translator = EffectsTranslator()
         self.modulation_translator = ModulationTranslator()
 
-    def translate_config(self, config: XGMLConfigV3) -> List[MIDIMessage]:
+    def translate_config(self, config: XGMLConfigV3) -> list[MIDIMessage]:
         """
         Translate XGML v3.0 configuration to MIDI messages.
 
@@ -643,7 +644,7 @@ class XGMLTranslatorV3:
 
         return messages
 
-    def _translate_synthesizer_core(self, core_config: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_synthesizer_core(self, core_config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate synthesizer core configuration."""
         messages = []
 
@@ -666,7 +667,7 @@ class XGMLTranslatorV3:
 
         return messages
 
-    def _translate_synthesis_engines(self, engines_config: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_synthesis_engines(self, engines_config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate synthesis engines configuration."""
         messages = []
 
@@ -686,7 +687,7 @@ class XGMLTranslatorV3:
 
         return messages
 
-    def _translate_performance_controls(self, controls_config: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_performance_controls(self, controls_config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate performance controls configuration."""
         messages = []
 
@@ -722,7 +723,7 @@ class XGMLTranslatorV3:
 
         return messages
 
-    def _translate_sequencing(self, sequencing_config: Dict[str, Any]) -> List[MIDIMessage]:
+    def _translate_sequencing(self, sequencing_config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate sequencing configuration."""
         messages = []
 
@@ -739,11 +740,11 @@ class XGMLTranslatorV3:
 
         return messages
 
-    def get_errors(self) -> List[str]:
+    def get_errors(self) -> list[str]:
         """Get translation errors."""
         return self.errors.copy()
 
-    def get_warnings(self) -> List[str]:
+    def get_warnings(self) -> list[str]:
         """Get translation warnings."""
         return self.warnings.copy()
 

@@ -4,8 +4,9 @@ JV-2080 NRPN (Non-Registered Parameter Number) Controller
 Full NRPN parameter control system for JV-2080 enhanced GS implementation,
 providing comprehensive parameter access via MIDI NRPN messages.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 
 
@@ -39,7 +40,7 @@ class JV2080NRPNController:
         # Thread safety
         self.lock = threading.RLock()
 
-    def _build_parameter_map(self) -> Dict[Tuple[int, int], Dict[str, Any]]:
+    def _build_parameter_map(self) -> dict[tuple[int, int], dict[str, Any]]:
         """
         Build comprehensive NRPN parameter map.
 
@@ -565,7 +566,7 @@ class JV2080NRPNController:
             print(f"Error setting Jupiter-X modulation parameter: {e}")
         return False
 
-    def get_current_parameter_value(self) -> Optional[int]:
+    def get_current_parameter_value(self) -> int | None:
         """Get current parameter value for data increment/decrement."""
         if not self.active_nrpn:
             return None
@@ -577,12 +578,12 @@ class JV2080NRPNController:
         current_value = self.component_manager.get_parameter_value(address)
         return current_value
 
-    def get_parameter_info(self, msb: int, lsb: int) -> Optional[Dict[str, Any]]:
+    def get_parameter_info(self, msb: int, lsb: int) -> dict[str, Any] | None:
         """Get information about a specific NRPN parameter."""
         param_key = (msb, lsb)
         return self.parameter_map.get(param_key)
 
-    def list_parameters(self, category: str = 'all') -> List[Dict[str, Any]]:
+    def list_parameters(self, category: str = 'all') -> list[dict[str, Any]]:
         """
         List all NRPN parameters, optionally filtered by category.
 
@@ -626,7 +627,7 @@ class JV2080NRPNController:
 
         return parameters
 
-    def get_nrpn_status(self) -> Dict[str, Any]:
+    def get_nrpn_status(self) -> dict[str, Any]:
         """Get current NRPN controller status."""
         with self.lock:
             return {

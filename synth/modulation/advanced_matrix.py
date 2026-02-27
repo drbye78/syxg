@@ -4,8 +4,10 @@ Advanced Modulation Matrix for SFZ Synthesis
 Implements a comprehensive modulation system supporting 200+ modulation routes
 with real-time control, bipolar modulation, and advanced curve shaping.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import numpy as np
 import math
 
@@ -217,11 +219,11 @@ class AdvancedModulationMatrix:
             max_routes: Maximum number of modulation routes
         """
         self.max_routes = max_routes
-        self.routes: List[ModulationRoute] = []
+        self.routes: list[ModulationRoute] = []
 
         # Source value cache for efficiency
-        self.source_values: Dict[str, float] = {}
-        self.source_arrays: Dict[str, np.ndarray] = {}  # For block processing
+        self.source_values: dict[str, float] = {}
+        self.source_arrays: dict[str, np.ndarray] = {}  # For block processing
 
         # Initialize standard sources to 0
         for source in self.STANDARD_SOURCES.values():
@@ -270,7 +272,7 @@ class AdvancedModulationMatrix:
                 return True
         return False
 
-    def clear_routes(self, destination: Optional[str] = None):
+    def clear_routes(self, destination: str | None = None):
         """
         Clear modulation routes.
 
@@ -298,7 +300,7 @@ class AdvancedModulationMatrix:
                 if route.source == source:
                     route.update_source(value)
 
-    def update_sources(self, source_updates: Dict[str, float]):
+    def update_sources(self, source_updates: dict[str, float]):
         """
         Update multiple modulation sources.
 
@@ -308,7 +310,7 @@ class AdvancedModulationMatrix:
         for source, value in source_updates.items():
             self.update_source(source, value)
 
-    def process_block(self, block_size: int) -> Dict[str, np.ndarray]:
+    def process_block(self, block_size: int) -> dict[str, np.ndarray]:
         """
         Process modulation for a block of samples.
 
@@ -319,7 +321,7 @@ class AdvancedModulationMatrix:
             Dictionary mapping destinations to modulation arrays
         """
         # Group routes by destination for efficiency
-        dest_routes: Dict[str, List[ModulationRoute]] = {}
+        dest_routes: dict[str, list[ModulationRoute]] = {}
 
         for route in self.routes:
             if route.destination not in dest_routes:
@@ -327,7 +329,7 @@ class AdvancedModulationMatrix:
             dest_routes[route.destination].append(route)
 
         # Process each destination
-        result: Dict[str, np.ndarray] = {}
+        result: dict[str, np.ndarray] = {}
 
         for destination, routes in dest_routes.items():
             if not routes:
@@ -344,7 +346,7 @@ class AdvancedModulationMatrix:
 
         return result
 
-    def get_current_values(self) -> Dict[str, float]:
+    def get_current_values(self) -> dict[str, float]:
         """
         Get current modulation values for all destinations.
 
@@ -352,7 +354,7 @@ class AdvancedModulationMatrix:
             Dictionary mapping destinations to current values
         """
         result = {}
-        dest_routes: Dict[str, List[ModulationRoute]] = {}
+        dest_routes: dict[str, list[ModulationRoute]] = {}
 
         # Group routes by destination
         for route in self.routes:
@@ -367,7 +369,7 @@ class AdvancedModulationMatrix:
 
         return result
 
-    def get_route_info(self) -> List[Dict[str, Any]]:
+    def get_route_info(self) -> list[dict[str, Any]]:
         """
         Get information about all modulation routes.
 
@@ -394,15 +396,15 @@ class AdvancedModulationMatrix:
         for source in self.source_values:
             self.source_values[source] = 0.0
 
-    def get_available_sources(self) -> List[str]:
+    def get_available_sources(self) -> list[str]:
         """Get list of available modulation sources."""
         return list(self.STANDARD_SOURCES.keys())
 
-    def get_available_destinations(self) -> List[str]:
+    def get_available_destinations(self) -> list[str]:
         """Get list of available modulation destinations."""
         return list(self.STANDARD_DESTINATIONS.keys())
 
-    def validate_route(self, source: str, destination: str) -> Tuple[bool, str]:
+    def validate_route(self, source: str, destination: str) -> tuple[bool, str]:
         """
         Validate a modulation route.
 

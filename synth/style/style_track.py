@@ -3,15 +3,16 @@ Style Track - Individual Track Data Structure
 
 Represents a single track within a style (Rhythm, Bass, Chord, Pad, Phrase).
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from typing import Any
 from enum import Enum
 
 from .style import TrackType, NoteEvent, CCEvent, StyleTrackData
 
 
-@dataclass
+@dataclass(slots=True)
 class StyleTrack:
     """
     A single style track with note data and parameters.
@@ -49,7 +50,7 @@ class StyleTrack:
     velocity_offset: int = 0
     velocity_curve: str = "linear"
 
-    variations: List[Dict[str, Any]] = field(default_factory=list)
+    variations: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.name:
@@ -73,7 +74,7 @@ class StyleTrack:
         """Get track data for a specific section"""
         return self.data
 
-    def set_notes(self, notes: List[NoteEvent]):
+    def set_notes(self, notes: list[NoteEvent]):
         """Set note events"""
         self.data.notes = notes
 
@@ -81,7 +82,7 @@ class StyleTrack:
         """Add a note event"""
         self.data.notes.append(note)
 
-    def set_cc_events(self, events: List[CCEvent]):
+    def set_cc_events(self, events: list[CCEvent]):
         """Set CC events"""
         self.data.cc_events = events
 
@@ -89,7 +90,7 @@ class StyleTrack:
         """Add a CC event"""
         self.data.cc_events.append(event)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "track_type": self.track_type.value,
             "name": self.name,
@@ -114,7 +115,7 @@ class StyleTrack:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StyleTrack":
+    def from_dict(cls, data: dict[str, Any]) -> StyleTrack:
         track_type = TrackType(data.get("track_type", "rhythm_1"))
         return cls(
             track_type=track_type,
@@ -140,7 +141,7 @@ class StyleTrack:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class TrackVariation:
     """A variation of a track with different note data"""
 
@@ -148,9 +149,9 @@ class TrackVariation:
     name: str = ""
     data: StyleTrackData = field(default_factory=StyleTrackData)
     probability: float = 1.0
-    conditions: Dict[str, Any] = field(default_factory=dict)
+    conditions: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "variation_id": self.variation_id,
             "name": self.name,
@@ -160,7 +161,7 @@ class TrackVariation:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TrackVariation":
+    def from_dict(cls, data: dict[str, Any]) -> TrackVariation:
         return cls(
             variation_id=data.get("variation_id", 0),
             name=data.get("name", ""),

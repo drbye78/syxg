@@ -3,6 +3,7 @@ Test suite for SF2 file loader.
 
 Tests RIFF parsing, chunk handling, sample data retrieval.
 """
+from __future__ import annotations
 
 import pytest
 import os

@@ -7,9 +7,11 @@ anti-resonant filtering, and phoneme-based transitions.
 
 Part of S90/S70 compatibility implementation - Phase 1.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import math
 from ..math.fast_approx import fast_math
 from .synthesis_engine import SynthesisEngine
@@ -89,7 +91,7 @@ class FormantFilterBank:
     def __init__(self, sample_rate: int = 44100, num_formants: int = 5):
         self.sample_rate = sample_rate
         self.num_formants = num_formants
-        self.filters: List[FormantFilter] = []
+        self.filters: list[FormantFilter] = []
 
         # Initialize formant filters
         self._init_filters()
@@ -122,21 +124,21 @@ class FormantFilterBank:
         if 0 <= formant_index < len(self.filters):
             self.filters[formant_index].set_parameters(frequency, bandwidth, gain)
 
-    def set_formant_frequencies(self, frequencies: List[float]):
+    def set_formant_frequencies(self, frequencies: list[float]):
         """Set all formant frequencies at once"""
         for i, freq in enumerate(frequencies[:len(self.filters)]):
             current_bw = self.filters[i].bandwidth
             current_gain = self.formant_gains[i]
             self.filters[i].set_parameters(freq, current_bw, current_gain)
 
-    def set_formant_bandwidths(self, bandwidths: List[float]):
+    def set_formant_bandwidths(self, bandwidths: list[float]):
         """Set all formant bandwidths at once"""
         for i, bw in enumerate(bandwidths[:len(self.filters)]):
             current_freq = self.filters[i].frequency
             current_gain = self.formant_gains[i]
             self.filters[i].set_parameters(current_freq, bw, current_gain)
 
-    def set_formant_gains(self, gains: List[float]):
+    def set_formant_gains(self, gains: list[float]):
         """Set all formant gains at once"""
         self.formant_gains = np.array(gains[:len(self.filters)], dtype=np.float32)
 
@@ -167,8 +169,8 @@ class FormantFilterBank:
 class PhonemeData:
     """Phoneme data structure for vocal synthesis"""
 
-    def __init__(self, name: str, formant_frequencies: List[float],
-                 formant_bandwidths: List[float], duration_ms: float = 200.0):
+    def __init__(self, name: str, formant_frequencies: list[float],
+                 formant_bandwidths: list[float], duration_ms: float = 200.0):
         self.name = name
         self.formant_frequencies = np.array(formant_frequencies, dtype=np.float32)
         self.formant_bandwidths = np.array(formant_bandwidths, dtype=np.float32)
@@ -184,7 +186,7 @@ class VocalDatabase:
     """Database of phonemes and vocal characteristics"""
 
     def __init__(self):
-        self.phonemes: Dict[str, PhonemeData] = {}
+        self.phonemes: dict[str, PhonemeData] = {}
         self._init_phoneme_database()
 
         # Transition parameters
@@ -218,11 +220,11 @@ class VocalDatabase:
         self.phonemes['ʃ'] = PhonemeData('ʃ', [2500, 3500, 4500, 5500, 6500], [800, 1000, 1200, 1400, 1600], 100)
         self.phonemes['h'] = PhonemeData('h', [800, 1800, 2800, 3800, 4800], [500, 600, 700, 800, 900], 60)
 
-    def get_phoneme(self, phoneme_name: str) -> Optional[PhonemeData]:
+    def get_phoneme(self, phoneme_name: str) -> PhonemeData | None:
         """Get phoneme data by name"""
         return self.phonemes.get(phoneme_name)
 
-    def get_phoneme_names(self) -> List[str]:
+    def get_phoneme_names(self) -> list[str]:
         """Get list of available phoneme names"""
         return list(self.phonemes.keys())
 
@@ -263,7 +265,7 @@ class FormantAnalyzer:
         self.analysis_buffer = np.zeros(frame_size)
         self.buffer_index = 0
 
-    def analyze_frame(self, audio_frame: np.ndarray) -> List[Tuple[float, float, float]]:
+    def analyze_frame(self, audio_frame: np.ndarray) -> list[tuple[float, float, float]]:
         """Analyze audio frame and return formant frequencies, bandwidths, and gains"""
         # Simple formant estimation using autocorrelation (simplified)
         # In a full implementation, this would use more sophisticated analysis
@@ -348,8 +350,8 @@ class FDSPEngine:
         self.vibrato_depth = 0.0  # Semitones
 
         # Phoneme transition state
-        self.current_phoneme: Optional[PhonemeData] = None
-        self.target_phoneme: Optional[PhonemeData] = None
+        self.current_phoneme: PhonemeData | None = None
+        self.target_phoneme: PhonemeData | None = None
         self.transition_progress = 0.0
         self.transition_samples = 0
         self.total_transition_samples = 0
@@ -490,7 +492,7 @@ class FDSPEngine:
         if exc_type in ['pulse', 'noise', 'mixed']:
             self.excitation_type = exc_type
 
-    def analyze_audio(self, audio_frame: np.ndarray) -> List[Tuple[float, float, float]]:
+    def analyze_audio(self, audio_frame: np.ndarray) -> list[tuple[float, float, float]]:
         """Analyze audio frame and return formant information"""
         return self.formant_analyzer.analyze_frame(audio_frame)
 
@@ -506,7 +508,7 @@ class FDSPEngine:
         self.breath_index = 0
         self.samples_processed = 0
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get engine status and parameters"""
         return {
             'sample_rate': self.sample_rate,
@@ -525,7 +527,7 @@ class FDSPEngine:
 
     # ========== NEW REGION-BASED METHODS (STUBS) ==========
     
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """Get preset info (stub)."""
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
@@ -545,15 +547,15 @@ class FDSPEngine:
             region_descriptors=[descriptor]
         )
     
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
     
     def create_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create region instance. Base implementation wraps with S.Art2.
         """
@@ -561,9 +563,9 @@ class FDSPEngine:
 
     def _create_base_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create FDSPRegion base region without S.Art2 wrapper.
 
@@ -578,7 +580,7 @@ class FDSPEngine:
         return FDSPRegion(descriptor, sample_rate)
     
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         return True
 
 
@@ -606,10 +608,10 @@ class FDSPSynthesisEngine(SynthesisEngine):
         self.fdsp_engine = FDSPEngine(sample_rate)
 
         # Voice management
-        self.active_voices: Dict[int, Dict[str, Any]] = {}
+        self.active_voices: dict[int, dict[str, Any]] = {}
         self.next_voice_id = 1
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
                         block_size: int) -> np.ndarray:
         """
         Generate audio samples for a note using FDSP synthesis.
@@ -667,7 +669,7 @@ class FDSPSynthesisEngine(SynthesisEngine):
         """
         return 0 <= note <= 127
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get FDSP engine information and capabilities."""
         return {
             'name': 'FDSP Formant Synthesis',
@@ -690,7 +692,7 @@ class FDSPSynthesisEngine(SynthesisEngine):
 
     # ========== NEW REGION-BASED METHODS (STUBS) ==========
     
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """Get FDSP preset info (stub)."""
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
@@ -710,15 +712,15 @@ class FDSPSynthesisEngine(SynthesisEngine):
             region_descriptors=[descriptor]
         )
     
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
     
     def create_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create region instance. Base implementation wraps with S.Art2.
         """
@@ -726,9 +728,9 @@ class FDSPSynthesisEngine(SynthesisEngine):
 
     def _create_base_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create FDSPRegion base region without S.Art2 wrapper.
 
@@ -743,10 +745,10 @@ class FDSPSynthesisEngine(SynthesisEngine):
         return FDSPRegion(descriptor, sample_rate)
     
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         return True
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> 'SynthesisPartial':
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> SynthesisPartial:
         """Create a partial instance for FDSP synthesis."""
         # Import here to avoid circular imports
         from ..partial.partial import SynthesisPartial
@@ -778,7 +780,7 @@ class FDSPSynthesisEngine(SynthesisEngine):
         """Check if FDSP engine supports a specific modulation type."""
         return modulation_type in ['pitch', 'formant_shift', 'vibrato', 'breath']
 
-    def get_parameter_info(self, parameter_name: str) -> Optional[Dict[str, Any]]:
+    def get_parameter_info(self, parameter_name: str) -> dict[str, Any] | None:
         """Get information about an FDSP parameter."""
         param_info = {
             'pitch': {'type': 'float', 'range': [50.0, 1000.0], 'default': 220.0, 'unit': 'Hz'},
@@ -792,7 +794,7 @@ class FDSPSynthesisEngine(SynthesisEngine):
         }
         return param_info.get(parameter_name)
 
-    def validate_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         """Validate and normalize FDSP parameters."""
         validated = {}
 
@@ -825,7 +827,7 @@ class FDSPSynthesisEngine(SynthesisEngine):
         self.active_voices.clear()
         self.next_voice_id = 1
 
-    def get_memory_usage(self) -> Dict[str, Any]:
+    def get_memory_usage(self) -> dict[str, Any]:
         """Get FDSP engine memory usage."""
         return {
             'samples_loaded': 0,  # FDSP is generative, no samples loaded
@@ -895,7 +897,7 @@ class FDSPSynthesisPartial:
 
         return output_samples
 
-    def apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def apply_modulation(self, modulation: dict[str, float]) -> None:
         """Apply modulation to this partial."""
         # Apply pitch modulation
         pitch_modulation = modulation.get('pitch_bend', 0.0) + modulation.get('pitch_mod', 0.0)

@@ -4,8 +4,10 @@ Effects System - Professional Audio Effects Processing
 Complete effects processing system with XG/GM2 compatibility, workstation-grade
 effects, and comprehensive parameter control for professional audio production.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -92,7 +94,7 @@ class EffectsSystem:
         if self.motif_effects and hasattr(self.motif_effects, 'cleanup'):
             self.motif_effects.cleanup()
 
-    def get_effects_status(self) -> Dict[str, Any]:
+    def get_effects_status(self) -> dict[str, Any]:
         """
         Get effects system status.
 
@@ -119,7 +121,7 @@ class EffectsSystem:
 
         return status
 
-    def set_system_reverb(self, reverb_type: int, parameters: Optional[Dict[str, Any]] = None) -> bool:
+    def set_system_reverb(self, reverb_type: int, parameters: dict[str, Any] | None = None) -> bool:
         """
         Set system reverb effect.
 
@@ -141,7 +143,7 @@ class EffectsSystem:
 
         return False
 
-    def set_system_chorus(self, chorus_type: int, parameters: Optional[Dict[str, Any]] = None) -> bool:
+    def set_system_chorus(self, chorus_type: int, parameters: dict[str, Any] | None = None) -> bool:
         """
         Set system chorus effect.
 
@@ -163,7 +165,7 @@ class EffectsSystem:
 
         return False
 
-    def set_system_variation(self, variation_type: int, parameters: Optional[Dict[str, Any]] = None) -> bool:
+    def set_system_variation(self, variation_type: int, parameters: dict[str, Any] | None = None) -> bool:
         """
         Set system variation effect.
 
@@ -185,7 +187,7 @@ class EffectsSystem:
 
         return False
 
-    def get_effect_capabilities(self) -> Dict[str, Any]:
+    def get_effect_capabilities(self) -> dict[str, Any]:
         """
         Get effects system capabilities.
 
@@ -307,7 +309,7 @@ class EffectsSystem:
             return self.effects_coordinator.is_effect_enabled(effect_type)
         return False
 
-    def get_effect_parameters(self, effect_type: str) -> Dict[str, Any]:
+    def get_effect_parameters(self, effect_type: str) -> dict[str, Any]:
         """
         Get parameters for a specific effect.
 

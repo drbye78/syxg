@@ -285,9 +285,10 @@ ARCHITECTURAL PRINCIPLES:
 - DEPENDENCY INVERSION: Abstract interfaces for flexible implementation
 - COMPOSITION OVER INHERITANCE: Modular synthesis component assembly
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any
 import numpy as np
 
 
@@ -300,7 +301,7 @@ class SynthesisPartial(ABC):
     must implement this interface for their partial types.
     """
 
-    def __init__(self, params: Dict, sample_rate: int):
+    def __init__(self, params: dict, sample_rate: int):
         """
         Initialize synthesis partial.
 
@@ -313,7 +314,7 @@ class SynthesisPartial(ABC):
         self.active = True
 
     @abstractmethod
-    def generate_samples(self, block_size: int, modulation: Dict) -> np.ndarray:
+    def generate_samples(self, block_size: int, modulation: dict) -> np.ndarray:
         """
         Generate audio samples for this partial.
 
@@ -355,7 +356,7 @@ class SynthesisPartial(ABC):
         pass
 
     @abstractmethod
-    def apply_modulation(self, modulation: Dict) -> None:
+    def apply_modulation(self, modulation: dict) -> None:
         """
         Apply modulation changes to partial parameters.
 
@@ -372,7 +373,7 @@ class SynthesisPartial(ABC):
         """
         self.active = True
 
-    def get_partial_info(self) -> Dict[str, Any]:
+    def get_partial_info(self) -> dict[str, Any]:
         """
         Get information about this partial.
 

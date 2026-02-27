@@ -1,5 +1,5 @@
-# XG Synthesizer - Optional Dependencies
-# =======================================
+# XG Synthesizer - Optional Dependencies (Python 3.11+)
+# ======================================================
 # Install with: pip install -r requirements_optional.txt
 # Or install specific features: pip install -r requirements_optional.txt --no-deps
 
@@ -7,31 +7,47 @@
 # Real-Time Workstation (Vibexg)
 # =============================================================================
 # For physical MIDI port support
-rtmidi>=2.0.0,<3.0.0
+rtmidi>=2.1.0,<3.0.0          # Python 3.11 compatible
 
 # For real-time audio output
-sounddevice>=0.4.0,<0.5.0
+sounddevice>=0.4.6,<0.5.0     # Python 3.11 compatible
 
 # For enhanced TUI (Text User Interface)
-rich>=13.0.0,<14.0.0
+rich>=13.5.0,<14.0.0          # Python 3.11 compatible
 
 # =============================================================================
 # Development & Testing
 # =============================================================================
-pytest>=6.0
-pytest-cov>=2.10.1
-pytest-asyncio>=0.20.0
+pytest>=7.3.0,<9.0.0
+pytest-cov>=4.1.0,<5.0.0
+pytest-asyncio>=0.21.0,<0.24.0
+pytest-benchmark>=4.0.0,<5.0.0
+pytest-xdist>=3.3.0,<4.0.0     # Parallel test execution
 
-# Code formatting and linting
-black>=21.0.0
-flake8>=3.8.0
-mypy>=0.812
+# Code quality
+black>=23.0.0,<25.0.0
+ruff>=0.1.0,<0.5.0
+mypy>=1.5.0,<1.10.0
+flake8>=6.1.0,<8.0.0
+isort>=5.12.0,<6.0.0
+
+# Type stubs for better type checking
+types-PyYAML>=6.0.0
+types-jsonschema>=4.17.0
+types-numpy>=1.24.0
 
 # =============================================================================
 # Visualization
 # =============================================================================
-matplotlib>=3.3.0
-seaborn>=0.11.0
+matplotlib>=3.7.0,<4.0.0
+seaborn>=0.12.0,<0.14.0
+
+# =============================================================================
+# Performance Profiling
+# =============================================================================
+py-spy>=0.3.14
+memory-profiler>=0.61.0
+line-profiler>=4.0.0
 
 # =============================================================================
 # Platform-Specific (Optional)
@@ -53,5 +69,6 @@ seaborn>=0.11.0
 # =============================================================================
 # Core only:        pip install -r requirements.txt
 # Workstation:      pip install -r requirements.txt -r requirements_optional.txt
-# Development:      pip install -e ".[dev]"
-# Full installation: pip install -e ".[dev,audio,visualization]"
+# Development:      pip install -r requirements_dev.txt
+# Full installation: pip install -e ".[full]"
+

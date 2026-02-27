@@ -3,6 +3,7 @@ XGML Constants and Definitions
 
 Contains all constants, mappings, and definitions used by the XGML parser and translator.
 """
+from __future__ import annotations
 
 XGML_VERSION = "2.1"
 

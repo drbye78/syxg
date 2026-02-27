@@ -4,8 +4,9 @@ Voice Architecture Integration Example
 Demonstrates how the new Voice-based architecture integrates with the existing
 XG synthesizer, providing a migration path and compatibility layer.
 """
+from __future__ import annotations
 
-from typing import Optional, Dict, Any
+from typing import Any
 import numpy as np
 
 from synth.engine.synthesis_engine import SynthesisEngineRegistry
@@ -44,7 +45,7 @@ class VoiceIntegrationLayer:
         # Create channel using new architecture (without loading program to avoid SF2 dependency)
         self.voice_channel = Channel(0, self.voice_factory, sample_rate)
 
-    def demonstrate_voice_integration(self) -> Dict[str, Any]:
+    def demonstrate_voice_integration(self) -> dict[str, Any]:
         """
         Demonstrate Voice architecture integration capabilities.
 
@@ -75,7 +76,7 @@ class VoiceIntegrationLayer:
 
         return results
 
-    def compare_architectures(self) -> Dict[str, Any]:
+    def compare_architectures(self) -> dict[str, Any]:
         """
         Compare new Voice architecture with existing note-based architecture.
 
@@ -109,7 +110,7 @@ class VoiceIntegrationLayer:
             }
         }
 
-    def create_engine_comparison(self) -> Dict[str, Any]:
+    def create_engine_comparison(self) -> dict[str, Any]:
         """
         Demonstrate different synthesis engines using the new architecture.
 
@@ -133,7 +134,7 @@ class VoiceIntegrationLayer:
 
         return engines_info
 
-    def demonstrate_modulation_matrix(self) -> Dict[str, Any]:
+    def demonstrate_modulation_matrix(self) -> dict[str, Any]:
         """
         Demonstrate Voice-level modulation matrix capabilities.
 

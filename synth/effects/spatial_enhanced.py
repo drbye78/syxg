@@ -15,10 +15,11 @@ Effects implemented:
 
 All implementations use proper spatial and vocal processing algorithms.
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import Dict, Any, Optional, List
+from typing import Any
 import threading
 
 from .dsp_core import ProfessionalDelayNetwork, AdvancedEnvelopeFollower
@@ -50,7 +51,7 @@ class EnhancedEarlyReflections:
 
         self.lock = threading.RLock()
 
-    def _initialize_room_configs(self) -> Dict[str, Dict[str, Any]]:
+    def _initialize_room_configs(self) -> dict[str, dict[str, Any]]:
         """Initialize room-specific configurations."""
         return {
             'hall_small': {
@@ -436,7 +437,7 @@ class ProductionSpatialEffectsProcessor:
         self.lock = threading.RLock()
 
     def process_effect(self, effect_type: int, stereo_mix: np.ndarray,
-                      num_samples: int, params: Dict[str, float]) -> None:
+                      num_samples: int, params: dict[str, float]) -> None:
         """Process spatial/vocal effect."""
         with self.lock:
             if effect_type == 66:
@@ -472,7 +473,7 @@ class ProductionSpatialEffectsProcessor:
                 pass
 
     def _process_erl_hall_small(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """Process ERL Hall Small effect."""
         level = params.get("parameter2", 0.5)
         self.early_reflections.configure_room('hall_small', level)
@@ -484,7 +485,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += reflection
 
     def _process_erl_hall_medium(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """Process ERL Hall Medium effect."""
         level = params.get("parameter2", 0.5)
         self.early_reflections.configure_room('hall_medium', level)
@@ -496,7 +497,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += reflection
 
     def _process_erl_hall_large(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """Process ERL Hall Large effect."""
         level = params.get("parameter2", 0.5)
         self.early_reflections.configure_room('hall_large', level)
@@ -508,7 +509,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += reflection
 
     def _process_erl_room_small(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """Process ERL Room Small effect."""
         level = params.get("parameter2", 0.5)
         self.early_reflections.configure_room('room_small', level)
@@ -520,7 +521,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += reflection
 
     def _process_erl_room_medium(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """Process ERL Room Medium effect."""
         level = params.get("parameter2", 0.5)
         self.early_reflections.configure_room('room_medium', level)
@@ -532,7 +533,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += reflection
 
     def _process_erl_room_large(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """Process ERL Room Large effect."""
         level = params.get("parameter2", 0.5)
         self.early_reflections.configure_room('room_large', level)
@@ -544,7 +545,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += reflection
 
     def _process_erl_studio_light(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """Process ERL Studio Light effect."""
         level = params.get("parameter2", 0.5)
         self.early_reflections.configure_room('studio_light', level)
@@ -556,7 +557,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += reflection
 
     def _process_erl_studio_heavy(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """Process ERL Studio Heavy effect."""
         level = params.get("parameter2", 0.5)
         self.early_reflections.configure_room('studio_heavy', level)
@@ -568,7 +569,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += reflection
 
     def _process_gate_reverb_fast(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """Process Gate Reverb Fast Attack effect."""
         level = params.get("parameter2", 0.5)
         self.gate_reverb.set_gate_parameters(0.01, 0.05, 0.1)  # Fast attack
@@ -581,7 +582,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += gated_reverb
 
     def _process_gate_reverb_medium(self, stereo_mix: np.ndarray, num_samples: int,
-                                   params: Dict[str, float]) -> None:
+                                   params: dict[str, float]) -> None:
         """Process Gate Reverb Medium Attack effect."""
         level = params.get("parameter2", 0.5)
         self.gate_reverb.set_gate_parameters(0.05, 0.1, 0.15)  # Medium attack
@@ -594,7 +595,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += gated_reverb
 
     def _process_gate_reverb_slow(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """Process Gate Reverb Slow Attack effect."""
         level = params.get("parameter2", 0.5)
         self.gate_reverb.set_gate_parameters(0.1, 0.2, 0.3)  # Slow attack
@@ -607,7 +608,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += gated_reverb
 
     def _process_voice_cancel(self, stereo_mix: np.ndarray, num_samples: int,
-                             params: Dict[str, float]) -> None:
+                             params: dict[str, float]) -> None:
         """Process Voice Cancel effect - Production stereo cancellation."""
         level = params.get("parameter1", 0.5)
 
@@ -620,7 +621,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] = right_in * (1 - level) + right_out * level
 
     def _process_karaoke_reverb(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """Process Karaoke Reverb effect."""
         level = params.get("parameter1", 0.5)
         self.vocal_processor.configure_vocal_reverb(level)
@@ -632,7 +633,7 @@ class ProductionSpatialEffectsProcessor:
             stereo_mix[i, 1] += reverb
 
     def _process_karaoke_echo(self, stereo_mix: np.ndarray, num_samples: int,
-                             params: Dict[str, float]) -> None:
+                             params: dict[str, float]) -> None:
         """Process Karaoke Echo effect."""
         level = params.get("parameter1", 0.5)
 

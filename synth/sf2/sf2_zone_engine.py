@@ -7,8 +7,9 @@ Implements complete SF2 modulation matrix with:
 - Real-time modulation calculation
 - Controller integration
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any
 import numpy as np
 
 
@@ -28,10 +29,10 @@ class SF2ZoneEngine:
     def __init__(
         self,
         zone_id: str,
-        instrument_gens: Dict[int, int],
-        instrument_mods: List[Dict[str, Any]],
-        preset_gens: Dict[int, int],
-        preset_mods: List[Dict[str, Any]]
+        instrument_gens: dict[int, int],
+        instrument_mods: list[dict[str, Any]],
+        preset_gens: dict[int, int],
+        preset_mods: list[dict[str, Any]]
     ):
         """
         Initialize zone engine.
@@ -54,7 +55,7 @@ class SF2ZoneEngine:
         self.merged_gens.update(instrument_gens)
         
         # Modulation cache
-        self.modulation_cache: Dict[str, float] = {}
+        self.modulation_cache: dict[str, float] = {}
         self.last_note: int = -1
         self.last_velocity: int = -1
     
@@ -62,8 +63,8 @@ class SF2ZoneEngine:
         self,
         note: int,
         velocity: int,
-        controllers: Optional[Dict[int, float]] = None
-    ) -> Dict[str, float]:
+        controllers: dict[int, float] | None = None
+    ) -> dict[str, float]:
         """
         Get modulated parameters for given note/velocity.
         
@@ -90,7 +91,7 @@ class SF2ZoneEngine:
         
         return params
     
-    def _generators_to_params(self) -> Dict[str, float]:
+    def _generators_to_params(self) -> dict[str, float]:
         """Convert merged generators to parameter dictionary."""
         from .sf2_constants import SF2_GENERATORS
         
@@ -153,11 +154,11 @@ class SF2ZoneEngine:
     
     def _apply_modulator(
         self,
-        params: Dict[str, float],
-        modulator: Dict[str, Any],
+        params: dict[str, float],
+        modulator: dict[str, Any],
         note: int,
         velocity: int,
-        controllers: Optional[Dict[int, float]]
+        controllers: dict[int, float] | None
     ) -> None:
         """
         Apply a single modulator to parameters.
@@ -193,7 +194,7 @@ class SF2ZoneEngine:
         src_oper: int,
         note: int,
         velocity: int,
-        controllers: Optional[Dict[int, float]]
+        controllers: dict[int, float] | None
     ) -> float:
         """
         Get modulation source value.
@@ -302,7 +303,7 @@ class SF2ZoneEngine:
     
     def _apply_to_destination(
         self,
-        params: Dict[str, float],
+        params: dict[str, float],
         dest_oper: int,
         amount: float
     ) -> None:
@@ -381,18 +382,18 @@ class SF2ModulationEngine:
     
     def __init__(self):
         """Initialize modulation engine."""
-        self.zone_engines: Dict[str, SF2ZoneEngine] = {}
-        self.global_controllers: Dict[int, float] = {}
+        self.zone_engines: dict[str, SF2ZoneEngine] = {}
+        self.global_controllers: dict[int, float] = {}
         self.pitch_bend: float = 0.0
         self.mod_wheel: float = 0.0
     
     def create_zone_engine(
         self,
         zone_id: str,
-        instrument_gens: Dict[int, int],
-        instrument_mods: List[Dict[str, Any]],
-        preset_gens: Dict[int, int],
-        preset_mods: List[Dict[str, Any]]
+        instrument_gens: dict[int, int],
+        instrument_mods: list[dict[str, Any]],
+        preset_gens: dict[int, int],
+        preset_mods: list[dict[str, Any]]
     ) -> SF2ZoneEngine:
         """
         Create zone engine for modulation processing.
@@ -414,7 +415,7 @@ class SF2ModulationEngine:
         self.zone_engines[zone_id] = engine
         return engine
     
-    def get_zone_engine(self, zone_id: str) -> Optional[SF2ZoneEngine]:
+    def get_zone_engine(self, zone_id: str) -> SF2ZoneEngine | None:
         """Get existing zone engine by ID."""
         return self.zone_engines.get(zone_id)
     

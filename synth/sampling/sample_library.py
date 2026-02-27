@@ -4,10 +4,11 @@ Sample Library - Sample Management and Organization
 Provides comprehensive sample library management for the XG synthesizer,
 including sample organization, search, categorization, and metadata handling.
 """
+from __future__ import annotations
 
 import os
 import json
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 
 
@@ -19,7 +20,7 @@ class SampleLibrary:
     for professional sample management in the XG workstation.
     """
 
-    def __init__(self, library_paths: Optional[List[str]] = None):
+    def __init__(self, library_paths: list[str] | None = None):
         """
         Initialize sample library.
 
@@ -27,9 +28,9 @@ class SampleLibrary:
             library_paths: List of paths to scan for samples
         """
         self.library_paths = library_paths or []
-        self.samples: Dict[str, Dict[str, Any]] = {}
-        self.categories: Dict[str, List[str]] = {}
-        self.metadata: Dict[str, Dict[str, Any]] = {}
+        self.samples: dict[str, dict[str, Any]] = {}
+        self.categories: dict[str, list[str]] = {}
+        self.metadata: dict[str, dict[str, Any]] = {}
 
         # Threading
         self.lock = threading.RLock()
@@ -73,7 +74,7 @@ class SampleLibrary:
                 return True
             return False
 
-    def scan_library(self, progress_callback: Optional[callable] = None) -> bool:
+    def scan_library(self, progress_callback: callable | None = None) -> bool:
         """
         Scan all library paths for samples.
 
@@ -158,7 +159,7 @@ class SampleLibrary:
         import hashlib
         return hashlib.md5(file_path.encode()).hexdigest()[:16]
 
-    def _guess_categories(self, file_path: str) -> List[str]:
+    def _guess_categories(self, file_path: str) -> list[str]:
         """Guess sample categories based on path and filename."""
         path_lower = file_path.lower()
         categories = []
@@ -191,7 +192,7 @@ class SampleLibrary:
 
         return categories if categories else ['uncategorized']
 
-    def _get_audio_info(self, file_path: str) -> Optional[Dict[str, Any]]:
+    def _get_audio_info(self, file_path: str) -> dict[str, Any] | None:
         """Get audio file information."""
         try:
             # Try to get basic file info
@@ -288,8 +289,8 @@ class SampleLibrary:
                 if category in self.categories:
                     self.categories[category].append(sample['id'])
 
-    def search_samples(self, query: str, category: Optional[str] = None,
-                      tags: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    def search_samples(self, query: str, category: str | None = None,
+                      tags: list[str] | None = None) -> list[dict[str, Any]]:
         """
         Search samples by query.
 
@@ -328,7 +329,7 @@ class SampleLibrary:
 
             return results
 
-    def get_sample_by_id(self, sample_id: str) -> Optional[Dict[str, Any]]:
+    def get_sample_by_id(self, sample_id: str) -> dict[str, Any] | None:
         """
         Get sample by ID.
 
@@ -341,7 +342,7 @@ class SampleLibrary:
         with self.lock:
             return self.samples.get(sample_id)
 
-    def get_samples_by_category(self, category: str) -> List[Dict[str, Any]]:
+    def get_samples_by_category(self, category: str) -> list[dict[str, Any]]:
         """
         Get samples by category.
 
@@ -432,7 +433,7 @@ class SampleLibrary:
         """
         with self.lock:
             try:
-                with open(filename, 'r') as f:
+                with open(filename) as f:
                     data = json.load(f)
 
                 self.library_paths = data.get('library_paths', [])
@@ -444,7 +445,7 @@ class SampleLibrary:
             except Exception:
                 return False
 
-    def get_library_stats(self) -> Dict[str, Any]:
+    def get_library_stats(self) -> dict[str, Any]:
         """
         Get library statistics.
 

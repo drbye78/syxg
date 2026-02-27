@@ -8,6 +8,7 @@ Comprehensive tests for the ChordDetector class including:
 - Fuzzy matching with extra notes
 - Edge cases and error handling
 """
+from __future__ import annotations
 
 import pytest
 from unittest.mock import Mock

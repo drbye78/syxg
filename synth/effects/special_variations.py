@@ -31,10 +31,11 @@ Effects implemented:
 
 All implementations use zero-allocation processing and thread-safe state management.
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import Dict, Any, Optional
+from typing import Any
 import threading
 
 
@@ -61,7 +62,7 @@ class SpecialVariationProcessor:
         self._lock = threading.RLock()
 
     def process_effect(self, effect_type: int, stereo_mix: np.ndarray,
-                      num_samples: int, params: Dict[str, float]) -> None:
+                      num_samples: int, params: dict[str, float]) -> None:
         """
         Process special variation effect.
 
@@ -120,14 +121,14 @@ class SpecialVariationProcessor:
                 # Through effects - pass through unchanged
                 pass
 
-    def _ensure_state(self, effect_key: str, state_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _ensure_state(self, effect_key: str, state_config: dict[str, Any]) -> dict[str, Any]:
         """Ensure effect state exists, create if needed."""
         if effect_key not in self._effect_states:
             self._effect_states[effect_key] = state_config.copy()
         return self._effect_states[effect_key]
 
     def _process_vocoder_comb_filter(self, stereo_mix: np.ndarray, num_samples: int,
-                                   params: Dict[str, float]) -> None:
+                                   params: dict[str, float]) -> None:
         """
         Process Vocoder Comb Filter effect (XG Variation Type 58).
         Comb filter with vocoder-like characteristics.
@@ -177,7 +178,7 @@ class SpecialVariationProcessor:
                     state['write_pos_r'] = (write_pos + 1) % self.max_delay_samples
 
     def _process_vocoder_phaser(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process Vocoder Phaser effect (XG Variation Type 59).
         Phaser with vocoder-like modulation.
@@ -221,7 +222,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] = output * level
 
     def _process_pitch_shift_up_minor_third(self, stereo_mix: np.ndarray, num_samples: int,
-                                          params: Dict[str, float]) -> None:
+                                          params: dict[str, float]) -> None:
         """
         Process Pitch Shift Up Minor Third effect (XG Variation Type 60).
         Pitch shift up by minor third interval (approximately 1.189 Hz ratio).
@@ -239,7 +240,7 @@ class SpecialVariationProcessor:
                 stereo_mix[i, ch] = shifted
 
     def _process_pitch_shift_down_minor_third(self, stereo_mix: np.ndarray, num_samples: int,
-                                            params: Dict[str, float]) -> None:
+                                            params: dict[str, float]) -> None:
         """
         Process Pitch Shift Down Minor Third effect (XG Variation Type 61).
         Pitch shift down by minor third interval.
@@ -254,7 +255,7 @@ class SpecialVariationProcessor:
                 stereo_mix[i, ch] = shifted
 
     def _process_pitch_shift_up_major_third(self, stereo_mix: np.ndarray, num_samples: int,
-                                          params: Dict[str, float]) -> None:
+                                          params: dict[str, float]) -> None:
         """
         Process Pitch Shift Up Major Third effect (XG Variation Type 62).
         Pitch shift up by major third interval (approximately 1.260 Hz ratio).
@@ -269,7 +270,7 @@ class SpecialVariationProcessor:
                 stereo_mix[i, ch] = shifted
 
     def _process_pitch_shift_down_major_third(self, stereo_mix: np.ndarray, num_samples: int,
-                                            params: Dict[str, float]) -> None:
+                                            params: dict[str, float]) -> None:
         """
         Process Pitch Shift Down Major Third effect (XG Variation Type 63).
         Pitch shift down by major third interval.
@@ -284,7 +285,7 @@ class SpecialVariationProcessor:
                 stereo_mix[i, ch] = shifted
 
     def _process_harmonizer(self, stereo_mix: np.ndarray, num_samples: int,
-                           params: Dict[str, float]) -> None:
+                           params: dict[str, float]) -> None:
         """
         Process Harmonizer effect (XG Variation Type 64).
         Generate harmonic intervals.
@@ -302,7 +303,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] = center * (1 - mix) + (center - sides * 1.2) * mix
 
     def _process_detune(self, stereo_mix: np.ndarray, num_samples: int,
-                       params: Dict[str, float]) -> None:
+                       params: dict[str, float]) -> None:
         """
         Process Detune effect (XG Variation Type 65).
         Subtle pitch detuning for chorus-like effect.
@@ -322,7 +323,7 @@ class SpecialVariationProcessor:
                 stereo_mix[i, ch] = detuned
 
     def _process_erl_hall_small(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process ERL Hall Small effect (XG Variation Type 66).
         Early reflections for small hall.
@@ -359,7 +360,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] += reflection_sum
 
     def _process_erl_hall_medium(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """
         Process ERL Hall Medium effect (XG Variation Type 67).
         Early reflections for medium hall.
@@ -395,7 +396,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] += reflection_sum
 
     def _process_erl_hall_large(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process ERL Hall Large effect (XG Variation Type 68).
         Early reflections for large hall.
@@ -432,7 +433,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] += reflection_sum
 
     def _process_erl_room_small(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process ERL Room Small effect (XG Variation Type 69).
         Early reflections for small room.
@@ -467,7 +468,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] += reflection_sum
 
     def _process_erl_room_medium(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """
         Process ERL Room Medium effect (XG Variation Type 70).
         Early reflections for medium room.
@@ -501,7 +502,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] += reflection_sum
 
     def _process_erl_room_large(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process ERL Room Large effect (XG Variation Type 71).
         Early reflections for large room.
@@ -536,7 +537,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] += reflection_sum
 
     def _process_erl_studio_light(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """
         Process ERL Studio Light effect (XG Variation Type 72).
         Early reflections for studio with light treatment.
@@ -571,7 +572,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] += reflection_sum
 
     def _process_erl_studio_heavy(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """
         Process ERL Studio Heavy effect (XG Variation Type 73).
         Early reflections for studio with heavy treatment.
@@ -607,7 +608,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] += reflection_sum
 
     def _process_gate_reverb_fast_attack(self, stereo_mix: np.ndarray, num_samples: int,
-                                       params: Dict[str, float]) -> None:
+                                       params: dict[str, float]) -> None:
         """
         Process Gate Reverb Fast Attack effect (XG Variation Type 74).
         Gate reverb with fast attack time.
@@ -644,7 +645,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] *= gate_amount
 
     def _process_gate_reverb_medium_attack(self, stereo_mix: np.ndarray, num_samples: int,
-                                         params: Dict[str, float]) -> None:
+                                         params: dict[str, float]) -> None:
         """
         Process Gate Reverb Medium Attack effect (XG Variation Type 75).
         Gate reverb with medium attack time.
@@ -679,7 +680,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] *= gate_amount
 
     def _process_gate_reverb_slow_attack(self, stereo_mix: np.ndarray, num_samples: int,
-                                       params: Dict[str, float]) -> None:
+                                       params: dict[str, float]) -> None:
         """
         Process Gate Reverb Slow Attack effect (XG Variation Type 76).
         Gate reverb with slow attack time.
@@ -714,7 +715,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] *= gate_amount
 
     def _process_voice_cancel(self, stereo_mix: np.ndarray, num_samples: int,
-                             params: Dict[str, float]) -> None:
+                             params: dict[str, float]) -> None:
         """
         Process Voice Cancel effect (XG Variation Type 77).
         Attempt to cancel vocal content (simplified).
@@ -747,7 +748,7 @@ class SpecialVariationProcessor:
                 stereo_mix[i, ch] = sample * (1.0 - level) + filtered * level
 
     def _process_karaoke_reverb(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process Karaoke Reverb effect (XG Variation Type 78).
         Reverb optimized for karaoke applications.
@@ -782,7 +783,7 @@ class SpecialVariationProcessor:
             stereo_mix[i, 1] += reverb_sum
 
     def _process_karaoke_echo(self, stereo_mix: np.ndarray, num_samples: int,
-                             params: Dict[str, float]) -> None:
+                             params: dict[str, float]) -> None:
         """
         Process Karaoke Echo effect (XG Variation Type 79).
         Echo optimized for karaoke applications.

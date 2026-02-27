@@ -4,6 +4,7 @@ Jupiter-X Constants and Parameter Definitions
 This module defines all constants, model IDs, and parameter mappings
 for Roland Jupiter-X synthesizer integration.
 """
+from __future__ import annotations
 
 # MIDI Constants
 JUPITER_X_MANUFACTURER_ID = 0x41  # Roland

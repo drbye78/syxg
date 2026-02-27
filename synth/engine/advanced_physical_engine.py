@@ -4,9 +4,11 @@ Advanced Physical Modeling Engine
 Sophisticated physical modeling synthesis engine providing realistic
 acoustic instrument simulation through waveguide and modal synthesis.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import math
 
@@ -45,7 +47,7 @@ class WaveguideString:
         self.pluck_position = 0.5  # Pluck position (0-1)
 
         # Excitation
-        self.excitation_signal: Optional[np.ndarray] = None
+        self.excitation_signal: np.ndarray | None = None
         self.excitation_index = 0
 
         # Read/write pointers
@@ -167,7 +169,7 @@ class WaveguideString:
         """Check if string is still vibrating."""
         return self.active
 
-    def get_string_info(self) -> Dict[str, Any]:
+    def get_string_info(self) -> dict[str, Any]:
         """Get comprehensive string information."""
         return {
             'frequency': self.frequency,
@@ -201,7 +203,7 @@ class ModalResonator:
         self.max_modes = max_modes
 
         # Modal parameters
-        self.modes: List[Dict[str, Any]] = []
+        self.modes: list[dict[str, Any]] = []
 
         # Resonator state
         self.active = False
@@ -328,7 +330,7 @@ class ModalResonator:
         """Check if resonator is still active."""
         return self.active
 
-    def get_resonator_info(self) -> Dict[str, Any]:
+    def get_resonator_info(self) -> dict[str, Any]:
         """Get comprehensive resonator information."""
         return {
             'active': self.active,
@@ -361,8 +363,8 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         super().__init__(sample_rate, block_size)
 
         # Physical modeling components
-        self.strings: List[WaveguideString] = []
-        self.resonators: List[ModalResonator] = []
+        self.strings: list[WaveguideString] = []
+        self.resonators: list[ModalResonator] = []
 
         # Capacities
         self.max_strings = max_strings
@@ -380,7 +382,7 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         # Initialize default strings and resonators
         self._initialize_components()
 
-    def _create_instrument_configs(self) -> Dict[str, Dict[str, Any]]:
+    def _create_instrument_configs(self) -> dict[str, dict[str, Any]]:
         """Create predefined instrument configurations."""
         configs = {}
 
@@ -569,7 +571,7 @@ class AdvancedPhysicalEngine(SynthesisEngine):
 
         return excitation.astype(np.float32)
 
-    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> List[Any]:
+    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> list[Any]:
         """
         Physical modeling creates dynamic regions based on note.
 
@@ -586,11 +588,11 @@ class AdvancedPhysicalEngine(SynthesisEngine):
 
         return [PhysicalRegion(note, velocity, self.current_instrument)]
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int):
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int):
         """Physical modeling doesn't create traditional partials."""
         return None
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
                         block_size: int) -> np.ndarray:
         """
         Generate audio samples using physical modeling.
@@ -628,7 +630,7 @@ class AdvancedPhysicalEngine(SynthesisEngine):
 
             return stereo_output
 
-    def _apply_modulation(self, audio: np.ndarray, modulation: Dict[str, float],
+    def _apply_modulation(self, audio: np.ndarray, modulation: dict[str, float],
                          block_size: int) -> np.ndarray:
         """Apply modulation effects to generated audio."""
         # Filter modulation (affects string stiffness/tension)
@@ -657,11 +659,11 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         """Check if note is supported (most notes supported)."""
         return 0 <= note <= 127
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """Physical modeling doesn't use audio files directly."""
         return []
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get comprehensive engine information."""
         return {
             'name': 'Advanced Physical Modeling Engine',
@@ -683,7 +685,7 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         }
     # ========== NEW REGION-BASED METHODS (STUBS) ==========
     
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """Get preset info (stub)."""
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
@@ -703,15 +705,15 @@ class AdvancedPhysicalEngine(SynthesisEngine):
             region_descriptors=[descriptor]
         )
     
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
     
     def create_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create region instance. Base implementation wraps with S.Art2.
         """
@@ -719,9 +721,9 @@ class AdvancedPhysicalEngine(SynthesisEngine):
 
     def _create_base_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create AdvancedPhysicalRegion base region without S.Art2 wrapper.
 
@@ -736,16 +738,16 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         return AdvancedPhysicalRegion(descriptor, sample_rate)
     
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         return True
 
 
 
-    def get_available_instruments(self) -> List[str]:
+    def get_available_instruments(self) -> list[str]:
         """Get list of available instrument configurations."""
         return list(self.instrument_configs.keys())
 
-    def get_instrument_info(self, instrument_name: str) -> Optional[Dict[str, Any]]:
+    def get_instrument_info(self, instrument_name: str) -> dict[str, Any] | None:
         """Get information about a specific instrument."""
         config = self.instrument_configs.get(instrument_name)
         if config:
@@ -757,7 +759,7 @@ class AdvancedPhysicalEngine(SynthesisEngine):
             }
         return None
 
-    def get_physical_modeling_status(self) -> Dict[str, Any]:
+    def get_physical_modeling_status(self) -> dict[str, Any]:
         """Get detailed status of physical modeling components."""
         return {
             'strings': [s.get_string_info() for s in self.strings],

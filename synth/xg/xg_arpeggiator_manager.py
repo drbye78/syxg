@@ -5,9 +5,11 @@ Implements 4 independent arpeggiators with 128+ patterns,
 matching Yamaha Motif's advanced sequencing capabilities.
 Provides complete Motif-compatible arpeggiator functionality.
 """
+from __future__ import annotations
 
 import threading
-from typing import Dict, List, Any, Optional, Callable
+from typing import Any
+from collections.abc import Callable
 import time
 import math
 from ..jupiter_x.arpeggiator import JupiterXArpeggiatorEngine, JupiterXArpeggiatorPattern
@@ -25,7 +27,7 @@ class MotifArpeggiatorManager:
         self.lock = threading.RLock()
 
         # 4 independent arpeggiators (Motif standard)
-        self.arpeggiators: Dict[int, JupiterXArpeggiatorEngine] = {}
+        self.arpeggiators: dict[int, JupiterXArpeggiatorEngine] = {}
         self._initialize_arpeggiators()
 
         # Global settings
@@ -34,8 +36,8 @@ class MotifArpeggiatorManager:
         self.external_clock = False
 
         # Callbacks
-        self.note_on_callback: Optional[Callable] = None
-        self.note_off_callback: Optional[Callable] = None
+        self.note_on_callback: Callable | None = None
+        self.note_off_callback: Callable | None = None
 
         print("🎹 Motif Multi-Arpeggiator Manager: Initialized with 4 arpeggiators")
 
@@ -46,7 +48,7 @@ class MotifArpeggiatorManager:
             # Each arpeggiator will have access to the full pattern library
             self.arpeggiators[i] = arp_engine
 
-    def get_arpeggiator(self, arp_id: int) -> Optional[JupiterXArpeggiatorEngine]:
+    def get_arpeggiator(self, arp_id: int) -> JupiterXArpeggiatorEngine | None:
         """Get specific arpeggiator instance."""
         with self.lock:
             return self.arpeggiators.get(arp_id)
@@ -110,7 +112,7 @@ class MotifArpeggiatorManager:
                     if arp_instance and arp_instance.enabled:
                         arp_instance.process_timing(current_time)
 
-    def create_custom_pattern(self, arp_id: int, name: str) -> Optional[JupiterXArpeggiatorPattern]:
+    def create_custom_pattern(self, arp_id: int, name: str) -> JupiterXArpeggiatorPattern | None:
         """Create custom pattern for specific arpeggiator."""
         with self.lock:
             arp = self.get_arpeggiator(arp_id)
@@ -118,7 +120,7 @@ class MotifArpeggiatorManager:
                 return arp.create_pattern(name)
         return None
 
-    def get_pattern_list(self, arp_id: int) -> List[Dict[str, Any]]:
+    def get_pattern_list(self, arp_id: int) -> list[dict[str, Any]]:
         """Get pattern list for specific arpeggiator."""
         with self.lock:
             arp = self.get_arpeggiator(arp_id)
@@ -126,7 +128,7 @@ class MotifArpeggiatorManager:
                 return arp.get_pattern_list()
         return []
 
-    def get_arpeggiator_status(self, arp_id: int) -> Dict[str, Any]:
+    def get_arpeggiator_status(self, arp_id: int) -> dict[str, Any]:
         """Get status of specific arpeggiator."""
         with self.lock:
             arp = self.get_arpeggiator(arp_id)
@@ -136,7 +138,7 @@ class MotifArpeggiatorManager:
                     return arp_instance.get_status()
         return {'error': 'Arpeggiator not found'}
 
-    def get_manager_status(self) -> Dict[str, Any]:
+    def get_manager_status(self) -> dict[str, Any]:
         """Get overall manager status."""
         with self.lock:
             status = {
@@ -211,7 +213,7 @@ class MotifArpeggiatorManager:
             arp.patterns[base_pattern_count] = pattern
             base_pattern_count += 1
 
-    def _create_motif_pattern(self, pattern_type: str) -> List[List[int]]:
+    def _create_motif_pattern(self, pattern_type: str) -> list[list[int]]:
         """Create Motif-style pattern based on type."""
         if pattern_type == "up":
             return [[1,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],

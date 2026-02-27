@@ -10,10 +10,11 @@ Key Features:
 - Block-based processing with zero-allocation design
 - Thread-safe parameter updates
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any
 from enum import IntEnum
 import threading
 
@@ -55,10 +56,10 @@ class XGSystemReverbProcessor:
         }
 
         # Convolution state
-        self.current_ir: Optional[np.ndarray] = None
-        self.convolution_buffers: List[np.ndarray] = []
-        self.buffer_positions: List[int] = []
-        self.ir_cache: Dict[Tuple[int, float, float, float, float], np.ndarray] = {}
+        self.current_ir: np.ndarray | None = None
+        self.convolution_buffers: list[np.ndarray] = []
+        self.buffer_positions: list[int] = []
+        self.ir_cache: dict[tuple[int, float, float, float, float], np.ndarray] = {}
 
         # Thread safety
         self.lock = threading.RLock()
@@ -610,7 +611,7 @@ class XGSystemChorusProcessor:
         """
         return self.set_parameter('chorus_type', chorus_type)
 
-    def _generate_lfo_tables(self) -> Dict[str, np.ndarray]:
+    def _generate_lfo_tables(self) -> dict[str, np.ndarray]:
         """Pre-compute LFO waveform tables for better performance."""
         # Generate one cycle of each waveform
         table_size = 1024
@@ -845,7 +846,7 @@ class XGSystemEffectsProcessor:
             else:
                 return False
 
-    def set_chain_config(self, config: Dict[str, Any]) -> None:
+    def set_chain_config(self, config: dict[str, Any]) -> None:
         """
         Update the effects chain configuration.
 
@@ -890,7 +891,7 @@ class XGSystemEffectsProcessor:
             # Final clipping to prevent overflow
             np.clip(stereo_mix[:num_samples], -1.0, 1.0, out=stereo_mix[:num_samples])
 
-    def get_system_effects_status(self) -> Dict[str, Any]:
+    def get_system_effects_status(self) -> dict[str, Any]:
         """Get current status of all system effects."""
         with self.lock:
             return {

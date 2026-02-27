@@ -6,10 +6,11 @@ Loads and manages the unified config.yaml file which supports:
 - XGML-style musical configuration (parts, effects, arpeggiator, MPE, tuning)
 - Layered configuration via YAML file includes
 """
+from __future__ import annotations
 
 import os
 import yaml
-from typing import Dict, List, Any, Optional, Union
+from typing import Any
 from pathlib import Path
 from copy import deepcopy
 
@@ -31,7 +32,7 @@ def include_constructor(loader: IncludeLoader, node: yaml.Node) -> Any:
         raise yaml.constructor.ConstructorError(
             "while constructing a Python object",
             node.start_mark,
-            "expected include path as scalar, got %s" % node.id,
+            f"expected include path as scalar, got {node.id}",
             node.start_mark
         )
     
@@ -41,7 +42,7 @@ def include_constructor(loader: IncludeLoader, node: yaml.Node) -> Any:
     
     # Load the included file
     if os.path.exists(include_path):
-        with open(include_path, 'r') as f:
+        with open(include_path) as f:
             # Recursively process includes in the included file
             return yaml.load(f, IncludeLoader)
     else:
@@ -67,11 +68,11 @@ class ConfigManager:
             config_path: Path to config.yaml file
         """
         self.config_path = config_path
-        self.config: Dict[str, Any] = {}
+        self.config: dict[str, Any] = {}
         self._loaded = False
-        self._include_stack: List[str] = []  # Track included files for debugging
+        self._include_stack: list[str] = []  # Track included files for debugging
         
-    def load(self, config_path: Optional[str] = None) -> bool:
+    def load(self, config_path: str | None = None) -> bool:
         """
         Load configuration from YAML file with support for layered includes.
         
@@ -114,7 +115,7 @@ class ConfigManager:
             
         try:
             # Load base configuration
-            with open(loaded_path, 'r') as f:
+            with open(loaded_path) as f:
                 base_config = yaml.safe_load(f) or {}
             
             # Process layered includes
@@ -127,7 +128,7 @@ class ConfigManager:
             self._set_defaults()
             return False
     
-    def _merge_includes(self, config: Dict[str, Any], base_path: str) -> Dict[str, Any]:
+    def _merge_includes(self, config: dict[str, Any], base_path: str) -> dict[str, Any]:
         """
         Recursively merge included configuration files.
         
@@ -173,7 +174,7 @@ class ConfigManager:
                     
                     try:
                         # Load included config
-                        with open(include_path, 'r') as f:
+                        with open(include_path) as f:
                             included_config = yaml.safe_load(f) or {}
                         
                         # Recursively process nested includes
@@ -189,7 +190,7 @@ class ConfigManager:
         
         return merged_config
     
-    def _deep_merge(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    def _deep_merge(self, base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
         """
         Deep merge two dictionaries.
         Values in 'override' take precedence over 'base'.
@@ -264,7 +265,7 @@ class ConfigManager:
     # Runtime / Audio Settings
     # ============================================================
     
-    def get_audio_config(self) -> Dict[str, Any]:
+    def get_audio_config(self) -> dict[str, Any]:
         """Get audio configuration section"""
         return self.config.get('audio', {})
         
@@ -292,7 +293,7 @@ class ConfigManager:
     # MIDI Settings
     # ============================================================
     
-    def get_midi_config(self) -> Dict[str, Any]:
+    def get_midi_config(self) -> dict[str, Any]:
         """Get MIDI configuration section"""
         return self.config.get('midi', {})
         
@@ -316,7 +317,7 @@ class ConfigManager:
     # Engine Settings
     # ============================================================
     
-    def get_engines_config(self) -> Dict[str, Any]:
+    def get_engines_config(self) -> dict[str, Any]:
         """Get engines configuration section"""
         return self.config.get('engines', {})
         
@@ -324,7 +325,7 @@ class ConfigManager:
         """Get default synthesis engine"""
         return self.get_engines_config().get('default', 'sf2')
         
-    def get_engine_priorities(self) -> Dict[str, int]:
+    def get_engine_priorities(self) -> dict[str, int]:
         """Get engine priority dictionary"""
         return self.get_engines_config().get('priority', {})
         
@@ -332,7 +333,7 @@ class ConfigManager:
     # Voice Management
     # ============================================================
     
-    def get_voices_config(self) -> Dict[str, Any]:
+    def get_voices_config(self) -> dict[str, Any]:
         """Get voices configuration section"""
         return self.config.get('voices', {})
         
@@ -344,7 +345,7 @@ class ConfigManager:
         """Get voice stealing policy"""
         return self.get_voices_config().get('stealing_policy', 'oldest_first')
         
-    def get_voice_reserve(self) -> Dict[str, int]:
+    def get_voice_reserve(self) -> dict[str, int]:
         """Get per-part voice reserve"""
         voices = self.get_voices_config()
         reserve = {}
@@ -364,7 +365,7 @@ class ConfigManager:
         """Get default SoundFont path (legacy single path, for backwards compatibility)"""
         return self.config.get('sf2_path', '')
     
-    def get_soundfonts(self) -> List[Dict[str, Any]]:
+    def get_soundfonts(self) -> list[dict[str, Any]]:
         """
         Get list of configured soundfonts with their configurations.
         
@@ -448,7 +449,7 @@ class ConfigManager:
         
         return result
     
-    def _parse_soundfont_config(self, sf_config: Any) -> Dict[str, Any]:
+    def _parse_soundfont_config(self, sf_config: Any) -> dict[str, Any]:
         """
         Parse a soundfont configuration entry (supports both string and dict formats).
         
@@ -510,11 +511,11 @@ class ConfigManager:
     # Per-Part Configuration
     # ============================================================
     
-    def get_parts_config(self) -> Dict[str, Any]:
+    def get_parts_config(self) -> dict[str, Any]:
         """Get parts configuration section"""
         return self.config.get('parts', {})
         
-    def get_part_config(self, part_num: int) -> Dict[str, Any]:
+    def get_part_config(self, part_num: int) -> dict[str, Any]:
         """
         Get configuration for a specific part
         
@@ -528,7 +529,7 @@ class ConfigManager:
         key = f'part_{part_num}'
         return parts.get(key, {})
         
-    def get_all_parts(self) -> List[Dict[str, Any]]:
+    def get_all_parts(self) -> list[dict[str, Any]]:
         """
         Get all part configurations as a list
         
@@ -541,7 +542,7 @@ class ConfigManager:
     # FM Engine Configuration
     # ============================================================
     
-    def get_fm_config(self) -> Dict[str, Any]:
+    def get_fm_config(self) -> dict[str, Any]:
         """Get FM engine configuration section"""
         return self.config.get('fm', {})
         
@@ -549,13 +550,13 @@ class ConfigManager:
         """Get FM algorithm number"""
         return self.get_fm_config().get('algorithm', 1)
         
-    def get_fm_operators(self) -> List[Dict[str, Any]]:
+    def get_fm_operators(self) -> list[dict[str, Any]]:
         """Get FM operator configurations"""
         fm = self.get_fm_config()
         operators = fm.get('operators', {})
         return [operators.get(f'op_{i}', {}) for i in range(8)]
         
-    def get_fm_lfos(self) -> List[Dict[str, Any]]:
+    def get_fm_lfos(self) -> list[dict[str, Any]]:
         """Get FM LFO configurations"""
         fm = self.get_fm_config()
         lfos = fm.get('lfos', {})
@@ -565,7 +566,7 @@ class ConfigManager:
             lfos.get('lfo_3', {})
         ]
         
-    def get_fm_modulation(self) -> List[Dict[str, Any]]:
+    def get_fm_modulation(self) -> list[dict[str, Any]]:
         """Get FM modulation matrix"""
         return self.get_fm_config().get('modulation', [])
         
@@ -573,31 +574,31 @@ class ConfigManager:
     # Effects Configuration
     # ============================================================
     
-    def get_effects_config(self) -> Dict[str, Any]:
+    def get_effects_config(self) -> dict[str, Any]:
         """Get effects configuration section"""
         return self.config.get('effects', {})
         
-    def get_reverb_config(self) -> Dict[str, Any]:
+    def get_reverb_config(self) -> dict[str, Any]:
         """Get reverb configuration"""
         return self.get_effects_config().get('reverb', {})
         
-    def get_chorus_config(self) -> Dict[str, Any]:
+    def get_chorus_config(self) -> dict[str, Any]:
         """Get chorus configuration"""
         return self.get_effects_config().get('chorus', {})
         
-    def get_variation_config(self) -> Dict[str, Any]:
+    def get_variation_config(self) -> dict[str, Any]:
         """Get variation effect configuration"""
         return self.get_effects_config().get('variation', {})
         
-    def get_eq_config(self) -> Dict[str, Any]:
+    def get_eq_config(self) -> dict[str, Any]:
         """Get EQ configuration"""
         return self.get_effects_config().get('eq', {})
         
-    def get_compressor_config(self) -> Dict[str, Any]:
+    def get_compressor_config(self) -> dict[str, Any]:
         """Get compressor configuration"""
         return self.get_effects_config().get('compressor', {})
         
-    def get_limiter_config(self) -> Dict[str, Any]:
+    def get_limiter_config(self) -> dict[str, Any]:
         """Get limiter configuration"""
         return self.get_effects_config().get('limiter', {})
         
@@ -605,7 +606,7 @@ class ConfigManager:
     # Arpeggiator Configuration
     # ============================================================
     
-    def get_arpeggiator_config(self) -> Dict[str, Any]:
+    def get_arpeggiator_config(self) -> dict[str, Any]:
         """Get arpeggiator configuration section"""
         return self.config.get('arpeggiator', {})
         
@@ -621,7 +622,7 @@ class ConfigManager:
     # MPE Configuration
     # ============================================================
     
-    def get_mpe_config(self) -> Dict[str, Any]:
+    def get_mpe_config(self) -> dict[str, Any]:
         """Get MPE configuration section"""
         return self.config.get('mpe', {})
         
@@ -629,7 +630,7 @@ class ConfigManager:
         """Get MPE enabled status"""
         return self.get_mpe_config().get('enabled', True)
         
-    def get_mpe_zones(self) -> List[Dict[str, Any]]:
+    def get_mpe_zones(self) -> list[dict[str, Any]]:
         """Get MPE zone configurations"""
         return self.get_mpe_config().get('zones', [])
         
@@ -637,7 +638,7 @@ class ConfigManager:
     # Tuning Configuration
     # ============================================================
     
-    def get_tuning_config(self) -> Dict[str, Any]:
+    def get_tuning_config(self) -> dict[str, Any]:
         """Get tuning configuration section"""
         return self.config.get('tuning', {})
         
@@ -653,11 +654,11 @@ class ConfigManager:
     # Include Information
     # ============================================================
     
-    def get_include_stack(self) -> List[str]:
+    def get_include_stack(self) -> list[str]:
         """Get list of included configuration files"""
         return self._include_stack.copy()
     
-    def get_includes(self) -> List[str]:
+    def get_includes(self) -> list[str]:
         """Get list of includes defined in current config"""
         return self.config.get('includes', [])
         
@@ -665,7 +666,7 @@ class ConfigManager:
     # Full Config Access
     # ============================================================
     
-    def get_full_config(self) -> Dict[str, Any]:
+    def get_full_config(self) -> dict[str, Any]:
         """Get full configuration dictionary"""
         return self.config
         
@@ -675,7 +676,7 @@ class ConfigManager:
 
 
 # Global config manager instance
-_config_manager: Optional[ConfigManager] = None
+_config_manager: ConfigManager | None = None
 
 
 def get_config_manager(config_path: str = "config.yaml") -> ConfigManager:

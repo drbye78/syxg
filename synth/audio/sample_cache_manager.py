@@ -8,9 +8,11 @@ SampleCacheManager manages sample data caching across all engines with:
 - Cross-engine sample sharing
 - Performance statistics tracking
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Optional, Any, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import threading
 import time
@@ -20,7 +22,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class CachedSample:
     """
     Cached sample with metadata.
@@ -69,7 +71,7 @@ class SampleCacheManager:
         self.max_memory_bytes = max_memory_mb * 1024 * 1024
         
         # Cache: (source_id, sample_id) -> CachedSample
-        self._cache: Dict[Tuple[str, int], CachedSample] = {}
+        self._cache: dict[tuple[str, int], CachedSample] = {}
         
         # Access order for LRU (oldest first)
         self._access_order: collections.deque = collections.deque()
@@ -90,8 +92,8 @@ class SampleCacheManager:
         self, 
         source_id: str, 
         sample_id: int,
-        loader: Callable[[], Optional[np.ndarray]]
-    ) -> Optional[np.ndarray]:
+        loader: Callable[[], np.ndarray | None]
+    ) -> np.ndarray | None:
         """
         Get sample from cache or load using provided loader.
         
@@ -141,7 +143,7 @@ class SampleCacheManager:
     
     def _cache_sample(
         self, 
-        key: Tuple[str, int], 
+        key: tuple[str, int], 
         sample_data: np.ndarray,
         source_id: str,
         sample_id: int
@@ -268,7 +270,7 @@ class SampleCacheManager:
         with self._lock:
             return key in self._cache
     
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """
         Get cache statistics.
         
@@ -309,7 +311,7 @@ class SampleCacheManager:
         with self._lock:
             return self._current_memory_bytes / self.max_memory_bytes
     
-    def get_cached_samples_for_source(self, source_id: str) -> List[int]:
+    def get_cached_samples_for_source(self, source_id: str) -> list[int]:
         """
         Get list of cached sample IDs for a source.
         
@@ -327,7 +329,7 @@ class SampleCacheManager:
     
     def preload_samples(
         self,
-        samples: List[Tuple[str, int, Callable[[], Optional[np.ndarray]]]]
+        samples: list[tuple[str, int, Callable[[], np.ndarray | None]]]
     ) -> int:
         """
         Preload multiple samples into cache.
@@ -369,7 +371,7 @@ class SampleCacheManager:
         with self._lock:
             return len(self._cache)
     
-    def __contains__(self, key: Tuple[str, int]) -> bool:
+    def __contains__(self, key: tuple[str, int]) -> bool:
         """Check if sample is cached."""
         return self.is_cached(key[0], key[1])
     
@@ -387,7 +389,7 @@ class SampleCacheManager:
 
 
 # Global sample cache instance (lazy initialized)
-_global_cache: Optional[SampleCacheManager] = None
+_global_cache: SampleCacheManager | None = None
 _global_cache_lock = threading.Lock()
 
 

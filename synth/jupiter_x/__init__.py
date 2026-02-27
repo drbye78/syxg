@@ -13,6 +13,7 @@ Features:
 - Comprehensive effects processing
 - Thread-safe, zero-allocation operation
 """
+from __future__ import annotations
 
 from .constants import *
 from .part import JupiterXPart, JupiterXEngine, JupiterXEnvelope

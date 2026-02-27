@@ -7,6 +7,7 @@ End-to-end tests for the complete SF2 synthesis pipeline:
 - Modulation integration
 - Effects processing
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np

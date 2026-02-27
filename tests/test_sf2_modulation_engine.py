@@ -3,6 +3,7 @@ Test suite for SF2 modulation engine.
 
 Tests SF2GeneratorProcessor, SF2ModulationEngine, and SF2ZoneEngine.
 """
+from __future__ import annotations
 
 import pytest
 from synth.sf2 import sf2_modulation_engine

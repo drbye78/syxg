@@ -16,3 +16,4 @@ Run tests:
 Run with coverage:
     pytest synth/sf2/tests/ --cov=synth/sf2 --cov-report=html
 """
+from __future__ import annotations

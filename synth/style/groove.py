@@ -4,9 +4,9 @@ Groove Quantization System
 Provides groove templates and quantization for natural-sounding
 rhythmic variations in style playback.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 from enum import Enum
 import random
 
@@ -27,7 +27,7 @@ class GrooveType(Enum):
     CUSTOM = "custom"
 
 
-@dataclass
+@dataclass(slots=True)
 class GrooveTemplate:
     """
     A groove template defining timing offsets for each 16th note position.
@@ -44,8 +44,8 @@ class GrooveTemplate:
 
     name: str = "Off"
     groove_type: GrooveType = GrooveType.OFF
-    timing_offsets: List[int] = field(default_factory=lambda: [0] * 16)
-    velocity_offsets: List[int] = field(default_factory=lambda: [0] * 16)
+    timing_offsets: list[int] = field(default_factory=lambda: [0] * 16)
+    velocity_offsets: list[int] = field(default_factory=lambda: [0] * 16)
     description: str = ""
 
     def __post_init__(self):
@@ -68,7 +68,7 @@ class GrooveTemplate:
 
 
 # Built-in groove templates
-GROOVE_TEMPLATES: Dict[GrooveType, GrooveTemplate] = {
+GROOVE_TEMPLATES: dict[GrooveType, GrooveTemplate] = {
     GrooveType.OFF: GrooveTemplate(
         name="Off",
         groove_type=GrooveType.OFF,
@@ -239,7 +239,7 @@ class GrooveQuantizer:
 
         return max(0, min(127, velocity + adjusted_offset))
 
-    def get_available_grooves(self) -> List[Dict[str, str]]:
+    def get_available_grooves(self) -> list[dict[str, str]]:
         """Get list of available groove templates"""
         return [
             {
@@ -250,7 +250,7 @@ class GrooveQuantizer:
             for gt, template in GROOVE_TEMPLATES.items()
         ]
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         """Get current groove status"""
         return {
             "enabled": self.enabled,

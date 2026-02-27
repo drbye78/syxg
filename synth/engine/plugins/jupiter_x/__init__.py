@@ -5,6 +5,7 @@ Plugin extensions for Jupiter-X specific synthesis features.
 These plugins extend the base synthesis engines with Jupiter-X capabilities
 without duplicating core functionality.
 """
+from __future__ import annotations
 
 from .fm_extensions import JupiterXFMPlugin
 from .digital_extensions import JupiterXDigitalPlugin

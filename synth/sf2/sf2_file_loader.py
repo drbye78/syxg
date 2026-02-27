@@ -4,10 +4,11 @@ SF2 File Loader with Binary Chunk Storage
 Handles SF2 file loading, RIFF chunk parsing, and on-demand binary data access.
 Optimized for large soundfonts with 100% SF2 specification compliance.
 """
+from __future__ import annotations
 
 import struct
 import threading
-from typing import Dict, List, Tuple, Optional, Any, Set
+from typing import Any
 from pathlib import Path
 import os
 
@@ -34,7 +35,7 @@ class SF2BinaryChunk:
         self.size = len(data)
 
         # Parsing state
-        self._parsed_data: Optional[Any] = None
+        self._parsed_data: Any | None = None
         self._is_parsed = False
 
     def get_data_slice(self, start: int, length: int) -> bytes:
@@ -51,7 +52,7 @@ class SF2BinaryChunk:
         end = min(start + length, self.size)
         return self.data[start:end]
 
-    def parse_as_struct(self, format_string: str, offset: int = 0) -> Tuple:
+    def parse_as_struct(self, format_string: str, offset: int = 0) -> tuple:
         """
         Parse chunk data as structured data.
 
@@ -93,7 +94,7 @@ class SF2BinaryChunk:
         self._parsed_data = parsed_data
         self._is_parsed = True
 
-    def get_parsed_data(self) -> Optional[Any]:
+    def get_parsed_data(self) -> Any | None:
         """
         Get cached parsed data if available.
 
@@ -117,9 +118,9 @@ class SF2ChunkIndex:
 
     def __init__(self):
         """Initialize chunk index."""
-        self.chunks: Dict[str, SF2BinaryChunk] = {}
-        self.list_chunks: Dict[
-            str, Dict[str, SF2BinaryChunk]
+        self.chunks: dict[str, SF2BinaryChunk] = {}
+        self.list_chunks: dict[
+            str, dict[str, SF2BinaryChunk]
         ] = {}  # list_type -> {subchunk_id -> chunk}
 
     def add_chunk(self, chunk_id: str, chunk: SF2BinaryChunk) -> None:
@@ -148,8 +149,8 @@ class SF2ChunkIndex:
         self.list_chunks[list_type][subchunk_id] = chunk
 
     def get_chunk(
-        self, chunk_id: str, list_type: Optional[str] = None
-    ) -> Optional[SF2BinaryChunk]:
+        self, chunk_id: str, list_type: str | None = None
+    ) -> SF2BinaryChunk | None:
         """
         Get chunk by ID.
 
@@ -165,8 +166,8 @@ class SF2ChunkIndex:
         return self.chunks.get(chunk_id)
 
     def get_all_chunks(
-        self, list_type: Optional[str] = None
-    ) -> Dict[str, SF2BinaryChunk]:
+        self, list_type: str | None = None
+    ) -> dict[str, SF2BinaryChunk]:
         """
         Get all chunks of a type.
 
@@ -213,7 +214,7 @@ class SF2FileLoader:
         self.file_size = 0
 
         # File handle and locking
-        self._file_handle: Optional[Any] = None
+        self._file_handle: Any | None = None
         self._file_lock = threading.RLock()
 
         # Chunk storage
@@ -221,12 +222,12 @@ class SF2FileLoader:
         self._is_loaded = False
 
         # Sample data chunk locations (for lazy loading)
-        self.sample_data_chunks: Dict[
-            str, Tuple[int, int]
+        self.sample_data_chunks: dict[
+            str, tuple[int, int]
         ] = {}  # chunk_id -> (offset, size)
 
         # Metadata
-        self.version: Tuple[int, int] = (0, 0)
+        self.version: tuple[int, int] = (0, 0)
         self.bank_name = ""
         self.rom_name = ""
         self.creation_date = ""
@@ -522,8 +523,8 @@ class SF2FileLoader:
                 setattr(self, field_name, string_value)
 
     def get_chunk(
-        self, chunk_id: str, list_type: Optional[str] = None
-    ) -> Optional[SF2BinaryChunk]:
+        self, chunk_id: str, list_type: str | None = None
+    ) -> SF2BinaryChunk | None:
         """
         Get binary chunk by ID.
 
@@ -536,7 +537,7 @@ class SF2FileLoader:
         """
         return self.chunk_index.get_chunk(chunk_id, list_type)
 
-    def parse_preset_headers(self) -> List[Dict[str, Any]]:
+    def parse_preset_headers(self) -> list[dict[str, Any]]:
         """
         Parse ALL preset headers on-demand (legacy method for compatibility).
 
@@ -580,7 +581,7 @@ class SF2FileLoader:
 
     def find_preset_by_bank_program(
         self, bank: int, program: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Find a specific preset by bank and program number with selective parsing.
 
@@ -629,7 +630,7 @@ class SF2FileLoader:
 
         return None
 
-    def parse_preset_header_at_index(self, index: int) -> Optional[Dict[str, Any]]:
+    def parse_preset_header_at_index(self, index: int) -> dict[str, Any] | None:
         """
         Parse a specific preset header by index with selective parsing.
 
@@ -660,7 +661,7 @@ class SF2FileLoader:
             "header_index": index,
         }
 
-    def parse_instrument_headers(self) -> List[Dict[str, Any]]:
+    def parse_instrument_headers(self) -> list[dict[str, Any]]:
         """
         Parse ALL instrument headers on-demand (legacy method for compatibility).
 
@@ -697,7 +698,7 @@ class SF2FileLoader:
 
         return instruments
 
-    def parse_instrument_header_at_index(self, index: int) -> Optional[Dict[str, Any]]:
+    def parse_instrument_header_at_index(self, index: int) -> dict[str, Any] | None:
         """
         Parse a specific instrument header by index with selective parsing.
 
@@ -722,7 +723,7 @@ class SF2FileLoader:
 
         return {"name": inst_name, "bag_index": bag_ndx, "header_index": index}
 
-    def parse_sample_headers(self) -> List[Dict[str, Any]]:
+    def parse_sample_headers(self) -> list[dict[str, Any]]:
         """
         Parse ALL sample headers on-demand (legacy method for compatibility).
 
@@ -780,7 +781,7 @@ class SF2FileLoader:
 
         return samples
 
-    def parse_sample_header_at_index(self, index: int) -> Optional[Dict[str, Any]]:
+    def parse_sample_header_at_index(self, index: int) -> dict[str, Any] | None:
         """
         Parse a specific sample header by index with selective parsing.
 
@@ -830,7 +831,7 @@ class SF2FileLoader:
 
     def get_sample_data(
         self, sample_start: int, sample_end: int, is_24bit: bool = False
-    ) -> Optional[bytes]:
+    ) -> bytes | None:
         """
         Get raw sample data from smpl and sm24 chunks with proper 24-bit reconstruction.
         Reads data directly from file on-demand to avoid loading large sample data into memory.
@@ -856,7 +857,7 @@ class SF2FileLoader:
 
     def _read_16bit_sample_data_from_file(
         self, sample_start: int, sample_end: int
-    ) -> Optional[bytes]:
+    ) -> bytes | None:
         """
         Read 16-bit sample data directly from file.
 
@@ -894,7 +895,7 @@ class SF2FileLoader:
 
     def _read_24bit_sample_data_from_file(
         self, sample_start: int, sample_end: int
-    ) -> Optional[bytes]:
+    ) -> bytes | None:
         """
         Read and combine 24-bit sample data from both smpl and sm24 chunks directly from file.
 
@@ -1007,7 +1008,7 @@ class SF2FileLoader:
         sm24_chunk: SF2BinaryChunk,
         sample_start: int,
         sample_end: int,
-    ) -> Optional[bytes]:
+    ) -> bytes | None:
         """
         Combine 16-bit data from smpl chunk with 8-bit extensions from sm24 chunk
         to reconstruct proper 24-bit sample data.
@@ -1076,7 +1077,7 @@ class SF2FileLoader:
             print(f"Error combining 24-bit sample data: {e}")
             return None
 
-    def get_bag_data(self, level_type: str) -> List[Tuple[int, int]]:
+    def get_bag_data(self, level_type: str) -> list[tuple[int, int]]:
         """
         Get ALL bag data (pbag/ibag) on-demand (legacy method for compatibility).
 
@@ -1109,7 +1110,7 @@ class SF2FileLoader:
 
     def get_bag_data_in_range(
         self, level_type: str, start_bag: int, end_bag: int
-    ) -> List[Tuple[int, int]]:
+    ) -> list[tuple[int, int]]:
         """
         Get bag data for a specific range of bags with selective parsing.
 
@@ -1151,7 +1152,7 @@ class SF2FileLoader:
 
     def get_generator_data_in_range(
         self, level_type: str, start_gen: int, end_gen: int
-    ) -> List[Tuple[int, int]]:
+    ) -> list[tuple[int, int]]:
         """
         Get generator data for a specific range with selective parsing.
 
@@ -1190,7 +1191,7 @@ class SF2FileLoader:
 
     def get_modulator_data_in_range(
         self, level_type: str, start_mod: int, end_mod: int
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get modulator data for a specific range with selective parsing.
 
@@ -1239,7 +1240,7 @@ class SF2FileLoader:
 
         return modulators
 
-    def get_generator_data(self, level_type: str) -> List[Tuple[int, int]]:
+    def get_generator_data(self, level_type: str) -> list[tuple[int, int]]:
         """
         Get generator data (pgen/igen) on-demand.
 
@@ -1267,7 +1268,7 @@ class SF2FileLoader:
 
         return generators
 
-    def get_modulator_data(self, level_type: str) -> List[Dict[str, Any]]:
+    def get_modulator_data(self, level_type: str) -> list[dict[str, Any]]:
         """
         Get modulator data (pmod/imod) on-demand.
 
@@ -1316,7 +1317,7 @@ class SF2FileLoader:
         """
         return self._is_loaded
 
-    def get_file_info(self) -> Dict[str, Any]:
+    def get_file_info(self) -> dict[str, Any]:
         """
         Get file information.
 
@@ -1339,7 +1340,7 @@ class SF2FileLoader:
             "loaded": self._is_loaded,
         }
 
-    def get_memory_usage(self) -> Dict[str, Any]:
+    def get_memory_usage(self) -> dict[str, Any]:
         """
         Get memory usage statistics.
 

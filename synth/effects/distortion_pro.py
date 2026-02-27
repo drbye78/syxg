@@ -20,10 +20,11 @@ Effects implemented:
 
 All implementations use proper DSP algorithms instead of trivial clipping.
 """
+from __future__ import annotations
 
 import numpy as np
 import math
-from typing import Dict, Any, Optional, List
+from typing import Any
 import threading
 
 from .dsp_core import AdvancedEnvelopeFollower
@@ -206,7 +207,7 @@ class ProfessionalCompressor:
             self.envelope_follower.set_attack_time(attack)
             self.envelope_follower.set_release_time(release)
 
-    def process_sample(self, input_sample: float, sidechain_sample: Optional[float] = None) -> float:
+    def process_sample(self, input_sample: float, sidechain_sample: float | None = None) -> float:
         """Process sample through compressor."""
         with self.lock:
             # Use sidechain if provided
@@ -279,7 +280,7 @@ class MultibandCompressor:
 
         self.lock = threading.RLock()
 
-    def configure_bands(self, low_params: Dict, mid_params: Dict, high_params: Dict):
+    def configure_bands(self, low_params: dict, mid_params: dict, high_params: dict):
         """Configure compression parameters for each band."""
         with self.lock:
             self.low_compressor.set_parameters(**low_params)
@@ -450,7 +451,7 @@ class ProductionDistortionDynamicsProcessor:
         self._lock = threading.RLock()
 
     def process_effect(self, effect_type: int, stereo_mix: np.ndarray,
-                      num_samples: int, params: Dict[str, float]) -> None:
+                      num_samples: int, params: dict[str, float]) -> None:
         """Process distortion/dynamics effect."""
         with self.lock:
             if effect_type == 32:
@@ -505,7 +506,7 @@ class ProductionDistortionDynamicsProcessor:
                 self._process_multi_band_enhancer(stereo_mix, num_samples, params)
 
     def _process_overdrive_1(self, stereo_mix: np.ndarray, num_samples: int,
-                           params: Dict[str, float]) -> None:
+                           params: dict[str, float]) -> None:
         """Process Overdrive 1 effect - Clean tube overdrive."""
         drive = params.get("parameter1", 0.5)
         tone = params.get("parameter2", 0.5)
@@ -523,7 +524,7 @@ class ProductionDistortionDynamicsProcessor:
         self.tube_saturation.mu = original_mu
 
     def _process_overdrive_2(self, stereo_mix: np.ndarray, num_samples: int,
-                           params: Dict[str, float]) -> None:
+                           params: dict[str, float]) -> None:
         """Process Overdrive 2 effect - Medium tube overdrive."""
         drive = params.get("parameter1", 0.5)
         tone = params.get("parameter2", 0.5)
@@ -541,7 +542,7 @@ class ProductionDistortionDynamicsProcessor:
         self.tube_saturation.mu = original_mu
 
     def _process_overdrive_3(self, stereo_mix: np.ndarray, num_samples: int,
-                           params: Dict[str, float]) -> None:
+                           params: dict[str, float]) -> None:
         """Process Overdrive 3 effect - High-gain tube overdrive."""
         drive = params.get("parameter1", 0.5)
         tone = params.get("parameter2", 0.5)
@@ -559,7 +560,7 @@ class ProductionDistortionDynamicsProcessor:
         self.tube_saturation.mu = original_mu
 
     def _process_clipping_warning(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """Process Clipping Warning effect - Hard limiting with look-ahead."""
         threshold = params.get("parameter1", 0.5) * 0.8
         level = params.get("parameter2", 0.5)
@@ -575,7 +576,7 @@ class ProductionDistortionDynamicsProcessor:
                 stereo_mix[i, ch] = sample * level
 
     def _process_fuzz(self, stereo_mix: np.ndarray, num_samples: int,
-                     params: Dict[str, float]) -> None:
+                     params: dict[str, float]) -> None:
         """Process Fuzz effect - Multi-stage distortion with octave fuzz."""
         drive = params.get("parameter1", 0.5)
         tone = params.get("parameter2", 0.5)
@@ -587,7 +588,7 @@ class ProductionDistortionDynamicsProcessor:
                     stereo_mix[i, ch], drive, tone, level, fuzz_mode=True)
 
     def _process_guitar_distortion(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """Process Guitar Distortion effect - Multi-stage saturation."""
         drive = params.get("parameter1", 0.5)
         tone = params.get("parameter2", 0.5)
@@ -599,7 +600,7 @@ class ProductionDistortionDynamicsProcessor:
                     stereo_mix[i, ch], drive, tone, level, fuzz_mode=False)
 
     def _process_compressor_electronic(self, stereo_mix: np.ndarray, num_samples: int,
-                                     params: Dict[str, float]) -> None:
+                                     params: dict[str, float]) -> None:
         """Process Compressor Electronic effect - Fast attack electronic compressor."""
         threshold = -60 + params.get("parameter1", 0.5) * 60  # -60 to 0 dB
         ratio = 1 + params.get("parameter2", 0.5) * 19       # 1:1 to 20:1
@@ -613,7 +614,7 @@ class ProductionDistortionDynamicsProcessor:
                 stereo_mix[i, ch] = self.compressor.process_sample(stereo_mix[i, ch])
 
     def _process_compressor_optical(self, stereo_mix: np.ndarray, num_samples: int,
-                                   params: Dict[str, float]) -> None:
+                                   params: dict[str, float]) -> None:
         """Process Compressor Optical effect - Slow attack optical compressor."""
         threshold = -60 + params.get("parameter1", 0.5) * 60
         ratio = 1 + params.get("parameter2", 0.5) * 9        # 1:1 to 10:1 (softer)
@@ -627,7 +628,7 @@ class ProductionDistortionDynamicsProcessor:
                 stereo_mix[i, ch] = self.compressor.process_sample(stereo_mix[i, ch])
 
     def _process_limiter(self, stereo_mix: np.ndarray, num_samples: int,
-                        params: Dict[str, float]) -> None:
+                        params: dict[str, float]) -> None:
         """Process Limiter effect - Peak limiter with fast response."""
         threshold = -20 + params.get("parameter1", 0.5) * 20   # -20 to 0 dB
         ratio = 10 + params.get("parameter2", 0.5) * 10        # High ratio
@@ -642,7 +643,7 @@ class ProductionDistortionDynamicsProcessor:
                 stereo_mix[i, ch] = self.compressor.process_sample(stereo_mix[i, ch])
 
     def _process_multi_band_compressor(self, stereo_mix: np.ndarray, num_samples: int,
-                                     params: Dict[str, float]) -> None:
+                                     params: dict[str, float]) -> None:
         """Process Multi Band Compressor effect - Full multiband compression."""
         threshold = -60 + params.get("parameter1", 0.5) * 60
         ratio = 1 + params.get("parameter2", 0.5) * 19
@@ -683,7 +684,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] = processed * level
 
     def _process_expander(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """Process Expander effect - Dynamic expander."""
         threshold = -60 + params.get("parameter1", 0.5) * 60
         ratio = 1 + params.get("parameter2", 0.5) * 9
@@ -697,7 +698,7 @@ class ProductionDistortionDynamicsProcessor:
                 stereo_mix[i, ch] = self.expander.process_sample(stereo_mix[i, ch]) * level
 
     def _process_enhancer_peaking(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """Process Enhancer Peaking effect - Dynamic peaking EQ."""
         enhance = params.get("parameter1", 0.5)
         level = params.get("parameter4", 0.5)
@@ -708,7 +709,7 @@ class ProductionDistortionDynamicsProcessor:
                     stereo_mix[i, ch], enhance) * level
 
     def _process_enhancer_shelving(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """Process Enhancer Shelving effect - Dynamic shelving EQ."""
         enhance = params.get("parameter1", 0.5)
         level = params.get("parameter4", 0.5)
@@ -719,7 +720,7 @@ class ProductionDistortionDynamicsProcessor:
                     stereo_mix[i, ch], enhance) * level
 
     def _process_multi_band_enhancer(self, stereo_mix: np.ndarray, num_samples: int,
-                                   params: Dict[str, float]) -> None:
+                                   params: dict[str, float]) -> None:
         """Process Multi Band Enhancer effect - Multi-band enhancement."""
         enhance = params.get("parameter1", 0.5)
         level = params.get("parameter4", 0.5)
@@ -733,7 +734,7 @@ class ProductionDistortionDynamicsProcessor:
                 stereo_mix[i, ch] = enhanced * level
 
     def _process_vcm_phaser(self, stereo_mix: np.ndarray, num_samples: int,
-                           params: Dict[str, float]) -> None:
+                           params: dict[str, float]) -> None:
         """
         Process VCM Phaser effect - Analog phaser simulation.
         Multi-stage all-pass filters with LFO modulation.
@@ -790,7 +791,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output
 
     def _process_vcm_equalizer(self, stereo_mix: np.ndarray, num_samples: int,
-                              params: Dict[str, float]) -> None:
+                              params: dict[str, float]) -> None:
         """
         Process VCM Equalizer effect - Analog EQ curves.
         3-band EQ with analog-style frequency response.
@@ -834,7 +835,7 @@ class ProductionDistortionDynamicsProcessor:
                 stereo_mix[i, ch] = high_output * level + sample * (1.0 - level)
 
     def _apply_biquad_low_shelf(self, x0: float, freq: float, q: float, gain_db: float,
-                               state: Dict[str, float]) -> float:
+                               state: dict[str, float]) -> float:
         """Apply biquad low shelf filter."""
         # Convert gain to linear
         A = 10.0 ** (gain_db / 40.0)
@@ -870,7 +871,7 @@ class ProductionDistortionDynamicsProcessor:
         return y0
 
     def _apply_biquad_peaking(self, x0: float, freq: float, q: float, gain_db: float,
-                             state: Dict[str, float]) -> float:
+                             state: dict[str, float]) -> float:
         """Apply biquad peaking filter."""
         A = 10.0 ** (gain_db / 40.0)
 
@@ -905,7 +906,7 @@ class ProductionDistortionDynamicsProcessor:
         return y0
 
     def _apply_biquad_high_shelf(self, x0: float, freq: float, q: float, gain_db: float,
-                                state: Dict[str, float]) -> float:
+                                state: dict[str, float]) -> float:
         """Apply biquad high shelf filter."""
         A = 10.0 ** (gain_db / 40.0)
 
@@ -940,7 +941,7 @@ class ProductionDistortionDynamicsProcessor:
         return y0
 
     def _process_vcm_stereo_enhancer(self, stereo_mix: np.ndarray, num_samples: int,
-                                    params: Dict[str, float]) -> None:
+                                    params: dict[str, float]) -> None:
         """
         Process VCM Stereo Enhancer effect - Analog stereo widening.
         Enhances stereo field using analog-style processing.
@@ -1007,7 +1008,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] = right * (1.0 - level) + new_right * level
 
     def _process_auto_pan(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """
         Process Auto Pan effect (XG Variation Type 32).
         Automatic stereo panning with LFO modulation.
@@ -1053,7 +1054,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] = (right_input * right_gain + left_input * (1.0 - left_gain)) * level
 
     def _process_auto_wah(self, stereo_mix: np.ndarray, num_samples: int,
-                         params: Dict[str, float]) -> None:
+                         params: dict[str, float]) -> None:
         """
         Process Auto Wah effect (XG Variation Type 33).
         Automatic wah-wah filter with envelope following.
@@ -1122,7 +1123,7 @@ class ProductionDistortionDynamicsProcessor:
                 stereo_mix[i, ch] = y0 * level
 
     def _process_ring_modulation(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """
         Process Ring Modulation effect (XG Variation Type 34).
         Amplitude modulation with sine wave carrier.
@@ -1148,7 +1149,7 @@ class ProductionDistortionDynamicsProcessor:
                 stereo_mix[i, ch] = input_sample * (1.0 - balance) + modulated * balance * level
 
     def _process_step_phaser_up(self, stereo_mix: np.ndarray, num_samples: int,
-                               params: Dict[str, float]) -> None:
+                               params: dict[str, float]) -> None:
         """
         Process Step Phaser Up effect (XG Variation Type 35).
         Multi-stage phaser with stepped frequency sweep upward.
@@ -1198,7 +1199,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output * level
 
     def _process_step_phaser_down(self, stereo_mix: np.ndarray, num_samples: int,
-                                 params: Dict[str, float]) -> None:
+                                 params: dict[str, float]) -> None:
         """
         Process Step Phaser Down effect (XG Variation Type 36).
         Multi-stage phaser with stepped frequency sweep downward.
@@ -1246,7 +1247,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output * level
 
     def _process_step_flanger_up(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """
         Process Step Flanger Up effect (XG Variation Type 37).
         Multi-tap flanger with stepped delay sweep upward.
@@ -1300,7 +1301,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output
 
     def _process_step_flanger_down(self, stereo_mix: np.ndarray, num_samples: int,
-                                  params: Dict[str, float]) -> None:
+                                  params: dict[str, float]) -> None:
         """
         Process Step Flanger Down effect (XG Variation Type 38).
         Multi-tap flanger with stepped delay sweep downward.
@@ -1351,7 +1352,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output
 
     def _process_step_tremolo_up(self, stereo_mix: np.ndarray, num_samples: int,
-                                params: Dict[str, float]) -> None:
+                                params: dict[str, float]) -> None:
         """
         Process Step Tremolo Up effect (XG Variation Type 39).
         Amplitude modulation with stepped waveform sweep upward.
@@ -1394,7 +1395,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] *= amplitude * level + (1.0 - level)
 
     def _process_step_tremolo_down(self, stereo_mix: np.ndarray, num_samples: int,
-                                  params: Dict[str, float]) -> None:
+                                  params: dict[str, float]) -> None:
         """
         Process Step Tremolo Down effect (XG Variation Type 40).
         Amplitude modulation with stepped waveform sweep downward.
@@ -1437,7 +1438,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] *= amplitude * level + (1.0 - level)
 
     def _process_step_pan_up(self, stereo_mix: np.ndarray, num_samples: int,
-                            params: Dict[str, float]) -> None:
+                            params: dict[str, float]) -> None:
         """
         Process Step Pan Up effect (XG Variation Type 41).
         Stereo panning with stepped LFO sweep upward.
@@ -1492,7 +1493,7 @@ class ProductionDistortionDynamicsProcessor:
             stereo_mix[i, 1] = original_r * right_gain * level + original_r * (1.0 - level)
 
     def _process_step_pan_down(self, stereo_mix: np.ndarray, num_samples: int,
-                              params: Dict[str, float]) -> None:
+                              params: dict[str, float]) -> None:
         """
         Process Step Pan Down effect (XG Variation Type 42).
         Stereo panning with stepped LFO sweep downward.
@@ -1550,7 +1551,7 @@ class ProductionDistortionDynamicsProcessor:
         """Get list of supported effect types."""
         return list(range(32, 57))  # Types 32-56
 
-    def _ensure_state(self, effect_key: str, state_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _ensure_state(self, effect_key: str, state_config: dict[str, Any]) -> dict[str, Any]:
         """Ensure effect state exists, create if needed."""
         if effect_key not in self._effect_states:
             self._effect_states[effect_key] = state_config.copy()

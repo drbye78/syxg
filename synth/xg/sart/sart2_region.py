@@ -8,8 +8,9 @@ S.Art2 is synthesis-method agnostic - it works with ANY IRegion implementation
 (SF2, FM, Additive, Wavetable, Physical, etc.) to provide expressive
 articulation control via NRPN/SYSEX messages.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional, List
+from typing import Any
 import numpy as np
 
 from ...partial.region import IRegion, RegionState
@@ -81,15 +82,15 @@ class SArt2Region(IRegion):
         self.base_region = base_region
         self.articulation_controller = ArticulationController()
         self._sample_modifier = None
-        self._articulation_cache: Dict[str, Any] = {}
-        self._param_transition_buffer: Dict[str, Any] = {}
+        self._articulation_cache: dict[str, Any] = {}
+        self._param_transition_buffer: dict[str, Any] = {}
 
         # Velocity-based articulation switching
-        self._velocity_articulations: Dict[tuple, str] = {}
+        self._velocity_articulations: dict[tuple, str] = {}
         self._velocity_enabled = False
 
         # Key-based articulation switching
-        self._key_articulations: Dict[tuple, str] = {}
+        self._key_articulations: dict[tuple, str] = {}
         self._key_enabled = False
 
         if enable_sample_modification:
@@ -132,7 +133,7 @@ class SArt2Region(IRegion):
         self._invalidate_cache()
         return articulation
 
-    def process_sysex(self, sysex_data: bytes) -> Dict[str, Any]:
+    def process_sysex(self, sysex_data: bytes) -> dict[str, Any]:
         """
         Process SYSEX message for articulation control.
 
@@ -149,11 +150,11 @@ class SArt2Region(IRegion):
 
         return result
 
-    def get_available_articulations(self) -> List[str]:
+    def get_available_articulations(self) -> list[str]:
         """Get list of all available articulations."""
         return self.articulation_controller.get_available_articulations()
 
-    def get_articulation_params(self) -> Dict[str, Any]:
+    def get_articulation_params(self) -> dict[str, Any]:
         """Get parameters for current articulation."""
         articulation = self.get_articulation()
 
@@ -209,7 +210,7 @@ class SArt2Region(IRegion):
         self._velocity_articulations.clear()
         self._velocity_enabled = False
 
-    def _get_articulation_for_velocity(self, velocity: int) -> Optional[str]:
+    def _get_articulation_for_velocity(self, velocity: int) -> str | None:
         """Get articulation for velocity."""
         for (vel_low, vel_high), articulation in self._velocity_articulations.items():
             if vel_low <= velocity <= vel_high:
@@ -248,7 +249,7 @@ class SArt2Region(IRegion):
         self._key_articulations.clear()
         self._key_enabled = False
 
-    def _get_articulation_for_key(self, note: int) -> Optional[str]:
+    def _get_articulation_for_key(self, note: int) -> str | None:
         """Get articulation for key."""
         for (key_low, key_high), articulation in self._key_articulations.items():
             if key_low <= note <= key_high:
@@ -301,7 +302,7 @@ class SArt2Region(IRegion):
         self._apply_note_off_articulation()
 
     def generate_samples(
-        self, block_size: int, modulation: Dict[str, float]
+        self, block_size: int, modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples with S.Art2 articulation processing.
@@ -355,7 +356,7 @@ class SArt2Region(IRegion):
         self._articulation_cache.clear()
         self._param_transition_buffer.clear()
 
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information including articulation state."""
         info = self.base_region.get_region_info()
         info["articulation"] = self.get_articulation()
@@ -365,13 +366,13 @@ class SArt2Region(IRegion):
 
     # ========== IRegion ABSTRACT METHODS (delegated to base_region) ==========
 
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """Delegate to base region."""
         if hasattr(self.base_region, "_load_sample_data"):
             return self.base_region._load_sample_data()
         return None
 
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """Delegate to base region."""
         if hasattr(self.base_region, "_create_partial"):
             return self.base_region._create_partial()
@@ -447,7 +448,7 @@ class SArt2Region(IRegion):
             pass
 
     def _apply_articulation_to_modulation(
-        self, params: Dict[str, Any], modulation: Dict[str, float]
+        self, params: dict[str, Any], modulation: dict[str, float]
     ) -> None:
         """
         Apply articulation parameters to modulation values.
@@ -531,7 +532,7 @@ class SArt2RegionFactory:
         return SArt2Region(base_region, self.sample_rate)
 
     def create_from_engine(
-        self, descriptor: "RegionDescriptor", engine: "SynthesisEngine"
+        self, descriptor: RegionDescriptor, engine: SynthesisEngine
     ) -> SArt2Region:
         """
         Create S.Art2 region from descriptor using engine.

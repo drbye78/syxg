@@ -17,9 +17,11 @@ XG NRPN Mapping (MSB/LSB):
 
 Copyright (c) 2025 XG Synthesis Core
 """
+from __future__ import annotations
 
 import threading
-from typing import Dict, List, Tuple, Optional, Any, Callable
+from typing import Any
+from collections.abc import Callable
 from enum import IntEnum
 
 from .xg_presets import XGEffectPresets
@@ -43,10 +45,10 @@ class XGNRPNController:
         self.coordinator = effects_coordinator
 
         # NRPN state tracking
-        self.active_msb: Optional[int] = None
-        self.active_lsb: Optional[int] = None
-        self.data_msb: Optional[int] = None
-        self.data_lsb: Optional[int] = None
+        self.active_msb: int | None = None
+        self.active_lsb: int | None = None
+        self.data_msb: int | None = None
+        self.data_lsb: int | None = None
 
         # Multi-part addressing
         self.selected_part: int = 0  # 0-15, default to part 0
@@ -59,7 +61,7 @@ class XGNRPNController:
 
     def _register_nrpn_handlers(self):
         """Register all XG NRPN parameter handlers."""
-        self.nrpn_handlers: Dict[Tuple[int, int], Callable[[int, int], bool]] = {
+        self.nrpn_handlers: dict[tuple[int, int], Callable[[int, int], bool]] = {
 
             # System Reverb (MSB 0)
             (0, 0): self._handle_reverb_type,
@@ -427,7 +429,7 @@ class XGNRPNController:
             print(f"XG NRPN: Error handling insertion parameter slot={slot}, type={param_type}: {e}")
             return False
 
-    def get_current_state(self) -> Dict[str, Any]:
+    def get_current_state(self) -> dict[str, Any]:
         """Get current NRPN controller state."""
         return {
             'active_msb': self.active_msb,

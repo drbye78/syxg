@@ -5,8 +5,9 @@ Part of the unified region-based synthesis architecture.
 VoiceFactory creates Voice objects with preset definitions.
 Region instantiation happens at note-on time, not at Voice creation.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import logging
 
 from ..engine.synthesis_engine import SynthesisEngine
@@ -39,7 +40,7 @@ class VoiceFactory:
     def __init__(
         self, 
         engine_registry: SynthesisEngineRegistry,
-        synth: Optional[Any] = None
+        synth: Any | None = None
     ):
         """
         Initialize voice factory.
@@ -52,7 +53,7 @@ class VoiceFactory:
         self.synth = synth
         
         # Optional cache of preset info for faster access
-        self._preset_cache: Dict[Tuple[int, int], PresetInfo] = {}
+        self._preset_cache: dict[tuple[int, int], PresetInfo] = {}
     
     def create_voice(
         self, 
@@ -60,7 +61,7 @@ class VoiceFactory:
         program: int, 
         channel: int,
         sample_rate: int
-    ) -> Optional[Voice]:
+    ) -> Voice | None:
         """
         Create Voice for preset.
         
@@ -114,7 +115,7 @@ class VoiceFactory:
         engine: SynthesisEngine, 
         bank: int, 
         program: int
-    ) -> Optional[PresetInfo]:
+    ) -> PresetInfo | None:
         """
         Get preset info with caching.
         
@@ -144,7 +145,7 @@ class VoiceFactory:
         self, 
         bank: int, 
         program: int
-    ) -> Optional[PresetInfo]:
+    ) -> PresetInfo | None:
         """
         Get preset info without creating voice.
         
@@ -178,7 +179,7 @@ class VoiceFactory:
         
         return None
     
-    def get_available_programs(self) -> List[Tuple[int, int, str, str]]:
+    def get_available_programs(self) -> list[tuple[int, int, str, str]]:
         """
         Get all available programs across all engines.
         
@@ -208,7 +209,7 @@ class VoiceFactory:
         self, 
         bank: int, 
         program: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get information about a program.
         
@@ -261,7 +262,7 @@ class VoiceFactory:
         self, 
         bank: int, 
         program: int
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Get the engine type that handles a program.
         
@@ -277,7 +278,7 @@ class VoiceFactory:
             return preset_info.engine_type
         return None
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get voice factory statistics.
         
@@ -303,7 +304,7 @@ class VoiceFactory:
 # Convenience function for creating voice factory
 def create_voice_factory(
     engine_registry: SynthesisEngineRegistry,
-    synth: Optional[Any] = None
+    synth: Any | None = None
 ) -> VoiceFactory:
     """
     Create and configure a voice factory.

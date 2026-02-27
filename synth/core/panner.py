@@ -18,10 +18,12 @@ Architecture:
 - Contiguous memory layouts optimized for cache efficiency
 - Support for both mono and stereo input processing
 """
+from __future__ import annotations
 
 import math
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Callable, Any, Union
+from typing import Any
+from collections.abc import Callable
 from ..math.fast_approx import fast_math
 import threading
 from collections import deque
@@ -126,7 +128,7 @@ class PannerPool:
             )
             self.pool.append(panner)
 
-    def acquire_panner(self, pan_position=0.5) -> 'UltraFastStereoPanner':
+    def acquire_panner(self, pan_position=0.5) -> UltraFastStereoPanner:
         """
         ULTRA-FAST: Acquire panner from pool or create new one.
 
@@ -155,7 +157,7 @@ class PannerPool:
                 sample_rate=self.sample_rate
             )
 
-    def release_panner(self, panner: 'UltraFastStereoPanner') -> None:
+    def release_panner(self, panner: UltraFastStereoPanner) -> None:
         """
         ULTRA-FAST: Return panner to pool.
 
@@ -176,7 +178,7 @@ class PannerPool:
             # Error during reset - just discard
             pass
 
-    def get_pool_stats(self) -> Dict[str, int]:
+    def get_pool_stats(self) -> dict[str, int]:
         """Get pool statistics for monitoring."""
         return {
             'pooled_panners': len(self.pool),
@@ -280,8 +282,8 @@ class UltraFastStereoPanner:
         self._update_gains()
 
     def process_block_mono(self, input_mono: np.ndarray,
-                          output_left: Optional[np.ndarray] = None,
-                          output_right: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
+                          output_left: np.ndarray | None = None,
+                          output_right: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
         """
         ULTRA-FAST: Process block of mono samples to stereo.
 
@@ -317,8 +319,8 @@ class UltraFastStereoPanner:
         return output_left, output_right
 
     def process_block_stereo(self, input_left: np.ndarray, input_right: np.ndarray,
-                            output_left: Optional[np.ndarray] = None,
-                            output_right: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
+                            output_left: np.ndarray | None = None,
+                            output_right: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
         """
         ULTRA-FAST: Process block of stereo samples with additional panning.
 

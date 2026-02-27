@@ -9,8 +9,9 @@ FDSPRegion implements formant synthesis with:
 - Vibrato with rate/depth control
 - Multiple excitation types
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -82,14 +83,14 @@ class FDSPRegion(IRegion):
         self._excitation_type = algo_params.get('excitation_type', 'vocal')
         
         # Runtime state
-        self._fdsp_engine: Optional[Any] = None
+        self._fdsp_engine: Any | None = None
         self._transition_progress = 0.0
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """No sample data for FDSP (algorithmic synthesis)."""
         return None
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create FDSP synthesis partial.
         
@@ -137,7 +138,7 @@ class FDSPRegion(IRegion):
             logger.error(f"Failed to create FDSP partial: {e}")
             return None
     
-    def _create_fdsp_engine(self) -> Optional[Any]:
+    def _create_fdsp_engine(self) -> Any | None:
         """
         Create FDSP engine instance.
         
@@ -226,7 +227,7 @@ class FDSPRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from FDSP engine.
@@ -265,7 +266,7 @@ class FDSPRegion(IRegion):
             logger.error(f"FDSP sample generation failed: {e}")
             return np.zeros(block_size * 2, dtype=np.float32)
     
-    def _apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """
         Apply modulation to FDSP parameters.
         
@@ -292,7 +293,7 @@ class FDSPRegion(IRegion):
         if breath > 0:
             self._fdsp_engine.set_breath_level(breath)
     
-    def update_modulation(self, modulation: Dict[str, float]) -> None:
+    def update_modulation(self, modulation: dict[str, float]) -> None:
         """
         Update modulation state.
         
@@ -312,7 +313,7 @@ class FDSPRegion(IRegion):
         
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

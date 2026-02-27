@@ -1,6 +1,7 @@
 """
 SoundFont 2.0 processing and management components.
 """
+from __future__ import annotations
 
 # Core SF2 components
 from .sf2_constants import *

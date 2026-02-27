@@ -4,8 +4,10 @@ Jupiter-X Unified Parameter System
 Complete parameter management system providing unified access to all
 synthesis parameters across GS, Jupiter-X, and advanced features.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import json
 import os
@@ -37,9 +39,9 @@ class ParameterDefinition:
     """Complete parameter definition with metadata."""
 
     def __init__(self, name: str, scope: ParameterScope, param_type: ParameterType,
-                 address: Tuple[int, ...], default_value: Any, min_value: Any = None,
-                 max_value: Any = None, enum_values: List[str] = None,
-                 unit: str = "", description: str = "", tags: List[str] = None):
+                 address: tuple[int, ...], default_value: Any, min_value: Any = None,
+                 max_value: Any = None, enum_values: list[str] = None,
+                 unit: str = "", description: str = "", tags: list[str] = None):
         self.name = name
         self.scope = scope
         self.param_type = param_type
@@ -54,7 +56,7 @@ class ParameterDefinition:
 
         # Runtime state
         self.current_value = default_value
-        self.callbacks: List[Callable] = []
+        self.callbacks: list[Callable] = []
         self.metadata = {}
 
     def validate_value(self, value: Any) -> bool:
@@ -115,7 +117,7 @@ class ParameterDefinition:
             except Exception as e:
                 print(f"Parameter callback error for {self.name}: {e}")
 
-    def get_parameter_info(self) -> Dict[str, Any]:
+    def get_parameter_info(self) -> dict[str, Any]:
         """Get comprehensive parameter information."""
         return {
             'name': self.name,
@@ -146,20 +148,20 @@ class JupiterXUnifiedParameterSystem:
         self.lock = threading.RLock()
 
         # Parameter registry
-        self.parameters: Dict[str, ParameterDefinition] = {}
-        self.parameters_by_address: Dict[Tuple[int, ...], ParameterDefinition] = {}
-        self.parameters_by_scope: Dict[ParameterScope, Dict[str, ParameterDefinition]] = {
+        self.parameters: dict[str, ParameterDefinition] = {}
+        self.parameters_by_address: dict[tuple[int, ...], ParameterDefinition] = {}
+        self.parameters_by_scope: dict[ParameterScope, dict[str, ParameterDefinition]] = {
             scope: {} for scope in ParameterScope
         }
 
         # MIDI mappings
-        self.cc_mappings: Dict[Tuple[int, int], str] = {}  # (channel, cc) -> param_name
-        self.nrpn_mappings: Dict[Tuple[int, int], str] = {}  # (msb, lsb) -> param_name
+        self.cc_mappings: dict[tuple[int, int], str] = {}  # (channel, cc) -> param_name
+        self.nrpn_mappings: dict[tuple[int, int], str] = {}  # (msb, lsb) -> param_name
 
         # Presets and banks
-        self.presets: Dict[str, Dict[str, Any]] = {}
+        self.presets: dict[str, dict[str, Any]] = {}
         self.current_preset = "default"
-        self.preset_banks: Dict[str, List[str]] = {}
+        self.preset_banks: dict[str, list[str]] = {}
 
         # Component references (set during initialization)
         self.component_manager = None
@@ -355,7 +357,7 @@ class JupiterXUnifiedParameterSystem:
                 return self.parameters[param_name].current_value
             return None
 
-    def get_parameter_definition(self, param_name: str) -> Optional[ParameterDefinition]:
+    def get_parameter_definition(self, param_name: str) -> ParameterDefinition | None:
         """Get parameter definition."""
         with self.lock:
             return self.parameters.get(param_name)
@@ -533,7 +535,7 @@ class JupiterXUnifiedParameterSystem:
             return success
 
     def get_parameter_list(self, scope: ParameterScope = None,
-                          tags: List[str] = None) -> List[Dict[str, Any]]:
+                          tags: list[str] = None) -> list[dict[str, Any]]:
         """Get list of parameters with optional filtering."""
         with self.lock:
             params = []
@@ -552,7 +554,7 @@ class JupiterXUnifiedParameterSystem:
 
             return params
 
-    def get_midi_mappings(self) -> Dict[str, Any]:
+    def get_midi_mappings(self) -> dict[str, Any]:
         """Get all MIDI mappings."""
         with self.lock:
             return {
@@ -590,7 +592,7 @@ class JupiterXUnifiedParameterSystem:
     def import_parameter_state(self, filename: str) -> bool:
         """Import parameter state from JSON file."""
         try:
-            with open(filename, 'r') as f:
+            with open(filename) as f:
                 state = json.load(f)
 
             # Restore parameters
@@ -615,7 +617,7 @@ class JupiterXUnifiedParameterSystem:
             print(f"Import error: {e}")
             return False
 
-    def get_system_info(self) -> Dict[str, Any]:
+    def get_system_info(self) -> dict[str, Any]:
         """Get comprehensive system information."""
         with self.lock:
             return {

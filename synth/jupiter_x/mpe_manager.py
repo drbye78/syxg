@@ -5,8 +5,9 @@ Complete MPE implementation for microtonal expression and per-note control,
 enabling advanced performance capabilities with independent pitch bend,
 timbre, and expression per note.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 import time
 import numpy as np
@@ -75,7 +76,7 @@ class MPENoteData:
         """Get effective pitch including MPE pitch bend."""
         return base_note + self.pitch_bend
 
-    def get_mpe_info(self) -> Dict[str, Any]:
+    def get_mpe_info(self) -> dict[str, Any]:
         """Get comprehensive MPE note information."""
         return {
             'note': self.note,
@@ -124,13 +125,13 @@ class MPEZone:
             return True
         return self.member_channels_start <= channel <= self.member_channels_end
 
-    def get_zone_channels(self) -> List[int]:
+    def get_zone_channels(self) -> list[int]:
         """Get all channels in this zone."""
         channels = [self.master_channel]
         channels.extend(range(self.member_channels_start, self.member_channels_end + 1))
         return channels
 
-    def get_zone_info(self) -> Dict[str, Any]:
+    def get_zone_info(self) -> dict[str, Any]:
         """Get zone configuration information."""
         return {
             'zone_type': self.zone_type,
@@ -164,7 +165,7 @@ class JupiterXMPEManager:
         self.upper_zone = MPEZone("upper")
 
         # Active notes (channel -> note -> MPENoteData)
-        self.active_notes: Dict[int, Dict[int, MPENoteData]] = {}
+        self.active_notes: dict[int, dict[int, MPENoteData]] = {}
         for ch in range(16):
             self.active_notes[ch] = {}
 
@@ -183,11 +184,11 @@ class JupiterXMPEManager:
         self.voice_stealing = "last"       # last, quietest, oldest
 
         # Callbacks
-        self.note_on_callback: Optional[Callable] = None
-        self.note_off_callback: Optional[Callable] = None
-        self.pitch_bend_callback: Optional[Callable] = None
-        self.timbre_callback: Optional[Callable] = None
-        self.pressure_callback: Optional[Callable] = None
+        self.note_on_callback: Callable | None = None
+        self.note_off_callback: Callable | None = None
+        self.pitch_bend_callback: Callable | None = None
+        self.timbre_callback: Callable | None = None
+        self.pressure_callback: Callable | None = None
 
         print("🎹 Jupiter-X MPE: Initialized with dual-zone support")
 
@@ -351,13 +352,13 @@ class JupiterXMPEManager:
             elif channel in self.upper_zone.active_channels:
                 self.upper_zone.active_channels.discard(channel)
 
-    def get_channel_mpe_data(self, channel: int) -> Dict[int, Dict[str, Any]]:
+    def get_channel_mpe_data(self, channel: int) -> dict[int, dict[str, Any]]:
         """Get all MPE data for a channel."""
         with self.lock:
             return {note: mpe_note.get_mpe_info()
                    for note, mpe_note in self.active_notes[channel].items()}
 
-    def get_note_mpe_data(self, channel: int, note: int) -> Optional[Dict[str, Any]]:
+    def get_note_mpe_data(self, channel: int, note: int) -> dict[str, Any] | None:
         """Get MPE data for a specific note."""
         with self.lock:
             if note in self.active_notes[channel]:
@@ -383,7 +384,7 @@ class JupiterXMPEManager:
                 return True
         return False
 
-    def get_mpe_statistics(self) -> Dict[str, Any]:
+    def get_mpe_statistics(self) -> dict[str, Any]:
         """Get MPE system statistics."""
         with self.lock:
             total_active_notes = sum(len(channel_notes) for channel_notes in self.active_notes.values())
@@ -399,7 +400,7 @@ class JupiterXMPEManager:
                 'formant_per_note': self.formant_per_note,
             }
 
-    def set_microtonal_tuning(self, tuning_system: str, custom_ratios: List[float] = None):
+    def set_microtonal_tuning(self, tuning_system: str, custom_ratios: list[float] = None):
         """Set microtonal tuning system."""
         with self.lock:
             self.microtonal_tuning = tuning_system
@@ -414,7 +415,7 @@ class JupiterXMPEManager:
             self._clear_all_zones()
             self.mpe_enabled = False
 
-    def get_mpe_info(self) -> Dict[str, Any]:
+    def get_mpe_info(self) -> dict[str, Any]:
         """Get comprehensive MPE system information."""
         return {
             'enabled': self.mpe_enabled,

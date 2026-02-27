@@ -5,8 +5,9 @@ Plugin that adds Jupiter-X specific wavetable synthesis features to the base wav
 Eliminates duplication by extending the existing WavetableEngine rather than creating
 a parallel implementation.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional
+from typing import Any
 import numpy as np
 
 from ..base_plugin import (
@@ -208,7 +209,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
                 # In practice, this would load from resource files
                 self.wavetable_engine.load_wavetable(f"jupiter_x/{wavetable_name}", wavetable_name)
 
-    def get_synthesis_features(self) -> Dict[str, Any]:
+    def get_synthesis_features(self) -> dict[str, Any]:
         """Get Jupiter-X digital synthesis features."""
         return {
             'morphing': {
@@ -259,7 +260,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def get_parameters(self) -> Dict[str, Any]:
+    def get_parameters(self) -> dict[str, Any]:
         """Get current parameter values."""
         return {
             "morphing_type": self.morphing_type,
@@ -349,8 +350,8 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
             if hasattr(self.wavetable_engine, 'set_formant_frequencies'):
                 self.wavetable_engine.set_formant_frequencies(self.vowel_formants[vowel])
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float],
-                        block_size: int) -> Optional[np.ndarray]:
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
+                        block_size: int) -> np.ndarray | None:
         """
         Generate additional wavetable samples with Jupiter-X features.
 
@@ -400,7 +401,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
         return self._linear_morph(wavetable1, wavetable2, morph_factor)
 
     def apply_morphing(self, source_wavetable: str, target_wavetable: str,
-                      morph_factor: float) -> Optional[np.ndarray]:
+                      morph_factor: float) -> np.ndarray | None:
         """
         Apply Jupiter-X style morphing between wavetables.
 
@@ -486,7 +487,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Formant tracking {'enabled' if enabled else 'disabled'} (transition: {self.vowel_transition_speed:.2f})")
 
-    def set_vowel_formants(self, vowel: str, custom_formants: Optional[List[float]] = None):
+    def set_vowel_formants(self, vowel: str, custom_formants: list[float] | None = None):
         """Set vowel formants for vocal synthesis."""
         if custom_formants:
             # Allow custom formant frequencies
@@ -513,7 +514,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Wavetable ring modulation {'enabled' if enabled else 'disabled'} (carrier: {self.ring_mod_carrier_freq:.0f}Hz, index: {self.ring_mod_index:.1f})")
 
-    def enable_realtime_editing(self, enabled: bool = True, wavetable_name: Optional[str] = None):
+    def enable_realtime_editing(self, enabled: bool = True, wavetable_name: str | None = None):
         """Enable real-time wavetable editing via MIDI."""
         self.wavetable_editing_enabled = enabled
         self.editing_wavetable = wavetable_name
@@ -523,7 +524,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Real-time wavetable editing {'enabled' if enabled else 'disabled'} ({'all wavetables' if not wavetable_name else wavetable_name})")
 
-    def edit_wavetable_point(self, position: int, value: float, wavetable_name: Optional[str] = None):
+    def edit_wavetable_point(self, position: int, value: float, wavetable_name: str | None = None):
         """Edit a single point in a wavetable."""
         if not self.wavetable_editing_enabled:
             return False
@@ -541,8 +542,8 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def enable_harmonic_processing(self, enabled: bool = True, boost_factors: Optional[List[float]] = None,
-                                 suppression_factors: Optional[List[float]] = None):
+    def enable_harmonic_processing(self, enabled: bool = True, boost_factors: list[float] | None = None,
+                                 suppression_factors: list[float] | None = None):
         """Enable harmonic enhancement and suppression."""
         self.harmonic_enhancement_enabled = enabled
 
@@ -673,7 +674,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def get_advanced_wavetable_features(self) -> Dict[str, Any]:
+    def get_advanced_wavetable_features(self) -> dict[str, Any]:
         """Get status of all advanced wavetable features."""
         return {
             'multi_timbral': {
@@ -717,7 +718,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
             }
         }
 
-    def get_digital_engine_status(self) -> Dict[str, Any]:
+    def get_digital_engine_status(self) -> dict[str, Any]:
         """Get Jupiter-X digital engine status."""
         return {
             'morphing_type': self.morphing_type,

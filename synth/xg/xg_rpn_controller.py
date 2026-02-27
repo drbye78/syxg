@@ -14,8 +14,10 @@ XG RPN Parameter Map:
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, Tuple, Optional, Callable, Any
+from typing import Any
+from collections.abc import Callable
 import threading
 
 
@@ -97,7 +99,7 @@ class XGRPNController:
         for rpn_key, param_info in self.RPN_PARAMETERS.items():
             self.parameter_values[rpn_key] = param_info['default']
 
-    def handle_rpn_message(self, controller: int, value: int) -> Optional[Tuple[int, int]]:
+    def handle_rpn_message(self, controller: int, value: int) -> tuple[int, int] | None:
         """
         Handle RPN MIDI message sequence
 
@@ -185,7 +187,7 @@ class XGRPNController:
 
         return True
 
-    def get_rpn_parameter(self, rpn_msb: int, rpn_lsb: int) -> Optional[int]:
+    def get_rpn_parameter(self, rpn_msb: int, rpn_lsb: int) -> int | None:
         """
         Get current value of an RPN parameter
 
@@ -199,7 +201,7 @@ class XGRPNController:
         rpn_key = (rpn_msb, rpn_lsb)
         return self.parameter_values.get(rpn_key)
 
-    def get_all_rpn_parameters(self) -> Dict[Tuple[int, int], int]:
+    def get_all_rpn_parameters(self) -> dict[tuple[int, int], int]:
         """
         Get all current RPN parameter values
 
@@ -240,7 +242,7 @@ class XGRPNController:
         with self.lock:
             self._initialize_default_values()
 
-    def get_rpn_parameter_info(self, rpn_msb: int, rpn_lsb: int) -> Optional[Dict[str, Any]]:
+    def get_rpn_parameter_info(self, rpn_msb: int, rpn_lsb: int) -> dict[str, Any] | None:
         """
         Get information about an RPN parameter
 
@@ -259,7 +261,7 @@ class XGRPNController:
         info['current_value'] = self.parameter_values.get(rpn_key, info['default'])
         return info
 
-    def list_all_rpn_parameters(self) -> Dict[Tuple[int, int], Dict[str, Any]]:
+    def list_all_rpn_parameters(self) -> dict[tuple[int, int], dict[str, Any]]:
         """
         List all available RPN parameters with their information
 
@@ -274,7 +276,7 @@ class XGRPNController:
 
         return result
 
-    def export_rpn_state(self) -> Dict[str, Any]:
+    def export_rpn_state(self) -> dict[str, Any]:
         """
         Export complete RPN controller state for debugging/serialization
 

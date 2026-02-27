@@ -4,8 +4,9 @@ Granular Synthesis Engine
 Implements granular synthesis with real-time grain control, cloud manipulation,
 and advanced time-stretching/pitch-shifting capabilities.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional, List
+from typing import Any
 import numpy as np
 import math
 import random
@@ -151,7 +152,7 @@ class GrainCloud:
         self.last_grain_time = 0.0
         self.grain_interval = 1.0 / self.density
 
-    def set_parameters(self, params: Dict[str, Any]):
+    def set_parameters(self, params: dict[str, Any]):
         """
         Set cloud parameters.
 
@@ -231,7 +232,7 @@ class GrainCloud:
                 self.active_grains.append(grain)
                 break
 
-    def get_cloud_info(self) -> Dict[str, Any]:
+    def get_cloud_info(self) -> dict[str, Any]:
         """Get information about the grain cloud."""
         return {
             'active_grains': len(self.active_grains),
@@ -281,7 +282,7 @@ class GranularEngine(SynthesisEngine):
 
         # Plugin system
         self._plugin_registry = get_global_plugin_registry()
-        self._loaded_plugins: Dict[str, SynthesisFeaturePlugin] = {}
+        self._loaded_plugins: dict[str, SynthesisFeaturePlugin] = {}
         self._plugin_integration_points = {
             'pre_synthesis': [],      # Called before synthesis
             'post_synthesis': [],     # Called after synthesis
@@ -292,7 +293,7 @@ class GranularEngine(SynthesisEngine):
         # Auto-load Jupiter-X external plugin if available
         self._auto_load_jupiter_x_plugin()
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get granular engine information."""
         return {
             'name': 'Granular Synthesis Engine',
@@ -306,7 +307,7 @@ class GranularEngine(SynthesisEngine):
 
     # ========== NEW REGION-BASED METHODS (STUBS) ==========
     
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """Get granular preset info (stub)."""
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
@@ -326,15 +327,15 @@ class GranularEngine(SynthesisEngine):
             region_descriptors=[descriptor]
         )
     
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
     
     def create_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create region instance. Base implementation wraps with S.Art2.
         """
@@ -342,9 +343,9 @@ class GranularEngine(SynthesisEngine):
 
     def _create_base_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create GranularRegion base region without S.Art2 wrapper.
 
@@ -359,10 +360,10 @@ class GranularEngine(SynthesisEngine):
         return GranularRegion(descriptor, sample_rate)
     
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         return True
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float], block_size: int) -> np.ndarray:
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float], block_size: int) -> np.ndarray:
         """
         Generate granular synthesis audio samples.
 
@@ -407,12 +408,12 @@ class GranularEngine(SynthesisEngine):
         """Check if a note is supported."""
         return 0 <= note <= 127  # Granular synthesis works with any note
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> 'GranularPartial':
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> GranularPartial:
         """Create granular partial."""
         from ..partial.granular_partial import GranularPartial
         return GranularPartial(partial_params, sample_rate)
 
-    def create_grain_cloud(self, cloud_params: Dict[str, Any]) -> int:
+    def create_grain_cloud(self, cloud_params: dict[str, Any]) -> int:
         """
         Create a new grain cloud.
 
@@ -441,7 +442,7 @@ class GranularEngine(SynthesisEngine):
         if cloud_idx in self.active_clouds:
             self.active_clouds.remove(cloud_idx)
 
-    def set_cloud_parameters(self, cloud_idx: int, params: Dict[str, Any]):
+    def set_cloud_parameters(self, cloud_idx: int, params: dict[str, Any]):
         """
         Set parameters for a grain cloud.
 
@@ -452,7 +453,7 @@ class GranularEngine(SynthesisEngine):
         if 0 <= cloud_idx < self.max_clouds:
             self.clouds[cloud_idx].set_parameters(params)
 
-    def get_cloud_info(self, cloud_idx: int) -> Optional[Dict[str, Any]]:
+    def get_cloud_info(self, cloud_idx: int) -> dict[str, Any] | None:
         """
         Get information about a grain cloud.
 
@@ -507,7 +508,7 @@ class GranularEngine(SynthesisEngine):
         for cloud in self.clouds:
             cloud.set_parameters({'freeze': self.freeze})
 
-    def get_voice_parameters(self, program: int, bank: int = 0) -> Optional[Dict[str, Any]]:
+    def get_voice_parameters(self, program: int, bank: int = 0) -> dict[str, Any] | None:
         """Get granular voice parameters."""
         # Different granular presets based on program
         presets = {
@@ -578,11 +579,11 @@ class GranularEngine(SynthesisEngine):
         """Reset engine state."""
         self.active_clouds.clear()
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """Get supported file formats."""
         return ['.gran', '.grn']
 
-    def get_granular_info(self) -> Dict[str, Any]:
+    def get_granular_info(self) -> dict[str, Any]:
         """Get comprehensive granular synthesis information."""
         clouds_info = []
         for i, cloud in enumerate(self.clouds):
@@ -690,7 +691,7 @@ class GranularEngine(SynthesisEngine):
             print(f"❌ Granular Engine: Failed to unload plugin '{plugin_name}': {e}")
             return False
 
-    def get_loaded_plugins(self) -> Dict[str, SynthesisFeaturePlugin]:
+    def get_loaded_plugins(self) -> dict[str, SynthesisFeaturePlugin]:
         """Get all plugins loaded for this engine."""
         return self._loaded_plugins.copy()
 
@@ -786,7 +787,7 @@ class GranularEngine(SynthesisEngine):
             return params.get(param_name)
         return None
 
-    def get_plugin_info(self, plugin_name: str) -> Optional[Dict[str, Any]]:
+    def get_plugin_info(self, plugin_name: str) -> dict[str, Any] | None:
         """
         Get information about a loaded plugin.
 

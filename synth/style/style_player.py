@@ -4,10 +4,12 @@ Style Player - High-Level Style Playback Controller
 Provides the high-level interface for style playback with
 section management and transitions.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict, List, Optional, Callable, Any
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 
@@ -27,15 +29,15 @@ class SectionTransitionType(Enum):
     ENDING = auto()
 
 
-@dataclass
+@dataclass(slots=True)
 class SectionTransition:
     """Represents a section transition request"""
 
-    from_section: Optional[StyleSectionType]
+    from_section: StyleSectionType | None
     to_section: StyleSectionType
     transition_type: SectionTransitionType
     trigger_time: float = 0.0
-    fill_section: Optional[StyleSectionType] = None
+    fill_section: StyleSectionType | None = None
 
 
 class StylePlayer:
@@ -56,22 +58,20 @@ class StylePlayer:
 
         self._lock = threading.RLock()
 
-        self._style: Optional[Style] = None
-        self._accompaniment: Optional[AutoAccompaniment] = None
-        self._ots: Optional[OneTouchSettings] = None
-        self._dynamics: Optional[StyleDynamics] = None
+        self._style: Style | None = None
+        self._accompaniment: AutoAccompaniment | None = None
+        self._ots: OneTouchSettings | None = None
+        self._dynamics: StyleDynamics | None = None
 
         self._playing = False
-        self._current_section: Optional[StyleSectionType] = None
+        self._current_section: StyleSectionType | None = None
 
-        self._on_section_change: Optional[
-            Callable[[StyleSectionType, StyleSectionType], None]
-        ] = None
-        self._on_chord_change: Optional[Callable[[Any], None]] = None
-        self._on_state_change: Optional[Callable[[str], None]] = None
+        self._on_section_change: Callable[[StyleSectionType, StyleSectionType], None] | None = None
+        self._on_chord_change: Callable[[Any], None] | None = None
+        self._on_state_change: Callable[[str], None] | None = None
 
     @property
-    def style(self) -> Optional[Style]:
+    def style(self) -> Style | None:
         return self._style
 
     @property
@@ -79,7 +79,7 @@ class StylePlayer:
         return self._playing
 
     @property
-    def current_section(self) -> Optional[StyleSectionType]:
+    def current_section(self) -> StyleSectionType | None:
         return self._current_section
 
     @property
@@ -112,7 +112,7 @@ class StylePlayer:
 
             self._current_section = style.default_section
 
-    def start(self, section: Optional[StyleSectionType] = None):
+    def start(self, section: StyleSectionType | None = None):
         """Start style playback"""
         with self._lock:
             if not self._accompaniment or not self._style:
@@ -282,7 +282,7 @@ class StylePlayer:
         """Set state change callback"""
         self._on_state_change = callback
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get player status"""
         status = {
             "playing": self._playing,

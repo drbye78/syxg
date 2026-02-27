@@ -5,9 +5,10 @@ This module defines all data types, structures, and enums used throughout
 the XG effects processing subsystem. These are optimized for zero-allocation
 processing with minimal memory overhead.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import NamedTuple, Dict, List, Tuple, Optional, Any
+from typing import NamedTuple, Any
 from enum import IntEnum, Enum
 
 
@@ -248,7 +249,7 @@ class XGProcessingContext(NamedTuple):
     block_size: int
     num_input_channels: int
     num_output_channels: int
-    channel_params: Dict[int, XGChannelParams]  # channel_id -> params
+    channel_params: dict[int, XGChannelParams]  # channel_id -> params
     system_effects_params: XGSystemEffectsParams
 
 

@@ -8,8 +8,9 @@ FMRegion implements algorithmic FM synthesis with:
 - FM operator configuration
 - Algorithm selection
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -63,11 +64,11 @@ class FMRegion(IRegion):
         self._velocity_scaling = algo_params.get('velocity_scaling', {})
         self._output_level = algo_params.get('output_level', 1.0)
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """No sample data for FM (algorithmic synthesis)."""
         return None
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create FM partial with scaled parameters.
         
@@ -89,7 +90,7 @@ class FMRegion(IRegion):
             logger.error(f"Failed to create FM partial: {e}")
             return None
     
-    def _build_scaled_params(self) -> Dict[str, Any]:
+    def _build_scaled_params(self) -> dict[str, Any]:
         """
         Build FM parameters with note and velocity scaling.
         
@@ -127,7 +128,7 @@ class FMRegion(IRegion):
         
         return params
     
-    def _apply_key_scaling(self, operator: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_key_scaling(self, operator: dict[str, Any]) -> dict[str, Any]:
         """
         Apply key scaling to operator parameters.
         
@@ -170,7 +171,7 @@ class FMRegion(IRegion):
         
         return operator
     
-    def _apply_velocity_scaling(self, operator: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_velocity_scaling(self, operator: dict[str, Any]) -> dict[str, Any]:
         """
         Apply velocity scaling to operator parameters.
         
@@ -246,7 +247,7 @@ class FMRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from FM partial.
@@ -292,7 +293,7 @@ class FMRegion(IRegion):
         
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

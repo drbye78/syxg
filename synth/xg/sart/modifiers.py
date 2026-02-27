@@ -4,9 +4,11 @@ Sample Modifiers for S.Art2 Articulation System.
 Contains SF2SampleModifier class that applies real-time articulation
 effects to sample data. Extracted for better code organization.
 """
+from __future__ import annotations
 
 import logging
-from typing import Dict, Any, Optional, Callable
+from typing import Any
+from collections.abc import Callable
 import numpy as np
 
 
@@ -28,13 +30,13 @@ class SF2SampleModifier:
     def __init__(self, sample_rate: int = 44100):
         """Initialize the sample modifier."""
         self.sample_rate = sample_rate
-        self._custom_handlers: Dict[str, Callable] = {}
+        self._custom_handlers: dict[str, Callable] = {}
 
     def apply_articulation(
         self,
         sample: np.ndarray,
         articulation: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> np.ndarray:
         """
         Apply articulation to sample data.
@@ -74,7 +76,7 @@ class SF2SampleModifier:
     # Articulation Methods
     # =========================================================================
 
-    def apply_legato(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_legato(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply legato articulation - smooth transitions."""
         blend = params.get("blend", 0.5)
         transition_time = params.get("transition_time", 0.05)
@@ -92,7 +94,7 @@ class SF2SampleModifier:
 
         return sample
 
-    def apply_staccato(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_staccato(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply staccato articulation - short, detached notes."""
         length = params.get("note_length", 0.3)
 
@@ -108,7 +110,7 @@ class SF2SampleModifier:
 
         return sample
 
-    def apply_vibrato(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_vibrato(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply vibrato - pitch modulation."""
         rate = params.get("rate", 5.0)
         depth = params.get("depth", 0.5)
@@ -124,7 +126,7 @@ class SF2SampleModifier:
 
         return sample[indices].astype(np.float32)
 
-    def apply_trill(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_trill(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply trill - rapid alternation."""
         rate = params.get("rate", 8.0)
         interval = params.get("interval", 2)  # semitones
@@ -140,7 +142,7 @@ class SF2SampleModifier:
 
         return sample[indices].astype(np.float32)
 
-    def apply_pizzicato(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_pizzicato(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply pizzicato - plucked string sound."""
         decay = params.get("decay", 8.0)
 
@@ -149,7 +151,7 @@ class SF2SampleModifier:
 
         return (sample * envelope).astype(np.float32)
 
-    def apply_glissando(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_glissando(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply glissando - smooth pitch slide."""
         amount = params.get("amount", 12)
 
@@ -164,7 +166,7 @@ class SF2SampleModifier:
 
         return sample[indices].astype(np.float32)
 
-    def apply_growl(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_growl(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply growl - growling texture."""
         mod_freq = params.get("mod_freq", 25.0)
         depth = params.get("depth", 0.25)
@@ -177,7 +179,7 @@ class SF2SampleModifier:
 
         return (sample * mod + noise * 0.2).astype(np.float32)
 
-    def apply_flutter(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_flutter(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply flutter tongue."""
         mod_freq = params.get("mod_freq", 12.0)
         depth = params.get("depth", 0.15)
@@ -187,7 +189,7 @@ class SF2SampleModifier:
 
         return (sample * mod).astype(np.float32)
 
-    def apply_bend(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_bend(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply pitch bend."""
         amount = params.get("amount", 1.0)
 
@@ -200,7 +202,7 @@ class SF2SampleModifier:
 
         return (sample * freq_mult).astype(np.float32)
 
-    def apply_swell(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_swell(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply swell - volume crescendo then decrescendo."""
         attack = params.get("attack", 0.1)
         release = params.get("release", 0.2)
@@ -216,7 +218,7 @@ class SF2SampleModifier:
 
         return (sample * envelope).astype(np.float32)
 
-    def apply_harmonics(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_harmonics(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply harmonics - add harmonic content."""
         harmonic = params.get("harmonic", 2)
         level = params.get("level", 0.35)
@@ -227,7 +229,7 @@ class SF2SampleModifier:
 
         return (sample + harmonic_wave * level).astype(np.float32)
 
-    def apply_crescendo(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_crescendo(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply crescendo - gradual volume increase."""
         target_level = params.get("target_level", 1.0)
         duration = params.get("duration", 1.0)
@@ -239,7 +241,7 @@ class SF2SampleModifier:
 
         return (sample * envelope).astype(np.float32)
 
-    def apply_diminuendo(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_diminuendo(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply diminuendo - gradual volume decrease."""
         target_level = params.get("target_level", 0.1)
         duration = params.get("duration", 1.0)
@@ -251,7 +253,7 @@ class SF2SampleModifier:
 
         return (sample * envelope).astype(np.float32)
 
-    def apply_marcato(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_marcato(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply marcato - accented, strong attack."""
         attack_samples = int(0.02 * self.sample_rate)
         envelope = np.ones(len(sample))
@@ -262,7 +264,7 @@ class SF2SampleModifier:
 
         return (sample * envelope * decay).astype(np.float32)
 
-    def apply_soft_pedal(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_soft_pedal(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply soft pedal (una corda) - reduced volume, softer tone."""
         level = params.get("level", 0.7)
         brightness = params.get("brightness", 0.8)
@@ -276,7 +278,7 @@ class SF2SampleModifier:
 
         return result.astype(np.float32)
 
-    def apply_sustain_pedal(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_sustain_pedal(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply sustain pedal - extends release."""
         sustain_level = params.get("sustain_level", 0.8)
         release_rate = params.get("release_rate", 0.5)
@@ -289,7 +291,7 @@ class SF2SampleModifier:
 
         return (sample * envelope).astype(np.float32)
 
-    def apply_hammer_on(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_hammer_on(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply hammer-on - quick pitch rise."""
         amount = params.get("amount", 2)
         SEMITONE_RATIO = 1.059463359
@@ -302,7 +304,7 @@ class SF2SampleModifier:
 
         return sample[indices].astype(np.float32)
 
-    def apply_pull_off(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_pull_off(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply pull-off - quick pitch drop."""
         amount = params.get("amount", -2)
         SEMITONE_RATIO = 1.059463359
@@ -315,7 +317,7 @@ class SF2SampleModifier:
 
         return sample[indices].astype(np.float32)
 
-    def apply_palm_mute(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_palm_mute(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply palm mute - dampened sound."""
         damp_factor = params.get("damp_factor", 0.5)
 
@@ -329,7 +331,7 @@ class SF2SampleModifier:
 
         return (sample * decay + attack * damp_factor * 0.3).astype(np.float32)
 
-    def apply_tremolo(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_tremolo(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply tremolo - fast volume modulation."""
         rate = params.get("rate", 6.0)
         depth = params.get("depth", 0.5)
@@ -339,7 +341,7 @@ class SF2SampleModifier:
 
         return (sample * mod).astype(np.float32)
 
-    def apply_sub_bass(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_sub_bass(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply sub bass - add sub-bass frequency content."""
         sub_freq = 40
         t = np.arange(len(sample)) / self.sample_rate
@@ -350,7 +352,7 @@ class SF2SampleModifier:
 
         return (sample_smooth + sub_osc).astype(np.float32)
 
-    def apply_dead_note(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_dead_note(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply dead note - muted percussive sound."""
         t = np.arange(len(sample)) / self.sample_rate
         decay = np.exp(-t * 30)
@@ -361,7 +363,7 @@ class SF2SampleModifier:
         result = sample * decay * 0.3 + noise * decay * 0.5
         return result.astype(np.float32)
 
-    def apply_fret_noise(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_fret_noise(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Add fret noise - finger on frets."""
         noise_level = params.get("noise_level", 0.15)
 
@@ -371,7 +373,7 @@ class SF2SampleModifier:
 
         return (sample + fret_noise).astype(np.float32)
 
-    def apply_organ_click(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_organ_click(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply organ click - percussive attack."""
         click_level = params.get("click_level", 0.2)
         click_width = params.get("click_width", 0.005)
@@ -385,7 +387,7 @@ class SF2SampleModifier:
 
         return (sample + click).astype(np.float32)
 
-    def apply_ethnic_bend(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_ethnic_bend(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply ethnic-style pitch bend."""
         bend_amount = params.get("bend_amount", 0.5)
         bend_speed = params.get("bend_speed", 0.3)
@@ -401,7 +403,7 @@ class SF2SampleModifier:
 
         return sample[indices].astype(np.float32)
 
-    def apply_rim_shot(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_rim_shot(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply rim shot - hard attack with rim sound."""
         rim_level = params.get("rim_level", 0.6)
 
@@ -414,7 +416,7 @@ class SF2SampleModifier:
 
         return (sample * decay + attack).astype(np.float32)
 
-    def apply_open_rim(self, sample: np.ndarray, params: Dict) -> np.ndarray:
+    def apply_open_rim(self, sample: np.ndarray, params: dict) -> np.ndarray:
         """Apply open rim shot - resonant."""
         ring_time = params.get("ring_time", 0.3)
 

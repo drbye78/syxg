@@ -21,8 +21,10 @@ Usage:
     )
     integrations.enable_all()
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Callable, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from collections.abc import Callable
 import numpy as np
 
 if TYPE_CHECKING:
@@ -46,7 +48,7 @@ class StyleEffectsIntegration:
     - Delay feedback
     """
     
-    def __init__(self, effects_coordinator: Any, style_dynamics: 'StyleDynamics'):
+    def __init__(self, effects_coordinator: Any, style_dynamics: StyleDynamics):
         self.effects = effects_coordinator
         self.dynamics = style_dynamics
         
@@ -60,7 +62,7 @@ class StyleEffectsIntegration:
         # Callback registration
         self.dynamics.add_callback(self._on_dynamics_change)
     
-    def _on_dynamics_change(self, value: int, params: Dict['DynamicsParameter', float]):
+    def _on_dynamics_change(self, value: int, params: dict[DynamicsParameter, float]):
         """Handle dynamics parameter changes."""
         from .dynamics import DynamicsParameter
         
@@ -316,7 +318,7 @@ class StyleVoiceIntegration:
         
         return 'piano'  # Default
     
-    def _apply_voice_config(self, config: Dict, preset: Any):
+    def _apply_voice_config(self, config: dict, preset: Any):
         """Apply voice configuration to voice manager."""
         if not hasattr(self.voice_manager, 'configure_voice'):
             return
@@ -385,11 +387,11 @@ class StyleModulationIntegration:
         'effect_param2': {'cc': 78, 'min': 0.0, 'max': 1.0, 'curve': 'linear'},
     }
     
-    def __init__(self, modulation_matrix: Any, midi_learn: 'MIDILearn'):
+    def __init__(self, modulation_matrix: Any, midi_learn: MIDILearn):
         self.mod_matrix = modulation_matrix
         self.midi_learn = midi_learn
         
-        self._registered_callbacks: Dict[str, Callable] = {}
+        self._registered_callbacks: dict[str, Callable] = {}
     
     def bind_modulation_to_midi_learn(self):
         """Bind modulation parameters to MIDI Learn."""
@@ -484,7 +486,7 @@ class StyleSequencerIntegration:
         'ending_3': 'ending_long',
     }
     
-    def __init__(self, pattern_sequencer: Any, style_player: 'StylePlayer'):
+    def __init__(self, pattern_sequencer: Any, style_player: StylePlayer):
         self.sequencer = pattern_sequencer
         self.style_player = style_player
         
@@ -562,7 +564,7 @@ class StyleMPEIntegration:
     - Per-note pitch constraints
     """
     
-    def __init__(self, mpe_manager: Any, scale_detector: 'ScaleDetector'):
+    def __init__(self, mpe_manager: Any, scale_detector: ScaleDetector):
         self.mpe = mpe_manager
         self.scale_detector = scale_detector
         
@@ -581,7 +583,7 @@ class StyleMPEIntegration:
             self._apply_scale_to_mpe(scale)
             self._scale_constraint_enabled = True
     
-    def _apply_scale_to_mpe(self, scale: 'DetectedScale'):
+    def _apply_scale_to_mpe(self, scale: DetectedScale):
         """Apply scale constraints to MPE system."""
         if not hasattr(self.mpe, 'set_scale_constraint'):
             return
@@ -621,7 +623,7 @@ class StyleMPEIntegration:
         if hasattr(self.mpe, 'set_temperament'):
             self.mpe.set_temperament(temperament)
     
-    def _get_temperament_adjustments(self, scale_type) -> Dict[int, float]:
+    def _get_temperament_adjustments(self, scale_type) -> dict[int, float]:
         """Get microtonal adjustments for scale type."""
         # Common temperament adjustments in cents
         temperaments = {
@@ -708,7 +710,7 @@ class StyleIntegrations:
         self.midi_learn = midi_learn
         self.scale_detector = scale_detector
         
-        self.integrations: Dict[str, Any] = {}
+        self.integrations: dict[str, Any] = {}
         
         self._initialize_integrations()
     
@@ -771,10 +773,10 @@ class StyleIntegrations:
         if name in self.integrations:
             self.integrations[name].disable()
     
-    def get_integration(self, name: str) -> Optional[Any]:
+    def get_integration(self, name: str) -> Any | None:
         """Get integration by name."""
         return self.integrations.get(name)
     
-    def get_status(self) -> Dict[str, bool]:
+    def get_status(self) -> dict[str, bool]:
         """Get status of all integrations."""
         return {name: True for name in self.integrations.keys()}

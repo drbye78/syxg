@@ -4,9 +4,9 @@ Vectorized Modulation Matrix
 Provides efficient, vectorized modulation routing for XG synthesizer.
 Optimized for real-time audio processing with minimal memory allocations.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Dict, List, Optional, Tuple
 
 
 class VectorizedModulationRoute:
@@ -77,11 +77,11 @@ class VectorizedModulationMatrix:
         if not isinstance(num_routes, int) or num_routes < 1 or num_routes > 32:
             raise ValueError("num_routes must be between 1 and 32")
 
-        self.routes: List[Optional[VectorizedModulationRoute]] = [None] * num_routes
+        self.routes: list[VectorizedModulationRoute | None] = [None] * num_routes
         self.num_routes = num_routes
 
         # Pre-allocated destination arrays to avoid allocations during processing
-        self._dest_arrays: Dict[str, np.ndarray] = {}
+        self._dest_arrays: dict[str, np.ndarray] = {}
         self._max_block_size = 0  # Track max block size for array sizing
 
     def set_route(self, index: int, source: str, destination: str,
@@ -133,8 +133,8 @@ class VectorizedModulationMatrix:
 
         self.routes[index] = None
 
-    def process_vectorized(self, sources: Dict[str, np.ndarray],
-                          velocities: np.ndarray, notes: np.ndarray) -> Dict[str, np.ndarray]:
+    def process_vectorized(self, sources: dict[str, np.ndarray],
+                          velocities: np.ndarray, notes: np.ndarray) -> dict[str, np.ndarray]:
         """
         Process modulation matrix in vectorized form.
 
@@ -162,7 +162,7 @@ class VectorizedModulationMatrix:
             self._resize_destination_arrays(block_size)
             self._max_block_size = block_size
 
-        modulation_values: Dict[str, np.ndarray] = {}
+        modulation_values: dict[str, np.ndarray] = {}
 
         # Process all routes
         for route in self.routes:
@@ -203,7 +203,7 @@ class VectorizedModulationMatrix:
                 new_array[:copy_size] = old_array[:copy_size]
             self._dest_arrays[dest_name] = new_array
 
-    def get_active_routes(self) -> List[int]:
+    def get_active_routes(self) -> list[int]:
         """
         Get list of indices for active (non-None) routes.
 

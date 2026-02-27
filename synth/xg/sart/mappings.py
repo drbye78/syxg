@@ -4,8 +4,8 @@ NRPN/SYSEX Mappings for S.Art2 Articulation System.
 Contains all articulation mappings indexed by NRPN MSB/LSB values.
 This module is extracted from articulation_controller.py for better organization.
 """
+from __future__ import annotations
 
-from typing import Dict, Tuple
 
 
 # NRPN MSB categories
@@ -31,7 +31,7 @@ MSB_CATEGORIES = {
 
 
 # Complete NRPN to Articulation mapping (333 articulations)
-NRPN_ARTICULATION_MAP: Dict[Tuple[int, int], str] = {
+NRPN_ARTICULATION_MAP: dict[tuple[int, int], str] = {
     # Common articulations (MSB 1)
     (1, 0): "normal",
     (1, 1): "legato",
@@ -383,7 +383,7 @@ def get_articulation_from_nrpn(msb: int, lsb: int) -> str:
     return NRPN_ARTICULATION_MAP.get((msb, lsb), "normal")
 
 
-def get_nrpn_for_articulation(articulation: str) -> Tuple[int, int]:
+def get_nrpn_for_articulation(articulation: str) -> tuple[int, int]:
     """Get NRPN MSB/LSB for articulation name."""
     # Check aliases first
     canonical = ARTICULATION_ALIASES.get(articulation, articulation)

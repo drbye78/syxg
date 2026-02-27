@@ -29,6 +29,7 @@ Usage:
     # Or via NRPN
     synth.process_nrpn(channel=0, msb=1, lsb=1, value=0)
 """
+from __future__ import annotations
 
 from .sart2_region import SArt2Region, SArt2RegionFactory
 from .articulation_controller import ArticulationController

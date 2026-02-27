@@ -7,3 +7,4 @@ Comprehensive tests for the synth/style package including:
 - Performance tests for timing and latency
 - Acceptance tests for end-to-end functionality
 """
+from __future__ import annotations

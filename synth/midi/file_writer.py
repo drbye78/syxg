@@ -3,8 +3,9 @@ MIDI File Writer - Standard MIDI File Export
 
 Provides SMF (Standard MIDI File) format 0 and 1 writing capabilities.
 """
+from __future__ import annotations
 
-from typing import List, Dict, Any, Optional, BinaryIO
+from typing import Any, BinaryIO
 import struct
 import os
 from .message import MIDIMessage
@@ -37,10 +38,10 @@ class MIDIFileWriter:
         """
         self.format = format
         self.division = division
-        self.tracks: List[List[MIDIMessage]] = []
+        self.tracks: list[list[MIDIMessage]] = []
         self.tempo_us: int = 500000  # Default 120 BPM
     
-    def add_track(self, messages: List[MIDIMessage]):
+    def add_track(self, messages: list[MIDIMessage]):
         """
         Add a track with messages.
         
@@ -80,14 +81,14 @@ class MIDIFileWriter:
         f.write(struct.pack('>I', 6))  # Header length (always 6)
         f.write(struct.pack('>HHH', self.format, len(self.tracks), self.division))
     
-    def _write_track(self, f: BinaryIO, messages: List[MIDIMessage]):
+    def _write_track(self, f: BinaryIO, messages: list[MIDIMessage]):
         """Write MTrk track chunk."""
         track_data = self._encode_track(messages)
         f.write(b'MTrk')
         f.write(struct.pack('>I', len(track_data)))
         f.write(track_data)
     
-    def _encode_track(self, messages: List[MIDIMessage]) -> bytes:
+    def _encode_track(self, messages: list[MIDIMessage]) -> bytes:
         """Encode messages to track data."""
         result = bytearray()
         
@@ -138,7 +139,7 @@ class MIDIFileWriter:
         value >>= 7
         
         while value:
-            result.append(((value & 0x7F) | 0x80))
+            result.append((value & 0x7F) | 0x80)
             value >>= 7
         
         return bytes(reversed(result))

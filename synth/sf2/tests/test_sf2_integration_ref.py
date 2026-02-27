@@ -4,6 +4,7 @@ SF2 Integration Tests with Reference Soundfont
 Tests the complete SF2 synthesis pipeline using a real SF2 file.
 Requires: tests/ref.sf2 (reference soundfont file)
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np

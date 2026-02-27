@@ -12,9 +12,10 @@ Advanced chord detection with:
 This module extends the basic ChordDetector with professional-grade
 detection algorithms suitable for complex musical input.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Set, Any
+from typing import Any
 from enum import Enum, auto
 import numpy as np
 import threading
@@ -43,7 +44,7 @@ class ChordQuality(Enum):
     POLYCHORD = auto()
 
 
-@dataclass
+@dataclass(slots=True)
 class ChordTemplate:
     """
     Enhanced chord template with fuzzy matching support.
@@ -62,20 +63,20 @@ class ChordTemplate:
     name: str
     root: int
     quality: ChordQuality
-    essential_intervals: List[int]
-    optional_intervals: List[int] = field(default_factory=list)
-    tension_intervals: List[int] = field(default_factory=list)
-    avoid_intervals: List[int] = field(default_factory=list)
-    bass_interval: Optional[int] = None
+    essential_intervals: list[int]
+    optional_intervals: list[int] = field(default_factory=list)
+    tension_intervals: list[int] = field(default_factory=list)
+    avoid_intervals: list[int] = field(default_factory=list)
+    bass_interval: int | None = None
     weight: float = 1.0
 
-    def get_all_intervals(self) -> Set[int]:
+    def get_all_intervals(self) -> set[int]:
         """Get all valid intervals for this chord."""
         return set(self.essential_intervals + self.optional_intervals + 
                    self.tension_intervals)
 
 
-@dataclass
+@dataclass(slots=True)
 class ChordCandidate:
     """
     Chord candidate with scoring for ranking.
@@ -93,9 +94,9 @@ class ChordCandidate:
     chord_type: ChordType
     quality: ChordQuality
     score: float = 0.0
-    match_details: Dict[str, float] = field(default_factory=dict)
-    bass_note: Optional[int] = None
-    intervals: List[int] = field(default_factory=list)
+    match_details: dict[str, float] = field(default_factory=dict)
+    bass_note: int | None = None
+    intervals: list[int] = field(default_factory=list)
 
     def to_detected_chord(self) -> DetectedChord:
         """Convert candidate to DetectedChord."""
@@ -113,7 +114,7 @@ class ChordCandidate:
 
 
 # Extended chord templates for 50+ chord types
-EXTENDED_CHORD_TEMPLATES: Dict[str, ChordTemplate] = {}
+EXTENDED_CHORD_TEMPLATES: dict[str, ChordTemplate] = {}
 
 
 def _initialize_extended_templates():
@@ -396,7 +397,7 @@ MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.2
 MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
 
 
-@dataclass
+@dataclass(slots=True)
 class KeyContext:
     """
     Harmonic context for chord detection.
@@ -411,8 +412,8 @@ class KeyContext:
     root: int = 0
     mode: str = "major"
     confidence: float = 0.0
-    diatonic_chords: Set[int] = field(default_factory=set)
-    recent_chords: List[DetectedChord] = field(default_factory=list)
+    diatonic_chords: set[int] = field(default_factory=set)
+    recent_chords: list[DetectedChord] = field(default_factory=list)
     
     def is_diatonic_root(self, root: int) -> bool:
         """Check if root is diatonic to current key."""
@@ -446,16 +447,16 @@ class EnhancedChordDetector:
         chord = detector.get_current_chord()  # C major
     """
 
-    def __init__(self, config: Optional[ChordDetectionConfig] = None):
+    def __init__(self, config: ChordDetectionConfig | None = None):
         self.config = config or ChordDetectionConfig()
         self._lock = threading.RLock()
         
         # Active notes in detection zone
-        self._active_notes: Dict[int, Tuple[int, float]] = {}
+        self._active_notes: dict[int, tuple[int, float]] = {}
         
         # Current and historical detections
-        self._current_chord: Optional[ChordCandidate] = None
-        self._chord_history: List[DetectedChord] = []
+        self._current_chord: ChordCandidate | None = None
+        self._chord_history: list[DetectedChord] = []
         
         # Harmonic context
         self._key_context = KeyContext()
@@ -467,7 +468,7 @@ class EnhancedChordDetector:
         self._detection_count = 0
         self._last_detection_time: float = 0.0
 
-    def note_on(self, note: int, velocity: int = 100, timestamp: Optional[float] = None):
+    def note_on(self, note: int, velocity: int = 100, timestamp: float | None = None):
         """
         Register note-on event.
         
@@ -564,7 +565,7 @@ class EnhancedChordDetector:
         if self.config.on_chord_change:
             self.config.on_chord_change(detected)
 
-    def _generate_candidates(self, notes: List[int]) -> List[ChordCandidate]:
+    def _generate_candidates(self, notes: list[int]) -> list[ChordCandidate]:
         """
         Generate chord candidates using fuzzy template matching.
         
@@ -607,7 +608,7 @@ class EnhancedChordDetector:
         
         return candidates
 
-    def _fuzzy_match(self, intervals: List[int], template: ChordTemplate) -> float:
+    def _fuzzy_match(self, intervals: list[int], template: ChordTemplate) -> float:
         """
         Fuzzy match intervals against template.
         
@@ -656,7 +657,7 @@ class EnhancedChordDetector:
         
         return score
 
-    def _detect_bass_note(self, notes: List[int]) -> Optional[int]:
+    def _detect_bass_note(self, notes: list[int]) -> int | None:
         """
         Detect bass note for inversion detection.
         
@@ -677,7 +678,7 @@ class EnhancedChordDetector:
         
         return None
 
-    def _score_candidate(self, candidate: ChordCandidate, notes: List[int]) -> float:
+    def _score_candidate(self, candidate: ChordCandidate, notes: list[int]) -> float:
         """
         Score candidate with voice-leading consideration.
         
@@ -849,19 +850,19 @@ class EnhancedChordDetector:
                 (best_root + 10) % 12,
             }
 
-    def get_current_chord(self) -> Optional[DetectedChord]:
+    def get_current_chord(self) -> DetectedChord | None:
         """Get currently detected chord."""
         with self._lock:
             if self._current_chord:
                 return self._current_chord.to_detected_chord()
             return None
 
-    def get_chord_history(self, count: int = 10) -> List[DetectedChord]:
+    def get_chord_history(self, count: int = 10) -> list[DetectedChord]:
         """Get recent chord history."""
         with self._lock:
             return self._chord_history[-count:]
 
-    def get_key_context(self) -> Optional[KeyContext]:
+    def get_key_context(self) -> KeyContext | None:
         """Get current harmonic context."""
         with self._lock:
             if self._key_context.confidence > 0.3:
@@ -869,7 +870,7 @@ class EnhancedChordDetector:
             return None
 
     def force_chord(self, root: ChordRoot, chord_type: ChordType, 
-                    bass_note: Optional[int] = None):
+                    bass_note: int | None = None):
         """Force a specific chord."""
         with self._lock:
             candidate = ChordCandidate(
@@ -894,7 +895,7 @@ class EnhancedChordDetector:
             self._chroma = np.zeros(12)
             self._key_context = KeyContext()
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get detector status."""
         with self._lock:
             return {

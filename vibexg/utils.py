@@ -3,8 +3,8 @@ Vibexg Utilities - Helper functions for MIDI conversion
 
 This module provides utility functions for MIDI message conversion.
 """
+from __future__ import annotations
 
-from typing import List, Optional
 from synth.midi import MIDIMessage
 
 
@@ -79,7 +79,7 @@ def midimessage_to_bytes(message: MIDIMessage) -> bytes:
     return bytes(result)
 
 
-def bytes_to_midimessage(data: bytes, timestamp: Optional[float] = None) -> List[MIDIMessage]:
+def bytes_to_midimessage(data: bytes, timestamp: float | None = None) -> list[MIDIMessage]:
     """
     Convert MIDI bytes to MIDIMessage objects.
     

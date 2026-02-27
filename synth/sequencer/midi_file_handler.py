@@ -4,9 +4,10 @@ MIDI File Handler - Standard MIDI File Import/Export
 Provides comprehensive MIDI file handling capabilities including Standard MIDI Files (SMF)
 format 0 and 1 support, with import/export functionality for the XG sequencer.
 """
+from __future__ import annotations
 
 import struct
-from typing import Dict, List, Any, Optional, Tuple, BinaryIO
+from typing import Any, BinaryIO
 import math
 
 
@@ -70,7 +71,7 @@ class MIDIFileHandler:
         self.tempo_events = []
         self.time_sig_events = []
 
-    def load_midi_file(self, filename: str) -> Optional[Dict[str, Any]]:
+    def load_midi_file(self, filename: str) -> dict[str, Any] | None:
         """
         Load a Standard MIDI File.
 
@@ -87,7 +88,7 @@ class MIDIFileHandler:
             print(f"Error loading MIDI file {filename}: {e}")
             return None
 
-    def _parse_midi_file(self, file: BinaryIO) -> Optional[Dict[str, Any]]:
+    def _parse_midi_file(self, file: BinaryIO) -> dict[str, Any] | None:
         """Parse MIDI file from binary stream."""
         # Read header chunk
         header = self._read_chunk(file)
@@ -131,7 +132,7 @@ class MIDIFileHandler:
             'tracks': tracks
         }
 
-    def _read_chunk(self, file: BinaryIO) -> Dict[str, Any]:
+    def _read_chunk(self, file: BinaryIO) -> dict[str, Any]:
         """Read a MIDI file chunk."""
         chunk_type = file.read(4)
         if len(chunk_type) != 4:
@@ -146,7 +147,7 @@ class MIDIFileHandler:
             'data': chunk_data
         }
 
-    def _parse_track(self, track_data: bytes) -> List[Dict[str, Any]]:
+    def _parse_track(self, track_data: bytes) -> list[dict[str, Any]]:
         """Parse a track's event data."""
         events = []
         pos = 0
@@ -181,7 +182,7 @@ class MIDIFileHandler:
 
         return events
 
-    def _parse_event(self, data: bytes, pos: int, status: int, ticks: int) -> Optional[Dict[str, Any]]:
+    def _parse_event(self, data: bytes, pos: int, status: int, ticks: int) -> dict[str, Any] | None:
         """Parse a MIDI event."""
         event_type = status & 0xF0
         channel = status & 0x0F
@@ -267,7 +268,7 @@ class MIDIFileHandler:
 
         return None
 
-    def _parse_meta_event(self, meta_type: int, data: bytes, ticks: int, next_pos: int) -> Dict[str, Any]:
+    def _parse_meta_event(self, meta_type: int, data: bytes, ticks: int, next_pos: int) -> dict[str, Any]:
         """Parse a meta event."""
         if meta_type == self.META_SET_TEMPO:
             # Tempo: 3 bytes microseconds per quarter note
@@ -320,7 +321,7 @@ class MIDIFileHandler:
             'next_pos': next_pos
         }
 
-    def _read_variable_length(self, data: bytes, pos: int) -> Tuple[int, int]:
+    def _read_variable_length(self, data: bytes, pos: int) -> tuple[int, int]:
         """Read a variable-length quantity from MIDI data."""
         value = 0
         i = 0
@@ -341,7 +342,7 @@ class MIDIFileHandler:
 
         return value, pos + i
 
-    def save_midi_file(self, midi_data: Dict[str, Any], filename: str) -> bool:
+    def save_midi_file(self, midi_data: dict[str, Any], filename: str) -> bool:
         """
         Save MIDI data to a Standard MIDI File.
 
@@ -360,7 +361,7 @@ class MIDIFileHandler:
             print(f"Error saving MIDI file {filename}: {e}")
             return False
 
-    def _write_midi_file(self, midi_data: Dict[str, Any], file: BinaryIO):
+    def _write_midi_file(self, midi_data: dict[str, Any], file: BinaryIO):
         """Write MIDI file to binary stream."""
         format_type = midi_data.get('format', 1)
         tracks = midi_data.get('tracks', [])
@@ -380,7 +381,7 @@ class MIDIFileHandler:
         file.write(struct.pack('>I', len(data)))
         file.write(data)
 
-    def _encode_track(self, events: List[Dict[str, Any]]) -> bytes:
+    def _encode_track(self, events: list[dict[str, Any]]) -> bytes:
         """Encode track events to MIDI data."""
         data = bytearray()
         last_ticks = 0
@@ -403,7 +404,7 @@ class MIDIFileHandler:
 
         return bytes(data)
 
-    def _encode_event(self, event: Dict[str, Any]) -> bytes:
+    def _encode_event(self, event: dict[str, Any]) -> bytes:
         """Encode a MIDI event to bytes."""
         event_type = event.get('type')
 
@@ -456,7 +457,7 @@ class MIDIFileHandler:
 
         return bytes(data)
 
-    def convert_to_sequencer_format(self, midi_data: Dict[str, Any]) -> Dict[str, Any]:
+    def convert_to_sequencer_format(self, midi_data: dict[str, Any]) -> dict[str, Any]:
         """
         Convert MIDI file data to internal sequencer format.
 
@@ -504,7 +505,7 @@ class MIDIFileHandler:
             'time_signature_events': time_sig_events
         }
 
-    def get_midi_file_info(self, midi_data: Dict[str, Any]) -> Dict[str, Any]:
+    def get_midi_file_info(self, midi_data: dict[str, Any]) -> dict[str, Any]:
         """
         Get information about a MIDI file.
 

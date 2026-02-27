@@ -8,10 +8,11 @@ Tests cover:
 - NRPN parameter controller
 - Genos2 compatibility
 """
+from __future__ import annotations
 
 import pytest
 import numpy as np
-from typing import Dict, Any
+from typing import Any
 
 from synth.xg.sart.sart2_region import SArt2Region
 from synth.xg.sart.articulation_controller import ArticulationController

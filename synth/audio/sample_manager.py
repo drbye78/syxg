@@ -267,11 +267,12 @@ QUALITY ASSURANCE:
 - COMPATIBILITY TESTING: Multi-platform and multi-format testing
 - USER EXPERIENCE: Professional user interface and workflow design
 """
+from __future__ import annotations
 
 import os
 import av
 import numpy as np
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 from pathlib import Path
 import threading
 
@@ -282,11 +283,11 @@ class SampleCache:
     def __init__(self, max_memory_mb: float = 512.0):
         self.max_memory_bytes = int(max_memory_mb * 1024 * 1024)
         self.current_memory_bytes = 0
-        self.cache: Dict[str, Any] = {}
-        self.access_times: Dict[str, float] = {}
+        self.cache: dict[str, Any] = {}
+        self.access_times: dict[str, float] = {}
         self.lock = threading.RLock()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get item from cache, updating access time"""
         with self.lock:
             if key in self.cache:
@@ -356,7 +357,7 @@ class StreamingSample:
         self.path = path
         self.decoder = container.decode(stream)
         self.position = 0
-        self.current_frame: Optional[np.ndarray] = None
+        self.current_frame: np.ndarray | None = None
         self.frame_offset = 0
 
     def seek_to_sample(self, sample_position: int) -> None:
@@ -401,7 +402,7 @@ class StreamingSample:
 
         return output[:samples_read] if samples_read < num_samples else output
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """Get stream metadata"""
         return {
             'sample_rate': self.stream.sample_rate,
@@ -427,7 +428,7 @@ class StreamingSample:
 class SFZSample:
     """SFZ sample with PyAV-powered loading"""
 
-    def __init__(self, data: np.ndarray, metadata: Dict[str, Any], path: str):
+    def __init__(self, data: np.ndarray, metadata: dict[str, Any], path: str):
         self.data = data  # Shape: (samples, channels)
         self.metadata = metadata
         self.path = path
@@ -435,7 +436,7 @@ class SFZSample:
         self.channels = metadata['channels']
         self.loop_start = metadata.get('loop_start', 0)
         self.loop_end = metadata.get('loop_end', len(data))
-        self.cues: List[Dict[str, Any]] = metadata.get('cues', [])
+        self.cues: list[dict[str, Any]] = metadata.get('cues', [])
 
     def is_stereo(self) -> bool:
         """Check if sample is stereo"""
@@ -578,7 +579,7 @@ class PyAVSampleManager:
             raise RuntimeError(f"Failed to create streaming sample {path}: {e}")
 
     def _extract_metadata(self, stream: av.audio.AudioStream,
-                         container: av.container.Container) -> Dict[str, Any]:
+                         container: av.container.Container) -> dict[str, Any]:
         """Extract comprehensive metadata using PyAV"""
         metadata = {
             'sample_rate': stream.sample_rate,
@@ -615,7 +616,7 @@ class PyAVSampleManager:
         }
         return format_bits.get(stream.format.name, 16)
 
-    def _extract_cues(self, container: av.container.Container) -> List[Dict[str, Any]]:
+    def _extract_cues(self, container: av.container.Container) -> list[dict[str, Any]]:
         """Extract cue points from audio file"""
         cues = []
 
@@ -625,7 +626,7 @@ class PyAVSampleManager:
 
         return cues
 
-    def preload_samples(self, sample_paths: List[str]) -> None:
+    def preload_samples(self, sample_paths: list[str]) -> None:
         """Preload multiple samples into cache"""
         for path in sample_paths:
             try:
@@ -637,7 +638,7 @@ class PyAVSampleManager:
         """Clear all cached samples"""
         self.cache.clear()
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics"""
         return {
             'cached_samples': len(self.cache.cache),
@@ -645,11 +646,11 @@ class PyAVSampleManager:
             'max_memory_mb': self.cache.max_memory_bytes / (1024 * 1024)
         }
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """Get list of supported audio formats"""
         return sorted(list(self.SUPPORTED_FORMATS))
 
-    def validate_sample_file(self, path: str) -> Tuple[bool, str]:
+    def validate_sample_file(self, path: str) -> tuple[bool, str]:
         """
         Validate that a file can be loaded as a sample
 

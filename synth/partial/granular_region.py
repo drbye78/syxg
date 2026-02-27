@@ -9,8 +9,9 @@ GranularRegion implements granular synthesis with:
 - Grain parameter randomization
 - Source buffer management
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -75,14 +76,14 @@ class GranularRegion(IRegion):
         self._playback_mode = algo_params.get('playback_mode', 'normal')
         
         # Source buffer (loaded on demand)
-        self._source_buffer: Optional[np.ndarray] = None
+        self._source_buffer: np.ndarray | None = None
         self._source_length = 0
         
         # Grain clouds (created on demand)
-        self._grain_clouds: List[Any] = []
-        self._cloud_positions: List[float] = [0.0] * self._max_clouds
+        self._grain_clouds: list[Any] = []
+        self._cloud_positions: list[float] = [0.0] * self._max_clouds
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """Load source buffer for granular synthesis."""
         # Source buffer is loaded from sample cache
         sample_id = self.descriptor.sample_id
@@ -99,7 +100,7 @@ class GranularRegion(IRegion):
         
         return self._source_buffer
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create granular synthesis partial.
         
@@ -257,7 +258,7 @@ class GranularRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from granular clouds.
@@ -296,7 +297,7 @@ class GranularRegion(IRegion):
             logger.error(f"Granular sample generation failed: {e}")
             return np.zeros(block_size * 2, dtype=np.float32)
     
-    def _apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """
         Apply modulation to granular parameters.
         
@@ -319,7 +320,7 @@ class GranularRegion(IRegion):
                 if cloud and hasattr(cloud, 'set_density'):
                     cloud.set_density(self._grain_density * density_mod)
     
-    def update_modulation(self, modulation: Dict[str, float]) -> None:
+    def update_modulation(self, modulation: dict[str, float]) -> None:
         """
         Update modulation state.
         
@@ -339,7 +340,7 @@ class GranularRegion(IRegion):
         
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

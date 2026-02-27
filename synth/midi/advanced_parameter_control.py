@@ -4,8 +4,10 @@ Advanced Parameter Control System for MIDI 2.0
 Implements sophisticated parameter mapping, routing, and control mechanisms for MIDI 2.0.
 Supports complex modulation matrices, parameter automation, and advanced control surfaces.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Callable, Any, Optional, Union
+from typing import Any
+from collections.abc import Callable
 from enum import Enum
 import math
 
@@ -92,14 +94,14 @@ class AdvancedParameterController:
     
     def __init__(self):
         """Initialize the advanced parameter control system."""
-        self.parameter_mappings: Dict[str, List[ParameterMapping]] = {}
-        self.parameter_values: Dict[str, float] = {}
-        self.automation_data: Dict[str, List[Tuple[float, float]]] = {}  # time -> value
+        self.parameter_mappings: dict[str, list[ParameterMapping]] = {}
+        self.parameter_values: dict[str, float] = {}
+        self.automation_data: dict[str, list[tuple[float, float]]] = {}  # time -> value
         self.automation_mode = ParameterAutomationMode.OFF
         self.current_time = 0.0
-        self.modulation_matrix: Dict[str, Dict[str, float]] = {}  # source -> dest -> amount
+        self.modulation_matrix: dict[str, dict[str, float]] = {}  # source -> dest -> amount
         self.learning_mode = False
-        self.learned_mappings: List[ParameterMapping] = []
+        self.learned_mappings: list[ParameterMapping] = []
         
         # Initialize with default parameter values
         self._initialize_default_parameters()
@@ -162,7 +164,7 @@ class AdvancedParameterController:
             return True
         return False
     
-    def set_parameter_value(self, parameter: str, value: float, source: Optional[str] = None):
+    def set_parameter_value(self, parameter: str, value: float, source: str | None = None):
         """
         Set a parameter value, triggering any mapped destinations.
 
@@ -315,7 +317,7 @@ class AdvancedParameterController:
         self.learning_mode = True
         self.learned_mappings.clear()
     
-    def stop_learning_mode(self) -> List[ParameterMapping]:
+    def stop_learning_mode(self) -> list[ParameterMapping]:
         """
         Stop parameter learning mode and return learned mappings.
 
@@ -348,7 +350,7 @@ class AdvancedParameterController:
         mapping_id = self.add_parameter_mapping(source, destination)
         return mapping_id
     
-    def get_all_parameters(self) -> Dict[str, float]:
+    def get_all_parameters(self) -> dict[str, float]:
         """
         Get all current parameter values.
 
@@ -364,7 +366,7 @@ class AdvancedParameterController:
         # Clear automation data
         self.automation_data.clear()
     
-    def get_modulation_matrix(self) -> Dict[str, Dict[str, float]]:
+    def get_modulation_matrix(self) -> dict[str, dict[str, float]]:
         """
         Get the current modulation matrix.
 
@@ -373,7 +375,7 @@ class AdvancedParameterController:
         """
         return {k: v.copy() for k, v in self.modulation_matrix.items()}
     
-    def get_parameter_mappings(self, source: Optional[str] = None) -> Dict[str, List[ParameterMapping]]:
+    def get_parameter_mappings(self, source: str | None = None) -> dict[str, list[ParameterMapping]]:
         """
         Get parameter mappings, optionally filtered by source.
 

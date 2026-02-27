@@ -4,8 +4,10 @@ MPE (Microtonal Expression) Manager
 Comprehensive MPE implementation for expressive microtonal control,
 providing per-note parameter modulation and advanced MIDI expression.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 import math
 
@@ -116,7 +118,7 @@ class MPENote:
         self.active = False
         self.note_off_time = 0.0  # Would be set by caller
 
-    def get_mpe_info(self) -> Dict[str, Any]:
+    def get_mpe_info(self) -> dict[str, Any]:
         """Get comprehensive MPE information for this note."""
         return {
             'note_number': self.note_number,
@@ -141,7 +143,7 @@ class MPEChannel:
     Each MPE zone consists of a master channel and multiple member channels.
     """
 
-    def __init__(self, master_channel: int, member_channels: List[int]):
+    def __init__(self, master_channel: int, member_channels: list[int]):
         """
         Initialize MPE channel.
 
@@ -159,7 +161,7 @@ class MPEChannel:
         self.pressure_active = True
 
         # Active notes on this channel
-        self.active_notes: Dict[int, MPENote] = {}
+        self.active_notes: dict[int, MPENote] = {}
 
         # Channel state
         self.enabled = True
@@ -176,15 +178,15 @@ class MPEChannel:
         """Add note to this channel."""
         self.active_notes[note.note_number] = note
 
-    def remove_note(self, note_number: int) -> Optional[MPENote]:
+    def remove_note(self, note_number: int) -> MPENote | None:
         """Remove note from this channel."""
         return self.active_notes.pop(note_number, None)
 
-    def get_note(self, note_number: int) -> Optional[MPENote]:
+    def get_note(self, note_number: int) -> MPENote | None:
         """Get note by number."""
         return self.active_notes.get(note_number)
 
-    def get_active_notes(self) -> List[MPENote]:
+    def get_active_notes(self) -> list[MPENote]:
         """Get all active notes."""
         return list(self.active_notes.values())
 
@@ -192,7 +194,7 @@ class MPEChannel:
         """Clear all active notes."""
         self.active_notes.clear()
 
-    def get_channel_info(self) -> Dict[str, Any]:
+    def get_channel_info(self) -> dict[str, Any]:
         """Get channel configuration and status."""
         return {
             'master_channel': self.master_channel,
@@ -245,7 +247,7 @@ class MPEZone:
         """Check if channel is in this zone."""
         return self.lower_channel <= channel <= self.upper_channel
 
-    def get_zone_info(self) -> Dict[str, Any]:
+    def get_zone_info(self) -> dict[str, Any]:
         """Get zone configuration."""
         return {
             'zone_id': self.zone_id,
@@ -284,12 +286,12 @@ class MPEManager:
         self.global_pitch_bend_range = 48
 
         # Active notes registry
-        self.active_notes: Dict[Tuple[int, int], MPENote] = {}  # (channel, note) -> MPENote
+        self.active_notes: dict[tuple[int, int], MPENote] = {}  # (channel, note) -> MPENote
 
         # Thread safety
         self.lock = threading.RLock()
 
-    def _create_default_zones(self) -> List[MPEZone]:
+    def _create_default_zones(self) -> list[MPEZone]:
         """Create default MPE zones."""
         zones = []
 
@@ -301,14 +303,14 @@ class MPEManager:
 
         return zones
 
-    def get_zone_for_channel(self, channel: int) -> Optional[MPEZone]:
+    def get_zone_for_channel(self, channel: int) -> MPEZone | None:
         """Get MPE zone containing the specified channel."""
         for zone in self.zones:
             if zone.contains_channel(channel):
                 return zone
         return None
 
-    def process_note_on(self, channel: int, note: int, velocity: int) -> Optional[MPENote]:
+    def process_note_on(self, channel: int, note: int, velocity: int) -> MPENote | None:
         """
         Process MPE note-on event.
 
@@ -338,7 +340,7 @@ class MPEManager:
 
             return mpe_note
 
-    def process_note_off(self, channel: int, note: int, velocity: int = 0) -> Optional[MPENote]:
+    def process_note_off(self, channel: int, note: int, velocity: int = 0) -> MPENote | None:
         """
         Process MPE note-off event.
 
@@ -486,12 +488,12 @@ class MPEManager:
             for note in zone.mpe_channel.get_active_notes():
                 note.update_lift(lift_value)
 
-    def get_active_mpe_notes(self) -> List[MPENote]:
+    def get_active_mpe_notes(self) -> list[MPENote]:
         """Get all currently active MPE notes."""
         with self.lock:
             return list(self.active_notes.values())
 
-    def get_channel_mpe_notes(self, channel: int) -> List[MPENote]:
+    def get_channel_mpe_notes(self, channel: int) -> list[MPENote]:
         """Get active MPE notes for a specific channel."""
         with self.lock:
             zone = self.get_zone_for_channel(channel)
@@ -536,7 +538,7 @@ class MPEManager:
             for zone in self.zones:
                 zone.mpe_channel.clear_all_notes()
 
-    def get_mpe_info(self) -> Dict[str, Any]:
+    def get_mpe_info(self) -> dict[str, Any]:
         """Get comprehensive MPE system information."""
         with self.lock:
             return {
@@ -547,14 +549,14 @@ class MPEManager:
                 'active_notes': [note.get_mpe_info() for note in self.active_notes.values()]
             }
 
-    def get_zone_info(self, zone_id: int) -> Optional[Dict[str, Any]]:
+    def get_zone_info(self, zone_id: int) -> dict[str, Any] | None:
         """Get information for a specific zone."""
         with self.lock:
             if 1 <= zone_id <= len(self.zones):
                 return self.zones[zone_id - 1].get_zone_info()
             return None
 
-    def get_channel_info(self, channel: int) -> Optional[Dict[str, Any]]:
+    def get_channel_info(self, channel: int) -> dict[str, Any] | None:
         """Get MPE information for a specific channel."""
         with self.lock:
             zone = self.get_zone_for_channel(channel)

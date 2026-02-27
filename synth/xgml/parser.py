@@ -4,9 +4,10 @@ XGML Parser
 Parses XGML (XG Markup Language) YAML documents and provides structured access
 to XG synthesizer parameters and sequences.
 """
+from __future__ import annotations
 
 import yaml
-from typing import Dict, Any, List, Optional, Union
+from typing import Any
 from pathlib import Path
 from datetime import datetime
 
@@ -16,7 +17,7 @@ from .constants import XGML_VERSION, XGML_SECTIONS
 class XGMLDocument:
     """Represents a parsed XGML document."""
 
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: dict[str, Any]):
         self.version = data.get('xg_dsl_version', XGML_VERSION)
         self.description = data.get('description', '')
         self.timestamp = data.get('timestamp')
@@ -31,11 +32,11 @@ class XGMLDocument:
         """Check if document has a specific section."""
         return section_name in self.sections
 
-    def get_section(self, section_name: str) -> Optional[Any]:
+    def get_section(self, section_name: str) -> Any | None:
         """Get a specific section data."""
         return self.sections.get(section_name)
 
-    def get_sections(self) -> List[str]:
+    def get_sections(self) -> list[str]:
         """Get list of available sections."""
         return list(self.sections.keys())
 
@@ -51,7 +52,7 @@ class XGMLParser:
         self.errors = []
         self.warnings = []
 
-    def parse_file(self, file_path: Union[str, Path]) -> Optional[XGMLDocument]:
+    def parse_file(self, file_path: str | Path) -> XGMLDocument | None:
         """
         Parse XGML file from path.
 
@@ -67,7 +68,7 @@ class XGMLParser:
                 self.errors.append(f"File not found: {file_path}")
                 return None
 
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
 
             return self.parse_data(data)
@@ -79,7 +80,7 @@ class XGMLParser:
             self.errors.append(f"Error reading file: {e}")
             return None
 
-    def parse_string(self, yaml_string: str) -> Optional[XGMLDocument]:
+    def parse_string(self, yaml_string: str) -> XGMLDocument | None:
         """
         Parse XGML from string.
 
@@ -96,7 +97,7 @@ class XGMLParser:
             self.errors.append(f"YAML parsing error: {e}")
             return None
 
-    def parse_data(self, data: Dict[str, Any]) -> Optional[XGMLDocument]:
+    def parse_data(self, data: dict[str, Any]) -> XGMLDocument | None:
         """
         Parse XGML from dictionary data.
 
@@ -137,11 +138,11 @@ class XGMLParser:
             self.errors.append(f"Error creating XGML document: {e}")
             return None
 
-    def get_errors(self) -> List[str]:
+    def get_errors(self) -> list[str]:
         """Get list of parsing errors."""
         return self.errors.copy()
 
-    def get_warnings(self) -> List[str]:
+    def get_warnings(self) -> list[str]:
         """Get list of parsing warnings."""
         return self.warnings.copy()
 

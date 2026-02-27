@@ -3,6 +3,7 @@ Synthesis engine layer for XG synthesizer.
 
 Provides synthesis engine abstraction and registry for different synthesis technologies.
 """
+from __future__ import annotations
 
 from .synthesis_engine import SynthesisEngine, SynthesisEngineRegistry
 from .sf2_engine import SF2Engine

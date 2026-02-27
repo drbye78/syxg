@@ -12,8 +12,9 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import threading
 import math
 
@@ -343,7 +344,7 @@ class XGMultiPartSetup:
 
         return False
 
-    def get_multi_part_status(self) -> Dict[str, Any]:
+    def get_multi_part_status(self) -> dict[str, Any]:
         """
         Get comprehensive multi-part setup status.
 
@@ -443,7 +444,7 @@ class XGMultiPartSetup:
 
             return max(1, allocated)  # Always allocate at least 1 voice
 
-    def get_part_synthesis_parameters(self, part: int) -> Dict[str, Any]:
+    def get_part_synthesis_parameters(self, part: int) -> dict[str, Any]:
         """
         Get synthesis-relevant parameters for a part.
 
@@ -477,7 +478,7 @@ class XGMultiPartSetup:
 
         print("🎹 XG MULTI-PART SETUP: Reset to XG defaults")
 
-    def export_setup(self) -> Dict[str, Any]:
+    def export_setup(self) -> dict[str, Any]:
         """Export multi-part setup for serialization."""
         with self.lock:
             return {
@@ -488,7 +489,7 @@ class XGMultiPartSetup:
                 'version': '1.0'
             }
 
-    def import_setup(self, setup_data: Dict[str, Any]) -> bool:
+    def import_setup(self, setup_data: dict[str, Any]) -> bool:
         """Import multi-part setup from serialized data."""
         try:
             with self.lock:

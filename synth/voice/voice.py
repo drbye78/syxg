@@ -5,8 +5,9 @@ Part of the unified region-based synthesis architecture.
 Voice stores preset definition (all region descriptors) and creates
 region instances at note-on time based on note/velocity matching.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -65,13 +66,13 @@ class Voice:
         self.sample_rate = sample_rate
         
         # Active region instances for current note
-        self._active_instances: List[IRegion] = []
+        self._active_instances: list[IRegion] = []
         
         # Optional: cache of recently used region instances
-        self._region_cache: Dict[int, IRegion] = {}
+        self._region_cache: dict[int, IRegion] = {}
         
         # Round-robin state per group
-        self._round_robin_state: Dict[int, int] = {}
+        self._round_robin_state: dict[int, int] = {}
         
         # Voice-level parameters (from preset)
         self._master_level = preset_info.master_level
@@ -88,7 +89,7 @@ class Voice:
         self, 
         note: int, 
         velocity: int
-    ) -> List[IRegion]:
+    ) -> list[IRegion]:
         """
         Get region instances for a specific note/velocity.
         
@@ -125,10 +126,10 @@ class Voice:
     
     def _apply_round_robin(
         self, 
-        descriptors: List[RegionDescriptor],
+        descriptors: list[RegionDescriptor],
         note: int,
         velocity: int
-    ) -> List[RegionDescriptor]:
+    ) -> list[RegionDescriptor]:
         """
         Apply round-robin selection to descriptors.
         
@@ -141,7 +142,7 @@ class Voice:
             Selected descriptors after round-robin
         """
         # Group by round-robin group
-        rr_groups: Dict[int, List[RegionDescriptor]] = {}
+        rr_groups: dict[int, list[RegionDescriptor]] = {}
         for d in descriptors:
             rr_id = d.round_robin_group
             if rr_id not in rr_groups:
@@ -197,7 +198,7 @@ class Voice:
     
     # ========== PLAYBACK ==========
     
-    def note_on(self, note: int, velocity: int) -> List[IRegion]:
+    def note_on(self, note: int, velocity: int) -> list[IRegion]:
         """
         Trigger note-on for all matching regions.
         
@@ -242,7 +243,7 @@ class Voice:
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from all active regions.
@@ -315,8 +316,8 @@ class Voice:
     
     def set_effects_sends(
         self, 
-        reverb: Optional[float] = None,
-        chorus: Optional[float] = None
+        reverb: float | None = None,
+        chorus: float | None = None
     ) -> None:
         """Set effects send levels."""
         if reverb is not None:
@@ -324,7 +325,7 @@ class Voice:
         if chorus is not None:
             self._chorus_send = max(0.0, min(1.0, chorus))
     
-    def update_modulation(self, modulation: Dict[str, float]) -> None:
+    def update_modulation(self, modulation: dict[str, float]) -> None:
         """
         Update modulation for all active regions.
         
@@ -344,7 +345,7 @@ class Voice:
         """Get number of currently active regions."""
         return len(self._active_instances)
     
-    def get_region_info(self) -> List[Dict[str, Any]]:
+    def get_region_info(self) -> list[dict[str, Any]]:
         """Get information about active regions."""
         return [r.get_region_info() for r in self._active_instances]
     
@@ -443,10 +444,10 @@ def _create_silent_region(
     from ..partial.region import IRegion, RegionState
     
     class SilentRegion(IRegion):
-        def _load_sample_data(self) -> Optional[np.ndarray]:
+        def _load_sample_data(self) -> np.ndarray | None:
             return None
         
-        def _create_partial(self) -> Optional[Any]:
+        def _create_partial(self) -> Any | None:
             return None
         
         def _init_envelopes(self) -> None:
@@ -458,7 +459,7 @@ def _create_silent_region(
         def generate_samples(
             self, 
             block_size: int, 
-            modulation: Dict[str, float]
+            modulation: dict[str, float]
         ) -> np.ndarray:
             return np.zeros(block_size * 2, dtype=np.float32)
     

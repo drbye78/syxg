@@ -3,11 +3,12 @@ S.Art2 Performance Benchmarks
 
 Benchmarks for S.Art2 articulation system performance.
 """
+from __future__ import annotations
 
 import pytest
 import time
 import numpy as np
-from typing import Dict, Any
+from typing import Any
 
 from synth.xg.sart.articulation_controller import ArticulationController
 from synth.xg.sart.articulation_preset import ArticulationPreset, ArticulationPresetManager

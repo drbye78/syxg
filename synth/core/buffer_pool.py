@@ -173,8 +173,9 @@ RECOVERY STRATEGIES:
 - Memory pressure relief mechanisms
 - Diagnostic information collection
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Any
 import numpy as np
 import threading
 import math
@@ -213,7 +214,7 @@ class BufferStatistics:
         """Reset statistics."""
         self.__init__()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get comprehensive statistics."""
         return {
             'total_allocated_mb': self.total_allocated / (1024 * 1024),
@@ -244,7 +245,7 @@ class XGBufferPool:
     MIN_POOL_SIZE_MB = 16   # Minimum pool size for startup
 
     def __init__(self, sample_rate: int = 44100, max_block_size: int = 8192,
-                 max_channels: int = 16, memory_budget_mb: Optional[float] = None):
+                 max_channels: int = 16, memory_budget_mb: float | None = None):
         """
         Initialize XG Buffer Pool.
 
@@ -267,12 +268,12 @@ class XGBufferPool:
         self.stats = BufferStatistics()
 
         # Buffer pools organized by size and type
-        self._mono_pools: Dict[int, List[np.ndarray]] = defaultdict(list)
-        self._stereo_pools: Dict[int, List[np.ndarray]] = defaultdict(list)
-        self._multi_channel_pools: Dict[Tuple[int, int], List[np.ndarray]] = defaultdict(list)
+        self._mono_pools: dict[int, list[np.ndarray]] = defaultdict(list)
+        self._stereo_pools: dict[int, list[np.ndarray]] = defaultdict(list)
+        self._multi_channel_pools: dict[tuple[int, int], list[np.ndarray]] = defaultdict(list)
 
         # Active buffer tracking (for leak detection)
-        self._active_buffers: Dict[int, Tuple[np.ndarray, str, int]] = {}  # id -> (buffer, stack_trace, thread_id)
+        self._active_buffers: dict[int, tuple[np.ndarray, str, int]] = {}  # id -> (buffer, stack_trace, thread_id)
         self._buffer_id_counter = 0
 
         # Memory pressure monitoring
@@ -423,7 +424,7 @@ class XGBufferPool:
         key = (size, channels)
         return self._get_buffer_from_pool(self._multi_channel_pools, key, channels, f"multi_{channels}ch")
 
-    def _get_buffer_from_pool(self, pool: Dict[Any, List[np.ndarray]],
+    def _get_buffer_from_pool(self, pool: dict[Any, list[np.ndarray]],
                             key: Any, channels: int, pool_name: str) -> np.ndarray:
         """Get buffer from specific pool."""
         with self.lock:
@@ -615,7 +616,7 @@ class XGBufferPool:
 
         return result
 
-    def get_pool_statistics(self) -> Dict[str, Any]:
+    def get_pool_statistics(self) -> dict[str, Any]:
         """Get comprehensive pool statistics."""
         with self.lock:
             stats = self.stats.get_stats()
@@ -635,7 +636,7 @@ class XGBufferPool:
 
             return stats
 
-    def get_memory_stats(self) -> Dict[str, Any]:
+    def get_memory_stats(self) -> dict[str, Any]:
         """Get memory statistics (alias for get_pool_statistics for compatibility)."""
         return self.get_pool_statistics()
 

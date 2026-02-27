@@ -291,8 +291,9 @@ INDUSTRY COMPLIANCE:
 - SMPTE TIMING: Broadcast and post-production timing standards
 - IEEE AUDIO STANDARDS: Technical audio processing standards
 """
+from __future__ import annotations
 
-from typing import Dict, List, Tuple, Optional, Any, Set, Union
+from typing import Any
 from pathlib import Path
 import threading
 import numpy as np
@@ -309,9 +310,9 @@ class SF2SoundFont:
     def __init__(
         self,
         filepath: str,
-        sample_processor: "SF2SampleProcessor",
-        zone_cache_manager: "SF2ZoneCacheManager",
-        modulation_engine: "SF2ModulationEngine",
+        sample_processor: SF2SampleProcessor,
+        zone_cache_manager: SF2ZoneCacheManager,
+        modulation_engine: SF2ModulationEngine,
     ):
         """
         Initialize SF2 soundfont.
@@ -332,9 +333,9 @@ class SF2SoundFont:
         self.modulation_engine = modulation_engine
 
         # Data caches (populated on-demand)
-        self.presets: Dict[Tuple[int, int], "SF2Preset"] = {}
-        self.instruments: Dict[int, "SF2Instrument"] = {}
-        self.samples: Dict[int, "SF2Sample"] = {}
+        self.presets: dict[tuple[int, int], SF2Preset] = {}
+        self.instruments: dict[int, SF2Instrument] = {}
+        self.samples: dict[int, SF2Sample] = {}
 
         # Metadata
         self.name = ""
@@ -404,7 +405,7 @@ class SF2SoundFont:
 
     def get_program_parameters(
         self, bank: int, program: int, note: int = 60, velocity: int = 100
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get program parameters for synthesis.
 
@@ -436,7 +437,7 @@ class SF2SoundFont:
             # Process zones into synthesis parameters
             return self._process_zones_to_parameters(matching_zones, note, velocity)
 
-    def get_zone(self, bank: int, program: int, zone_id: int) -> Optional["SF2Zone"]:
+    def get_zone(self, bank: int, program: int, zone_id: int) -> SF2Zone | None:
         """
         Get SF2Zone by zone ID for a specific preset.
 
@@ -461,7 +462,7 @@ class SF2SoundFont:
 
         return None
 
-    def get_sample_info(self, sample_id: int) -> Optional[Dict[str, Any]]:
+    def get_sample_info(self, sample_id: int) -> dict[str, Any] | None:
         """
         Get sample information by sample ID.
 
@@ -487,7 +488,7 @@ class SF2SoundFont:
 
         return None
 
-    def get_sample_loop_info(self, sample_id: int) -> Optional[Dict[str, Any]]:
+    def get_sample_loop_info(self, sample_id: int) -> dict[str, Any] | None:
         """
         Get sample loop information by sample ID.
 
@@ -525,7 +526,7 @@ class SF2SoundFont:
     # that called file_loader.get_sample_data(sample_id) directly has been
     # removed to avoid signature mismatches.
 
-    def _get_or_load_preset(self, bank: int, program: int) -> Optional["SF2Preset"]:
+    def _get_or_load_preset(self, bank: int, program: int) -> SF2Preset | None:
         """Get preset from cache or load on-demand."""
         preset_key = (bank, program)
 
@@ -575,7 +576,7 @@ class SF2SoundFont:
 
     def _load_preset_zones_selective(
         self, preset_bag_index: int, preset_index: int
-    ) -> List["SF2Zone"]:
+    ) -> list[SF2Zone]:
         """
         Load zones for a preset using correct SF2 specification schema.
 
@@ -681,8 +682,8 @@ class SF2SoundFont:
 
     def _populate_zone_generators(
         self,
-        zone: "SF2Zone",
-        gen_data: List[Tuple[int, int]],
+        zone: SF2Zone,
+        gen_data: list[tuple[int, int]],
         gen_start: int,
         gen_end: int,
     ) -> None:
@@ -693,8 +694,8 @@ class SF2SoundFont:
 
     def _populate_zone_modulators(
         self,
-        zone: "SF2Zone",
-        mod_data: List[Dict[str, Any]],
+        zone: SF2Zone,
+        mod_data: list[dict[str, Any]],
         mod_start: int,
         mod_end: int,
     ) -> None:
@@ -703,8 +704,8 @@ class SF2SoundFont:
             zone.add_modulator(mod_data[mod_idx])
 
     def _process_zones_to_parameters(
-        self, zones: List["SF2Zone"], note: int, velocity: int
-    ) -> Dict[str, Any]:
+        self, zones: list[SF2Zone], note: int, velocity: int
+    ) -> dict[str, Any]:
         """Process zones into synthesis parameters."""
         if not zones:
             return {}
@@ -766,7 +767,7 @@ class SF2SoundFont:
 
     def _get_or_load_instrument(
         self, instrument_index: int
-    ) -> Optional["SF2Instrument"]:
+    ) -> SF2Instrument | None:
         """Get instrument from cache or load on-demand."""
         if instrument_index in self.instruments:
             return self.instruments[instrument_index]
@@ -811,7 +812,7 @@ class SF2SoundFont:
 
     def _load_instrument_zones_selective(
         self, instrument_bag_index: int, instrument_index: int
-    ) -> List["SF2Zone"]:
+    ) -> list[SF2Zone]:
         """
         Load zones for an instrument using correct SF2 specification schema.
 
@@ -917,7 +918,7 @@ class SF2SoundFont:
 
         return zones
 
-    def _get_or_load_sample(self, sample_id: int) -> Optional["SF2Sample"]:
+    def _get_or_load_sample(self, sample_id: int) -> SF2Sample | None:
         """Get sample from cache or load on-demand."""
         if sample_id in self.samples:
             return self.samples[sample_id]
@@ -971,7 +972,7 @@ class SF2SoundFont:
             print(f"Error loading sample {sample_id}: {e}")
             return False
 
-    def get_sample_data(self, sample_id: int) -> Optional[Any]:
+    def get_sample_data(self, sample_id: int) -> Any | None:
         """
         Get processed sample data.
 
@@ -984,7 +985,7 @@ class SF2SoundFont:
         sample = self._get_or_load_sample(sample_id)
         return sample.data if sample and sample.data_loaded else None
 
-    def get_available_programs(self) -> List[Tuple[int, int, str]]:
+    def get_available_programs(self) -> list[tuple[int, int, str]]:
         """
         Get all available programs in this soundfont.
 
@@ -1002,7 +1003,7 @@ class SF2SoundFont:
 
         return programs
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         """
         Get soundfont information.
 
@@ -1029,7 +1030,7 @@ class SF2SoundFont:
             "memory_usage": memory_info,
         }
 
-    def update_controller(self, controller: int, value: Union[int, float]) -> None:
+    def update_controller(self, controller: int, value: int | float) -> None:
         """
         Update controller value for all zones.
 
@@ -1040,7 +1041,7 @@ class SF2SoundFont:
         if self.modulation_engine:
             self.modulation_engine.update_global_controller(controller, value)
 
-    def get_performance_stats(self) -> Dict[str, Any]:
+    def get_performance_stats(self) -> dict[str, Any]:
         """
         Get performance statistics for this soundfont.
 

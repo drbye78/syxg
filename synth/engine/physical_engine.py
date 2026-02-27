@@ -5,8 +5,9 @@ Implements physical modeling synthesis using digital waveguide synthesis,
 Karplus-Strong plucked string algorithm, and waveguide mesh techniques.
 Provides realistic instrument emulation with proper physical behavior.
 """
+from __future__ import annotations
 
-from typing import Dict, Any, Optional, List
+from typing import Any
 import numpy as np
 import math
 
@@ -169,7 +170,7 @@ class DigitalWaveguide:
 
         return output
 
-    def set_parameters(self, params: Dict[str, Any]):
+    def set_parameters(self, params: dict[str, Any]):
         """
         Set waveguide parameters.
 
@@ -361,7 +362,7 @@ class PhysicalEngine(SynthesisEngine):
         # Active voices tracking
         self.active_voices = {}  # voice_index -> (note, velocity, start_time)
 
-    def get_engine_info(self) -> Dict[str, Any]:
+    def get_engine_info(self) -> dict[str, Any]:
         """Get physical modeling engine information."""
         return {
             'name': 'Physical Modeling Engine',
@@ -374,7 +375,7 @@ class PhysicalEngine(SynthesisEngine):
         }
     # ========== NEW REGION-BASED METHODS (STUBS) ==========
     
-    def get_preset_info(self, bank: int, program: int) -> Optional['PresetInfo']:
+    def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """Get preset info (stub)."""
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
@@ -394,15 +395,15 @@ class PhysicalEngine(SynthesisEngine):
             region_descriptors=[descriptor]
         )
     
-    def get_all_region_descriptors(self, bank: int, program: int) -> List['RegionDescriptor']:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
     
     def create_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create region instance. Base implementation wraps with S.Art2.
         """
@@ -410,9 +411,9 @@ class PhysicalEngine(SynthesisEngine):
 
     def _create_base_region(
         self,
-        descriptor: 'RegionDescriptor',
+        descriptor: RegionDescriptor,
         sample_rate: int
-    ) -> 'IRegion':
+    ) -> IRegion:
         """
         Create PhysicalRegion base region without S.Art2 wrapper.
 
@@ -427,12 +428,12 @@ class PhysicalEngine(SynthesisEngine):
         return PhysicalRegion(descriptor, sample_rate)
     
 
-    def load_sample_for_region(self, region: 'IRegion') -> bool:
+    def load_sample_for_region(self, region: IRegion) -> bool:
         return True
 
 
 
-    def generate_samples(self, note: int, velocity: int, modulation: Dict[str, float], block_size: int) -> np.ndarray:
+    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float], block_size: int) -> np.ndarray:
         """
         Generate physical modeling audio samples.
 
@@ -491,7 +492,7 @@ class PhysicalEngine(SynthesisEngine):
         """Check if a note is supported."""
         return 21 <= note <= 108  # Standard piano range, can be extended
 
-    def create_partial(self, partial_params: Dict[str, Any], sample_rate: int) -> 'PhysicalPartial':
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> PhysicalPartial:
         """Create physical modeling partial."""
         from ..partial.physical_partial import PhysicalPartial
         return PhysicalPartial(partial_params, sample_rate)
@@ -507,7 +508,7 @@ class PhysicalEngine(SynthesisEngine):
         if 0 <= voice_index < self.max_strings and model_type in self.MODEL_TYPES:
             self.model_types[voice_index] = model_type
 
-    def excite_voice(self, voice_index: int, note: int, velocity: int, model_params: Dict[str, Any] = None):
+    def excite_voice(self, voice_index: int, note: int, velocity: int, model_params: dict[str, Any] = None):
         """
         Excite a physical model voice.
 
@@ -586,7 +587,7 @@ class PhysicalEngine(SynthesisEngine):
         for waveguide in self.waveguides:
             waveguide.set_parameters({'loop_filter_coeff': self.damping})
 
-    def get_voice_parameters(self, program: int, bank: int = 0) -> Optional[Dict[str, Any]]:
+    def get_voice_parameters(self, program: int, bank: int = 0) -> dict[str, Any] | None:
         """Get physical modeling voice parameters."""
         # Default parameters for different instrument types
         if program < 40:  # Piano
@@ -642,11 +643,11 @@ class PhysicalEngine(SynthesisEngine):
         for string in self.strings:
             string.reset()
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """Get supported file formats."""
         return ['.phys', '.mdl']
 
-    def save_model(self, model_data: Dict[str, Any]) -> Dict[str, Any]:
+    def save_model(self, model_data: dict[str, Any]) -> dict[str, Any]:
         """
         Save physical model data.
 
@@ -665,7 +666,7 @@ class PhysicalEngine(SynthesisEngine):
             **model_data
         }
 
-    def load_model(self, model_data: Dict[str, Any]):
+    def load_model(self, model_data: dict[str, Any]):
         """
         Load physical model data.
 

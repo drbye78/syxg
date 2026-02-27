@@ -4,8 +4,9 @@ MIDI 2.0 Effects Processing System
 Advanced effects processing system with full MIDI 2.0 support including 32-bit parameter resolution,
 per-note effects control, and profile-based effects configuration.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Set, Tuple, Union
+from typing import Any
 import numpy as np
 import math
 from enum import IntEnum
@@ -130,7 +131,7 @@ class MIDI2EffectType(IntEnum):
     SPECTRAL_AMP_SIM_32BIT = 0x31F
 
 
-@dataclass
+@dataclass(slots=True)
 class EffectParameter:
     """Effect parameter with 32-bit resolution support"""
     name: str
@@ -143,7 +144,7 @@ class EffectParameter:
     is_per_note: bool = False  # Whether this is a per-note parameter
     supports_mpe_plus: bool = False  # Whether MPE+ extensions are supported
     parameter_type: str = "continuous"  # "continuous", "discrete", "enumerated"
-    enumeration_values: Optional[Dict[int, str]] = None  # For enumerated parameters
+    enumeration_values: dict[int, str] | None = None  # For enumerated parameters
 
 
 class MIDI2EffectProcessor:
@@ -166,17 +167,17 @@ class MIDI2EffectProcessor:
         self.bypass = False
         
         # Effect instances
-        self.effects: Dict[int, Any] = {}  # effect_id -> effect_instance
-        self.active_effects: Set[int] = set()
+        self.effects: dict[int, Any] = {}  # effect_id -> effect_instance
+        self.active_effects: set[int] = set()
         
         # Effect parameters with 32-bit resolution
-        self.effect_parameters: Dict[int, Dict[str, float]] = {}  # effect_id -> param_name -> value
-        self.per_note_effect_parameters: Dict[int, Dict[int, Dict[str, float]]] = {}  # note -> effect_id -> param_name -> value
+        self.effect_parameters: dict[int, dict[str, float]] = {}  # effect_id -> param_name -> value
+        self.per_note_effect_parameters: dict[int, dict[int, dict[str, float]]] = {}  # note -> effect_id -> param_name -> value
         
         # Effect routing
-        self.send_levels: Dict[int, float] = {}  # effect_id -> send_level (0.0-1.0)
-        self.return_levels: Dict[int, float] = {}  # effect_id -> return_level (0.0-1.0)
-        self.pan_controls: Dict[int, float] = {}  # effect_id -> pan (-1.0 to 1.0)
+        self.send_levels: dict[int, float] = {}  # effect_id -> send_level (0.0-1.0)
+        self.return_levels: dict[int, float] = {}  # effect_id -> return_level (0.0-1.0)
+        self.pan_controls: dict[int, float] = {}  # effect_id -> pan (-1.0 to 1.0)
         
         # Processing buffers
         self.audio_buffer = None
@@ -208,7 +209,7 @@ class MIDI2EffectProcessor:
             self.set_effect_parameter(chorus_id, 'delay', 0.007, resolution_bits=32)
             self.enable_effect(chorus_id)
     
-    def create_effect(self, effect_type: MIDI2EffectType, effect_id: Optional[int] = None) -> Optional[int]:
+    def create_effect(self, effect_type: MIDI2EffectType, effect_id: int | None = None) -> int | None:
         """
         Create a new effect instance with MIDI 2.0 capabilities.
 
@@ -332,7 +333,7 @@ class MIDI2EffectProcessor:
         return False
     
     def set_effect_parameter(self, effect_id: int, param_name: str, value: float, 
-                           resolution_bits: int = 32, note: Optional[int] = None):
+                           resolution_bits: int = 32, note: int | None = None):
         """
         Set an effect parameter with specified resolution.
 
@@ -385,7 +386,7 @@ class MIDI2EffectProcessor:
                 if effect and hasattr(effect, 'set_parameter'):
                     effect.set_parameter(param_name, normalized_value)
     
-    def get_effect_parameter(self, effect_id: int, param_name: str, note: Optional[int] = None) -> float:
+    def get_effect_parameter(self, effect_id: int, param_name: str, note: int | None = None) -> float:
         """
         Get an effect parameter value.
 
@@ -434,7 +435,7 @@ class MIDI2EffectProcessor:
         """
         self.pan_controls[effect_id] = max(-1.0, min(1.0, pan))
     
-    def process_audio(self, audio_input: np.ndarray, note: Optional[int] = None) -> np.ndarray:
+    def process_audio(self, audio_input: np.ndarray, note: int | None = None) -> np.ndarray:
         """
         Process audio through active effects with MIDI 2.0 parameter resolution.
 
@@ -470,7 +471,7 @@ class MIDI2EffectProcessor:
         return processed_audio
     
     def process_midi_control(self, controller: int, value: int, channel: int = 0, 
-                           resolution_bits: int = 32, note: Optional[int] = None):
+                           resolution_bits: int = 32, note: int | None = None):
         """
         Process MIDI control change for effect parameter control.
 
@@ -510,7 +511,7 @@ class MIDI2EffectProcessor:
                     self.set_send_level(effect_id, normalized_value)
         # Add more controller mappings as needed
     
-    def get_effect_info(self, effect_id: int) -> Optional[Dict[str, Any]]:
+    def get_effect_info(self, effect_id: int) -> dict[str, Any] | None:
         """
         Get information about an effect.
 
@@ -536,7 +537,7 @@ class MIDI2EffectProcessor:
             }
         return None
     
-    def get_all_effects_info(self) -> List[Dict[str, Any]]:
+    def get_all_effects_info(self) -> list[dict[str, Any]]:
         """
         Get information about all effects.
 
@@ -740,7 +741,7 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
         # Implementation would depend on which insertion effect is active
         pass
     
-    def process_xg_sysex(self, data: List[int]) -> bool:
+    def process_xg_sysex(self, data: list[int]) -> bool:
         """
         Process XG System Exclusive messages for effects control.
 
@@ -781,7 +782,7 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
         
         return False
     
-    def _process_xg_bulk_dump(self, data: List[int]) -> bool:
+    def _process_xg_bulk_dump(self, data: list[int]) -> bool:
         """Process XG bulk dump data."""
         # XG bulk dump format: [address_msb, address_lsb, value_msb, value_lsb, ...]
         if len(data) < 4 or len(data) % 4 != 0:
@@ -803,7 +804,7 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
         
         return True
     
-    def _process_xg_data_set(self, data: List[int]) -> bool:
+    def _process_xg_data_set(self, data: list[int]) -> bool:
         """Process XG data set message."""
         # XG data set format: [address_msb, address_lsb, value]
         if len(data) < 3:

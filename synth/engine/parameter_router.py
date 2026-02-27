@@ -6,8 +6,9 @@ parameters from the synthesizer level down to individual partials using the
 ParameterUpdate protocol. Now integrated with the unified parameter system
 for synthesizer-specific parameter handling.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from ..types.parameter_types import ParameterUpdate, ParameterScope, ParameterSource, SynthesizerType
 from ..types.unified_parameters import get_unified_parameter_system
 
@@ -24,7 +25,7 @@ class ParameterRouter:
     scoping and validation.
     """
 
-    def __init__(self, synthesizer: Optional['ModernXGSynthesizer'] = None):
+    def __init__(self, synthesizer: ModernXGSynthesizer | None = None):
         """
         Initialize parameter router.
 
@@ -32,8 +33,8 @@ class ParameterRouter:
             synthesizer: Reference to the main synthesizer (optional for testing)
         """
         self.synthesizer = synthesizer
-        self.parameter_cache: Dict[str, ParameterUpdate] = {}
-        self.route_history: List[Dict] = []  # For debugging
+        self.parameter_cache: dict[str, ParameterUpdate] = {}
+        self.route_history: list[dict] = []  # For debugging
 
     def route_parameter_update(self, param_update: ParameterUpdate) -> bool:
         """
@@ -318,7 +319,7 @@ class ParameterRouter:
         if len(self.route_history) > 1000:
             self.route_history = self.route_history[-500:]
 
-    def get_routing_stats(self) -> Dict:
+    def get_routing_stats(self) -> dict:
         """
         Get parameter routing statistics.
 
@@ -358,7 +359,7 @@ class ParameterRouter:
             source: Source object (must have process_control_message method)
         """
         if not hasattr(self, 'sources'):
-            self.sources: Dict[str, Any] = {}
+            self.sources: dict[str, Any] = {}
         self.sources[name] = source
 
     def register_validator(self, name: str, validator_func) -> None:
@@ -370,7 +371,7 @@ class ParameterRouter:
             validator_func: Validation function
         """
         if not hasattr(self, 'validators'):
-            self.validators: Dict[str, Any] = {}
+            self.validators: dict[str, Any] = {}
         self.validators[name] = validator_func
 
     def register_monitor(self, name: str, monitor) -> None:
@@ -382,7 +383,7 @@ class ParameterRouter:
             monitor: Monitor object
         """
         if not hasattr(self, 'monitors'):
-            self.monitors: Dict[str, Any] = {}
+            self.monitors: dict[str, Any] = {}
         self.monitors[name] = monitor
 
     def route_parameter(self, param_path: str, value: float, channel: int = None, part: int = None) -> bool:

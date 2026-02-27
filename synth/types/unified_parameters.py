@@ -126,8 +126,10 @@ REAL-TIME PERFORMANCE: Sub-millisecond parameter update latency
 THREAD SAFETY: Concurrent access protection for multi-threaded operation
 MEMORY EFFICIENCY: Minimal memory footprint for parameter storage
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Callable, Union
+from typing import Any
+from collections.abc import Callable
 from enum import Enum
 import math
 
@@ -158,7 +160,7 @@ class ParameterUpdate:
     """
 
     def __init__(self, name: str, value: float, scope: ParameterScope = ParameterScope.GLOBAL,
-                 source: ParameterSource = ParameterSource.INTERNAL, channel: Optional[int] = None):
+                 source: ParameterSource = ParameterSource.INTERNAL, channel: int | None = None):
         """
         Initialize parameter update.
 
@@ -181,7 +183,7 @@ class ParameterUpdate:
         import time
         return time.time()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
             'name': self.name,
@@ -266,7 +268,7 @@ class JupiterXParameterMapping:
     }
 
     @classmethod
-    def get_parameter_range(cls, param_name: str) -> Optional[Dict[str, Any]]:
+    def get_parameter_range(cls, param_name: str) -> dict[str, Any] | None:
         """
         Get parameter range and curve information.
 
@@ -324,7 +326,7 @@ class JupiterXParameterMapping:
             return midi_value / 127.0
 
     @classmethod
-    def get_midi_cc_mapping(cls, cc_number: int) -> Optional[str]:
+    def get_midi_cc_mapping(cls, cc_number: int) -> str | None:
         """
         Get parameter name for MIDI CC number.
 
@@ -347,9 +349,9 @@ class UnifiedParameterSystem:
 
     def __init__(self):
         """Initialize unified parameter system."""
-        self.parameter_values: Dict[str, float] = {}
-        self.parameter_callbacks: Dict[str, List[Callable]] = {}
-        self.parameter_history: List[ParameterUpdate] = []
+        self.parameter_values: dict[str, float] = {}
+        self.parameter_callbacks: dict[str, list[Callable]] = {}
+        self.parameter_history: list[ParameterUpdate] = []
         self.max_history_size = 1000
 
         # Initialize default parameter values
@@ -361,7 +363,7 @@ class UnifiedParameterSystem:
             self.parameter_values[param_name] = param_info['default']
 
     def set_parameter(self, param_name: str, value: float, scope: ParameterScope = ParameterScope.GLOBAL,
-                     source: ParameterSource = ParameterSource.INTERNAL, channel: Optional[int] = None) -> bool:
+                     source: ParameterSource = ParameterSource.INTERNAL, channel: int | None = None) -> bool:
         """
         Set parameter value with validation and callbacks.
 
@@ -398,7 +400,7 @@ class UnifiedParameterSystem:
 
         return True
 
-    def get_parameter(self, param_name: str, default: Optional[float] = None) -> Optional[float]:
+    def get_parameter(self, param_name: str, default: float | None = None) -> float | None:
         """
         Get parameter value.
 
@@ -449,7 +451,7 @@ class UnifiedParameterSystem:
 
         return False
 
-    def _trigger_callbacks(self, param_name: str, new_value: float, old_value: Optional[float]):
+    def _trigger_callbacks(self, param_name: str, new_value: float, old_value: float | None):
         """Trigger callbacks for parameter change."""
         if param_name in self.parameter_callbacks:
             for callback in self.parameter_callbacks[param_name]:
@@ -458,7 +460,7 @@ class UnifiedParameterSystem:
                 except Exception as e:
                     print(f"Parameter callback error for {param_name}: {e}")
 
-    def process_midi_cc(self, cc_number: int, cc_value: int, channel: int = 0) -> Optional[ParameterUpdate]:
+    def process_midi_cc(self, cc_number: int, cc_value: int, channel: int = 0) -> ParameterUpdate | None:
         """
         Process MIDI CC message and create parameter update.
 
@@ -492,7 +494,7 @@ class UnifiedParameterSystem:
 
         return None
 
-    def get_parameter_history(self, param_name: Optional[str] = None, limit: int = 50) -> List[ParameterUpdate]:
+    def get_parameter_history(self, param_name: str | None = None, limit: int = 50) -> list[ParameterUpdate]:
         """
         Get parameter update history.
 
@@ -516,7 +518,7 @@ class UnifiedParameterSystem:
         self.parameter_history.clear()
         self._initialize_default_parameters()
 
-    def get_parameter_info(self) -> Dict[str, Any]:
+    def get_parameter_info(self) -> dict[str, Any]:
         """
         Get comprehensive parameter system information.
 

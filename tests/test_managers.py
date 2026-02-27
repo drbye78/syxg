@@ -3,6 +3,7 @@ Tests for vibexg.managers module
 
 Tests PresetManager, MIDILearnManager, and StyleEngineIntegration.
 """
+from __future__ import annotations
 
 import pytest
 import os

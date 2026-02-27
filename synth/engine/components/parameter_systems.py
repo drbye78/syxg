@@ -4,8 +4,10 @@ Parameter Systems - GS/XG Parameter Management
 Production-quality parameter priority system for managing GS/XG protocol precedence
 and performance monitoring for the synthesizer.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple, Callable, Union
+from typing import Any
+from collections.abc import Callable
 import threading
 import time
 import math
@@ -70,7 +72,7 @@ class ParameterPrioritySystem:
             self.parameter_sources[full_key][source] = value
             self.parameter_sources[full_key]['timestamp'] = time.time()
 
-    def get_active_value(self, param_key: str, channel: int = None) -> Optional[Any]:
+    def get_active_value(self, param_key: str, channel: int = None) -> Any | None:
         """Get parameter value based on active protocol"""
         with self.lock:
             full_key = f"{param_key}_ch{channel}" if channel is not None else param_key
@@ -87,7 +89,7 @@ class ParameterPrioritySystem:
             else:  # auto - use most recently set
                 return self._get_most_recent_value(sources)
 
-    def _get_most_recent_value(self, sources: Dict[str, Any]) -> Optional[Any]:
+    def _get_most_recent_value(self, sources: dict[str, Any]) -> Any | None:
         """Get most recently set value from available sources"""
         xg_time = sources.get('timestamp_xg', 0)
         gs_time = sources.get('timestamp_gs', 0)
@@ -111,7 +113,7 @@ class ParameterPrioritySystem:
         """Check if XG protocol is currently active"""
         return self.active_protocol in ['xg', 'auto']
 
-    def get_parameter_status(self) -> Dict[str, Any]:
+    def get_parameter_status(self) -> dict[str, Any]:
         """Get parameter system status"""
         with self.lock:
             return {
@@ -143,7 +145,7 @@ class PerformanceMonitor:
         with self.lock:
             self.metrics.update(metrics)
 
-    def get_report(self) -> Dict[str, Any]:
+    def get_report(self) -> dict[str, Any]:
         """Get performance report"""
         with self.lock:
             return self.metrics.copy()

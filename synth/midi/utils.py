@@ -3,8 +3,8 @@ MIDI Utility Functions
 
 Common utility functions for MIDI processing.
 """
+from __future__ import annotations
 
-from typing import Optional
 from .message import MIDIMessage
 
 

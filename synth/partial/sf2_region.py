@@ -9,8 +9,9 @@ SF2Region implements SF2 wavetable synthesis with:
 - Mip-map sample anti-aliasing
 - AVL range tree zone lookups
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -50,8 +51,8 @@ class SF2Region(IRegion):
         self,
         descriptor: RegionDescriptor,
         sample_rate: int = 44100,
-        soundfont_manager: Optional[Any] = None,
-        synth: Optional[Any] = None
+        soundfont_manager: Any | None = None,
+        synth: Any | None = None
     ):
         """
         Initialize SF2 region with full SF2 package integration.
@@ -67,23 +68,23 @@ class SF2Region(IRegion):
         self.soundfont_manager = soundfont_manager
         
         # SF2-specific state (lazy loaded)
-        self._sample_data: Optional[np.ndarray] = None
+        self._sample_data: np.ndarray | None = None
         self._loop_start: int = 0
         self._loop_end: int = 0
         self._loop_mode: int = 0  # 0=no loop, 1=forward, 3=loop+continue
         
         # SF2 zone cache (lazy loaded from SF2 package)
-        self._sf2_zone: Optional[Any] = None
-        self._sf2_preset: Optional[Any] = None
-        self._sf2_instrument: Optional[Any] = None
+        self._sf2_zone: Any | None = None
+        self._sf2_preset: Any | None = None
+        self._sf2_instrument: Any | None = None
         
         # SF2 generator parameters (merged from preset + instrument levels)
-        self._generator_params: Dict[int, int] = {}
-        self._modulators: List[Dict[str, Any]] = []
+        self._generator_params: dict[int, int] = {}
+        self._modulators: list[dict[str, Any]] = []
         
         # SF2 zone ranges
-        self._key_range: Tuple[int, int] = (0, 127)
-        self._velocity_range: Tuple[int, int] = (0, 127)
+        self._key_range: tuple[int, int] = (0, 127)
+        self._velocity_range: tuple[int, int] = (0, 127)
         self._exclusive_class: int = 0
         
         # Playback state
@@ -93,7 +94,7 @@ class SF2Region(IRegion):
         self._sample_position: float = 0.0
         self._phase_step: float = 1.0
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """
         Load sample data from SF2SoundFontManager with mip-map support.
         
@@ -159,7 +160,7 @@ class SF2Region(IRegion):
             if sample_info:
                 self._root_key = sample_info.get('original_pitch', 60)
     
-    def _get_sf2_zone(self) -> Optional[Any]:
+    def _get_sf2_zone(self) -> Any | None:
         """
         Get cached SF2Zone object from descriptor.
         
@@ -240,7 +241,7 @@ class SF2Region(IRegion):
         
         return default
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create SF2 partial with full SF2 generator support.
 
@@ -275,7 +276,7 @@ class SF2Region(IRegion):
             logger.error(f"Failed to create SF2 partial: {e}")
             return None
     
-    def _build_partial_params_from_generators(self) -> Dict[str, Any]:
+    def _build_partial_params_from_generators(self) -> dict[str, Any]:
         """
         Build partial parameters from SF2 generators (all 60+).
         Uses nested structure compatible with SF2Partial._load_sf2_parameters().
@@ -508,7 +509,7 @@ class SF2Region(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate samples from SF2 partial with mip-map anti-aliasing.
@@ -668,7 +669,7 @@ class SF2Region(IRegion):
         self._sf2_zone = None
         self.descriptor.is_sample_loaded = False
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

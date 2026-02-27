@@ -9,8 +9,9 @@ ConvolutionReverbRegion implements convolution reverb with:
 - Pre-delay control
 - High-frequency damping
 """
+from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 import numpy as np
 import logging
 
@@ -62,7 +63,7 @@ class ConvolutionReverbRegion(IRegion):
         
         # Impulse response
         self._ir_name = algo_params.get('ir_name', 'hall')
-        self._ir_data: Optional[np.ndarray] = None
+        self._ir_data: np.ndarray | None = None
         
         # Mix parameters
         self._wet_level = algo_params.get('wet_level', 0.3)
@@ -78,17 +79,17 @@ class ConvolutionReverbRegion(IRegion):
         self._early_level = algo_params.get('early_level', 1.0)
         
         # Runtime state
-        self._convolution_processor: Optional[Any] = None
-        self._wet_buffer: Optional[np.ndarray] = None
-        self._dry_buffer: Optional[np.ndarray] = None
+        self._convolution_processor: Any | None = None
+        self._wet_buffer: np.ndarray | None = None
+        self._dry_buffer: np.ndarray | None = None
     
-    def _load_sample_data(self) -> Optional[np.ndarray]:
+    def _load_sample_data(self) -> np.ndarray | None:
         """Load impulse response data."""
         # Load impulse response from cache or preset
         self._ir_data = self._load_impulse_response(self._ir_name)
         return self._ir_data
     
-    def _load_impulse_response(self, ir_name: str) -> Optional[np.ndarray]:
+    def _load_impulse_response(self, ir_name: str) -> np.ndarray | None:
         """
         Load impulse response by name.
         
@@ -205,7 +206,7 @@ class ConvolutionReverbRegion(IRegion):
         kernel = np.ones(kernel_size) / kernel_size
         return np.convolve(signal, kernel, mode='same').astype(np.float32)
     
-    def _create_partial(self) -> Optional[Any]:
+    def _create_partial(self) -> Any | None:
         """
         Create convolution reverb partial.
         
@@ -289,7 +290,7 @@ class ConvolutionReverbRegion(IRegion):
     def generate_samples(
         self, 
         block_size: int, 
-        modulation: Dict[str, float]
+        modulation: dict[str, float]
     ) -> np.ndarray:
         """
         Generate convolved reverb samples.
@@ -320,7 +321,7 @@ class ConvolutionReverbRegion(IRegion):
             logger.error(f"Convolution reverb sample generation failed: {e}")
             return np.zeros(block_size * 2, dtype=np.float32)
     
-    def _apply_modulation(self, modulation: Dict[str, float]) -> None:
+    def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """
         Apply modulation to reverb parameters.
         
@@ -336,7 +337,7 @@ class ConvolutionReverbRegion(IRegion):
             wet = self._wet_level * (1.0 + mod_wheel)
             self._convolution_processor.set_wet_level(min(1.0, wet))
     
-    def update_modulation(self, modulation: Dict[str, float]) -> None:
+    def update_modulation(self, modulation: dict[str, float]) -> None:
         """Update modulation state."""
         super().update_modulation(modulation)
         self._apply_modulation(modulation)
@@ -352,7 +353,7 @@ class ConvolutionReverbRegion(IRegion):
         # Reverb tails can be long
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
     
-    def get_region_info(self) -> Dict[str, Any]:
+    def get_region_info(self) -> dict[str, Any]:
         """Get region information."""
         info = super().get_region_info()
         info.update({

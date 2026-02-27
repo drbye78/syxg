@@ -4,8 +4,10 @@ Jupiter-X MIDI Controller
 Handles Jupiter-X specific SysEx and NRPN message processing,
 providing comprehensive MIDI parameter control for the synthesizer.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Any
+from collections.abc import Callable
 import threading
 
 from .constants import *
@@ -76,7 +78,7 @@ class JupiterXSysExController:
         # Thread safety
         self.lock = threading.RLock()
 
-    def process_sysex_message(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def process_sysex_message(self, data: bytes) -> dict[str, Any] | None:
         """
         Process Jupiter-X SysEx message with Universal SysEx support.
 
@@ -117,7 +119,7 @@ class JupiterXSysExController:
 
             return None
 
-    def _process_universal_sysex(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _process_universal_sysex(self, data: bytes) -> dict[str, Any] | None:
         """Process Universal SysEx messages (F0 7E)."""
         if len(data) < 5:
             return None
@@ -136,7 +138,7 @@ class JupiterXSysExController:
 
     def _process_universal_realtime_sysex(
         self, data: bytes
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Process Universal Realtime SysEx messages (F0 7F)."""
         if len(data) < 5:
             return None
@@ -152,7 +154,7 @@ class JupiterXSysExController:
 
         return None
 
-    def _process_sds_message(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _process_sds_message(self, data: bytes) -> dict[str, Any] | None:
         """Process MIDI Sample Dump Standard messages."""
         if len(data) < 6:
             return None
@@ -164,7 +166,7 @@ class JupiterXSysExController:
 
         return None
 
-    def _process_mmc_message(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _process_mmc_message(self, data: bytes) -> dict[str, Any] | None:
         """Process MIDI Machine Control messages."""
         if len(data) < 6:
             return None
@@ -176,7 +178,7 @@ class JupiterXSysExController:
 
         return None
 
-    def _process_jupiter_x_sysex(self, data: bytes) -> Optional[Dict[str, Any]]:
+    def _process_jupiter_x_sysex(self, data: bytes) -> dict[str, Any] | None:
         """Process Jupiter-X specific SysEx messages."""
         command = data[4]
 
@@ -211,7 +213,7 @@ class JupiterXSysExController:
 
         return True
 
-    def _handle_parameter_change(self, data: bytes) -> Dict[str, Any]:
+    def _handle_parameter_change(self, data: bytes) -> dict[str, Any]:
         """
         Handle parameter change SysEx message.
 
@@ -239,7 +241,7 @@ class JupiterXSysExController:
             "processed": success,
         }
 
-    def _handle_bulk_dump_request(self, data: bytes) -> Dict[str, Any]:
+    def _handle_bulk_dump_request(self, data: bytes) -> dict[str, Any]:
         """
         Handle bulk dump request.
 
@@ -261,7 +263,7 @@ class JupiterXSysExController:
             "response_data": response_data,
         }
 
-    def _handle_data_request(self, data: bytes) -> Dict[str, Any]:
+    def _handle_data_request(self, data: bytes) -> dict[str, Any]:
         """
         Handle data request for specific parameters.
 
@@ -319,7 +321,7 @@ class JupiterXSysExController:
             "response": response,
         }
 
-    def _handle_bulk_dump(self, data: bytes) -> Dict[str, Any]:
+    def _handle_bulk_dump(self, data: bytes) -> dict[str, Any]:
         """
         Handle incoming bulk dump data.
 
@@ -737,7 +739,7 @@ class JupiterXSysExController:
 
     def _handle_universal_device_inquiry(
         self, device_id: int, sub_id2: int, data: bytes
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Handle Universal Device Inquiry (F0 7E [dev] 06 01 F7)
 
@@ -781,7 +783,7 @@ class JupiterXSysExController:
             "version": "1.0.0.0",
         }
 
-    def _handle_sds_sample_dump_header(self, data: bytes) -> Dict[str, Any]:
+    def _handle_sds_sample_dump_header(self, data: bytes) -> dict[str, Any]:
         """Handle MIDI Sample Dump Standard sample dump header."""
         if len(data) < 16:
             return {"status": "error", "message": "Sample dump header too short"}
@@ -805,7 +807,7 @@ class JupiterXSysExController:
             "loop_end": loop_end,
         }
 
-    def _handle_sds_sample_dump_packet(self, data: bytes) -> Dict[str, Any]:
+    def _handle_sds_sample_dump_packet(self, data: bytes) -> dict[str, Any]:
         """Handle MIDI Sample Dump Standard sample dump packet."""
         if len(data) < 8:
             return {"status": "error", "message": "Sample dump packet too short"}
@@ -822,7 +824,7 @@ class JupiterXSysExController:
             "sample_data": sample_data,
         }
 
-    def _handle_sds_sample_dump_request(self, data: bytes) -> Dict[str, Any]:
+    def _handle_sds_sample_dump_request(self, data: bytes) -> dict[str, Any]:
         """Handle MIDI Sample Dump Standard sample dump request."""
         if len(data) < 7:
             return {"status": "error", "message": "Sample dump request too short"}
@@ -837,15 +839,15 @@ class JupiterXSysExController:
         }
 
     # MIDI Machine Control (MMC) handlers
-    def _handle_mmc_stop(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_stop(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Stop command."""
         return {"status": "success", "type": "mmc_stop", "command": "stop"}
 
-    def _handle_mmc_play(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_play(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Play command."""
         return {"status": "success", "type": "mmc_play", "command": "play"}
 
-    def _handle_mmc_deferred_play(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_deferred_play(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Deferred Play command."""
         return {
             "status": "success",
@@ -853,7 +855,7 @@ class JupiterXSysExController:
             "command": "deferred_play",
         }
 
-    def _handle_mmc_fast_forward(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_fast_forward(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Fast Forward command."""
         return {
             "status": "success",
@@ -861,11 +863,11 @@ class JupiterXSysExController:
             "command": "fast_forward",
         }
 
-    def _handle_mmc_rewind(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_rewind(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Rewind command."""
         return {"status": "success", "type": "mmc_rewind", "command": "rewind"}
 
-    def _handle_mmc_record_strobe(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_record_strobe(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Record Strobe command."""
         return {
             "status": "success",
@@ -873,7 +875,7 @@ class JupiterXSysExController:
             "command": "record_strobe",
         }
 
-    def _handle_mmc_record_exit(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_record_exit(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Record Exit command."""
         return {
             "status": "success",
@@ -881,7 +883,7 @@ class JupiterXSysExController:
             "command": "record_exit",
         }
 
-    def _handle_mmc_record_pause(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_record_pause(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Record Pause command."""
         return {
             "status": "success",
@@ -889,19 +891,19 @@ class JupiterXSysExController:
             "command": "record_pause",
         }
 
-    def _handle_mmc_pause(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_pause(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Pause command."""
         return {"status": "success", "type": "mmc_pause", "command": "pause"}
 
-    def _handle_mmc_eject(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_eject(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Eject command."""
         return {"status": "success", "type": "mmc_eject", "command": "eject"}
 
-    def _handle_mmc_chase(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_chase(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Chase command."""
         return {"status": "success", "type": "mmc_chase", "command": "chase"}
 
-    def _handle_mmc_command_error_reset(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_command_error_reset(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Command Error Reset command."""
         return {
             "status": "success",
@@ -909,11 +911,11 @@ class JupiterXSysExController:
             "command": "command_error_reset",
         }
 
-    def _handle_mmc_mmc_reset(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_mmc_reset(self, data: bytes) -> dict[str, Any]:
         """Handle MMC MMC Reset command."""
         return {"status": "success", "type": "mmc_mmc_reset", "command": "mmc_reset"}
 
-    def _handle_mmc_write(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_write(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Write command."""
         if len(data) >= 9:
             track_num = data[6]
@@ -929,7 +931,7 @@ class JupiterXSysExController:
             }
         return {"status": "error", "message": "MMC Write command too short"}
 
-    def _handle_mmc_goto(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_goto(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Goto command."""
         if len(data) >= 13:
             # Parse time code: [hours] [minutes] [seconds] [frames] [subframes]
@@ -947,7 +949,7 @@ class JupiterXSysExController:
             }
         return {"status": "error", "message": "MMC Goto command too short"}
 
-    def _handle_mmc_shuttle(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_shuttle(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Shuttle command."""
         if len(data) >= 8:
             shuttle_value = data[6]  # -128 to +127, 0 = stop
@@ -961,7 +963,7 @@ class JupiterXSysExController:
             }
         return {"status": "error", "message": "MMC Shuttle command too short"}
 
-    def _handle_mmc_move(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_move(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Move command."""
         if len(data) >= 15:
             track_num = data[6]
@@ -984,23 +986,23 @@ class JupiterXSysExController:
             }
         return {"status": "error", "message": "MMC Move command too short"}
 
-    def _handle_mmc_add(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_add(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Add command."""
         return {"status": "success", "type": "mmc_add", "command": "add"}
 
-    def _handle_mmc_subtract(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_subtract(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Subtract command."""
         return {"status": "success", "type": "mmc_subtract", "command": "subtract"}
 
-    def _handle_mmc_drop(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_drop(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Drop command."""
         return {"status": "success", "type": "mmc_drop", "command": "drop"}
 
-    def _handle_mmc_select(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_select(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Select command."""
         return {"status": "success", "type": "mmc_select", "command": "select"}
 
-    def _handle_mmc_clear(self, data: bytes) -> Dict[str, Any]:
+    def _handle_mmc_clear(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Clear command."""
         return {"status": "success", "type": "mmc_clear", "command": "clear"}
 
@@ -1028,7 +1030,7 @@ class JupiterXNRPNController:
         # Thread safety
         self.lock = threading.RLock()
 
-    def _build_nrpn_map(self) -> Dict[Tuple[int, int], Dict[str, Any]]:
+    def _build_nrpn_map(self) -> dict[tuple[int, int], dict[str, Any]]:
         """Build NRPN parameter mapping for Jupiter-X."""
         nrpn_map = {}
 
@@ -2309,7 +2311,7 @@ class JupiterXNRPNController:
 
         return False
 
-    def _get_current_parameter_value(self) -> Optional[int]:
+    def _get_current_parameter_value(self) -> int | None:
         """Get current parameter value for increment/decrement."""
         if not self.active_nrpn:
             return None
@@ -2349,7 +2351,7 @@ class JupiterXNRPNController:
         self.data_msb = 0
         self.data_msb_received = False
 
-    def get_nrpn_status(self) -> Dict[str, Any]:
+    def get_nrpn_status(self) -> dict[str, Any]:
         """Get current NRPN processing status."""
         with self.lock:
             return {
@@ -2363,7 +2365,7 @@ class JupiterXNRPNController:
                 ),
             }
 
-    def create_nrpn_message(self, msb: int, lsb: int, value: int) -> List[bytes]:
+    def create_nrpn_message(self, msb: int, lsb: int, value: int) -> list[bytes]:
         """
         Create NRPN message sequence for a parameter change.
 
@@ -2413,7 +2415,7 @@ class JupiterXMIDIController:
 
         print("🎹 Jupiter-X MIDI Controller: Initialized")
 
-    def process_midi_message(self, message_bytes: bytes) -> Optional[Dict[str, Any]]:
+    def process_midi_message(self, message_bytes: bytes) -> dict[str, Any] | None:
         """
         Process MIDI message for Jupiter-X.
 
@@ -2448,7 +2450,7 @@ class JupiterXMIDIController:
 
             return None
 
-    def get_midi_status(self) -> Dict[str, Any]:
+    def get_midi_status(self) -> dict[str, Any]:
         """Get comprehensive MIDI processing status."""
         with self.lock:
             return {
@@ -2472,7 +2474,7 @@ class JupiterXMIDIController:
         """
         return self.sysex_controller.create_parameter_change_message(address, value)
 
-    def create_nrpn_messages(self, msb: int, lsb: int, value: int) -> List[bytes]:
+    def create_nrpn_messages(self, msb: int, lsb: int, value: int) -> list[bytes]:
         """
         Create NRPN message sequence for parameter change.
 

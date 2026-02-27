@@ -7,6 +7,7 @@ File format parsers for the synth engine including:
 - MIDI file parser (future)
 - SFZ sampler format (future)
 """
+from __future__ import annotations
 
 from .sff2_parser import (
     SFF2Parser,

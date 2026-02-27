@@ -160,8 +160,9 @@ INTEGRATION PATTERNS:
 - Facade pattern for simplified component access
 - Observer pattern for parameter change notifications
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
 import threading
 
 
@@ -312,7 +313,7 @@ class JV2080Part:
         self.portamento_time = 0     # 0-127
 
         # Layer Assignments (for voice layering)
-        self.layer_assignments: List[int] = []
+        self.layer_assignments: list[int] = []
 
         # Part Status
         self.muted = False
@@ -505,7 +506,7 @@ class JV2080Part:
                 self.key_range_low <= note <= self.key_range_high and
                 self.velocity_range_low <= velocity <= self.velocity_range_high)
 
-    def get_part_info(self) -> Dict[str, Any]:
+    def get_part_info(self) -> dict[str, Any]:
         """Get comprehensive part information"""
         return {
             'part_number': self.part_number,
@@ -559,14 +560,14 @@ class JV2080MultiPartSetup:
         # Thread safety
         self.lock = threading.RLock()
 
-    def get_part(self, part_number: int) -> Optional[JV2080Part]:
+    def get_part(self, part_number: int) -> JV2080Part | None:
         """Get part by number"""
         with self.lock:
             if 0 <= part_number < 16:
                 return self.parts[part_number]
         return None
 
-    def get_active_parts_for_note(self, note: int, velocity: int) -> List[JV2080Part]:
+    def get_active_parts_for_note(self, note: int, velocity: int) -> list[JV2080Part]:
         """Get all parts that should play the given note"""
         active_parts = []
         with self.lock:
@@ -575,7 +576,7 @@ class JV2080MultiPartSetup:
                     active_parts.append(part)
         return active_parts
 
-    def get_parts_for_midi_channel(self, midi_channel: int) -> List[int]:
+    def get_parts_for_midi_channel(self, midi_channel: int) -> list[int]:
         """Get part numbers that receive from the given MIDI channel"""
         part_numbers = []
         with self.lock:
@@ -600,7 +601,7 @@ class JV2080MultiPartSetup:
                     self.voice_reserve[part_number] -= excess
                     self.voice_reserve_total = 128
 
-    def get_voice_allocation_status(self) -> Dict[str, Any]:
+    def get_voice_allocation_status(self) -> dict[str, Any]:
         """Get voice allocation status"""
         with self.lock:
             return {
@@ -616,7 +617,7 @@ class JV2080MultiPartSetup:
             for part in self.parts:
                 part.reset_to_defaults()
 
-    def get_multipart_info(self) -> Dict[str, Any]:
+    def get_multipart_info(self) -> dict[str, Any]:
         """Get comprehensive multi-part information"""
         with self.lock:
             return {
@@ -687,7 +688,7 @@ class JV2080MFXController:
         self.mfx_pan = 64       # 0-127
         self.mfx_to_reverb = 0  # 0-127
 
-    def _get_default_parameters(self, mfx_type: int) -> Dict[int, int]:
+    def _get_default_parameters(self, mfx_type: int) -> dict[int, int]:
         """Get default parameters for MFX type"""
         # This would have extensive parameter definitions for each MFX type
         # For now, return basic parameters
@@ -718,7 +719,7 @@ class JV2080MFXController:
         """Get MFX parameter"""
         return self.parameters.get(param_number, 64)
 
-    def get_mfx_info(self) -> Dict[str, Any]:
+    def get_mfx_info(self) -> dict[str, Any]:
         """Get comprehensive MFX information"""
         return {
             'current_type': self.current_type,
@@ -763,7 +764,7 @@ class JV2080InsertEffects:
         for i in range(len(self.insert_types)):
             self.effect_parameters[i] = self._get_default_parameters(i)
 
-    def _get_default_parameters(self, effect_type: int) -> Dict[int, int]:
+    def _get_default_parameters(self, effect_type: int) -> dict[int, int]:
         """Get default parameters for insert effect type"""
         # Basic parameters for each effect type
         defaults = {
@@ -797,7 +798,7 @@ class JV2080InsertEffects:
             return self.effect_parameters[effect_type].get(param_number, 64)
         return 64
 
-    def get_insert_effects_info(self) -> Dict[str, Any]:
+    def get_insert_effects_info(self) -> dict[str, Any]:
         """Get comprehensive insert effects information"""
         return {
             'effect_types': self.insert_types.copy(),
@@ -847,7 +848,7 @@ class JV2080ComponentManager:
                 if hasattr(component, 'reset_to_defaults'):
                     component.reset_to_defaults()
 
-    def get_system_info(self) -> Dict[str, Any]:
+    def get_system_info(self) -> dict[str, Any]:
         """Get comprehensive JV-2080 system information"""
         with self.lock:
             return {
@@ -920,7 +921,7 @@ class JV2080ComponentManager:
             pass
         return False
 
-    def get_parameter_value(self, address: bytes) -> Optional[int]:
+    def get_parameter_value(self, address: bytes) -> int | None:
         """Get parameter value by address"""
         with self.lock:
             if len(address) < 2:

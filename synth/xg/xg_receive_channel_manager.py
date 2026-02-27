@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """
 XG Receive Channel Manager - XG Channel Mapping and Routing Architecture
@@ -241,7 +242,7 @@ PROFESSIONAL MUSIC PRODUCTION:
 - Performance monitoring and optimization
 """
 
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 import threading
 import numpy as np
 
@@ -341,7 +342,7 @@ class XGReceiveChannelManager:
                   f"{'MIDI CH ' + str(midi_channel) if midi_channel < 16 else 'ALL' if midi_channel == 255 else 'OFF'}")
             return True
 
-    def get_receive_channel(self, part_id: int) -> Optional[int]:
+    def get_receive_channel(self, part_id: int) -> int | None:
         """
         Get receive channel for a specific XG part.
 
@@ -356,7 +357,7 @@ class XGReceiveChannelManager:
                 return self.receive_channels[part_id]
         return None
 
-    def get_parts_for_midi_channel(self, midi_channel: int) -> List[int]:
+    def get_parts_for_midi_channel(self, midi_channel: int) -> list[int]:
         """
         Get all XG parts that receive from a specific MIDI channel.
 
@@ -372,7 +373,7 @@ class XGReceiveChannelManager:
         return []
 
     def route_midi_message(self, midi_channel: int, message_type: str,
-                          message_data: Dict) -> List[Tuple[int, Dict]]:
+                          message_data: dict) -> list[tuple[int, dict]]:
         """
         Route a MIDI message to appropriate XG parts based on receive channel mapping.
 
@@ -439,7 +440,7 @@ class XGReceiveChannelManager:
         """
         return self.set_receive_channel(part_id, midi_channel)
 
-    def get_channel_mapping_status(self) -> Dict[str, Any]:
+    def get_channel_mapping_status(self) -> dict[str, Any]:
         """Get comprehensive status of all receive channel mappings."""
         with self.lock:
             status = {
@@ -485,7 +486,7 @@ class XGReceiveChannelManager:
         else:
             return f"INVALID ({channel})"
 
-    def export_mapping(self) -> Dict[str, List[int]]:
+    def export_mapping(self) -> dict[str, list[int]]:
         """Export receive channel mapping for serialization."""
         with self.lock:
             return {
@@ -493,7 +494,7 @@ class XGReceiveChannelManager:
                 'version': '1.0'
             }
 
-    def import_mapping(self, mapping_data: Dict[str, List[int]]) -> bool:
+    def import_mapping(self, mapping_data: dict[str, list[int]]) -> bool:
         """Import receive channel mapping from serialized data."""
         try:
             with self.lock:

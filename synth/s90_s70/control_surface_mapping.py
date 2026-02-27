@@ -4,8 +4,10 @@ S90/S70 Control Surface Mapping
 Authentic control surface mapping for S90/S70 synthesizers,
 including assignable knobs, buttons, and parameter assignment.
 """
+from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Any
+from collections.abc import Callable
 import threading
 
 
@@ -63,7 +65,7 @@ class ControlAssignment:
 class ControlGroup:
     """Represents a group of related controls"""
 
-    def __init__(self, group_id: int, name: str, controls: List[ControlAssignment]):
+    def __init__(self, group_id: int, name: str, controls: list[ControlAssignment]):
         """
         Initialize control group.
 
@@ -77,7 +79,7 @@ class ControlGroup:
         self.controls = controls
         self.active = True
 
-    def get_control(self, control_id: int) -> Optional[ControlAssignment]:
+    def get_control(self, control_id: int) -> ControlAssignment | None:
         """Get control assignment by ID"""
         for control in self.controls:
             if control.control_id == control_id:
@@ -99,8 +101,8 @@ class S90S70ControlSurfaceMapping:
 
     def __init__(self):
         """Initialize control surface mapping"""
-        self.assignments: Dict[int, ControlAssignment] = {}
-        self.groups: Dict[int, ControlGroup] = {}
+        self.assignments: dict[int, ControlAssignment] = {}
+        self.groups: dict[int, ControlGroup] = {}
 
         # Control surface layout
         self.control_layout = {
@@ -217,7 +219,7 @@ class S90S70ControlSurfaceMapping:
             return False
 
     def create_control_group(self, group_id: int, name: str,
-                           control_assignments: List[ControlAssignment]) -> bool:
+                           control_assignments: list[ControlAssignment]) -> bool:
         """
         Create a control group.
 
@@ -268,7 +270,7 @@ class S90S70ControlSurfaceMapping:
                 return True
             return False
 
-    def get_control_assignment(self, control_id: int) -> Optional[ControlAssignment]:
+    def get_control_assignment(self, control_id: int) -> ControlAssignment | None:
         """
         Get control assignment for a control ID.
 
@@ -281,7 +283,7 @@ class S90S70ControlSurfaceMapping:
         with self.lock:
             return self.assignments.get(control_id)
 
-    def process_control_message(self, control_id: int, midi_value: int) -> Optional[Dict[str, Any]]:
+    def process_control_message(self, control_id: int, midi_value: int) -> dict[str, Any] | None:
         """
         Process a control change message.
 
@@ -311,18 +313,18 @@ class S90S70ControlSurfaceMapping:
 
             return None
 
-    def get_available_controls(self) -> List[int]:
+    def get_available_controls(self) -> list[int]:
         """Get list of available controls for assignment"""
         return self._get_available_controls()
 
-    def _get_available_controls(self) -> List[int]:
+    def _get_available_controls(self) -> list[int]:
         """Get all assignable controls"""
         controls = []
         controls.extend(self.control_layout['knobs'])
         controls.extend(self.control_layout['buttons'])
         return controls
 
-    def get_control_groups(self) -> Dict[int, Dict[str, Any]]:
+    def get_control_groups(self) -> dict[int, dict[str, Any]]:
         """Get information about all control groups"""
         with self.lock:
             return {
@@ -399,7 +401,7 @@ class S90S70ControlSurfaceMapping:
         with self.lock:
             try:
                 import json
-                with open(filename, 'r') as f:
+                with open(filename) as f:
                     import_data = json.load(f)
 
                 # Clear existing assignments
@@ -443,7 +445,7 @@ class S90S70ControlSurfaceMapping:
             except Exception:
                 return False
 
-    def get_control_surface_layout(self) -> Dict[str, Any]:
+    def get_control_surface_layout(self) -> dict[str, Any]:
         """Get control surface layout information"""
         return {
             'knobs': {
@@ -489,7 +491,7 @@ class S90S70ControlSurfaceMapping:
 
             return group_id
 
-    def get_midi_mapping(self) -> Dict[int, str]:
+    def get_midi_mapping(self) -> dict[int, str]:
         """
         Get MIDI CC to parameter mapping.
 
@@ -540,7 +542,7 @@ class S90S70ControlSurfaceMapping:
             self.groups.clear()
             self._init_default_assignments()
 
-    def get_assignment_statistics(self) -> Dict[str, Any]:
+    def get_assignment_statistics(self) -> dict[str, Any]:
         """Get statistics about control assignments"""
         with self.lock:
             assigned_controls = len(self.assignments)
