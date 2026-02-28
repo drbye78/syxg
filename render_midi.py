@@ -67,7 +67,7 @@ Examples:
     parser.add_argument("--silent", action="store_true", help="Suppress console output during conversion")
     parser.add_argument("--keyboard-abort", action="store_true", help="Enable keyboard abort with SPACE key")
     parser.add_argument("--recursive", "-r", action="store_true", help="Recurse into subdirectories")
-    parser.add_argument("--format", choices=list(AudioWriter.SUPPORTED_FORMATS.keys()), default="ogg", help="Output audio format")
+    parser.add_argument("--format", choices=list(AudioWriter.SUPPORTED_FORMATS.keys()), default="mp3", help="Output audio format")
     parser.add_argument("--render-log-level", type=int, choices=[0, 1, 2], default=0,
                        help="Audio rendering logging level: 0=no logging, 1=log combined channel audio before effects, 2=log each channel renderer output")
     parser.add_argument("--architecture", choices=["legacy", "voice"], default="legacy",

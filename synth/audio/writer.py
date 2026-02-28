@@ -82,7 +82,8 @@ class AvWriter:
     def __enter__(self):
         self.container = av.open(self.output_file, mode='w', format=self.format)
         self.stream = self.container.add_stream(self._get_codec(self.format), rate=self.sample_rate)
-        
+        codec_context = self.stream.codec_context
+        codec_context.options = {'strict': '2'}
         # Set channel layout for stereo
         self.stream.layout = 'stereo'
 

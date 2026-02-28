@@ -1247,7 +1247,6 @@ class ModernXGSynthesizer:
         for channel_num, channel in enumerate(self.channels):
             # Reload the current program to use the new SF2 engine
             channel.load_program(channel.program, channel.bank_msb, channel.bank_lsb)
-            print(f"✅ Reloaded program {channel.program} on channel {channel_num}")
 
     def set_channel_program(self, channel: int, bank: int, program: int):
         """Set program for channel"""

@@ -457,8 +457,6 @@ class XGBufferPool:
                 # Calculate memory needed for new buffer
                 buffer_size = key * channels * 4  # float32 = 4 bytes
                 if self.total_memory_used + buffer_size <= self.memory_budget_bytes:
-                    print(f"🔄 Dynamic allocation for {pool_name} size {key}, "
-                          f"within budget ({self.total_memory_used + buffer_size}/{self.memory_budget_bytes} bytes)")
                     buffer = self._allocate_aligned_buffer(key, channels)
                     self.total_memory_used += buffer.nbytes
                     pool[key].append(buffer)  # Add to pool for future reuse
