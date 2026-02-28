@@ -83,6 +83,7 @@ ERROR HANDLING:
 - Thread-safe operations prevent race conditions
 - Validation of input parameters
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -95,6 +96,7 @@ from enum import Enum
 
 class VoiceState(Enum):
     """Voice allocation states"""
+
     FREE = "free"
     ATTACK = "attack"
     DECAY = "decay"
@@ -105,16 +107,18 @@ class VoiceState(Enum):
 
 class VoiceStealingStrategy(Enum):
     """Voice stealing strategies for polyphony management"""
-    OLDEST = "oldest"      # Steal oldest voice first
+
+    OLDEST = "oldest"  # Steal oldest voice first
     QUIETEST = "quietest"  # Steal quietest voice first
-    LOWEST = "lowest"      # Steal lowest note first
-    HIGHEST = "highest"    # Steal highest note first
+    LOWEST = "lowest"  # Steal lowest note first
+    HIGHEST = "highest"  # Steal highest note first
     PRIORITY = "priority"  # Priority-based stealing (engine-specific)
 
 
 @dataclass(slots=True)
 class VoiceInfo:
     """Information about an allocated voice"""
+
     voice_id: int
     channel: int
     note: int
@@ -237,25 +241,25 @@ class VoiceManager:
         # Voice stealing configuration
         self.stealing_strategy = VoiceStealingStrategy.PRIORITY
         self.voice_priorities = {
-            'fdsp': 10,      # Highest priority (vocal synthesis)
-            'an': 9,         # Analog engines
-            'sf2': 8,        # Sample-based
-            'xg': 7,         # XG synthesis
-            'fm': 6,         # FM synthesis
-            'wavetable': 5,  # Wavetable
-            'additive': 4,   # Additive synthesis
-            'granular': 3,   # Granular
-            'physical': 2,   # Physical modeling
+            "fdsp": 10,  # Highest priority (vocal synthesis)
+            "an": 9,  # Analog engines
+            "sf2": 8,  # Sample-based
+            "xg": 7,  # XG synthesis
+            "fm": 6,  # FM synthesis
+            "wavetable": 5,  # Wavetable
+            "additive": 4,  # Additive synthesis
+            "granular": 3,  # Granular
+            "physical": 2,  # Physical modeling
         }
 
         # Performance monitoring
         self.allocation_stats = {
-            'total_allocations': 0,
-            'total_deallocations': 0,
-            'voice_stealing_events': 0,
-            'peak_concurrent_voices': 0,
-            'allocation_failures': 0,
-            'average_voice_lifetime': 0.0
+            "total_allocations": 0,
+            "total_deallocations": 0,
+            "voice_stealing_events": 0,
+            "peak_concurrent_voices": 0,
+            "allocation_failures": 0,
+            "average_voice_lifetime": 0.0,
         }
 
         # Voice lifetime tracking
@@ -270,8 +274,9 @@ class VoiceManager:
         self.voice_deallocated_callback: Callable[[int], None] | None = None
         self.voice_stolen_callback: Callable[[VoiceInfo, VoiceInfo], None] | None = None
 
-    def allocate_voice(self, channel: int, note: int, velocity: int,
-                      engine_type: str) -> int | None:
+    def allocate_voice(
+        self, channel: int, note: int, velocity: int, engine_type: str
+    ) -> int | None:
         """
         Allocate a voice for note playback.
 
@@ -303,7 +308,7 @@ class VoiceManager:
                 return self._reallocate_voice(stolen_voice_id, channel, note, velocity, engine_type)
 
             # Allocation failed
-            self.allocation_stats['allocation_failures'] += 1
+            self.allocation_stats["allocation_failures"] += 1
             return None
 
     def _allocate_free_voice(self) -> int | None:
@@ -312,8 +317,9 @@ class VoiceManager:
             return self.free_voice_ids.pop()
         return None
 
-    def _initialize_voice(self, voice_id: int, channel: int, note: int,
-                         velocity: int, engine_type: str) -> int:
+    def _initialize_voice(
+        self, voice_id: int, channel: int, note: int, velocity: int, engine_type: str
+    ) -> int:
         """Initialize a newly allocated voice"""
         voice_info = VoiceInfo(
             voice_id=voice_id,
@@ -323,14 +329,13 @@ class VoiceManager:
             engine_type=engine_type,
             state=VoiceState.ATTACK,
             start_time=time.time(),
-            priority=self.voice_priorities.get(engine_type, 0)
+            priority=self.voice_priorities.get(engine_type, 0),
         )
 
         self.active_voices[voice_id] = voice_info
-        self.allocation_stats['total_allocations'] += 1
-        self.allocation_stats['peak_concurrent_voices'] = max(
-            self.allocation_stats['peak_concurrent_voices'],
-            len(self.active_voices)
+        self.allocation_stats["total_allocations"] += 1
+        self.allocation_stats["peak_concurrent_voices"] = max(
+            self.allocation_stats["peak_concurrent_voices"], len(self.active_voices)
         )
 
         # Notify callback
@@ -339,8 +344,9 @@ class VoiceManager:
 
         return voice_id
 
-    def _reallocate_voice(self, voice_id: int, channel: int, note: int,
-                         velocity: int, engine_type: str) -> int:
+    def _reallocate_voice(
+        self, voice_id: int, channel: int, note: int, velocity: int, engine_type: str
+    ) -> int:
         """Reallocate a stolen voice"""
         old_voice_info = self.active_voices[voice_id]
 
@@ -353,11 +359,11 @@ class VoiceManager:
             engine_type=engine_type,
             state=VoiceState.ATTACK,
             start_time=time.time(),
-            priority=self.voice_priorities.get(engine_type, 0)
+            priority=self.voice_priorities.get(engine_type, 0),
         )
 
         self.active_voices[voice_id] = new_voice_info
-        self.allocation_stats['voice_stealing_events'] += 1
+        self.allocation_stats["voice_stealing_events"] += 1
 
         # Notify callback
         if self.voice_stolen_callback:
@@ -365,8 +371,7 @@ class VoiceManager:
 
         return voice_id
 
-    def _steal_voice(self, channel: int, note: int, velocity: int,
-                    engine_type: str) -> int | None:
+    def _steal_voice(self, channel: int, note: int, velocity: int, engine_type: str) -> int | None:
         """
         Attempt to steal a voice using the configured strategy.
 
@@ -405,7 +410,7 @@ class VoiceManager:
 
     def _steal_oldest(self) -> int | None:
         """Steal the oldest allocated voice"""
-        oldest_time = float('inf')
+        oldest_time = float("inf")
         oldest_voice = None
 
         for voice_id, voice_info in self.active_voices.items():
@@ -417,7 +422,7 @@ class VoiceManager:
 
     def _steal_quietest(self) -> int | None:
         """Steal the voice with lowest velocity"""
-        lowest_velocity = float('inf')
+        lowest_velocity = float("inf")
         quietest_voice = None
 
         for voice_id, voice_info in self.active_voices.items():
@@ -429,7 +434,7 @@ class VoiceManager:
 
     def _steal_lowest(self) -> int | None:
         """Steal the voice with lowest note"""
-        lowest_note = float('inf')
+        lowest_note = float("inf")
         lowest_voice = None
 
         for voice_id, voice_info in self.active_voices.items():
@@ -441,7 +446,7 @@ class VoiceManager:
 
     def _steal_highest(self) -> int | None:
         """Steal the voice with highest note"""
-        highest_note = float('-inf')
+        highest_note = float("-inf")
         highest_voice = None
 
         for voice_id, voice_info in self.active_voices.items():
@@ -472,8 +477,10 @@ class VoiceManager:
                     self.voice_lifetimes.pop(0)
 
                 # Update statistics
-                self.allocation_stats['total_deallocations'] += 1
-                self.allocation_stats['average_voice_lifetime'] = sum(self.voice_lifetimes) / len(self.voice_lifetimes)
+                self.allocation_stats["total_deallocations"] += 1
+                self.allocation_stats["average_voice_lifetime"] = sum(self.voice_lifetimes) / len(
+                    self.voice_lifetimes
+                )
 
                 # Free the voice
                 del self.active_voices[voice_id]
@@ -512,6 +519,12 @@ class VoiceManager:
         """Get information about a specific voice"""
         with self.lock:
             return self.active_voices.get(voice_id)
+
+    def get_voice(self, voice_id: int):
+        """Get voice instance by ID for MPE processing."""
+        from .voice_instance import VoiceInstance
+
+        return VoiceInstance.get_voice(voice_id)
 
     def update_voice_state(self, voice_id: int, new_state: VoiceState) -> bool:
         """
@@ -616,15 +629,15 @@ class VoiceManager:
                 channel_counts[channel] = channel_counts.get(channel, 0) + 1
 
             return {
-                'active_voices': active_count,
-                'free_voices': free_count,
-                'total_capacity': self.max_voices,
-                'utilization_percent': (active_count / self.max_voices) * 100,
-                'by_engine': engine_counts,
-                'by_channel': channel_counts,
-                'allocation_stats': self.allocation_stats.copy(),
-                'stealing_strategy': self.stealing_strategy.value,
-                'voice_priorities': self.voice_priorities.copy()
+                "active_voices": active_count,
+                "free_voices": free_count,
+                "total_capacity": self.max_voices,
+                "utilization_percent": (active_count / self.max_voices) * 100,
+                "by_engine": engine_counts,
+                "by_channel": channel_counts,
+                "allocation_stats": self.allocation_stats.copy(),
+                "stealing_strategy": self.stealing_strategy.value,
+                "voice_priorities": self.voice_priorities.copy(),
             }
 
     def get_channel_info(self, channel: int) -> dict[str, Any]:
@@ -641,19 +654,21 @@ class VoiceManager:
             channel_voices = []
             for voice_info in self.active_voices.values():
                 if voice_info.channel == channel:
-                    channel_voices.append({
-                        'voice_id': voice_info.voice_id,
-                        'note': voice_info.note,
-                        'velocity': voice_info.velocity,
-                        'engine_type': voice_info.engine_type,
-                        'state': voice_info.state.value,
-                        'lifetime': time.time() - voice_info.start_time
-                    })
+                    channel_voices.append(
+                        {
+                            "voice_id": voice_info.voice_id,
+                            "note": voice_info.note,
+                            "velocity": voice_info.velocity,
+                            "engine_type": voice_info.engine_type,
+                            "state": voice_info.state.value,
+                            "lifetime": time.time() - voice_info.start_time,
+                        }
+                    )
 
             return {
-                'channel': channel,
-                'active_voices': len(channel_voices),
-                'voices': channel_voices
+                "channel": channel,
+                "active_voices": len(channel_voices),
+                "voices": channel_voices,
             }
 
     def optimize_polyphony(self, target_utilization: float = 0.8) -> dict[str, Any]:
@@ -670,27 +685,29 @@ class VoiceManager:
 
         recommendations = []
 
-        current_utilization = stats['utilization_percent'] / 100.0
+        current_utilization = stats["utilization_percent"] / 100.0
 
         if current_utilization > target_utilization:
             recommendations.append("Consider increasing max_voices for better headroom")
 
-        if stats['allocation_stats']['voice_stealing_events'] > 0:
+        if stats["allocation_stats"]["voice_stealing_events"] > 0:
             recommendations.append("Voice stealing occurring - consider higher polyphony limit")
 
         # Check for unbalanced engine usage
-        total_voices = sum(stats['by_engine'].values())
+        total_voices = sum(stats["by_engine"].values())
         if total_voices > 0:
-            for engine, count in stats['by_engine'].items():
+            for engine, count in stats["by_engine"].items():
                 percentage = (count / total_voices) * 100
                 if percentage > 70:  # Engine using >70% of voices
-                    recommendations.append(f"Engine '{engine}' using {percentage:.1f}% of voices - consider load balancing")
+                    recommendations.append(
+                        f"Engine '{engine}' using {percentage:.1f}% of voices - consider load balancing"
+                    )
 
         return {
-            'current_utilization': current_utilization,
-            'target_utilization': target_utilization,
-            'recommendations': recommendations,
-            'statistics': stats
+            "current_utilization": current_utilization,
+            "target_utilization": target_utilization,
+            "recommendations": recommendations,
+            "statistics": stats,
         }
 
     def set_max_voices(self, max_voices: int) -> bool:
@@ -711,7 +728,7 @@ class VoiceManager:
             while len(self.active_voices) > max_voices:
                 # Find oldest voice to deallocate
                 oldest_voice = None
-                oldest_time = float('inf')
+                oldest_time = float("inf")
                 for voice_id, voice_info in self.active_voices.items():
                     if voice_info.start_time < oldest_time:
                         oldest_time = voice_info.start_time
@@ -741,12 +758,12 @@ class VoiceManager:
         """Reset allocation statistics"""
         with self.lock:
             self.allocation_stats = {
-                'total_allocations': 0,
-                'total_deallocations': 0,
-                'voice_stealing_events': 0,
-                'peak_concurrent_voices': 0,
-                'allocation_failures': 0,
-                'average_voice_lifetime': 0.0
+                "total_allocations": 0,
+                "total_deallocations": 0,
+                "voice_stealing_events": 0,
+                "peak_concurrent_voices": 0,
+                "allocation_failures": 0,
+                "average_voice_lifetime": 0.0,
             }
             self.voice_lifetimes.clear()
 

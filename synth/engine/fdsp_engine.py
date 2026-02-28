@@ -525,62 +525,107 @@ class FDSPEngine:
             'available_phonemes': self.vocal_database.get_phoneme_names()
         }
 
-    # ========== NEW REGION-BASED METHODS (STUBS) ==========
-    
+    # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
+
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
-        """Get preset info (stub)."""
+        """
+        Get FDSP preset information with proper region descriptors.
+        
+        Args:
+            bank: Preset bank number (0-127)
+            program: Preset program number (0-127)
+            
+        Returns:
+            PresetInfo with region descriptors, or None if preset not found
+        """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
         
+        # FDSP uses formant-based vocal synthesis
+        # Each program defines a set of formant configurations (phonemes)
+        preset_name = self.vocal_database.get_preset_name(bank, program)
+        if not preset_name:
+            preset_name = f"FDSP Vocal {bank}:{program}"
+        
+        # Create region descriptors for full keyboard range
+        # FDSP is monophonic but supports full keyboard range
         descriptor = RegionDescriptor(
             region_id=0,
             engine_type=self.get_engine_type(),
             key_range=(0, 127),
             velocity_range=(0, 127),
-            algorithm_params={}
+            algorithm_params={
+                'phoneme_set': preset_name,
+                'formant_count': 5,  # Standard 5-formant vocal model
+                'excitation_type': 'mixed',  # Mixed noise/periodic
+                'breathiness': 0.0,
+                'vibrato_rate': 5.0,  # Hz
+                'vibrato_depth': 0.3
+            }
         )
         
         return PresetInfo(
-            bank=bank, program=program,
-            name=f'{self.get_engine_type().title()} {bank}:{program}',
+            bank=bank,
+            program=program,
+            name=preset_name,
             engine_type=self.get_engine_type(),
-            region_descriptors=[descriptor]
+            region_descriptors=[descriptor],
+            is_monophonic=True,
+            category='vocal_synthesis'
         )
-    
+
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
+        """
+        Get all region descriptors for a preset.
+        
+        Args:
+            bank: Preset bank number
+            program: Preset program number
+            
+        Returns:
+            List of RegionDescriptor objects
+        """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
-    
+
     def create_region(
         self,
         descriptor: RegionDescriptor,
         sample_rate: int
     ) -> IRegion:
         """
-        Create region instance. Base implementation wraps with S.Art2.
-        """
-        return self._create_base_region(descriptor, sample_rate)
-
-    def _create_base_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
-        """
-        Create FDSPRegion base region without S.Art2 wrapper.
-
+        Create FDSP region instance from descriptor.
+        
         Args:
-            descriptor: Region descriptor
+            descriptor: Region descriptor with parameters
             sample_rate: Audio sample rate in Hz
-
+            
         Returns:
-            FDSPRegion instance
+            IRegion instance for FDSP synthesis
         """
         from ..partial.fdsp_region import FDSPRegion
-        return FDSPRegion(descriptor, sample_rate)
-    
+        
+        # Create FDSP region with proper initialization
+        region = FDSPRegion(descriptor, sample_rate)
+        
+        # Initialize the region (loads formant data, creates partial)
+        if not region.initialize():
+            raise RuntimeError("Failed to initialize FDSP region")
+        
+        return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
+        """
+        Load sample data for region (FDSP is algorithmic, no samples needed).
+        
+        Args:
+            region: Region to load sample for
+            
+        Returns:
+            True (FDSP doesn't use samples)
+        """
+        # FDSP is formant synthesis - no sample loading required
+        # Formant data is loaded during region initialization
         return True
 
 
@@ -690,32 +735,53 @@ class FDSPSynthesisEngine(SynthesisEngine):
             ]
         }
 
-    # ========== NEW REGION-BASED METHODS (STUBS) ==========
-    
+    # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
+
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
-        """Get FDSP preset info (stub)."""
+        """
+        Get FDSP preset information with proper region descriptors.
+        
+        Args:
+            bank: Preset bank number (0-127)
+            program: Preset program number (0-127)
+            
+        Returns:
+            PresetInfo with region descriptors for FDSP synthesis
+        """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
+        
+        # FDSP uses formant-based vocal synthesis (second engine instance)
+        preset_name = f"FDSP {bank}:{program}"
         
         descriptor = RegionDescriptor(
             region_id=0,
             engine_type='fdsp',
             key_range=(0, 127),
             velocity_range=(0, 127),
-            algorithm_params={}
+            algorithm_params={
+                'phoneme_set': preset_name,
+                'formant_count': 5,
+                'excitation_type': 'mixed',
+                'breathiness': 0.0
+            }
         )
         
         return PresetInfo(
-            bank=bank, program=program,
-            name=f'FDSP {bank}:{program}',
+            bank=bank,
+            program=program,
+            name=preset_name,
             engine_type='fdsp',
-            region_descriptors=[descriptor]
+            region_descriptors=[descriptor],
+            is_monophonic=True,
+            category='vocal_synthesis'
         )
-    
+
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
+        """Get all region descriptors for FDSP preset."""
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
-    
+
     def create_region(
         self,
         descriptor: RegionDescriptor,

@@ -6,6 +6,7 @@ velocity switching, and professional workstation features.
 
 Part of S90/S70 compatibility - Enhanced Sampling System (Phase 3).
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -335,13 +336,9 @@ class SampleManager:
         # Use file path hash for uniqueness
         return hashlib.md5(file_path.encode()).hexdigest()[:16]
 
-    def _extract_metadata(
-        self, file_path: str, name: str | None
-    ) -> SampleMetadata | None:
+    def _extract_metadata(self, file_path: str, name: str | None) -> SampleMetadata | None:
         """Extract metadata from sample file"""
         try:
-            # In a full implementation, this would use audio libraries
-            # to extract real metadata. For now, create placeholder metadata.
             file_path_obj = Path(file_path)
             file_size = file_path_obj.stat().st_size if file_path_obj.exists() else 0
 
@@ -351,14 +348,50 @@ class SampleManager:
                 with open(file_path, "rb") as f:
                     checksum = hashlib.md5(f.read()).hexdigest()
 
+            # Try to extract actual audio metadata
+            sample_rate = 44100
+            bit_depth = 16
+            channels = 1
+            length_samples = 44100
+
+            try:
+                import soundfile as sf
+
+                info = sf.info(file_path)
+                sample_rate = info.samplerate
+                channels = info.channels
+                length_samples = info.frames
+                bit_depth = 16  # soundfile normalizes to float
+            except ImportError:
+                try:
+                    import scipy.io.wavfile as wavfile
+
+                    rate, data = wavfile.read(file_path)
+                    sample_rate = rate
+                    channels = 1 if len(data.shape) == 1 else data.shape[1]
+                    length_samples = len(data)
+                    bit_depth = data.dtype.itemsize * 8
+                except Exception:
+                    pass
+
+            duration = length_samples / sample_rate if sample_rate > 0 else 0.0
+
+            fmt = SampleFormat.WAV
+            if file_path_obj.suffix.lower() in (".aiff", ".aif"):
+                fmt = SampleFormat.AIFF
+            elif file_path_obj.suffix.lower() == ".flac":
+                fmt = SampleFormat.FLAC
+            elif file_path_obj.suffix.lower() == ".ogg":
+                fmt = SampleFormat.OGG
+
             return SampleMetadata(
                 name=name or file_path_obj.stem,
-                format=SampleFormat.WAV,
-                sample_rate=44100,
-                bit_depth=16,
-                channels=1,
-                length_samples=44100,
-                duration_seconds=1.0,
+                format=fmt,
+                sample_rate=sample_rate,
+                bit_depth=bit_depth,
+                channels=channels,
+                length_samples=length_samples,
+                duration_seconds=duration,
                 file_path=file_path,
                 file_size_bytes=file_size,
                 checksum=checksum,
@@ -441,9 +474,7 @@ class SampleManager:
 
             return multisample_id
 
-    def get_sample_data(
-        self, sample_id: str, force_load: bool = False
-    ) -> np.ndarray | None:
+    def get_sample_data(self, sample_id: str, force_load: bool = False) -> np.ndarray | None:
         """
         Get sample audio data.
 
@@ -508,11 +539,7 @@ class SampleManager:
     def get_multisamples_in_category(self, category: str) -> list[str]:
         """Get all multisample IDs in a category"""
         with self.lock:
-            return [
-                ms_id
-                for ms_id, ms in self.multisamples.items()
-                if ms.category == category
-            ]
+            return [ms_id for ms_id, ms in self.multisamples.items() if ms.category == category]
 
     def search_samples(self, query: str, category: str | None = None) -> list[str]:
         """
@@ -533,9 +560,7 @@ class SampleManager:
             if category:
                 category_samples = set(self.categories.get(category, []))
                 search_space = {
-                    sid: self.samples[sid]
-                    for sid in category_samples
-                    if sid in self.samples
+                    sid: self.samples[sid] for sid in category_samples if sid in self.samples
                 }
 
             for sample_id, metadata in search_space.items():
@@ -573,9 +598,7 @@ class SampleManager:
                 "cache_memory_mb": cache_memory,
                 "max_memory_mb": self.max_memory_mb,
                 "memory_utilization": (cache_memory / self.max_memory_mb) * 100,
-                "categories": {
-                    cat: len(samples) for cat, samples in self.categories.items()
-                },
+                "categories": {cat: len(samples) for cat, samples in self.categories.items()},
                 "favorites_count": len(self.favorites),
             }
 

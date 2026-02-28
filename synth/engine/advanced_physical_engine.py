@@ -683,65 +683,109 @@ class AdvancedPhysicalEngine(SynthesisEngine):
             'sample_rate': self.sample_rate,
             'block_size': self.block_size
         }
-    # ========== NEW REGION-BASED METHODS (STUBS) ==========
-    
+
+    # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
+
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
-        """Get preset info (stub)."""
+        """
+        Get advanced physical modeling preset information with proper region descriptors.
+        
+        Args:
+            bank: Preset bank number (0-127)
+            program: Preset program number (0-127)
+            
+        Returns:
+            PresetInfo with region descriptors for advanced physical modeling
+        """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
         
+        # Advanced physical engine uses enhanced waveguide/modal synthesis
+        # Programs define complex physical parameters with extended control
+        preset_name = f"Advanced Physical {bank}:{program}"
+        
+        # Create region descriptors for advanced physical modeling
         descriptor = RegionDescriptor(
             region_id=0,
             engine_type=self.get_engine_type(),
             key_range=(0, 127),
             velocity_range=(0, 127),
-            algorithm_params={}
+            algorithm_params={
+                'model_type': 'advanced_waveguide',
+                'material': 'composite',
+                'damping': 0.3,
+                'brightness': 0.5,
+                'release': 0.5,
+                'nonlinearities': 0.0,  # Nonlinear behavior
+                'coupling': 0.5,  # Element coupling
+                'radiation': 0.7,  # Sound radiation
+                'body_modes': 10  # Number of body modes
+            }
         )
         
         return PresetInfo(
-            bank=bank, program=program,
-            name=f'{self.get_engine_type().title()} {bank}:{program}',
+            bank=bank,
+            program=program,
+            name=preset_name,
             engine_type=self.get_engine_type(),
-            region_descriptors=[descriptor]
+            region_descriptors=[descriptor],
+            is_monophonic=False,
+            category='advanced_physical_modeling'
         )
-    
+
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
+        """
+        Get all region descriptors for advanced physical preset.
+        
+        Args:
+            bank: Preset bank number
+            program: Preset program number
+            
+        Returns:
+            List of RegionDescriptor objects
+        """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
-    
+
     def create_region(
         self,
         descriptor: RegionDescriptor,
         sample_rate: int
     ) -> IRegion:
         """
-        Create region instance. Base implementation wraps with S.Art2.
-        """
-        return self._create_base_region(descriptor, sample_rate)
-
-    def _create_base_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
-        """
-        Create AdvancedPhysicalRegion base region without S.Art2 wrapper.
-
+        Create advanced physical modeling region instance from descriptor.
+        
         Args:
-            descriptor: Region descriptor
+            descriptor: Region descriptor with advanced physical parameters
             sample_rate: Audio sample rate in Hz
-
+            
         Returns:
-            AdvancedPhysicalRegion instance
+            IRegion instance for advanced physical modeling
         """
         from ..partial.advanced_physical_region import AdvancedPhysicalRegion
-        return AdvancedPhysicalRegion(descriptor, sample_rate)
-    
+        
+        # Create advanced physical region with proper initialization
+        region = AdvancedPhysicalRegion(descriptor, sample_rate)
+        
+        # Initialize the region (creates advanced waveguides, modal resonators)
+        if not region.initialize():
+            raise RuntimeError("Failed to initialize Advanced Physical region")
+        
+        return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
-        return True
-
-
+        """
+        Load sample data for advanced physical region (algorithmic, no samples needed).
+        
+        Args:
+            region: Region to load sample for
+            
+        Returns:
+            True (Advanced Physical doesn't use samples)
+        """
+        # Advanced physical modeling is algorithmic - no sample loading required
+        # Waveguides and modal resonators are created during region initialization
+        return region._initialized if hasattr(region, '_initialized') else False
 
     def get_available_instruments(self) -> list[str]:
         """Get list of available instrument configurations."""
@@ -774,6 +818,23 @@ class AdvancedPhysicalEngine(SynthesisEngine):
                 string.active = False
             for resonator in self.resonators:
                 resonator.active = False
+
+    def _create_base_region(
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
+        """
+        Create Advanced Physical base region without S.Art2 wrapper.
+
+        Args:
+            descriptor: Region descriptor with advanced physical parameters
+            sample_rate: Audio sample rate in Hz
+
+        Returns:
+            AdvancedPhysicalRegion instance
+        """
+        from ..partial.advanced_physical_region import AdvancedPhysicalRegion
+
+        return AdvancedPhysicalRegion(descriptor, sample_rate)
 
     def cleanup(self) -> None:
         """Clean up engine resources."""

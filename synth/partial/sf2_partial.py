@@ -363,8 +363,20 @@ class SF2Partial(SynthesisPartial):
             return self.audio_buffer[:output_size].copy()
 
         except Exception as e:
-            # In production, this should log to error reporting system
-            # For now, return silence to prevent audio glitches
+            # Log error to error reporting system
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(
+                f"SF2Partial.generate_samples() failed: {e}",
+                exc_info=True,
+                extra={
+                    'partial_id': self.region.sample_id if hasattr(self.region, 'sample_id') else None,
+                    'note': self.current_note,
+                    'velocity': self.current_velocity,
+                    'block_size': block_size
+                }
+            )
+            # Return silence to prevent audio glitches
             return np.zeros(block_size * 2, dtype=np.float32)
 
     def _apply_global_modulation(self, modulation: dict):
@@ -641,8 +653,19 @@ class SF2Partial(SynthesisPartial):
 
         except Exception as e:
             # Log filter processing error but continue without filtering
-            # In production, this should log to error reporting system
-            pass
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"SF2Partial._apply_filter() failed, continuing without filtering: {e}",
+                exc_info=True,
+                extra={
+                    'partial_id': self.region.sample_id if hasattr(self.region, 'sample_id') else None,
+                    'filter_type': filter_type,
+                    'cutoff': base_cutoff,
+                    'resonance': base_resonance
+                }
+            )
+            # Continue without filtering - audio will still play
 
     def _apply_spatial_processing(self, block_size: int):
         """Apply panning and final volume adjustments."""
@@ -1623,8 +1646,18 @@ class SF2Partial(SynthesisPartial):
                     self.filter.set_parameters(cutoff=modulated_cutoff, resonance=resonance)
                 except Exception as e:
                     # Log error but continue without filter parameter updates
-                    # In production, this would use proper error logging
-                    pass
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        f"SF2Partial._apply_filter_modulation() failed to update filter parameters: {e}",
+                        exc_info=True,
+                        extra={
+                            'partial_id': self.region.sample_id if hasattr(self.region, 'sample_id') else None,
+                            'cutoff': modulated_cutoff,
+                            'resonance': resonance
+                        }
+                    )
+                    # Continue with previous filter parameters
 
         # Apply filter to stereo audio buffer with basic processing
         # This is a simplified implementation until proper filter interface is available
@@ -1638,8 +1671,17 @@ class SF2Partial(SynthesisPartial):
                     self.audio_buffer[:block_size * 2] = filtered_audio
             except Exception as e:
                 # If filter processing fails, continue without filtering
-                # In production, this would log the error
-                pass
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"SF2Partial._apply_filter_modulation() filter processing failed: {e}",
+                    exc_info=True,
+                    extra={
+                        'partial_id': self.region.sample_id if hasattr(self.region, 'sample_id') else None,
+                        'filter_type': type(self.filter).__name__
+                    }
+                )
+                # Continue without filtering - audio will still play
 
     def _apply_volume_pan_modulation(self, block_size: int):
         """
@@ -2043,8 +2085,19 @@ class SF2Partial(SynthesisPartial):
 
             except Exception as e:
                 # Log parameter update failure but continue
-                # In production, this should use proper error logging
-                pass
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"SF2Partial.apply_advanced_lfo() failed to update mod LFO parameters: {e}",
+                    exc_info=True,
+                    extra={
+                        'partial_id': self.region.sample_id if hasattr(self.region, 'sample_id') else None,
+                        'lfo_type': 'mod',
+                        'freq_mod_lfo': self.freq_mod_lfo,
+                        'delay_mod_lfo': self.delay_mod_lfo
+                    }
+                )
+                # Continue with default LFO parameters
 
         # Update vibrato LFO parameters if different from defaults
         if hasattr(self, 'vib_lfo') and self.vib_lfo:
@@ -2067,8 +2120,19 @@ class SF2Partial(SynthesisPartial):
 
             except Exception as e:
                 # Log parameter update failure but continue
-                # In production, this should use proper error logging
-                pass
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"SF2Partial.apply_advanced_lfo() failed to update vib LFO parameters: {e}",
+                    exc_info=True,
+                    extra={
+                        'partial_id': self.region.sample_id if hasattr(self.region, 'sample_id') else None,
+                        'lfo_type': 'vib',
+                        'freq_vib_lfo': self.freq_vib_lfo,
+                        'delay_vib_lfo': self.delay_vib_lfo
+                    }
+                )
+                # Continue with default LFO parameters
 
         # Note: LFO pan modulation is handled in _apply_volume_pan_modulation()
         # for proper per-sample processing and integration with other pan sources

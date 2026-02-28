@@ -4,6 +4,7 @@ Advanced Modulation Matrix for SFZ Synthesis
 Implements a comprehensive modulation system supporting 200+ modulation routes
 with real-time control, bipolar modulation, and advanced curve shaping.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -19,9 +20,16 @@ class ModulationRoute:
     Supports bipolar modulation, custom curves, smoothing, and polarity control.
     """
 
-    def __init__(self, source: str, destination: str, amount: float,
-                 curve: str = 'linear', bipolar: bool = False,
-                 smooth: float = 0.0, polarity: int = 1):
+    def __init__(
+        self,
+        source: str,
+        destination: str,
+        amount: float,
+        curve: str = "linear",
+        bipolar: bool = False,
+        smooth: float = 0.0,
+        polarity: int = 1,
+    ):
         """
         Initialize modulation route.
 
@@ -57,18 +65,18 @@ class ModulationRoute:
 
         # One-pole lowpass filter coefficient
         # smooth_time is the time for 63% convergence
-        sample_rate = 44100.0  # Assume 44.1kHz for now
+        sample_rate = getattr(self, "sample_rate", 44100.0)
         return 1.0 - math.exp(-1.0 / (smooth_time * sample_rate))
 
     def _get_curve_function(self, curve_name: str) -> Callable[[float], float]:
         """Get curve shaping function."""
-        if curve_name == 'linear':
+        if curve_name == "linear":
             return lambda x: x
-        elif curve_name == 'exponential':
+        elif curve_name == "exponential":
             return lambda x: x * x if x >= 0 else -(x * x)
-        elif curve_name == 'logarithmic':
+        elif curve_name == "logarithmic":
             return lambda x: math.copysign(math.sqrt(abs(x)), x) if x != 0 else 0.0
-        elif curve_name == 'sine':
+        elif curve_name == "sine":
             return lambda x: math.sin(x * math.pi / 2)
         else:
             return lambda x: x  # Default to linear
@@ -145,70 +153,60 @@ class AdvancedModulationMatrix:
     # Standard SFZ modulation sources
     STANDARD_SOURCES = {
         # MIDI Controllers (0-127)
-        **{f'cc{i}': f'cc{i}' for i in range(128)},
-
+        **{f"cc{i}": f"cc{i}" for i in range(128)},
         # Standard MIDI sources
-        'velocity': 'velocity',
-        'key': 'key',  # Note number as modulation source
-        'channel_aftertouch': 'channel_aftertouch',
-        'poly_aftertouch': 'poly_aftertouch',  # Per-note aftertouch
-        'pitch_bend': 'pitch_bend',
-
+        "velocity": "velocity",
+        "key": "key",  # Note number as modulation source
+        "channel_aftertouch": "channel_aftertouch",
+        "poly_aftertouch": "poly_aftertouch",  # Per-note aftertouch
+        "pitch_bend": "pitch_bend",
         # Special SFZ sources
-        'random': 'random',  # Random value per note
-        'sequence': 'sequence',  # Round robin sequence
-
+        "random": "random",  # Random value per note
+        "sequence": "sequence",  # Round robin sequence
         # Envelope outputs as modulation sources
-        'amp_env': 'amp_env',
-        'filter_env': 'filter_env',
-        'pitch_env': 'pitch_env',
-
+        "amp_env": "amp_env",
+        "filter_env": "filter_env",
+        "pitch_env": "pitch_env",
         # LFO outputs
-        'lfo1': 'lfo1',
-        'lfo2': 'lfo2',
-        'lfo3': 'lfo3',
-        'lfo4': 'lfo4',
+        "lfo1": "lfo1",
+        "lfo2": "lfo2",
+        "lfo3": "lfo3",
+        "lfo4": "lfo4",
     }
 
     # Standard SFZ modulation destinations
     STANDARD_DESTINATIONS = {
         # Amplitude
-        'volume': 'volume',
-        'pan': 'pan',
-        'width': 'width',  # Stereo width
-
+        "volume": "volume",
+        "pan": "pan",
+        "width": "width",  # Stereo width
         # Pitch
-        'tune': 'tune',
-        'bend': 'bend',
-        'pitch': 'pitch',
-
+        "tune": "tune",
+        "bend": "bend",
+        "pitch": "pitch",
         # Filter
-        'cutoff': 'cutoff',
-        'resonance': 'resonance',
-        'filter_gain': 'filter_gain',
-
+        "cutoff": "cutoff",
+        "resonance": "resonance",
+        "filter_gain": "filter_gain",
         # Effects sends
-        'reverb_send': 'reverb_send',
-        'chorus_send': 'chorus_send',
-        'delay_send': 'delay_send',
-
+        "reverb_send": "reverb_send",
+        "chorus_send": "chorus_send",
+        "delay_send": "delay_send",
         # LFO parameters
-        'lfo1_freq': 'lfo1_freq',
-        'lfo1_depth': 'lfo1_depth',
-        'lfo2_freq': 'lfo2_freq',
-        'lfo2_depth': 'lfo2_depth',
-
+        "lfo1_freq": "lfo1_freq",
+        "lfo1_depth": "lfo1_depth",
+        "lfo2_freq": "lfo2_freq",
+        "lfo2_depth": "lfo2_depth",
         # Envelope parameters
-        'amp_attack': 'amp_attack',
-        'amp_decay': 'amp_decay',
-        'amp_sustain': 'amp_sustain',
-        'amp_release': 'amp_release',
-
+        "amp_attack": "amp_attack",
+        "amp_decay": "amp_decay",
+        "amp_sustain": "amp_sustain",
+        "amp_release": "amp_release",
         # Filter envelope parameters
-        'filter_attack': 'filter_attack',
-        'filter_decay': 'filter_decay',
-        'filter_sustain': 'filter_sustain',
-        'filter_release': 'filter_release',
+        "filter_attack": "filter_attack",
+        "filter_decay": "filter_decay",
+        "filter_sustain": "filter_sustain",
+        "filter_release": "filter_release",
     }
 
     def __init__(self, max_routes: int = 256):
@@ -229,9 +227,16 @@ class AdvancedModulationMatrix:
         for source in self.STANDARD_SOURCES.values():
             self.source_values[source] = 0.0
 
-    def add_route(self, source: str, destination: str, amount: float = 1.0,
-                  curve: str = 'linear', bipolar: bool = False,
-                  smooth: float = 0.0, polarity: int = 1) -> bool:
+    def add_route(
+        self,
+        source: str,
+        destination: str,
+        amount: float = 1.0,
+        curve: str = "linear",
+        bipolar: bool = False,
+        smooth: float = 0.0,
+        polarity: int = 1,
+    ) -> bool:
         """
         Add a modulation route.
 
@@ -250,8 +255,7 @@ class AdvancedModulationMatrix:
         if len(self.routes) >= self.max_routes:
             return False
 
-        route = ModulationRoute(source, destination, amount, curve,
-                              bipolar, smooth, polarity)
+        route = ModulationRoute(source, destination, amount, curve, bipolar, smooth, polarity)
         self.routes.append(route)
         return True
 
@@ -376,16 +380,19 @@ class AdvancedModulationMatrix:
         Returns:
             List of route information dictionaries
         """
-        return [{
-            'source': route.source,
-            'destination': route.destination,
-            'amount': route.amount,
-            'curve': route.curve,
-            'bipolar': route.bipolar,
-            'smooth': route.smooth,
-            'polarity': route.polarity,
-            'current_value': route.get_current_value()
-        } for route in self.routes]
+        return [
+            {
+                "source": route.source,
+                "destination": route.destination,
+                "amount": route.amount,
+                "curve": route.curve,
+                "bipolar": route.bipolar,
+                "smooth": route.smooth,
+                "polarity": route.polarity,
+                "current_value": route.get_current_value(),
+            }
+            for route in self.routes
+        ]
 
     def reset(self):
         """Reset all modulation state."""

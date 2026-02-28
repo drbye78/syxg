@@ -220,6 +220,7 @@ PROFESSIONAL MUSIC PRODUCTION:
 - LOW LATENCY PERFORMANCE: Real-time performance with minimal delay
 - COMPREHENSIVE MONITORING: Detailed performance and diagnostic information
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -246,7 +247,9 @@ class Channel:
     - True polyphony with multiple simultaneous notes
     """
 
-    def __init__(self, channel_number: int, voice_factory: VoiceFactory, sample_rate: int, synthesizer=None):
+    def __init__(
+        self, channel_number: int, voice_factory: VoiceFactory, sample_rate: int, synthesizer=None
+    ):
         """
         Initialize XG Channel.
 
@@ -267,7 +270,7 @@ class Channel:
         self.active_voices: dict[int, VoiceInstance] = {}  # voice_id -> VoiceInstance
         self.note_to_voice_ids: dict[int, list[int]] = {}  # note -> [voice_id, ...]
         self._next_voice_id = 0  # Incrementing voice ID counter
-        
+
         self.program = 0
         self.bank_msb = 0
         self.bank_lsb = 0
@@ -293,7 +296,7 @@ class Channel:
 
         # Controller state (support both MIDI 1.0 and MIDI 2.0)
         self.controllers = [0] * 128  # MIDI 1.0 controllers (7-bit)
-        self.controllers_32bit = {}   # MIDI 2.0 controllers (32-bit)
+        self.controllers_32bit = {}  # MIDI 2.0 controllers (32-bit)
         self._initialize_default_controllers()
 
         # Channel pressure and key pressure
@@ -302,10 +305,10 @@ class Channel:
 
         # Pitch bend state
         self.pitch_bend_value = 8192  # Center position
-        self.pitch_bend_range = 2.0   # Default ±2 semitones
+        self.pitch_bend_range = 2.0  # Default ±2 semitones
 
         # S.Art2 articulation support
-        self._articulation = 'normal'
+        self._articulation = "normal"
         self._articulation_params = {}
         self._articulation_preset = None  # Current articulation preset
         self._velocity_articulations = {}  # Velocity-based articulation splits
@@ -324,12 +327,8 @@ class Channel:
         # XG channel state (updated from message metadata)
         self.xg_pan_left_gain = 1.0
         self.xg_pan_right_gain = 1.0
-        self.xg_effects_routing = {
-            'reverb_send': 0.0,
-            'chorus_send': 0.0,
-            'variation_send': 0.0
-        }
-        self.xg_part_mode = 'normal'  # 'normal', 'single', 'layer'
+        self.xg_effects_routing = {"reverb_send": 0.0, "chorus_send": 0.0, "variation_send": 0.0}
+        self.xg_part_mode = "normal"  # 'normal', 'single', 'layer'
         self.xg_voice_reserve = None  # Voice limit for this channel
 
         # GS integration
@@ -346,36 +345,36 @@ class Channel:
             return
 
         # Update pan gains
-        if 'pan_left_gain' in xg_metadata:
-            self.xg_pan_left_gain = xg_metadata['pan_left_gain']
-        if 'pan_right_gain' in xg_metadata:
-            self.xg_pan_right_gain = xg_metadata['pan_right_gain']
+        if "pan_left_gain" in xg_metadata:
+            self.xg_pan_left_gain = xg_metadata["pan_left_gain"]
+        if "pan_right_gain" in xg_metadata:
+            self.xg_pan_right_gain = xg_metadata["pan_right_gain"]
 
         # Update effects routing
-        if 'effects_routing' in xg_metadata:
-            self.xg_effects_routing.update(xg_metadata['effects_routing'])
+        if "effects_routing" in xg_metadata:
+            self.xg_effects_routing.update(xg_metadata["effects_routing"])
 
         # Update part mode
-        if 'part_mode' in xg_metadata:
-            self.xg_part_mode = xg_metadata['part_mode']
+        if "part_mode" in xg_metadata:
+            self.xg_part_mode = xg_metadata["part_mode"]
 
         # Update voice reserve
-        if 'voice_reserve' in xg_metadata:
-            self.xg_voice_reserve = xg_metadata['voice_reserve']
+        if "voice_reserve" in xg_metadata:
+            self.xg_voice_reserve = xg_metadata["voice_reserve"]
 
     def _initialize_default_controllers(self):
         """Initialize default controller values per GM/XG specification."""
         # GM/XG default values
-        self.controllers[7] = 100   # Volume
-        self.controllers[10] = 64   # Pan (center)
+        self.controllers[7] = 100  # Volume
+        self.controllers[10] = 64  # Pan (center)
         self.controllers[11] = 127  # Expression
-        self.controllers[64] = 0    # Sustain pedal
-        self.controllers[71] = 64   # Harmonic Content (XG)
-        self.controllers[72] = 64   # Brightness (XG)
-        self.controllers[73] = 0    # Release Time (XG)
-        self.controllers[74] = 0    # Attack Time (XG)
-        self.controllers[91] = 40   # Reverb send
-        self.controllers[93] = 0    # Chorus send
+        self.controllers[64] = 0  # Sustain pedal
+        self.controllers[71] = 64  # Harmonic Content (XG)
+        self.controllers[72] = 64  # Brightness (XG)
+        self.controllers[73] = 0  # Release Time (XG)
+        self.controllers[74] = 0  # Attack Time (XG)
+        self.controllers[91] = 40  # Reverb send
+        self.controllers[93] = 0  # Chorus send
 
     def load_program(self, program: int, bank_msb: int = 0, bank_lsb: int = 0):
         """
@@ -396,16 +395,16 @@ class Channel:
             bank=self.bank,
             program=program,
             channel=self.channel_number,
-            sample_rate=self.sample_rate
+            sample_rate=self.sample_rate,
         )
 
         # Set current program for region-based playback
         # current_voice is now a Voice object with preset info
         self.current_program = self.current_voice
-        
+
         # Reset articulation on program change
-        self.set_articulation('normal')
-    
+        self.set_articulation("normal")
+
     # ========== S.Art2 ARTICULATION CONTROL ==========
 
     def set_articulation(self, articulation: str) -> None:
@@ -418,7 +417,7 @@ class Channel:
         self._articulation = articulation
 
         # Propagate to current voice
-        if self.current_voice and hasattr(self.current_voice, 'set_articulation'):
+        if self.current_voice and hasattr(self.current_voice, "set_articulation"):
             self.current_voice.set_articulation(articulation)
 
     def get_articulation(self) -> str:
@@ -448,68 +447,70 @@ class Channel:
     def apply_articulation_preset(self, preset) -> None:
         """
         Apply articulation preset to channel.
-        
+
         Args:
             preset: ArticulationPreset object
         """
         self._articulation_preset = preset
-        
+
         # Apply preset splits
         self._velocity_articulations = {}
         self._key_articulations = {}
-        
+
         for split in preset.velocity_splits:
             self._velocity_articulations[(split.vel_low, split.vel_high)] = {
-                'articulation': split.articulation,
-                'parameters': split.parameters
+                "articulation": split.articulation,
+                "parameters": split.parameters,
             }
-        
+
         for split in preset.key_splits:
             self._key_articulations[(split.key_low, split.key_high)] = {
-                'articulation': split.articulation,
-                'parameters': split.parameters
+                "articulation": split.articulation,
+                "parameters": split.parameters,
             }
-    
+
     def get_articulation_for_note(self, note: int, velocity: int) -> tuple:
         """
         Get articulation and parameters for note/velocity.
-        
+
         Args:
             note: MIDI note number
             velocity: MIDI velocity
-        
+
         Returns:
             Tuple of (articulation_name, parameters_dict)
         """
         # Check key splits first
         for (key_low, key_high), config in self._key_articulations.items():
             if key_low <= note <= key_high:
-                return (config['articulation'], config['parameters'])
-        
+                return (config["articulation"], config["parameters"])
+
         # Check velocity splits
         for (vel_low, vel_high), config in self._velocity_articulations.items():
             if vel_low <= velocity <= vel_high:
-                return (config['articulation'], config['parameters'])
-        
+                return (config["articulation"], config["parameters"])
+
         # Return default
         return (self._articulation, self._articulation_params)
-    
-    def set_velocity_articulation(self, vel_low: int, vel_high: int,
-                                 articulation: str, **params) -> None:
+
+    def set_velocity_articulation(
+        self, vel_low: int, vel_high: int, articulation: str, **params
+    ) -> None:
         """Set velocity-based articulation."""
         self._velocity_articulations[(vel_low, vel_high)] = {
-            'articulation': articulation,
-            'parameters': params
+            "articulation": articulation,
+            "parameters": params,
         }
-    
-    def set_key_articulation(self, key_low: int, key_high: int,
-                            articulation: str, **params) -> None:
+
+    def set_key_articulation(
+        self, key_low: int, key_high: int, articulation: str, **params
+    ) -> None:
         """Set key-based articulation."""
         self._key_articulations[(key_low, key_high)] = {
-            'articulation': articulation,
-            'parameters': params
+            "articulation": articulation,
+            "parameters": params,
         }
-    
+
     def clear_articulation_splits(self) -> None:
         """Clear all articulation splits."""
         self._velocity_articulations.clear()
@@ -521,7 +522,7 @@ class Channel:
 
         Creates a new VoiceInstance for each note, allowing multiple
         simultaneous notes per channel (true polyphony).
-        
+
         Uses the new region-based architecture for multi-zone preset support.
 
         Args:
@@ -542,9 +543,7 @@ class Channel:
             return False
 
         # Get articulation for this note/velocity
-        articulation, art_params = self.get_articulation_for_note(
-            transposed_note, velocity
-        )
+        articulation, art_params = self.get_articulation_for_note(transposed_note, velocity)
 
         # Allocate unique voice ID for true polyphony
         voice_id = self._allocate_voice_id()
@@ -558,9 +557,9 @@ class Channel:
             self.channel_number,
             self.sample_rate,
             voice_id=voice_id,  # Pass unique voice ID
-            articulation=articulation
+            articulation=articulation,
         )
-        
+
         # Apply articulation parameters
         if art_params:
             voice_instance.set_articulation(articulation, **art_params)
@@ -570,15 +569,12 @@ class Channel:
         if self.current_voice:
             try:
                 # Voice.get_regions_for_note() returns regions matching this note/velocity
-                regions = self.current_voice.get_regions_for_note(
-                    transposed_note, 
-                    velocity
-                )
-                
+                regions = self.current_voice.get_regions_for_note(transposed_note, velocity)
+
                 # Add all matching regions to voice instance
                 for region in regions:
                     voice_instance.add_region(region)
-                    
+
             except Exception as e:
                 logger.error(f"Channel note_on: Failed to get regions: {e}")
 
@@ -596,7 +592,7 @@ class Channel:
 
         # Store the active voice instance with unique ID
         self.active_voices[voice_id] = voice_instance
-        
+
         # Track this voice ID for this note (supports multiple voices per note)
         if transposed_note not in self.note_to_voice_ids:
             self.note_to_voice_ids[transposed_note] = []
@@ -607,37 +603,37 @@ class Channel:
     def _allocate_voice_id(self) -> int:
         """
         Allocate a unique voice ID.
-        
+
         Returns:
             Unique voice ID for this voice instance
         """
         voice_id = self._next_voice_id
         self._next_voice_id += 1
         return voice_id
-    
+
     def _find_voices_for_note(self, note: int) -> list[int]:
         """
         Find all voice IDs playing a specific note.
-        
+
         Args:
             note: MIDI note number (after transposition)
-            
+
         Returns:
             List of voice IDs playing this note
         """
         return self.note_to_voice_ids.get(note, [])
-    
+
     def _remove_voice_id(self, voice_id: int, note: int) -> None:
         """
         Remove a voice ID from tracking.
-        
+
         Args:
             voice_id: Voice ID to remove
             note: Note associated with this voice
         """
         if voice_id in self.active_voices:
             del self.active_voices[voice_id]
-        
+
         if note in self.note_to_voice_ids:
             if voice_id in self.note_to_voice_ids[note]:
                 self.note_to_voice_ids[note].remove(voice_id)
@@ -647,7 +643,7 @@ class Channel:
     def note_off(self, note: int, velocity: int = 64):
         """
         Handle note-off event with polyphony support.
-        
+
         CRITICAL FIX: Release ALL voices playing this note, not just one.
         This enables true polyphony where multiple voices can play the same note.
 
@@ -660,7 +656,7 @@ class Channel:
 
         # Find ALL voice instances playing this note (supports polyphony)
         voice_ids = self._find_voices_for_note(transposed_note)
-        
+
         # Release all voices for this note
         for voice_id in voice_ids:
             if voice_id in self.active_voices:
@@ -668,7 +664,7 @@ class Channel:
                 voice_instance.note_off(velocity)
                 # Mark for removal during cleanup (allows release phase to complete)
                 voice_instance._pending_removal = True
-        
+
         # Fallback to legacy single voice if no voices found
         if not voice_ids:
             if self.current_voice:
@@ -815,9 +811,43 @@ class Channel:
             msb: Data MSB
             lsb: Data LSB
         """
-        # XG NRPN handling would go here
-        # For now, this is a placeholder
-        pass
+        param_number = (self.nrpn_msb << 8) | self.nrpn_lsb
+        value = (msb << 7) | lsb
+
+        if param_number == 0:
+            self.vibrato_rate = (value - 64) / 64.0
+        elif param_number == 1:
+            self.vibrato_depth = (value - 64) / 64.0
+        elif param_number == 2:
+            self.vibrato_delay = value / 127.0 * 2.0
+        elif param_number == 6:
+            self.filter_cutoff = self._midi_to_frequency(value)
+        elif param_number == 7:
+            self.filter_resonance = (value - 64) / 64.0 * 10.0
+        elif param_number == 8:
+            self.amp_release = value / 127.0 * 2.0
+        elif param_number == 9:
+            self.amp_attack = value / 127.0 * 2.0
+        elif param_number == 10:
+            self.drum_volume = value / 127.0
+        elif param_number == 11:
+            self.drum_pan = (value - 64) / 64.0
+        elif param_number == 12:
+            self.drum_reverb_send = value / 127.0
+        elif param_number == 13:
+            self.drum_chorus_send = value / 127.0
+        elif param_number == 14:
+            self.drum_delay_send = value / 127.0
+        elif param_number == 91:
+            self.reverb_send = value / 127.0
+        elif param_number == 93:
+            self.chorus_send = value / 127.0
+        elif param_number == 94:
+            self.delay_send = value / 127.0
+        elif param_number >= 96 and param_number <= 127:
+            eq_band = param_number - 96
+            if eq_band < len(self.eq_gains):
+                self.eq_gains[eq_band] = (value - 64) / 64.0 * 12.0
 
     def _handle_rpn_complete(self, value: int):
         """
@@ -938,49 +968,51 @@ class Channel:
             Dictionary of modulation values
         """
         # Convert pitch bend to modulation value
-        if hasattr(self, 'pitch_bend_32bit'):
+        if hasattr(self, "pitch_bend_32bit"):
             # Use 32-bit pitch bend for higher resolution
-            pitch_bend_semitones = ((self.pitch_bend_32bit - 2147483647) / 2147483647.0) * self.pitch_bend_range
+            pitch_bend_semitones = (
+                (self.pitch_bend_32bit - 2147483647) / 2147483647.0
+            ) * self.pitch_bend_range
         else:
             # Use 14-bit pitch bend (MIDI 1.0)
             pitch_bend_semitones = ((self.pitch_bend_value - 8192) / 8192.0) * self.pitch_bend_range
 
         modulation = {
-            'pitch': pitch_bend_semitones * 100.0,  # Convert to cents
-            'filter_cutoff': 0.0,  # Could be mapped to controllers
-            'amp': 1.0,
-            'pan': self.pan,
-            'velocity_crossfade': 0.0,
-            'note_crossfade': 0.0,
-            'stereo_width': 1.0,
-            'tremolo_rate': 4.0,
-            'tremolo_depth': 0.3,
-            'mod_wheel': self.controllers[1] / 127.0,
-            'breath_controller': self.controllers[2] / 127.0,
-            'foot_controller': self.controllers[4] / 127.0,
-            'expression': self.controllers[11] / 127.0,
-            'brightness': self.controllers[72] / 127.0,
-            'harmonic_content': self.controllers[71] / 127.0,
-            'channel_aftertouch': self.channel_pressure / 127.0,
-            'volume_cc': self.controllers[7] / 127.0,
+            "pitch": pitch_bend_semitones * 100.0,  # Convert to cents
+            "filter_cutoff": 0.0,  # Could be mapped to controllers
+            "amp": 1.0,
+            "pan": self.pan,
+            "velocity_crossfade": 0.0,
+            "note_crossfade": 0.0,
+            "stereo_width": 1.0,
+            "tremolo_rate": 4.0,
+            "tremolo_depth": 0.3,
+            "mod_wheel": self.controllers[1] / 127.0,
+            "breath_controller": self.controllers[2] / 127.0,
+            "foot_controller": self.controllers[4] / 127.0,
+            "expression": self.controllers[11] / 127.0,
+            "brightness": self.controllers[72] / 127.0,
+            "harmonic_content": self.controllers[71] / 127.0,
+            "channel_aftertouch": self.channel_pressure / 127.0,
+            "volume_cc": self.controllers[7] / 127.0,
         }
 
         # Add 32-bit controller values if available
         for controller, value_32bit in self.controllers_32bit.items():
             if controller == 1:  # Mod wheel
-                modulation['mod_wheel'] = self._normalize_32bit_value(value_32bit)
+                modulation["mod_wheel"] = self._normalize_32bit_value(value_32bit)
             elif controller == 2:  # Breath controller
-                modulation['breath_controller'] = self._normalize_32bit_value(value_32bit)
+                modulation["breath_controller"] = self._normalize_32bit_value(value_32bit)
             elif controller == 4:  # Foot controller
-                modulation['foot_controller'] = self._normalize_32bit_value(value_32bit)
+                modulation["foot_controller"] = self._normalize_32bit_value(value_32bit)
             elif controller == 7:  # Volume
-                modulation['volume_cc'] = self._normalize_32bit_value(value_32bit)
+                modulation["volume_cc"] = self._normalize_32bit_value(value_32bit)
             elif controller == 11:  # Expression
-                modulation['expression'] = self._normalize_32bit_value(value_32bit)
+                modulation["expression"] = self._normalize_32bit_value(value_32bit)
             elif controller == 71:  # Harmonic Content
-                modulation['harmonic_content'] = self._normalize_32bit_value(value_32bit)
+                modulation["harmonic_content"] = self._normalize_32bit_value(value_32bit)
             elif controller == 72:  # Brightness
-                modulation['brightness'] = self._normalize_32bit_value(value_32bit)
+                modulation["brightness"] = self._normalize_32bit_value(value_32bit)
 
         return modulation
 
@@ -994,8 +1026,13 @@ class Channel:
         """
         self.key_pressure_values[note] = pressure
 
-    def enable_mpe_plus(self, master_channel: int = 0, first_note_channel: int = 1, 
-                        last_note_channel: int = 15, layout: str = 'horizontal'):
+    def enable_mpe_plus(
+        self,
+        master_channel: int = 0,
+        first_note_channel: int = 1,
+        last_note_channel: int = 15,
+        layout: str = "horizontal",
+    ):
         """
         Enable MPE+ (MIDI Polyphonic Expression Plus) mode for this channel.
 
@@ -1006,12 +1043,14 @@ class Channel:
             layout: Channel layout ('horizontal' or 'vertical')
         """
         self.mpe_enabled = True
-        self.mpe_configuration.update({
-            'master_channel': master_channel,
-            'first_note_channel': first_note_channel,
-            'last_note_channel': last_note_channel,
-            'channel_layout': layout
-        })
+        self.mpe_configuration.update(
+            {
+                "master_channel": master_channel,
+                "first_note_channel": first_note_channel,
+                "last_note_channel": last_note_channel,
+                "channel_layout": layout,
+            }
+        )
 
     def disable_mpe_plus(self):
         """Disable MPE+ mode for this channel."""
@@ -1089,7 +1128,7 @@ class Channel:
     def all_notes_off(self):
         """
         Turn off all notes on this channel.
-        
+
         CRITICAL FIX: Release all voices using voice IDs.
         """
         # Send note-off to all active voice instances
@@ -1105,7 +1144,7 @@ class Channel:
     def all_sound_off(self):
         """
         Immediately silence all sounds on this channel.
-        
+
         CRITICAL FIX: Clear all voice tracking structures.
         """
         # Immediately silence all active voice instances
@@ -1150,7 +1189,7 @@ class Channel:
         # Generate samples from all active voice instances
         active_voice_count = 0
         voices_to_remove = []
-        
+
         for voice_id, voice_instance in list(self.active_voices.items()):
             if voice_instance.is_active():
                 # Get samples from this voice instance
@@ -1198,23 +1237,23 @@ class Channel:
         pitch_bend_semitones = ((self.pitch_bend_value - 8192) / 8192.0) * self.pitch_bend_range
 
         modulation = {
-            'pitch': pitch_bend_semitones * 100.0,  # Convert to cents
-            'filter_cutoff': 0.0,  # Could be mapped to controllers
-            'amp': 1.0,
-            'pan': self.pan,
-            'velocity_crossfade': 0.0,
-            'note_crossfade': 0.0,
-            'stereo_width': 1.0,
-            'tremolo_rate': 4.0,
-            'tremolo_depth': 0.3,
-            'mod_wheel': self.controllers[1] / 127.0,
-            'breath_controller': self.controllers[2] / 127.0,
-            'foot_controller': self.controllers[4] / 127.0,
-            'expression': self.controllers[11] / 127.0,
-            'brightness': self.controllers[72] / 127.0,
-            'harmonic_content': self.controllers[71] / 127.0,
-            'channel_aftertouch': self.channel_pressure / 127.0,
-            'volume_cc': self.controllers[7] / 127.0,
+            "pitch": pitch_bend_semitones * 100.0,  # Convert to cents
+            "filter_cutoff": 0.0,  # Could be mapped to controllers
+            "amp": 1.0,
+            "pan": self.pan,
+            "velocity_crossfade": 0.0,
+            "note_crossfade": 0.0,
+            "stereo_width": 1.0,
+            "tremolo_rate": 4.0,
+            "tremolo_depth": 0.3,
+            "mod_wheel": self.controllers[1] / 127.0,
+            "breath_controller": self.controllers[2] / 127.0,
+            "foot_controller": self.controllers[4] / 127.0,
+            "expression": self.controllers[11] / 127.0,
+            "brightness": self.controllers[72] / 127.0,
+            "harmonic_content": self.controllers[71] / 127.0,
+            "channel_aftertouch": self.channel_pressure / 127.0,
+            "volume_cc": self.controllers[7] / 127.0,
         }
 
         return modulation
@@ -1227,20 +1266,20 @@ class Channel:
             Dictionary with channel state information
         """
         return {
-            'channel_number': self.channel_number,
-            'program': self.program,
-            'bank': self.bank,
-            'bank_msb': self.bank_msb,
-            'bank_lsb': self.bank_lsb,
-            'active': self.active,
-            'muted': self.muted,
-            'solo': self.solo,
-            'key_range': (self.key_range_low, self.key_range_high),
-            'master_level': self.master_level,
-            'pan': self.pan,
-            'transpose': self.transpose,
-            'has_voice': self.current_voice is not None,
-            'voice_info': self.current_voice.get_voice_info() if self.current_voice else None
+            "channel_number": self.channel_number,
+            "program": self.program,
+            "bank": self.bank,
+            "bank_msb": self.bank_msb,
+            "bank_lsb": self.bank_lsb,
+            "active": self.active,
+            "muted": self.muted,
+            "solo": self.solo,
+            "key_range": (self.key_range_low, self.key_range_high),
+            "master_level": self.master_level,
+            "pan": self.pan,
+            "transpose": self.transpose,
+            "has_voice": self.current_voice is not None,
+            "voice_info": self.current_voice.get_voice_info() if self.current_voice else None,
         }
 
     def set_key_range(self, low: int, high: int):
@@ -1291,7 +1330,9 @@ class Channel:
         Returns:
             True if channel has active voices
         """
-        return len(self.active_voices) > 0 or (self.current_voice is not None and self.current_voice.is_active())
+        return len(self.active_voices) > 0 or (
+            self.current_voice is not None and self.current_voice.is_active()
+        )
 
     def get_active_voice_count(self) -> int:
         """
@@ -1351,8 +1392,8 @@ class Channel:
                 return self.gs_part.volume / 127.0
 
         # Check XG part level
-        if hasattr(self, 'xg_config') and self.xg_config and 'part_level' in self.xg_config:
-            return self.xg_config['part_level'] / 100.0
+        if hasattr(self, "xg_config") and self.xg_config and "part_level" in self.xg_config:
+            return self.xg_config["part_level"] / 100.0
 
         # Default to regular master level
         return self.master_level
@@ -1379,6 +1420,7 @@ class Channel:
                     pan_position = 1.0
 
                 import math
+
                 angle = pan_position * (math.pi / 4.0)  # 45 degrees max
                 left_gain = math.cos(angle + math.pi / 4.0)
                 right_gain = math.sin(angle + math.pi / 4.0)

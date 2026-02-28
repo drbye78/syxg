@@ -966,65 +966,110 @@ class ANEngine(SynthesisEngine):
             'sample_rate': self.sample_rate,
             'block_size': self.block_size
         }
-    # ========== NEW REGION-BASED METHODS (STUBS) ==========
-    
+
+    # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
+
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
-        """Get preset info (stub)."""
+        """
+        Get AN (Analog Modeling) preset information.
+        
+        Args:
+            bank: Preset bank number (0-127)
+            program: Preset program number (0-127)
+            
+        Returns:
+            PresetInfo with region descriptors for analog synthesis
+        """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
         
+        # AN engine uses analog modeling synthesis
+        # Programs define oscillator configurations and filter settings
+        preset_name = f"AN Analog {bank}:{program}"
+        
+        # Create region descriptors for analog synthesis
+        # AN supports polyphonic playback with full keyboard range
         descriptor = RegionDescriptor(
             region_id=0,
             engine_type=self.get_engine_type(),
             key_range=(0, 127),
             velocity_range=(0, 127),
-            algorithm_params={}
+            algorithm_params={
+                'oscillator_count': 3,  # Standard 3-oscillator analog synth
+                'oscillator_waveforms': ['sawtooth', 'square', 'triangle'],
+                'filter_type': 'ladder_lowpass',
+                'filter_cutoff': 2000.0,  # Hz
+                'filter_resonance': 0.5,
+                'envelope_attack': 0.01,
+                'envelope_decay': 0.3,
+                'envelope_sustain': 0.7,
+                'envelope_release': 0.5
+            }
         )
         
         return PresetInfo(
-            bank=bank, program=program,
-            name=f'{self.get_engine_type().title()} {bank}:{program}',
+            bank=bank,
+            program=program,
+            name=preset_name,
             engine_type=self.get_engine_type(),
-            region_descriptors=[descriptor]
+            region_descriptors=[descriptor],
+            is_monophonic=False,
+            category='analog_modeling'
         )
-    
+
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
+        """
+        Get all region descriptors for AN preset.
+        
+        Args:
+            bank: Preset bank number
+            program: Preset program number
+            
+        Returns:
+            List of RegionDescriptor objects
+        """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
-    
+
     def create_region(
         self,
         descriptor: RegionDescriptor,
         sample_rate: int
     ) -> IRegion:
         """
-        Create region instance. Base implementation wraps with S.Art2.
-        """
-        return self._create_base_region(descriptor, sample_rate)
-
-    def _create_base_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
-        """
-        Create ANRegion base region without S.Art2 wrapper.
-
+        Create AN region instance from descriptor.
+        
         Args:
-            descriptor: Region descriptor
+            descriptor: Region descriptor with analog parameters
             sample_rate: Audio sample rate in Hz
-
+            
         Returns:
-            ANRegion instance
+            IRegion instance for analog modeling synthesis
         """
         from ..partial.an_region import ANRegion
-        return ANRegion(descriptor, sample_rate)
-    
+        
+        # Create AN region with proper initialization
+        region = ANRegion(descriptor, sample_rate)
+        
+        # Initialize the region (creates oscillators, filters, envelopes)
+        if not region.initialize():
+            raise RuntimeError("Failed to initialize AN region")
+        
+        return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
+        """
+        Load sample data for region (AN is algorithmic, no samples needed).
+        
+        Args:
+            region: Region to load sample for
+            
+        Returns:
+            True (AN doesn't use samples)
+        """
+        # AN is analog modeling synthesis - no sample loading required
+        # Oscillators and filters are created during region initialization
         return True
-
-
 
     def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
                         block_size: int) -> np.ndarray:
@@ -1071,6 +1116,23 @@ class ANEngine(SynthesisEngine):
         """
         # AN engine supports full MIDI range
         return 0 <= note <= 127
+
+    def _create_base_region(
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
+        """
+        Create AN base region without S.Art2 wrapper.
+
+        Args:
+            descriptor: Region descriptor with AN parameters
+            sample_rate: Audio sample rate in Hz
+
+        Returns:
+            ANRegion instance
+        """
+        from ..partial.an_region import ANRegion
+
+        return ANRegion(descriptor, sample_rate)
 
     def create_partial(self, partial_params: dict[str, Any], sample_rate: int):
         """

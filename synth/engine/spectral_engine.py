@@ -1006,65 +1006,110 @@ class SpectralEngine(SynthesisEngine):
                 'grain_size', 'grain_pitch', 'spectral_morph', 'noise_amount'
             ]
         }
-    # ========== NEW REGION-BASED METHODS (STUBS) ==========
-    
+
+    # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
+
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
-        """Get preset info (stub)."""
+        """
+        Get spectral synthesis preset information with proper region descriptors.
+        
+        Args:
+            bank: Preset bank number (0-127)
+            program: Preset program number (0-127)
+            
+        Returns:
+            PresetInfo with region descriptors for spectral synthesis
+        """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
         
+        # Spectral engine uses FFT-based synthesis with spectrum manipulation
+        # Programs define spectral configurations and morphing settings
+        preset_name = f"Spectral {bank}:{program}"
+        
+        # Create region descriptors for spectral synthesis
+        # Spectral supports polyphonic playback with full keyboard range
         descriptor = RegionDescriptor(
             region_id=0,
             engine_type=self.get_engine_type(),
             key_range=(0, 127),
             velocity_range=(0, 127),
-            algorithm_params={}
+            algorithm_params={
+                'fft_size': 2048,  # FFT analysis/synthesis size
+                'hop_size': 512,  # Hop size for overlap-add
+                'spectral_morph': 'freeze',  # Spectral morphing type
+                'grain_size': 0.05,  # Grain size in seconds
+                'grain_pitch': 1.0,  # Grain pitch multiplier
+                'noise_amount': 0.0,  # Added noise component
+                'freeze_mode': False,  # Spectrum freeze mode
+                'smoothing': 0.5  # Spectral smoothing factor
+            }
         )
         
         return PresetInfo(
-            bank=bank, program=program,
-            name=f'{self.get_engine_type().title()} {bank}:{program}',
+            bank=bank,
+            program=program,
+            name=preset_name,
             engine_type=self.get_engine_type(),
-            region_descriptors=[descriptor]
+            region_descriptors=[descriptor],
+            is_monophonic=False,
+            category='spectral_synthesis'
         )
-    
+
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
+        """
+        Get all region descriptors for spectral preset.
+        
+        Args:
+            bank: Preset bank number
+            program: Preset program number
+            
+        Returns:
+            List of RegionDescriptor objects
+        """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
-    
+
     def create_region(
         self,
         descriptor: RegionDescriptor,
         sample_rate: int
     ) -> IRegion:
         """
-        Create region instance. Base implementation wraps with S.Art2.
-        """
-        return self._create_base_region(descriptor, sample_rate)
-
-    def _create_base_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
-        """
-        Create SpectralRegion base region without S.Art2 wrapper.
-
+        Create spectral region instance from descriptor.
+        
         Args:
-            descriptor: Region descriptor
+            descriptor: Region descriptor with spectral parameters
             sample_rate: Audio sample rate in Hz
-
+            
         Returns:
-            SpectralRegion instance
+            IRegion instance for spectral synthesis
         """
         from ..partial.spectral_region import SpectralRegion
-        return SpectralRegion(descriptor, sample_rate)
-    
+        
+        # Create spectral region with proper initialization
+        region = SpectralRegion(descriptor, sample_rate)
+        
+        # Initialize the region (creates FFT buffers, spectral processors)
+        if not region.initialize():
+            raise RuntimeError("Failed to initialize Spectral region")
+        
+        return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
-        return True
-
-
+        """
+        Load sample data for spectral region (used for spectral analysis).
+        
+        Args:
+            region: Region to load sample for
+            
+        Returns:
+            True if sample loaded successfully
+        """
+        # Spectral synthesis can use samples for analysis
+        if hasattr(region, 'load_sample'):
+            return region.load_sample()
+        return region._initialized if hasattr(region, '_initialized') else False
 
     def get_spectral_info(self) -> dict[str, Any]:
         """Get detailed spectral processing information."""
@@ -1085,6 +1130,23 @@ class SpectralEngine(SynthesisEngine):
         self.grain_schedule.clear()
         self.spectral_synth.set_freeze(False)
         self.spectral_synth.noise_amount = 0.0
+
+    def _create_base_region(
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
+        """
+        Create Spectral base region without S.Art2 wrapper.
+
+        Args:
+            descriptor: Region descriptor with spectral parameters
+            sample_rate: Audio sample rate in Hz
+
+        Returns:
+            SpectralRegion instance
+        """
+        from ..partial.spectral_region import SpectralRegion
+
+        return SpectralRegion(descriptor, sample_rate)
 
     def cleanup(self) -> None:
         """Clean up engine resources."""

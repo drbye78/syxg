@@ -124,8 +124,18 @@ class IRegion(ABC):
             return True
             
         except Exception as e:
-            # Log error in production
-            print(f"Region initialization failed: {e}")
+            # Log error using proper logging module
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(
+                f"Region initialization failed for {self.descriptor.engine_type}: {e}",
+                exc_info=True,
+                extra={
+                    'region_id': self.descriptor.region_id,
+                    'engine_type': self.descriptor.engine_type,
+                    'sample_id': self.descriptor.sample_id
+                }
+            )
             return False
     
     @abstractmethod

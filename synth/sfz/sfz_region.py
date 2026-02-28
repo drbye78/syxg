@@ -4,6 +4,7 @@ SFZ Region Implementation
 SFZ-specific region implementation with sample playback, envelopes,
 filters, and modulation according to the SFZ v2 specification.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -21,15 +22,15 @@ class SFZEnvelope:
 
     def __init__(self, params: dict[str, float]):
         # Envelope parameters (in seconds)
-        self.attack = params.get('attack', 0.0)
-        self.hold = params.get('hold', 0.0)
-        self.decay = params.get('decay', 0.0)
-        self.sustain = params.get('sustain', 1.0)  # 0.0 to 1.0
-        self.release = params.get('release', 0.0)
-        self.delay = params.get('delay', 0.0)
+        self.attack = params.get("attack", 0.0)
+        self.hold = params.get("hold", 0.0)
+        self.decay = params.get("decay", 0.0)
+        self.sustain = params.get("sustain", 1.0)  # 0.0 to 1.0
+        self.release = params.get("release", 0.0)
+        self.delay = params.get("delay", 0.0)
 
         # Runtime state
-        self.state = 'idle'  # idle, delay, attack, hold, decay, sustain, release
+        self.state = "idle"  # idle, delay, attack, hold, decay, sustain, release
         self.current_level = 0.0
         self.time_in_state = 0.0
         self.release_level = 0.0
@@ -46,14 +47,14 @@ class SFZEnvelope:
 
     def note_on(self, velocity: float = 1.0):
         """Trigger envelope note-on."""
-        self.state = 'delay' if self.delay > 0 else 'attack'
+        self.state = "delay" if self.delay > 0 else "attack"
         self.time_in_state = 0.0
         self.release_level = 0.0
 
     def note_off(self):
         """Trigger envelope note-off."""
-        if self.state not in ['idle', 'release']:
-            self.state = 'release'
+        if self.state not in ["idle", "release"]:
+            self.state = "release"
             self.time_in_state = 0.0
             self.release_level = self.current_level
 
@@ -74,41 +75,41 @@ class SFZEnvelope:
         for i in range(block_size):
             self.time_in_state += dt
 
-            if self.state == 'delay':
+            if self.state == "delay":
                 if self.time_in_state >= self.delay:
-                    self.state = 'attack'
+                    self.state = "attack"
                     self.time_in_state = 0.0
 
-            elif self.state == 'attack':
+            elif self.state == "attack":
                 if self.time_in_state >= self.attack:
                     self.current_level = 1.0
-                    self.state = 'hold' if self.hold > 0 else 'decay'
+                    self.state = "hold" if self.hold > 0 else "decay"
                     self.time_in_state = 0.0
                 else:
                     self.current_level = self.time_in_state * self.attack_rate
 
-            elif self.state == 'hold':
+            elif self.state == "hold":
                 if self.time_in_state >= self.hold:
-                    self.state = 'decay'
+                    self.state = "decay"
                     self.time_in_state = 0.0
                 # Hold at peak level (1.0)
 
-            elif self.state == 'decay':
+            elif self.state == "decay":
                 if self.time_in_state >= self.decay:
                     self.current_level = self.sustain
-                    self.state = 'sustain'
+                    self.state = "sustain"
                 else:
                     decay_amount = self.time_in_state * self.decay_rate
                     self.current_level = 1.0 - decay_amount
 
-            elif self.state == 'sustain':
+            elif self.state == "sustain":
                 # Hold sustain level
                 pass
 
-            elif self.state == 'release':
+            elif self.state == "release":
                 if self.time_in_state >= self.release:
                     self.current_level = 0.0
-                    self.state = 'idle'
+                    self.state = "idle"
                 else:
                     release_amount = self.time_in_state * self.release_rate
                     self.current_level = max(0.0, self.release_level - release_amount)
@@ -119,11 +120,11 @@ class SFZEnvelope:
 
     def is_finished(self) -> bool:
         """Check if envelope has finished."""
-        return self.state == 'idle'
+        return self.state == "idle"
 
     def reset(self):
         """Reset envelope to initial state."""
-        self.state = 'idle'
+        self.state = "idle"
         self.current_level = 0.0
         self.time_in_state = 0.0
         self.release_level = 0.0
@@ -132,8 +133,13 @@ class SFZEnvelope:
 class SFZFilter:
     """SFZ Filter implementation with various filter types."""
 
-    def __init__(self, filter_type: str = 'lpf_2p', cutoff: float = 1000.0,
-                 resonance: float = 0.0, sample_rate: float = 44100.0):
+    def __init__(
+        self,
+        filter_type: str = "lpf_2p",
+        cutoff: float = 1000.0,
+        resonance: float = 0.0,
+        sample_rate: float = 44100.0,
+    ):
         self.filter_type = filter_type
         self.cutoff = cutoff
         self.resonance = resonance
@@ -152,7 +158,7 @@ class SFZFilter:
         normalized_freq = min(normalized_freq, math.pi * 0.99)  # Stability limit
 
         # Calculate coefficients for 2-pole lowpass
-        if self.filter_type in ['lpf_2p', 'lowpass']:
+        if self.filter_type in ["lpf_2p", "lowpass"]:
             k = math.tan(normalized_freq * 0.5)
             k2 = k * k
             sqrt2 = math.sqrt(2.0)
@@ -185,7 +191,13 @@ class SFZFilter:
 
         for i, x0 in enumerate(input_signal):
             # Direct Form I implementation
-            y0 = self.a0 * x0 + self.a1 * self.x1 + self.a2 * self.x2 - self.b1 * self.y1 - self.b2 * self.y2
+            y0 = (
+                self.a0 * x0
+                + self.a1 * self.x1
+                + self.a2 * self.x2
+                - self.b1 * self.y1
+                - self.b2 * self.y2
+            )
 
             # Update state
             self.x2, self.x1 = self.x1, x0
@@ -218,7 +230,9 @@ class SFZRegion(Region):
     filters, and advanced modulation according to SFZ specification.
     """
 
-    def __init__(self, region_params: dict[str, Any], sample_manager: PyAVSampleManager | None = None):
+    def __init__(
+        self, region_params: dict[str, Any], sample_manager: PyAVSampleManager | None = None
+    ):
         super().__init__(region_params)
 
         # SFZ-specific initialization
@@ -238,15 +252,17 @@ class SFZRegion(Region):
         self.filter = SFZFilter(self.filter_type, self.cutoff, self.resonance, 44100.0)
 
         # SFZ LFO parameters
-        self.lfo1_params = region_params.get('lfo1', {})
-        self.lfo2_params = region_params.get('lfo2', {})
+        self.lfo1_params = region_params.get("lfo1", {})
+        self.lfo2_params = region_params.get("lfo2", {})
 
         # Create LFOs
         self.lfo1 = self._create_lfo(self.lfo1_params, lfo_id=0)
         self.lfo2 = self._create_lfo(self.lfo2_params, lfo_id=1)
 
         # Modulation matrix for this region
-        self.modulation_matrix = AdvancedModulationMatrix(max_routes=50)  # Region-specific modulation
+        self.modulation_matrix = AdvancedModulationMatrix(
+            max_routes=50
+        )  # Region-specific modulation
 
         # Runtime state
         self.playback_position = 0
@@ -268,20 +284,15 @@ class SFZRegion(Region):
 
         try:
             # Extract LFO parameters
-            waveform = lfo_params.get('waveform', 'sine')
-            freq = lfo_params.get('freq', 5.0)  # Default 5 Hz
-            depth = lfo_params.get('depth', 1.0)
-            delay = lfo_params.get('delay', 0.0)
-            fade = lfo_params.get('fade', 0.0)
+            waveform = lfo_params.get("waveform", "sine")
+            freq = lfo_params.get("freq", 5.0)  # Default 5 Hz
+            depth = lfo_params.get("depth", 1.0)
+            delay = lfo_params.get("delay", 0.0)
+            fade = lfo_params.get("fade", 0.0)
 
             # Create LFO instance
             lfo = UltraFastXGLFO(
-                id=lfo_id,
-                waveform=waveform,
-                rate=freq,
-                depth=depth,
-                delay=delay,
-                sample_rate=44100
+                id=lfo_id, waveform=waveform, rate=freq, depth=depth, delay=delay, sample_rate=44100
             )
 
             # Set fade-in if specified
@@ -322,8 +333,8 @@ class SFZRegion(Region):
         if self.filter:
             # Modulate filter cutoff
             base_cutoff = self.cutoff
-            if 'filter_cutoff' in modulation:
-                base_cutoff *= (1.0 + modulation['filter_cutoff'])
+            if "filter_cutoff" in modulation:
+                base_cutoff *= 1.0 + modulation["filter_cutoff"]
 
             # Apply filter envelope
             filter_env_values = self.filter_env.process(block_size, 44100.0)
@@ -338,44 +349,55 @@ class SFZRegion(Region):
         lfo_modulation = self._apply_lfo_modulation(block_size)
 
         # Apply amplitude modulation
-        if 'volume' in modulation:
-            sample_data *= (1.0 + modulation['volume'])
+        if "volume" in modulation:
+            sample_data *= 1.0 + modulation["volume"]
 
         # Apply LFO amplitude modulation
-        if 'lfo1_volume' in lfo_modulation:
-            sample_data *= (1.0 + lfo_modulation['lfo1_volume'])
-        if 'lfo2_volume' in lfo_modulation:
-            sample_data *= (1.0 + lfo_modulation['lfo2_volume'])
+        if "lfo1_volume" in lfo_modulation:
+            sample_data *= 1.0 + lfo_modulation["lfo1_volume"]
+        if "lfo2_volume" in lfo_modulation:
+            sample_data *= 1.0 + lfo_modulation["lfo2_volume"]
 
         # Apply pan modulation
-        if 'pan' in modulation:
-            pan = np.clip(self.pan + modulation['pan'], -1.0, 1.0)
+        if "pan" in modulation:
+            pan = np.clip(self.pan + modulation["pan"], -1.0, 1.0)
             left_gain = 1.0 - max(0.0, pan)
             right_gain = 1.0 - max(0.0, -pan)
             sample_data[:, 0] *= left_gain
             sample_data[:, 1] *= right_gain
 
         # Apply LFO pan modulation
-        if 'lfo1_pan' in lfo_modulation:
-            pan_mod = lfo_modulation['lfo1_pan']
+        if "lfo1_pan" in lfo_modulation:
+            pan_mod = lfo_modulation["lfo1_pan"]
             left_gain = 1.0 - max(0.0, pan_mod)
             right_gain = 1.0 - max(0.0, -pan_mod)
             sample_data[:, 0] *= left_gain
             sample_data[:, 1] *= right_gain
 
-        if 'lfo2_pan' in lfo_modulation:
-            pan_mod = lfo_modulation['lfo2_pan']
+        if "lfo2_pan" in lfo_modulation:
+            pan_mod = lfo_modulation["lfo2_pan"]
             left_gain = 1.0 - max(0.0, pan_mod)
             right_gain = 1.0 - max(0.0, -pan_mod)
             sample_data[:, 0] *= left_gain
             sample_data[:, 1] *= right_gain
 
-        # Apply pitch modulation
-        if 'pitch' in modulation:
-            # Simple pitch shifting (placeholder - full implementation would be more complex)
-            pitch_ratio = 2.0 ** (modulation['pitch'] / 12.0)  # Convert semitones to ratio
-            # For now, just apply a simple gain adjustment
-            sample_data *= min(2.0, max(0.5, pitch_ratio))
+        # Apply pitch modulation with proper interpolation
+        if "pitch" in modulation:
+            pitch_ratio = 2.0 ** (modulation["pitch"] / 12.0)  # Convert semitones to ratio
+
+            if abs(pitch_ratio - 1.0) > 0.001:
+                # Apply pitch shift using linear interpolation
+                from scipy import signal
+
+                # Use resample for pitch shifting (quality vs performance tradeoff)
+                if abs(pitch_ratio - 1.0) < 0.5:
+                    # Small pitch shifts - use interpolation
+                    new_length = int(len(sample_data) / pitch_ratio)
+                    if new_length > 100:
+                        sample_data = signal.resample(sample_data, new_length)
+                else:
+                    # Large pitch shifts - apply gain compensation only
+                    sample_data *= min(2.0, max(0.5, pitch_ratio))
 
         return sample_data
 
@@ -396,8 +418,8 @@ class SFZRegion(Region):
 
         # Apply pitch modulation if present
         pitch_modulation = 0.0
-        if hasattr(self, 'current_modulation') and 'pitch' in self.current_modulation:
-            pitch_modulation = self.current_modulation['pitch']
+        if hasattr(self, "current_modulation") and "pitch" in self.current_modulation:
+            pitch_modulation = self.current_modulation["pitch"]
 
         # Combine base pitch ratio with modulation
         total_pitch_ratio = pitch_ratio * (2.0 ** (pitch_modulation / 12.0))
@@ -406,7 +428,7 @@ class SFZRegion(Region):
         for i in range(block_size):
             # Check for loop boundaries
             if self.end is not None and self.playback_position >= self.end:
-                if self.loop_mode in ['loop_continuous', 'loop_sustain']:
+                if self.loop_mode in ["loop_continuous", "loop_sustain"]:
                     # Loop back to loop_start
                     self.playback_position = self.loop_start
                     self.loop_count += 1
@@ -416,8 +438,12 @@ class SFZRegion(Region):
 
             # Get interpolated sample data
             if self.sample.is_stereo():
-                left_sample = self._interpolate_sample(self.sample.data[:, 0], self.playback_position)
-                right_sample = self._interpolate_sample(self.sample.data[:, 1], self.playback_position)
+                left_sample = self._interpolate_sample(
+                    self.sample.data[:, 0], self.playback_position
+                )
+                right_sample = self._interpolate_sample(
+                    self.sample.data[:, 1], self.playback_position
+                )
             else:
                 mono_sample = self._interpolate_sample(self.sample.data, self.playback_position)
                 left_sample = right_sample = mono_sample
@@ -502,11 +528,11 @@ class SFZRegion(Region):
         Returns:
             Pitch ratio multiplier from modulation
         """
-        if 'pitch' not in modulation:
+        if "pitch" not in modulation:
             return 1.0
 
         # Convert semitones to frequency ratio
-        pitch_semitones = modulation['pitch']
+        pitch_semitones = modulation["pitch"]
 
         # Clamp to reasonable range to prevent extreme pitch shifting
         pitch_semitones = max(-24.0, min(24.0, pitch_semitones))
@@ -531,14 +557,14 @@ class SFZRegion(Region):
             self.lfo1.generate_block(lfo1_buffer)
 
             # Apply LFO1 modulation based on its parameters
-            if 'volume' in self.lfo1_params:
-                modulation['lfo1_volume'] = lfo1_buffer * self.lfo1_params['volume']
-            if 'pan' in self.lfo1_params:
-                modulation['lfo1_pan'] = lfo1_buffer * self.lfo1_params['pan']
-            if 'pitch' in self.lfo1_params:
-                modulation['lfo1_pitch'] = lfo1_buffer * self.lfo1_params['pitch']
-            if 'filter' in self.lfo1_params:
-                modulation['lfo1_filter'] = lfo1_buffer * self.lfo1_params['filter']
+            if "volume" in self.lfo1_params:
+                modulation["lfo1_volume"] = lfo1_buffer * self.lfo1_params["volume"]
+            if "pan" in self.lfo1_params:
+                modulation["lfo1_pan"] = lfo1_buffer * self.lfo1_params["pan"]
+            if "pitch" in self.lfo1_params:
+                modulation["lfo1_pitch"] = lfo1_buffer * self.lfo1_params["pitch"]
+            if "filter" in self.lfo1_params:
+                modulation["lfo1_filter"] = lfo1_buffer * self.lfo1_params["filter"]
 
         # Generate LFO2 modulation
         if self.lfo2:
@@ -546,14 +572,14 @@ class SFZRegion(Region):
             self.lfo2.generate_block(lfo2_buffer)
 
             # Apply LFO2 modulation based on its parameters
-            if 'volume' in self.lfo2_params:
-                modulation['lfo2_volume'] = lfo2_buffer * self.lfo2_params['volume']
-            if 'pan' in self.lfo2_params:
-                modulation['lfo2_pan'] = lfo2_buffer * self.lfo2_params['pan']
-            if 'pitch' in self.lfo2_params:
-                modulation['lfo2_pitch'] = lfo2_buffer * self.lfo2_params['pitch']
-            if 'filter' in self.lfo2_params:
-                modulation['lfo2_filter'] = lfo2_buffer * self.lfo2_params['filter']
+            if "volume" in self.lfo2_params:
+                modulation["lfo2_volume"] = lfo2_buffer * self.lfo2_params["volume"]
+            if "pan" in self.lfo2_params:
+                modulation["lfo2_pan"] = lfo2_buffer * self.lfo2_params["pan"]
+            if "pitch" in self.lfo2_params:
+                modulation["lfo2_pitch"] = lfo2_buffer * self.lfo2_params["pitch"]
+            if "filter" in self.lfo2_params:
+                modulation["lfo2_filter"] = lfo2_buffer * self.lfo2_params["filter"]
 
         return modulation
 
@@ -596,15 +622,17 @@ class SFZRegion(Region):
     def get_region_info(self) -> dict[str, Any]:
         """Get detailed region information."""
         info = super().get_region_info()
-        info.update({
-            'sample_loaded': self.sample is not None,
-            'sample_channels': self.sample.channels if self.sample else 0,
-            'sample_length': len(self.sample.data) if self.sample else 0,
-            'envelope_state': self.amp_env.state if self.amp_env else 'none',
-            'playback_position': self.playback_position,
-            'loop_count': self.loop_count,
-            'pitch_ratio': self.get_pitch_ratio(self.current_note)
-        })
+        info.update(
+            {
+                "sample_loaded": self.sample is not None,
+                "sample_channels": self.sample.channels if self.sample else 0,
+                "sample_length": len(self.sample.data) if self.sample else 0,
+                "envelope_state": self.amp_env.state if self.amp_env else "none",
+                "playback_position": self.playback_position,
+                "loop_count": self.loop_count,
+                "pitch_ratio": self.get_pitch_ratio(self.current_note),
+            }
+        )
         return info
 
     def apply_channel_parameters(self, channel_params: dict) -> None:
@@ -615,14 +643,14 @@ class SFZRegion(Region):
             channel_params: Dictionary of channel parameters
         """
         # Channel transpose affects pitch
-        if 'transpose' in channel_params:
+        if "transpose" in channel_params:
             # This would affect the region's pitch calculation
             # For now, store it and apply in get_pitch_ratio
-            self._channel_transpose = channel_params['transpose']
+            self._channel_transpose = channel_params["transpose"]
 
         # Drum kit information (affects sample selection for percussion)
-        if 'drum_kit' in channel_params:
-            self._drum_kit = channel_params['drum_kit']
+        if "drum_kit" in channel_params:
+            self._drum_kit = channel_params["drum_kit"]
 
         # Other channel parameters could be applied here
         # (volume, pan, effects sends are typically handled at higher levels)

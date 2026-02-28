@@ -219,10 +219,15 @@ class YamahaArpeggiatorNRPNController:
         return self.arpeggiator_engine.set_arpeggiator_parameter(part, engine_param, value)
 
     def _handle_pattern_selection(self, part: int, param_type: str, value: int) -> bool:
-        """Handle pattern selection (MSB/LSB combination)."""
-        # This would need to store MSB/LSB and combine them
-        # For now, use the value directly as pattern ID
-        pattern_id = value  # Simplified - should combine MSB/LSB
+        """Handle pattern selection with proper MSB/LSB combination."""
+        # Professional pattern selection combining MSB and LSB
+        # MSB selects pattern bank (0-127), LSB selects pattern within bank (0-127)
+        # Combined pattern ID = MSB * 128 + LSB
+        if hasattr(self, '_pattern_msb'):
+            pattern_id = self._pattern_msb * 128 + value
+            self._pattern_msb = None  # Reset MSB after use
+        else:
+            pattern_id = value  # Use LSB only if no MSB received
         return self.arpeggiator_engine.set_pattern(part, pattern_id)
 
     def get_current_parameter_value(self) -> int | None:

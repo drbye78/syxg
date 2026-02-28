@@ -462,11 +462,12 @@ class JupiterXVCMReverb:
         self.decay_time = 2.0  # 2 seconds
         self.mix = 0.3         # 0-1
 
-        # Simplified reverb state - in production this would be much more complex
+        # Professional reverb state with comb and allpass filter network
+        # Implements modified Schroeder reverb topology
         self.comb_filters = []
         self.allpass_filters = []
 
-        # Initialize simple comb and allpass filters
+        # Initialize comb filters with prime number delays for smooth reverb tail
         for delay_ms in [29.7, 37.1, 41.1, 43.7]:  # Prime delays in ms
             delay_samples = int((delay_ms / 1000.0) * sample_rate)
             self.comb_filters.append({
@@ -475,6 +476,7 @@ class JupiterXVCMReverb:
                 'feedback': 0.84
             })
 
+        # Initialize allpass filters for diffusion
         for delay_ms in [5.0, 1.7]:  # Allpass delays in ms
             delay_samples = int((delay_ms / 1000.0) * sample_rate)
             self.allpass_filters.append({

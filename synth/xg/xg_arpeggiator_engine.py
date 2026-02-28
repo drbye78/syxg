@@ -7,6 +7,7 @@ and real-time control.
 
 Copyright (c) 2025
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -46,14 +47,17 @@ class ArpeggiatorPattern:
 
     def add_note(self, step: float, note_offset: int, velocity_mult: float = 1.0):
         """Add a note to the pattern."""
-        self.notes.append({
-            'step': step,  # Position within pattern (0.0-1.0)
-            'note_offset': note_offset,  # Note offset from root
-            'velocity_mult': velocity_mult  # Velocity multiplier
-        })
+        self.notes.append(
+            {
+                "step": step,  # Position within pattern (0.0-1.0)
+                "note_offset": note_offset,  # Note offset from root
+                "velocity_mult": velocity_mult,  # Velocity multiplier
+            }
+        )
 
-    def get_notes_for_chord(self, root_note: int, chord_notes: list[int],
-                           octave_range: int = 1) -> list[dict[str, Any]]:
+    def get_notes_for_chord(
+        self, root_note: int, chord_notes: list[int], octave_range: int = 1
+    ) -> list[dict[str, Any]]:
         """
         Generate note sequence for a specific chord.
 
@@ -73,15 +77,14 @@ class ArpeggiatorPattern:
 
             for i, pattern_note in enumerate(self.notes):
                 # Calculate actual note
-                if pattern_note['note_offset'] == 0:
+                if pattern_note["note_offset"] == 0:
                     # Root note
                     actual_note = octave_root
                 else:
                     # Find closest chord note to the pattern offset
-                    target_note = octave_root + pattern_note['note_offset']
+                    target_note = octave_root + pattern_note["note_offset"]
                     # Find the closest note in the chord
-                    actual_note = min(chord_notes,
-                                    key=lambda x: abs(x - target_note))
+                    actual_note = min(chord_notes, key=lambda x: abs(x - target_note))
 
                 # Calculate velocity
                 if self.velocity_mode == 0:  # Original
@@ -92,13 +95,15 @@ class ArpeggiatorPattern:
                     accent_index = i % len(self.accent_pattern)
                     velocity = int(self.fixed_velocity * self.accent_pattern[accent_index])
 
-                arpeggio_notes.append({
-                    'note': actual_note,
-                    'velocity': velocity,
-                    'step': pattern_note['step'] + (octave_offset * self.length_beats),
-                    'gate_time': self.gate_time,
-                    'original_velocity_mult': pattern_note['velocity_mult']
-                })
+                arpeggio_notes.append(
+                    {
+                        "note": actual_note,
+                        "velocity": velocity,
+                        "step": pattern_note["step"] + (octave_offset * self.length_beats),
+                        "gate_time": self.gate_time,
+                        "original_velocity_mult": pattern_note["velocity_mult"],
+                    }
+                )
 
         return arpeggio_notes
 
@@ -113,24 +118,24 @@ class ChordDetector:
 
     # Chord type definitions (intervals from root)
     CHORD_TYPES = {
-        'major': [0, 4, 7],
-        'minor': [0, 3, 7],
-        'dim': [0, 3, 6],
-        'aug': [0, 4, 8],
-        'sus4': [0, 5, 7],
-        'sus2': [0, 2, 7],
-        '7': [0, 4, 7, 10],
-        'maj7': [0, 4, 7, 11],
-        'm7': [0, 3, 7, 10],
-        'dim7': [0, 3, 6, 9],
-        'm7b5': [0, 3, 6, 10],
-        '7sus4': [0, 5, 7, 10],
-        '6': [0, 4, 7, 9],
-        'm6': [0, 3, 7, 9],
-        '9': [0, 4, 7, 10, 14],
-        'm9': [0, 3, 7, 10, 14],
-        '11': [0, 4, 7, 10, 14, 17],
-        '13': [0, 4, 7, 10, 14, 21],
+        "major": [0, 4, 7],
+        "minor": [0, 3, 7],
+        "dim": [0, 3, 6],
+        "aug": [0, 4, 8],
+        "sus4": [0, 5, 7],
+        "sus2": [0, 2, 7],
+        "7": [0, 4, 7, 10],
+        "maj7": [0, 4, 7, 11],
+        "m7": [0, 3, 7, 10],
+        "dim7": [0, 3, 6, 9],
+        "m7b5": [0, 3, 6, 10],
+        "7sus4": [0, 5, 7, 10],
+        "6": [0, 4, 7, 9],
+        "m6": [0, 3, 7, 9],
+        "9": [0, 4, 7, 10, 14],
+        "m9": [0, 3, 7, 10, 14],
+        "11": [0, 4, 7, 10, 14, 17],
+        "13": [0, 4, 7, 10, 14, 21],
     }
 
     def __init__(self):
@@ -166,8 +171,9 @@ class ChordDetector:
 
         for chord_name, chord_intervals in self.CHORD_TYPES.items():
             # Calculate match score
-            matching_notes = sum(1 for interval in chord_intervals
-                               if interval % 12 in normalized_notes)
+            matching_notes = sum(
+                1 for interval in chord_intervals if interval % 12 in normalized_notes
+            )
             chord_coverage = matching_notes / len(chord_intervals)
             note_coverage = matching_notes / len(normalized_notes)
 
@@ -179,18 +185,18 @@ class ChordDetector:
 
         if best_match and best_score > 0.6:  # 60% match threshold
             self.detected_chord = {
-                'root': root_note,
-                'type': best_match,
-                'notes': notes.copy(),
-                'confidence': best_score
+                "root": root_note,
+                "type": best_match,
+                "notes": notes.copy(),
+                "confidence": best_score,
             }
         else:
             # Fallback to detected notes as custom chord
             self.detected_chord = {
-                'root': root_note,
-                'type': 'custom',
-                'notes': notes.copy(),
-                'confidence': 0.5
+                "root": root_note,
+                "type": "custom",
+                "notes": notes.copy(),
+                "confidence": 0.5,
             }
 
     def get_current_chord(self) -> dict[str, Any] | None:
@@ -226,14 +232,14 @@ class ArpeggiatorZone:
     def get_zone_settings(self) -> dict[str, Any]:
         """Get zone-specific settings."""
         return {
-            'enabled': self.enabled,
-            'pattern': self.pattern.pattern_id if self.pattern else None,
-            'octave_range': self.octave_range,
-            'gate_time': self.gate_time,
-            'swing_amount': self.swing_amount,
-            'velocity_mode': self.velocity_mode,
-            'fixed_velocity': self.fixed_velocity,
-            'note_range': (self.lower_note, self.upper_note)
+            "enabled": self.enabled,
+            "pattern": self.pattern.pattern_id if self.pattern else None,
+            "octave_range": self.octave_range,
+            "gate_time": self.gate_time,
+            "swing_amount": self.swing_amount,
+            "velocity_mode": self.velocity_mode,
+            "fixed_velocity": self.fixed_velocity,
+            "note_range": (self.lower_note, self.upper_note),
         }
 
 
@@ -291,8 +297,14 @@ class ArpeggiatorInstance:
         default_zone = ArpeggiatorZone(0, 127)
         self.zones = [default_zone]
 
-    def set_zone(self, zone_index: int, lower_note: int, upper_note: int,
-                pattern_id: int | None = None, **zone_params):
+    def set_zone(
+        self,
+        zone_index: int,
+        lower_note: int,
+        upper_note: int,
+        pattern_id: int | None = None,
+        **zone_params,
+    ):
         """Configure an arpeggiator zone."""
         if 0 <= zone_index < len(self.zones):
             zone = self.zones[zone_index]
@@ -368,7 +380,7 @@ class ArpeggiatorInstance:
 
         # Generate notes for the chord
         self.active_arpeggio_notes = self.current_pattern.get_notes_for_chord(
-            chord['root'], chord['notes'], self.octave_range
+            chord["root"], chord["notes"], self.octave_range
         )
 
     def _start_arpeggio(self):
@@ -383,9 +395,9 @@ class ArpeggiatorInstance:
         """Stop arpeggio playback."""
         # Send note-offs for any active arpeggio notes
         for arpeggio_note in self.active_arpeggio_notes:
-            if arpeggio_note.get('active', False):
+            if arpeggio_note.get("active", False):
                 if self.note_off_callback:
-                    self.note_off_callback(self.channel, arpeggio_note['note'])
+                    self.note_off_callback(self.channel, arpeggio_note["note"])
 
         self.active_arpeggio_notes.clear()
 
@@ -399,38 +411,61 @@ class ArpeggiatorInstance:
         step_duration = 60.0 / self.bpm / 4.0  # 16th note duration
 
         for arpeggio_note in self.active_arpeggio_notes:
-            note_time = self.last_note_time + (arpeggio_note['step'] * step_duration)
+            note_time = self.last_note_time + (arpeggio_note["step"] * step_duration)
 
             if note_time <= current_time:
                 # Play this note
-                velocity = arpeggio_note['velocity']
+                velocity = arpeggio_note["velocity"]
                 if self.note_on_callback:
-                    self.note_on_callback(self.channel, arpeggio_note['note'], velocity)
+                    self.note_on_callback(self.channel, arpeggio_note["note"], velocity)
 
-                arpeggio_note['active'] = True
+                arpeggio_note["active"] = True
 
                 # Schedule note-off
-                gate_duration = arpeggio_note['gate_time'] * step_duration
+                gate_duration = arpeggio_note["gate_time"] * step_duration
                 # Note: In real implementation, this would be scheduled properly
 
         self.last_note_time = current_time
 
     def process_timing(self, current_time: float):
-        """Process timing for arpeggio playback."""
+        """Process timing for arpeggio playback with advanced features."""
         if not self.enabled or not self.active_arpeggio_notes:
             return
 
-        # This would be called regularly to advance arpeggio timing
-        # For now, simplified implementation
-        pass
+        # Professional arpeggiator timing with swing and groove
+        if self.swing > 0.0:
+            # Apply swing to every other note
+            if self.current_step % 2 == 1:
+                current_time += self.swing * 0.1  # Swing amount
+
+        # Apply groove template if loaded
+        if hasattr(self, "groove_template") and self.groove_template:
+            groove_offset = self.groove_template[self.current_step % len(self.groove_template)]
+            current_time += groove_offset * 0.05  # Groove amount
+
+        # Advance arpeggiator timing
+        self._advance_arpeggio_timing(current_time)
+
+    def set_groove_template(self, groove_name: str):
+        """Set groove template for rhythmic variation."""
+        groove_templates = {
+            "straight": [0.0] * 16,
+            "swing_8th": [0.0, 0.3, 0.0, 0.3, 0.0, 0.3, 0.0, 0.3] * 2,
+            "shuffle": [0.0, 0.4, 0.0, 0.4, 0.0, 0.4, 0.0, 0.4] * 2,
+            "funk": [0.0, 0.2, -0.1, 0.3, 0.0, 0.2, -0.1, 0.3] * 2,
+            "latin": [0.0, 0.3, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0] * 2,
+        }
+        if groove_name in groove_templates:
+            self.groove_template = groove_templates[groove_name]
 
 
 class YamahaArpeggiatorEngine:
     """
-    Yamaha Motif Arpeggiator Engine
+    Professional Yamaha Motif Arpeggiator Engine with advanced features.
 
     Main arpeggiator processing engine implementing Yamaha Motif series
-    arpeggiator functionality with 16 independent arpeggiators.
+    arpeggiator functionality with 16 independent arpeggiators,
+    chord detection, pattern chaining, and rhythmic variations.
     """
 
     def __init__(self):
@@ -439,127 +474,390 @@ class YamahaArpeggiatorEngine:
         # 16 arpeggiator instances (one per MIDI channel)
         self.arpeggiators = [ArpeggiatorInstance(i, self) for i in range(16)]
 
-        # Pattern library
+        # Pattern library with extensive pattern collection
         self.patterns: dict[int, ArpeggiatorPattern] = {}
         self._initialize_builtin_patterns()
+        self._initialize_advanced_patterns()
+
+        # Pattern chaining for complex sequences
+        self.pattern_chains: dict[int, list[int]] = {}  # chain_id -> [pattern_ids]
+        self.active_chains: dict[int, int] = {}  # channel -> current_chain_id
+
+        # Chord detection for intelligent arpeggiation
+        self.chord_detection_enabled = True
+        self.last_chord: dict[int, list[int]] = {}  # channel -> [notes]
+        self.chord_memory: dict[int, list[int]] = {}  # channel -> [notes in memory]
 
         # Global settings
         self.master_bpm = 120.0
         self.tempo_sync = True
 
+        # Advanced features
+        self.randomization_amount = 0.0  # Random note variation
+        self.velocity_variation = 0.0  # Velocity randomization
+        self.octave_shift = 0  # Octave transposition
+
         # Callbacks for note events
         self.note_on_callback: Callable | None = None
         self.note_off_callback: Callable | None = None
 
-        print("🎹 Yamaha Arpeggiator Engine: Initialized")
+        print("🎹 Yamaha Arpeggiator Engine: Initialized with advanced features")
 
     def _initialize_builtin_patterns(self):
-        """Initialize comprehensive built-in arpeggio patterns."""
+        """Initialize basic arpeggiator patterns."""
         pattern_id = 0
 
-        # ===== BASIC PATTERNS =====
-        # Up pattern (0)
         pattern = ArpeggiatorPattern(pattern_id, "Up", "Basic")
-        pattern.add_note(0.0, 0)    # Root
-        pattern.add_note(0.25, 4)   # Third
-        pattern.add_note(0.5, 7)    # Fifth
+        pattern.add_note(0.0, 0)
+        pattern.add_note(0.25, 4)
+        pattern.add_note(0.5, 7)
+        pattern.add_note(0.75, 12)
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        pattern = ArpeggiatorPattern(pattern_id, "Down", "Basic")
+        pattern.add_note(0.0, 12)
+        pattern.add_note(0.25, 7)
+        pattern.add_note(0.5, 4)
+        pattern.add_note(0.75, 0)
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        pattern = ArpeggiatorPattern(pattern_id, "UpDown", "Basic")
+        pattern.add_note(0.0, 0)
+        pattern.add_note(0.25, 4)
+        pattern.add_note(0.5, 7)
+        pattern.add_note(0.75, 12)
+        pattern.add_note(1.0, 7)
+        pattern.add_note(1.25, 4)
+        pattern.add_note(1.5, 0)
+        pattern.length_beats = 1.5
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        pattern = ArpeggiatorPattern(pattern_id, "Random", "Basic")
+        import random
+
+        random.seed(42)
+        for i in range(8):
+            pattern.add_note(i * 0.125, random.randint(0, 12))
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        print(f"🎹 Built-in Arpeggiator Patterns: Initialized {pattern_id} basic patterns")
+
+    def _initialize_advanced_patterns(self):
+        """Initialize advanced arpeggio patterns with complex rhythms."""
+        pattern_id = 100  # Start advanced patterns at ID 100
+
+        # ===== ADVANCED RHYTHMIC PATTERNS =====
+        # Triplet pattern
+        pattern = ArpeggiatorPattern(pattern_id, "Triplets", "Advanced")
+        pattern.add_note(0.0, 0)
+        pattern.add_note(0.166, 4)
+        pattern.add_note(0.333, 7)
+        pattern.add_note(0.5, 12)
+        pattern.add_note(0.666, 7)
+        pattern.add_note(0.833, 4)
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        # 16th note syncopation
+        pattern = ArpeggiatorPattern(pattern_id, "Syncopated", "Advanced")
+        pattern.add_note(0.0, 0)
+        pattern.add_note(0.1875, 7)  # Off-beat
+        pattern.add_note(0.375, 4)
+        pattern.add_note(0.5625, 12)  # Off-beat
+        pattern.add_note(0.75, 7)
+        pattern.add_note(0.9375, 0)  # Off-beat
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        # ===== CHORDAL PATTERNS =====
+        # Chord strum
+        pattern = ArpeggiatorPattern(pattern_id, "Chord Strum", "Chordal")
+        for i in range(8):
+            pattern.add_note(i * 0.125, i * 2)  # Strum across chord
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        # Chord stab
+        pattern = ArpeggiatorPattern(pattern_id, "Chord Stab", "Chordal")
+        pattern.add_note(0.0, 0)
+        pattern.add_note(0.0, 4)
+        pattern.add_note(0.0, 7)
+        pattern.add_note(0.0, 12)
+        pattern.add_note(0.5, 0)
+        pattern.add_note(0.5, 4)
+        pattern.add_note(0.5, 7)
+        pattern.add_note(0.5, 12)
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        # ===== MELODIC PATTERNS =====
+        # Scale run
+        pattern = ArpeggiatorPattern(pattern_id, "Scale Run", "Melodic")
+        for i in range(16):
+            pattern.add_note(i * 0.0625, i)  # Fast scale run
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        # Octave jumps
+        pattern = ArpeggiatorPattern(pattern_id, "Octave Jumps", "Melodic")
+        pattern.add_note(0.0, 0)
+        pattern.add_note(0.25, 12)
+        pattern.add_note(0.5, 0)
+        pattern.add_note(0.75, 12)
+        pattern.add_note(1.0, 24)
+        pattern.add_note(1.25, 12)
+        pattern.add_note(1.5, 24)
+        pattern.add_note(1.75, 12)
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        # ===== COMPLEX PATTERNS =====
+        # Polyrhythm 3:4
+        pattern = ArpeggiatorPattern(pattern_id, "Polyrhythm 3:4", "Complex")
+        for i in range(12):
+            time_pos = (i * 4) / 12.0
+            note_val = (i * 3) % 12
+            pattern.add_note(time_pos, note_val)
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        # Random walk
+        pattern = ArpeggiatorPattern(pattern_id, "Random Walk", "Complex")
+        import random
+
+        random.seed(42)  # Reproducible random pattern
+        note = 0
+        for i in range(16):
+            pattern.add_note(i * 0.0625, note)
+            note += random.choice([-2, -1, 1, 2])  # Random walk
+            note = max(0, min(24, note))  # Clamp to range
+        self.patterns[pattern_id] = pattern
+        pattern_id += 1
+
+        print(f"🎹 Advanced Arpeggiator Patterns: Initialized {pattern_id - 100} advanced patterns")
+
+    def set_pattern_chain(self, channel: int, chain_id: int, pattern_ids: list[int]):
+        """Set pattern chain for complex arpeggio sequences."""
+        self.pattern_chains[chain_id] = pattern_ids
+        self.active_chains[channel] = chain_id
+
+    def get_current_pattern(self, channel: int) -> ArpeggiatorPattern | None:
+        """Get current pattern for channel, considering pattern chains."""
+        if channel in self.active_chains:
+            chain_id = self.active_chains[channel]
+            if chain_id in self.pattern_chains:
+                chain = self.pattern_chains[chain_id]
+                # Cycle through chain patterns
+                cycle_pos = self.arpeggiators[channel].current_step // 4
+                pattern_idx = chain[cycle_pos % len(chain)]
+                return self.patterns.get(pattern_idx)
+
+        # Return default pattern for channel
+        return self.patterns.get(self.arpeggiators[channel].pattern_id)
+
+    def detect_chord(self, channel: int, notes: list[int]) -> str:
+        """Detect chord from played notes for intelligent arpeggiation."""
+        if not notes:
+            return "none"
+
+        # Store chord in memory
+        self.chord_memory[channel] = notes
+
+        # Simple chord detection based on intervals
+        root = min(notes)
+        intervals = sorted([(n - root) % 12 for n in notes])
+
+        # Chord detection logic
+        if intervals == [0, 4, 7]:
+            return "major"
+        elif intervals == [0, 3, 7]:
+            return "minor"
+        elif intervals == [0, 3, 6]:
+            return "diminished"
+        elif intervals == [0, 4, 8]:
+            return "augmented"
+        elif intervals == [0, 2, 7]:
+            return "sus2"
+        elif intervals == [0, 5, 7]:
+            return "sus4"
+        elif intervals == [0, 4, 7, 10]:
+            return "dominant7"
+        elif intervals == [0, 4, 7, 11]:
+            return "major7"
+        elif intervals == [0, 3, 7, 10]:
+            return "minor7"
+        else:
+            return "unknown"
+
+    def set_randomization(self, amount: float):
+        """Set note randomization amount for humanization."""
+        self.randomization_amount = max(0.0, min(1.0, amount))
+
+    def set_velocity_variation(self, amount: float):
+        """Set velocity variation for dynamic expression."""
+        self.velocity_variation = max(0.0, min(1.0, amount))
+
+    def set_octave_shift(self, octaves: int):
+        """Set octave transposition for arpeggiator output."""
+        self.octave_shift = max(-3, min(3, octaves))
         pattern.add_note(0.75, 12)  # Octave
-        pattern.chord_types = ['major', 'minor', 'dim', 'aug', 'sus4', 'sus2', '7', 'm7', 'maj7', 'dim7', 'm7b5', '7sus4', '6', 'm6', '9', 'm9', '11', '13']
+        pattern.chord_types = [
+            "major",
+            "minor",
+            "dim",
+            "aug",
+            "sus4",
+            "sus2",
+            "7",
+            "m7",
+            "maj7",
+            "dim7",
+            "m7b5",
+            "7sus4",
+            "6",
+            "m6",
+            "9",
+            "m9",
+            "11",
+            "13",
+        ]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
         # Down pattern (1)
         pattern = ArpeggiatorPattern(pattern_id, "Down", "Basic")
-        pattern.add_note(0.0, 12)   # Octave
-        pattern.add_note(0.25, 7)   # Fifth
-        pattern.add_note(0.5, 4)    # Third
-        pattern.add_note(0.75, 0)   # Root
-        pattern.chord_types = ['major', 'minor', 'dim', 'aug', 'sus4', 'sus2', '7', 'm7', 'maj7', 'dim7', 'm7b5', '7sus4', '6', 'm6', '9', 'm9', '11', '13']
+        pattern.add_note(0.0, 12)  # Octave
+        pattern.add_note(0.25, 7)  # Fifth
+        pattern.add_note(0.5, 4)  # Third
+        pattern.add_note(0.75, 0)  # Root
+        pattern.chord_types = [
+            "major",
+            "minor",
+            "dim",
+            "aug",
+            "sus4",
+            "sus2",
+            "7",
+            "m7",
+            "maj7",
+            "dim7",
+            "m7b5",
+            "7sus4",
+            "6",
+            "m6",
+            "9",
+            "m9",
+            "11",
+            "13",
+        ]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
         # Up-Down pattern (2)
         pattern = ArpeggiatorPattern(pattern_id, "Up-Down", "Basic")
-        pattern.add_note(0.0, 0)    # Root
+        pattern.add_note(0.0, 0)  # Root
         pattern.add_note(0.125, 4)  # Third
-        pattern.add_note(0.25, 7)   # Fifth
-        pattern.add_note(0.375, 12) # Octave
-        pattern.add_note(0.5, 7)    # Fifth (down)
+        pattern.add_note(0.25, 7)  # Fifth
+        pattern.add_note(0.375, 12)  # Octave
+        pattern.add_note(0.5, 7)  # Fifth (down)
         pattern.add_note(0.625, 4)  # Third
-        pattern.add_note(0.75, 0)   # Root
+        pattern.add_note(0.75, 0)  # Root
         pattern.length_beats = 0.5  # Half note for up-down
-        pattern.chord_types = ['major', 'minor', 'dim', 'aug', 'sus4', 'sus2', '7', 'm7', 'maj7', 'dim7', 'm7b5', '7sus4', '6', 'm6', '9', 'm9', '11', '13']
+        pattern.chord_types = [
+            "major",
+            "minor",
+            "dim",
+            "aug",
+            "sus4",
+            "sus2",
+            "7",
+            "m7",
+            "maj7",
+            "dim7",
+            "m7b5",
+            "7sus4",
+            "6",
+            "m6",
+            "9",
+            "m9",
+            "11",
+            "13",
+        ]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
         # ===== SEVENTH CHORD PATTERNS =====
         # Dominant 7th Up (3)
         pattern = ArpeggiatorPattern(pattern_id, "7th Up", "Seventh")
-        pattern.add_note(0.0, 0)    # Root
-        pattern.add_note(0.2, 4)    # Third
-        pattern.add_note(0.4, 7)    # Fifth
-        pattern.add_note(0.6, 10)   # Seventh
-        pattern.add_note(0.8, 12)   # Octave
-        pattern.chord_types = ['7', 'm7', 'dim7', 'm7b5', '7sus4', '9', 'm9', '11', '13']
+        pattern.add_note(0.0, 0)  # Root
+        pattern.add_note(0.2, 4)  # Third
+        pattern.add_note(0.4, 7)  # Fifth
+        pattern.add_note(0.6, 10)  # Seventh
+        pattern.add_note(0.8, 12)  # Octave
+        pattern.chord_types = ["7", "m7", "dim7", "m7b5", "7sus4", "9", "m9", "11", "13"]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
         # Major 7th Arpeggio (4)
         pattern = ArpeggiatorPattern(pattern_id, "Maj7 Up", "Seventh")
-        pattern.add_note(0.0, 0)    # Root
-        pattern.add_note(0.2, 4)    # Third
-        pattern.add_note(0.4, 7)    # Fifth
-        pattern.add_note(0.6, 11)   # Major Seventh
-        pattern.add_note(0.8, 12)   # Octave
-        pattern.chord_types = ['maj7', '7', '6']
+        pattern.add_note(0.0, 0)  # Root
+        pattern.add_note(0.2, 4)  # Third
+        pattern.add_note(0.4, 7)  # Fifth
+        pattern.add_note(0.6, 11)  # Major Seventh
+        pattern.add_note(0.8, 12)  # Octave
+        pattern.chord_types = ["maj7", "7", "6"]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
         # Minor 7th Down (5)
         pattern = ArpeggiatorPattern(pattern_id, "m7 Down", "Seventh")
-        pattern.add_note(0.0, 12)   # Octave
-        pattern.add_note(0.2, 10)   # Seventh
-        pattern.add_note(0.4, 7)    # Fifth
-        pattern.add_note(0.6, 3)    # Third
-        pattern.add_note(0.8, 0)    # Root
-        pattern.chord_types = ['m7', 'm6', 'm9', 'dim7', 'm7b5']
+        pattern.add_note(0.0, 12)  # Octave
+        pattern.add_note(0.2, 10)  # Seventh
+        pattern.add_note(0.4, 7)  # Fifth
+        pattern.add_note(0.6, 3)  # Third
+        pattern.add_note(0.8, 0)  # Root
+        pattern.chord_types = ["m7", "m6", "m9", "dim7", "m7b5"]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
         # ===== EXTENDED CHORD PATTERNS =====
         # 9th Chord Arpeggio (6)
         pattern = ArpeggiatorPattern(pattern_id, "9th Up", "Extended")
-        pattern.add_note(0.0, 0)    # Root
+        pattern.add_note(0.0, 0)  # Root
         pattern.add_note(0.166, 4)  # Third
         pattern.add_note(0.333, 7)  # Fifth
-        pattern.add_note(0.5, 10)   # Seventh
-        pattern.add_note(0.666, 14) # Ninth
-        pattern.add_note(0.833, 12) # Octave
-        pattern.chord_types = ['9', 'm9', '7', 'm7']
+        pattern.add_note(0.5, 10)  # Seventh
+        pattern.add_note(0.666, 14)  # Ninth
+        pattern.add_note(0.833, 12)  # Octave
+        pattern.chord_types = ["9", "m9", "7", "m7"]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
         # 11th Chord Pattern (7)
         pattern = ArpeggiatorPattern(pattern_id, "11th Up", "Extended")
-        pattern.add_note(0.0, 0)     # Root
-        pattern.add_note(0.142, 4)   # Third
-        pattern.add_note(0.285, 7)   # Fifth
+        pattern.add_note(0.0, 0)  # Root
+        pattern.add_note(0.142, 4)  # Third
+        pattern.add_note(0.285, 7)  # Fifth
         pattern.add_note(0.428, 10)  # Seventh
         pattern.add_note(0.571, 14)  # Ninth
         pattern.add_note(0.714, 17)  # Eleventh
         pattern.add_note(0.857, 12)  # Octave
-        pattern.chord_types = ['11', '9', '7']
+        pattern.chord_types = ["11", "9", "7"]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
         # ===== RHYTHMIC PATTERNS =====
         # Funk Pattern (8)
         pattern = ArpeggiatorPattern(pattern_id, "Funk", "Rhythmic")
-        pattern.add_note(0.0, 0, 1.0)      # Root (accent)
-        pattern.add_note(0.25, 7, 0.7)     # Fifth
-        pattern.add_note(0.5, 4, 0.7)      # Third
-        pattern.add_note(0.75, 10, 0.5)    # Seventh (quiet)
-        pattern.chord_types = ['7', 'm7', '9']
+        pattern.add_note(0.0, 0, 1.0)  # Root (accent)
+        pattern.add_note(0.25, 7, 0.7)  # Fifth
+        pattern.add_note(0.5, 4, 0.7)  # Third
+        pattern.add_note(0.75, 10, 0.5)  # Seventh (quiet)
+        pattern.chord_types = ["7", "m7", "9"]
         pattern.velocity_mode = 2  # Accent pattern
         pattern.accent_pattern = [1.0, 0.7, 0.7, 0.5]  # Accent velocities
         self.patterns[pattern_id] = pattern
@@ -567,13 +865,13 @@ class YamahaArpeggiatorEngine:
 
         # Jazz Pattern (9)
         pattern = ArpeggiatorPattern(pattern_id, "Jazz", "Rhythmic")
-        pattern.add_note(0.0, 0, 1.0)      # Root (accent)
-        pattern.add_note(0.166, 4, 0.8)    # Third
-        pattern.add_note(0.333, 7, 0.6)    # Fifth
-        pattern.add_note(0.5, 11, 0.9)     # Major Seventh (accent)
-        pattern.add_note(0.666, 4, 0.5)    # Third (quiet)
-        pattern.add_note(0.833, 0, 0.7)    # Root (back to chord)
-        pattern.chord_types = ['maj7', '7', '6']
+        pattern.add_note(0.0, 0, 1.0)  # Root (accent)
+        pattern.add_note(0.166, 4, 0.8)  # Third
+        pattern.add_note(0.333, 7, 0.6)  # Fifth
+        pattern.add_note(0.5, 11, 0.9)  # Major Seventh (accent)
+        pattern.add_note(0.666, 4, 0.5)  # Third (quiet)
+        pattern.add_note(0.833, 0, 0.7)  # Root (back to chord)
+        pattern.chord_types = ["maj7", "7", "6"]
         pattern.velocity_mode = 2  # Accent pattern
         pattern.accent_pattern = [1.0, 0.8, 0.6, 0.9, 0.5, 0.7]  # Jazz accents
         self.patterns[pattern_id] = pattern
@@ -582,12 +880,12 @@ class YamahaArpeggiatorEngine:
         # ===== WORLD MUSIC PATTERNS =====
         # Latin Pattern (10)
         pattern = ArpeggiatorPattern(pattern_id, "Latin", "World")
-        pattern.add_note(0.0, 0, 1.0)      # Root
-        pattern.add_note(0.187, 7, 0.8)    # Fifth (off-beat)
-        pattern.add_note(0.375, 4, 0.6)    # Third
-        pattern.add_note(0.562, 10, 0.9)   # Seventh (accent)
-        pattern.add_note(0.75, 0, 0.7)     # Root
-        pattern.chord_types = ['major', 'minor', '7', 'm7']
+        pattern.add_note(0.0, 0, 1.0)  # Root
+        pattern.add_note(0.187, 7, 0.8)  # Fifth (off-beat)
+        pattern.add_note(0.375, 4, 0.6)  # Third
+        pattern.add_note(0.562, 10, 0.9)  # Seventh (accent)
+        pattern.add_note(0.75, 0, 0.7)  # Root
+        pattern.chord_types = ["major", "minor", "7", "m7"]
         pattern.swing_amount = 0.3  # Latin swing
         self.patterns[pattern_id] = pattern
         pattern_id += 1
@@ -601,7 +899,7 @@ class YamahaArpeggiatorEngine:
             note_offset = 0 if i % 2 == 0 else 4
             velocity_mult = 1.0 if i % 4 == 0 else 0.8  # Accents every 4th note
             pattern.add_note(step, note_offset, velocity_mult)
-        pattern.chord_types = ['major', 'minor', '7', 'm7']
+        pattern.chord_types = ["major", "minor", "7", "m7"]
         pattern.length_beats = 0.25  # Fast pattern
         self.patterns[pattern_id] = pattern
         pattern_id += 1
@@ -612,7 +910,7 @@ class YamahaArpeggiatorEngine:
         for i in range(13):  # Root to octave (13 semitones)
             step = i / 12.0
             pattern.add_note(step, i, 0.8)
-        pattern.chord_types = ['major', 'minor']  # Any chord
+        pattern.chord_types = ["major", "minor"]  # Any chord
         pattern.length_beats = 0.5
         self.patterns[pattern_id] = pattern
         pattern_id += 1
@@ -620,21 +918,21 @@ class YamahaArpeggiatorEngine:
         # ===== INVERSION PATTERNS =====
         # First Inversion (13)
         pattern = ArpeggiatorPattern(pattern_id, "1st Inv Up", "Inversions")
-        pattern.add_note(0.0, 4)    # Third (now bass)
-        pattern.add_note(0.25, 7)   # Fifth
-        pattern.add_note(0.5, 12)   # Octave
+        pattern.add_note(0.0, 4)  # Third (now bass)
+        pattern.add_note(0.25, 7)  # Fifth
+        pattern.add_note(0.5, 12)  # Octave
         pattern.add_note(0.75, 16)  # Third + octave
-        pattern.chord_types = ['major', 'minor', '7', 'm7']
+        pattern.chord_types = ["major", "minor", "7", "m7"]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
         # Second Inversion (14)
         pattern = ArpeggiatorPattern(pattern_id, "2nd Inv Up", "Inversions")
-        pattern.add_note(0.0, 7)    # Fifth (now bass)
+        pattern.add_note(0.0, 7)  # Fifth (now bass)
         pattern.add_note(0.25, 12)  # Octave
-        pattern.add_note(0.5, 16)   # Third + octave
+        pattern.add_note(0.5, 16)  # Third + octave
         pattern.add_note(0.75, 19)  # Fifth + octave
-        pattern.chord_types = ['major', 'minor', '7', 'm7']
+        pattern.chord_types = ["major", "minor", "7", "m7"]
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
@@ -642,11 +940,11 @@ class YamahaArpeggiatorEngine:
         # Basic Rock Beat (15)
         pattern = ArpeggiatorPattern(pattern_id, "Rock Beat", "Drum")
         # Simple kick/snare pattern mapped to chord notes
-        pattern.add_note(0.0, 0, 1.0)    # Root (kick)
-        pattern.add_note(0.25, 7, 0.8)   # Fifth (snare)
-        pattern.add_note(0.5, 0, 0.9)    # Root (kick)
-        pattern.add_note(0.75, 7, 0.7)   # Fifth (snare)
-        pattern.chord_types = ['major', 'minor', '7', 'm7']
+        pattern.add_note(0.0, 0, 1.0)  # Root (kick)
+        pattern.add_note(0.25, 7, 0.8)  # Fifth (snare)
+        pattern.add_note(0.5, 0, 0.9)  # Root (kick)
+        pattern.add_note(0.75, 7, 0.7)  # Fifth (snare)
+        pattern.chord_types = ["major", "minor", "7", "m7"]
         pattern.velocity_mode = 2  # Accent pattern
         pattern.accent_pattern = [1.0, 0.8, 0.9, 0.7]  # Rock dynamics
         self.patterns[pattern_id] = pattern
@@ -656,8 +954,12 @@ class YamahaArpeggiatorEngine:
         chord_types = ChordDetector().CHORD_TYPES
 
         print(f"🎹 Arpeggiator: Loaded {len(self.patterns)} comprehensive built-in patterns")
-        print(f"   Categories: Basic, Seventh, Extended, Rhythmic, World, Special, Inversions, Drum")
-        print(f"   Chord Types: {len(chord_types)} supported ({', '.join(list(chord_types.keys())[:5])}...)")
+        print(
+            f"   Categories: Basic, Seventh, Extended, Rhythmic, World, Special, Inversions, Drum"
+        )
+        print(
+            f"   Chord Types: {len(chord_types)} supported ({', '.join(list(chord_types.keys())[:5])}...)"
+        )
 
     def get_arpeggiator(self, channel: int) -> ArpeggiatorInstance | None:
         """Get arpeggiator instance for a channel."""
@@ -691,19 +993,19 @@ class YamahaArpeggiatorEngine:
         with self.lock:
             arpeggiator = self.get_arpeggiator(channel)
             if arpeggiator:
-                if param == 'hold_mode':
+                if param == "hold_mode":
                     arpeggiator.hold_mode = bool(value)
-                elif param == 'octave_range':
+                elif param == "octave_range":
                     arpeggiator.octave_range = max(1, min(4, int(value)))
-                elif param == 'gate_time':
+                elif param == "gate_time":
                     arpeggiator.gate_time = max(0.1, min(1.0, float(value)))
-                elif param == 'swing_amount':
+                elif param == "swing_amount":
                     arpeggiator.swing_amount = max(0.0, min(1.0, float(value)))
-                elif param == 'velocity_mode':
+                elif param == "velocity_mode":
                     arpeggiator.velocity_mode = max(0, min(2, int(value)))
-                elif param == 'fixed_velocity':
+                elif param == "fixed_velocity":
                     arpeggiator.fixed_velocity = max(1, min(127, int(value)))
-                elif param == 'bpm':
+                elif param == "bpm":
                     arpeggiator.bpm = max(60, min(200, float(value)))
                 else:
                     return False
@@ -735,12 +1037,15 @@ class YamahaArpeggiatorEngine:
     def get_pattern_list(self) -> list[dict[str, Any]]:
         """Get list of available patterns."""
         with self.lock:
-            return [{
-                'id': pattern.pattern_id,
-                'name': pattern.name,
-                'category': pattern.category,
-                'chord_types': pattern.chord_types.copy()
-            } for pattern in self.patterns.values()]
+            return [
+                {
+                    "id": pattern.pattern_id,
+                    "name": pattern.name,
+                    "category": pattern.category,
+                    "chord_types": pattern.chord_types.copy(),
+                }
+                for pattern in self.patterns.values()
+            ]
 
     def get_arpeggiator_status(self, channel: int) -> dict[str, Any] | None:
         """Get status of arpeggiator for a channel."""
@@ -748,22 +1053,31 @@ class YamahaArpeggiatorEngine:
             arpeggiator = self.get_arpeggiator(channel)
             if arpeggiator:
                 return {
-                    'enabled': arpeggiator.enabled,
-                    'hold_mode': arpeggiator.hold_mode,
-                    'current_pattern': arpeggiator.current_pattern.pattern_id if arpeggiator.current_pattern else None,
-                    'octave_range': arpeggiator.octave_range,
-                    'gate_time': arpeggiator.gate_time,
-                    'swing_amount': arpeggiator.swing_amount,
-                    'velocity_mode': arpeggiator.velocity_mode,
-                    'fixed_velocity': arpeggiator.fixed_velocity,
-                    'bpm': arpeggiator.bpm,
-                    'active_notes': len(arpeggiator.active_arpeggio_notes),
-                    'current_chord': arpeggiator.chord_detector.get_current_chord()
+                    "enabled": arpeggiator.enabled,
+                    "hold_mode": arpeggiator.hold_mode,
+                    "current_pattern": arpeggiator.current_pattern.pattern_id
+                    if arpeggiator.current_pattern
+                    else None,
+                    "octave_range": arpeggiator.octave_range,
+                    "gate_time": arpeggiator.gate_time,
+                    "swing_amount": arpeggiator.swing_amount,
+                    "velocity_mode": arpeggiator.velocity_mode,
+                    "fixed_velocity": arpeggiator.fixed_velocity,
+                    "bpm": arpeggiator.bpm,
+                    "active_notes": len(arpeggiator.active_arpeggio_notes),
+                    "current_chord": arpeggiator.chord_detector.get_current_chord(),
                 }
         return None
 
-    def set_arpeggiator_zone(self, channel: int, zone_index: int, lower_note: int, upper_note: int,
-                           pattern_id: int | None = None, **zone_params) -> bool:
+    def set_arpeggiator_zone(
+        self,
+        channel: int,
+        zone_index: int,
+        lower_note: int,
+        upper_note: int,
+        pattern_id: int | None = None,
+        **zone_params,
+    ) -> bool:
         """Configure an arpeggiator zone for a channel."""
         with self.lock:
             arpeggiator = self.get_arpeggiator(channel)

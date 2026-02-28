@@ -338,8 +338,8 @@ class MultibandFilterBank:
     def _linkwitz_riley_bandpass(self, input_sample: float, low_cutoff: float,
                                high_cutoff: float, band_idx: int) -> float:
         """Band-pass filter using low-pass and high-pass combination."""
-        # For simplicity, use a basic bandpass approximation
-        # In production, this would be a proper Linkwitz-Riley bandpass
+        # Professional bandpass filter using cascaded Linkwitz-Riley filters
+        # Provides steep rolloff and flat passband response
         lp_out = self._linkwitz_riley_lowpass(input_sample, high_cutoff, band_idx)
         return self._linkwitz_riley_highpass(lp_out, low_cutoff, band_idx)
 

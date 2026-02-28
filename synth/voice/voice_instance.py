@@ -5,6 +5,7 @@ Part of the unified region-based synthesis architecture.
 VoiceInstance handles polyphonic playback of a single note with multiple regions.
 Refactored to work with IRegion interface.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -16,30 +17,49 @@ from ..partial.region import IRegion, RegionState
 
 logger = logging.getLogger(__name__)
 
+# Global registry for voice instances by ID
+_voice_instances: dict[int, "VoiceInstance"] = {}
+
 
 class VoiceInstance:
     """
     Voice Instance - represents one playing note with multiple regions.
-    
+
     A VoiceInstance is created for each note-on event and manages all regions
     that should play for that specific note/velocity combination.
-    
+
     Refactored to work with IRegion interface from the unified architecture.
-    
+
     Attributes:
         note: MIDI note number
         velocity: MIDI velocity
         channel: MIDI channel number
         sample_rate: Audio sample rate
     """
-    
+
     __slots__ = [
-        'voice_id', 'note', 'velocity', 'channel', 'sample_rate',
-        'regions', 'active_regions', 'start_time',
-        'release_triggered', 'released', '_pending_removal',
-        'modulation_state', 'per_note_modulation',
-        'master_volume', 'pan', 'transpose',
-        'articulation', 'articulation_parameters'
+        "voice_id",
+        "note",
+        "velocity",
+        "channel",
+        "sample_rate",
+        "regions",
+        "active_regions",
+        "start_time",
+        "release_triggered",
+        "released",
+        "_pending_removal",
+        "modulation_state",
+        "per_note_modulation",
+        "master_volume",
+        "pan",
+        "transpose",
+        "articulation",
+        "articulation_parameters",
+        "pitch_offset",
+        "timbre",
+        "aftertouch",
+        "filter_cutoff_offset",
     ]
 
     def __init__(
@@ -48,8 +68,8 @@ class VoiceInstance:
         velocity: int,
         channel: int,
         sample_rate: int,
-        articulation: str = 'normal',
-        voice_id: int | None = None
+        articulation: str = "normal",
+        voice_id: int | None = None,
     ):
         """
         Initialize VoiceInstance for a specific note.
@@ -68,6 +88,9 @@ class VoiceInstance:
         self.channel = channel
         self.sample_rate = sample_rate
 
+        # Register this instance
+        _voice_instances[self.voice_id] = self
+
         # Region management (now uses IRegion interface)
         self.regions: list[IRegion] = []
         self.active_regions: list[IRegion] = []
@@ -80,60 +103,80 @@ class VoiceInstance:
 
         # Modulation state (shared across all regions in this voice)
         self.modulation_state: dict[str, float] = {
-            'pitch_bend': 0.0,
-            'mod_wheel': 0.0,
-            'breath_controller': 0.0,
-            'expression': 1.0,
-            'channel_aftertouch': 0.0,
-            'volume_cc': 1.0,
-            'pan': 0.0,
-            'brightness': 0.5,
+            "pitch_bend": 0.0,
+            "mod_wheel": 0.0,
+            "breath_controller": 0.0,
+            "expression": 1.0,
+            "channel_aftertouch": 0.0,
+            "volume_cc": 1.0,
+            "pan": 0.0,
+            "brightness": 0.5,
         }
 
         # Per-note modulation (for MPE/polyphonic expression)
         self.per_note_modulation: dict[str, float] = {
-            'per_note_pitch_bend': 0.0,
-            'per_note_expression': 1.0,
-            'per_note_brightness': 0.5,
-            'per_note_pan': 0.0,
-            'per_note_pressure': 0.0,
+            "per_note_pitch_bend": 0.0,
+            "per_note_expression": 1.0,
+            "per_note_brightness": 0.5,
+            "per_note_pan": 0.0,
+            "per_note_pressure": 0.0,
         }
 
         # Voice-level parameters
         self.master_volume = 1.0
         self.pan = 0.0
         self.transpose = 0
-        
+
         # S.Art2 articulation support
         self.articulation = articulation
         self.articulation_parameters: dict[str, float] = {}
-    
+
+        # MPE per-note expression parameters
+        self.pitch_offset = 0.0
+        self.timbre = 0.0
+        self.aftertouch = 0.0
+        self.filter_cutoff_offset = 0
+
+    @classmethod
+    def get_voice(cls, voice_id: int) -> "VoiceInstance | None":
+        """Get voice instance by ID."""
+        return _voice_instances.get(voice_id)
+
+    @classmethod
+    def unregister_voice(cls, voice_id: int) -> None:
+        """Unregister a voice instance."""
+        _voice_instances.pop(voice_id, None)
+
+    def update(self) -> None:
+        """Update voice state (called by MPE system)."""
+        pass
+
     def add_region(self, region: IRegion) -> None:
         """
         Add a region to this voice instance.
-        
+
         Args:
             region: Region object (implements IRegion interface)
         """
         self.regions.append(region)
-    
+
     def note_on(self, velocity: int) -> None:
         """
         Trigger note-on for all regions in this voice.
-        
+
         Args:
             velocity: New velocity (for velocity changes during note)
         """
         self.velocity = velocity
-        
+
         for region in self.regions:
             try:
                 region.note_on(velocity, self.note)
             except Exception as e:
                 logger.error(f"VoiceInstance region note_on failed: {e}")
-        
+
         self.active_regions = self.regions.copy()
-    
+
     def note_off(self, velocity: int = 64) -> None:
         """
         Trigger note-off for all regions in this voice.
@@ -148,83 +191,79 @@ class VoiceInstance:
                 logger.error(f"VoiceInstance region note_off failed: {e}")
 
         self.release_triggered = True
-    
+
     # ========== S.Art2 ARTICULATION CONTROL ==========
-    
+
     def set_articulation(self, articulation: str, **parameters) -> None:
         """
         Set articulation for this voice instance.
-        
+
         Args:
             articulation: Articulation name
             **parameters: Articulation parameters
         """
         self.articulation = articulation
         self.articulation_parameters.update(parameters)
-        
+
         # Propagate to all regions
         for region in self.regions:
-            if hasattr(region, 'set_articulation'):
+            if hasattr(region, "set_articulation"):
                 region.set_articulation(articulation)
                 for param, value in parameters.items():
-                    if hasattr(region, 'set_articulation_param'):
+                    if hasattr(region, "set_articulation_param"):
                         region.set_articulation_param(param, value)
-    
+
     def get_articulation(self) -> str:
         """Get current articulation."""
         return self.articulation
-    
+
     def get_articulation_parameters(self) -> dict[str, float]:
         """Get current articulation parameters."""
         return self.articulation_parameters.copy()
-    
-    def apply_articulation_preset(self, articulation: str, 
-                                 parameters: dict[str, float]) -> None:
+
+    def apply_articulation_preset(self, articulation: str, parameters: dict[str, float]) -> None:
         """
         Apply articulation preset.
-        
+
         Args:
             articulation: Articulation name
             parameters: Articulation parameters
         """
         self.set_articulation(articulation, **parameters)
-    
+
     def update_modulation(self, modulation_updates: dict[str, float]) -> None:
         """
         Update modulation state for this voice.
-        
+
         Args:
             modulation_updates: Dictionary of modulation parameter updates
         """
         self.modulation_state.update(modulation_updates)
-        
+
         # Propagate modulation to all regions
         for region in self.active_regions:
             try:
                 region.update_modulation(self.modulation_state)
             except Exception as e:
                 logger.error(f"VoiceInstance modulation update failed: {e}")
-    
-    def update_per_note_modulation(
-        self, 
-        per_note_updates: dict[str, float]
-    ) -> None:
+
+    def update_per_note_modulation(self, per_note_updates: dict[str, float]) -> None:
         """
         Update per-note modulation state for this voice instance.
-        
+
         Args:
             per_note_updates: Dictionary of per-note modulation parameter updates
         """
         self.per_note_modulation.update(per_note_updates)
-        
+
         # Propagate per-note modulation to all regions
         for region in self.active_regions:
             try:
-                if hasattr(region, 'update_per_note_modulation'):
+                if hasattr(region, "update_per_note_modulation"):
                     region.update_per_note_modulation(self.per_note_modulation)
             except Exception as e:
                 logger.error(f"Per-note modulation update failed: {e}")
-    
+
     def generate_samples(self, block_size: int) -> np.ndarray:
         """
         Generate audio samples for this voice instance.
@@ -245,10 +284,7 @@ class VoiceInstance:
             if region.is_active():
                 try:
                     # Generate samples from region
-                    samples = region.generate_samples(
-                        block_size,
-                        self.modulation_state
-                    )
+                    samples = region.generate_samples(block_size, self.modulation_state)
 
                     # Handle different sample shapes
                     if len(samples.shape) == 1:
@@ -277,63 +313,58 @@ class VoiceInstance:
         if self.pan != 0.0:
             pan_left = 1.0 - max(0.0, self.pan)
             pan_right = 1.0 - max(0.0, -self.pan)
-            output[:, 0] *= pan_left    # Left channel
+            output[:, 0] *= pan_left  # Left channel
             output[:, 1] *= pan_right  # Right channel
 
         # Clean up inactive regions
-        self.active_regions = [
-            r for r in self.active_regions if r.is_active()
-        ]
+        self.active_regions = [r for r in self.active_regions if r.is_active()]
 
         return output
-    
+
     def _calculate_region_gain(self, region: IRegion) -> float:
         """
         Calculate gain for region (crossfades, velocity scaling).
-        
+
         Args:
             region: Region instance
-        
+
         Returns:
             Gain multiplier (0.0 to 1.0)
         """
         gain = 1.0
-        
+
         # Velocity-based gain
-        if hasattr(region, 'current_velocity'):
+        if hasattr(region, "current_velocity"):
             vel = region.current_velocity
             # Simple velocity to gain mapping
             gain *= (vel / 127.0) ** 0.3  # Slight compression
-        
+
         # Crossfade gain from region
-        if hasattr(region, 'calculate_crossfade_gain'):
-            gain *= region.calculate_crossfade_gain(
-                self.note, 
-                self.velocity
-            )
-        
+        if hasattr(region, "calculate_crossfade_gain"):
+            gain *= region.calculate_crossfade_gain(self.note, self.velocity)
+
         return gain
-    
+
     def is_active(self) -> bool:
         """
         Check if this voice instance is still active.
-        
+
         Returns:
             True if any region is still producing sound
         """
         if not self.active_regions:
             return False
-        
+
         return any(r.is_active() for r in self.active_regions)
-    
+
     def get_active_region_count(self) -> int:
         """Get number of currently active regions."""
         return len(self.active_regions)
-    
+
     def get_region_info(self) -> list[dict[str, Any]]:
         """Get information about all regions."""
         return [r.get_region_info() for r in self.regions]
-    
+
     def reset(self) -> None:
         """Reset voice instance state."""
         self.regions.clear()
@@ -342,7 +373,7 @@ class VoiceInstance:
         self.released = False
         self.master_volume = 1.0
         self.pan = 0.0
-    
+
     def dispose(self) -> None:
         """Release all region resources."""
         for region in self.regions:
@@ -352,7 +383,7 @@ class VoiceInstance:
                 logger.error(f"VoiceInstance region dispose failed: {e}")
         self.regions.clear()
         self.active_regions.clear()
-    
+
     def __str__(self) -> str:
         """String representation."""
         return (
@@ -360,6 +391,6 @@ class VoiceInstance:
             f"channel={self.channel}, regions={len(self.regions)}, "
             f"active={len(self.active_regions)})"
         )
-    
+
     def __repr__(self) -> str:
         return self.__str__()

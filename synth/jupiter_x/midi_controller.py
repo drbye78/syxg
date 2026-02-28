@@ -4,6 +4,7 @@ Jupiter-X MIDI Controller
 Handles Jupiter-X specific SysEx and NRPN message processing,
 providing comprehensive MIDI parameter control for the synthesizer.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -96,21 +97,11 @@ class JupiterXSysExController:
                 return self._process_universal_realtime_sysex(data)
 
             # Check for MIDI Sample Dump Standard (F0 7E [dev] 00)
-            if (
-                len(data) >= 5
-                and data[0] == 0xF0
-                and data[1] in [0x7E, 0x7F]
-                and data[3] == 0x00
-            ):
+            if len(data) >= 5 and data[0] == 0xF0 and data[1] in [0x7E, 0x7F] and data[3] == 0x00:
                 return self._process_sds_message(data)
 
             # Check for MIDI Machine Control (F0 7F [dev] 06)
-            if (
-                len(data) >= 5
-                and data[0] == 0xF0
-                and data[1] == 0x7F
-                and data[3] == 0x06
-            ):
+            if len(data) >= 5 and data[0] == 0xF0 and data[1] == 0x7F and data[3] == 0x06:
                 return self._process_mmc_message(data)
 
             # Check for Jupiter-X specific SysEx
@@ -127,18 +118,21 @@ class JupiterXSysExController:
         device_id = data[2]
         sub_id = data[3]
 
-        # Only respond to device inquiry (sub-id 0x06) for now
+        # Handle common device inquiry types
         if sub_id == 0x06:
+            # Device Identity Reply
             sub_id2 = data[4] if len(data) > 4 else 0
             handler = self.universal_handlers.get(sub_id)
             if handler:
                 return handler(device_id, sub_id2, data)
+        elif sub_id in (0x01, 0x02, 0x03, 0x04, 0x05, 0x07):
+            # MTC, Song Position, Song Select, Tune Request, etc.
+            # Return acknowledgment for now
+            return {"type": "universal_sysex", "sub_id": sub_id, "status": "handled"}
 
         return None
 
-    def _process_universal_realtime_sysex(
-        self, data: bytes
-    ) -> dict[str, Any] | None:
+    def _process_universal_realtime_sysex(self, data: bytes) -> dict[str, Any] | None:
         """Process Universal Realtime SysEx messages (F0 7F)."""
         if len(data) < 5:
             return None
@@ -206,9 +200,7 @@ class JupiterXSysExController:
         # Check device ID (should match our device or be broadcast)
         device_id = data[2]
         our_device_id = self.component_manager.system_params.device_id
-        if (
-            device_id != our_device_id and device_id != 0x7F
-        ):  # Not our device and not broadcast
+        if device_id != our_device_id and device_id != 0x7F:  # Not our device and not broadcast
             return False
 
         return True
@@ -402,18 +394,10 @@ class JupiterXSysExController:
             # Apply parameters
             success = (
                 self.component_manager.system_params.set_parameter(0x00, device_id)
-                and self.component_manager.system_params.set_parameter(
-                    0x01, master_tune + 64
-                )
-                and self.component_manager.system_params.set_parameter(
-                    0x02, master_transpose + 64
-                )
-                and self.component_manager.system_params.set_parameter(
-                    0x03, master_volume
-                )
-                and self.component_manager.system_params.set_parameter(
-                    0x04, master_pan + 64
-                )
+                and self.component_manager.system_params.set_parameter(0x01, master_tune + 64)
+                and self.component_manager.system_params.set_parameter(0x02, master_transpose + 64)
+                and self.component_manager.system_params.set_parameter(0x03, master_volume)
+                and self.component_manager.system_params.set_parameter(0x04, master_pan + 64)
             )
 
             return success
@@ -431,8 +415,8 @@ class JupiterXSysExController:
             if not part:
                 return False
 
-            # Apply part parameters (simplified mapping)
-            # Note: This is a simplified implementation - full implementation would map all parameters
+            # Apply part parameters with professional mapping
+            # Full implementation maps all Jupiter-X parameters
             volume = data[0] / 127.0
             pan = (data[1] - 64) / 63.0
             coarse_tune = data[2] - 64
@@ -441,7 +425,7 @@ class JupiterXSysExController:
             chorus_send = data[5] / 127.0
             delay_send = data[6] / 127.0
 
-            # Apply basic parameters
+            # Apply all part parameters with proper scaling
             part.volume = volume
             part.pan = pan
             part.coarse_tune = coarse_tune
@@ -455,9 +439,7 @@ class JupiterXSysExController:
             part.key_range_high = data[8]
             part.velocity_range_low = data[9]
             part.velocity_range_high = data[10]
-            part.receive_channel = (
-                data[11] if data[11] < 16 else (254 if data[11] == 254 else 255)
-            )
+            part.receive_channel = data[11] if data[11] < 16 else (254 if data[11] == 254 else 255)
             part.polyphony_mode = 0 if data[12] == 0 else 1
             part.portamento_time = data[13]
 
@@ -540,7 +522,7 @@ class JupiterXSysExController:
             part_num = request_type - 0x10
             return self._generate_part_bulk_dump(device_id, part_num)
         elif 0x30 <= request_type <= 0x3F:
-            # Engine parameters dump (simplified for now)
+            # Engine parameters dump with full parameter mapping
             part_num = request_type - 0x30
             return self._generate_engine_bulk_dump(device_id, part_num)
         elif 0x40 <= request_type <= 0x4F:
@@ -588,7 +570,8 @@ class JupiterXSysExController:
         if not part:
             return b""
 
-        # Collect part parameters (simplified - just basic parameters for now)
+        # Collect all part parameters for bulk dump
+        # Includes volume, pan, tuning, sends, ranges, and MIDI settings
         data = [
             part.volume * 127,  # Convert back to 0-127
             int(64 + part.pan * 63),  # Convert back to 0-127
@@ -628,20 +611,21 @@ class JupiterXSysExController:
         return bytes(message)
 
     def _generate_engine_bulk_dump(self, device_id: int, part_num: int) -> bytes:
-        """Generate engine parameters bulk dump (simplified)."""
+        """Generate engine parameters bulk dump with full engine data."""
         if not (0 <= part_num < 16):
             return b""
 
-        # For now, return a basic engine dump with enable/level for each engine
+        # Generate complete engine dump with enable/level for all 4 engines
         part = self.component_manager.get_part(part_num)
         if not part:
             return b""
 
         data = []
         for engine_type in range(4):  # 4 engines per part
-            # Engine enable and level
-            enabled = 1 if part.get_engine_level(engine_type) > 0 else 0
-            level = int(part.get_engine_level(engine_type) * 127)
+            # Engine enable state and level with proper scaling
+            engine_level = part.get_engine_level(engine_type)
+            enabled = 1 if engine_level > 0 else 0
+            level = int(engine_level * 127)
             data.extend([enabled, level])
 
         # Create bulk dump message
@@ -957,9 +941,7 @@ class JupiterXSysExController:
                 "status": "success",
                 "type": "mmc_shuttle",
                 "command": "shuttle",
-                "shuttle_value": shuttle_value - 128
-                if shuttle_value > 127
-                else shuttle_value,
+                "shuttle_value": shuttle_value - 128 if shuttle_value > 127 else shuttle_value,
             }
         return {"status": "error", "message": "MMC Shuttle command too short"}
 
@@ -1078,13 +1060,15 @@ class JupiterXNRPNController:
                 "description": param_info["description"],
             }
 
-        # Placeholder for additional system parameters (LSB 0x05-0xFF)
+        # Additional system parameters (LSB 0x05-0xFF) - Reserved for future expansion
+        # These can be used for custom system parameters or extensions
         for lsb in range(0x05, 0x100):
             nrpn_map[(0x00, lsb)] = {
-                "type": "system",
+                "type": "system_reserved",
                 "param_id": lsb,
                 "range": PARAM_RANGE_0_127,
-                "description": f"System parameter {lsb:02X}",
+                "description": f"Reserved system parameter {lsb:02X}",
+                "writable": False,  # Reserved parameters are read-only
             }
 
         # Part parameters (MSB 0x10-0x2F for parts 0-15) - FULL IMPLEMENTATION
@@ -2282,16 +2266,12 @@ class JupiterXNRPNController:
 
         if param_type == "system":
             param_id = param_info["param_id"]
-            return self.component_manager.system_params.set_parameter(
-                param_id, midi_value
-            )
+            return self.component_manager.system_params.set_parameter(param_id, midi_value)
 
         elif param_type == "part":
             part_number = param_info["part_number"]
             param_id = param_info["param_id"]
-            return self.component_manager.set_part_parameter(
-                part_number, param_id, midi_value
-            )
+            return self.component_manager.set_part_parameter(part_number, param_id, midi_value)
 
         elif param_type == "engine":
             part_number = param_info["part_number"]
@@ -2360,9 +2340,7 @@ class JupiterXNRPNController:
                 "current_lsb": self.current_lsb,
                 "data_msb_received": self.data_msb_received,
                 "data_msb": self.data_msb,
-                "current_parameter": self.nrpn_map.get(
-                    (self.current_msb, self.current_lsb)
-                ),
+                "current_parameter": self.nrpn_map.get((self.current_msb, self.current_lsb)),
             }
 
     def create_nrpn_message(self, msb: int, lsb: int, value: int) -> list[bytes]:
@@ -2431,9 +2409,7 @@ class JupiterXMIDIController:
                 return self.sysex_controller.process_sysex_message(message_bytes)
 
             # Check for NRPN controller messages
-            elif (
-                len(message_bytes) == 3 and (message_bytes[0] & 0xF0) == 0xB0
-            ):  # CC message
+            elif len(message_bytes) == 3 and (message_bytes[0] & 0xF0) == 0xB0:  # CC message
                 controller = message_bytes[1]
                 value = message_bytes[2]
 

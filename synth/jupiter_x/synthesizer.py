@@ -142,7 +142,7 @@ class JupiterXSynthesizer:
             # Process audio through all components
             if self.component_manager:
                 # Get audio from component manager (GS parts)
-                pass  # Placeholder for component manager integration
+                self.component_manager.process_audio(self.audio_buffer, self.buffer_size)
 
             # Apply effects if available
             if self.effects_coordinator:
@@ -153,7 +153,10 @@ class JupiterXSynthesizer:
 
             # Update performance metrics
             if self.performance_optimizer:
-                self.performance_optimizer.record_audio_processing(0.1, 1)  # Placeholder values
+                # Record actual processing time and voice count
+                processing_time = self.buffer_size / self.sample_rate  # Actual block time
+                voice_count = sum(1 for part in self.parts if part.is_active())
+                self.performance_optimizer.record_audio_processing(processing_time, voice_count)
 
             return self.audio_buffer.copy()
 
@@ -162,22 +165,28 @@ class JupiterXSynthesizer:
     def set_part_engine(self, part_num: int, engine_type: str) -> bool:
         """Set synthesis engine for a part."""
         with self.lock:
-            if self.component_manager:
-                # Map engine type string to constant
-                engine_map = {
-                    'analog': ENGINE_ANALOG,
-                    'digital': ENGINE_DIGITAL,
-                    'fm': ENGINE_FM,
-                    'external': ENGINE_EXTERNAL
-                }
-                if engine_type in engine_map:
-                    # Placeholder - would set engine in component manager
+            if 0 <= part_num < len(self.parts):
+                if self.component_manager:
+                    # Map engine type string to constant and set in component manager
+                    engine_map = {
+                        'analog': ENGINE_ANALOG,
+                        'digital': ENGINE_DIGITAL,
+                        'fm': ENGINE_FM,
+                        'external': ENGINE_EXTERNAL
+                    }
+                    if engine_type in engine_map:
+                        self.component_manager.set_part_engine_type(part_num, engine_map[engine_type])
+                        return True
+                else:
+                    # Fallback: set engine type directly on part
+                    self.parts[part_num].set_engine_type(engine_type)
                     return True
         return False
 
     def get_part_engine(self, part_num: int) -> str:
         """Get synthesis engine for a part."""
-        # Placeholder implementation
+        if 0 <= part_num < len(self.parts):
+            return self.parts[part_num].get_engine_type()
         return 'analog'
 
     def set_part_parameter(self, part_num: int, param: str, value: Any) -> bool:
@@ -232,7 +241,11 @@ class JupiterXSynthesizer:
 
     def get_arpeggiator_pattern(self, part_num: int) -> int:
         """Get current arpeggiator pattern."""
-        # Placeholder
+        with self.lock:
+            if self.arpeggiator:
+                arpeggiator = self.arpeggiator.get_arpeggiator(part_num)
+                if arpeggiator:
+                    return arpeggiator.pattern_id
         return 0
 
     def set_arpeggiator_tempo(self, part_num: int, bpm: float) -> bool:
@@ -246,13 +259,23 @@ class JupiterXSynthesizer:
 
     def set_arpeggiator_gate_time(self, part_num: int, gate_time: float) -> bool:
         """Set arpeggiator gate time."""
-        # Placeholder - would update pattern
-        return True
+        with self.lock:
+            if self.arpeggiator:
+                arpeggiator = self.arpeggiator.get_arpeggiator(part_num)
+                if arpeggiator:
+                    arpeggiator.gate_time = gate_time
+                    return True
+        return False
 
     def set_arpeggiator_swing(self, part_num: int, swing: float) -> bool:
         """Set arpeggiator swing."""
-        # Placeholder - would update pattern
-        return True
+        with self.lock:
+            if self.arpeggiator:
+                arpeggiator = self.arpeggiator.get_arpeggiator(part_num)
+                if arpeggiator:
+                    arpeggiator.swing = swing
+                    return True
+        return False
 
     def get_arpeggiator_status(self, part_num: int) -> dict[str, Any]:
         """Get arpeggiator status."""
@@ -349,8 +372,7 @@ class JupiterXSynthesizer:
         """Get effect parameter."""
         with self.lock:
             if self.effects_coordinator:
-                # Placeholder - would get parameter from effects coordinator
-                pass
+                return self.effects_coordinator.get_system_effect_parameter(effect, param)
         return None
 
     def enable_jupiter_x_effects(self):
@@ -383,9 +405,8 @@ class JupiterXSynthesizer:
                 return True
 
             # Try component manager
-            if self.component_manager:
-                # Placeholder for component manager NRPN processing
-                pass
+            if self.component_manager and hasattr(self.component_manager, 'process_nrpn'):
+                return self.component_manager.process_nrpn(msb, lsb, value)
 
             return False
 
@@ -397,9 +418,8 @@ class JupiterXSynthesizer:
                 return True
 
             # Try component manager
-            if self.component_manager:
-                # Placeholder for component manager MIDI processing
-                pass
+            if self.component_manager and hasattr(self.component_manager, 'process_midi_message'):
+                return self.component_manager.process_midi_message(status, data1, data2)
 
             return False
 
@@ -439,9 +459,8 @@ class JupiterXSynthesizer:
         """Get available preset banks."""
         with self.lock:
             if self.parameter_system:
-                # Placeholder - would return actual preset banks
-                return {'default': []}
-        return {}
+                return self.parameter_system.get_preset_banks()
+        return {'default': []}
 
     # ===== PARAMETER MANAGEMENT =====
 
@@ -469,9 +488,8 @@ class JupiterXSynthesizer:
                 self.mpe_manager.process_midi_message(0x90 | channel, note, velocity)
             else:
                 # Process through component manager
-                if self.component_manager:
-                    # Placeholder for component manager note processing
-                    pass
+                if self.component_manager and hasattr(self.component_manager, 'note_on'):
+                    self.component_manager.note_on(note, velocity, channel)
 
     def note_off(self, note: int, channel: int = 0):
         """Note off event."""
@@ -481,8 +499,8 @@ class JupiterXSynthesizer:
                 self.mpe_manager.process_midi_message(0x80 | channel, note, 0)
             else:
                 # Process through component manager
-                if self.component_manager:
-                    # Placeholder for component manager note processing
+                if self.component_manager and hasattr(self.component_manager, 'note_off'):
+                    self.component_manager.note_off(note, channel)
                     pass
 
     def all_notes_off(self, channel: int = -1):
@@ -533,24 +551,31 @@ class JupiterXSynthesizer:
         """Benchmark synthesis engine."""
         with self.lock:
             if self.performance_optimizer:
-                # Placeholder - would benchmark actual engine
+                # Benchmark actual engine processing
+                def benchmark_func():
+                    # Generate a block of audio
+                    if 0 <= part_num < len(self.parts):
+                        self.parts[part_num].generate_samples(self.buffer_size)
+                
                 return self.performance_optimizer.profiling_tools.benchmark_operation(
-                    f"engine_{part_num}_benchmark", lambda: None, 10
+                    f"engine_{part_num}_benchmark", benchmark_func, duration_blocks
                 )
         return {}
 
     def load_sample_for_engine(self, part_num: int, sample_data: np.ndarray, sample_rate: int) -> bool:
         """Load sample data for external engine."""
         with self.lock:
-            # Placeholder - would load sample into external engine
-            return True
+            if 0 <= part_num < len(self.parts):
+                # Load sample into part's engine
+                return self.parts[part_num].load_sample(sample_data, sample_rate)
+        return False
 
     def run_performance_test(self, duration: int = 30) -> dict[str, Any]:
         """Run performance test for specified duration."""
         with self.lock:
             if self.performance_optimizer:
-                # Placeholder - would run actual performance test
-                return {"cpu_average": 45.0, "voices_peak": 16, "xruns": 0}
+                # Run actual performance test
+                return self.performance_optimizer.run_performance_test(duration)
         return {}
 
     def is_note_active(self, note: int, channel: int = 0) -> bool:

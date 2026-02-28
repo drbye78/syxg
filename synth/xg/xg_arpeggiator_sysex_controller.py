@@ -6,6 +6,7 @@ Implements the complete SYSEX protocol for arpeggiator management.
 
 Copyright (c) 2025
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -23,17 +24,17 @@ class YamahaArpeggiatorSysexController:
     """
 
     # SYSEX Command IDs for Arpeggiator
-    CMD_ARP_SWITCH = 0x0A      # Arpeggiator On/Off
-    CMD_ARP_PATTERN = 0x0B     # Pattern Select
-    CMD_ARP_HOLD = 0x0C        # Hold Mode
-    CMD_ARP_VELOCITY = 0x0D    # Velocity Mode
-    CMD_ARP_OCTAVE = 0x0E      # Octave Range
-    CMD_ARP_GATE = 0x0F        # Gate Time
-    CMD_ARP_SWING = 0x10       # Swing Amount
+    CMD_ARP_SWITCH = 0x0A  # Arpeggiator On/Off
+    CMD_ARP_PATTERN = 0x0B  # Pattern Select
+    CMD_ARP_HOLD = 0x0C  # Hold Mode
+    CMD_ARP_VELOCITY = 0x0D  # Velocity Mode
+    CMD_ARP_OCTAVE = 0x0E  # Octave Range
+    CMD_ARP_GATE = 0x0F  # Gate Time
+    CMD_ARP_SWING = 0x10  # Swing Amount
 
     # Bulk operations
-    CMD_ARP_BULK_DUMP = 0x11   # Bulk Dump Request
-    CMD_ARP_BULK_DATA = 0x12   # Bulk Data Transfer
+    CMD_ARP_BULK_DUMP = 0x11  # Bulk Dump Request
+    CMD_ARP_BULK_DATA = 0x12  # Bulk Data Transfer
 
     def __init__(self, arpeggiator_engine):
         """
@@ -113,10 +114,10 @@ class YamahaArpeggiatorSysexController:
 
         if self.arpeggiator_engine.enable_arpeggiator(part, enabled):
             return {
-                'type': 'arpeggiator_control',
-                'command': 'switch',
-                'part': part,
-                'enabled': enabled
+                "type": "arpeggiator_control",
+                "command": "switch",
+                "part": part,
+                "enabled": enabled,
             }
         return None
 
@@ -132,10 +133,10 @@ class YamahaArpeggiatorSysexController:
 
         if self.arpeggiator_engine.set_pattern(part, pattern_id):
             return {
-                'type': 'arpeggiator_control',
-                'command': 'pattern_select',
-                'part': part,
-                'pattern_id': pattern_id
+                "type": "arpeggiator_control",
+                "command": "pattern_select",
+                "part": part,
+                "pattern_id": pattern_id,
             }
         return None
 
@@ -147,12 +148,12 @@ class YamahaArpeggiatorSysexController:
         part = data[0]
         hold_mode = data[1] > 0
 
-        if self.arpeggiator_engine.set_arpeggiator_parameter(part, 'hold_mode', hold_mode):
+        if self.arpeggiator_engine.set_arpeggiator_parameter(part, "hold_mode", hold_mode):
             return {
-                'type': 'arpeggiator_control',
-                'command': 'hold_mode',
-                'part': part,
-                'hold_mode': hold_mode
+                "type": "arpeggiator_control",
+                "command": "hold_mode",
+                "part": part,
+                "hold_mode": hold_mode,
             }
         return None
 
@@ -164,12 +165,12 @@ class YamahaArpeggiatorSysexController:
         part = data[0]
         velocity_mode = data[1]  # 0=Original, 1=Fixed, 2=Accent
 
-        if self.arpeggiator_engine.set_arpeggiator_parameter(part, 'velocity_mode', velocity_mode):
+        if self.arpeggiator_engine.set_arpeggiator_parameter(part, "velocity_mode", velocity_mode):
             return {
-                'type': 'arpeggiator_control',
-                'command': 'velocity_mode',
-                'part': part,
-                'velocity_mode': velocity_mode
+                "type": "arpeggiator_control",
+                "command": "velocity_mode",
+                "part": part,
+                "velocity_mode": velocity_mode,
             }
         return None
 
@@ -181,12 +182,12 @@ class YamahaArpeggiatorSysexController:
         part = data[0]
         octave_range = data[1] + 1  # 0=1 octave, 1=2 octaves, etc.
 
-        if self.arpeggiator_engine.set_arpeggiator_parameter(part, 'octave_range', octave_range):
+        if self.arpeggiator_engine.set_arpeggiator_parameter(part, "octave_range", octave_range):
             return {
-                'type': 'arpeggiator_control',
-                'command': 'octave_range',
-                'part': part,
-                'octave_range': octave_range
+                "type": "arpeggiator_control",
+                "command": "octave_range",
+                "part": part,
+                "octave_range": octave_range,
             }
         return None
 
@@ -198,12 +199,12 @@ class YamahaArpeggiatorSysexController:
         part = data[0]
         gate_time = data[1] / 127.0  # Convert to 0.0-1.0 range
 
-        if self.arpeggiator_engine.set_arpeggiator_parameter(part, 'gate_time', gate_time):
+        if self.arpeggiator_engine.set_arpeggiator_parameter(part, "gate_time", gate_time):
             return {
-                'type': 'arpeggiator_control',
-                'command': 'gate_time',
-                'part': part,
-                'gate_time': gate_time
+                "type": "arpeggiator_control",
+                "command": "gate_time",
+                "part": part,
+                "gate_time": gate_time,
             }
         return None
 
@@ -215,12 +216,12 @@ class YamahaArpeggiatorSysexController:
         part = data[0]
         swing_amount = data[1] / 127.0  # Convert to 0.0-1.0 range
 
-        if self.arpeggiator_engine.set_arpeggiator_parameter(part, 'swing_amount', swing_amount):
+        if self.arpeggiator_engine.set_arpeggiator_parameter(part, "swing_amount", swing_amount):
             return {
-                'type': 'arpeggiator_control',
-                'command': 'swing_amount',
-                'part': part,
-                'swing_amount': swing_amount
+                "type": "arpeggiator_control",
+                "command": "swing_amount",
+                "part": part,
+                "swing_amount": swing_amount,
             }
         return None
 
@@ -244,10 +245,10 @@ class YamahaArpeggiatorSysexController:
             self.bulk_expected_size = 1024  # Default
 
         return {
-            'type': 'bulk_operation',
-            'command': 'bulk_dump_request',
-            'dump_type': dump_type,
-            'expected_size': self.bulk_expected_size
+            "type": "bulk_operation",
+            "command": "bulk_dump_request",
+            "dump_type": dump_type,
+            "expected_size": self.bulk_expected_size,
         }
 
     def _handle_bulk_data(self, device_id: int, data: bytes) -> dict[str, Any] | None:
@@ -271,10 +272,10 @@ class YamahaArpeggiatorSysexController:
             return result
 
         return {
-            'type': 'bulk_operation',
-            'command': 'bulk_data_chunk',
-            'received_size': len(self.bulk_data_buffer),
-            'expected_size': self.bulk_expected_size
+            "type": "bulk_operation",
+            "command": "bulk_data_chunk",
+            "received_size": len(self.bulk_data_buffer),
+            "expected_size": self.bulk_expected_size,
         }
 
     def _process_bulk_data(self, data: bytes) -> dict[str, Any] | None:
@@ -316,7 +317,7 @@ class YamahaArpeggiatorSysexController:
             parts_processed = 0
             for part in range(16):
                 part_offset = part * 16
-                part_data = data[part_offset:part_offset + 16]
+                part_data = data[part_offset : part_offset + 16]
 
                 # Apply settings for this part
                 if self._apply_bulk_part_settings(part, part_data):
@@ -324,11 +325,11 @@ class YamahaArpeggiatorSysexController:
 
             print(f"🎹 Arpeggiator bulk settings loaded: {parts_processed}/16 parts")
             return {
-                'type': 'bulk_operation',
-                'command': 'bulk_data_complete',
-                'data_size': len(data),
-                'parts_processed': parts_processed,
-                'operation': 'arpeggiator_settings'
+                "type": "bulk_operation",
+                "command": "bulk_data_complete",
+                "data_size": len(data),
+                "parts_processed": parts_processed,
+                "operation": "arpeggiator_settings",
             }
 
         except Exception as e:
@@ -344,34 +345,34 @@ class YamahaArpeggiatorSysexController:
             # Decode part settings from bulk data
             # Format: [switch, pattern_msb, pattern_lsb, hold, velocity, octave, gate, swing, ...]
             settings = {
-                'arp_switch': part_data[0] > 0,
-                'pattern_msb': part_data[1],
-                'pattern_lsb': part_data[2],
-                'hold_mode': part_data[3] > 0,
-                'velocity_mode': part_data[4],
-                'octave_range': part_data[5] + 1,  # 0=1 octave, 1=2 octaves, etc.
-                'gate_time': part_data[6] / 127.0,
-                'swing_amount': part_data[7] / 127.0,
-                'velocity_rate': part_data[8],
-                'accent_velocity': part_data[9],
-                'arp_tempo': (part_data[10] << 7) | part_data[11],  # 14-bit tempo
-                'pattern_length': part_data[12] + 1,
-                'key_mode': part_data[13],
-                'voice_assign_mode': part_data[14],
-                'motif_retrigger': part_data[15] > 0
+                "arp_switch": part_data[0] > 0,
+                "pattern_msb": part_data[1],
+                "pattern_lsb": part_data[2],
+                "hold_mode": part_data[3] > 0,
+                "velocity_mode": part_data[4],
+                "octave_range": part_data[5] + 1,  # 0=1 octave, 1=2 octaves, etc.
+                "gate_time": part_data[6] / 127.0,
+                "swing_amount": part_data[7] / 127.0,
+                "velocity_rate": part_data[8],
+                "accent_velocity": part_data[9],
+                "arp_tempo": (part_data[10] << 7) | part_data[11],  # 14-bit tempo
+                "pattern_length": part_data[12] + 1,
+                "key_mode": part_data[13],
+                "voice_assign_mode": part_data[14],
+                "motif_retrigger": part_data[15] > 0,
             }
 
             # Apply pattern selection
-            pattern_id = (settings['pattern_msb'] << 7) | settings['pattern_lsb']
+            pattern_id = (settings["pattern_msb"] << 7) | settings["pattern_lsb"]
             self.arpeggiator_engine.set_pattern(part, pattern_id)
 
             # Apply other settings
             for param_name, value in settings.items():
-                if param_name not in ['pattern_msb', 'pattern_lsb']:
+                if param_name not in ["pattern_msb", "pattern_lsb"]:
                     self.arpeggiator_engine.set_arpeggiator_parameter(part, param_name, value)
 
             # Enable/disable arpeggiator based on switch
-            self.arpeggiator_engine.enable_arpeggiator(part, settings['arp_switch'])
+            self.arpeggiator_engine.enable_arpeggiator(part, settings["arp_switch"])
 
             return True
 
@@ -382,18 +383,45 @@ class YamahaArpeggiatorSysexController:
     def _process_bulk_pattern_library(self, data: bytes) -> dict[str, Any] | None:
         """Process bulk pattern library data."""
         try:
-            # Pattern library bulk format would contain pattern definitions
-            # This is a placeholder for the full implementation
-            print(f"🎹 Arpeggiator pattern library bulk data: {len(data)} bytes")
-
-            # For now, just acknowledge receipt
-            return {
-                'type': 'bulk_operation',
-                'command': 'bulk_data_complete',
-                'data_size': len(data),
-                'operation': 'pattern_library',
-                'status': 'acknowledged'
+            # Parse pattern library bulk data
+            # Format: header (4 bytes) + patterns (variable) + checksum
+            result = {
+                "type": "bulk_operation",
+                "command": "bulk_data_complete",
+                "data_size": len(data),
+                "operation": "pattern_library",
+                "status": "processed",
+                "patterns": [],
             }
+
+            # Parse pattern data if enough bytes
+            offset = 0
+            while offset + 8 <= len(data):
+                # Pattern header: ID (2), length (2), type (1), flags (1), reserved (2)
+                pattern_id = data[offset] << 8 | data[offset + 1]
+                pattern_len = data[offset + 2] << 8 | data[offset + 3]
+                pattern_type = data[offset + 4]
+
+                offset += 8
+
+                if offset + pattern_len <= len(data):
+                    pattern_data = data[offset : offset + pattern_len]
+                    result["patterns"].append(
+                        {
+                            "id": pattern_id,
+                            "length": pattern_len,
+                            "type": pattern_type,
+                            "data": pattern_data.hex()[:32],  # Store truncated hex
+                        }
+                    )
+                    offset += pattern_len
+                else:
+                    break
+
+            if not result["patterns"]:
+                result["status"] = "acknowledged"
+
+            return result
 
         except Exception as e:
             print(f"❌ Bulk pattern library processing error: {e}")
@@ -405,7 +433,9 @@ class YamahaArpeggiatorSysexController:
         data = bytes([0x43, device_id, 0x7E, command, dump_type])
         return self._create_sysex_message(data)
 
-    def create_bulk_data_message(self, bulk_type: int, bulk_data: bytes, device_id: int = 0x10) -> bytes:
+    def create_bulk_data_message(
+        self, bulk_type: int, bulk_data: bytes, device_id: int = 0x10
+    ) -> bytes:
         """Create bulk data transfer SYSEX message."""
         command = self.CMD_ARP_BULK_DATA
         # Limit bulk data to reasonable size (Yamaha typically limits to ~256 bytes per message)
@@ -429,24 +459,25 @@ class YamahaArpeggiatorSysexController:
                 part_settings = bytearray(16)
 
                 # Basic settings
-                part_settings[0] = 1 if status.get('enabled', False) else 0
-                part_settings[1] = (status.get('current_pattern', 0) >> 7) & 0x7F  # MSB
-                part_settings[2] = status.get('current_pattern', 0) & 0x7F         # LSB
-                part_settings[3] = 1 if status.get('hold_mode', False) else 0
-                part_settings[4] = status.get('velocity_mode', 0)
-                part_settings[5] = max(0, status.get('octave_range', 1) - 1)
-                part_settings[6] = int(status.get('gate_time', 0.8) * 127.0) & 0x7F
-                part_settings[7] = int(status.get('swing_amount', 0.0) * 127.0) & 0x7F
+                part_settings[0] = 1 if status.get("enabled", False) else 0
+                part_settings[1] = (status.get("current_pattern", 0) >> 7) & 0x7F  # MSB
+                part_settings[2] = status.get("current_pattern", 0) & 0x7F  # LSB
+                part_settings[3] = 1 if status.get("hold_mode", False) else 0
+                part_settings[4] = status.get("velocity_mode", 0)
+                part_settings[5] = max(0, status.get("octave_range", 1) - 1)
+                part_settings[6] = int(status.get("gate_time", 0.8) * 127.0) & 0x7F
+                part_settings[7] = int(status.get("swing_amount", 0.0) * 127.0) & 0x7F
 
-                # Extended settings (placeholders for now)
-                part_settings[8] = status.get('fixed_velocity', 100) & 0x7F
-                part_settings[9] = 127  # Accent velocity
-                part_settings[10] = (status.get('bpm', 120) >> 7) & 0x7F  # Tempo MSB
-                part_settings[11] = status.get('bpm', 120) & 0x7F         # Tempo LSB
-                part_settings[12] = 0  # Pattern length - 1
-                part_settings[13] = 0  # Key mode
-                part_settings[14] = 0  # Voice assign mode
-                part_settings[15] = 0  # Motif retrigger
+                # Extended settings from status
+                part_settings[8] = status.get("fixed_velocity", 0) & 0x7F
+                part_settings[9] = status.get("accent_velocity", 127) & 0x7F
+                tempo = int(status.get("bpm", 120))
+                part_settings[10] = (tempo >> 7) & 0x7F  # Tempo MSB
+                part_settings[11] = tempo & 0x7F  # Tempo LSB
+                part_settings[12] = status.get("pattern_length", 0) & 0x7F
+                part_settings[13] = status.get("key_mode", 0) & 0x7F
+                part_settings[14] = status.get("voice_assign_mode", 0) & 0x7F
+                part_settings[15] = 1 if status.get("motif_retrigger", False) else 0
 
                 bulk_data.extend(part_settings)
             else:
@@ -459,14 +490,18 @@ class YamahaArpeggiatorSysexController:
     def get_bulk_dump_capabilities(self) -> dict[str, Any]:
         """Get bulk dump capabilities information."""
         return {
-            'supported_dump_types': [
-                {'type': 0, 'name': 'Arpeggiator Settings', 'description': 'All arpeggiator settings for 16 parts'},
-                {'type': 1, 'name': 'Pattern Library', 'description': 'User pattern library data'}
+            "supported_dump_types": [
+                {
+                    "type": 0,
+                    "name": "Arpeggiator Settings",
+                    "description": "All arpeggiator settings for 16 parts",
+                },
+                {"type": 1, "name": "Pattern Library", "description": "User pattern library data"},
             ],
-            'max_message_size': 256,
-            'parts_per_dump': 16,
-            'bytes_per_part': 16,
-            'total_settings_size': 256
+            "max_message_size": 256,
+            "parts_per_dump": 16,
+            "bytes_per_part": 16,
+            "total_settings_size": 256,
         }
 
     def create_arp_switch_message(self, part: int, enabled: bool, device_id: int = 0x10) -> bytes:
@@ -475,7 +510,9 @@ class YamahaArpeggiatorSysexController:
         data = bytes([0x43, device_id, 0x7E, command, part, 1 if enabled else 0])
         return self._create_sysex_message(data)
 
-    def create_arp_pattern_message(self, part: int, pattern_id: int, device_id: int = 0x10) -> bytes:
+    def create_arp_pattern_message(
+        self, part: int, pattern_id: int, device_id: int = 0x10
+    ) -> bytes:
         """Create pattern select SYSEX message."""
         command = self.CMD_ARP_PATTERN
         pattern_msb = (pattern_id >> 7) & 0x7F
@@ -489,13 +526,17 @@ class YamahaArpeggiatorSysexController:
         data = bytes([0x43, device_id, 0x7E, command, part, 1 if hold_mode else 0])
         return self._create_sysex_message(data)
 
-    def create_arp_velocity_message(self, part: int, velocity_mode: int, device_id: int = 0x10) -> bytes:
+    def create_arp_velocity_message(
+        self, part: int, velocity_mode: int, device_id: int = 0x10
+    ) -> bytes:
         """Create velocity mode SYSEX message."""
         command = self.CMD_ARP_VELOCITY
         data = bytes([0x43, device_id, 0x7E, command, part, velocity_mode & 0x7F])
         return self._create_sysex_message(data)
 
-    def create_arp_octave_message(self, part: int, octave_range: int, device_id: int = 0x10) -> bytes:
+    def create_arp_octave_message(
+        self, part: int, octave_range: int, device_id: int = 0x10
+    ) -> bytes:
         """Create octave range SYSEX message."""
         command = self.CMD_ARP_OCTAVE
         data = bytes([0x43, device_id, 0x7E, command, part, (octave_range - 1) & 0x7F])
@@ -508,7 +549,9 @@ class YamahaArpeggiatorSysexController:
         data = bytes([0x43, device_id, 0x7E, command, part, gate_value])
         return self._create_sysex_message(data)
 
-    def create_arp_swing_message(self, part: int, swing_amount: float, device_id: int = 0x10) -> bytes:
+    def create_arp_swing_message(
+        self, part: int, swing_amount: float, device_id: int = 0x10
+    ) -> bytes:
         """Create swing amount SYSEX message."""
         command = self.CMD_ARP_SWING
         swing_value = int(swing_amount * 127.0) & 0x7F
@@ -530,40 +573,40 @@ class YamahaArpeggiatorSysexController:
         """Get list of supported SYSEX commands."""
         return [
             {
-                'command': self.CMD_ARP_SWITCH,
-                'name': 'Arpeggiator Switch',
-                'description': 'Enable/disable arpeggiator for a part'
+                "command": self.CMD_ARP_SWITCH,
+                "name": "Arpeggiator Switch",
+                "description": "Enable/disable arpeggiator for a part",
             },
             {
-                'command': self.CMD_ARP_PATTERN,
-                'name': 'Pattern Select',
-                'description': 'Select arpeggio pattern for a part'
+                "command": self.CMD_ARP_PATTERN,
+                "name": "Pattern Select",
+                "description": "Select arpeggio pattern for a part",
             },
             {
-                'command': self.CMD_ARP_HOLD,
-                'name': 'Hold Mode',
-                'description': 'Set hold mode for arpeggiator'
+                "command": self.CMD_ARP_HOLD,
+                "name": "Hold Mode",
+                "description": "Set hold mode for arpeggiator",
             },
             {
-                'command': self.CMD_ARP_VELOCITY,
-                'name': 'Velocity Mode',
-                'description': 'Set velocity processing mode'
+                "command": self.CMD_ARP_VELOCITY,
+                "name": "Velocity Mode",
+                "description": "Set velocity processing mode",
             },
             {
-                'command': self.CMD_ARP_OCTAVE,
-                'name': 'Octave Range',
-                'description': 'Set octave range for arpeggiation'
+                "command": self.CMD_ARP_OCTAVE,
+                "name": "Octave Range",
+                "description": "Set octave range for arpeggiation",
             },
             {
-                'command': self.CMD_ARP_GATE,
-                'name': 'Gate Time',
-                'description': 'Set note duration within pattern'
+                "command": self.CMD_ARP_GATE,
+                "name": "Gate Time",
+                "description": "Set note duration within pattern",
             },
             {
-                'command': self.CMD_ARP_SWING,
-                'name': 'Swing Amount',
-                'description': 'Set timing swing amount'
-            }
+                "command": self.CMD_ARP_SWING,
+                "name": "Swing Amount",
+                "description": "Set timing swing amount",
+            },
         ]
 
     def __str__(self) -> str:

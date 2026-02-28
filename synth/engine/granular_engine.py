@@ -305,63 +305,109 @@ class GranularEngine(SynthesisEngine):
             'max_clouds': self.max_clouds
         }
 
-    # ========== NEW REGION-BASED METHODS (STUBS) ==========
-    
+    # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
+
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
-        """Get granular preset info (stub)."""
+        """
+        Get granular preset information with proper region descriptors.
+        
+        Args:
+            bank: Preset bank number (0-127)
+            program: Preset program number (0-127)
+            
+        Returns:
+            PresetInfo with region descriptors for granular synthesis
+        """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
         
+        # Granular engine uses grain-based synthesis with sample clouds
+        # Programs define grain parameters and sample sources
+        preset_name = f"Granular {bank}:{program}"
+        
+        # Create region descriptors for granular synthesis
+        # Granular supports polyphonic playback with full keyboard range
         descriptor = RegionDescriptor(
             region_id=0,
-            engine_type='granular',
+            engine_type=self.get_engine_type(),
             key_range=(0, 127),
             velocity_range=(0, 127),
-            algorithm_params={'max_clouds': self.max_clouds}
+            algorithm_params={
+                'max_clouds': self.max_clouds,
+                'grain_density': 10.0,  # Grains per second
+                'grain_duration': 0.05,  # Seconds per grain
+                'position_random': 0.1,  # Position randomization
+                'pitch_spread': 0.0,  # Pitch spread in semitones
+                'sample_source': None,  # Sample file path (loaded per preset)
+                'loop_mode': 'forward',  # Grain loop mode
+                'envelope_type': 'gaussian'  # Grain envelope shape
+            }
         )
         
         return PresetInfo(
-            bank=bank, program=program,
-            name=f'Granular {bank}:{program}',
-            engine_type='granular',
-            region_descriptors=[descriptor]
+            bank=bank,
+            program=program,
+            name=preset_name,
+            engine_type=self.get_engine_type(),
+            region_descriptors=[descriptor],
+            is_monophonic=False,
+            category='granular_synthesis'
         )
-    
+
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
+        """
+        Get all region descriptors for granular preset.
+        
+        Args:
+            bank: Preset bank number
+            program: Preset program number
+            
+        Returns:
+            List of RegionDescriptor objects
+        """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
-    
+
     def create_region(
         self,
         descriptor: RegionDescriptor,
         sample_rate: int
     ) -> IRegion:
         """
-        Create region instance. Base implementation wraps with S.Art2.
-        """
-        return self._create_base_region(descriptor, sample_rate)
-
-    def _create_base_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
-        """
-        Create GranularRegion base region without S.Art2 wrapper.
-
+        Create granular region instance from descriptor.
+        
         Args:
-            descriptor: Region descriptor
+            descriptor: Region descriptor with granular parameters
             sample_rate: Audio sample rate in Hz
-
+            
         Returns:
-            GranularRegion instance
+            IRegion instance for granular synthesis
         """
         from ..partial.granular_region import GranularRegion
-        return GranularRegion(descriptor, sample_rate)
-    
+        
+        # Create granular region with proper initialization
+        region = GranularRegion(descriptor, sample_rate)
+        
+        # Initialize the region (creates grain clouds, loads sample)
+        if not region.initialize():
+            raise RuntimeError("Failed to initialize Granular region")
+        
+        return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
-        return True
+        """
+        Load sample data for granular region.
+        
+        Args:
+            region: Region to load sample for
+            
+        Returns:
+            True if sample loaded successfully
+        """
+        # Granular synthesis requires sample data for grain source
+        if hasattr(region, 'load_sample'):
+            return region.load_sample()
+        return region._initialized if hasattr(region, '_initialized') else False
 
     def generate_samples(self, note: int, velocity: int, modulation: dict[str, float], block_size: int) -> np.ndarray:
         """
@@ -560,16 +606,24 @@ class GranularEngine(SynthesisEngine):
 
         cloud_idx = self.create_grain_cloud(cloud_params)
         if cloud_idx >= 0:
-            # Store note->cloud mapping (simplified)
-            pass
+            # Store note-to-cloud mapping for proper voice management
+            if not hasattr(self, 'note_cloud_map'):
+                self.note_cloud_map = {}
+            self.note_cloud_map[note] = cloud_idx
 
     def note_off(self, note: int):
-        """Handle note-off event."""
-        # For now, just clear all clouds (simplified)
-        # In a full implementation, we'd track note->cloud mappings
-        for i in range(self.max_clouds):
-            if i in self.active_clouds:
-                self.destroy_grain_cloud(i)
+        """Handle note-off event with proper cloud management."""
+        # Professional note-off with note-to-cloud tracking
+        if hasattr(self, 'note_cloud_map') and note in self.note_cloud_map:
+            cloud_idx = self.note_cloud_map[note]
+            if cloud_idx in self.active_clouds:
+                self.destroy_grain_cloud(cloud_idx)
+            del self.note_cloud_map[note]
+        else:
+            # Fallback: clear all clouds if mapping not found
+            for i in range(self.max_clouds):
+                if i in self.active_clouds:
+                    self.destroy_grain_cloud(i)
 
     def is_active(self) -> bool:
         """Check if engine is active."""
@@ -786,6 +840,23 @@ class GranularEngine(SynthesisEngine):
             params = plugin.get_parameters()
             return params.get(param_name)
         return None
+
+    def _create_base_region(
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
+        """
+        Create Granular base region without S.Art2 wrapper.
+
+        Args:
+            descriptor: Region descriptor with granular parameters
+            sample_rate: Audio sample rate in Hz
+
+        Returns:
+            GranularRegion instance
+        """
+        from ..partial.granular_region import GranularRegion
+
+        return GranularRegion(descriptor, sample_rate)
 
     def get_plugin_info(self, plugin_name: str) -> dict[str, Any] | None:
         """

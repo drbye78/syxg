@@ -97,13 +97,21 @@ class SampleFormatHandler:
         if header.startswith(b"OggS"):
             return "ogg"
 
-        # MP3 detection (simplified)
-        if (
-            header.startswith(b"\xff\xfb")
-            or header.startswith(b"\xff\xf3")
-            or header.startswith(b"\xff\xf2")
-        ):
-            return "mp3"
+        # Professional MP3 detection using frame sync pattern
+        # MP3 frames start with 11-bit sync word (0x7FF) followed by version/layer bits
+        if len(header) >= 2:
+            # Check for valid MP3 frame sync (0xFF followed by valid frame header)
+            if header[0] == 0xFF:
+                # Second byte should have top 3 bits set (sync continuation)
+                # and valid version/layer bits
+                second_byte = header[1]
+                if (second_byte & 0xE0) == 0xE0:  # Top 3 bits set
+                    # Check for valid MPEG version and layer
+                    version_bits = (second_byte >> 3) & 0x03
+                    layer_bits = (second_byte >> 1) & 0x03
+                    # Valid combinations: version != 1, layer != 0
+                    if version_bits != 1 and layer_bits != 0:
+                        return "mp3"
 
         return None
 

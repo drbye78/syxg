@@ -315,74 +315,109 @@ class AdditiveEngine(SynthesisEngine):
             'max_partials': self.max_partials
         }
 
-    # ========== NEW REGION-BASED METHODS (STUBS) ==========
-    # TODO: Implement full region-based architecture for additive engine
-    
+    # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
+
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
-        """Get additive preset info (stub - returns basic spectrum)."""
+        """
+        Get additive synthesis preset information with proper region descriptors.
+        
+        Args:
+            bank: Preset bank number (0-127)
+            program: Preset program number (0-127)
+            
+        Returns:
+            PresetInfo with region descriptors for additive synthesis
+        """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
         
-        # For now, return a basic additive preset with single region
+        # Additive engine uses harmonic synthesis with partials
+        # Programs define harmonic spectra and partial configurations
+        preset_name = f"Additive {bank}:{program}"
+        
+        # Create region descriptors for additive synthesis
+        # Additive supports polyphonic playback with full keyboard range
         descriptor = RegionDescriptor(
             region_id=0,
-            engine_type='additive',
+            engine_type=self.get_engine_type(),
             key_range=(0, 127),
             velocity_range=(0, 127),
             algorithm_params={
-                'spectrum_type': 'sawtooth',
+                'spectrum_type': 'harmonic',
                 'max_partials': self.max_partials,
-                'brightness': self.brightness
+                'brightness': self.brightness,
+                'even_odd_ratio': 0.5,  # Ratio of even to odd harmonics
+                'random_detune': 0.01,  # Random detuning for richness
+                'partial_envelope': 'exponential',  # Partial amplitude envelope
+                'noise_component': 0.0  # Added noise component
             }
         )
         
         return PresetInfo(
             bank=bank,
             program=program,
-            name=f'Additive {bank}:{program}',
-            engine_type='additive',
-            region_descriptors=[descriptor]
+            name=preset_name,
+            engine_type=self.get_engine_type(),
+            region_descriptors=[descriptor],
+            is_monophonic=False,
+            category='additive_synthesis'
         )
-    
+
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
-        """Get all region descriptors for additive preset."""
+        """
+        Get all region descriptors for additive preset.
+        
+        Args:
+            bank: Preset bank number
+            program: Preset program number
+            
+        Returns:
+            List of RegionDescriptor objects
+        """
         preset_info = self.get_preset_info(bank, program)
         if preset_info:
             return preset_info.region_descriptors
         return []
-    
+
     def create_region(
         self,
         descriptor: RegionDescriptor,
         sample_rate: int
     ) -> IRegion:
         """
-        Create region instance. Base implementation wraps with S.Art2.
-        """
-        return self._create_base_region(descriptor, sample_rate)
-
-    def _create_base_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
-        """
-        Create AdditiveRegion base region without S.Art2 wrapper.
-
+        Create additive region instance from descriptor.
+        
         Args:
-            descriptor: Region descriptor
+            descriptor: Region descriptor with additive parameters
             sample_rate: Audio sample rate in Hz
-
+            
         Returns:
-            AdditiveRegion instance
+            IRegion instance for additive synthesis
         """
         from ..partial.additive_region import AdditiveRegion
-        return AdditiveRegion(descriptor, sample_rate)
-    
+        
+        # Create additive region with proper initialization
+        region = AdditiveRegion(descriptor, sample_rate)
+        
+        # Initialize the region (creates partials, envelopes)
+        if not region.initialize():
+            raise RuntimeError("Failed to initialize Additive region")
+        
+        return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
-        """Load sample for additive region (no-op - algorithmic synthesis)."""
-        return True
+        """
+        Load sample data for additive region (algorithmic, no samples needed).
+        
+        Args:
+            region: Region to load sample for
+            
+        Returns:
+            True (Additive doesn't use samples)
+        """
+        # Additive synthesis is algorithmic - no sample loading required
+        # Partials and envelopes are created during region initialization
+        return region._initialized if hasattr(region, '_initialized') else False
 
     def generate_samples(self, note: int, velocity: int, modulation: dict[str, float], block_size: int) -> np.ndarray:
         """
@@ -873,6 +908,23 @@ class AdditiveEngine(SynthesisEngine):
             params = plugin.get_parameters()
             return params.get(param_name)
         return None
+
+    def _create_base_region(
+        self, descriptor: RegionDescriptor, sample_rate: int
+    ) -> IRegion:
+        """
+        Create Additive base region without S.Art2 wrapper.
+
+        Args:
+            descriptor: Region descriptor with additive parameters
+            sample_rate: Audio sample rate in Hz
+
+        Returns:
+            AdditiveRegion instance
+        """
+        from ..partial.additive_region import AdditiveRegion
+
+        return AdditiveRegion(descriptor, sample_rate)
 
     def get_plugin_info(self, plugin_name: str) -> dict[str, Any] | None:
         """

@@ -884,21 +884,21 @@ class WavetableEngine(SynthesisEngine):
         Get regions for note (wavetable engine creates regions dynamically).
 
         Returns:
-            List containing a single dynamic region
+            List containing a proper WavetableRegion
         """
+        # Create proper region parameters
+        region_params = {
+            "note": note,
+            "velocity": velocity,
+            "wavetable": self.current_wavetable,
+            "key_range_low": note,
+            "key_range_high": note,
+            "velocity_range_low": velocity,
+            "velocity_range_high": velocity,
+        }
 
-        # Wavetable engine creates regions on-demand
-        # Return a placeholder that indicates wavetable synthesis should be used
-        class WavetableRegion:
-            def __init__(self, note, velocity, wavetable_name):
-                self.note = note
-                self.velocity = velocity
-                self.wavetable_name = wavetable_name
-
-            def should_play_for_note(self, n, v):
-                return n == self.note and v == self.velocity
-
-        return [WavetableRegion(note, velocity, self.current_wavetable)]
+        # Return proper WavetableRegion instance
+        return [WavetableRegion(region_params, self.wavetable_bank)]
 
     def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> SynthesisPartial:
         """
@@ -1084,56 +1084,111 @@ class WavetableEngine(SynthesisEngine):
             ],
         }
 
-    # ========== NEW REGION-BASED METHODS (STUBS) ==========
+    # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
 
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
-        """Get wavetable preset info (stub)."""
+        """
+        Get wavetable preset information with proper region descriptors.
+
+        Args:
+            bank: Preset bank number (0-127)
+            program: Preset program number (0-127)
+
+        Returns:
+            PresetInfo with region descriptors for wavetable synthesis
+        """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
 
+        # Wavetable engine uses wavetable synthesis with morphing
+        # Programs define wavetable configurations and morphing settings
+        preset_name = f"Wavetable {bank}:{program}"
+
+        # Get wavetable name from preset bank
+        wavetable_name = self.get_wavetable_preset_name(bank, program)
+        if not wavetable_name:
+            wavetable_name = "default"
+
+        # Create region descriptors for wavetable synthesis
+        # Wavetable supports polyphonic playback with full keyboard range
         descriptor = RegionDescriptor(
             region_id=0,
-            engine_type="wavetable",
+            engine_type=self.get_engine_type(),
             key_range=(0, 127),
             velocity_range=(0, 127),
-            algorithm_params={"wavetable": "default"},
+            algorithm_params={
+                "wavetable_name": wavetable_name,
+                "wavetable_position": 0.0,  # Start position in wavetable
+                "wavetable_morph": 0.0,  # Morph between wavetables
+                "oscillator_count": 2,  # Dual oscillator wavetable synthesis
+                "unison_detune": 0.0,  # Unison detuning
+                "filter_type": "lowpass",
+                "filter_cutoff": 2000.0,  # Hz
+                "filter_resonance": 0.5,
+            },
         )
 
         return PresetInfo(
             bank=bank,
             program=program,
-            name=f"Wavetable {bank}:{program}",
-            engine_type="wavetable",
+            name=preset_name,
+            engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
+            is_monophonic=False,
+            category="wavetable_synthesis",
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
+        """
+        Get all region descriptors for wavetable preset.
+
+        Args:
+            bank: Preset bank number
+            program: Preset program number
+
+        Returns:
+            List of RegionDescriptor objects
+        """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
 
     def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
-        Create region instance. Base implementation wraps with S.Art2.
-        """
-        return self._create_base_region(descriptor, sample_rate)
-
-    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
-        """
-        Create WavetableRegion base region without S.Art2 wrapper.
+        Create wavetable region instance from descriptor.
 
         Args:
-            descriptor: Region descriptor
+            descriptor: Region descriptor with wavetable parameters
             sample_rate: Audio sample rate in Hz
 
         Returns:
-            WavetableRegion instance
+            IRegion instance for wavetable synthesis
         """
         from ..partial.wavetable_region import WavetableRegion
 
-        return WavetableRegion(descriptor, sample_rate)
+        # Create wavetable region with proper initialization
+        region = WavetableRegion(descriptor, sample_rate)
+
+        # Initialize the region (loads wavetable data, creates oscillators)
+        if not region.initialize():
+            raise RuntimeError("Failed to initialize Wavetable region")
+
+        return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
-        return True
+        """
+        Load wavetable data for region.
+
+        Args:
+            region: Region to load wavetable for
+
+        Returns:
+            True if wavetable loaded successfully
+        """
+        # Wavetable data is loaded during region initialization
+        # This method ensures the wavetable is properly loaded
+        if hasattr(region, "load_wavetable"):
+            return region.load_wavetable()
+        return region._initialized if hasattr(region, "_initialized") else False
 
     def get_available_wavetables(self) -> list[str]:
         """Get list of available wavetable names."""
@@ -1358,6 +1413,21 @@ class WavetableEngine(SynthesisEngine):
             params = plugin.get_parameters()
             return params.get(param_name)
         return None
+
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
+        """
+        Create Wavetable base region without S.Art2 wrapper.
+
+        Args:
+            descriptor: Region descriptor with wavetable parameters
+            sample_rate: Audio sample rate in Hz
+
+        Returns:
+            WavetableRegion instance
+        """
+        from ..partial.wavetable_region import WavetableRegion
+
+        return WavetableRegion(descriptor, sample_rate)
 
     def get_plugin_info(self, plugin_name: str) -> dict[str, Any] | None:
         """

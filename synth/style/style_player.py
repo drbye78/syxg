@@ -42,7 +42,7 @@ class SectionTransition:
 
 class StylePlayer:
     """
-    High-level style player that manages all style playback functionality.
+    Professional high-level style player with advanced features.
 
     This is the main interface for working with styles, providing:
     - Start/stop/control of style playback
@@ -50,6 +50,7 @@ class StylePlayer:
     - OTS integration
     - Style dynamics control
     - Integration with the synthesizer
+    - Advanced features: chord memory, pattern variations, dynamic arrangement
     """
 
     def __init__(self, synthesizer: Any, sample_rate: int = 44100):
@@ -66,6 +67,14 @@ class StylePlayer:
         self._playing = False
         self._current_section: StyleSectionType | None = None
 
+        # Advanced style features
+        self._chord_memory: list[Any] = []  # Chord progression memory
+        self._pattern_variations: dict[int, list[int]] = {}  # Pattern variations per section
+        self._dynamic_arrangement = True  # Dynamic arrangement enabled
+        self._auto_fill = True  # Automatic fill patterns
+        self._break_probability = 0.0  # Probability of breaks (0.0-1.0)
+        
+        # Callbacks
         self._on_section_change: Callable[[StyleSectionType, StyleSectionType], None] | None = None
         self._on_chord_change: Callable[[Any], None] | None = None
         self._on_state_change: Callable[[str], None] | None = None
@@ -283,7 +292,7 @@ class StylePlayer:
         self._on_state_change = callback
 
     def get_status(self) -> dict[str, Any]:
-        """Get player status"""
+        """Get comprehensive player status with advanced features."""
         status = {
             "playing": self._playing,
             "style_loaded": self._style is not None,
@@ -292,6 +301,11 @@ class StylePlayer:
             if self._current_section
             else None,
             "tempo": self.tempo,
+            # Advanced features status
+            "dynamic_arrangement": self._dynamic_arrangement,
+            "auto_fill": self._auto_fill,
+            "chord_memory_size": len(self._chord_memory),
+            "break_probability": self._break_probability,
         }
 
         if self._accompaniment:
@@ -304,6 +318,73 @@ class StylePlayer:
             status["dynamics"] = self._dynamics.get_status()
 
         return status
+
+    # ========== ADVANCED STYLE FEATURES ==========
+
+    def set_chord_memory(self, chords: list[Any]):
+        """Set chord progression memory for intelligent accompaniment."""
+        with self._lock:
+            self._chord_memory = chords.copy()
+            
+    def add_chord_to_memory(self, chord: Any):
+        """Add chord to progression memory."""
+        with self._lock:
+            self._chord_memory.append(chord)
+            
+    def clear_chord_memory(self):
+        """Clear chord progression memory."""
+        with self._lock:
+            self._chord_memory.clear()
+            
+    def get_chord_memory(self) -> list[Any]:
+        """Get current chord progression memory."""
+        with self._lock:
+            return self._chord_memory.copy()
+            
+    def set_pattern_variation(self, section_type: StyleSectionType, variation_ids: list[int]):
+        """Set pattern variations for a section."""
+        with self._lock:
+            self._pattern_variations[section_type.value] = variation_ids
+            
+    def get_pattern_variation(self, section_type: StyleSectionType) -> list[int]:
+        """Get pattern variations for a section."""
+        with self._lock:
+            return self._pattern_variations.get(section_type.value, [])
+            
+    def enable_dynamic_arrangement(self, enabled: bool = True):
+        """Enable/disable dynamic arrangement for intelligent accompaniment."""
+        with self._lock:
+            self._dynamic_arrangement = enabled
+            
+    def set_auto_fill(self, enabled: bool = True):
+        """Enable/disable automatic fill patterns between sections."""
+        with self._lock:
+            self._auto_fill = enabled
+            
+    def set_break_probability(self, probability: float):
+        """Set probability of breaks in accompaniment (0.0-1.0)."""
+        with self._lock:
+            self._break_probability = max(0.0, min(1.0, probability))
+            
+    def trigger_break(self):
+        """Trigger an immediate break in the accompaniment."""
+        with self._lock:
+            if self._accompaniment:
+                self._accompaniment.trigger_break()
+                
+    def get_chord_progression_analysis(self) -> dict[str, Any]:
+        """Analyze current chord progression in memory."""
+        with self._lock:
+            if not self._chord_memory:
+                return {"analysis": "No chord progression in memory"}
+            
+            # Simple analysis
+            analysis = {
+                "chord_count": len(self._chord_memory),
+                "unique_chords": len(set(str(c) for c in self._chord_memory)),
+                "progression": [str(c) for c in self._chord_memory],
+            }
+            return analysis
 
     def reset(self):
         """Reset player state"""
