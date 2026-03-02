@@ -4,6 +4,7 @@ Jupiter-X Component Manager
 Central hub for all Jupiter-X components, managing the 16-part multitimbral
 system, global parameters, and integration with the modern synthesizer.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -337,8 +338,15 @@ class JupiterXComponentManager:
 
             return None
 
-    def process_midi_message(self, channel: int, message_type: str, note: int = None,
-                           velocity: int = None, controller: int = None, value: int = None) -> bool:
+    def process_midi_message(
+        self,
+        channel: int,
+        message_type: str,
+        note: int = None,
+        velocity: int = None,
+        controller: int = None,
+        value: int = None,
+    ) -> bool:
         """
         Process MIDI message and route to appropriate parts.
 
@@ -359,14 +367,18 @@ class JupiterXComponentManager:
             # Route to all parts that should receive on this channel
             for part in self.parts:
                 if part.should_receive_midi(channel):
-                    if message_type == 'note_on' and note is not None and velocity is not None:
+                    if message_type == "note_on" and note is not None and velocity is not None:
                         if part.note_on(note, velocity):
                             self.active_parts[part.part_number] = True
                             processed = True
-                    elif message_type == 'note_off' and note is not None:
+                    elif message_type == "note_off" and note is not None:
                         part.note_off(note)
                         processed = True
-                    elif message_type == 'control_change' and controller is not None and value is not None:
+                    elif (
+                        message_type == "control_change"
+                        and controller is not None
+                        and value is not None
+                    ):
                         # Handle control changes (would route to appropriate parameters)
                         processed = True
 
@@ -423,83 +435,83 @@ class JupiterXComponentManager:
         """Map NRPN parameter ID to part parameter name."""
         # Oscillator parameters (0x00-0x0B)
         if param_id == 0x00:
-            return 'osc1_waveform'
+            return "osc1_waveform"
         elif param_id == 0x01:
-            return 'osc1_coarse_tune'
+            return "osc1_coarse_tune"
         elif param_id == 0x02:
-            return 'osc1_fine_tune'
+            return "osc1_fine_tune"
         elif param_id == 0x03:
-            return 'osc1_level'
+            return "osc1_level"
         elif param_id == 0x04:
-            return 'osc1_supersaw_spread'
+            return "osc1_supersaw_spread"
         elif param_id == 0x05:
-            return 'osc2_waveform'
+            return "osc2_waveform"
         elif param_id == 0x06:
-            return 'osc2_coarse_tune'
+            return "osc2_coarse_tune"
         elif param_id == 0x07:
-            return 'osc2_fine_tune'
+            return "osc2_fine_tune"
         elif param_id == 0x08:
-            return 'osc2_level'
+            return "osc2_level"
         elif param_id == 0x09:
-            return 'osc2_detune'
+            return "osc2_detune"
         elif param_id == 0x0A:
-            return 'osc_sync'
+            return "osc_sync"
         elif param_id == 0x0B:
-            return 'ring_modulation'
+            return "ring_modulation"
 
         # Filter parameters (0x10-0x19)
         elif param_id == 0x10:
-            return 'filter_type'
+            return "filter_type"
         elif param_id == 0x11:
-            return 'filter_cutoff'
+            return "filter_cutoff"
         elif param_id == 0x12:
-            return 'filter_resonance'
+            return "filter_resonance"
         elif param_id == 0x13:
-            return 'filter_drive'
+            return "filter_drive"
         elif param_id == 0x14:
-            return 'filter_key_tracking'
+            return "filter_key_tracking"
         elif param_id == 0x15:
-            return 'filter_envelope_amount'
+            return "filter_envelope_amount"
         elif param_id == 0x16:
-            return 'filter_attack'
+            return "filter_attack"
         elif param_id == 0x17:
-            return 'filter_decay'
+            return "filter_decay"
         elif param_id == 0x18:
-            return 'filter_sustain'
+            return "filter_sustain"
         elif param_id == 0x19:
-            return 'filter_release'
+            return "filter_release"
 
         # Amplifier parameters (0x20-0x25)
         elif param_id == 0x20:
-            return 'amp_level'
+            return "amp_level"
         elif param_id == 0x21:
-            return 'amp_attack'
+            return "amp_attack"
         elif param_id == 0x22:
-            return 'amp_decay'
+            return "amp_decay"
         elif param_id == 0x23:
-            return 'amp_sustain'
+            return "amp_sustain"
         elif param_id == 0x24:
-            return 'amp_release'
+            return "amp_release"
         elif param_id == 0x25:
-            return 'amp_velocity_sensitivity'
+            return "amp_velocity_sensitivity"
 
         # LFO parameters (0x28-0x2F)
         elif param_id == 0x28:
-            return 'lfo1_waveform'
+            return "lfo1_waveform"
         elif param_id == 0x29:
-            return 'lfo1_rate'
+            return "lfo1_rate"
         elif param_id == 0x2A:
-            return 'lfo1_depth'
+            return "lfo1_depth"
         elif param_id == 0x2B:
-            return 'lfo1_sync'
+            return "lfo1_sync"
         elif param_id == 0x2C:
-            return 'lfo2_waveform'
+            return "lfo2_waveform"
         elif param_id == 0x2D:
-            return 'lfo2_rate'
+            return "lfo2_rate"
         elif param_id == 0x2E:
-            return 'lfo2_depth'
+            return "lfo2_depth"
         elif param_id == 0x2F:
-            return 'lfo2_sync'
+            return "lfo2_sync"
 
         return None
 
@@ -520,8 +532,9 @@ class JupiterXComponentManager:
                 return True
         return False
 
-    def set_engine_parameter(self, part_number: int, engine_type: int,
-                           param_id: int, value: int) -> bool:
+    def set_engine_parameter(
+        self, part_number: int, engine_type: int, param_id: int, value: int
+    ) -> bool:
         """Set parameter for a specific engine in a part by parameter ID."""
         with self.lock:
             part = self.get_part(part_number)
@@ -560,44 +573,120 @@ class JupiterXComponentManager:
     def _map_engine_param_id_to_name(self, engine_type: int, param_id: int) -> str | None:
         """Map engine parameter ID to parameter name based on engine type."""
         # Import here to avoid circular imports
-        from .constants import (ENGINE_ANALOG, ANALOG_OSC1_WAVEFORM, ANALOG_OSC1_COARSE_TUNE,
-                               ANALOG_OSC1_FINE_TUNE, ANALOG_OSC1_LEVEL, ANALOG_OSC1_SUPERSAW_SPREAD,
-                               ANALOG_OSC2_WAVEFORM, ANALOG_OSC2_COARSE_TUNE, ANALOG_OSC2_FINE_TUNE,
-                               ANALOG_OSC2_LEVEL, ANALOG_OSC2_DETUNE, ANALOG_OSC2_RING_MOD,
-                               ANALOG_FILTER_TYPE, ANALOG_FILTER_CUTOFF, ANALOG_FILTER_RESONANCE,
-                               ANALOG_FILTER_ENVELOPE_AMOUNT, ANALOG_AMP_ATTACK, ANALOG_AMP_DECAY,
-                               ANALOG_AMP_SUSTAIN, ANALOG_AMP_RELEASE, ANALOG_FILTER_ATTACK,
-                               ANALOG_FILTER_DECAY, ANALOG_FILTER_SUSTAIN, ANALOG_FILTER_RELEASE)
+        from .constants import (
+            ENGINE_ANALOG,
+            ANALOG_OSC1_WAVEFORM,
+            ANALOG_OSC1_COARSE_TUNE,
+            ANALOG_OSC1_FINE_TUNE,
+            ANALOG_OSC1_LEVEL,
+            ANALOG_OSC1_SUPERSAW_SPREAD,
+            ANALOG_OSC2_WAVEFORM,
+            ANALOG_OSC2_COARSE_TUNE,
+            ANALOG_OSC2_FINE_TUNE,
+            ANALOG_OSC2_LEVEL,
+            ANALOG_OSC2_DETUNE,
+            ANALOG_OSC2_RING_MOD,
+            ANALOG_FILTER_TYPE,
+            ANALOG_FILTER_CUTOFF,
+            ANALOG_FILTER_RESONANCE,
+            ANALOG_FILTER_ENVELOPE_AMOUNT,
+            ANALOG_AMP_ATTACK,
+            ANALOG_AMP_DECAY,
+            ANALOG_AMP_SUSTAIN,
+            ANALOG_AMP_RELEASE,
+            ANALOG_FILTER_ATTACK,
+            ANALOG_FILTER_DECAY,
+            ANALOG_FILTER_SUSTAIN,
+            ANALOG_FILTER_RELEASE,
+        )
 
         if engine_type == ENGINE_ANALOG:
             param_map = {
-                ANALOG_OSC1_WAVEFORM: 'osc1_waveform',
-                ANALOG_OSC1_COARSE_TUNE: 'osc1_coarse_tune',
-                ANALOG_OSC1_FINE_TUNE: 'osc1_fine_tune',
-                ANALOG_OSC1_LEVEL: 'osc1_level',
-                ANALOG_OSC1_SUPERSAW_SPREAD: 'osc1_supersaw_spread',
-                ANALOG_OSC2_WAVEFORM: 'osc2_waveform',
-                ANALOG_OSC2_COARSE_TUNE: 'osc2_coarse_tune',
-                ANALOG_OSC2_FINE_TUNE: 'osc2_fine_tune',
-                ANALOG_OSC2_LEVEL: 'osc2_level',
-                ANALOG_OSC2_DETUNE: 'osc2_detune',
-                ANALOG_OSC2_RING_MOD: 'osc2_ring_mod',
-                ANALOG_FILTER_TYPE: 'filter_type',
-                ANALOG_FILTER_CUTOFF: 'filter_cutoff',
-                ANALOG_FILTER_RESONANCE: 'filter_resonance',
-                ANALOG_FILTER_ENVELOPE_AMOUNT: 'filter_envelope_amount',
-                ANALOG_AMP_ATTACK: 'amp_attack',
-                ANALOG_AMP_DECAY: 'amp_decay',
-                ANALOG_AMP_SUSTAIN: 'amp_sustain',
-                ANALOG_AMP_RELEASE: 'amp_release',
-                ANALOG_FILTER_ATTACK: 'filter_attack',
-                ANALOG_FILTER_DECAY: 'filter_decay',
-                ANALOG_FILTER_SUSTAIN: 'filter_sustain',
-                ANALOG_FILTER_RELEASE: 'filter_release',
+                ANALOG_OSC1_WAVEFORM: "osc1_waveform",
+                ANALOG_OSC1_COARSE_TUNE: "osc1_coarse_tune",
+                ANALOG_OSC1_FINE_TUNE: "osc1_fine_tune",
+                ANALOG_OSC1_LEVEL: "osc1_level",
+                ANALOG_OSC1_SUPERSAW_SPREAD: "osc1_supersaw_spread",
+                ANALOG_OSC2_WAVEFORM: "osc2_waveform",
+                ANALOG_OSC2_COARSE_TUNE: "osc2_coarse_tune",
+                ANALOG_OSC2_FINE_TUNE: "osc2_fine_tune",
+                ANALOG_OSC2_LEVEL: "osc2_level",
+                ANALOG_OSC2_DETUNE: "osc2_detune",
+                ANALOG_OSC2_RING_MOD: "osc2_ring_mod",
+                ANALOG_FILTER_TYPE: "filter_type",
+                ANALOG_FILTER_CUTOFF: "filter_cutoff",
+                ANALOG_FILTER_RESONANCE: "filter_resonance",
+                ANALOG_FILTER_ENVELOPE_AMOUNT: "filter_envelope_amount",
+                ANALOG_AMP_ATTACK: "amp_attack",
+                ANALOG_AMP_DECAY: "amp_decay",
+                ANALOG_AMP_SUSTAIN: "amp_sustain",
+                ANALOG_AMP_RELEASE: "amp_release",
+                ANALOG_FILTER_ATTACK: "filter_attack",
+                ANALOG_FILTER_DECAY: "filter_decay",
+                ANALOG_FILTER_SUSTAIN: "filter_sustain",
+                ANALOG_FILTER_RELEASE: "filter_release",
             }
             return param_map.get(param_id)
 
-        # For other engine types, return None for now (they would need their own mappings)
+        # Add mappings for digital engine
+        if engine_type == ENGINE_DIGITAL:
+            param_map = {
+                0: "osc_waveform",
+                1: "osc_coarse_tune",
+                2: "osc_fine_tune",
+                3: "osc_level",
+                4: "filter_type",
+                5: "filter_cutoff",
+                6: "filter_resonance",
+                7: "filter_envelope_amount",
+                10: "amp_attack",
+                11: "amp_decay",
+                12: "amp_sustain",
+                13: "amp_release",
+            }
+            return param_map.get(param_id)
+
+        # Add mappings for FM engine
+        if engine_type == ENGINE_FM:
+            param_map = {
+                0: "op1_waveform",
+                1: "op1_level",
+                2: "op1_frequency",
+                3: "op2_waveform",
+                4: "op2_level",
+                5: "op2_frequency",
+                6: "op3_waveform",
+                7: "op3_level",
+                8: "op3_frequency",
+                9: "op4_waveform",
+                10: "op4_level",
+                11: "op4_frequency",
+                12: "algorithm",
+                13: "feedback_level",
+                20: "amp_attack",
+                21: "amp_decay",
+                22: "amp_sustain",
+                23: "amp_release",
+            }
+            return param_map.get(param_id)
+
+        # Add mappings for external engine
+        if engine_type == ENGINE_EXTERNAL:
+            param_map = {
+                0: "external_source",
+                1: "input_gain",
+                2: "thru_enabled",
+                3: "mix_level",
+                4: "filter_cutoff",
+                5: "filter_resonance",
+                10: "amp_attack",
+                11: "amp_decay",
+                12: "amp_sustain",
+                13: "amp_release",
+            }
+            return param_map.get(param_id)
+
+        # For unknown engine types, return None
         return None
 
     def reset_all_parts(self):
@@ -617,44 +706,44 @@ class JupiterXComponentManager:
         """Get comprehensive Jupiter-X system information."""
         with self.lock:
             return {
-                'system_params': {
-                    'master_volume': self.system_params.master_volume,
-                    'master_tune': self.system_params.master_tune,
-                    'master_transpose': self.system_params.master_transpose,
-                    'system_clock': self.system_params.system_clock,
-                    'device_id': self.system_params.device_id,
-                    'local_control': self.system_params.local_control,
-                    'program_change_mode': self.system_params.program_change_mode,
-                    'midi_channel': self.system_params.midi_channel,
-                    'lcd_contrast': self.system_params.lcd_contrast,
-                    'led_brightness': self.system_params.led_brightness,
+                "system_params": {
+                    "master_volume": self.system_params.master_volume,
+                    "master_tune": self.system_params.master_tune,
+                    "master_transpose": self.system_params.master_transpose,
+                    "system_clock": self.system_params.system_clock,
+                    "device_id": self.system_params.device_id,
+                    "local_control": self.system_params.local_control,
+                    "program_change_mode": self.system_params.program_change_mode,
+                    "midi_channel": self.system_params.midi_channel,
+                    "lcd_contrast": self.system_params.lcd_contrast,
+                    "led_brightness": self.system_params.led_brightness,
                 },
-                'effects_params': {
-                    'reverb': {
-                        'type': self.effects_params.reverb_type,
-                        'level': self.effects_params.reverb_level,
-                        'time': self.effects_params.reverb_time,
+                "effects_params": {
+                    "reverb": {
+                        "type": self.effects_params.reverb_type,
+                        "level": self.effects_params.reverb_level,
+                        "time": self.effects_params.reverb_time,
                     },
-                    'chorus': {
-                        'type': self.effects_params.chorus_type,
-                        'level': self.effects_params.chorus_level,
-                        'rate': self.effects_params.chorus_rate,
+                    "chorus": {
+                        "type": self.effects_params.chorus_type,
+                        "level": self.effects_params.chorus_level,
+                        "rate": self.effects_params.chorus_rate,
                     },
-                    'delay': {
-                        'type': self.effects_params.delay_type,
-                        'level': self.effects_params.delay_level,
-                        'time': self.effects_params.delay_time,
+                    "delay": {
+                        "type": self.effects_params.delay_type,
+                        "level": self.effects_params.delay_level,
+                        "time": self.effects_params.delay_time,
                     },
-                    'distortion': {
-                        'type': self.effects_params.distortion_type,
-                        'level': self.effects_params.distortion_level,
-                        'drive': self.effects_params.distortion_drive,
+                    "distortion": {
+                        "type": self.effects_params.distortion_type,
+                        "level": self.effects_params.distortion_level,
+                        "drive": self.effects_params.distortion_drive,
                     },
                 },
-                'parts': [part.get_part_info() for part in self.parts],
-                'active_parts': self.active_parts.copy(),
-                'sample_rate': self.sample_rate,
-                'total_parts': 16,
+                "parts": [part.get_part_info() for part in self.parts],
+                "active_parts": self.active_parts.copy(),
+                "sample_rate": self.sample_rate,
+                "total_parts": 16,
             }
 
     def cleanup(self):

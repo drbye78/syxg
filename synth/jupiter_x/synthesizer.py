@@ -28,7 +28,7 @@ class JupiterXSynthesizer:
     parameter system into a unified interface.
     """
 
-    def __init__(self, sample_rate: int = 44100, buffer_size: int = 1024):
+    def __init__(self, sample_rate: int = 44100, buffer_size: int = 1024, buffer_oool = None):
         """
         Initialize Jupiter-X synthesizer.
 
@@ -38,6 +38,7 @@ class JupiterXSynthesizer:
         """
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
+        self.buffer_pool = buffer_oool
         self.jupiter_x_enabled = False
 
         # Lock for thread safety
@@ -88,7 +89,7 @@ class JupiterXSynthesizer:
 
         # Effects coordinator
         self.effects_coordinator = XGEffectsCoordinator(
-            self.sample_rate, self.buffer_size, max_channels=16, synthesizer=self
+            self.sample_rate, self.buffer_size, max_channels=16, synthesizer=self, buffer_pool=self.buffer_pool
         )
 
         # Set component references

@@ -28,7 +28,7 @@ midi:
 engines:
   default: "sf2"
   priority:
-    sf2: 10
+    sf2: 30
     fm: 8
     wavetable: 7
     physical: 5

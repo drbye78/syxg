@@ -740,8 +740,8 @@ class AdditiveEngine(SynthesisEngine):
                     print("🎹 Additive Engine: Jupiter-X analog extensions loaded automatically")
                 else:
                     print("⚠️  Additive Engine: Failed to load Jupiter-X analog extensions")
-            else:
-                print("ℹ️  Additive Engine: Jupiter-X analog extensions not available")
+            # else:
+            #     print("ℹ️  Additive Engine: Jupiter-X analog extensions not available")
 
         except Exception as e:
             print(f"⚠️  Additive Engine: Error during auto-loading Jupiter-X plugin: {e}")

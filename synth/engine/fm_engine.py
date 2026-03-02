@@ -5,6 +5,7 @@ Implements FM synthesis with 2-6 operators supporting various algorithms
 including basic FM, stacked FM, and feedback FM. Provides DX7-style
 parameter sets and real-time modulation capabilities.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -40,9 +41,7 @@ class FMXLFO:
         self.random_value = 0.0
         self.random_hold_time = 0.0
 
-    def set_parameters(
-        self, frequency: float = 1.0, waveform: str = "sine", depth: float = 1.0
-    ):
+    def set_parameters(self, frequency: float = 1.0, waveform: str = "sine", depth: float = 1.0):
         """Set LFO parameters."""
         self.frequency = max(0.01, min(20.0, frequency))  # 0.01-20 Hz range
         self.waveform = waveform
@@ -76,8 +75,7 @@ class FMXLFO:
             )
         elif self.waveform == "sawtooth":
             value = 2.0 * (
-                self.phase / (2.0 * math.pi)
-                - math.floor(self.phase / (2.0 * math.pi) + 0.5)
+                self.phase / (2.0 * math.pi) - math.floor(self.phase / (2.0 * math.pi) + 0.5)
             )
         elif self.waveform == "square":
             value = 1.0 if math.sin(self.phase) >= 0 else -1.0
@@ -205,9 +203,7 @@ class FMOperator:
 
         # Apply velocity sensitivity
         if self.velocity_sensitivity > 0:
-            velocity_scale = (velocity / 127.0) ** (
-                1.0 / (8 - self.velocity_sensitivity)
-            )
+            velocity_scale = (velocity / 127.0) ** (1.0 / (8 - self.velocity_sensitivity))
             self.envelope_value *= velocity_scale
 
     def note_off(self):
@@ -249,9 +245,7 @@ class FMOperator:
             # Interpolate between levels
             progress = self.envelope_time / rate
             if self.envelope_stage < 7:  # Not the last stage
-                self.envelope_value = (
-                    current_level + (next_level - current_level) * progress
-                )
+                self.envelope_value = current_level + (next_level - current_level) * progress
             else:
                 # Last stage holds or decays to zero
                 self.envelope_value = current_level * (1.0 - progress)
@@ -328,8 +322,7 @@ class FMOperator:
             )
         elif self.waveform == "sawtooth":
             output = 2.0 * (
-                self.phase / (2.0 * math.pi)
-                - math.floor(self.phase / (2.0 * math.pi) + 0.5)
+                self.phase / (2.0 * math.pi) - math.floor(self.phase / (2.0 * math.pi) + 0.5)
             )
         elif self.waveform == "square":
             output = 1.0 if math.sin(self.phase) >= 0 else -1.0
@@ -364,9 +357,7 @@ class FMOperator:
                 self.feedback_buffer[0] = output
             else:
                 # Initialize feedback buffer
-                self.feedback_buffer = np.zeros(
-                    min(self.feedback_level, 8), dtype=np.float32
-                )
+                self.feedback_buffer = np.zeros(min(self.feedback_level, 8), dtype=np.float32)
 
             self.feedback_sample = output
 
@@ -491,9 +482,7 @@ class FMEngine(SynthesisEngine):
         **{
             f"algorithm_{i}": {
                 "operators": list(range(min(8, 2 + ((i - 9) % 7)))),
-                "modulation": {
-                    j: [j + 1] for j in range(min(7, 2 + ((i - 9) % 7)) - 1)
-                },
+                "modulation": {j: [j + 1] for j in range(min(7, 2 + ((i - 9) % 7)) - 1)},
                 "output": [0],
                 "name": f"Algorithm {i}",
             }
@@ -501,9 +490,7 @@ class FMEngine(SynthesisEngine):
         },
     }
 
-    def __init__(
-        self, num_operators: int = 8, sample_rate: int = 44100, block_size: int = 1024
-    ):
+    def __init__(self, num_operators: int = 8, sample_rate: int = 44100, block_size: int = 1024):
         """
         Initialize FM-X synthesis engine.
 
@@ -538,9 +525,7 @@ class FMEngine(SynthesisEngine):
         self.ring_mod_connections = []  # List of (op1, op2) pairs
 
         # MIDI Control Integration
-        self.sysex_controller = XGSYSEXController(
-            None, None
-        )  # Initialize with None for now
+        self.sysex_controller = XGSYSEXController(None, None)  # Initialize with None for now
         self.nrpn_controller = JV2080NRPNController(
             self
         )  # We'll need to create a component manager interface
@@ -1049,9 +1034,7 @@ class FMEngine(SynthesisEngine):
             master_pan=fm_params.get("pan", 0.0),
         )
 
-    def get_all_region_descriptors(
-        self, bank: int, program: int
-    ) -> list[RegionDescriptor]:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get all region descriptors for an FM preset.
 
@@ -1067,9 +1050,7 @@ class FMEngine(SynthesisEngine):
             return preset_info.region_descriptors
         return []
 
-    def create_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create FM region instance from descriptor.
 
@@ -1085,9 +1066,7 @@ class FMEngine(SynthesisEngine):
         """
         return self._create_base_region(descriptor, sample_rate)
 
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create FM base region without S.Art2 wrapper.
 
@@ -1149,9 +1128,7 @@ class FMEngine(SynthesisEngine):
 
                 # Apply velocity scaling
                 if "velocity_sensitivity" in op:
-                    vel_factor = (velocity / 127.0) ** (
-                        op["velocity_sensitivity"] / 7.0
-                    )
+                    vel_factor = (velocity / 127.0) ** (op["velocity_sensitivity"] / 7.0)
                     op["amplitude"] = op.get("amplitude", 1.0) * vel_factor
 
         return scaled_params
@@ -1179,9 +1156,7 @@ class FMEngine(SynthesisEngine):
         base_freq = 440.0 * (2.0 ** ((note - 69) / 12.0))
 
         # Apply pitch bend
-        pitch_bend_semitones = (
-            modulation.get("pitch", 0.0) / 100.0
-        )  # Convert cents to semitones
+        pitch_bend_semitones = modulation.get("pitch", 0.0) / 100.0  # Convert cents to semitones
         bend_ratio = 2.0 ** (pitch_bend_semitones / 12.0)
         base_freq *= bend_ratio
 
@@ -1208,9 +1183,7 @@ class FMEngine(SynthesisEngine):
                 # Sum FM modulation from other operators
                 if op_idx in self.modulation_matrix:
                     for mod_idx in self.modulation_matrix[op_idx]:
-                        modulation_input += (
-                            operator_outputs[mod_idx] * 1000.0
-                        )  # Scale modulation
+                        modulation_input += operator_outputs[mod_idx] * 1000.0  # Scale modulation
 
                 # Generate base operator output (without ring modulation)
                 operator_outputs[op_idx] = self.operators[op_idx].generate_sample(
@@ -1246,10 +1219,9 @@ class FMEngine(SynthesisEngine):
                     # LFO to pitch modulation
                     lfo_idx = int(source[3]) - 1  # lfo1 -> 0, lfo2 -> 1, etc.
                     if 0 <= lfo_idx < len(lfo_outputs):
-                        pitch_mod = (
-                            lfo_outputs[lfo_idx] * amount * 100.0
-                        )  # Convert to cents
-                        # This would need to be applied per operator - simplified for now
+                        pitch_mod = lfo_outputs[lfo_idx] * amount * 100.0  # Convert to cents
+                        # Apply LFO pitch modulation to base frequency
+                        base_freq *= 2.0 ** (pitch_mod / 1200.0)
 
                 elif source == "velocity" and dest == "amplitude":
                     # Velocity to amplitude scaling (already handled in envelopes)
@@ -1275,9 +1247,7 @@ class FMEngine(SynthesisEngine):
             # Apply effects sends (simplified)
             if self.effects_enabled:
                 # Basic effects mixing - would integrate with full effects system
-                wet_amount = (
-                    self.reverb_send + self.chorus_send + self.delay_send
-                ) / 3.0
+                wet_amount = (self.reverb_send + self.chorus_send + self.delay_send) / 3.0
                 sample = sample * (1.0 - wet_amount * 0.3)  # Simple dry/wet mix
 
             output[i] = sample
@@ -1291,9 +1261,7 @@ class FMEngine(SynthesisEngine):
         """Check if a note is supported."""
         return 0 <= note <= 127
 
-    def create_partial(
-        self, partial_params: dict[str, Any], sample_rate: int
-    ) -> FMPartial:
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> FMPartial:
         """Create FM partial (not used in direct engine mode)."""
         from ..partial.fm_partial import FMPartial
 
@@ -1643,9 +1611,7 @@ class FMEngine(SynthesisEngine):
 
     # Effects Integration Methods
 
-    def set_effects_sends(
-        self, reverb: float = 0.0, chorus: float = 0.0, delay: float = 0.0
-    ):
+    def set_effects_sends(self, reverb: float = 0.0, chorus: float = 0.0, delay: float = 0.0):
         """
         Set effects send levels.
 
@@ -1657,9 +1623,7 @@ class FMEngine(SynthesisEngine):
         self.reverb_send = max(0.0, min(1.0, reverb))
         self.chorus_send = max(0.0, min(1.0, chorus))
         self.delay_send = max(0.0, min(1.0, delay))
-        self.effects_enabled = (
-            self.reverb_send > 0 or self.chorus_send > 0 or self.delay_send > 0
-        )
+        self.effects_enabled = self.reverb_send > 0 or self.chorus_send > 0 or self.delay_send > 0
 
     # Algorithm Management Methods
 
@@ -1928,9 +1892,7 @@ class FMEngine(SynthesisEngine):
 
         return handled
 
-    def set_plugin_parameter(
-        self, plugin_name: str, param_name: str, value: Any
-    ) -> bool:
+    def set_plugin_parameter(self, plugin_name: str, param_name: str, value: Any) -> bool:
         """
         Set parameter on a loaded plugin.
 

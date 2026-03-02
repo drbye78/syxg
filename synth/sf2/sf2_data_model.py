@@ -65,8 +65,13 @@ class SF2Zone:
             self.key_range = (gen_amount & 0xFF, (gen_amount >> 8) & 0xFF)
         elif gen_type == 43:  # velRange
             self.velocity_range = (gen_amount & 0xFF, (gen_amount >> 8) & 0xFF)
-        elif gen_type == 50:  # sampleID (instrument level)
+        elif gen_type == 53:  # sampleStartAddrCoarseOffset - used as sample ID in many SF2 files
+            # Generator 53 contains the actual sample index in the soundfont
             self.sample_id = gen_amount
+        elif gen_type == 50:  # sampleID (instrument level) - fallback if 53 not present
+            # Generator 50 is a relative index, only use if 53 is not set
+            if self.sample_id == -1:
+                self.sample_id = gen_amount
 
     def add_modulator(self, modulator_data: dict[str, Any]) -> None:
         """

@@ -14,6 +14,7 @@ XG SYSEX Format: F0 43 [dev] 4C [cmd] [data] F7
 
 Copyright (c) 2025 XG Synthesis Core
 """
+
 from __future__ import annotations
 
 import struct
@@ -23,13 +24,14 @@ from enum import IntEnum
 
 class XGSYSEXCommand(IntEnum):
     """XG SYSEX Command Codes"""
-    BULK_DUMP = 0x00        # Bulk parameter dump
-    PARAMETER_CHANGE = 0x01 # Individual parameter change
-    DUMP_REQUEST = 0x02     # Request dump
+
+    BULK_DUMP = 0x00  # Bulk parameter dump
+    PARAMETER_CHANGE = 0x01  # Individual parameter change
+    DUMP_REQUEST = 0x02  # Request dump
     RECEIVE_CHANNEL = 0x08  # Receive channel assignment
-    EFFECT_SETUP = 0x10     # Effect setup/configuration
-    PRESET_DUMP = 0x20      # Effect preset dump
-    SYSTEM_INFO = 0x30      # System information
+    EFFECT_SETUP = 0x10  # Effect setup/configuration
+    PRESET_DUMP = 0x20  # Effect preset dump
+    SYSTEM_INFO = 0x30  # System information
 
 
 class XGSYSEXController:
@@ -139,7 +141,9 @@ class XGSYSEXController:
             if self._apply_bulk_parameter(effect_type, param_id, param_value, param_type):
                 applied_params += 1
 
-        print(f"XG SYSEX: Applied {applied_params}/{param_count} bulk parameters for effect type {effect_type}")
+        print(
+            f"XG SYSEX: Applied {applied_params}/{param_count} bulk parameters for effect type {effect_type}"
+        )
         return None  # No response needed
 
     def _handle_parameter_change(self, data: list[int]) -> list[int] | None:
@@ -157,7 +161,9 @@ class XGSYSEXController:
         param_type = data[4]
 
         if self._apply_bulk_parameter(effect_type, param_id, param_value, param_type):
-            print(f"XG SYSEX: Applied parameter {param_id} = {param_value} for effect type {effect_type}")
+            print(
+                f"XG SYSEX: Applied parameter {param_id} = {param_value} for effect type {effect_type}"
+            )
         else:
             print(f"XG SYSEX: Failed to apply parameter {param_id} for effect type {effect_type}")
 
@@ -261,8 +267,9 @@ class XGSYSEXController:
 
     # ===== BULK PARAMETER APPLICATION =====
 
-    def _apply_bulk_parameter(self, effect_type: int, param_id: int,
-                            param_value: int, param_type: int) -> bool:
+    def _apply_bulk_parameter(
+        self, effect_type: int, param_id: int, param_value: int, param_type: int, part: int = 0
+    ) -> bool:
         """
         Apply a bulk parameter to the appropriate effect.
 
@@ -271,6 +278,7 @@ class XGSYSEXController:
             param_id: Parameter ID
             param_value: Parameter value (0-16383 for 14-bit)
             param_type: Parameter type/subtype
+            part: Part number (0-15), defaults to 0
 
         Returns:
             True if parameter was applied successfully
@@ -289,7 +297,7 @@ class XGSYSEXController:
                 return self._apply_eq_parameter(param_id, value_7bit)
             elif effect_type >= 4 and effect_type <= 6:  # Insertion Effects
                 slot = effect_type - 4  # 0-2 for insertion slots
-                return self._apply_insertion_parameter(0, slot, param_id, value_7bit)  # Part 0 for now
+                return self._apply_insertion_parameter(part, slot, param_id, value_7bit)
 
             return False
 
@@ -300,14 +308,14 @@ class XGSYSEXController:
     def _apply_reverb_parameter(self, param_id: int, value: int) -> bool:
         """Apply reverb parameter via coordinator."""
         param_map = {
-            0: ('reverb', 'type'),
-            1: ('reverb', 'time'),
-            2: ('reverb', 'level'),
-            3: ('reverb', 'pre_delay'),
-            4: ('reverb', 'hf_damping'),
-            5: ('reverb', 'density'),
-            6: ('reverb', 'early_level'),
-            7: ('reverb', 'tail_level'),
+            0: ("reverb", "type"),
+            1: ("reverb", "time"),
+            2: ("reverb", "level"),
+            3: ("reverb", "pre_delay"),
+            4: ("reverb", "hf_damping"),
+            5: ("reverb", "density"),
+            6: ("reverb", "early_level"),
+            7: ("reverb", "tail_level"),
         }
 
         if param_id in param_map:
@@ -319,11 +327,11 @@ class XGSYSEXController:
     def _apply_chorus_parameter(self, param_id: int, value: int) -> bool:
         """Apply chorus parameter via coordinator."""
         param_map = {
-            0: ('chorus', 'type'),
-            1: ('chorus', 'rate'),
-            2: ('chorus', 'depth'),
-            3: ('chorus', 'feedback'),
-            4: ('chorus', 'level'),
+            0: ("chorus", "type"),
+            1: ("chorus", "rate"),
+            2: ("chorus", "depth"),
+            3: ("chorus", "feedback"),
+            4: ("chorus", "level"),
         }
 
         if param_id in param_map:
@@ -373,25 +381,65 @@ class XGSYSEXController:
         dump_data = [effect_type]
 
         if effect_type == 0:  # Reverb
-            reverb = state.get('reverb_params', {})
-            dump_data.extend([
-                8,  # 8 parameters
-                0, reverb.get('type', 1) >> 7, reverb.get('type', 1) & 0x7F, 0,  # Type
-                1, reverb.get('time', 64) >> 7, reverb.get('time', 64) & 0x7F, 0,  # Time
-                2, reverb.get('level', 64) >> 7, reverb.get('level', 64) & 0x7F, 0,  # Level
-                3, reverb.get('pre_delay', 0) >> 7, reverb.get('pre_delay', 0) & 0x7F, 0,  # Pre-delay
-                4, reverb.get('hf_damping', 32) >> 7, reverb.get('hf_damping', 32) & 0x7F, 0,  # HF Damping
-                5, reverb.get('density', 64) >> 7, reverb.get('density', 64) & 0x7F, 0,  # Density
-                6, reverb.get('early_level', 64) >> 7, reverb.get('early_level', 64) & 0x7F, 0,  # Early Level
-                7, reverb.get('tail_level', 64) >> 7, reverb.get('tail_level', 64) & 0x7F, 0,  # Tail Level
-            ])
+            reverb = state.get("reverb_params", {})
+            dump_data.extend(
+                [
+                    8,  # 8 parameters
+                    0,
+                    reverb.get("type", 1) >> 7,
+                    reverb.get("type", 1) & 0x7F,
+                    0,  # Type
+                    1,
+                    reverb.get("time", 64) >> 7,
+                    reverb.get("time", 64) & 0x7F,
+                    0,  # Time
+                    2,
+                    reverb.get("level", 64) >> 7,
+                    reverb.get("level", 64) & 0x7F,
+                    0,  # Level
+                    3,
+                    reverb.get("pre_delay", 0) >> 7,
+                    reverb.get("pre_delay", 0) & 0x7F,
+                    0,  # Pre-delay
+                    4,
+                    reverb.get("hf_damping", 32) >> 7,
+                    reverb.get("hf_damping", 32) & 0x7F,
+                    0,  # HF Damping
+                    5,
+                    reverb.get("density", 64) >> 7,
+                    reverb.get("density", 64) & 0x7F,
+                    0,  # Density
+                    6,
+                    reverb.get("early_level", 64) >> 7,
+                    reverb.get("early_level", 64) & 0x7F,
+                    0,  # Early Level
+                    7,
+                    reverb.get("tail_level", 64) >> 7,
+                    reverb.get("tail_level", 64) & 0x7F,
+                    0,  # Tail Level
+                ]
+            )
 
         return [0x43, 0x4C, self.device_id, 0x00] + dump_data
 
     def _create_preset_dump(self, preset_id: int) -> list[int]:
         """Create a preset dump response."""
-        # This would return the preset configuration
-        dump_data = [preset_id, 0x00]  # Preset ID, empty data for now
+        # Build preset data from coordinator state
+        dump_data = [preset_id, 0x00]  # Preset ID
+
+        # Add reverb parameters if available
+        if hasattr(self.coordinator, "system_effects") and self.coordinator.system_effects:
+            reverb = self.coordinator.system_effects
+            dump_data.extend(
+                [
+                    reverb.get("reverb_type", 1),
+                    reverb.get("reverb_time", 64),
+                    reverb.get("reverb_level", 64),
+                ]
+            )
+        else:
+            dump_data.extend([1, 64, 64])  # Default values
+
         return [0x43, 0x4C, self.device_id, 0x20] + dump_data
 
     def _apply_preset_dump(self, preset_id: int, data: list[int]) -> list[int] | None:
@@ -413,8 +461,8 @@ class XGSYSEXController:
         """Create current effect status response."""
         state = self.coordinator.get_current_state()
         status_data = [
-            state.get('processing_enabled', False),
-            len(state.get('effect_units_active', [])),
+            state.get("processing_enabled", False),
+            len(state.get("effect_units_active", [])),
             0x00,  # Reserved
         ]
         return [0x43, 0x4C, self.device_id, 0x30] + status_data
@@ -422,8 +470,11 @@ class XGSYSEXController:
     def _create_firmware_info(self) -> list[int]:
         """Create firmware version information."""
         version_data = [
-            0x02, 0x00, 0x00,  # Version 2.0.0
-            0x58, 0x47,        # "XG" identifier
+            0x02,
+            0x00,
+            0x00,  # Version 2.0.0
+            0x58,
+            0x47,  # "XG" identifier
         ]
         return [0x43, 0x4C, self.device_id, 0x30] + version_data
 
@@ -473,7 +524,7 @@ class XGSYSEXController:
             return None
 
         if 0 <= effect_unit <= 9:
-            enabled = (enable_flag != 0)
+            enabled = enable_flag != 0
             if self.coordinator.set_effect_unit_activation(effect_unit, enabled):
                 print(f"XG SYSEX: Effect unit {effect_unit} {'enabled' if enabled else 'disabled'}")
                 return None
@@ -501,7 +552,7 @@ class XGSYSEXController:
         if command != 0x01 or len(data) < 3 + param_count:
             return None
 
-        params = data[3:3 + param_count]
+        params = data[3 : 3 + param_count]
 
         if chain_type == 0:  # Insertion chain
             # Configure insertion effect routing
@@ -509,7 +560,9 @@ class XGSYSEXController:
                 channel = params[0]
                 effect_type = params[1]
                 if self.coordinator.set_channel_insertion_effect(channel, 0, effect_type):
-                    print(f"XG SYSEX: Set insertion effect for channel {channel} to type {effect_type}")
+                    print(
+                        f"XG SYSEX: Set insertion effect for channel {channel} to type {effect_type}"
+                    )
                     return None
 
         elif chain_type == 1:  # Variation chain
@@ -527,12 +580,12 @@ class XGSYSEXController:
                 param_id = params[1]
                 param_value = params[2]
 
-                effect_name = 'reverb' if effect_type == 0 else 'chorus'
+                effect_name = "reverb" if effect_type == 0 else "chorus"
                 param_names = {
-                    0: ('reverb', 'type') if effect_type == 0 else ('chorus', 'type'),
-                    1: ('reverb', 'time') if effect_type == 0 else ('chorus', 'rate'),
-                    2: ('reverb', 'level') if effect_type == 0 else ('chorus', 'depth'),
-                    3: ('reverb', 'hf_damping') if effect_type == 0 else ('chorus', 'feedback'),
+                    0: ("reverb", "type") if effect_type == 0 else ("chorus", "type"),
+                    1: ("reverb", "time") if effect_type == 0 else ("chorus", "rate"),
+                    2: ("reverb", "level") if effect_type == 0 else ("chorus", "depth"),
+                    3: ("reverb", "hf_damping") if effect_type == 0 else ("chorus", "feedback"),
                 }
 
                 if param_id in param_names:
@@ -579,10 +632,12 @@ class XGSYSEXController:
                 return None
 
         elif setting_type == 2:  # Processing enable/disable
-            enabled = (value_14bit > 0)
+            enabled = value_14bit > 0
             # Note: Coordinator doesn't have a direct enable/disable method
             # This would need to be implemented at a higher level
-            print(f"XG SYSEX: Processing {'enabled' if enabled else 'disabled'} (not yet implemented)")
+            print(
+                f"XG SYSEX: Processing {'enabled' if enabled else 'disabled'} (not yet implemented)"
+            )
             return None
 
         elif setting_type == 3:  # Master EQ type

@@ -333,7 +333,12 @@ class XGEffectsCoordinator:
     """
 
     def __init__(
-        self, sample_rate: int, block_size: int = 1024, max_channels: int = 16, synthesizer=None
+        self,
+        sample_rate: int,
+        block_size: int = 1024,
+        max_channels: int = 16,
+        synthesizer=None,
+        buffer_pool=None,
     ):
         """
         Initialize XG effects coordinator.
@@ -343,14 +348,21 @@ class XGEffectsCoordinator:
             block_size: Maximum processing block size
             max_channels: Maximum number of channels to support
             synthesizer: Reference to parent synthesizer for GS parameter access
+            buffer_pool: Shared buffer pool from synthesizer (optional)
         """
         self.synthesizer = synthesizer  # Reference to parent synthesizer
         self.sample_rate = sample_rate
         self.block_size = block_size
         self.max_channels = max_channels
 
-        # Buffer management - zero-allocation core
-        self.buffer_pool = XGBufferPool(sample_rate, block_size * 4)
+        # Buffer management - use shared pool from synthesizer if provided
+        if buffer_pool is not None:
+            self.buffer_pool = buffer_pool
+        else:
+            # Fallback to creating own pool (legacy behavior)
+            from ..core.buffer_pool import XGBufferPool
+
+            self.buffer_pool = XGBufferPool(sample_rate, block_size * 4)
         self.buffer_manager: XGBufferManager | None = None
         # Alias for backward compatibility
         self.memory_pool = self.buffer_pool

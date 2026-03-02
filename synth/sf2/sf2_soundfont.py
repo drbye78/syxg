@@ -607,7 +607,7 @@ class SF2SoundFont:
 
         # Get bag data for the specific range (preset_bag_index to next_preset_bag)
         bag_data = self.file_loader.get_bag_data_in_range(
-            "preset", preset_bag_index, next_preset_bag
+            "preset", preset_bag_index, next_preset_bag + 1
         )
         if not bag_data or len(bag_data) < 2:
             return zones
@@ -845,7 +845,7 @@ class SF2SoundFont:
 
         # Get bag data for the specific range (instrument_bag_index to next_instrument_bag)
         bag_data = self.file_loader.get_bag_data_in_range(
-            "instrument", instrument_bag_index, next_instrument_bag
+            "instrument", instrument_bag_index, next_instrument_bag + 1
         )
         if not bag_data or len(bag_data) < 2:
             return zones

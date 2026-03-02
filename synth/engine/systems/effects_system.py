@@ -51,7 +51,8 @@ class EffectsSystem:
             sample_rate=self.synthesizer.sample_rate,
             block_size=self.synthesizer.block_size,
             max_channels=self.synthesizer.max_channels,
-            synthesizer=self.synthesizer  # Pass self for GS parameter access
+            synthesizer=self.synthesizer,  # Pass self for GS parameter access
+            buffer_pool=self.synthesizer.buffer_pool
         )
 
         # Motif Effects Processor for workstation-grade effects

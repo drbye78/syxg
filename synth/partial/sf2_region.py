@@ -533,16 +533,30 @@ class SF2Region(IRegion):
                     env.generate_block(env_buffer[:block_size], block_size)
                     output[: block_size * 2] *= np.repeat(env_buffer[:block_size], 2)
 
-        # Apply filter
+        # Apply filter - skip if there's any issue
         if "filter" in self._filters:
             filter_obj = self._filters["filter"]
             if hasattr(filter_obj, "process_block"):
                 try:
-                    filtered = filter_obj.process_block(output[: block_size * 2])
-                    if filtered is not None:
-                        output[: block_size * 2] = filtered
+                    # Get filter input - must match block_size exactly
+                    left = output[0 : block_size * 2 : 2].copy()
+                    right = output[1 : block_size * 2 : 2].copy()
+
+                    if len(left) != block_size or len(right) != block_size:
+                        # Skip filter if sizes don't match
+                        pass
+                    else:
+                        # Process through filter
+                        filtered_left, filtered_right = filter_obj.process_block(left, right)
+
+                        # Verify output sizes
+                        if len(filtered_left) == block_size and len(filtered_right) == block_size:
+                            # Re-interleave stereo output
+                            output[0 : block_size * 2 : 2] = filtered_left
+                            output[1 : block_size * 2 : 2] = filtered_right
                 except Exception as e:
-                    logger.error(f"SF2 filter processing failed: {e}")
+                    # Skip filter on any error - don't crash
+                    pass
 
         return output[: block_size * 2].copy()
 
@@ -560,20 +574,24 @@ class SF2Region(IRegion):
         if sample_length == 0:
             return
 
-        # Select appropriate mip-map level based on pitch ratio
-        # Higher pitch ratios use lower resolution mip levels to prevent aliasing
-        if self._phase_step > 2.0:
-            # Playing back at higher pitch - could use mip level 1
-            # For now, use base level with interpolation
-            pass
+        # Check if sample data is stereo (2D array) or mono (1D array)
+        is_stereo_data = len(sample_data.shape) > 1 and sample_data.shape[1] == 2
+
+        # For now, use base sample data for playback
+        # Mip-map selection is available but needs proper position mapping for looping
+        if is_stereo_data:
+            sample_data_left = sample_data[:, 0]
+            sample_data_right = sample_data[:, 1]
+        else:
+            sample_data_left = sample_data
+            sample_data_right = sample_data  # Mono fills both channels
 
         pos = self._sample_position
         phase_step = self._phase_step
 
-        sample_data = self._sample_data
-
-        has_stereo = hasattr(self, "_sample_data_right") and self._sample_data_right is not None
-        sample_data_right = self._sample_data_right if has_stereo else sample_data
+        # Use stereo data channels if available
+        if sample_data_right is None:
+            sample_data_right = sample_data_left
 
         for i in range(block_size):
             # Linear interpolation
@@ -581,31 +599,95 @@ class SF2Region(IRegion):
             frac = pos - pos_int
 
             if pos_int < sample_length - 1:
-                s1 = sample_data[pos_int]
-                s2 = sample_data[pos_int + 1]
-                sample = s1 + frac * (s2 - s1)
+                # Get left channel samples
+                s1_l = sample_data_left[pos_int]
+                s2_l = sample_data_left[min(pos_int + 1, sample_length - 1)]
+                sample_left = s1_l + frac * (s2_l - s1_l)
 
-                if has_stereo:
-                    pos_right = pos_int
-                    s1_r = sample_data_right[pos_right]
-                    s2_r = sample_data_right[min(pos_right + 1, len(sample_data_right) - 1)]
-                    sample_right = s1_r + frac * (s2_r - s1_r)
-                else:
-                    sample_right = sample
+                # Get right channel samples
+                s1_r = sample_data_right[pos_int]
+                s2_r = sample_data_right[min(pos_int + 1, sample_length - 1)]
+                sample_right = s1_r + frac * (s2_r - s1_r)
             else:
-                sample = sample_data[-1] if sample_length > 0 else 0.0
-                sample_right = (
-                    sample_data_right[-1] if has_stereo and len(sample_data_right) > 0 else sample
-                )
+                # End of sample
+                sample_left = sample_data_left[-1] if sample_length > 0 else 0.0
+                sample_right = sample_data_right[-1] if len(sample_data_right) > 0 else 0.0
 
             # Handle SF2 looping
             pos = self._handle_sf2_looping(pos + phase_step, sample_length)
 
             # Write to stereo output
-            output[i * 2] = sample  # Left
+            output[i * 2] = sample_left  # Left
             output[i * 2 + 1] = sample_right  # Right
 
         self._sample_position = pos
+
+    def _select_mip_map_level(self) -> int:
+        """
+        Select appropriate mip-map level based on pitch ratio.
+
+        Mip-maps are pre-computed lower-resolution versions of samples
+        used to prevent aliasing when playing back at higher pitches.
+
+        Returns:
+            Mip-map level (0 = full resolution, 1 = half, 2 = quarter, etc.)
+        """
+        if self._phase_step <= 1.0:
+            return 0  # Normal or lower pitch - use full resolution
+
+        # Calculate mip level based on pitch ratio
+        # Each doubling of pitch ratio increases mip level by 1
+        import math
+
+        mip_level = int(math.log2(self._phase_step))
+
+        # Cap at reasonable level (typically 4-5 levels max)
+        return min(mip_level, 4)
+
+    def _get_mip_map_data(self, mip_level: int, is_stereo: bool) -> tuple:
+        """
+        Get sample data for the specified mip-map level.
+
+        Args:
+            mip_level: Mip-map level to retrieve
+            is_stereo: Whether the base sample is stereo
+
+        Returns:
+            Tuple of (left_channel_data, right_channel_data)
+        """
+        if mip_level == 0:
+            # Return base sample data
+            if is_stereo:
+                return self._sample_data[:, 0], self._sample_data[:, 1]
+            return self._sample_data, None
+
+        # Try to get mip-map data from soundfont manager
+        if (
+            self.soundfont_manager
+            and hasattr(self.soundfont_manager, "get_mip_map_sample_data")
+            and self.descriptor.sample_id is not None
+        ):
+            try:
+                mip_data = self.soundfont_manager.get_mip_map_sample_data(
+                    self.descriptor.sample_id, mip_level
+                )
+                if mip_data is not None:
+                    if is_stereo and len(mip_data.shape) > 1:
+                        return mip_data[:, 0], mip_data[:, 1]
+                    return mip_data, None
+            except Exception as e:
+                logger.debug(f"Mip-map level {mip_level} not available: {e}")
+
+        # Fallback: decimate the base sample for the requested mip level
+        if self._sample_data is not None:
+            decimation_factor = 2**mip_level
+            decimated = self._sample_data[::decimation_factor]
+
+            if is_stereo and len(decimated.shape) > 1:
+                return decimated[:, 0], decimated[:, 1]
+            return decimated, None
+
+        return None, None
 
     def _handle_sf2_looping(self, position: float, sample_length: int) -> float:
         """

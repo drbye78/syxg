@@ -190,6 +190,7 @@ ADVANCED FEATURES:
 - CONVOLUTION ENGINES: Impulse response convolution for reverb
 - PHYSICAL MODELING: Integration with modal synthesis engines
 """
+
 from __future__ import annotations
 
 from typing import Any, TYPE_CHECKING
@@ -277,9 +278,7 @@ class SF2Engine(SynthesisEngine):
         """Return engine type identifier."""
         return "sf2"
 
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create SF2 base region without S.Art2 wrapper.
 
@@ -399,6 +398,11 @@ class SF2Engine(SynthesisEngine):
         This is the KEY method that enables multi-zone preset support.
         Returns ALL zones as descriptors without loading samples.
 
+        CRITICAL: This now properly drills into instruments to get:
+        - Sample IDs from instrument zones
+        - Instrument-level generator parameters
+        - Proper key/velocity range inheritance
+
         Args:
             bank: MIDI bank number
             program: MIDI program number
@@ -422,10 +426,96 @@ class SF2Engine(SynthesisEngine):
                 continue
 
             # Build region descriptors from ALL zones
+            # CRITICAL: Must drill into instruments to get sample IDs and proper parameters
             descriptors = []
-            for zone_idx, zone in enumerate(preset.zones):
-                descriptor = self._zone_to_descriptor(zone, zone_idx, filepath)
-                descriptors.append(descriptor)
+            descriptor_idx = 0
+
+            for preset_zone in preset.zones:
+                # Get key/velocity range from preset zone
+                preset_key_range = getattr(preset_zone, "key_range", (0, 127))
+                preset_vel_range = getattr(preset_zone, "velocity_range", (0, 127))
+
+                # Check if preset zone references an instrument
+                instrument_index = getattr(preset_zone, "instrument_index", -1)
+
+                if instrument_index >= 0:
+                    # Drill into instrument to get zones with sample IDs
+                    instrument = soundfont._get_or_load_instrument(instrument_index)
+                    if instrument:
+                        # Process instrument zones
+                        for inst_zone in instrument.zones:
+                            # Get instrument zone's key/velocity range
+                            inst_key_range = getattr(inst_zone, "key_range", (0, 127))
+                            inst_vel_range = getattr(inst_zone, "velocity_range", (0, 127))
+
+                            # Intersect preset and instrument ranges
+                            key_low = max(preset_key_range[0], inst_key_range[0])
+                            key_high = min(preset_key_range[1], inst_key_range[1])
+                            vel_low = max(preset_vel_range[0], inst_vel_range[0])
+                            vel_high = min(preset_vel_range[1], inst_vel_range[1])
+
+                            # Skip if no overlap
+                            if key_low > key_high or vel_low > vel_high:
+                                continue
+
+                            # Get sample ID from instrument zone
+                            sample_id = getattr(inst_zone, "sample_id", -1)
+
+                            # Create descriptor combining preset and instrument parameters
+                            combined_params = self._combine_generator_params(preset_zone, inst_zone)
+
+                            descriptor = RegionDescriptor(
+                                region_id=descriptor_idx,
+                                engine_type="sf2",
+                                key_range=(key_low, key_high),
+                                velocity_range=(vel_low, vel_high),
+                                round_robin_group=0,
+                                round_robin_position=descriptor_idx,
+                                sample_id=sample_id,
+                                generator_params=combined_params,
+                            )
+                            descriptors.append(descriptor)
+                            descriptor_idx += 1
+
+                        # Also process instrument global zone if exists
+                        if instrument.global_zone:
+                            inst_zone = instrument.global_zone
+                            sample_id = getattr(inst_zone, "sample_id", -1)
+
+                            if sample_id >= 0:
+                                combined_params = self._combine_generator_params(
+                                    preset_zone, inst_zone
+                                )
+
+                                descriptor = RegionDescriptor(
+                                    region_id=descriptor_idx,
+                                    engine_type="sf2",
+                                    key_range=preset_key_range,
+                                    velocity_range=preset_vel_range,
+                                    round_robin_group=0,
+                                    round_robin_position=descriptor_idx,
+                                    sample_id=sample_id,
+                                    generator_params=combined_params,
+                                )
+                                descriptors.append(descriptor)
+                                descriptor_idx += 1
+                    else:
+                        # Instrument not found, use preset zone alone
+                        descriptor = self._zone_to_descriptor(preset_zone, descriptor_idx, filepath)
+                        descriptors.append(descriptor)
+                        descriptor_idx += 1
+                else:
+                    # No instrument reference (global preset zone or drum kit)
+                    descriptor = self._zone_to_descriptor(preset_zone, descriptor_idx, filepath)
+                    descriptors.append(descriptor)
+                    descriptor_idx += 1
+
+            # Also process preset global zone
+            if preset.global_zone:
+                global_descriptor = self._zone_to_descriptor(
+                    preset.global_zone, descriptor_idx, filepath
+                )
+                descriptors.append(global_descriptor)
 
             if descriptors:
                 return PresetInfo(
@@ -442,9 +532,32 @@ class SF2Engine(SynthesisEngine):
 
         return None
 
-    def get_all_region_descriptors(
-        self, bank: int, program: int
-    ) -> list[RegionDescriptor]:
+    def _combine_generator_params(self, preset_zone, inst_zone) -> dict[str, Any]:
+        """
+        Combine generator parameters from preset and instrument zones.
+
+        Instrument parameters override preset parameters (SF2 spec).
+
+        Args:
+            preset_zone: Preset-level zone
+            inst_zone: Instrument-level zone
+
+        Returns:
+            Combined generator parameters dictionary
+        """
+        # Start with preset parameters
+        preset_params = self._extract_generator_params(preset_zone)
+
+        # Get instrument parameters
+        inst_params = self._extract_generator_params(inst_zone)
+
+        # Instrument params override preset params
+        combined = preset_params.copy()
+        combined.update(inst_params)
+
+        return combined
+
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get ALL region descriptors for an SF2 preset.
 
@@ -460,9 +573,7 @@ class SF2Engine(SynthesisEngine):
             return preset_info.region_descriptors
         return []
 
-    def create_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create SF2 region instance from descriptor.
 
@@ -475,9 +586,7 @@ class SF2Engine(SynthesisEngine):
         """
         from ..partial.sf2_region import SF2Region
 
-        return SF2Region(
-            descriptor, sample_rate, self.soundfont_manager, synth=self.synth
-        )
+        return SF2Region(descriptor, sample_rate, self.soundfont_manager, synth=self.synth)
 
     def load_sample_for_region(self, region: IRegion) -> bool:
         """
@@ -493,9 +602,7 @@ class SF2Engine(SynthesisEngine):
             return region.load_sample()
         return False
 
-    def _zone_to_descriptor(
-        self, zone: Any, zone_idx: int, filepath: str
-    ) -> RegionDescriptor:
+    def _zone_to_descriptor(self, zone: Any, zone_idx: int, filepath: str) -> RegionDescriptor:
         """
         Convert SF2 zone to region descriptor.
 
@@ -690,15 +797,9 @@ class SF2Engine(SynthesisEngine):
             params["scale_tuning"] = zone.get_generator_value(52, 100)  # scaleTuning
 
             # Effects sends (correct SF2 generator IDs)
-            params["reverb_send"] = (
-                zone.get_generator_value(32, 0) / 1000.0
-            )  # reverbEffectsSend
-            params["chorus_send"] = (
-                zone.get_generator_value(33, 0) / 1000.0
-            )  # chorusEffectsSend
-            params["pan"] = (
-                zone.get_generator_value(34, 0) / 500.0
-            )  # pan (-500/+500 to -1.0/+1.0)
+            params["reverb_send"] = zone.get_generator_value(32, 0) / 1000.0  # reverbEffectsSend
+            params["chorus_send"] = zone.get_generator_value(33, 0) / 1000.0  # chorusEffectsSend
+            params["pan"] = zone.get_generator_value(34, 0) / 500.0  # pan (-500/+500 to -1.0/+1.0)
 
         return params
 
@@ -828,9 +929,7 @@ class SF2Engine(SynthesisEngine):
             # Get memory stats from manager
             mem_stats = self.soundfont_manager.get_performance_stats()
             if "memory_usage" in mem_stats:
-                capabilities.append(
-                    f"memory_usage_mb:{mem_stats['memory_usage']['total_mb']:.1f}"
-                )
+                capabilities.append(f"memory_usage_mb:{mem_stats['memory_usage']['total_mb']:.1f}")
 
             self._engine_info = {
                 "name": "SF2 Wavetable Engine (New Architecture)",
@@ -902,9 +1001,7 @@ class SF2Engine(SynthesisEngine):
 
                 # Load sample data for region
                 if not self.load_sample_for_region(region):
-                    logger.warning(
-                        f"Failed to load sample for region {descriptor.region_id}"
-                    )
+                    logger.warning(f"Failed to load sample for region {descriptor.region_id}")
                     continue
 
                 # Trigger note
@@ -918,9 +1015,7 @@ class SF2Engine(SynthesisEngine):
                 audio_output += region_audio * preset_info.master_level
 
             except Exception as e:
-                logger.error(
-                    f"Error generating SF2 samples for region {descriptor.region_id}: {e}"
-                )
+                logger.error(f"Error generating SF2 samples for region {descriptor.region_id}: {e}")
                 continue
 
         return audio_output

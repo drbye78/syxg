@@ -305,6 +305,7 @@ RESEARCH FEATURES:
 - Real-time acoustic analysis
 - Adaptive performance optimization
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -487,15 +488,13 @@ class ModernXGSynthesizer:
 
         sfz_engine = SFZEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(
-            sfz_engine, "sfz", priority=9
+            sfz_engine, "sfz", priority=19
         )  # High priority after SF2
 
         # Wavetable Engine for classic synthesis
         from .wavetable_engine import WavetableEngine
 
-        wavetable_engine = WavetableEngine(
-            sample_rate=self.sample_rate, block_size=1024
-        )
+        wavetable_engine = WavetableEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(
             wavetable_engine, "wavetable", priority=7
         )  # Medium priority
@@ -521,9 +520,7 @@ class ModernXGSynthesizer:
         # Advanced Physical Modeling Engine for realistic acoustic simulation
         from .advanced_physical_engine import AdvancedPhysicalEngine
 
-        physical_engine = AdvancedPhysicalEngine(
-            sample_rate=self.sample_rate, block_size=1024
-        )
+        physical_engine = AdvancedPhysicalEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(
             physical_engine, "advanced_physical", priority=5
         )  # Physical modeling priority
@@ -538,18 +535,12 @@ class ModernXGSynthesizer:
 
         # Use enhanced voice management for S90/S70 compatibility
         if self.s90_mode:
-            self.voice_manager = VoiceManager(
-                max_voices=256
-            )  # Increased for 32-channel support
+            self.voice_manager = VoiceManager(max_voices=256)  # Increased for 32-channel support
             # Set advanced XG allocation mode for S90/S70 compatibility
             self.voice_manager.set_xg_allocation_mode(2)  # Advanced XG polyphonic
-            print(
-                "🎹 Voice Manager: Enhanced for S90/S70 compatibility (256 voices, 32 channels)"
-            )
+            print("🎹 Voice Manager: Enhanced for S90/S70 compatibility (256 voices, 32 channels)")
         else:
-            self.voice_manager = VoiceManager(
-                max_voices=128
-            )  # GS supports up to 128 voices
+            self.voice_manager = VoiceManager(max_voices=128)  # GS supports up to 128 voices
 
         # Create channels
         self.channels = []
@@ -563,6 +554,7 @@ class ModernXGSynthesizer:
             block_size=1024,
             max_channels=self.max_channels,
             synthesizer=self,  # Pass self for GS parameter access
+            buffer_pool=self.buffer_pool,  # Use synthesizer's shared buffer pool
         )
 
         # Motif Effects Processor for workstation-grade effects
@@ -591,26 +583,20 @@ class ModernXGSynthesizer:
 
         # XG-specific buffers
         if self.xg_enabled:
-            self.xg_temp_buffers = [
-                self.buffer_pool.get_stereo_buffer(2048) for _ in range(4)
-            ]
+            self.xg_temp_buffers = [self.buffer_pool.get_stereo_buffer(2048) for _ in range(4)]
 
     def _register_engines(self):
         """Register synthesis engines with priority system"""
         # Create SF2 engine with new modular manager
         from .sf2_engine import SF2Engine
 
-        sf2_engine = SF2Engine(
-            sample_rate=self.sample_rate, block_size=1024, synth=self
-        )
-        self.engine_registry.register_engine(sf2_engine, "sf2", priority=10)
+        sf2_engine = SF2Engine(sample_rate=self.sample_rate, block_size=1024, synth=self)
+        self.engine_registry.register_engine(sf2_engine, "sf2", priority=25)
 
         # FM Engine - high priority
         from .fm_engine import FMEngine
 
-        fm_engine = FMEngine(
-            num_operators=6, sample_rate=self.sample_rate, block_size=1024
-        )
+        fm_engine = FMEngine(num_operators=6, sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(fm_engine, "fm", priority=8)
 
         # Additive Engine - medium priority
@@ -672,9 +658,7 @@ class ModernXGSynthesizer:
     def _init_xg_system(self):
         """Initialize XG system with clean integration"""
         # XG Component Manager
-        self.xg_components = XGComponentManager(
-            self.device_id, self.max_channels, self.sample_rate
-        )
+        self.xg_components = XGComponentManager(self.device_id, self.max_channels, self.sample_rate)
 
         # XG MIDI Processor
         self.xg_midi_processor = XGMIDIProcessor(self.xg_components)
@@ -685,9 +669,7 @@ class ModernXGSynthesizer:
         # XG Receive Channel Manager - Production-ready multichannel routing
         from ..xg.xg_receive_channel_manager import XGReceiveChannelManager
 
-        self.receive_channel_manager = XGReceiveChannelManager(
-            num_parts=self.max_channels
-        )
+        self.receive_channel_manager = XGReceiveChannelManager(num_parts=self.max_channels)
 
         # XG components are ready for use in MIDI/audio processing
 
@@ -723,13 +705,11 @@ class ModernXGSynthesizer:
 
             # Create Jupiter-X engine instance
             jupiter_x_engine = JupiterXEngineIntegration(
-                sample_rate=self.sample_rate, block_size=self.block_size
+                sample_rate=self.sample_rate, block_size=self.block_size, buffer_oool=self.buffer_pool
             )
 
             # Register Jupiter-X engine with the engine registry (high priority)
-            self.engine_registry.register_engine(
-                jupiter_x_engine, "jupiter_x", priority=15
-            )
+            self.engine_registry.register_engine(jupiter_x_engine, "jupiter_x", priority=15)
 
             # Store reference for direct access
             self.jupiter_x_engine = jupiter_x_engine
@@ -756,9 +736,7 @@ class ModernXGSynthesizer:
             self.plugin_registry.clear_registry()
             discovered_count = self.plugin_registry.discover_plugins()
 
-            print(
-                f"🔌 Plugin system initialized: {discovered_count} plugins discovered"
-            )
+            print(f"🔌 Plugin system initialized: {discovered_count} plugins discovered")
 
             # Try to load Jupiter-X FM plugin
             if (
@@ -931,16 +909,12 @@ class ModernXGSynthesizer:
 
         if preset and 0 <= channel < len(self.channels):
             self.channels[channel].apply_articulation_preset(preset)
-            logger.debug(
-                f"Loaded articulation preset '{preset.name}' for channel {channel}"
-            )
+            logger.debug(f"Loaded articulation preset '{preset.name}' for channel {channel}")
             return True
 
         return False
 
-    def set_channel_articulation_preset(
-        self, channel: int, articulation: str, **params
-    ) -> None:
+    def set_channel_articulation_preset(self, channel: int, articulation: str, **params) -> None:
         """
         Set articulation preset for channel.
 
@@ -1066,33 +1040,27 @@ class ModernXGSynthesizer:
     def set_xg_reverb_type(self, reverb_type: int) -> bool:
         """Set XG reverb type"""
         if self.xg_enabled:
-            return self.xg_components.get_component("effects").set_system_reverb_type(
-                reverb_type
-            )
+            return self.xg_components.get_component("effects").set_system_reverb_type(reverb_type)
         return False
 
     def set_xg_chorus_type(self, chorus_type: int) -> bool:
         """Set XG chorus type"""
         if self.xg_enabled:
-            return self.xg_components.get_component("effects").set_system_chorus_type(
-                chorus_type
-            )
+            return self.xg_components.get_component("effects").set_system_chorus_type(chorus_type)
         return False
 
     def set_xg_variation_type(self, variation_type: int) -> bool:
         """Set XG variation type"""
         if self.xg_enabled:
-            return self.xg_components.get_component(
-                "effects"
-            ).set_system_variation_type(variation_type)
+            return self.xg_components.get_component("effects").set_system_variation_type(
+                variation_type
+            )
         return False
 
     def set_drum_kit(self, channel: int, kit_number: int) -> bool:
         """Set drum kit for channel"""
         if self.xg_enabled:
-            return self.xg_components.get_component("drum_setup").set_drum_kit(
-                channel, kit_number
-            )
+            return self.xg_components.get_component("drum_setup").set_drum_kit(channel, kit_number)
         return False
 
     def apply_temperament(self, temperament_name: str) -> bool:
@@ -1106,9 +1074,7 @@ class ModernXGSynthesizer:
     def set_compatibility_mode(self, mode: str) -> bool:
         """Set XG compatibility mode"""
         if self.xg_enabled:
-            return self.xg_components.get_component(
-                "compatibility"
-            ).set_compatibility_mode(mode)
+            return self.xg_components.get_component("compatibility").set_compatibility_mode(mode)
         return False
 
     def set_receive_channel(self, part_id: int, midi_channel: int) -> bool:
@@ -1128,9 +1094,7 @@ class ModernXGSynthesizer:
             True if mapping was set successfully, False otherwise
         """
         if self.xg_enabled and hasattr(self, "receive_channel_manager"):
-            return self.receive_channel_manager.set_receive_channel(
-                part_id, midi_channel
-            )
+            return self.receive_channel_manager.set_receive_channel(part_id, midi_channel)
         return False
 
     def get_receive_channel(self, part_id: int) -> int | None:
@@ -1222,15 +1186,11 @@ class ModernXGSynthesizer:
             sf2_engine.soundfont_manager.unblacklist_program(bank, program)
             print(f"✅ Unblacklisted program: bank={bank}, program={program}")
 
-    def remap_program(
-        self, from_bank: int, from_program: int, to_bank: int, to_program: int
-    ):
+    def remap_program(self, from_bank: int, from_program: int, to_bank: int, to_program: int):
         """Remap a program to different bank/program numbers"""
         sf2_engine = self.engine_registry.get_engine("sf2")
         if sf2_engine and hasattr(sf2_engine, "soundfont_manager"):
-            sf2_engine.soundfont_manager.remap_program(
-                from_bank, from_program, to_bank, to_program
-            )
+            sf2_engine.soundfont_manager.remap_program(from_bank, from_program, to_bank, to_program)
             print(
                 f"🔄 Remapped program: bank={from_bank}, prog={from_program} -> bank={to_bank}, prog={to_program}"
             )
@@ -1251,9 +1211,7 @@ class ModernXGSynthesizer:
     def set_channel_program(self, channel: int, bank: int, program: int):
         """Set program for channel"""
         if 0 <= channel < len(self.channels):
-            self.channels[channel].load_program(
-                program, (bank >> 7) & 0x7F, bank & 0x7F
-            )
+            self.channels[channel].load_program(program, (bank >> 7) & 0x7F, bank & 0x7F)
 
     def get_channel_info(self, channel: int) -> dict[str, Any] | None:
         """Get channel information"""
@@ -1261,9 +1219,9 @@ class ModernXGSynthesizer:
             info = self.channels[channel].get_channel_info()
             if self.xg_enabled:
                 info["xg_config"] = getattr(self.channels[channel], "xg_config", {})
-                info["drum_kit"] = self.xg_components.get_component(
-                    "drum_setup"
-                ).get_drum_kit_info(channel)
+                info["drum_kit"] = self.xg_components.get_component("drum_setup").get_drum_kit_info(
+                    channel
+                )
             return info
         return None
 
@@ -1371,9 +1329,9 @@ class ModernXGSynthesizer:
             "overall_compliance": "100%",
             "components_implemented": 10,
             "components_total": 10,
-            "effect_types": self.xg_components.get_component(
-                "effects"
-            ).get_effect_capabilities()["total_effect_types"],
+            "effect_types": self.xg_components.get_component("effects").get_effect_capabilities()[
+                "total_effect_types"
+            ],
             "temperaments": len(
                 self.xg_components.get_component(
                     "micro_tuning"
@@ -1407,9 +1365,7 @@ class ModernXGSynthesizer:
             return self.gs_components.get_system_info()
         return {"status": "GS disabled"}
 
-    def set_gs_part_parameter(
-        self, part_number: int, param_id: int, value: int
-    ) -> bool:
+    def set_gs_part_parameter(self, part_number: int, param_id: int, value: int) -> bool:
         """Set GS part parameter via API"""
         if self.gs_components:
             result = self.gs_components.process_parameter_change(
@@ -1429,9 +1385,7 @@ class ModernXGSynthesizer:
         """Reset GS system to defaults"""
         if self.gs_components:
             self.gs_components.reset_all_components()
-            self.parameter_priority = (
-                ParameterPrioritySystem()
-            )  # Reset parameter tracking
+            self.parameter_priority = ParameterPrioritySystem()  # Reset parameter tracking
             self.parameter_priority.set_active_protocol(self.gs_mode)
             self._update_all_channel_parameters()
 
@@ -1472,12 +1426,8 @@ class ModernXGSynthesizer:
         self.channels[channel_num].gs_part = gs_part
 
         # Update parameter priority system with GS part parameters
-        self.parameter_priority.update_parameter(
-            "part_volume", gs_part.volume, "gs", channel_num
-        )
-        self.parameter_priority.update_parameter(
-            "part_pan", gs_part.pan, "gs", channel_num
-        )
+        self.parameter_priority.update_parameter("part_volume", gs_part.volume, "gs", channel_num)
+        self.parameter_priority.update_parameter("part_pan", gs_part.pan, "gs", channel_num)
         self.parameter_priority.update_parameter(
             "reverb_send", gs_part.reverb_send, "gs", channel_num
         )
@@ -1530,9 +1480,7 @@ class ModernXGSynthesizer:
         if 0 <= channel < len(self.channels):
             self.channels[channel].key_pressure(note, pressure)
 
-    def _process_mpe_controller(
-        self, channel: int, controller: int, value: int
-    ) -> bool:
+    def _process_mpe_controller(self, channel: int, controller: int, value: int) -> bool:
         """Process MPE controllers (timbre, slide, lift)"""
         if not hasattr(self, "mpe_system") or not self.mpe_system:
             return False
@@ -1586,9 +1534,7 @@ class ModernXGSynthesizer:
 
         # Find the specific MPE note
         active_notes = self.mpe_system.get_active_mpe_notes(channel)
-        mpe_note = next(
-            (note for note in active_notes if note.note_number == note), None
-        )
+        mpe_note = next((note for note in active_notes if note.note_number == note), None)
         if mpe_note and hasattr(mpe_note, "voice_id") and mpe_note.voice_id:
             self._apply_mpe_to_voice(mpe_note.voice_id, mpe_note)
 
@@ -1634,9 +1580,7 @@ class ModernXGSynthesizer:
             True if hot-reloading enabled successfully
         """
         if hasattr(self, "config_system") and self.config_system:
-            return self.config_system.enable_config_hot_reloading(
-                watch_paths, check_interval
-            )
+            return self.config_system.enable_config_hot_reloading(watch_paths, check_interval)
         return False
 
     def disable_config_hot_reloading(self) -> bool:
@@ -1689,9 +1633,7 @@ class ModernXGSynthesizer:
             return self.config_system.get_hot_reload_status()
         return {"enabled": False, "status": "Config system not available"}
 
-    def trigger_manual_config_reload(
-        self, path: str | Path | None = None
-    ) -> bool:
+    def trigger_manual_config_reload(self, path: str | Path | None = None) -> bool:
         """
         Manually trigger configuration reload.
 
@@ -1760,12 +1702,8 @@ class ModernXGSynthesizer:
     def __str__(self) -> str:
         """String representation"""
         info = self.get_synthesizer_info()
-        xg_status = (
-            f", XG {info.get('xg_compliance', 'disabled')}" if self.xg_enabled else ""
-        )
-        mpe_status = (
-            f", MPE {info.get('mpe_zones', 0)} zones" if self.mpe_enabled else ""
-        )
+        xg_status = f", XG {info.get('xg_compliance', 'disabled')}" if self.xg_enabled else ""
+        mpe_status = f", MPE {info.get('mpe_zones', 0)} zones" if self.mpe_enabled else ""
         return (
             f"EnhancedModernXGSynthesizer(channels={info['max_channels']}, "
             f"active={info['active_channels']}, voices={info['total_active_voices']}"

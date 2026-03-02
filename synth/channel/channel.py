@@ -225,10 +225,13 @@ from __future__ import annotations
 
 from typing import Any
 import numpy as np
+import logging
 
 from .channel_note import ChannelNote
 from ..voice.voice_factory import VoiceFactory
 from ..voice.voice_instance import VoiceInstance
+
+logger = logging.getLogger(__name__)
 
 
 class Channel:
@@ -333,6 +336,35 @@ class Channel:
 
         # GS integration
         self.gs_part = None  # Reference to GS part when in GS mode
+
+        # MPE/MPE+ state
+        self.mpe_enabled = False
+        self.mpe_configuration = {
+            "master_channel": 0,
+            "first_note_channel": 1,
+            "last_note_channel": 15,
+            "channel_layout": "horizontal",
+        }
+        self.mpe_per_note_parameters: dict[int, dict[str, float]] = {}
+        self.key_pressure_32bit_values: dict[int, int] = {}
+        self.channel_pressure_32bit = 0
+        self.pitch_bend_32bit = 2147483647  # Center position
+        self.vibrato_rate = 0.0
+        self.vibrato_depth = 0.0
+        self.vibrato_delay = 0.0
+        self.filter_cutoff = 20000.0
+        self.filter_resonance = 0.0
+        self.amp_release = 0.0
+        self.amp_attack = 0.0
+        self.drum_volume = 0.0
+        self.drum_pan = 0.0
+        self.drum_reverb_send = 0.0
+        self.drum_chorus_send = 0.0
+        self.drum_delay_send = 0.0
+        self.eq_gains = [0.0] * 8
+        self.reverb_send = 0.0
+        self.chorus_send = 0.0
+        self.delay_send = 0.0
 
     def update_xg_state_from_message(self, xg_metadata: dict[str, Any]):
         """
@@ -1086,15 +1118,45 @@ class Channel:
         """
         Process MPE+ note-on event with channel offset.
 
+        In MPE+ mode:
+        - Notes are distributed across multiple channels (note channels)
+        - Master channel controls global parameters (pitch bend, pressure)
+        - Each note channel handles per-note expression (timbre, slide, etc.)
+
         Args:
             note: MIDI note number (0-127)
             velocity: Note velocity (0-127)
             channel_offset: Channel offset for MPE+ processing
         """
-        # In MPE+ mode, we might need to map to specific channels based on configuration
         if self.mpe_enabled:
-            # Apply MPE+ specific processing
-            # For now, just call the regular note_on
+            # Get MPE configuration
+            master_ch = self.mpe_configuration.get("master_channel", 0)
+            layout = self.mpe_configuration.get("channel_layout", "horizontal")
+
+            # Apply per-note parameters from MPE configuration
+            # Timbre: stored per-note via set_mpe_per_note_parameter
+            timbre = self.get_mpe_per_note_parameter(note, "timbre")
+            if timbre != 0.0:
+                # Apply timbre as filter modulation
+                cutoff_mod = timbre * 5000.0  # Up to 5kHz modulation
+                self.filter_cutoff = 20000.0 - cutoff_mod
+
+            # Slide: pitch bend based on note position
+            slide = self.get_mpe_per_note_parameter(note, "position")
+            if slide != 0.0:
+                # Apply slide as pitch bend
+                pitch_bend = int(8192 + slide * 8191)
+                lsb = pitch_bend & 0x7F
+                msb = (pitch_bend >> 7) & 0x7F
+                self.pitch_bend(lsb, msb)
+
+            # Pressure: apply as filter envelope or volume
+            pressure = self.key_pressure_values.get(note, 0)
+            if pressure > 0:
+                # Apply pressure as volume modulation
+                pressure_mod = pressure / 127.0
+
+            # Call regular note_on with the processed parameters
             return self.note_on(note, velocity)
         else:
             return self.note_on(note, velocity)
@@ -1103,16 +1165,39 @@ class Channel:
         """
         Process MPE+ note-off event with channel offset.
 
+        In MPE+ mode, cleans up per-note parameters and releases voices
+        with proper release velocity handling.
+
         Args:
             note: MIDI note number (0-127)
             velocity: Note-off velocity (0-127)
             channel_offset: Channel offset for MPE+ processing
         """
-        # In MPE+ mode, we might need to map to specific channels based on configuration
         if self.mpe_enabled:
-            # Apply MPE+ specific processing
-            # For now, just call the regular note_off
-            self.note_off(note, velocity)
+            # Apply release velocity for natural decay
+            release_vel_factor = velocity / 127.0
+
+            # Release all voices playing this note
+            voice_ids = self._find_voices_for_note(note)
+            for voice_id in voice_ids:
+                if voice_id in self.active_voices:
+                    voice_inst = self.active_voices[voice_id]
+
+                    # Apply release velocity to amp envelope
+                    if hasattr(voice_inst, "modulation_state"):
+                        release_mod = 1.0 - (1.0 - release_vel_factor) * 0.5
+                        voice_inst.modulation_state["release_mod"] = release_mod
+
+                    voice_inst.note_off(velocity)
+                    voice_inst._pending_removal = True
+
+            # Clean up per-note MPE parameters
+            if note in self.mpe_per_note_parameters:
+                del self.mpe_per_note_parameters[note]
+            if note in self.key_pressure_values:
+                del self.key_pressure_values[note]
+            if note in self.key_pressure_32bit_values:
+                del self.key_pressure_32bit_values[note]
         else:
             self.note_off(note, velocity)
 

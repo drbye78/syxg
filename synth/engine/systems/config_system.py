@@ -5,6 +5,7 @@ Complete XGML v3.0 configuration management with hot-reloading support,
 workstation features, and smooth parameter transitions for professional
 synthesizer configuration and real-time parameter updates.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -57,6 +58,7 @@ class XGMLConfigSystem:
         try:
             # Parse XGML v3.0 configuration
             from ..xgml.parser_v3 import XGMLParserV3
+
             parser = XGMLParserV3()
             config = parser.parse_file(xgml_path)
 
@@ -86,6 +88,7 @@ class XGMLConfigSystem:
         try:
             # Parse XGML v3.0 configuration
             from ..xgml.parser_v3 import XGMLParserV3
+
             parser = XGMLParserV3()
             config = parser.parse_string(xgml_string)
 
@@ -258,90 +261,170 @@ class XGMLConfigSystem:
 
     def _capture_current_state(self) -> dict[str, Any]:
         """Capture current synthesizer state for potential rollback."""
-        # In a full implementation, this would capture all configurable state
-        # For now, return minimal state
-        return {
-            'timestamp': time.time(),
-            'description': 'Captured state for hot-reload rollback'
+        state = {
+            "timestamp": time.time(),
+            "description": "Captured state for hot-reload rollback",
+            "channels": [],
+            "effects": {},
+            "system": {},
         }
+
+        # Capture channel states
+        if hasattr(self.synthesizer, "channels"):
+            for ch in self.synthesizer.channels:
+                if ch and hasattr(ch, "get_channel_info"):
+                    state["channels"].append(ch.get_channel_info())
+
+        # Capture effects state
+        if hasattr(self.synthesizer, "effects_coordinator"):
+            ec = self.synthesizer.effects_coordinator
+            state["effects"] = {
+                "wet_dry_mix": getattr(ec, "wet_dry_mix", 1.0),
+                "master_level": getattr(ec, "master_level", 1.0),
+                "processing_enabled": getattr(ec, "processing_enabled", True),
+            }
+
+        # Capture system state
+        state["system"] = {
+            "sample_rate": self.synthesizer.sample_rate,
+            "max_polyphony": getattr(self.synthesizer, "max_polyphony", 128),
+        }
+
+        return state
 
     def _capture_effects_state(self) -> dict[str, Any]:
         """Capture current effects processing state."""
-        # Capture current effect parameters for smooth transitions
-        return {
-            'system_effects': {},
-            'variation_effects': [],
-            'insertion_effects': [],
-            'timestamp': time.time()
+        state = {
+            "system_effects": {},
+            "variation_effects": [],
+            "insertion_effects": [],
+            "timestamp": time.time(),
         }
+
+        # Capture effects coordinator state if available
+        if hasattr(self.synthesizer, "effects_coordinator"):
+            ec = self.synthesizer.effects_coordinator
+            state["system_effects"] = {
+                "reverb": getattr(ec, "reverb_sends", []).tolist()
+                if hasattr(getattr(ec, "reverb_sends", None), "tolist")
+                else list(getattr(ec, "reverb_sends", [])),
+                "chorus": getattr(ec, "chorus_sends", []).tolist()
+                if hasattr(getattr(ec, "chorus_sends", None), "tolist")
+                else list(getattr(ec, "chorus_sends", [])),
+            }
+
+        return state
 
     def _restore_state(self, state: dict[str, Any]):
         """Restore synthesizer state from captured snapshot."""
-        # In a full implementation, this would restore all state
-        # For now, this is a placeholder
-        print(f"🔄 Attempting to restore state from {state.get('timestamp', 'unknown time')}")
+        timestamp = state.get("timestamp", 0)
+        print(
+            f"🔄 Attempting to restore state from {time.strftime('%H:%M:%S', time.localtime(timestamp))}"
+        )
+
+        # Restore channel states
+        if "channels" in state and hasattr(self.synthesizer, "channels"):
+            for idx, ch_state in enumerate(state["channels"]):
+                if idx < len(self.synthesizer.channels):
+                    ch = self.synthesizer.channels[idx]
+                    if ch and ch_state:
+                        # Restore program
+                        if "program" in ch_state:
+                            ch.set_program(ch_state.get("program", 0))
+                        # Restore volume/pan
+                        if "master_level" in ch_state:
+                            ch.master_level = ch_state.get("master_level", 1.0)
+                        if "pan" in ch_state:
+                            ch.set_pan(ch_state.get("pan", 0.0))
+                        # Restore mute/solo
+                        if "muted" in ch_state:
+                            ch.muted = ch_state.get("muted", False)
+                        if "solo" in ch_state:
+                            ch.solo = ch_state.get("solo", False)
+                        # Restore key range
+                        if "key_range" in ch_state:
+                            kr = ch_state["key_range"]
+                            ch.set_key_range(kr[0], kr[1])
+
+        # Restore effects state
+        if "effects" in state and hasattr(self.synthesizer, "effects_coordinator"):
+            ec = self.synthesizer.effects_coordinator
+            eff_state = state["effects"]
+            if "wet_dry_mix" in eff_state:
+                ec.wet_dry_mix = eff_state.get("wet_dry_mix", 1.0)
+            if "master_level" in eff_state:
+                ec.master_level = eff_state.get("master_level", 1.0)
+            if "processing_enabled" in eff_state:
+                ec.processing_enabled = eff_state.get("processing_enabled", True)
+
+        print("✅ State restoration complete")
 
     def _apply_synthesizer_core_config(self, core_config: dict[str, Any]):
         """Apply synthesizer core configuration."""
-        if 'audio' in core_config:
-            audio_config = core_config['audio']
+        if "audio" in core_config:
+            audio_config = core_config["audio"]
             # Note: Audio settings like sample_rate are typically set at initialization
             # and cannot be changed dynamically. Log if they differ.
-            if audio_config.get('sample_rate', self.synthesizer.sample_rate) != self.synthesizer.sample_rate:
-                print(f"⚠️  Audio sample rate mismatch: config={audio_config['sample_rate']}, synth={self.synthesizer.sample_rate}")
+            if (
+                audio_config.get("sample_rate", self.synthesizer.sample_rate)
+                != self.synthesizer.sample_rate
+            ):
+                print(
+                    f"⚠️  Audio sample rate mismatch: config={audio_config['sample_rate']}, synth={self.synthesizer.sample_rate}"
+                )
 
-        if 'performance' in core_config:
-            perf_config = core_config['performance']
+        if "performance" in core_config:
+            perf_config = core_config["performance"]
             # Performance settings are handled at initialization but can be updated
-            if 'max_polyphony' in perf_config:
+            if "max_polyphony" in perf_config:
                 # Note: Polyphony limits might be managed at voice manager level
                 print(f"ℹ️  Polyphony setting: {perf_config['max_polyphony']}")
 
-        if 'monitoring' in core_config:
-            monitor_config = core_config['monitoring']
-            if monitor_config.get('enabled', False):
+        if "monitoring" in core_config:
+            monitor_config = core_config["monitoring"]
+            if monitor_config.get("enabled", False):
                 print("ℹ️  Performance monitoring enabled")
 
     def _apply_workstation_features_config(self, features_config: dict[str, Any]):
         """Apply workstation features configuration."""
         # Motif arpeggiator system
-        if 'motif_integration' in features_config:
-            motif_config = features_config['motif_integration']
-            if motif_config.get('enabled', False):
+        if "motif_integration" in features_config:
+            motif_config = features_config["motif_integration"]
+            if motif_config.get("enabled", False):
                 print("🎹 Motif arpeggiator integration enabled")
                 # Arpeggiator configuration would be applied here
 
         # S90/S70 AWM Stereo
-        if 's90_awm_stereo' in features_config:
-            awm_config = features_config['s90_awm_stereo']
-            if awm_config.get('enabled', False):
+        if "s90_awm_stereo" in features_config:
+            awm_config = features_config["s90_awm_stereo"]
+            if awm_config.get("enabled", False):
                 print("🎹 S90/S70 AWM Stereo features enabled")
                 # AWM Stereo configuration would be applied here
 
         # Multi-timbral configuration
-        if 'multi_timbral' in features_config:
-            multi_config = features_config['multi_timbral']
-            channels = multi_config.get('channels', 16)
+        if "multi_timbral" in features_config:
+            multi_config = features_config["multi_timbral"]
+            channels = multi_config.get("channels", 16)
             print(f"🎹 Multi-timbral channels: {channels}")
 
     def _apply_synthesis_engines_config(self, engines_config: dict[str, Any]):
         """Apply synthesis engines configuration."""
-        registry_config = engines_config.get('registry', {})
+        registry_config = engines_config.get("registry", {})
 
         # Engine priorities
-        if 'engine_priorities' in registry_config:
-            priorities = registry_config['engine_priorities']
+        if "engine_priorities" in registry_config:
+            priorities = registry_config["engine_priorities"]
             print(f"🎹 Engine priorities configured: {priorities}")
 
         # Channel engine assignments
-        if 'channel_engines' in engines_config:
-            channel_assignments = engines_config['channel_engines']
+        if "channel_engines" in engines_config:
+            channel_assignments = engines_config["channel_engines"]
             print(f"🎹 Channel engine assignments: {len(channel_assignments)} channels configured")
 
             # Apply channel assignments
             for channel_str, engine_name in channel_assignments.items():
-                if channel_str.startswith('channel_'):
-                    channel_num = int(channel_str.split('_')[1])
+                if channel_str.startswith("channel_"):
+                    channel_num = int(channel_str.split("_")[1])
                     if 0 <= channel_num < len(self.synthesizer.channels):
                         # Note: Engine assignment would typically be handled at channel level
                         # For now, this is informational
@@ -349,78 +432,79 @@ class XGMLConfigSystem:
 
         # Individual engine configurations
         engine_configs = {
-            'sf2_engine': engines_config.get('sf2_engine', {}),
-            'fm_x_engine': engines_config.get('fm_x_engine', {}),
-            'physical_engine': engines_config.get('physical_engine', {}),
-            'spectral_engine': engines_config.get('spectral_engine', {}),
+            "sf2_engine": engines_config.get("sf2_engine", {}),
+            "fm_x_engine": engines_config.get("fm_x_engine", {}),
+            "physical_engine": engines_config.get("physical_engine", {}),
+            "spectral_engine": engines_config.get("spectral_engine", {}),
         }
 
         for engine_name, engine_config in engine_configs.items():
-            if engine_config and engine_config.get('enabled', True):
+            if engine_config and engine_config.get("enabled", True):
                 print(f"🎹 {engine_name.upper()} configured")
 
     def _apply_effects_processing_config(self, effects_config: dict[str, Any]):
         """Apply effects processing configuration."""
-        if 'coordinator' in effects_config:
-            coord_config = effects_config['coordinator']
-            if coord_config.get('enabled', True):
+        if "coordinator" in effects_config:
+            coord_config = effects_config["coordinator"]
+            if coord_config.get("enabled", True):
                 print("🎹 Effects coordinator enabled")
 
-        if 'system_effects' in effects_config:
-            sys_effects = effects_config['system_effects']
-            if 'reverb' in sys_effects:
+        if "system_effects" in effects_config:
+            sys_effects = effects_config["system_effects"]
+            if "reverb" in sys_effects:
                 print("🎹 System reverb configured")
-            if 'chorus' in sys_effects:
+            if "chorus" in sys_effects:
                 print("🎹 System chorus configured")
 
-        if 'variation_effects' in effects_config:
-            var_effects = effects_config['variation_effects']
+        if "variation_effects" in effects_config:
+            var_effects = effects_config["variation_effects"]
             print(f"🎹 {len(var_effects)} variation effects configured")
 
-        if 'insertion_effects' in effects_config:
-            ins_effects = effects_config['insertion_effects']
+        if "insertion_effects" in effects_config:
+            ins_effects = effects_config["insertion_effects"]
             print(f"🎹 {len(ins_effects)} insertion effects configured")
 
     def _apply_modulation_system_config(self, modulation_config: dict[str, Any]):
         """Apply modulation system configuration."""
-        matrix_config = modulation_config.get('matrix', {})
+        matrix_config = modulation_config.get("matrix", {})
 
-        if matrix_config.get('enabled', True):
-            max_routes = matrix_config.get('max_routes', 128)
+        if matrix_config.get("enabled", True):
+            max_routes = matrix_config.get("max_routes", 128)
             print(f"🎹 Modulation matrix enabled: {max_routes} routes")
 
-            if 'routes' in matrix_config:
-                routes = matrix_config['routes']
+            if "routes" in matrix_config:
+                routes = matrix_config["routes"]
                 print(f"🎹 {len(routes)} modulation routes configured")
 
     def _apply_performance_controls_config(self, controls_config: dict[str, Any]):
         """Apply performance controls configuration."""
-        if 'assignable_knobs' in controls_config:
-            knobs = controls_config['assignable_knobs']
+        if "assignable_knobs" in controls_config:
+            knobs = controls_config["assignable_knobs"]
             print(f"🎹 {len(knobs)} assignable knobs configured")
 
-        if 'assignable_sliders' in controls_config:
-            sliders = controls_config['assignable_sliders']
+        if "assignable_sliders" in controls_config:
+            sliders = controls_config["assignable_sliders"]
             print(f"🎹 {len(sliders)} assignable sliders configured")
 
-        if 'snapshots' in controls_config:
-            snapshots = controls_config['snapshots']
+        if "snapshots" in controls_config:
+            snapshots = controls_config["snapshots"]
             print(f"🎹 {len(snapshots)} performance snapshots configured")
 
     def _apply_sequencing_config(self, sequencing_config: dict[str, Any]):
         """Apply sequencing configuration."""
-        if 'sequencer_core' in sequencing_config:
-            seq_core = sequencing_config['sequencer_core']
-            if seq_core.get('enabled', True):
-                tempo = seq_core.get('tempo', 128)
+        if "sequencer_core" in sequencing_config:
+            seq_core = sequencing_config["sequencer_core"]
+            if seq_core.get("enabled", True):
+                tempo = seq_core.get("tempo", 128)
                 print(f"🎹 Sequencer enabled: {tempo} BPM")
 
-        if 'patterns' in sequencing_config:
-            patterns = sequencing_config['patterns']
+        if "patterns" in sequencing_config:
+            patterns = sequencing_config["patterns"]
             print(f"🎹 {len(patterns)} sequence patterns loaded")
 
-    def enable_config_hot_reloading(self, watch_paths: list[str | Path] | None = None,
-                                   check_interval: float = 1.0) -> bool:
+    def enable_config_hot_reloading(
+        self, watch_paths: list[str | Path] | None = None, check_interval: float = 1.0
+    ) -> bool:
         """
         Enable configuration hot-reloading for XGML files.
 
@@ -446,9 +530,7 @@ class XGMLConfigSystem:
 
             # Start background monitoring thread
             self._hot_reload_thread = threading.Thread(
-                target=self._hot_reload_monitor,
-                name="XGMLHotReloadMonitor",
-                daemon=True
+                target=self._hot_reload_monitor, name="XGMLHotReloadMonitor", daemon=True
             )
             self._hot_reload_thread.start()
 
@@ -540,16 +622,16 @@ class XGMLConfigSystem:
             Dictionary with hot-reloading status
         """
         status = {
-            'enabled': self._hot_reload_enabled,
-            'watch_paths': [str(p) for p in self._hot_reload_watch_paths],
-            'check_interval': self._hot_reload_check_interval,
-            'thread_alive': False,
-            'last_check': self._hot_reload_last_check,
-            'file_hashes': self._hot_reload_file_hashes.copy()
+            "enabled": self._hot_reload_enabled,
+            "watch_paths": [str(p) for p in self._hot_reload_watch_paths],
+            "check_interval": self._hot_reload_check_interval,
+            "thread_alive": False,
+            "last_check": self._hot_reload_last_check,
+            "file_hashes": self._hot_reload_file_hashes.copy(),
         }
 
         if self._hot_reload_thread:
-            status['thread_alive'] = self._hot_reload_thread.is_alive()
+            status["thread_alive"] = self._hot_reload_thread.is_alive()
 
         return status
 
@@ -611,8 +693,9 @@ class XGMLConfigSystem:
     def _calculate_file_hash(self, path: Path) -> str:
         """Calculate SHA256 hash of file content."""
         try:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 import hashlib
+
                 return hashlib.sha256(f.read()).hexdigest()
         except Exception:
             return ""
@@ -624,6 +707,7 @@ class XGMLConfigSystem:
 
             # Parse the new configuration
             from ..xgml.parser_v3 import XGMLParserV3
+
             parser = XGMLParserV3()
             config = parser.parse_file(str(path))
 
@@ -757,28 +841,25 @@ basic_messages:
                 "timestamp": "2026-01-12T14:30:00Z",
                 "synthesizer_core": {
                     "audio": {
-                        "sample_rate": synth_info.get('sample_rate', 44100),
-                        "buffer_size": 512
+                        "sample_rate": synth_info.get("sample_rate", 44100),
+                        "buffer_size": 512,
                     },
                     "performance": {
-                        "max_polyphony": synth_info.get('total_active_voices', 128),
-                        "voice_stealing": "priority"
-                    }
+                        "max_polyphony": synth_info.get("total_active_voices", 128),
+                        "voice_stealing": "priority",
+                    },
                 },
                 "synthesis_engines": {
                     "registry": {
                         "default_engine": "sf2",
-                        "engine_priorities": {
-                            "sf2": 100,
-                            "fm": 90,
-                            "physical": 80
-                        }
+                        "engine_priorities": {"sf2": 100, "fm": 90, "physical": 80},
                     }
-                }
+                },
             }
 
             # Convert to YAML
             import yaml
+
             return yaml.dump(config, default_flow_style=False, sort_keys=False)
 
         except Exception as e:
