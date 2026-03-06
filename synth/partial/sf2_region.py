@@ -569,58 +569,73 @@ class SF2Region(IRegion):
             block_size: Number of stereo frames
         """
         sample_data = self._sample_data
-        sample_length = len(sample_data)
+        base_sample_length = len(sample_data)
 
-        if sample_length == 0:
+        if base_sample_length == 0:
             return
 
         # Check if sample data is stereo (2D array) or mono (1D array)
         is_stereo_data = len(sample_data.shape) > 1 and sample_data.shape[1] == 2
 
-        # For now, use base sample data for playback
-        # Mip-map selection is available but needs proper position mapping for looping
-        if is_stereo_data:
-            sample_data_left = sample_data[:, 0]
-            sample_data_right = sample_data[:, 1]
-        else:
-            sample_data_left = sample_data
-            sample_data_right = sample_data  # Mono fills both channels
+        # Select appropriate mip-map level based on pitch ratio
+        mip_level = self._select_mip_map_level()
 
-        pos = self._sample_position
-        phase_step = self._phase_step
+        # Get mip-mapped sample data
+        sample_data_left, sample_data_right = self._get_mip_map_data(
+            mip_level, is_stereo_data
+        )
 
-        # Use stereo data channels if available
-        if sample_data_right is None:
-            sample_data_right = sample_data_left
+        if sample_data_left is None or len(sample_data_left) == 0:
+            return
+
+        # Mip-mapped samples are decimated by 2^mip_level
+        # Position in mip space = base_position / decimation_factor
+        decimation_factor = 2**mip_level
+        mip_sample_length = len(sample_data_left)
+
+        # Scale position to mip space
+        pos = self._sample_position / decimation_factor
+        # Phase step also needs to be scaled for mip space
+        phase_step = self._phase_step / decimation_factor
+
+        # Scale loop points to mip space
+        loop_start_mip = self._loop_start / decimation_factor
+        loop_end_mip = self._loop_end / decimation_factor
 
         for i in range(block_size):
             # Linear interpolation
             pos_int = int(pos)
             frac = pos - pos_int
 
-            if pos_int < sample_length - 1:
+            if pos_int < mip_sample_length - 1:
                 # Get left channel samples
                 s1_l = sample_data_left[pos_int]
-                s2_l = sample_data_left[min(pos_int + 1, sample_length - 1)]
+                s2_l = sample_data_left[min(pos_int + 1, mip_sample_length - 1)]
                 sample_left = s1_l + frac * (s2_l - s1_l)
 
                 # Get right channel samples
-                s1_r = sample_data_right[pos_int]
-                s2_r = sample_data_right[min(pos_int + 1, sample_length - 1)]
+                s1_r = sample_data_right[pos_int] if sample_data_right is not None else s1_l
+                s2_r = sample_data_right[min(pos_int + 1, mip_sample_length - 1)] if sample_data_right is not None else s2_l
                 sample_right = s1_r + frac * (s2_r - s1_r)
             else:
                 # End of sample
-                sample_left = sample_data_left[-1] if sample_length > 0 else 0.0
-                sample_right = sample_data_right[-1] if len(sample_data_right) > 0 else 0.0
+                sample_left = sample_data_left[-1] if mip_sample_length > 0 else 0.0
+                sample_right = sample_data_right[-1] if sample_data_right is not None and mip_sample_length > 0 else sample_left
 
-            # Handle SF2 looping
-            pos = self._handle_sf2_looping(pos + phase_step, sample_length)
+            # Handle SF2 looping in mip space
+            pos = self._handle_sf2_looping_mip(
+                pos + phase_step,
+                mip_sample_length,
+                loop_start_mip,
+                loop_end_mip,
+            )
 
             # Write to stereo output
             output[i * 2] = sample_left  # Left
             output[i * 2 + 1] = sample_right  # Right
 
-        self._sample_position = pos
+        # Store position back in base sample space
+        self._sample_position = pos * decimation_factor
 
     def _select_mip_map_level(self) -> int:
         """
@@ -722,6 +737,53 @@ class SF2Region(IRegion):
                     if loop_length > 0:
                         excess = position - self._loop_end
                         position = self._loop_start + (excess % loop_length)
+            elif position >= sample_length:
+                position = sample_length - 1
+                self.state = RegionState.RELEASING
+
+        return position
+
+    def _handle_sf2_looping_mip(
+        self,
+        position: float,
+        sample_length: int,
+        loop_start: float,
+        loop_end: float,
+    ) -> float:
+        """
+        Handle SF2 sample looping modes in mip-map space.
+
+        Args:
+            position: Current sample position (in mip space)
+            sample_length: Total sample length (in mip space)
+            loop_start: Loop start position (in mip space)
+            loop_end: Loop end position (in mip space)
+
+        Returns:
+            Adjusted position after looping
+        """
+        if self._loop_mode == 0:
+            # No loop - stop at end
+            if position >= sample_length:
+                position = sample_length - 1
+                self.state = RegionState.RELEASING
+
+        elif self._loop_mode == 1:
+            # Forward loop
+            if position >= loop_end and loop_end > loop_start:
+                loop_length = loop_end - loop_start
+                if loop_length > 0:
+                    excess = position - loop_end
+                    position = loop_start + (excess % loop_length)
+
+        elif self._loop_mode == 3:
+            # Loop and continue
+            if loop_start <= position < loop_end:
+                if position >= loop_end:
+                    loop_length = loop_end - loop_start
+                    if loop_length > 0:
+                        excess = position - loop_end
+                        position = loop_start + (excess % loop_length)
             elif position >= sample_length:
                 position = sample_length - 1
                 self.state = RegionState.RELEASING
