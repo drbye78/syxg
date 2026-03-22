@@ -249,8 +249,11 @@ class SF2ModulationEngine:
             velocity: MIDI velocity
 
         Returns:
-            Modulation value
+            Modulation value (0.0 if no modulation for this generator)
         """
+        # SF2GeneratorProcessor only stores generator values, not modulators
+        # Return 0.0 as there's no modulation for this generator type
+        # Modulation is handled by SF2ModulationEngine
         return 0.0
 
     def update_controller(self, controller: int, value: float, smooth: bool = False) -> None:
@@ -386,6 +389,14 @@ class SF2ModulationEngine:
         factors["chorus_send"] = self._get_modulation(33, note, velocity) * 0.5
         factors["pan"] = self._get_modulation(34, note, velocity) * 0.5
 
+        # SECONDARY LFO MODULATION (generators 35-40)
+        # Note: Generator 40 (modEnvToFilter) is handled in filter modulation below
+        factors["mod_lfo_3_delay"] = self._get_modulation(35, note, velocity) * 2.0
+        factors["mod_lfo_2_rate"] = self._get_modulation(36, note, velocity) * 2.0
+        factors["vib_lfo_2_delay"] = self._get_modulation(37, note, velocity) * 2.0
+        factors["vib_lfo_2_rate"] = self._get_modulation(38, note, velocity) * 2.0
+        factors["mod_lfo_2_to_filter"] = self._get_modulation(39, note, velocity) * 2.0
+
         # PITCH & TUNING MODULATION (5 generators)
         factors["coarse_tune"] = self._get_modulation(48, note, velocity) * 12.0  # ±12 semitones
         factors["fine_tune"] = self._get_modulation(49, note, velocity) * 1.0  # ±100 cents
@@ -434,6 +445,12 @@ class SF2ModulationEngine:
             return modulation * 1200.0  # Convert to cents
         elif gen_type in [32, 33, 34]:  # Effects (level)
             return modulation * 1000.0  # Convert to level units
+        elif gen_type in [35, 37]:  # Secondary LFO delays (timecents)
+            return modulation * 1200.0  # Convert to timecents
+        elif gen_type in [36, 38]:  # Secondary LFO rates (cents)
+            return modulation * 1200.0  # Convert to cents
+        elif gen_type in [39]:  # Secondary LFO to filter (cents)
+            return modulation * 1200.0  # Convert to cents
         elif gen_type in [48, 49]:  # Tuning (semitones/cents)
             return modulation * 100.0  # Convert to appropriate units
         elif gen_type in [52]:  # Scale tuning (percent)

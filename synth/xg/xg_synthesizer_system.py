@@ -350,6 +350,39 @@ class XGSynthesizerSystem:
 
         return "xg"
 
+    def _get_gs_drum_kit_for_note(self, note: int) -> int:
+        """
+        Get GS drum kit number for a MIDI note.
+
+        GS drum kits are typically organized by note number:
+        - Standard Kit 1 (0): Notes 35-50 (Kick, Snare, Toms)
+        - Standard Kit 2 (1): Notes 51-60 (Hi-hats, cymbals)
+        - Other kits for special mappings
+
+        Args:
+            note: MIDI note number
+
+        Returns:
+            Drum kit number (0-127)
+        """
+        # Standard GM/GS drum mapping
+        if 35 <= note <= 50:  # Kick, Snare, Toms
+            return 0  # Standard Kit 1
+        elif 51 <= note <= 60:  # Hi-hats, cymbals
+            return 0  # Standard Kit 1
+        elif 61 <= note <= 70:  # Percussion
+            return 0  # Standard Kit 1
+        elif 71 <= note <= 80:  # More percussion
+            return 0  # Standard Kit 1
+        elif 81 <= note <= 90:  # Effects
+            return 0  # Standard Kit 1
+        elif 91 <= note <= 100:  # More effects
+            return 0  # Standard Kit 1
+        elif 101 <= note <= 127:  # Extended range
+            return 0  # Standard Kit 1
+        else:
+            return 0  # Default to Standard Kit 1
+
     def get_drum_mapping(
         self, part_num: int, note: int, velocity: int = 64
     ) -> tuple[int, dict | None]:
@@ -378,9 +411,19 @@ class XGSynthesizerSystem:
 
         # Check GS mode
         if self.mode.gs_enabled and self.gs_handler.is_drum_part(part_num):
-            # Use GS drum parameters
-            # For now, return note as-is (GS drum mapping is complex)
-            return note, None
+            # Use GS drum parameters for drum kit selection
+            # GS drum mapping: map note to drum kit based on note number
+            drum_kit = self._get_gs_drum_kit_for_note(note)
+
+            # Create a simple drum entry with the drum kit
+            drum_entry = {
+                "is_drum": True,
+                "drum_kit": drum_kit,
+                "original_note": note,
+                "mapped_note": note,  # GS typically doesn't remap notes
+            }
+
+            return note, drum_entry
 
         return note, None
 

@@ -248,7 +248,10 @@ class SF2PartModeIntegrator:
         if self.xg_system:
             # Use XG system drum map
             mapped_note, entry = self.xg_system.get_drum_mapping(channel, note, velocity)
-            return mapped_note
+            if entry and "drum_kit" in entry:
+                return entry["drum_kit"]
+            # Fallback to default drum kit
+            return 0
 
         # Fallback: simple note-to-kit mapping
         # Standard drum map

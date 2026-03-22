@@ -89,7 +89,7 @@ class SF2Partial(SynthesisPartial):
         "scale_tuning",
         # Volume Envelope
         "hold_vol_env",
-        # Buffer references (MISSING - causing crashes)
+        # Buffer references (allocated on demand in _allocate_buffers)
         "vib_lfo_buffer",
         "mod_lfo_buffer",
         "mod_env_buffer",
@@ -97,25 +97,25 @@ class SF2Partial(SynthesisPartial):
         "lfo_filter_buffer",
         "lfo_volume_buffer",
         "lfo_pan_buffer",
-        # Performance optimization buffers (MISSING)
+        # Performance optimization buffers (allocated on demand)
         "_pitch_mod_vector",
         "_filter_mod_vector",
         "_volume_mod_vector",
         "_pan_mod_vector",
-        # Allocation state (MISSING)
+        # Allocation state (managed by _buffers_allocated flag)
         "_buffers_allocated",
-        # LFO phase tracking (MISSING)
+        # LFO phase tracking (managed by _vib_lfo_phase, _mod_lfo_phase)
         "_vib_lfo_phase",
         "_mod_lfo_phase",
-        # Envelope state (MISSING)
+        # Envelope state (managed by _mod_env_state, _amp_env_state)
         "_mod_env_state",
         "_amp_env_state",
-        # Spatial processing (MISSING)
+        # Spatial processing (managed by _channel_pan, _reverb_send, etc.)
         "_channel_pan",
         "_reverb_send",
         "_chorus_send",
         "_pan_position",
-        # Additional modulation attributes (MISSING)
+        # Additional modulation attributes (managed by modulation system)
         "pan_mod",
         "resonance_mod",
         "lfo_rate_mod",
@@ -124,7 +124,7 @@ class SF2Partial(SynthesisPartial):
         "modwheel_mod",
         "foot_mod",
         "expression_mod",
-        # LFO modulation routing (MISSING)
+        # LFO modulation routing (managed by SF2 generators)
         "vib_lfo_to_pitch",
         "mod_lfo_to_filter",
         "mod_lfo_to_volume",
@@ -258,7 +258,7 @@ class SF2Partial(SynthesisPartial):
         self.filter_mod: float = 0.0
         self.volume_mod: float = 1.0
 
-        # Initialize additional modulation attributes (MISSING)
+        # Initialize additional modulation attributes (managed by modulation system)
         self.pan_mod: float = 0.0
         self.resonance_mod: float = 0.0
         self.lfo_rate_mod: float = 0.0
@@ -268,22 +268,22 @@ class SF2Partial(SynthesisPartial):
         self.foot_mod: float = 0.0
         self.expression_mod: float = 0.0
 
-        # LFO modulation routing (MISSING)
+        # LFO modulation routing (loaded from SF2 generators)
         self.vib_lfo_to_pitch: float = 0.0
         self.mod_lfo_to_filter: float = 0.0
         self.mod_lfo_to_volume: float = 0.0
 
-        # Spatial processing (MISSING)
+        # Spatial processing (loaded from SF2 generators)
         self._channel_pan: float = 0.0
         self._reverb_send: float = 0.0
         self._chorus_send: float = 0.0
         self._pan_position: float = 0.0
 
-        # Envelope state (MISSING)
+        # Envelope state (managed by envelope processor)
         self._mod_env_state: dict = {"stage": "idle", "level": 0.0, "stage_time": 0.0}
         self._amp_env_state: dict = {"stage": "idle", "level": 0.0, "stage_time": 0.0}
 
-        # LFO phase tracking (MISSING)
+        # LFO phase tracking (managed by LFO processors)
         self._vib_lfo_phase: float = 0.0
         self._mod_lfo_phase: float = 0.0
 
