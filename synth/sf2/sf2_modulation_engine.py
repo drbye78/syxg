@@ -1,14 +1,11 @@
 from __future__ import annotations
+
 from typing import Any
-import math
-import numpy as np
+
 from .sf2_constants import (
     SF2_GENERATORS,
-    SF2_MODULATOR_SOURCES,
-    SF2_MODULATOR_DESTINATIONS,
-    SF2_MODULATOR_TRANSFORMS,
 )
-from .sf2_zone_engine import SF2ZoneEngine, SF2ModulationEngine as SF2ModulationEngineV2
+from .sf2_zone_engine import SF2ZoneEngine
 
 
 class SF2GeneratorProcessor:
@@ -72,54 +69,26 @@ class SF2GeneratorProcessor:
         params["amp_hold"] = self._timecent_to_seconds(self.get_generator(10, -12000))
         params["amp_decay"] = self._timecent_to_seconds(self.get_generator(11, -12000))
         params["amp_sustain"] = self.get_generator(12, 0) / 1000.0  # 0-1000 to 0.0-1.0
-        params["amp_release"] = self._timecent_to_seconds(
-            self.get_generator(13, -12000)
-        )
+        params["amp_release"] = self._timecent_to_seconds(self.get_generator(13, -12000))
 
         # MODULATION ENVELOPE (NEW - CRITICAL - 7 generators)
-        params["mod_env_delay"] = self._timecent_to_seconds(
-            self.get_generator(14, -12000)
-        )
-        params["mod_env_attack"] = self._timecent_to_seconds(
-            self.get_generator(15, -12000)
-        )
-        params["mod_env_hold"] = self._timecent_to_seconds(
-            self.get_generator(16, -12000)
-        )
-        params["mod_env_decay"] = self._timecent_to_seconds(
-            self.get_generator(17, -12000)
-        )
-        params["mod_env_sustain"] = (
-            self.get_generator(18, -12000) / 1000.0
-        )  # Convert to 0.0-1.0
-        params["mod_env_release"] = self._timecent_to_seconds(
-            self.get_generator(19, -12000)
-        )
-        params["mod_env_to_pitch"] = (
-            self.get_generator(20, 0) / 1200.0
-        )  # cents to semitones
+        params["mod_env_delay"] = self._timecent_to_seconds(self.get_generator(14, -12000))
+        params["mod_env_attack"] = self._timecent_to_seconds(self.get_generator(15, -12000))
+        params["mod_env_hold"] = self._timecent_to_seconds(self.get_generator(16, -12000))
+        params["mod_env_decay"] = self._timecent_to_seconds(self.get_generator(17, -12000))
+        params["mod_env_sustain"] = self.get_generator(18, -12000) / 1000.0  # Convert to 0.0-1.0
+        params["mod_env_release"] = self._timecent_to_seconds(self.get_generator(19, -12000))
+        params["mod_env_to_pitch"] = self.get_generator(20, 0) / 1200.0  # cents to semitones
 
         # LFO SYSTEMS (COMPLETE - 8 generators)
-        params["mod_lfo_delay"] = self._timecent_to_seconds(
-            self.get_generator(21, -12000)
-        )
+        params["mod_lfo_delay"] = self._timecent_to_seconds(self.get_generator(21, -12000))
         params["mod_lfo_rate"] = self._cent_to_frequency(self.get_generator(22, 0))
-        params["mod_lfo_to_volume"] = (
-            self.get_generator(23, 0) / 960.0
-        )  # Convert to amplitude
-        params["mod_lfo_to_filter"] = (
-            self.get_generator(24, 0) / 1200.0
-        )  # cents to semitones
-        params["mod_lfo_to_pitch"] = (
-            self.get_generator(25, 0) / 1200.0
-        )  # cents to semitones
-        params["vib_lfo_delay"] = self._timecent_to_seconds(
-            self.get_generator(26, -12000)
-        )
+        params["mod_lfo_to_volume"] = self.get_generator(23, 0) / 960.0  # Convert to amplitude
+        params["mod_lfo_to_filter"] = self.get_generator(24, 0) / 1200.0  # cents to semitones
+        params["mod_lfo_to_pitch"] = self.get_generator(25, 0) / 1200.0  # cents to semitones
+        params["vib_lfo_delay"] = self._timecent_to_seconds(self.get_generator(26, -12000))
         params["vib_lfo_rate"] = self._cent_to_frequency(self.get_generator(27, 0))
-        params["vib_lfo_to_pitch"] = (
-            self.get_generator(28, 0) / 1200.0
-        )  # cents to semitones
+        params["vib_lfo_to_pitch"] = self.get_generator(28, 0) / 1200.0  # cents to semitones
 
         # FILTER (ENHANCED - 2 generators)
         params["filter_cutoff"] = self._cent_to_frequency(self.get_generator(29, -200))
@@ -141,9 +110,7 @@ class SF2GeneratorProcessor:
         params["sample_mode"] = self.get_generator(
             51, 0
         )  # 0=no loop, 1=loop, 2=reserved, 3=loop+release
-        params["exclusive_class"] = self.get_generator(
-            53, 0
-        )  # 0-127 voice stealing group
+        params["exclusive_class"] = self.get_generator(53, 0)  # 0-127 voice stealing group
 
         # LOOP PARAMETERS (SF2 generators 44-47)
         params["start_loop_coarse"] = self.get_generator(44, 0)  # startloopAddrsCoarse
@@ -185,9 +152,7 @@ class SF2GeneratorProcessor:
             return 0.0  # -inf means instant
         # Convert timecents to seconds using the correct formula
         # Timecents represent logarithmic time intervals in 1/1200 octave units
-        return 0.001 * (
-            2.0 ** (timecent / 1200.0)
-        )  # Corrected formula with proper scaling
+        return 0.001 * (2.0 ** (timecent / 1200.0))  # Corrected formula with proper scaling
 
     def _cent_to_frequency(self, cent: int) -> float:
         """
@@ -288,9 +253,7 @@ class SF2ModulationEngine:
         """
         return 0.0
 
-    def update_controller(
-        self, controller: int, value: float, smooth: bool = False
-    ) -> None:
+    def update_controller(self, controller: int, value: float, smooth: bool = False) -> None:
         """Update a controller value."""
         self.controller_values[controller] = value
         if smooth and controller in self.smoothing_filters:
@@ -364,18 +327,14 @@ class SF2ModulationEngine:
             return self.controller_values.get(src_operator, 0.0)
 
         # Handle link sources (for stereo samples)
-        if (
-            src_operator == 0x80
-        ):  # Link - typically used for right channel of stereo pairs
+        if src_operator == 0x80:  # Link - typically used for right channel of stereo pairs
             # This would be context-dependent, simplified for now
             return 0.0
 
         # Unknown source - return 0 (safe default)
         return 0.0
 
-    def _calculate_modulation_factors(
-        self, note: int, velocity: int
-    ) -> dict[str, float]:
+    def _calculate_modulation_factors(self, note: int, velocity: int) -> dict[str, float]:
         """
         Calculate modulation factors for ALL modern synth parameters.
         Implements complete SF2 modulation destination routing.
@@ -391,19 +350,11 @@ class SF2ModulationEngine:
 
         # VOLUME ENVELOPE MODULATION (6 generators)
         factors["amp_delay"] = self._get_modulation(8, note, velocity) * 2.0  # ±2x time
-        factors["amp_attack"] = (
-            self._get_modulation(9, note, velocity) * 2.0
-        )  # ±2x time
+        factors["amp_attack"] = self._get_modulation(9, note, velocity) * 2.0  # ±2x time
         factors["amp_hold"] = self._get_modulation(10, note, velocity) * 2.0  # ±2x time
-        factors["amp_decay"] = (
-            self._get_modulation(11, note, velocity) * 2.0
-        )  # ±2x time
-        factors["amp_sustain"] = (
-            self._get_modulation(12, note, velocity) * 0.5
-        )  # ±50% level
-        factors["amp_release"] = (
-            self._get_modulation(13, note, velocity) * 2.0
-        )  # ±2x time
+        factors["amp_decay"] = self._get_modulation(11, note, velocity) * 2.0  # ±2x time
+        factors["amp_sustain"] = self._get_modulation(12, note, velocity) * 0.5  # ±50% level
+        factors["amp_release"] = self._get_modulation(13, note, velocity) * 2.0  # ±2x time
 
         # MODULATION ENVELOPE MODULATION (7 generators)
         factors["mod_env_delay"] = self._get_modulation(14, note, velocity) * 2.0
@@ -427,12 +378,8 @@ class SF2ModulationEngine:
         factors["vib_lfo_to_pitch"] = self._get_modulation(28, note, velocity) * 2.0
 
         # FILTER MODULATION (2 generators)
-        factors["filter_cutoff"] = (
-            self._get_modulation(29, note, velocity) * 2.0
-        )  # ±2 octaves
-        factors["filter_resonance"] = (
-            self._get_modulation(30, note, velocity) * 0.5
-        )  # ±50%
+        factors["filter_cutoff"] = self._get_modulation(29, note, velocity) * 2.0  # ±2 octaves
+        factors["filter_resonance"] = self._get_modulation(30, note, velocity) * 0.5  # ±50%
 
         # EFFECTS MODULATION (3 generators)
         factors["reverb_send"] = self._get_modulation(32, note, velocity) * 0.5
@@ -440,12 +387,8 @@ class SF2ModulationEngine:
         factors["pan"] = self._get_modulation(34, note, velocity) * 0.5
 
         # PITCH & TUNING MODULATION (5 generators)
-        factors["coarse_tune"] = (
-            self._get_modulation(48, note, velocity) * 12.0
-        )  # ±12 semitones
-        factors["fine_tune"] = (
-            self._get_modulation(49, note, velocity) * 1.0
-        )  # ±100 cents
+        factors["coarse_tune"] = self._get_modulation(48, note, velocity) * 12.0  # ±12 semitones
+        factors["fine_tune"] = self._get_modulation(49, note, velocity) * 1.0  # ±100 cents
         factors["scale_tuning"] = self._get_modulation(52, note, velocity) * 0.5  # ±50%
 
         # Remove zero modulations for performance
@@ -498,9 +441,7 @@ class SF2ModulationEngine:
         else:
             return modulation * 1000.0  # Default scaling
 
-    def get_modulation_for_generator(
-        self, gen_type: int, note: int, velocity: int
-    ) -> float:
+    def get_modulation_for_generator(self, gen_type: int, note: int, velocity: int) -> float:
         """
         Calculate total modulation for a specific generator.
 
@@ -521,9 +462,7 @@ class SF2ModulationEngine:
                 source_value = self._get_source_value(src_op)
 
                 # Get amount and transform
-                amount = (
-                    modulator.get("mod_amount", 0) / 32768.0
-                )  # Normalize SF2 16-bit
+                amount = modulator.get("mod_amount", 0) / 32768.0  # Normalize SF2 16-bit
                 transform_type = modulator.get("mod_trans_operator", 0)
 
                 # Apply transform
@@ -644,9 +583,7 @@ class SF2RealtimeControllerManager:
         for controller in fine_tune_controllers:
             self.smoothing_filters[controller] = ExponentialFilter(alpha=0.1)
 
-    def update_controller(
-        self, controller: int, value: int | float, smooth: bool = True
-    ) -> None:
+    def update_controller(self, controller: int, value: int | float, smooth: bool = True) -> None:
         """
         Update controller value with optional smoothing.
 
@@ -666,9 +603,7 @@ class SF2RealtimeControllerManager:
         else:
             # Already normalized or special controller
             if smooth and controller in self.smoothing_filters:
-                normalized_value = self.smoothing_filters[controller].filter(
-                    float(value)
-                )
+                normalized_value = self.smoothing_filters[controller].filter(float(value))
             else:
                 normalized_value = float(value)
 
@@ -678,9 +613,7 @@ class SF2RealtimeControllerManager:
         # Update modulation engine
         self.modulation_engine.update_global_controller(controller, normalized_value)
 
-    def update_pitch_bend(
-        self, value: int, range_semitones: int | None = None
-    ) -> None:
+    def update_pitch_bend(self, value: int, range_semitones: int | None = None) -> None:
         """
         Update pitch bend with configurable range.
 
@@ -776,9 +709,7 @@ class SF2RealtimeControllerManager:
         Args:
             range_semitones: New pitch bend range
         """
-        self.current_pitch_bend_range = max(
-            1, min(24, range_semitones)
-        )  # Clamp to 1-24 semitones
+        self.current_pitch_bend_range = max(1, min(24, range_semitones))  # Clamp to 1-24 semitones
 
     def get_controller_value(self, controller: int) -> float:
         """

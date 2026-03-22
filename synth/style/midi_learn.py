@@ -12,14 +12,16 @@ Features:
 - Save/load mappings
 - Callback-based parameter updates
 """
+
 from __future__ import annotations
 
-from typing import Any
+import json
+import threading
+import time
 from collections.abc import Callable
 from enum import Enum
-import threading
-import json
-import time
+from typing import Any
+
 import numpy as np
 
 
@@ -30,7 +32,7 @@ class LearnTargetType(Enum):
     STYLE_START_STOP = "style_start_stop"
     STYLE_PLAY_PAUSE = "style_play_pause"
     STYLE_STOP = "style_stop"
-    
+
     # Section controls
     STYLE_SECTION_NEXT = "style_section_next"
     STYLE_SECTION_PREV = "style_section_prev"
@@ -38,19 +40,19 @@ class LearnTargetType(Enum):
     STYLE_SECTION_B = "style_section_b"
     STYLE_SECTION_C = "style_section_c"
     STYLE_SECTION_D = "style_section_d"
-    
+
     # Fill and transition controls
     STYLE_FILL = "style_fill"
     STYLE_BREAK = "style_break"
     STYLE_INTRO = "style_intro"
     STYLE_ENDING = "style_ending"
-    
+
     # Continuous parameters
     STYLE_TEMPO = "style_tempo"
     STYLE_DYNAMICS = "style_dynamics"
     STYLE_VOLUME = "style_volume"
     STYLE_TEMPO_FINE = "style_tempo_fine"
-    
+
     # Voice/OTS controls
     OTS_1 = "ots_1"
     OTS_2 = "ots_2"
@@ -62,7 +64,7 @@ class LearnTargetType(Enum):
     OTS_8 = "ots_8"
     OTS_NEXT = "ots_next"
     OTS_PREV = "ots_prev"
-    
+
     # Registration controls
     REGISTRATION_1 = "registration_1"
     REGISTRATION_2 = "registration_2"
@@ -70,12 +72,12 @@ class LearnTargetType(Enum):
     REGISTRATION_4 = "registration_4"
     REGISTRATION_NEXT = "registration_next"
     REGISTRATION_PREV = "registration_prev"
-    
+
     # Effect controls
     EFFECT_REVERB = "effect_reverb"
     EFFECT_CHORUS = "effect_chorus"
     EFFECT_VARIATION = "effect_variation"
-    
+
     # Advanced controls
     STYLE_OCTAVE = "style_octave"
     STYLE_TRANSPOSE = "style_transpose"
@@ -87,7 +89,7 @@ class LearnTargetType(Enum):
 class MIDILearnMapping:
     """
     Single MIDI learn mapping entry.
-    
+
     Attributes:
         cc_number: MIDI CC number (0-127)
         channel: MIDI channel (0-15)
@@ -139,29 +141,29 @@ class MIDILearnMapping:
     def process_value(self, raw_value: int) -> float:
         """
         Process raw MIDI value through curve and scaling.
-        
+
         Args:
             raw_value: Raw MIDI CC value (0-127)
-            
+
         Returns:
             Processed output value
         """
         # Handle inversion
         if self.inverted:
             raw_value = 127 - raw_value
-        
+
         self.last_raw_value = raw_value
-        
+
         # Normalize to 0-1
         normalized = raw_value / 127.0
-        
+
         # Apply curve
         curve_func = MIDILearn.CURVES.get(self.curve, MIDILearn.CURVES["linear"])
         processed = curve_func(normalized)
-        
+
         # Scale to output range
         mapped_value = self.min_val + processed * (self.max_val - self.min_val)
-        
+
         # Apply snap-to-grid if enabled
         if self.snap_to_grid > 0:
             grid_steps = round(mapped_value / self.snap_to_grid)
@@ -169,7 +171,7 @@ class MIDILearnMapping:
             mapped_value = max(self.min_val, min(self.max_val, mapped_value))
         else:
             mapped_value = max(self.min_val, min(self.max_val, mapped_value))
-        
+
         self.last_value = mapped_value
         return mapped_value
 
@@ -214,7 +216,7 @@ class MIDILearn:
     MIDI Learn System for Style Engine
 
     Provides controller mapping with learn functionality.
-    
+
     Features:
     - Real-time MIDI learn mode
     - 30+ mappable targets
@@ -261,14 +263,14 @@ class MIDILearn:
         self.pending_learn: tuple[LearnTargetType, str] | None = None
         self.callbacks: dict[LearnTargetType, list[Callable]] = {}
         self.learn_enabled = False
-        
+
         # Active values for momentary controls
         self.active_values: dict[tuple[int, int], float] = {}
-        
+
         # Learn timeout (auto-cancel after N seconds)
         self.learn_timeout: float = 10.0
         self.learn_start_time: float | None = None
-        
+
         # Mapping groups (for organizing by function)
         self.groups: dict[str, list[tuple[int, int]]] = {
             "transport": [],
@@ -280,11 +282,12 @@ class MIDILearn:
             "effects": [],
         }
 
-    def start_learn(self, target_type: LearnTargetType, target_param: str = "", 
-                    timeout: float | None = None) -> None:
+    def start_learn(
+        self, target_type: LearnTargetType, target_param: str = "", timeout: float | None = None
+    ) -> None:
         """
         Start learn mode for a specific target.
-        
+
         Args:
             target_type: Type of parameter to learn
             target_param: Specific parameter name
@@ -312,9 +315,7 @@ class MIDILearn:
             self.learn_enabled = False
             self.learn_start_time = None
 
-    def process_midi(
-        self, cc_number: int, channel: int, value: int
-    ) -> dict[str, Any] | None:
+    def process_midi(self, cc_number: int, channel: int, value: int) -> dict[str, Any] | None:
         """
         Process incoming MIDI CC message.
 
@@ -322,7 +323,7 @@ class MIDILearn:
             cc_number: MIDI CC number
             channel: MIDI channel
             value: CC value (0-127)
-            
+
         Returns:
             Dict with target info and processed value if mapping exists,
             or learn confirmation if in learn mode
@@ -345,18 +346,23 @@ class MIDILearn:
                 self.mappings[key] = mapping
                 self._add_to_group(target_type, key)
                 self.cancel_learn()
-                return {"learned": True, "target": target_type.value, "cc": cc_number, "channel": channel}
+                return {
+                    "learned": True,
+                    "target": target_type.value,
+                    "cc": cc_number,
+                    "channel": channel,
+                }
 
             # Process existing mapping
             if key in self.mappings:
                 mapping = self.mappings[key]
-                
+
                 # Check channel specificity
                 if mapping.channel_specific and mapping.channel != channel:
                     return None
-                
+
                 processed_value = mapping.process_value(value)
-                
+
                 # Handle momentary (return to default when released)
                 if mapping.momentary:
                     if value == 0:
@@ -408,14 +414,15 @@ class MIDILearn:
             LearnTargetType.EFFECT_REVERB: "effects",
             LearnTargetType.EFFECT_CHORUS: "effects",
         }
-        
+
         group = group_map.get(target_type)
         if group and group in self.groups:
             if key not in self.groups[group]:
                 self.groups[group].append(key)
 
-    def _trigger_callbacks(self, target_type: LearnTargetType, 
-                          processed_value: float, raw_value: int) -> None:
+    def _trigger_callbacks(
+        self, target_type: LearnTargetType, processed_value: float, raw_value: int
+    ) -> None:
         """Trigger registered callbacks for a target type."""
         if target_type in self.callbacks:
             for callback in self.callbacks[target_type]:
@@ -424,9 +431,7 @@ class MIDILearn:
                 except Exception:
                     pass  # Don't let callback errors break processing
 
-    def register_callback(
-        self, target_type: LearnTargetType, callback: Callable
-    ) -> None:
+    def register_callback(self, target_type: LearnTargetType, callback: Callable) -> None:
         """Register callback for a target type."""
         with self.lock:
             if target_type not in self.callbacks:
@@ -434,9 +439,7 @@ class MIDILearn:
             if callback not in self.callbacks[target_type]:
                 self.callbacks[target_type].append(callback)
 
-    def unregister_callback(
-        self, target_type: LearnTargetType, callback: Callable
-    ) -> bool:
+    def unregister_callback(self, target_type: LearnTargetType, callback: Callable) -> bool:
         """Unregister a callback."""
         with self.lock:
             if target_type in self.callbacks and callback in self.callbacks[target_type]:
@@ -497,17 +500,17 @@ class MIDILearn:
     def load_default_mappings(self, controller_preset: str) -> bool:
         """
         Load default mappings for a known controller.
-        
+
         Args:
             controller_preset: Name of controller preset
-            
+
         Returns:
             True if preset was found and loaded
         """
         with self.lock:
             if controller_preset not in self.DEFAULT_MAPPINGS:
                 return False
-            
+
             preset = self.DEFAULT_MAPPINGS[controller_preset]
             for key, mapping in preset.items():
                 self.mappings[key] = mapping
@@ -525,7 +528,7 @@ class MIDILearn:
                 self.mappings.clear()
                 for group in self.groups:
                     self.groups[group] = []
-                    
+
                 for item in data:
                     mapping = MIDILearnMapping.from_dict(item)
                     self.mappings[(mapping.cc_number, mapping.channel)] = mapping
@@ -538,10 +541,14 @@ class MIDILearn:
         """Save mappings to JSON file."""
         try:
             with open(filepath, "w") as f:
-                json.dump({
-                    "mappings": self.export_mappings(),
-                    "groups": {k: list(v) for k, v in self.groups.items()},
-                }, f, indent=2)
+                json.dump(
+                    {
+                        "mappings": self.export_mappings(),
+                        "groups": {k: list(v) for k, v in self.groups.items()},
+                    },
+                    f,
+                    indent=2,
+                )
             return True
         except Exception:
             return False
@@ -551,7 +558,7 @@ class MIDILearn:
         try:
             with open(filepath) as f:
                 data = json.load(f)
-            
+
             with self.lock:
                 if isinstance(data, list):
                     # Old format (just mappings list)
@@ -573,9 +580,7 @@ class MIDILearn:
         with self.lock:
             return {
                 "learn_enabled": self.learn_enabled,
-                "pending_learn": self.pending_learn[0].value
-                if self.pending_learn
-                else None,
+                "pending_learn": self.pending_learn[0].value if self.pending_learn else None,
                 "learn_timeout": self.learn_timeout,
                 "mapping_count": len(self.mappings),
                 "groups": {k: len(v) for k, v in self.groups.items()},

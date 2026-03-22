@@ -4,16 +4,17 @@ MIDI 2.0 Capability Discovery System
 Advanced system for discovering and negotiating device capabilities in MIDI 2.0 environments.
 Implements comprehensive device interrogation and capability reporting with profile negotiation.
 """
+
 from __future__ import annotations
 
-from typing import Any
-import struct
 import json
 from enum import IntEnum
+from typing import Any
 
 
 class CapabilityType(IntEnum):
     """Types of capabilities that can be discovered"""
+
     MIDI_VERSION = 0x01
     MAX_CHANNELS = 0x02
     MAX_POLYPHONY = 0x03
@@ -164,11 +165,11 @@ class CapabilityType(IntEnum):
 class CapabilityDiscoverySystem:
     """
     MIDI 2.0 Capability Discovery System
-    
+
     Discovers and reports device capabilities with comprehensive interrogation
     and profile negotiation functionality.
     """
-    
+
     def __init__(self):
         """Initialize the capability discovery system."""
         self.device_capabilities: dict[str, dict[CapabilityType, Any]] = {}
@@ -176,10 +177,10 @@ class CapabilityDiscoverySystem:
         self.property_exchange_enabled = True
         self.discovery_callbacks: list[callable] = []
         self.device_identifiers: set[str] = set()
-        
+
         # Initialize with default capabilities for common device types
         self._initialize_default_capabilities()
-    
+
     def _initialize_default_capabilities(self):
         """Initialize default capabilities for common device types."""
         # Default capabilities for a typical XG-compatible device
@@ -197,34 +198,46 @@ class CapabilityDiscoverySystem:
             CapabilityType.JITTER_REDUCTION: True,
             CapabilityType.MIXED_DATA_SETS: True,
             CapabilityType.SUPPORTED_MESSAGES: {
-                'note_on', 'note_off', 'control_change', 'program_change',
-                'pitch_bend', 'channel_pressure', 'poly_pressure', 'sysex',
-                'per_note_controller', 'per_note_pitch_bend', 'per_note_management',
-                'per_note_tuning', 'per_note_expression', 'per_note_modulation',
-                'ump_stream', 'property_exchange', 'profile_configuration'
+                "note_on",
+                "note_off",
+                "control_change",
+                "program_change",
+                "pitch_bend",
+                "channel_pressure",
+                "poly_pressure",
+                "sysex",
+                "per_note_controller",
+                "per_note_pitch_bend",
+                "per_note_management",
+                "per_note_tuning",
+                "per_note_expression",
+                "per_note_modulation",
+                "ump_stream",
+                "property_exchange",
+                "profile_configuration",
             },
             CapabilityType.EFFECTS_CAPABILITIES: {
-                'reverb_units': 4,
-                'chorus_units': 2,
-                'delay_units': 8,
-                'distortion_units': 2,
-                'filter_units': 16,
-                'modulation_units': 12,
-                'dynamics_units': 8,
-                'eq_units': 6
+                "reverb_units": 4,
+                "chorus_units": 2,
+                "delay_units": 8,
+                "distortion_units": 2,
+                "filter_units": 16,
+                "modulation_units": 12,
+                "dynamics_units": 8,
+                "eq_units": 6,
             },
             CapabilityType.VOICE_ARCHITECTURE: {
-                'voice_engine_types': ['xg', 'an', 'fdsp', 'sf2'],
-                'max_voices': 128,
-                'voice_stealing_enabled': True,
-                'voice_priority_system': True
+                "voice_engine_types": ["xg", "an", "fdsp", "sf2"],
+                "max_voices": 128,
+                "voice_stealing_enabled": True,
+                "voice_priority_system": True,
             },
             CapabilityType.SAMPLE_LIBRARY: {
-                'has_internal_samples': True,
-                'max_sample_memory_mb': 512,
-                'supports_sf2': True,
-                'supports_sfz': True,
-                'sample_formats': ['wav', 'aiff', 'sf2', 'sfz']
+                "has_internal_samples": True,
+                "max_sample_memory_mb": 512,
+                "supports_sf2": True,
+                "supports_sfz": True,
+                "sample_formats": ["wav", "aiff", "sf2", "sfz"],
             },
             CapabilityType.MAX_SIMULTANEOUS_PROFILES: 4,
             CapabilityType.DYNAMIC_PROFILE_SWITCHING: True,
@@ -238,9 +251,9 @@ class CapabilityDiscoverySystem:
             CapabilityType.PER_NOTE_TUNING: True,
             CapabilityType.PER_NOTE_MANAGEMENT: True,
         }
-        
-        self.device_capabilities['default_xg_device'] = xg_caps
-        
+
+        self.device_capabilities["default_xg_device"] = xg_caps
+
         # Default capabilities for a typical GM device
         gm_caps = {
             CapabilityType.MIDI_VERSION: 1.0,
@@ -256,27 +269,32 @@ class CapabilityDiscoverySystem:
             CapabilityType.JITTER_REDUCTION: False,
             CapabilityType.MIXED_DATA_SETS: False,
             CapabilityType.SUPPORTED_MESSAGES: {
-                'note_on', 'note_off', 'control_change', 'program_change',
-                'pitch_bend', 'channel_pressure', 'poly_pressure'
+                "note_on",
+                "note_off",
+                "control_change",
+                "program_change",
+                "pitch_bend",
+                "channel_pressure",
+                "poly_pressure",
             },
             CapabilityType.EFFECTS_CAPABILITIES: {
-                'reverb_units': 1,
-                'chorus_units': 1,
-                'delay_units': 0,
-                'distortion_units': 0
+                "reverb_units": 1,
+                "chorus_units": 1,
+                "delay_units": 0,
+                "distortion_units": 0,
             },
             CapabilityType.VOICE_ARCHITECTURE: {
-                'voice_engine_types': ['gm'],
-                'max_voices': 64,
-                'voice_stealing_enabled': True,
-                'voice_priority_system': False
+                "voice_engine_types": ["gm"],
+                "max_voices": 64,
+                "voice_stealing_enabled": True,
+                "voice_priority_system": False,
             },
             CapabilityType.SAMPLE_LIBRARY: {
-                'has_internal_samples': True,
-                'max_sample_memory_mb': 16,
-                'supports_sf2': False,
-                'supports_sfz': False,
-                'sample_formats': ['wav', 'aiff']
+                "has_internal_samples": True,
+                "max_sample_memory_mb": 16,
+                "supports_sf2": False,
+                "supports_sfz": False,
+                "sample_formats": ["wav", "aiff"],
             },
             CapabilityType.MAX_SIMULTANEOUS_PROFILES: 1,
             CapabilityType.DYNAMIC_PROFILE_SWITCHING: False,
@@ -286,10 +304,12 @@ class CapabilityDiscoverySystem:
             CapabilityType.MPE_PLUS_SUPPORT: False,
             CapabilityType.PER_NOTE_EXPRESSIONS: False,
         }
-        
-        self.device_capabilities['default_gm_device'] = gm_caps
-    
-    def discover_device_capabilities(self, device_id: str, device_type: str = 'auto') -> dict[CapabilityType, Any]:
+
+        self.device_capabilities["default_gm_device"] = gm_caps
+
+    def discover_device_capabilities(
+        self, device_id: str, device_type: str = "auto"
+    ) -> dict[CapabilityType, Any]:
         """
         Discover capabilities of a MIDI device.
 
@@ -303,37 +323,37 @@ class CapabilityDiscoverySystem:
         if device_id in self.device_capabilities:
             # Return cached capabilities
             return self.device_capabilities[device_id]
-        
+
         # Determine device type if auto-detect
-        if device_type == 'auto':
+        if device_type == "auto":
             device_type = self._detect_device_type(device_id)
-        
+
         # Create capabilities based on device type
-        if device_type == 'xg':
+        if device_type == "xg":
             capabilities = self._create_xg_capabilities()
-        elif device_type == 'gm':
+        elif device_type == "gm":
             capabilities = self._create_gm_capabilities()
-        elif device_type == 'gs':
+        elif device_type == "gs":
             capabilities = self._create_gs_capabilities()
-        elif device_type == 'mpe':
+        elif device_type == "mpe":
             capabilities = self._create_mpe_capabilities()
         else:
             # Default to XG capabilities
             capabilities = self._create_xg_capabilities()
-        
+
         # Cache the capabilities
         self.device_capabilities[device_id] = capabilities
         self.device_identifiers.add(device_id)
-        
+
         # Notify callbacks
         for callback in self.discovery_callbacks:
             try:
                 callback(device_id, capabilities)
             except Exception:
                 pass  # Continue with other callbacks
-        
+
         return capabilities
-    
+
     def _detect_device_type(self, device_id: str) -> str:
         """
         Auto-detect device type based on device ID or connection properties.
@@ -347,19 +367,19 @@ class CapabilityDiscoverySystem:
         # In a real implementation, this would query the device for its identity
         # For now, we'll use a simple heuristic based on the device ID
         device_lower = device_id.lower()
-        
-        if 'xg' in device_lower or 'yamaha' in device_lower:
-            return 'xg'
-        elif 'gm' in device_lower or 'general' in device_lower:
-            return 'gm'
-        elif 'gs' in device_lower or 'roland' in device_lower:
-            return 'gs'
-        elif 'mpe' in device_lower:
-            return 'mpe'
+
+        if "xg" in device_lower or "yamaha" in device_lower:
+            return "xg"
+        elif "gm" in device_lower or "general" in device_lower:
+            return "gm"
+        elif "gs" in device_lower or "roland" in device_lower:
+            return "gs"
+        elif "mpe" in device_lower:
+            return "mpe"
         else:
             # Default to XG for modern implementations
-            return 'xg'
-    
+            return "xg"
+
     def _create_xg_capabilities(self) -> dict[CapabilityType, Any]:
         """Create XG-specific capabilities."""
         return {
@@ -376,42 +396,56 @@ class CapabilityDiscoverySystem:
             CapabilityType.JITTER_REDUCTION: True,
             CapabilityType.MIXED_DATA_SETS: True,
             CapabilityType.SUPPORTED_MESSAGES: {
-                'note_on', 'note_off', 'control_change', 'program_change',
-                'pitch_bend', 'channel_pressure', 'poly_pressure', 'sysex',
-                'per_note_controller', 'per_note_pitch_bend', 'per_note_management',
-                'per_note_tuning', 'per_note_expression', 'per_note_modulation',
-                'ump_stream', 'property_exchange', 'profile_configuration',
-                'xg_parameter_change', 'xg_bulk_dump', 'xg_data_set'
+                "note_on",
+                "note_off",
+                "control_change",
+                "program_change",
+                "pitch_bend",
+                "channel_pressure",
+                "poly_pressure",
+                "sysex",
+                "per_note_controller",
+                "per_note_pitch_bend",
+                "per_note_management",
+                "per_note_tuning",
+                "per_note_expression",
+                "per_note_modulation",
+                "ump_stream",
+                "property_exchange",
+                "profile_configuration",
+                "xg_parameter_change",
+                "xg_bulk_dump",
+                "xg_data_set",
             },
             CapabilityType.EFFECTS_CAPABILITIES: {
-                'reverb_units': 8,
-                'chorus_units': 4,
-                'delay_units': 16,
-                'distortion_units': 4,
-                'filter_units': 32,
-                'modulation_units': 24,
-                'dynamics_units': 16,
-                'eq_units': 12,
-                'insertion_effects': 8,
-                'system_effects': 4
+                "reverb_units": 8,
+                "chorus_units": 4,
+                "delay_units": 16,
+                "distortion_units": 4,
+                "filter_units": 32,
+                "modulation_units": 24,
+                "dynamics_units": 16,
+                "eq_units": 12,
+                "insertion_effects": 8,
+                "system_effects": 4,
             },
             CapabilityType.VOICE_ARCHITECTURE: {
-                'voice_engine_types': ['xg', 'an', 'fdsp', 'sf2', 'fm', 'additive', 'wavetable'],
-                'max_voices': 256,
-                'voice_stealing_enabled': True,
-                'voice_priority_system': True,
-                'voice_reservation': True,
-                'voice_grouping': True
+                "voice_engine_types": ["xg", "an", "fdsp", "sf2", "fm", "additive", "wavetable"],
+                "max_voices": 256,
+                "voice_stealing_enabled": True,
+                "voice_priority_system": True,
+                "voice_reservation": True,
+                "voice_grouping": True,
             },
             CapabilityType.SAMPLE_LIBRARY: {
-                'has_internal_samples': True,
-                'max_sample_memory_mb': 1024,
-                'supports_sf2': True,
-                'supports_sfz': True,
-                'supports_dls': True,
-                'sample_formats': ['wav', 'aiff', 'sf2', 'sfz', 'dls', 'flac', 'ogg'],
-                'max_samples': 10000,
-                'sample_quality': '24bit_48khz'
+                "has_internal_samples": True,
+                "max_sample_memory_mb": 1024,
+                "supports_sf2": True,
+                "supports_sfz": True,
+                "supports_dls": True,
+                "sample_formats": ["wav", "aiff", "sf2", "sfz", "dls", "flac", "ogg"],
+                "max_samples": 10000,
+                "sample_quality": "24bit_48khz",
             },
             CapabilityType.MAX_SIMULTANEOUS_PROFILES: 8,
             CapabilityType.DYNAMIC_PROFILE_SWITCHING: True,
@@ -541,7 +575,7 @@ class CapabilityDiscoverySystem:
             CapabilityType.PER_NOTE_EG_AUTO_ENHANCER: True,
             CapabilityType.PER_NOTE_EG_AUTO_IMAGER: True,
         }
-    
+
     def _create_gm_capabilities(self) -> dict[CapabilityType, Any]:
         """Create GM-specific capabilities."""
         return {
@@ -558,27 +592,32 @@ class CapabilityDiscoverySystem:
             CapabilityType.JITTER_REDUCTION: False,
             CapabilityType.MIXED_DATA_SETS: False,
             CapabilityType.SUPPORTED_MESSAGES: {
-                'note_on', 'note_off', 'control_change', 'program_change',
-                'pitch_bend', 'channel_pressure', 'poly_pressure'
+                "note_on",
+                "note_off",
+                "control_change",
+                "program_change",
+                "pitch_bend",
+                "channel_pressure",
+                "poly_pressure",
             },
             CapabilityType.EFFECTS_CAPABILITIES: {
-                'reverb_units': 1,
-                'chorus_units': 1,
-                'delay_units': 0,
-                'distortion_units': 0
+                "reverb_units": 1,
+                "chorus_units": 1,
+                "delay_units": 0,
+                "distortion_units": 0,
             },
             CapabilityType.VOICE_ARCHITECTURE: {
-                'voice_engine_types': ['gm'],
-                'max_voices': 64,
-                'voice_stealing_enabled': True,
-                'voice_priority_system': False
+                "voice_engine_types": ["gm"],
+                "max_voices": 64,
+                "voice_stealing_enabled": True,
+                "voice_priority_system": False,
             },
             CapabilityType.SAMPLE_LIBRARY: {
-                'has_internal_samples': True,
-                'max_sample_memory_mb': 16,
-                'supports_sf2': False,
-                'supports_sfz': False,
-                'sample_formats': ['wav', 'aiff']
+                "has_internal_samples": True,
+                "max_sample_memory_mb": 16,
+                "supports_sf2": False,
+                "supports_sfz": False,
+                "sample_formats": ["wav", "aiff"],
             },
             CapabilityType.MAX_SIMULTANEOUS_PROFILES: 1,
             CapabilityType.DYNAMIC_PROFILE_SWITCHING: False,
@@ -588,106 +627,110 @@ class CapabilityDiscoverySystem:
             CapabilityType.MPE_PLUS_SUPPORT: False,
             CapabilityType.PER_NOTE_EXPRESSIONS: False,
         }
-    
+
     def _create_gs_capabilities(self) -> dict[CapabilityType, Any]:
         """Create GS-specific capabilities."""
         caps = self._create_gm_capabilities()
-        caps.update({
-            CapabilityType.MIDI_VERSION: 1.0,
-            CapabilityType.MAX_CHANNELS: 16,
-            CapabilityType.MAX_POLYPHONY: 128,
-            CapabilityType.PARAMETER_RESOLUTION: 14,
-            CapabilityType.PER_NOTE_CONTROLLERS: False,
-            CapabilityType.MPE_SUPPORT: False,
-            CapabilityType.SYSEX_7_SUPPORT: True,
-            CapabilityType.PROPERTY_EXCHANGE: True,
-            CapabilityType.PROFILE_CONFIG: True,
-            CapabilityType.UMP_STREAMS: 1,
-            CapabilityType.JITTER_REDUCTION: False,
-            CapabilityType.MIXED_DATA_SETS: False,
-            CapabilityType.SUPPORTED_MESSAGES: caps[CapabilityType.SUPPORTED_MESSAGES].union({
-                'gs_sysex', 'gs_parameter_change', 'gs_bulk_dump'
-            }),
-            CapabilityType.EFFECTS_CAPABILITIES: {
-                'reverb_units': 2,
-                'chorus_units': 2,
-                'delay_units': 2,
-                'distortion_units': 1
-            },
-            CapabilityType.VOICE_ARCHITECTURE: {
-                'voice_engine_types': ['gs', 'gm'],
-                'max_voices': 128,
-                'voice_stealing_enabled': True,
-                'voice_priority_system': True
-            },
-            CapabilityType.SAMPLE_LIBRARY: {
-                'has_internal_samples': True,
-                'max_sample_memory_mb': 32,
-                'supports_sf2': True,
-                'supports_sfz': False,
-                'sample_formats': ['wav', 'aiff', 'sf2']
-            },
-            CapabilityType.MAX_SIMULTANEOUS_PROFILES: 2,
-            CapabilityType.DYNAMIC_PROFILE_SWITCHING: True,
-            CapabilityType.PROFILE_INHERITANCE: False,
-            CapabilityType.PROFILE_SPECIFIC_PARAMS: True,
-            CapabilityType.MIDI_CI_SUPPORT: False,
-            CapabilityType.MPE_PLUS_SUPPORT: False,
-            CapabilityType.PER_NOTE_EXPRESSIONS: False,
-        })
+        caps.update(
+            {
+                CapabilityType.MIDI_VERSION: 1.0,
+                CapabilityType.MAX_CHANNELS: 16,
+                CapabilityType.MAX_POLYPHONY: 128,
+                CapabilityType.PARAMETER_RESOLUTION: 14,
+                CapabilityType.PER_NOTE_CONTROLLERS: False,
+                CapabilityType.MPE_SUPPORT: False,
+                CapabilityType.SYSEX_7_SUPPORT: True,
+                CapabilityType.PROPERTY_EXCHANGE: True,
+                CapabilityType.PROFILE_CONFIG: True,
+                CapabilityType.UMP_STREAMS: 1,
+                CapabilityType.JITTER_REDUCTION: False,
+                CapabilityType.MIXED_DATA_SETS: False,
+                CapabilityType.SUPPORTED_MESSAGES: caps[CapabilityType.SUPPORTED_MESSAGES].union(
+                    {"gs_sysex", "gs_parameter_change", "gs_bulk_dump"}
+                ),
+                CapabilityType.EFFECTS_CAPABILITIES: {
+                    "reverb_units": 2,
+                    "chorus_units": 2,
+                    "delay_units": 2,
+                    "distortion_units": 1,
+                },
+                CapabilityType.VOICE_ARCHITECTURE: {
+                    "voice_engine_types": ["gs", "gm"],
+                    "max_voices": 128,
+                    "voice_stealing_enabled": True,
+                    "voice_priority_system": True,
+                },
+                CapabilityType.SAMPLE_LIBRARY: {
+                    "has_internal_samples": True,
+                    "max_sample_memory_mb": 32,
+                    "supports_sf2": True,
+                    "supports_sfz": False,
+                    "sample_formats": ["wav", "aiff", "sf2"],
+                },
+                CapabilityType.MAX_SIMULTANEOUS_PROFILES: 2,
+                CapabilityType.DYNAMIC_PROFILE_SWITCHING: True,
+                CapabilityType.PROFILE_INHERITANCE: False,
+                CapabilityType.PROFILE_SPECIFIC_PARAMS: True,
+                CapabilityType.MIDI_CI_SUPPORT: False,
+                CapabilityType.MPE_PLUS_SUPPORT: False,
+                CapabilityType.PER_NOTE_EXPRESSIONS: False,
+            }
+        )
         return caps
-    
+
     def _create_mpe_capabilities(self) -> dict[CapabilityType, Any]:
         """Create MPE-specific capabilities."""
         caps = self._create_gm_capabilities()
-        caps.update({
-            CapabilityType.MIDI_VERSION: 1.0,
-            CapabilityType.MAX_CHANNELS: 16,  # MPE uses multiple channels for polyphony
-            CapabilityType.MAX_POLYPHONY: 15,  # MPE typically uses 15 note channels + 1 controller
-            CapabilityType.PARAMETER_RESOLUTION: 14,
-            CapabilityType.PER_NOTE_CONTROLLERS: True,
-            CapabilityType.MPE_SUPPORT: True,
-            CapabilityType.SYSEX_7_SUPPORT: False,
-            CapabilityType.PROPERTY_EXCHANGE: False,
-            CapabilityType.PROFILE_CONFIG: False,
-            CapabilityType.UMP_STREAMS: 1,
-            CapabilityType.JITTER_REDUCTION: False,
-            CapabilityType.MIXED_DATA_SETS: False,
-            CapabilityType.SUPPORTED_MESSAGES: caps[CapabilityType.SUPPORTED_MESSAGES].union({
-                'mpe_configuration', 'per_note_controller', 'per_note_pitch_bend'
-            }),
-            CapabilityType.EFFECTS_CAPABILITIES: {
-                'reverb_units': 1,
-                'chorus_units': 1,
-                'delay_units': 0,
-                'distortion_units': 0
-            },
-            CapabilityType.VOICE_ARCHITECTURE: {
-                'voice_engine_types': ['mpe', 'gm'],
-                'max_voices': 15,  # MPE limitation
-                'voice_stealing_enabled': False,  # MPE doesn't steal voices
-                'voice_priority_system': False
-            },
-            CapabilityType.SAMPLE_LIBRARY: {
-                'has_internal_samples': True,
-                'max_sample_memory_mb': 16,
-                'supports_sf2': False,
-                'supports_sfz': False,
-                'sample_formats': ['wav', 'aiff']
-            },
-            CapabilityType.MAX_SIMULTANEOUS_PROFILES: 1,
-            CapabilityType.DYNAMIC_PROFILE_SWITCHING: False,
-            CapabilityType.PROFILE_INHERITANCE: False,
-            CapabilityType.PROFILE_SPECIFIC_PARAMS: False,
-            CapabilityType.MIDI_CI_SUPPORT: False,
-            CapabilityType.MPE_PLUS_SUPPORT: True,  # MPE+ extensions
-            CapabilityType.PER_NOTE_EXPRESSIONS: True,
-            CapabilityType.PER_NOTE_MODULATION: True,
-            CapabilityType.PER_NOTE_PITCH_BEND: True,
-            CapabilityType.PER_NOTE_MANAGEMENT: False,
-        })
+        caps.update(
+            {
+                CapabilityType.MIDI_VERSION: 1.0,
+                CapabilityType.MAX_CHANNELS: 16,  # MPE uses multiple channels for polyphony
+                CapabilityType.MAX_POLYPHONY: 15,  # MPE typically uses 15 note channels + 1 controller
+                CapabilityType.PARAMETER_RESOLUTION: 14,
+                CapabilityType.PER_NOTE_CONTROLLERS: True,
+                CapabilityType.MPE_SUPPORT: True,
+                CapabilityType.SYSEX_7_SUPPORT: False,
+                CapabilityType.PROPERTY_EXCHANGE: False,
+                CapabilityType.PROFILE_CONFIG: False,
+                CapabilityType.UMP_STREAMS: 1,
+                CapabilityType.JITTER_REDUCTION: False,
+                CapabilityType.MIXED_DATA_SETS: False,
+                CapabilityType.SUPPORTED_MESSAGES: caps[CapabilityType.SUPPORTED_MESSAGES].union(
+                    {"mpe_configuration", "per_note_controller", "per_note_pitch_bend"}
+                ),
+                CapabilityType.EFFECTS_CAPABILITIES: {
+                    "reverb_units": 1,
+                    "chorus_units": 1,
+                    "delay_units": 0,
+                    "distortion_units": 0,
+                },
+                CapabilityType.VOICE_ARCHITECTURE: {
+                    "voice_engine_types": ["mpe", "gm"],
+                    "max_voices": 15,  # MPE limitation
+                    "voice_stealing_enabled": False,  # MPE doesn't steal voices
+                    "voice_priority_system": False,
+                },
+                CapabilityType.SAMPLE_LIBRARY: {
+                    "has_internal_samples": True,
+                    "max_sample_memory_mb": 16,
+                    "supports_sf2": False,
+                    "supports_sfz": False,
+                    "sample_formats": ["wav", "aiff"],
+                },
+                CapabilityType.MAX_SIMULTANEOUS_PROFILES: 1,
+                CapabilityType.DYNAMIC_PROFILE_SWITCHING: False,
+                CapabilityType.PROFILE_INHERITANCE: False,
+                CapabilityType.PROFILE_SPECIFIC_PARAMS: False,
+                CapabilityType.MIDI_CI_SUPPORT: False,
+                CapabilityType.MPE_PLUS_SUPPORT: True,  # MPE+ extensions
+                CapabilityType.PER_NOTE_EXPRESSIONS: True,
+                CapabilityType.PER_NOTE_MODULATION: True,
+                CapabilityType.PER_NOTE_PITCH_BEND: True,
+                CapabilityType.PER_NOTE_MANAGEMENT: False,
+            }
+        )
         return caps
-    
+
     def query_capability(self, device_id: str, capability_type: CapabilityType) -> Any | None:
         """
         Query a specific capability of a device.
@@ -702,10 +745,10 @@ class CapabilityDiscoverySystem:
         if device_id not in self.device_capabilities:
             # Try to discover capabilities first
             self.discover_device_capabilities(device_id)
-        
+
         device_caps = self.device_capabilities.get(device_id, {})
         return device_caps.get(capability_type)
-    
+
     def get_device_summary(self, device_id: str) -> dict[str, Any]:
         """
         Get a summary of device capabilities.
@@ -717,34 +760,42 @@ class CapabilityDiscoverySystem:
             Summary dictionary of key capabilities
         """
         caps = self.discover_device_capabilities(device_id)
-        
+
         return {
-            'midi_version': caps.get(CapabilityType.MIDI_VERSION, 1.0),
-            'max_channels': caps.get(CapabilityType.MAX_CHANNELS, 16),
-            'max_polyphony': caps.get(CapabilityType.MAX_POLYPHONY, 64),
-            'parameter_resolution_bits': caps.get(CapabilityType.PARAMETER_RESOLUTION, 7),
-            'supports_per_note_controllers': caps.get(CapabilityType.PER_NOTE_CONTROLLERS, False),
-            'supports_mpe': caps.get(CapabilityType.MPE_SUPPORT, False),
-            'supports_sysex_7': caps.get(CapabilityType.SYSEX_7_SUPPORT, False),
-            'supports_property_exchange': caps.get(CapabilityType.PROPERTY_EXCHANGE, False),
-            'supports_profile_configuration': caps.get(CapabilityType.PROFILE_CONFIG, False),
-            'max_ump_streams': caps.get(CapabilityType.UMP_STREAMS, 1),
-            'supports_jitter_reduction': caps.get(CapabilityType.JITTER_REDUCTION, False),
-            'supports_mixed_data_sets': caps.get(CapabilityType.MIXED_DATA_SETS, False),
-            'supports_mpe_plus': caps.get(CapabilityType.MPE_PLUS_SUPPORT, False),
-            'supports_per_note_expressions': caps.get(CapabilityType.PER_NOTE_EXPRESSIONS, False),
-            'supports_per_note_modulation': caps.get(CapabilityType.PER_NOTE_MODULATION, False),
-            'supports_per_note_pitch_bend': caps.get(CapabilityType.PER_NOTE_PITCH_BEND, False),
-            'supports_per_note_tuning': caps.get(CapabilityType.PER_NOTE_TUNING, False),
-            'supports_per_note_management': caps.get(CapabilityType.PER_NOTE_MANAGEMENT, False),
-            'total_supported_message_types': len(caps.get(CapabilityType.SUPPORTED_MESSAGES, set())),
-            'effect_units_available': sum(caps.get(CapabilityType.EFFECTS_CAPABILITIES, {}).values()) if caps.get(CapabilityType.EFFECTS_CAPABILITIES) else 0,
-            'max_simultaneous_profiles': caps.get(CapabilityType.MAX_SIMULTANEOUS_PROFILES, 1),
-            'supports_dynamic_profile_switching': caps.get(CapabilityType.DYNAMIC_PROFILE_SWITCHING, False),
-            'supports_profile_inheritance': caps.get(CapabilityType.PROFILE_INHERITANCE, False),
-            'supports_midi_ci': caps.get(CapabilityType.MIDI_CI_SUPPORT, False),
+            "midi_version": caps.get(CapabilityType.MIDI_VERSION, 1.0),
+            "max_channels": caps.get(CapabilityType.MAX_CHANNELS, 16),
+            "max_polyphony": caps.get(CapabilityType.MAX_POLYPHONY, 64),
+            "parameter_resolution_bits": caps.get(CapabilityType.PARAMETER_RESOLUTION, 7),
+            "supports_per_note_controllers": caps.get(CapabilityType.PER_NOTE_CONTROLLERS, False),
+            "supports_mpe": caps.get(CapabilityType.MPE_SUPPORT, False),
+            "supports_sysex_7": caps.get(CapabilityType.SYSEX_7_SUPPORT, False),
+            "supports_property_exchange": caps.get(CapabilityType.PROPERTY_EXCHANGE, False),
+            "supports_profile_configuration": caps.get(CapabilityType.PROFILE_CONFIG, False),
+            "max_ump_streams": caps.get(CapabilityType.UMP_STREAMS, 1),
+            "supports_jitter_reduction": caps.get(CapabilityType.JITTER_REDUCTION, False),
+            "supports_mixed_data_sets": caps.get(CapabilityType.MIXED_DATA_SETS, False),
+            "supports_mpe_plus": caps.get(CapabilityType.MPE_PLUS_SUPPORT, False),
+            "supports_per_note_expressions": caps.get(CapabilityType.PER_NOTE_EXPRESSIONS, False),
+            "supports_per_note_modulation": caps.get(CapabilityType.PER_NOTE_MODULATION, False),
+            "supports_per_note_pitch_bend": caps.get(CapabilityType.PER_NOTE_PITCH_BEND, False),
+            "supports_per_note_tuning": caps.get(CapabilityType.PER_NOTE_TUNING, False),
+            "supports_per_note_management": caps.get(CapabilityType.PER_NOTE_MANAGEMENT, False),
+            "total_supported_message_types": len(
+                caps.get(CapabilityType.SUPPORTED_MESSAGES, set())
+            ),
+            "effect_units_available": sum(
+                caps.get(CapabilityType.EFFECTS_CAPABILITIES, {}).values()
+            )
+            if caps.get(CapabilityType.EFFECTS_CAPABILITIES)
+            else 0,
+            "max_simultaneous_profiles": caps.get(CapabilityType.MAX_SIMULTANEOUS_PROFILES, 1),
+            "supports_dynamic_profile_switching": caps.get(
+                CapabilityType.DYNAMIC_PROFILE_SWITCHING, False
+            ),
+            "supports_profile_inheritance": caps.get(CapabilityType.PROFILE_INHERITANCE, False),
+            "supports_midi_ci": caps.get(CapabilityType.MIDI_CI_SUPPORT, False),
         }
-    
+
     def add_discovery_callback(self, callback: callable):
         """
         Add a callback for capability discovery events.
@@ -753,7 +804,7 @@ class CapabilityDiscoverySystem:
             callback: Function to call when capabilities are discovered
         """
         self.discovery_callbacks.append(callback)
-    
+
     def remove_discovery_callback(self, callback: callable):
         """
         Remove a discovery callback.
@@ -763,7 +814,7 @@ class CapabilityDiscoverySystem:
         """
         if callback in self.discovery_callbacks:
             self.discovery_callbacks.remove(callback)
-    
+
     def serialize_capabilities(self, device_id: str) -> str:
         """
         Serialize device capabilities to JSON format.
@@ -776,19 +827,19 @@ class CapabilityDiscoverySystem:
         """
         if device_id not in self.device_capabilities:
             return "{}"
-        
+
         # Convert CapabilityType enums to string representations
         caps = self.device_capabilities[device_id]
         serializable_caps = {}
-        
+
         for cap_type, value in caps.items():
             if isinstance(cap_type, CapabilityType):
                 serializable_caps[cap_type.name] = value
             else:
                 serializable_caps[str(cap_type)] = value
-        
+
         return json.dumps(serializable_caps, indent=2)
-    
+
     def deserialize_capabilities(self, device_id: str, caps_json: str) -> bool:
         """
         Deserialize device capabilities from JSON format.
@@ -802,7 +853,7 @@ class CapabilityDiscoverySystem:
         """
         try:
             caps_dict = json.loads(caps_json)
-            
+
             # Convert string keys back to CapabilityType enums
             deserialized_caps = {}
             for key, value in caps_dict.items():
@@ -813,14 +864,14 @@ class CapabilityDiscoverySystem:
                 except KeyError:
                     # If it's not a known CapabilityType, keep as string
                     deserialized_caps[key] = value
-            
+
             self.device_capabilities[device_id] = deserialized_caps
             self.device_identifiers.add(device_id)
             return True
-            
+
         except (json.JSONDecodeError, TypeError):
             return False
-    
+
     def clear_device_cache(self, device_id: str | None = None):
         """
         Clear device capability cache.
@@ -836,7 +887,7 @@ class CapabilityDiscoverySystem:
         else:
             self.device_capabilities.clear()
             self.device_identifiers.clear()
-    
+
     def get_all_known_devices(self) -> list[str]:
         """
         Get list of all known device IDs.

@@ -8,9 +8,10 @@ for professional audio processing in the XG synthesizer.
 
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
 import threading
+from typing import Any
+
+import numpy as np
 
 
 class PitchShiftingEngine:

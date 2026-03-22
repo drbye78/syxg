@@ -4,6 +4,7 @@ Vibexg TUI - Text User Interface control surface
 This module provides a Rich-based terminal user interface for the
 workstation, displaying real-time status and providing visual feedback.
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,11 +17,12 @@ from .types import WorkstationState
 try:
     import rich
     from rich.console import Console
+    from rich.layout import Layout
+    from rich.live import Live
     from rich.panel import Panel
     from rich.table import Table
-    from rich.live import Live
-    from rich.layout import Layout
     from rich.text import Text
+
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -78,9 +80,7 @@ class TUIControlSurface:
         layout = Layout()
 
         layout.split(
-            Layout(name="header", size=3),
-            Layout(name="body"),
-            Layout(name="footer", size=3)
+            Layout(name="header", size=3), Layout(name="body"), Layout(name="footer", size=3)
         )
 
         # Header
@@ -88,10 +88,7 @@ class TUIControlSurface:
 
         # Body - split into channels and controls
         body = layout["body"]
-        body.split(
-            Layout(name="channels"),
-            Layout(name="controls", ratio=2)
-        )
+        body.split(Layout(name="channels"), Layout(name="controls", ratio=2))
 
         layout["body"]["channels"].update(self._render_channels(state))
         layout["body"]["controls"].update(self._render_controls(state))
@@ -124,7 +121,7 @@ class TUIControlSurface:
         return Panel(
             Text(f"{title.plain}  |  {status}", justify="center"),
             title="XG SYNTHESIZER WORKSTATION",
-            border_style="cyan"
+            border_style="cyan",
         )
 
     def _render_channels(self, state: WorkstationState):
@@ -188,10 +185,7 @@ class TUIControlSurface:
         """
         if not RICH_AVAILABLE or not Panel or not Text:
             return None
-        keys = (
-            "[R]ecord  [P]lay  [S]top  [M]etronome  "
-            "[+/-] Tempo  [V]olume  [D]emo  [Q]uit"
-        )
+        keys = "[R]ecord  [P]lay  [S]top  [M]etronome  [+/-] Tempo  [V]olume  [D]emo  [Q]uit"
         return Panel(Text(keys, justify="center"), border_style="dim")
 
     def run(self):

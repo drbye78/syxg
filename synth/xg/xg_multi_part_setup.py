@@ -12,11 +12,12 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+
 from __future__ import annotations
 
-from typing import Any
-import threading
 import math
+import threading
+from typing import Any
 
 
 class XGMultiPartSetup:
@@ -37,8 +38,8 @@ class XGMultiPartSetup:
     """
 
     # XG Part Mode Constants
-    PART_MODE_SINGLE = 0   # Single mode (mono)
-    PART_MODE_MULTI = 1    # Multi mode (polyphonic)
+    PART_MODE_SINGLE = 0  # Single mode (mono)
+    PART_MODE_MULTI = 1  # Multi mode (polyphonic)
 
     # XG Voice Reserve Limits
     MAX_VOICES_PER_PART = 128
@@ -100,11 +101,13 @@ class XGMultiPartSetup:
 
             if new_total > self.TOTAL_VOICES_AVAILABLE:
                 # Reduce allocation to fit within limits
-                available_voices = self.TOTAL_VOICES_AVAILABLE - (current_total - self.voice_reserve[lsb])
+                available_voices = self.TOTAL_VOICES_AVAILABLE - (
+                    current_total - self.voice_reserve[lsb]
+                )
                 voice_count = min(voice_count, available_voices)
 
             self.voice_reserve[lsb] = voice_count
-            self._notify_parameter_change(f'voice_reserve_part_{lsb}', voice_count)
+            self._notify_parameter_change(f"voice_reserve_part_{lsb}", voice_count)
 
             # Re-validate allocation
             self._validate_voice_allocation()
@@ -130,8 +133,8 @@ class XGMultiPartSetup:
             part_mode = 1 if (data_value >> 7) > 0 else 0
 
             self.part_mode[lsb] = part_mode
-            mode_name = 'Single' if part_mode == self.PART_MODE_SINGLE else 'Multi'
-            self._notify_parameter_change(f'part_mode_part_{lsb}', part_mode)
+            mode_name = "Single" if part_mode == self.PART_MODE_SINGLE else "Multi"
+            self._notify_parameter_change(f"part_mode_part_{lsb}", part_mode)
 
             return True
 
@@ -154,7 +157,7 @@ class XGMultiPartSetup:
             part_level = data_value >> 7  # Take upper 7 bits
 
             self.part_level[lsb] = part_level
-            self._notify_parameter_change(f'part_level_part_{lsb}', part_level)
+            self._notify_parameter_change(f"part_level_part_{lsb}", part_level)
 
             return True
 
@@ -177,7 +180,7 @@ class XGMultiPartSetup:
             part_pan = data_value >> 7  # Take upper 7 bits
 
             self.part_pan[lsb] = part_pan
-            self._notify_parameter_change(f'part_pan_part_{lsb}', part_pan)
+            self._notify_parameter_change(f"part_pan_part_{lsb}", part_pan)
 
             return True
 
@@ -250,6 +253,28 @@ class XGMultiPartSetup:
                 return self.part_pan[part]
         return 64
 
+    def get_part_info(self, part: int) -> dict[str, Any]:
+        """
+        Get information about a specific part.
+
+        Args:
+            part: Part number (0-15)
+
+        Returns:
+            Dictionary containing part information
+        """
+        with self.lock:
+            if not (0 <= part < self.num_parts):
+                return {}
+
+            return {
+                "part": part,
+                "mode": self.get_part_mode(part),
+                "level": self.get_part_level(part),
+                "pan": self.get_part_pan(part),
+                "voice_reserve": self.get_voice_reserve(part),
+            }
+
     def set_voice_reserve(self, part: int, voices: int) -> bool:
         """
         Set voice reserve for a specific part.
@@ -275,7 +300,7 @@ class XGMultiPartSetup:
                 return False  # Would exceed total available voices
 
             self.voice_reserve[part] = voices
-            self._notify_parameter_change(f'voice_reserve_part_{part}', voices)
+            self._notify_parameter_change(f"voice_reserve_part_{part}", voices)
             self._validate_voice_allocation()
 
             return True
@@ -297,7 +322,7 @@ class XGMultiPartSetup:
         with self.lock:
             if 0 <= part < self.num_parts:
                 self.part_mode[part] = mode
-                self._notify_parameter_change(f'part_mode_part_{part}', mode)
+                self._notify_parameter_change(f"part_mode_part_{part}", mode)
                 return True
 
         return False
@@ -318,7 +343,7 @@ class XGMultiPartSetup:
         with self.lock:
             if 0 <= part < self.num_parts:
                 self.part_level[part] = level
-                self._notify_parameter_change(f'part_level_part_{part}', level)
+                self._notify_parameter_change(f"part_level_part_{part}", level)
                 return True
 
         return False
@@ -339,7 +364,7 @@ class XGMultiPartSetup:
         with self.lock:
             if 0 <= part < self.num_parts:
                 self.part_pan[part] = pan
-                self._notify_parameter_change(f'part_pan_part_{part}', pan)
+                self._notify_parameter_change(f"part_pan_part_{part}", pan)
                 return True
 
         return False
@@ -353,53 +378,57 @@ class XGMultiPartSetup:
         """
         with self.lock:
             status = {
-                'total_parts': self.num_parts,
-                'total_voice_reserve': sum(self.voice_reserve),
-                'max_voice_reserve': self.TOTAL_VOICES_AVAILABLE,
-                'voice_reserve_utilization': sum(self.voice_reserve) / self.TOTAL_VOICES_AVAILABLE,
-                'parts': []
+                "total_parts": self.num_parts,
+                "total_voice_reserve": sum(self.voice_reserve),
+                "max_voice_reserve": self.TOTAL_VOICES_AVAILABLE,
+                "voice_reserve_utilization": sum(self.voice_reserve) / self.TOTAL_VOICES_AVAILABLE,
+                "parts": [],
             }
 
             for part in range(self.num_parts):
                 part_info = {
-                    'part_number': part,
-                    'voice_reserve': self.voice_reserve[part],
-                    'part_mode': 'Single' if self.part_mode[part] == self.PART_MODE_SINGLE else 'Multi',
-                    'part_level': self.part_level[part],
-                    'part_pan': self.part_pan[part] - 64,  # Convert to -64 to +63 range
-                    'part_level_db': self._level_to_db(self.part_level[part]),
-                    'part_pan_position': self._pan_to_position(self.part_pan[part])
+                    "part_number": part,
+                    "voice_reserve": self.voice_reserve[part],
+                    "part_mode": "Single"
+                    if self.part_mode[part] == self.PART_MODE_SINGLE
+                    else "Multi",
+                    "part_level": self.part_level[part],
+                    "part_pan": self.part_pan[part] - 64,  # Convert to -64 to +63 range
+                    "part_level_db": self._level_to_db(self.part_level[part]),
+                    "part_pan_position": self._pan_to_position(self.part_pan[part]),
                 }
-                status['parts'].append(part_info)
+                status["parts"].append(part_info)
 
             return status
 
     def _level_to_db(self, level: int) -> float:
         """Convert XG level (0-127) to dB."""
         if level == 0:
-            return -float('inf')  # -∞ dB
+            return -float("inf")  # -∞ dB
         # Approximate conversion: 127 = 0dB, 0 = -∞dB
         return 20.0 * math.log10(level / 127.0)
 
     def _pan_to_position(self, pan: int) -> str:
         """Convert XG pan (0-127) to position description."""
         if pan < 32:
-            return 'Hard Left'
+            return "Hard Left"
         elif pan < 48:
-            return 'Left'
+            return "Left"
         elif pan < 80:
-            return 'Center'
+            return "Center"
         elif pan < 96:
-            return 'Right'
+            return "Right"
         else:
-            return 'Hard Right'
+            return "Hard Right"
 
     def _validate_voice_allocation(self):
         """Validate and adjust voice allocation if necessary."""
         total_allocated = sum(self.voice_reserve)
 
         if total_allocated > self.TOTAL_VOICES_AVAILABLE:
-            print(f"⚠️ XG MULTI-PART: Voice allocation exceeds total available ({total_allocated}/{self.TOTAL_VOICES_AVAILABLE})")
+            print(
+                f"⚠️ XG MULTI-PART: Voice allocation exceeds total available ({total_allocated}/{self.TOTAL_VOICES_AVAILABLE})"
+            )
             print("   Reducing allocations to fit within limits...")
 
             # Reduce allocations proportionally
@@ -437,7 +466,7 @@ class XGMultiPartSetup:
             allocated = min(requested_voices, reserved_voices)
 
             # Check if we have enough total voices available
-            current_allocation = sum(self.voice_reserve[:part] + self.voice_reserve[part+1:])
+            current_allocation = sum(self.voice_reserve[:part] + self.voice_reserve[part + 1 :])
             available_voices = self.TOTAL_VOICES_AVAILABLE - current_allocation
 
             allocated = min(allocated, available_voices)
@@ -459,11 +488,11 @@ class XGMultiPartSetup:
                 return {}
 
             return {
-                'voice_reserve': self.voice_reserve[part],
-                'part_mode': self.part_mode[part],
-                'part_level': self.part_level[part] / 127.0,  # Normalize to 0.0-1.0
-                'part_pan': (self.part_pan[part] - 64) / 64.0,  # Normalize to -1.0 to +1.0
-                'allocated_voices': self.allocate_voices_for_part(part, self.voice_reserve[part])
+                "voice_reserve": self.voice_reserve[part],
+                "part_mode": self.part_mode[part],
+                "part_level": self.part_level[part] / 127.0,  # Normalize to 0.0-1.0
+                "part_pan": (self.part_pan[part] - 64) / 64.0,  # Normalize to -1.0 to +1.0
+                "allocated_voices": self.allocate_voices_for_part(part, self.voice_reserve[part]),
             }
 
     def reset_to_xg_defaults(self):
@@ -482,25 +511,28 @@ class XGMultiPartSetup:
         """Export multi-part setup for serialization."""
         with self.lock:
             return {
-                'voice_reserve': self.voice_reserve.copy(),
-                'part_mode': self.part_mode.copy(),
-                'part_level': self.part_level.copy(),
-                'part_pan': self.part_pan.copy(),
-                'version': '1.0'
+                "voice_reserve": self.voice_reserve.copy(),
+                "part_mode": self.part_mode.copy(),
+                "part_level": self.part_level.copy(),
+                "part_pan": self.part_pan.copy(),
+                "version": "1.0",
             }
 
     def import_setup(self, setup_data: dict[str, Any]) -> bool:
         """Import multi-part setup from serialized data."""
         try:
             with self.lock:
-                if 'voice_reserve' in setup_data and len(setup_data['voice_reserve']) == self.num_parts:
-                    self.voice_reserve = setup_data['voice_reserve'].copy()
-                if 'part_mode' in setup_data and len(setup_data['part_mode']) == self.num_parts:
-                    self.part_mode = setup_data['part_mode'].copy()
-                if 'part_level' in setup_data and len(setup_data['part_level']) == self.num_parts:
-                    self.part_level = setup_data['part_level'].copy()
-                if 'part_pan' in setup_data and len(setup_data['part_pan']) == self.num_parts:
-                    self.part_pan = setup_data['part_pan'].copy()
+                if (
+                    "voice_reserve" in setup_data
+                    and len(setup_data["voice_reserve"]) == self.num_parts
+                ):
+                    self.voice_reserve = setup_data["voice_reserve"].copy()
+                if "part_mode" in setup_data and len(setup_data["part_mode"]) == self.num_parts:
+                    self.part_mode = setup_data["part_mode"].copy()
+                if "part_level" in setup_data and len(setup_data["part_level"]) == self.num_parts:
+                    self.part_level = setup_data["part_level"].copy()
+                if "part_pan" in setup_data and len(setup_data["part_pan"]) == self.num_parts:
+                    self.part_pan = setup_data["part_pan"].copy()
 
                 self._validate_voice_allocation()
                 return True
@@ -513,19 +545,23 @@ class XGMultiPartSetup:
         status = self.get_multi_part_status()
 
         lines = [f"XG Multi-Part Setup ({status['total_parts']} parts):"]
-        lines.append(f"Voice Reserve: {status['total_voice_reserve']}/{status['max_voice_reserve']} total")
+        lines.append(
+            f"Voice Reserve: {status['total_voice_reserve']}/{status['max_voice_reserve']} total"
+        )
 
-        for part_info in status['parts'][:8]:  # Show first 8 parts
-            mode = part_info['part_mode']
-            reserve = part_info['voice_reserve']
-            level_db = '.1f' if part_info['part_level_db'] != float('-inf') else '-∞'
-            pan_pos = part_info['part_pan_position']
-            lines.append(f"  Part {part_info['part_number']:2d}: {reserve:2d} voices, {mode:6}, {level_db:5}dB, {pan_pos}")
+        for part_info in status["parts"][:8]:  # Show first 8 parts
+            mode = part_info["part_mode"]
+            reserve = part_info["voice_reserve"]
+            level_db = ".1f" if part_info["part_level_db"] != float("-inf") else "-∞"
+            pan_pos = part_info["part_pan_position"]
+            lines.append(
+                f"  Part {part_info['part_number']:2d}: {reserve:2d} voices, {mode:6}, {level_db:5}dB, {pan_pos}"
+            )
 
-        if status['total_parts'] > 8:
+        if status["total_parts"] > 8:
             lines.append(f"  ... and {status['total_parts'] - 8} more parts")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def __repr__(self) -> str:
         return f"XGMultiPartSetup(parts={self.num_parts}, voices={sum(self.voice_reserve)}/{self.TOTAL_VOICES_AVAILABLE})"

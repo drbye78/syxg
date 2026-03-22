@@ -8,21 +8,24 @@ Showcase the critical production infrastructure components:
 - Zero-Allocation Buffer Pool
 """
 
-import numpy as np
-import time
 import threading
+import time
+
+import numpy as np
+
+from synth.core.buffer_pool import XGBufferPool
+from synth.core.config import (
+    AudioConfig,
+    audio_config,
+    config_manager,
+    engine_config,
+)
 
 # Import production infrastructure
 from synth.core.validation import (
-    ValidationError, ValidationResult, AudioValidator,
-    ParameterValidator, audio_validator, parameter_validator
+    audio_validator,
+    parameter_validator,
 )
-from synth.core.config import (
-    ConfigManager, AudioConfig, EngineConfig,
-    EffectsConfig, MIDIConfig, SystemConfig,
-    config_manager, audio_config, engine_config
-)
-from synth.core.buffer_pool import XGBufferPool, BufferPoolExhaustedError
 
 
 def demonstrate_validation_framework():
@@ -56,7 +59,9 @@ def demonstrate_validation_framework():
         result = audio_validator.validate_sample_rate(rate)
         status = "✅" if result.is_valid() else "❌"
         warnings = len(result.warnings)
-        print(f"   {status} {rate}Hz: {'valid' if result.is_valid() else 'invalid'}{f' ({warnings} warnings)' if warnings else ''}")
+        print(
+            f"   {status} {rate}Hz: {'valid' if result.is_valid() else 'invalid'}{f' ({warnings} warnings)' if warnings else ''}"
+        )
 
     # Test parameter validation
     print("🔧 Testing parameter validation...")
@@ -77,16 +82,18 @@ def demonstrate_validation_framework():
     # Test MIDI message validation
     print("🎹 Testing MIDI message validation...")
     midi_messages = [
-        (b'\x90\x3C\x40', "Note On (valid)"),
-        (b'\x80\x3C\x00', "Note Off (valid)"),
-        (b'\x90\x3C', "Incomplete message"),
-        (b'\x90\x80\x40', "Invalid data byte"),
+        (b"\x90\x3c\x40", "Note On (valid)"),
+        (b"\x80\x3c\x00", "Note Off (valid)"),
+        (b"\x90\x3c", "Incomplete message"),
+        (b"\x90\x80\x40", "Invalid data byte"),
     ]
 
     for message, description in midi_messages:
         result = audio_validator.validate_midi_message(message)
         status = "✅" if result.is_valid() else "❌"
-        print(f"   {status} {description}: {'valid' if result.is_valid() else f'{len(result.errors)} errors'}")
+        print(
+            f"   {status} {description}: {'valid' if result.is_valid() else f'{len(result.errors)} errors'}"
+        )
 
     print("✅ Validation framework demonstration completed")
 
@@ -106,7 +113,9 @@ def demonstrate_configuration_system():
     # Display current configuration
     print("📊 Current configuration summary:")
     summary = config_manager.get_config_summary()
-    print(f"   Audio: {summary['audio']['sample_rate']}Hz, {summary['audio']['block_size']} samples")
+    print(
+        f"   Audio: {summary['audio']['sample_rate']}Hz, {summary['audio']['block_size']} samples"
+    )
     print(f"   Engines: {len(summary['engines'])} registered")
     print(f"   Effects: {len([k for k, v in summary['effects_enabled'].items() if v])} enabled")
     print(f"   MIDI: MPE={'enabled' if summary['midi']['mpe_enabled'] else 'disabled'}")
@@ -154,7 +163,7 @@ def demonstrate_buffer_pool():
     pool = XGBufferPool(
         sample_rate=audio_config.sample_rate,
         max_block_size=audio_config.block_size,
-        max_channels=audio_config.max_channels
+        max_channels=audio_config.max_channels,
     )
 
     # Get pool statistics
@@ -193,11 +202,13 @@ def demonstrate_buffer_pool():
     for name, buffer in test_buffers:
         if buffer.ndim == 1:
             # Mono
-            buffer[:] = np.sin(np.linspace(0, 2*np.pi, len(buffer)))
+            buffer[:] = np.sin(np.linspace(0, 2 * np.pi, len(buffer)))
         else:
             # Multi-channel
             for ch in range(buffer.shape[1]):
-                buffer[:, ch] = np.sin(np.linspace(0, 2*np.pi, buffer.shape[0])) * (0.5 + ch * 0.1)
+                buffer[:, ch] = np.sin(np.linspace(0, 2 * np.pi, buffer.shape[0])) * (
+                    0.5 + ch * 0.1
+                )
 
     print("   ✅ Filled buffers with test data")
 
@@ -206,7 +217,9 @@ def demonstrate_buffer_pool():
     for name, buffer in test_buffers:
         result = audio_validator.validate_buffer(buffer)
         status = "✅" if result.is_valid() else "❌"
-        print(f"   {status} {name}: {'valid' if result.is_valid() else f'{len(result.errors)} errors'}")
+        print(
+            f"   {status} {name}: {'valid' if result.is_valid() else f'{len(result.errors)} errors'}"
+        )
 
     # Test context manager
     print("🔄 Testing context manager...")
@@ -231,7 +244,9 @@ def demonstrate_buffer_pool():
     # Test pool validation
     print("🩺 Testing pool integrity...")
     integrity_result = pool.validate_pool_integrity()
-    print(f"   Pool integrity: {'✅ valid' if integrity_result.is_valid() else f'❌ {len(integrity_result.errors)} errors'}")
+    print(
+        f"   Pool integrity: {'✅ valid' if integrity_result.is_valid() else f'❌ {len(integrity_result.errors)} errors'}"
+    )
 
     # Performance test
     print("⚡ Running performance test...")
@@ -249,7 +264,8 @@ def demonstrate_buffer_pool():
     total_time = end_time - start_time
     buffers_per_sec = iterations / total_time
 
-    print(".0f"    print(".1f"
+    print(f"Iterations: {iterations:.0f}, Time: {total_time:.1f}s")
+    print(f"Buffers/sec: {buffers_per_sec:.0f}")
     print("✅ Buffer pool demonstration completed")
 
 
@@ -263,14 +279,16 @@ def demonstrate_system_integration():
     # Test 1: Configuration-driven validation
     print("1️⃣ Configuration-driven validation:")
     config_result = config_manager.validate_config()
-    print(f"   Configuration: {'✅ valid' if config_result.is_valid() else f'❌ {len(config_result.errors)} errors'}")
+    print(
+        f"   Configuration: {'✅ valid' if config_result.is_valid() else f'❌ {len(config_result.errors)} errors'}"
+    )
 
     # Test 2: Buffer pool with configuration
     print("2️⃣ Buffer pool with configuration:")
     pool = XGBufferPool(
         sample_rate=audio_config.sample_rate,
         max_block_size=audio_config.block_size,
-        max_channels=audio_config.max_channels
+        max_channels=audio_config.max_channels,
     )
 
     # Allocate buffer using config parameters
@@ -278,14 +296,14 @@ def demonstrate_system_integration():
     result = audio_validator.validate_buffer(buffer, expected_channels=2)
     pool.return_buffer(buffer)
 
-    print(f"   Config-driven buffer: {'✅ valid' if result.is_valid() else f'❌ invalid'}")
+    print(f"   Config-driven buffer: {'✅ valid' if result.is_valid() else '❌ invalid'}")
 
     # Test 3: Parameter validation integration
     print("3️⃣ Parameter validation integration:")
     test_values = {
-        'volume': audio_config.max_voices / 256.0,  # Should be valid
-        'sample_rate': audio_config.sample_rate,    # Should be valid
-        'frequency': 1000.0,                        # Should be valid
+        "volume": audio_config.max_voices / 256.0,  # Should be valid
+        "sample_rate": audio_config.sample_rate,  # Should be valid
+        "frequency": 1000.0,  # Should be valid
     }
 
     all_valid = True
@@ -300,7 +318,9 @@ def demonstrate_system_integration():
     # Test 4: System resource monitoring
     print("4️⃣ System resource monitoring:")
     resource_result = audio_validator.validate_system_resources()
-    print(f"   Resources: {'✅ OK' if resource_result.is_valid() else f'⚠️ {len(resource_result.warnings)} warnings'}")
+    print(
+        f"   Resources: {'✅ OK' if resource_result.is_valid() else f'⚠️ {len(resource_result.warnings)} warnings'}"
+    )
 
     # Test 5: Concurrent access safety
     print("5️⃣ Concurrent access safety:")
@@ -358,8 +378,8 @@ def run_performance_benchmark():
     buffer_time = end_time - start_time
     ops_per_sec = operations / buffer_time
 
-    print(".0f"
-    print(".1f"
+    print(f"Operations: {operations:.0f}, Time: {buffer_time:.1f}s")
+    print(f"Ops/sec: {ops_per_sec:.0f}")
 
     # Benchmark 2: Validation performance
     print("🔍 Validation Performance:")
@@ -376,8 +396,8 @@ def run_performance_benchmark():
     validation_time = end_time - start_time
     validations_per_sec = validations / validation_time
 
-    print(".0f"
-    print(".1f"
+    print(f"Validations: {validations:.0f}, Time: {validation_time:.1f}s")
+    print(f"Validations/sec: {validations_per_sec:.0f}")
 
     # Benchmark 3: Configuration operations
     print("⚙️ Configuration Performance:")
@@ -392,12 +412,12 @@ def run_performance_benchmark():
     config_time = end_time - start_time
     configs_per_sec = config_ops / config_time
 
-    print(".1f"
-    print(".1f"
+    print(f"Config operations: {config_ops:.0f}, Time: {config_time:.1f}s")
+    print(f"Configs/sec: {configs_per_sec:.0f}")
 
     # Overall assessment
     print("📈 Overall Performance Assessment:")
-    all_fast = (ops_per_sec > 1000 and validations_per_sec > 100 and configs_per_sec > 10)
+    all_fast = ops_per_sec > 1000 and validations_per_sec > 100 and configs_per_sec > 10
     print(f"   Production Ready: {'✅ YES' if all_fast else '❌ NO'}")
     print(f"   Buffer Operations: {'✅ FAST' if ops_per_sec > 1000 else '❌ SLOW'}")
     print(f"   Validation Speed: {'✅ FAST' if validations_per_sec > 100 else '❌ SLOW'}")
@@ -454,6 +474,7 @@ def main():
     except Exception as e:
         print(f"\n❌ Demonstration failed with error: {e}")
         import traceback
+
         traceback.print_exc()
 
     finally:

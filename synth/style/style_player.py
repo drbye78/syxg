@@ -4,19 +4,19 @@ Style Player - High-Level Style Playback Controller
 Provides the high-level interface for style playback with
 section management and transitions.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import threading
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any
-from collections.abc import Callable
-import threading
-import time
 
-from .style import Style, StyleSectionType
-from .auto_accompaniment import AutoAccompaniment, AccompanimentMode, StylePlaybackState
-from .style_ots import OneTouchSettings
+from .auto_accompaniment import AutoAccompaniment
 from .dynamics import StyleDynamics
+from .style import Style, StyleSectionType
+from .style_ots import OneTouchSettings
 
 
 class SectionTransitionType(Enum):
@@ -73,7 +73,7 @@ class StylePlayer:
         self._dynamic_arrangement = True  # Dynamic arrangement enabled
         self._auto_fill = True  # Automatic fill patterns
         self._break_probability = 0.0  # Probability of breaks (0.0-1.0)
-        
+
         # Callbacks
         self._on_section_change: Callable[[StyleSectionType, StyleSectionType], None] | None = None
         self._on_chord_change: Callable[[Any], None] | None = None
@@ -297,9 +297,7 @@ class StylePlayer:
             "playing": self._playing,
             "style_loaded": self._style is not None,
             "style_name": self._style.name if self._style else None,
-            "current_section": self._current_section.value
-            if self._current_section
-            else None,
+            "current_section": self._current_section.value if self._current_section else None,
             "tempo": self.tempo,
             # Advanced features status
             "dynamic_arrangement": self._dynamic_arrangement,
@@ -325,59 +323,59 @@ class StylePlayer:
         """Set chord progression memory for intelligent accompaniment."""
         with self._lock:
             self._chord_memory = chords.copy()
-            
+
     def add_chord_to_memory(self, chord: Any):
         """Add chord to progression memory."""
         with self._lock:
             self._chord_memory.append(chord)
-            
+
     def clear_chord_memory(self):
         """Clear chord progression memory."""
         with self._lock:
             self._chord_memory.clear()
-            
+
     def get_chord_memory(self) -> list[Any]:
         """Get current chord progression memory."""
         with self._lock:
             return self._chord_memory.copy()
-            
+
     def set_pattern_variation(self, section_type: StyleSectionType, variation_ids: list[int]):
         """Set pattern variations for a section."""
         with self._lock:
             self._pattern_variations[section_type.value] = variation_ids
-            
+
     def get_pattern_variation(self, section_type: StyleSectionType) -> list[int]:
         """Get pattern variations for a section."""
         with self._lock:
             return self._pattern_variations.get(section_type.value, [])
-            
+
     def enable_dynamic_arrangement(self, enabled: bool = True):
         """Enable/disable dynamic arrangement for intelligent accompaniment."""
         with self._lock:
             self._dynamic_arrangement = enabled
-            
+
     def set_auto_fill(self, enabled: bool = True):
         """Enable/disable automatic fill patterns between sections."""
         with self._lock:
             self._auto_fill = enabled
-            
+
     def set_break_probability(self, probability: float):
         """Set probability of breaks in accompaniment (0.0-1.0)."""
         with self._lock:
             self._break_probability = max(0.0, min(1.0, probability))
-            
+
     def trigger_break(self):
         """Trigger an immediate break in the accompaniment."""
         with self._lock:
             if self._accompaniment:
                 self._accompaniment.trigger_break()
-                
+
     def get_chord_progression_analysis(self) -> dict[str, Any]:
         """Analyze current chord progression in memory."""
         with self._lock:
             if not self._chord_memory:
                 return {"analysis": "No chord progression in memory"}
-            
+
             # Simple analysis
             analysis = {
                 "chord_count": len(self._chord_memory),

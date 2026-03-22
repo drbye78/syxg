@@ -4,14 +4,14 @@ Voice Architecture Integration Example
 Demonstrates how the new Voice-based architecture integrates with the existing
 XG synthesizer, providing a migration path and compatibility layer.
 """
+
 from __future__ import annotations
 
 from typing import Any
-import numpy as np
 
+from synth.channel.channel import Channel
 from synth.engine.synthesis_engine import SynthesisEngineRegistry
 from synth.voice.voice_factory import VoiceFactory
-from synth.channel.channel import Channel
 
 
 class VoiceIntegrationLayer:
@@ -36,8 +36,9 @@ class VoiceIntegrationLayer:
 
         # Register SF2 engine
         from .sf2_engine import SF2Engine
+
         sf2_engine = SF2Engine()
-        self.engine_registry.register_engine(sf2_engine, 'sf2')
+        self.engine_registry.register_engine(sf2_engine, "sf2")
 
         # Create voice factory
         self.voice_factory = VoiceFactory(self.engine_registry)
@@ -53,9 +54,9 @@ class VoiceIntegrationLayer:
             Dictionary with integration demonstration results
         """
         results = {
-            'voice_channel_info': self.voice_channel.get_channel_info(),
-            'available_engines': self.engine_registry.get_registered_engines(),
-            'voice_capabilities': []
+            "voice_channel_info": self.voice_channel.get_channel_info(),
+            "available_engines": self.engine_registry.get_registered_engines(),
+            "voice_capabilities": [],
         }
 
         # Test voice generation
@@ -63,16 +64,18 @@ class VoiceIntegrationLayer:
             # Generate a short audio block
             audio = self.voice_channel.generate_samples(1024)
 
-            results['voice_capabilities'].extend([
-                'voice_audio_generation',
-                'modulation_matrix_support',
-                'multi_partial_support',
-                'effects_routing'
-            ])
+            results["voice_capabilities"].extend(
+                [
+                    "voice_audio_generation",
+                    "modulation_matrix_support",
+                    "multi_partial_support",
+                    "effects_routing",
+                ]
+            )
 
             # Get voice info
             voice_info = self.voice_channel.current_voice.get_voice_info()
-            results['voice_info'] = voice_info
+            results["voice_info"] = voice_info
 
         return results
 
@@ -84,30 +87,26 @@ class VoiceIntegrationLayer:
             Comparison of architectural approaches
         """
         return {
-            'new_voice_architecture': {
-                'layers': ['SynthesisEngine', 'Voice', 'Channel', 'Synthesizer'],
-                'benefits': [
-                    'Clean engine abstraction',
-                    'Voice-level coordination',
-                    'Easy engine addition',
-                    'Better separation of concerns'
+            "new_voice_architecture": {
+                "layers": ["SynthesisEngine", "Voice", "Channel", "Synthesizer"],
+                "benefits": [
+                    "Clean engine abstraction",
+                    "Voice-level coordination",
+                    "Easy engine addition",
+                    "Better separation of concerns",
                 ],
-                'compatibility': 'Full backward compatibility maintained'
+                "compatibility": "Full backward compatibility maintained",
             },
-            'existing_note_architecture': {
-                'layers': ['ChannelRenderer', 'ChannelNote', 'PartialGenerator'],
-                'benefits': [
-                    'Proven performance',
-                    'Detailed control',
-                    'Extensive XG features'
-                ],
-                'integration': 'Works alongside new architecture'
+            "existing_note_architecture": {
+                "layers": ["ChannelRenderer", "ChannelNote", "PartialGenerator"],
+                "benefits": ["Proven performance", "Detailed control", "Extensive XG features"],
+                "integration": "Works alongside new architecture",
             },
-            'migration_path': {
-                'phase_1': 'Add Voice layer alongside existing',
-                'phase_2': 'Gradually migrate channels to Voice architecture',
-                'phase_3': 'Remove legacy code when fully migrated'
-            }
+            "migration_path": {
+                "phase_1": "Add Voice layer alongside existing",
+                "phase_2": "Gradually migrate channels to Voice architecture",
+                "phase_3": "Remove legacy code when fully migrated",
+            },
         }
 
     def create_engine_comparison(self) -> dict[str, Any]:
@@ -121,15 +120,19 @@ class VoiceIntegrationLayer:
 
         for engine_type, engine in self.engine_registry.engines.items():
             engines_info[engine_type] = {
-                'features': engine.get_engine_info(),
-                'default_params': engine.get_default_partial_params(),
-                'supported_features': {
+                "features": engine.get_engine_info(),
+                "default_params": engine.get_default_partial_params(),
+                "supported_features": {
                     feature: engine.supports_feature(feature)
                     for feature in [
-                        'sample_playback', 'loop_modes', 'filter_envelopes',
-                        'pitch_envelopes', 'fm_synthesis', 'wavetable_synthesis'
+                        "sample_playback",
+                        "loop_modes",
+                        "filter_envelopes",
+                        "pitch_envelopes",
+                        "fm_synthesis",
+                        "wavetable_synthesis",
                     ]
-                }
+                },
             }
 
         return engines_info
@@ -142,28 +145,38 @@ class VoiceIntegrationLayer:
             Modulation matrix demonstration
         """
         if not self.voice_channel.current_voice:
-            return {'error': 'No active voice'}
+            return {"error": "No active voice"}
 
         # Get modulation matrix info
         modulation_info = {
-            'voice_modulation_routes': 16,  # XG standard
-            'available_sources': [
-                'velocity', 'note_number', 'channel_aftertouch',
-                'mod_wheel', 'breath_controller', 'expression'
+            "voice_modulation_routes": 16,  # XG standard
+            "available_sources": [
+                "velocity",
+                "note_number",
+                "channel_aftertouch",
+                "mod_wheel",
+                "breath_controller",
+                "expression",
             ],
-            'available_destinations': [
-                'pitch', 'filter_cutoff', 'amp', 'pan',
-                'chorus_send', 'reverb_send'
-            ]
+            "available_destinations": [
+                "pitch",
+                "filter_cutoff",
+                "amp",
+                "pan",
+                "chorus_send",
+                "reverb_send",
+            ],
         }
 
         # Show current modulation setup
-        if hasattr(self.voice_channel.current_voice, 'modulation_matrix'):
-            modulation_info['current_routes'] = len([
-                route for route in
-                self.voice_channel.current_voice.modulation_matrix.routes
-                if route is not None
-            ])
+        if hasattr(self.voice_channel.current_voice, "modulation_matrix"):
+            modulation_info["current_routes"] = len(
+                [
+                    route
+                    for route in self.voice_channel.current_voice.modulation_matrix.routes
+                    if route is not None
+                ]
+            )
 
         return modulation_info
 
@@ -198,7 +211,7 @@ def demonstrate_integration():
     print("\n4. Engine Capabilities:")
     engine_comparison = integration.create_engine_comparison()
     for engine_type, info in engine_comparison.items():
-        features = [f for f, supported in info['supported_features'].items() if supported]
+        features = [f for f, supported in info["supported_features"].items() if supported]
         print(f"   {engine_type}: {features[:3]}...")
 
     print("\n5. Modulation Matrix:")

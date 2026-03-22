@@ -4,11 +4,12 @@ Jupiter-X Constants and Parameter Definitions
 This module defines all constants, model IDs, and parameter mappings
 for Roland Jupiter-X synthesizer integration.
 """
+
 from __future__ import annotations
 
 # MIDI Constants
 JUPITER_X_MANUFACTURER_ID = 0x41  # Roland
-JUPITER_X_MODEL_ID = 0x64         # Jupiter-X model ID
+JUPITER_X_MODEL_ID = 0x64  # Jupiter-X model ID
 JUPITER_X_DEVICE_ID_DEFAULT = 0x10
 
 # SysEx Commands
@@ -18,12 +19,12 @@ SYSEX_CMD_DATA_REQUEST = 0x10
 SYSEX_CMD_BULK_DUMP = 0x40
 
 # NRPN Parameter Ranges (MSB)
-NRPN_SYSTEM_PARAMS = range(0x00, 0x10)      # System/Global (0-15)
-NRPN_PART_PARAMS = range(0x10, 0x30)        # Parts 0-15 (16-47)
-NRPN_ENGINE_PARAMS = range(0x30, 0x40)      # Engine params (48-63)
-NRPN_EFFECTS_PARAMS = range(0x40, 0x50)     # Effects (64-79)
-NRPN_ARPEGGIATOR_PARAMS = range(0x50, 0x60) # Arpeggiator (80-95)
-NRPN_LFO_MODULATION = range(0x60, 0x70)     # LFO/Modulation (96-111)
+NRPN_SYSTEM_PARAMS = range(0x00, 0x10)  # System/Global (0-15)
+NRPN_PART_PARAMS = range(0x10, 0x30)  # Parts 0-15 (16-47)
+NRPN_ENGINE_PARAMS = range(0x30, 0x40)  # Engine params (48-63)
+NRPN_EFFECTS_PARAMS = range(0x40, 0x50)  # Effects (64-79)
+NRPN_ARPEGGIATOR_PARAMS = range(0x50, 0x60)  # Arpeggiator (80-95)
+NRPN_LFO_MODULATION = range(0x60, 0x70)  # LFO/Modulation (96-111)
 NRPN_ADVANCED_FEATURES = range(0x70, 0x80)  # Advanced (112-127)
 
 # Engine Types
@@ -36,7 +37,7 @@ ENGINE_NAMES = {
     ENGINE_ANALOG: "Analog",
     ENGINE_DIGITAL: "Digital",
     ENGINE_FM: "FM",
-    ENGINE_EXTERNAL: "External"
+    ENGINE_EXTERNAL: "External",
 }
 
 # Jupiter-X Parameter Addresses (3-byte addresses)
@@ -148,8 +149,8 @@ WAVEFORM_SINE = 3
 WAVEFORM_NOISE = 4
 
 # Jupiter-X Enhanced Waveforms
-WAVEFORM_RANDOM_SH = 5      # Random Sample & Hold
-WAVEFORM_TRAPEZOID = 6      # Trapezoid wave
+WAVEFORM_RANDOM_SH = 5  # Random Sample & Hold
+WAVEFORM_TRAPEZOID = 6  # Trapezoid wave
 
 WAVEFORM_NAMES = {
     WAVEFORM_SAWTOOTH: "Sawtooth",
@@ -158,7 +159,7 @@ WAVEFORM_NAMES = {
     WAVEFORM_SINE: "Sine",
     WAVEFORM_NOISE: "Noise",
     WAVEFORM_RANDOM_SH: "Random S&H",
-    WAVEFORM_TRAPEZOID: "Trapezoid"
+    WAVEFORM_TRAPEZOID: "Trapezoid",
 }
 
 # Filter Types
@@ -171,7 +172,7 @@ FILTER_NAMES = {
     FILTER_LPF: "Low Pass",
     FILTER_HPF: "High Pass",
     FILTER_BPF: "Band Pass",
-    FILTER_NOTCH: "Notch"
+    FILTER_NOTCH: "Notch",
 }
 
 # Arpeggiator Grid Size
@@ -214,6 +215,6 @@ DEFAULT_CHORUS_RATE = 64
 # Arpeggiator Default Values
 DEFAULT_ARPEGGIATOR_TEMPO = 120
 DEFAULT_ARPEGGIATOR_GATE_TIME = 80  # 80%
-DEFAULT_ARPEGGIATOR_SWING = 50      # 50%
+DEFAULT_ARPEGGIATOR_SWING = 50  # 50%
 DEFAULT_ARPEGGIATOR_OCTAVE_RANGE = 1
 DEFAULT_ARPEGGIATOR_PATTERN_LENGTH = 1

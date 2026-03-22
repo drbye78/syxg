@@ -5,11 +5,11 @@ Provides complete Jupiter-X parameter mappings with authentic hardware behavior,
 including parameter ranges, curves, and MIDI CC assignments that match
 the original Jupiter-X synthesizer exactly.
 """
+
 from __future__ import annotations
 
-from typing import Any
 import math
-from ..types.unified_parameters import JupiterXParameterMapping
+from typing import Any
 
 
 class JupiterXParameterMappings:
@@ -23,473 +23,466 @@ class JupiterXParameterMappings:
     # Jupiter-X oscillator parameters
     OSCILLATOR_PARAMETERS = {
         # Oscillator 1
-        'osc1_waveform': {
-            'range': (0, 3),
-            'default': 0,
-            'curve': 'linear',
-            'values': ['saw', 'square', 'triangle', 'sine'],
-            'midi_cc': 14,
-            'description': 'Oscillator 1 waveform selection'
+        "osc1_waveform": {
+            "range": (0, 3),
+            "default": 0,
+            "curve": "linear",
+            "values": ["saw", "square", "triangle", "sine"],
+            "midi_cc": 14,
+            "description": "Oscillator 1 waveform selection",
         },
-        'osc1_coarse_tune': {
-            'range': (-24, 24),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 15,
-            'description': 'Oscillator 1 coarse tuning in semitones'
+        "osc1_coarse_tune": {
+            "range": (-24, 24),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 15,
+            "description": "Oscillator 1 coarse tuning in semitones",
         },
-        'osc1_fine_tune': {
-            'range': (-50, 50),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 16,
-            'description': 'Oscillator 1 fine tuning in cents'
+        "osc1_fine_tune": {
+            "range": (-50, 50),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 16,
+            "description": "Oscillator 1 fine tuning in cents",
         },
-        'osc1_level': {
-            'range': (0, 127),
-            'default': 100,
-            'curve': 'linear',
-            'midi_cc': 17,
-            'description': 'Oscillator 1 level'
+        "osc1_level": {
+            "range": (0, 127),
+            "default": 100,
+            "curve": "linear",
+            "midi_cc": 17,
+            "description": "Oscillator 1 level",
         },
-
         # Oscillator 2
-        'osc2_waveform': {
-            'range': (0, 3),
-            'default': 0,
-            'curve': 'linear',
-            'values': ['saw', 'square', 'triangle', 'sine'],
-            'midi_cc': 18,
-            'description': 'Oscillator 2 waveform selection'
+        "osc2_waveform": {
+            "range": (0, 3),
+            "default": 0,
+            "curve": "linear",
+            "values": ["saw", "square", "triangle", "sine"],
+            "midi_cc": 18,
+            "description": "Oscillator 2 waveform selection",
         },
-        'osc2_coarse_tune': {
-            'range': (-24, 24),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 19,
-            'description': 'Oscillator 2 coarse tuning in semitones'
+        "osc2_coarse_tune": {
+            "range": (-24, 24),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 19,
+            "description": "Oscillator 2 coarse tuning in semitones",
         },
-        'osc2_fine_tune': {
-            'range': (-50, 50),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 20,
-            'description': 'Oscillator 2 fine tuning in cents'
+        "osc2_fine_tune": {
+            "range": (-50, 50),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 20,
+            "description": "Oscillator 2 fine tuning in cents",
         },
-        'osc2_level': {
-            'range': (0, 127),
-            'default': 100,
-            'curve': 'linear',
-            'midi_cc': 21,
-            'description': 'Oscillator 2 level'
+        "osc2_level": {
+            "range": (0, 127),
+            "default": 100,
+            "curve": "linear",
+            "midi_cc": 21,
+            "description": "Oscillator 2 level",
         },
-
         # Oscillator sync and ring modulation
-        'osc_sync': {
-            'range': (0, 1),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 22,
-            'description': 'Oscillator hard sync enable'
+        "osc_sync": {
+            "range": (0, 1),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 22,
+            "description": "Oscillator hard sync enable",
         },
-        'ring_modulation': {
-            'range': (0, 1),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 23,
-            'description': 'Ring modulation enable'
-        }
+        "ring_modulation": {
+            "range": (0, 1),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 23,
+            "description": "Ring modulation enable",
+        },
     }
 
     # Jupiter-X filter parameters
     FILTER_PARAMETERS = {
-        'filter_type': {
-            'range': (0, 3),
-            'default': 0,
-            'curve': 'linear',
-            'values': ['lp2', 'lp4', 'hp2', 'bp2'],
-            'midi_cc': 74,
-            'description': 'Filter type (LP2, LP4, HP2, BP2)'
+        "filter_type": {
+            "range": (0, 3),
+            "default": 0,
+            "curve": "linear",
+            "values": ["lp2", "lp4", "hp2", "bp2"],
+            "midi_cc": 74,
+            "description": "Filter type (LP2, LP4, HP2, BP2)",
         },
-        'filter_cutoff': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'exponential',
-            'midi_cc': 71,
-            'description': 'Filter cutoff frequency'
+        "filter_cutoff": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "exponential",
+            "midi_cc": 71,
+            "description": "Filter cutoff frequency",
         },
-        'filter_resonance': {
-            'range': (0, 127),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 72,
-            'description': 'Filter resonance/Q'
+        "filter_resonance": {
+            "range": (0, 127),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 72,
+            "description": "Filter resonance/Q",
         },
-        'filter_drive': {
-            'range': (0, 127),
-            'default': 0,
-            'curve': 'exponential',
-            'midi_cc': 73,
-            'description': 'Filter drive/overdrive'
+        "filter_drive": {
+            "range": (0, 127),
+            "default": 0,
+            "curve": "exponential",
+            "midi_cc": 73,
+            "description": "Filter drive/overdrive",
         },
-        'filter_key_track': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'linear',
-            'midi_cc': 75,
-            'description': 'Filter keyboard tracking'
+        "filter_key_track": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "linear",
+            "midi_cc": 75,
+            "description": "Filter keyboard tracking",
         },
-        'filter_envelope_amount': {
-            'range': (-64, 63),
-            'default': 32,
-            'curve': 'linear',
-            'midi_cc': 76,
-            'description': 'Filter envelope amount'
+        "filter_envelope_amount": {
+            "range": (-64, 63),
+            "default": 32,
+            "curve": "linear",
+            "midi_cc": 76,
+            "description": "Filter envelope amount",
         },
-        'filter_attack': {
-            'range': (0, 127),
-            'default': 0,
-            'curve': 'exponential',
-            'midi_cc': 77,
-            'description': 'Filter envelope attack'
+        "filter_attack": {
+            "range": (0, 127),
+            "default": 0,
+            "curve": "exponential",
+            "midi_cc": 77,
+            "description": "Filter envelope attack",
         },
-        'filter_decay': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'exponential',
-            'midi_cc': 78,
-            'description': 'Filter envelope decay'
+        "filter_decay": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "exponential",
+            "midi_cc": 78,
+            "description": "Filter envelope decay",
         },
-        'filter_sustain': {
-            'range': (0, 127),
-            'default': 127,
-            'curve': 'linear',
-            'midi_cc': 79,
-            'description': 'Filter envelope sustain'
+        "filter_sustain": {
+            "range": (0, 127),
+            "default": 127,
+            "curve": "linear",
+            "midi_cc": 79,
+            "description": "Filter envelope sustain",
         },
-        'filter_release': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'exponential',
-            'midi_cc': 80,
-            'description': 'Filter envelope release'
-        }
+        "filter_release": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "exponential",
+            "midi_cc": 80,
+            "description": "Filter envelope release",
+        },
     }
 
     # Jupiter-X amplifier parameters
     AMPLIFIER_PARAMETERS = {
-        'amp_level': {
-            'range': (0, 127),
-            'default': 100,
-            'curve': 'linear',
-            'midi_cc': 7,
-            'description': 'Amplifier level'
+        "amp_level": {
+            "range": (0, 127),
+            "default": 100,
+            "curve": "linear",
+            "midi_cc": 7,
+            "description": "Amplifier level",
         },
-        'amp_attack': {
-            'range': (0, 127),
-            'default': 0,
-            'curve': 'exponential',
-            'midi_cc': 81,
-            'description': 'Amplifier envelope attack'
+        "amp_attack": {
+            "range": (0, 127),
+            "default": 0,
+            "curve": "exponential",
+            "midi_cc": 81,
+            "description": "Amplifier envelope attack",
         },
-        'amp_decay': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'exponential',
-            'midi_cc': 82,
-            'description': 'Amplifier envelope decay'
+        "amp_decay": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "exponential",
+            "midi_cc": 82,
+            "description": "Amplifier envelope decay",
         },
-        'amp_sustain': {
-            'range': (0, 127),
-            'default': 127,
-            'curve': 'linear',
-            'midi_cc': 83,
-            'description': 'Amplifier envelope sustain'
+        "amp_sustain": {
+            "range": (0, 127),
+            "default": 127,
+            "curve": "linear",
+            "midi_cc": 83,
+            "description": "Amplifier envelope sustain",
         },
-        'amp_release': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'exponential',
-            'midi_cc': 84,
-            'description': 'Amplifier envelope release'
+        "amp_release": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "exponential",
+            "midi_cc": 84,
+            "description": "Amplifier envelope release",
         },
-        'amp_velocity_sensitivity': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'linear',
-            'midi_cc': 85,
-            'description': 'Amplifier velocity sensitivity'
-        }
+        "amp_velocity_sensitivity": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "linear",
+            "midi_cc": 85,
+            "description": "Amplifier velocity sensitivity",
+        },
     }
 
     # Jupiter-X LFO parameters
     LFO_PARAMETERS = {
-        'lfo1_rate': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'exponential',
-            'midi_cc': 3,
-            'description': 'LFO 1 rate'
+        "lfo1_rate": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "exponential",
+            "midi_cc": 3,
+            "description": "LFO 1 rate",
         },
-        'lfo1_depth': {
-            'range': (0, 127),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 86,
-            'description': 'LFO 1 depth'
+        "lfo1_depth": {
+            "range": (0, 127),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 86,
+            "description": "LFO 1 depth",
         },
-        'lfo1_waveform': {
-            'range': (0, 4),
-            'default': 0,
-            'curve': 'linear',
-            'values': ['sine', 'triangle', 'saw', 'square', 'random'],
-            'midi_cc': 87,
-            'description': 'LFO 1 waveform'
+        "lfo1_waveform": {
+            "range": (0, 4),
+            "default": 0,
+            "curve": "linear",
+            "values": ["sine", "triangle", "saw", "square", "random"],
+            "midi_cc": 87,
+            "description": "LFO 1 waveform",
         },
-        'lfo1_sync': {
-            'range': (0, 1),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 88,
-            'description': 'LFO 1 tempo sync'
+        "lfo1_sync": {
+            "range": (0, 1),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 88,
+            "description": "LFO 1 tempo sync",
         },
-
-        'lfo2_rate': {
-            'range': (0, 127),
-            'default': 32,
-            'curve': 'exponential',
-            'midi_cc': 9,
-            'description': 'LFO 2 rate'
+        "lfo2_rate": {
+            "range": (0, 127),
+            "default": 32,
+            "curve": "exponential",
+            "midi_cc": 9,
+            "description": "LFO 2 rate",
         },
-        'lfo2_depth': {
-            'range': (0, 127),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 89,
-            'description': 'LFO 2 depth'
+        "lfo2_depth": {
+            "range": (0, 127),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 89,
+            "description": "LFO 2 depth",
         },
-        'lfo2_waveform': {
-            'range': (0, 4),
-            'default': 1,
-            'curve': 'linear',
-            'values': ['sine', 'triangle', 'saw', 'square', 'random'],
-            'midi_cc': 90,
-            'description': 'LFO 2 waveform'
+        "lfo2_waveform": {
+            "range": (0, 4),
+            "default": 1,
+            "curve": "linear",
+            "values": ["sine", "triangle", "saw", "square", "random"],
+            "midi_cc": 90,
+            "description": "LFO 2 waveform",
         },
-        'lfo2_sync': {
-            'range': (0, 1),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 91,
-            'description': 'LFO 2 tempo sync'
-        }
+        "lfo2_sync": {
+            "range": (0, 1),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 91,
+            "description": "LFO 2 tempo sync",
+        },
     }
 
     # Jupiter-X effects parameters
     EFFECTS_PARAMETERS = {
-        'distortion_type': {
-            'range': (0, 2),
-            'default': 0,
-            'curve': 'linear',
-            'values': ['overdrive', 'distortion', 'fuzz'],
-            'midi_cc': 92,
-            'description': 'Distortion type'
+        "distortion_type": {
+            "range": (0, 2),
+            "default": 0,
+            "curve": "linear",
+            "values": ["overdrive", "distortion", "fuzz"],
+            "midi_cc": 92,
+            "description": "Distortion type",
         },
-        'distortion_drive': {
-            'range': (0, 127),
-            'default': 0,
-            'curve': 'exponential',
-            'midi_cc': 93,
-            'description': 'Distortion drive'
+        "distortion_drive": {
+            "range": (0, 127),
+            "default": 0,
+            "curve": "exponential",
+            "midi_cc": 93,
+            "description": "Distortion drive",
         },
-        'distortion_tone': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'linear',
-            'midi_cc': 94,
-            'description': 'Distortion tone'
+        "distortion_tone": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "linear",
+            "midi_cc": 94,
+            "description": "Distortion tone",
         },
-        'distortion_mix': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'linear',
-            'midi_cc': 95,
-            'description': 'Distortion wet/dry mix'
+        "distortion_mix": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "linear",
+            "midi_cc": 95,
+            "description": "Distortion wet/dry mix",
         },
-
-        'phaser_rate': {
-            'range': (0, 127),
-            'default': 32,
-            'curve': 'exponential',
-            'midi_cc': 96,
-            'description': 'Phaser rate'
+        "phaser_rate": {
+            "range": (0, 127),
+            "default": 32,
+            "curve": "exponential",
+            "midi_cc": 96,
+            "description": "Phaser rate",
         },
-        'phaser_depth': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'linear',
-            'midi_cc': 97,
-            'description': 'Phaser depth'
+        "phaser_depth": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "linear",
+            "midi_cc": 97,
+            "description": "Phaser depth",
         },
-        'phaser_feedback': {
-            'range': (0, 127),
-            'default': 32,
-            'curve': 'linear',
-            'midi_cc': 98,
-            'description': 'Phaser feedback'
+        "phaser_feedback": {
+            "range": (0, 127),
+            "default": 32,
+            "curve": "linear",
+            "midi_cc": 98,
+            "description": "Phaser feedback",
         },
-        'phaser_mix': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'linear',
-            'midi_cc': 99,
-            'description': 'Phaser wet/dry mix'
+        "phaser_mix": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "linear",
+            "midi_cc": 99,
+            "description": "Phaser wet/dry mix",
         },
-
-        'delay_time': {
-            'range': (0, 127),
-            'default': 32,
-            'curve': 'exponential',
-            'midi_cc': 100,
-            'description': 'Delay time'
+        "delay_time": {
+            "range": (0, 127),
+            "default": 32,
+            "curve": "exponential",
+            "midi_cc": 100,
+            "description": "Delay time",
         },
-        'delay_feedback': {
-            'range': (0, 127),
-            'default': 32,
-            'curve': 'linear',
-            'midi_cc': 101,
-            'description': 'Delay feedback'
+        "delay_feedback": {
+            "range": (0, 127),
+            "default": 32,
+            "curve": "linear",
+            "midi_cc": 101,
+            "description": "Delay feedback",
         },
-        'delay_mix': {
-            'range': (0, 127),
-            'default': 32,
-            'curve': 'linear',
-            'midi_cc': 102,
-            'description': 'Delay wet/dry mix'
+        "delay_mix": {
+            "range": (0, 127),
+            "default": 32,
+            "curve": "linear",
+            "midi_cc": 102,
+            "description": "Delay wet/dry mix",
         },
-
-        'reverb_type': {
-            'range': (0, 3),
-            'default': 0,
-            'curve': 'linear',
-            'values': ['hall', 'room', 'plate', 'spring'],
-            'midi_cc': 103,
-            'description': 'Reverb type'
+        "reverb_type": {
+            "range": (0, 3),
+            "default": 0,
+            "curve": "linear",
+            "values": ["hall", "room", "plate", "spring"],
+            "midi_cc": 103,
+            "description": "Reverb type",
         },
-        'reverb_time': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'exponential',
-            'midi_cc': 104,
-            'description': 'Reverb decay time'
+        "reverb_time": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "exponential",
+            "midi_cc": 104,
+            "description": "Reverb decay time",
         },
-        'reverb_mix': {
-            'range': (0, 127),
-            'default': 32,
-            'curve': 'linear',
-            'midi_cc': 105,
-            'description': 'Reverb wet/dry mix'
-        }
+        "reverb_mix": {
+            "range": (0, 127),
+            "default": 32,
+            "curve": "linear",
+            "midi_cc": 105,
+            "description": "Reverb wet/dry mix",
+        },
     }
 
     # Jupiter-X performance parameters
     PERFORMANCE_PARAMETERS = {
-        'pitch_bend_range': {
-            'range': (0, 24),
-            'default': 2,
-            'curve': 'linear',
-            'midi_rpn': (0, 0),
-            'description': 'Pitch bend range in semitones'
+        "pitch_bend_range": {
+            "range": (0, 24),
+            "default": 2,
+            "curve": "linear",
+            "midi_rpn": (0, 0),
+            "description": "Pitch bend range in semitones",
         },
-        'mod_wheel_range': {
-            'range': (0, 127),
-            'default': 127,
-            'curve': 'linear',
-            'midi_cc': 1,
-            'description': 'Modulation wheel range'
+        "mod_wheel_range": {
+            "range": (0, 127),
+            "default": 127,
+            "curve": "linear",
+            "midi_cc": 1,
+            "description": "Modulation wheel range",
         },
-        'portamento_time': {
-            'range': (0, 127),
-            'default': 0,
-            'curve': 'exponential',
-            'midi_cc': 5,
-            'description': 'Portamento time'
+        "portamento_time": {
+            "range": (0, 127),
+            "default": 0,
+            "curve": "exponential",
+            "midi_cc": 5,
+            "description": "Portamento time",
         },
-        'portamento_mode': {
-            'range': (0, 1),
-            'default': 0,
-            'curve': 'linear',
-            'values': ['normal', 'legato'],
-            'midi_cc': 65,
-            'description': 'Portamento mode'
+        "portamento_mode": {
+            "range": (0, 1),
+            "default": 0,
+            "curve": "linear",
+            "values": ["normal", "legato"],
+            "midi_cc": 65,
+            "description": "Portamento mode",
         },
-
         # MPE parameters
-        'mpe_enabled': {
-            'range': (0, 1),
-            'default': 0,
-            'curve': 'linear',
-            'description': 'MPE (MIDI Polyphonic Expression) enable'
+        "mpe_enabled": {
+            "range": (0, 1),
+            "default": 0,
+            "curve": "linear",
+            "description": "MPE (MIDI Polyphonic Expression) enable",
         },
-        'mpe_pitch_bend_range': {
-            'range': (0, 96),
-            'default': 48,
-            'curve': 'linear',
-            'description': 'MPE pitch bend range in semitones'
+        "mpe_pitch_bend_range": {
+            "range": (0, 96),
+            "default": 48,
+            "curve": "linear",
+            "description": "MPE pitch bend range in semitones",
         },
-        'mpe_timbre_cc': {
-            'range': (0, 127),
-            'default': 74,
-            'curve': 'linear',
-            'description': 'MPE timbre CC number'
-        }
+        "mpe_timbre_cc": {
+            "range": (0, 127),
+            "default": 74,
+            "curve": "linear",
+            "description": "MPE timbre CC number",
+        },
     }
 
     # Arpeggiator parameters
     ARPEGGIATOR_PARAMETERS = {
-        'arp_mode': {
-            'range': (0, 5),
-            'default': 0,
-            'curve': 'linear',
-            'values': ['up', 'down', 'up_down', 'random', 'chord', 'manual'],
-            'midi_cc': 106,
-            'description': 'Arpeggiator mode'
+        "arp_mode": {
+            "range": (0, 5),
+            "default": 0,
+            "curve": "linear",
+            "values": ["up", "down", "up_down", "random", "chord", "manual"],
+            "midi_cc": 106,
+            "description": "Arpeggiator mode",
         },
-        'arp_range': {
-            'range': (1, 4),
-            'default': 1,
-            'curve': 'linear',
-            'midi_cc': 107,
-            'description': 'Arpeggiator octave range'
+        "arp_range": {
+            "range": (1, 4),
+            "default": 1,
+            "curve": "linear",
+            "midi_cc": 107,
+            "description": "Arpeggiator octave range",
         },
-        'arp_gate_time': {
-            'range': (0, 127),
-            'default': 80,
-            'curve': 'linear',
-            'midi_cc': 108,
-            'description': 'Arpeggiator gate time'
+        "arp_gate_time": {
+            "range": (0, 127),
+            "default": 80,
+            "curve": "linear",
+            "midi_cc": 108,
+            "description": "Arpeggiator gate time",
         },
-        'arp_rate': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'exponential',
-            'midi_cc': 109,
-            'description': 'Arpeggiator rate'
+        "arp_rate": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "exponential",
+            "midi_cc": 109,
+            "description": "Arpeggiator rate",
         },
-        'arp_swing': {
-            'range': (0, 127),
-            'default': 64,
-            'curve': 'linear',
-            'midi_cc': 110,
-            'description': 'Arpeggiator swing amount'
+        "arp_swing": {
+            "range": (0, 127),
+            "default": 64,
+            "curve": "linear",
+            "midi_cc": 110,
+            "description": "Arpeggiator swing amount",
         },
-        'arp_hold': {
-            'range': (0, 1),
-            'default': 0,
-            'curve': 'linear',
-            'midi_cc': 111,
-            'description': 'Arpeggiator hold mode'
-        }
+        "arp_hold": {
+            "range": (0, 1),
+            "default": 0,
+            "curve": "linear",
+            "midi_cc": 111,
+            "description": "Arpeggiator hold mode",
+        },
     }
 
     # Combine all parameter groups
@@ -500,7 +493,7 @@ class JupiterXParameterMappings:
         **LFO_PARAMETERS,
         **EFFECTS_PARAMETERS,
         **PERFORMANCE_PARAMETERS,
-        **ARPEGGIATOR_PARAMETERS
+        **ARPEGGIATOR_PARAMETERS,
     }
 
     @classmethod
@@ -529,7 +522,7 @@ class JupiterXParameterMappings:
         """
         param = cls.get_jupiter_x_parameter(param_name)
         if param:
-            return param['range']
+            return param["range"]
         return None
 
     @classmethod
@@ -545,7 +538,7 @@ class JupiterXParameterMappings:
         """
         param = cls.get_jupiter_x_parameter(param_name)
         if param:
-            return param['default']
+            return param["default"]
         return None
 
     @classmethod
@@ -564,20 +557,20 @@ class JupiterXParameterMappings:
         if not param:
             return midi_value / 127.0
 
-        curve_type = param.get('curve', 'linear')
-        param_range = param['range']
+        curve_type = param.get("curve", "linear")
+        param_range = param["range"]
 
         # Normalize to 0-1
         normalized = midi_value / 127.0
 
         # Apply curve
-        if curve_type == 'exponential':
+        if curve_type == "exponential":
             # Exponential curve for frequency/time parameters
             if normalized == 0:
                 curved = 0.0
             else:
                 curved = math.pow(normalized, 2.0)
-        elif curve_type == 'linear':
+        elif curve_type == "linear":
             curved = normalized
         else:
             curved = normalized
@@ -598,8 +591,8 @@ class JupiterXParameterMappings:
             MIDI CC number or None if not mapped
         """
         param = cls.get_jupiter_x_parameter(param_name)
-        if param and 'midi_cc' in param:
-            return param['midi_cc']
+        if param and "midi_cc" in param:
+            return param["midi_cc"]
         return None
 
     @classmethod
@@ -614,7 +607,7 @@ class JupiterXParameterMappings:
             Parameter name or None if not mapped
         """
         for param_name, param_def in cls.ALL_PARAMETERS.items():
-            if param_def.get('midi_cc') == cc_number:
+            if param_def.get("midi_cc") == cc_number:
                 return param_name
         return None
 
@@ -649,7 +642,7 @@ class JupiterXParameterMappings:
         """
         param = cls.get_jupiter_x_parameter(param_name)
         if param:
-            return param.get('description', '')
+            return param.get("description", "")
         return None
 
     @classmethod
@@ -664,8 +657,8 @@ class JupiterXParameterMappings:
             List of parameter values or None if not enumerated
         """
         param = cls.get_jupiter_x_parameter(param_name)
-        if param and 'values' in param:
-            return param['values']
+        if param and "values" in param:
+            return param["values"]
         return None
 
     @classmethod
@@ -690,15 +683,15 @@ class JupiterXParameterMappings:
             Dictionary of parameters in the category
         """
         category_map = {
-            'oscillator': cls.OSCILLATOR_PARAMETERS,
-            'filter': cls.FILTER_PARAMETERS,
-            'amp': cls.AMPLIFIER_PARAMETERS,
-            'amplifier': cls.AMPLIFIER_PARAMETERS,
-            'lfo': cls.LFO_PARAMETERS,
-            'effects': cls.EFFECTS_PARAMETERS,
-            'performance': cls.PERFORMANCE_PARAMETERS,
-            'arp': cls.ARPEGGIATOR_PARAMETERS,
-            'arpeggiator': cls.ARPEGGIATOR_PARAMETERS
+            "oscillator": cls.OSCILLATOR_PARAMETERS,
+            "filter": cls.FILTER_PARAMETERS,
+            "amp": cls.AMPLIFIER_PARAMETERS,
+            "amplifier": cls.AMPLIFIER_PARAMETERS,
+            "lfo": cls.LFO_PARAMETERS,
+            "effects": cls.EFFECTS_PARAMETERS,
+            "performance": cls.PERFORMANCE_PARAMETERS,
+            "arp": cls.ARPEGGIATOR_PARAMETERS,
+            "arpeggiator": cls.ARPEGGIATOR_PARAMETERS,
         }
 
         return category_map.get(category.lower(), {}).copy()
@@ -713,7 +706,7 @@ class JupiterXParameterMappings:
         """
         patch = {}
         for param_name, param_def in cls.ALL_PARAMETERS.items():
-            patch[param_name] = param_def['default']
+            patch[param_name] = param_def["default"]
         return patch
 
     @classmethod
@@ -730,7 +723,7 @@ class JupiterXParameterMappings:
         validated_patch = {}
 
         for param_name, param_def in cls.ALL_PARAMETERS.items():
-            value = patch.get(param_name, param_def['default'])
+            value = patch.get(param_name, param_def["default"])
             validated_value = cls.validate_jupiter_x_value(param_name, value)
             validated_patch[param_name] = validated_value
 

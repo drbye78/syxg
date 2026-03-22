@@ -86,12 +86,12 @@ ERROR HANDLING:
 
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class VoiceState(Enum):

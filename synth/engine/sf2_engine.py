@@ -193,13 +193,14 @@ ADVANCED FEATURES:
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
-import numpy as np
 import logging
+from typing import TYPE_CHECKING, Any
 
-from .synthesis_engine import SynthesisEngine
+import numpy as np
+
 from ..partial.sf2_partial import SF2Partial
 from ..sf2.sf2_soundfont_manager import SF2SoundFontManager
+from .synthesis_engine import SynthesisEngine
 
 if TYPE_CHECKING:
     from ..engine.modern_xg_synthesizer import ModernXGSynthesizer
@@ -247,6 +248,44 @@ class SF2Engine(SynthesisEngine):
             self.load_soundfont(sf2_file_path)
 
         self._engine_info = None
+
+        # XG/GS Part mode integration
+        self._part_mode_integrator = None
+
+    def set_part_mode_integrator(self, integrator):
+        """Set the part mode integrator for XG/GS support."""
+        self._part_mode_integrator = integrator
+
+    def get_part_mode_for_channel(self, channel: int) -> str:
+        """
+        Get part mode for a MIDI channel.
+
+        Args:
+            channel: MIDI channel (0-15)
+
+        Returns:
+            'normal', 'drum', or 'single'
+        """
+        if self._part_mode_integrator:
+            mode_info = self._part_mode_integrator.channel_modes.get(channel, {})
+            return mode_info.get("mode", "normal")
+        return "normal"
+
+    def get_drum_bank_for_channel(self, channel: int) -> int:
+        """
+        Get drum bank number for a channel (for drum parts).
+
+        Args:
+            channel: MIDI channel (0-15)
+
+        Returns:
+            Drum bank number (127 for GS drums)
+        """
+        if self._part_mode_integrator:
+            mode_info = self._part_mode_integrator.channel_modes.get(channel, {})
+            if mode_info.get("mode") == "drum":
+                return self._part_mode_integrator.BANK_FDSP
+        return 0
 
     def load_soundfont(self, file_path: str, priority: int = 0) -> bool:
         """

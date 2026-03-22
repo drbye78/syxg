@@ -8,37 +8,40 @@ Advanced parser for XGML v3.0 with complete feature support including:
 - Intelligent defaults expansion
 - Backward compatibility
 """
+
 from __future__ import annotations
 
-import yaml
 import json
-from typing import Any
-from pathlib import Path
-from datetime import datetime
-import jsonschema
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
-from .constants import XGML_VERSION
+import jsonschema
+import yaml
 
 
 class XGMLParseError(Exception):
     """XGML parsing error."""
+
     pass
 
 
 class XGMLValidationError(Exception):
     """XGML validation error."""
+
     pass
 
 
 class TemplateNotFoundError(XGMLParseError):
     """Template not found error."""
+
     pass
 
 
 class ConfigurationSection(Enum):
     """XGML v3.0 configuration sections."""
+
     SYNTHESIZER_CORE = "synthesizer_core"
     WORKSTATION_FEATURES = "workstation_features"
     SYNTHESIS_ENGINES = "synthesis_engines"
@@ -108,87 +111,86 @@ class TemplateManager:
                 "description": "Simple piano for children's lessons",
                 "synthesizer_core": {
                     "performance": {"max_polyphony": 8},
-                    "audio": {"sample_rate": 44100, "buffer_size": 512}
+                    "audio": {"sample_rate": 44100, "buffer_size": 512},
                 },
                 "effects_processing": {
                     "system_effects": {
                         "reverb": {"algorithm": "hall_1", "parameters": {"level": 0.3}}
                     }
-                }
+                },
             },
             "basic_piano": {
                 "description": "Standard acoustic piano",
                 "synthesis_engines": {
                     "registry": {"default_engine": "sf2"},
                     "channel_engines": {"channel_0": "sf2"},
-                    "sf2_engine": {
-                        "enabled": True,
-                        "program": 0,
-                        "velocity_curve": "concave"
-                    }
-                }
+                    "sf2_engine": {"enabled": True, "program": 0, "velocity_curve": "concave"},
+                },
             },
             "jazz_combo": {
                 "description": "Classic jazz combo setup",
                 "synthesis_engines": {
                     "channel_engines": {
-                        "channel_0": "sf2",   # Piano
-                        "channel_1": "sf2",   # Bass
-                        "channel_9": "sfz"    # Drums
+                        "channel_0": "sf2",  # Piano
+                        "channel_1": "sf2",  # Bass
+                        "channel_9": "sfz",  # Drums
                     }
                 },
                 "effects_processing": {
                     "system_effects": {
                         "reverb": {"algorithm": "club", "parameters": {"level": 0.4}}
                     }
-                }
+                },
             },
             "classical_orchestra": {
                 "description": "Professional orchestral setup",
-                "workstation_features": {
-                    "multi_timbral": {"channels": 16}
-                },
+                "workstation_features": {"multi_timbral": {"channels": 16}},
                 "synthesis_engines": {
                     "channel_engines": {
                         "channel_0": "physical",  # Violins
                         "channel_1": "physical",  # Violas
                         "channel_2": "physical",  # Cellos
                         "channel_3": "physical",  # Bass
-                        "channel_4": "sf2",       # Woodwinds
-                        "channel_5": "sf2",       # Brass
-                        "channel_6": "sf2"        # Percussion
+                        "channel_4": "sf2",  # Woodwinds
+                        "channel_5": "sf2",  # Brass
+                        "channel_6": "sf2",  # Percussion
                     }
                 },
                 "effects_processing": {
                     "system_effects": {
                         "reverb": {"algorithm": "cathedral", "parameters": {"level": 0.6}}
                     }
-                }
+                },
             },
             "electronic_workstation": {
                 "description": "Complete electronic music production setup",
                 "synthesis_engines": {
                     "channel_engines": {
-                        "channel_0": "fm",        # Lead
+                        "channel_0": "fm",  # Lead
                         "channel_1": "spectral",  # Pads
-                        "channel_2": "fm",        # Bass
-                        "channel_9": "sfz"        # Drums
+                        "channel_2": "fm",  # Bass
+                        "channel_9": "sfz",  # Drums
                     }
                 },
                 "effects_processing": {
                     "variation_effects": [
                         {"type": 12, "parameters": {"rate": 0.3, "depth": 0.7}},
-                        {"type": 48, "parameters": {"drive": 0.4, "tone": 0.7}}
+                        {"type": 48, "parameters": {"drive": 0.4, "tone": 0.7}},
                     ]
                 },
                 "modulation_system": {
                     "matrix": {
                         "routes": [
-                            {"source": "lfo1", "destination": "pitch", "amount": 0.1, "bipolar": True}
+                            {
+                                "source": "lfo1",
+                                "destination": "pitch",
+                                "amount": 0.1,
+                                "bipolar": True,
+                            }
                         ]
                     }
-                }
-            }
+                },
+            },
         }
 
     def get_template(self, name: str) -> dict[str, Any]:
@@ -197,8 +199,12 @@ class TemplateManager:
             raise TemplateNotFoundError(f"Template '{name}' not found")
         return self.templates[name].copy()
 
-    def apply_template(self, base_config: dict[str, Any], template_name: str,
-                      overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+    def apply_template(
+        self,
+        base_config: dict[str, Any],
+        template_name: str,
+        overrides: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Apply template to base configuration with optional overrides."""
         template = self.get_template(template_name)
 
@@ -235,21 +241,17 @@ class DefaultsExpander:
         return {
             "xg_dsl_version": "3.0",
             "synthesizer_core": {
-                "audio": {
-                    "sample_rate": 44100,
-                    "buffer_size": 512,
-                    "real_time": True
-                },
+                "audio": {"sample_rate": 44100, "buffer_size": 512, "real_time": True},
                 "performance": {
                     "max_polyphony": 128,
                     "voice_stealing": "priority",
-                    "dynamic_polyphony": True
+                    "dynamic_polyphony": True,
                 },
                 "memory": {
                     "buffer_pool_size": 128,
                     "envelope_pool_size": 512,
                     "filter_pool_size": 256,
-                    "lfo_pool_size": 128
+                    "lfo_pool_size": 128,
                 },
                 "monitoring": {
                     "enabled": False,
@@ -257,9 +259,9 @@ class DefaultsExpander:
                     "thresholds": {
                         "max_cpu_percent": 80.0,
                         "max_latency_ms": 5.0,
-                        "max_memory_mb": 512.0
-                    }
-                }
+                        "max_memory_mb": 512.0,
+                    },
+                },
             },
             "synthesis_engines": {
                 "registry": {
@@ -270,20 +272,17 @@ class DefaultsExpander:
                         "sfz": 90,
                         "physical": 80,
                         "fm": 70,
-                        "spectral": 60
-                    }
+                        "spectral": 60,
+                    },
                 },
-                "sf2_engine": {
-                    "enabled": True,
-                    "velocity_curve": "concave"
-                }
+                "sf2_engine": {"enabled": True, "velocity_curve": "concave"},
             },
             "effects_processing": {
                 "coordinator": {
                     "enabled": True,
                     "routing_matrix": False,
                     "sidechain_enabled": False,
-                    "wet_dry_matrix": False
+                    "wet_dry_matrix": False,
                 }
             },
             "modulation_system": {
@@ -291,7 +290,7 @@ class DefaultsExpander:
                     "enabled": True,
                     "max_routes": 128,
                     "bipolar_support": True,
-                    "curve_interpolation": "smooth"
+                    "curve_interpolation": "smooth",
                 }
             },
             "workstation_features": {},
@@ -303,9 +302,9 @@ class DefaultsExpander:
                     "tempo": 128.0,
                     "time_signature": "4/4",
                     "swing": 0.0,
-                    "quantization": "1/16"
+                    "quantization": "1/16",
                 }
-            }
+            },
         }
 
     def expand(self, config: dict[str, Any]) -> dict[str, Any]:
@@ -339,7 +338,7 @@ class SchemaValidator:
         """Load XGML v3.0 JSON schema."""
         schema_path = Path(__file__).parent.parent / "docs" / "xgml_v3_schema.json"
         try:
-            with open(schema_path, encoding='utf-8') as f:
+            with open(schema_path, encoding="utf-8") as f:
                 return json.load(f)
         except FileNotFoundError:
             # Fallback to embedded minimal schema
@@ -349,9 +348,9 @@ class SchemaValidator:
                 "properties": {
                     "xg_dsl_version": {"type": "string", "enum": ["3.0"]},
                     "description": {"type": "string"},
-                    "timestamp": {"type": "string", "format": "date-time"}
+                    "timestamp": {"type": "string", "format": "date-time"},
                 },
-                "required": ["xg_dsl_version"]
+                "required": ["xg_dsl_version"],
             }
 
     def validate(self, config: dict[str, Any]) -> list[str]:
@@ -362,7 +361,7 @@ class SchemaValidator:
         except jsonschema.ValidationError as e:
             return [f"Schema validation error: {e.message}"]
         except Exception as e:
-            return [f"Validation error: {str(e)}"]
+            return [f"Validation error: {e!s}"]
 
 
 class XGMLParserV3:
@@ -392,7 +391,7 @@ class XGMLParserV3:
                 self.errors.append(f"File not found: {file_path}")
                 return None
 
-            with open(path, encoding='utf-8') as f:
+            with open(path, encoding="utf-8") as f:
                 content = f.read()
 
             return self.parse_string(content)
@@ -420,17 +419,17 @@ class XGMLParserV3:
             return None
 
         # Validate version
-        version = data.get('xg_dsl_version', '3.0')
-        if version != '3.0':
+        version = data.get("xg_dsl_version", "3.0")
+        if version != "3.0":
             self.warnings.append(f"XGML version {version} - parsing as v3.0")
 
         # Apply template if specified
-        if 'template' in data:
-            template_name = data['template']
-            template_overrides = data.get('template_overrides', {})
+        if "template" in data:
+            template_name = data["template"]
+            template_overrides = data.get("template_overrides", {})
             try:
                 data = self.template_manager.apply_template(data, template_name, template_overrides)
-                data['template'] = template_name
+                data["template"] = template_name
             except TemplateNotFoundError as e:
                 self.errors.append(str(e))
                 return None
@@ -447,19 +446,19 @@ class XGMLParserV3:
         # Create configuration object
         try:
             config = XGMLConfigV3(
-                version=expanded_data.get('xg_dsl_version', '3.0'),
-                description=expanded_data.get('description'),
-                timestamp=expanded_data.get('timestamp'),
-                metadata=expanded_data.get('metadata', {}),
-                template=expanded_data.get('template'),
-                template_overrides=expanded_data.get('template_overrides', {}),
-                synthesizer_core=expanded_data.get('synthesizer_core', {}),
-                workstation_features=expanded_data.get('workstation_features', {}),
-                synthesis_engines=expanded_data.get('synthesis_engines', {}),
-                effects_processing=expanded_data.get('effects_processing', {}),
-                modulation_system=expanded_data.get('modulation_system', {}),
-                performance_controls=expanded_data.get('performance_controls', {}),
-                sequencing=expanded_data.get('sequencing', {})
+                version=expanded_data.get("xg_dsl_version", "3.0"),
+                description=expanded_data.get("description"),
+                timestamp=expanded_data.get("timestamp"),
+                metadata=expanded_data.get("metadata", {}),
+                template=expanded_data.get("template"),
+                template_overrides=expanded_data.get("template_overrides", {}),
+                synthesizer_core=expanded_data.get("synthesizer_core", {}),
+                workstation_features=expanded_data.get("workstation_features", {}),
+                synthesis_engines=expanded_data.get("synthesis_engines", {}),
+                effects_processing=expanded_data.get("effects_processing", {}),
+                modulation_system=expanded_data.get("modulation_system", {}),
+                performance_controls=expanded_data.get("performance_controls", {}),
+                sequencing=expanded_data.get("sequencing", {}),
             )
 
             return config

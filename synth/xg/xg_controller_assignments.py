@@ -12,10 +12,11 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+
 from __future__ import annotations
 
-from typing import Any
 import threading
+from typing import Any
 
 
 class XGControllerAssignments:
@@ -35,29 +36,29 @@ class XGControllerAssignments:
 
     # XG Controller Assignment Constants
     CONTROLLER_ASSIGNMENTS = {
-        0: {'name': 'OFF', 'description': 'Controller disabled'},
-        1: {'name': 'MOD', 'description': 'Modulation Wheel (CC 1)'},
-        2: {'name': 'VOL', 'description': 'Volume (CC 7)'},
-        3: {'name': 'PAN', 'description': 'Pan (CC 10)'},
-        4: {'name': 'EXP', 'description': 'Expression (CC 11)'},
-        5: {'name': 'REV', 'description': 'Reverb Send (CC 91)'},
-        6: {'name': 'CHO', 'description': 'Chorus Send (CC 93)'},
-        7: {'name': 'VAR', 'description': 'Variation Send'},
-        8: {'name': 'PAN', 'description': 'Pan (alternative)'},
-        9: {'name': 'FLT', 'description': 'Filter Cutoff'},
-        10: {'name': 'POR', 'description': 'Portamento Time'},
-        11: {'name': 'PIT', 'description': 'Pitch Bend'},
-        12: {'name': 'AMB', 'description': 'Ambience/Depth'}
+        0: {"name": "OFF", "description": "Controller disabled"},
+        1: {"name": "MOD", "description": "Modulation Wheel (CC 1)"},
+        2: {"name": "VOL", "description": "Volume (CC 7)"},
+        3: {"name": "PAN", "description": "Pan (CC 10)"},
+        4: {"name": "EXP", "description": "Expression (CC 11)"},
+        5: {"name": "REV", "description": "Reverb Send (CC 91)"},
+        6: {"name": "CHO", "description": "Chorus Send (CC 93)"},
+        7: {"name": "VAR", "description": "Variation Send"},
+        8: {"name": "PAN", "description": "Pan (alternative)"},
+        9: {"name": "FLT", "description": "Filter Cutoff"},
+        10: {"name": "POR", "description": "Portamento Time"},
+        11: {"name": "PIT", "description": "Pitch Bend"},
+        12: {"name": "AMB", "description": "Ambience/Depth"},
     }
 
     # Controller Curves
     CONTROLLER_CURVES = {
-        0: 'Linear',
-        1: 'Exponential',
-        2: 'Logarithmic',
-        3: 'S-Curve',
-        4: 'Reverse Linear',
-        5: 'Reverse Exponential'
+        0: "Linear",
+        1: "Exponential",
+        2: "Logarithmic",
+        3: "S-Curve",
+        4: "Reverse Linear",
+        5: "Reverse Exponential",
     }
 
     def __init__(self, num_channels: int = 16):
@@ -92,21 +93,21 @@ class XGControllerAssignments:
         """Initialize XG controller assignment defaults."""
         # XG Default assignments (MSB 15-16)
         xg_defaults = {
-            0: 1,   # Mod Wheel -> MOD
-            1: 2,   # Foot Controller -> VOL
-            2: 3,   # Aftertouch -> PAN
-            3: 4,   # Breath Controller -> EXP
-            4: 5,   # General 1 -> REV
-            5: 6,   # General 2 -> CHO
-            6: 7,   # General 3 -> VAR
-            7: 8,   # General 4 -> PAN
+            0: 1,  # Mod Wheel -> MOD
+            1: 2,  # Foot Controller -> VOL
+            2: 3,  # Aftertouch -> PAN
+            3: 4,  # Breath Controller -> EXP
+            4: 5,  # General 1 -> REV
+            5: 6,  # General 2 -> CHO
+            6: 7,  # General 3 -> VAR
+            7: 8,  # General 4 -> PAN
             8: 12,  # Ribbon -> AMB
         }
 
         for channel in range(self.num_channels):
             self.controller_assignments[channel] = xg_defaults.copy()
-            self.controller_curves[channel] = {slot: 0 for slot in xg_defaults.keys()}  # Linear curves
-            self.controller_ranges[channel] = {slot: (0, 127) for slot in xg_defaults.keys()}  # Full range
+            self.controller_curves[channel] = dict.fromkeys(xg_defaults.keys(), 0)  # Linear curves
+            self.controller_ranges[channel] = dict.fromkeys(xg_defaults.keys(), (0, 127))  # Full range
 
     def handle_nrpn_msb15(self, channel: int, lsb: int, data_value: int) -> bool:
         """
@@ -134,7 +135,9 @@ class XGControllerAssignments:
                     self.controller_assignments[channel] = {}
                 self.controller_assignments[channel][lsb] = assignment
 
-                self._notify_parameter_change(f'controller_assignment_ch{channel}_slot{lsb}', assignment)
+                self._notify_parameter_change(
+                    f"controller_assignment_ch{channel}_slot{lsb}", assignment
+                )
                 return True
 
         return False
@@ -168,7 +171,9 @@ class XGControllerAssignments:
                     self.controller_assignments[channel] = {}
                 self.controller_assignments[channel][assignment_slot] = assignment
 
-                self._notify_parameter_change(f'controller_assignment_ch{channel}_slot{assignment_slot}', assignment)
+                self._notify_parameter_change(
+                    f"controller_assignment_ch{channel}_slot{assignment_slot}", assignment
+                )
                 return True
 
         return False
@@ -197,11 +202,14 @@ class XGControllerAssignments:
                 self.controller_curves[channel] = {}
             self.controller_curves[channel][assignment_slot] = curve_type
 
-            self._notify_parameter_change(f'controller_curve_ch{channel}_slot{assignment_slot}', curve_type)
+            self._notify_parameter_change(
+                f"controller_curve_ch{channel}_slot{assignment_slot}", curve_type
+            )
             return True
 
-    def handle_controller_range(self, channel: int, assignment_slot: int,
-                              min_value: int, max_value: int) -> bool:
+    def handle_controller_range(
+        self, channel: int, assignment_slot: int, min_value: int, max_value: int
+    ) -> bool:
         """
         Handle controller range assignment.
 
@@ -226,8 +234,10 @@ class XGControllerAssignments:
                 self.controller_ranges[channel] = {}
             self.controller_ranges[channel][assignment_slot] = (min_value, max_value)
 
-            self._notify_parameter_change(f'controller_range_ch{channel}_slot{assignment_slot}',
-                                       {'min': min_value, 'max': max_value})
+            self._notify_parameter_change(
+                f"controller_range_ch{channel}_slot{assignment_slot}",
+                {"min": min_value, "max": max_value},
+            )
             return True
 
     def _notify_parameter_change(self, parameter_name: str, value: Any):
@@ -251,8 +261,10 @@ class XGControllerAssignments:
             Controller assignment (0-12, 0=OFF)
         """
         with self.lock:
-            if (channel in self.controller_assignments and
-                slot in self.controller_assignments[channel]):
+            if (
+                channel in self.controller_assignments
+                and slot in self.controller_assignments[channel]
+            ):
                 return self.controller_assignments[channel][slot]
 
         # Return XG default
@@ -271,8 +283,7 @@ class XGControllerAssignments:
             Curve type (0-5, 0=Linear)
         """
         with self.lock:
-            if (channel in self.controller_curves and
-                slot in self.controller_curves[channel]):
+            if channel in self.controller_curves and slot in self.controller_curves[channel]:
                 return self.controller_curves[channel][slot]
 
         return 0  # Linear
@@ -289,14 +300,14 @@ class XGControllerAssignments:
             Tuple of (min_value, max_value), default (0, 127)
         """
         with self.lock:
-            if (channel in self.controller_ranges and
-                slot in self.controller_ranges[channel]):
+            if channel in self.controller_ranges and slot in self.controller_ranges[channel]:
                 return self.controller_ranges[channel][slot]
 
         return (0, 127)
 
-    def apply_controller_value(self, channel: int, controller_number: int,
-                             controller_value: int) -> dict[str, Any]:
+    def apply_controller_value(
+        self, channel: int, controller_number: int, controller_value: int
+    ) -> dict[str, Any]:
         """
         Apply a controller value to assigned destinations.
 
@@ -348,7 +359,7 @@ class XGControllerAssignments:
         elif curve_type == 1:  # Exponential
             return normalized * normalized
         elif curve_type == 2:  # Logarithmic
-            return normalized ** 0.5 if normalized > 0 else 0.0
+            return normalized**0.5 if normalized > 0 else 0.0
         elif curve_type == 3:  # S-Curve
             # S-curve using sigmoid-like function
             return 1.0 / (1.0 + (1.0 / normalized - 1.0) ** -2) if normalized > 0 else 0.0
@@ -385,11 +396,20 @@ class XGControllerAssignments:
             Destination name string
         """
         destinations = [
-            'modulation_wheel', 'foot_controller', 'aftertouch', 'breath_controller',
-            'general_controller_1', 'general_controller_2', 'general_controller_3',
-            'general_controller_4', 'ribbon_controller', 'reserved_9', 'reserved_10', 'reserved_11'
+            "modulation_wheel",
+            "foot_controller",
+            "aftertouch",
+            "breath_controller",
+            "general_controller_1",
+            "general_controller_2",
+            "general_controller_3",
+            "general_controller_4",
+            "ribbon_controller",
+            "reserved_9",
+            "reserved_10",
+            "reserved_11",
         ]
-        return destinations[slot] if slot < len(destinations) else f'slot_{slot}'
+        return destinations[slot] if slot < len(destinations) else f"slot_{slot}"
 
     def get_channel_assignments(self, channel: int) -> dict[str, Any]:
         """
@@ -408,12 +428,14 @@ class XGControllerAssignments:
                 curve = self.get_controller_curve(channel, slot)
                 min_val, max_val = self.get_controller_range(channel, slot)
 
-                assignments[f'slot_{slot}'] = {
-                    'controller': assignment,
-                    'controller_name': self.CONTROLLER_ASSIGNMENTS.get(assignment, {}).get('name', 'UNKNOWN'),
-                    'curve': curve,
-                    'curve_name': self.CONTROLLER_CURVES.get(curve, 'UNKNOWN'),
-                    'range': {'min': min_val, 'max': max_val}
+                assignments[f"slot_{slot}"] = {
+                    "controller": assignment,
+                    "controller_name": self.CONTROLLER_ASSIGNMENTS.get(assignment, {}).get(
+                        "name", "UNKNOWN"
+                    ),
+                    "curve": curve,
+                    "curve_name": self.CONTROLLER_CURVES.get(curve, "UNKNOWN"),
+                    "range": {"min": min_val, "max": max_val},
                 }
 
             return assignments
@@ -425,8 +447,8 @@ class XGControllerAssignments:
                 # Reset to XG defaults
                 xg_defaults = {0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 12}
                 self.controller_assignments[channel] = xg_defaults.copy()
-                self.controller_curves[channel] = {slot: 0 for slot in xg_defaults.keys()}
-                self.controller_ranges[channel] = {slot: (0, 127) for slot in xg_defaults.keys()}
+                self.controller_curves[channel] = dict.fromkeys(xg_defaults.keys(), 0)
+                self.controller_ranges[channel] = dict.fromkeys(xg_defaults.keys(), (0, 127))
 
     def reset_all_channels_to_xg_defaults(self):
         """Reset all channels to XG controller assignment defaults."""
@@ -440,24 +462,26 @@ class XGControllerAssignments:
         """Export all controller assignments."""
         with self.lock:
             return {
-                'controller_assignments': self.controller_assignments.copy(),
-                'controller_curves': self.controller_curves.copy(),
-                'controller_ranges': dict(self.controller_ranges),  # Convert tuples to lists
-                'version': '1.0'
+                "controller_assignments": self.controller_assignments.copy(),
+                "controller_curves": self.controller_curves.copy(),
+                "controller_ranges": dict(self.controller_ranges),  # Convert tuples to lists
+                "version": "1.0",
             }
 
     def import_assignments(self, data: dict[str, Any]) -> bool:
         """Import controller assignments."""
         try:
             with self.lock:
-                if 'controller_assignments' in data:
-                    self.controller_assignments = data['controller_assignments'].copy()
-                if 'controller_curves' in data:
-                    self.controller_curves = data['controller_curves'].copy()
-                if 'controller_ranges' in data:
+                if "controller_assignments" in data:
+                    self.controller_assignments = data["controller_assignments"].copy()
+                if "controller_curves" in data:
+                    self.controller_curves = data["controller_curves"].copy()
+                if "controller_ranges" in data:
                     # Convert lists back to tuples
-                    self.controller_ranges = {ch: {slot: tuple(rng) for slot, rng in ranges.items()}
-                                            for ch, ranges in data['controller_ranges'].items()}
+                    self.controller_ranges = {
+                        ch: {slot: tuple(rng) for slot, rng in ranges.items()}
+                        for ch, ranges in data["controller_ranges"].items()
+                    }
                 return True
         except Exception as e:
             print(f"❌ XG CONTROLLER ASSIGNMENTS: Import failed - {e}")
@@ -474,7 +498,7 @@ class XGControllerAssignments:
             Assignment information dictionary
         """
         info = self.CONTROLLER_ASSIGNMENTS.get(assignment, {}).copy()
-        info['assignment_number'] = assignment
+        info["assignment_number"] = assignment
         return info
 
     def list_available_assignments(self) -> dict[int, dict[str, Any]]:
@@ -484,8 +508,10 @@ class XGControllerAssignments:
         Returns:
             Dictionary mapping assignment numbers to info
         """
-        return {num: self.get_controller_assignment_info(num)
-                for num in self.CONTROLLER_ASSIGNMENTS.keys()}
+        return {
+            num: self.get_controller_assignment_info(num)
+            for num in self.CONTROLLER_ASSIGNMENTS.keys()
+        }
 
     def __str__(self) -> str:
         """String representation of controller assignments."""

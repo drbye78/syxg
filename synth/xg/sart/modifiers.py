@@ -4,13 +4,14 @@ Sample Modifiers for S.Art2 Articulation System.
 Contains SF2SampleModifier class that applies real-time articulation
 effects to sample data. Extracted for better code organization.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Any
 from collections.abc import Callable
-import numpy as np
+from typing import Any
 
+import numpy as np
 
 logger = logging.getLogger(__name__)
 

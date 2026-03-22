@@ -4,11 +4,13 @@ SFZ Dynamic Parameter Modulation System
 Provides real-time modulation from audio signals including envelope followers,
 sidechain detection, and audio-derived modulation sources.
 """
+
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
 import math
+from typing import Any
+
+import numpy as np
 
 
 class EnvelopeFollower:
@@ -19,8 +21,13 @@ class EnvelopeFollower:
     modulation signals suitable for dynamic parameter control.
     """
 
-    def __init__(self, sample_rate: int, attack_time: float = 0.01,
-                 release_time: float = 0.1, hold_time: float = 0.0):
+    def __init__(
+        self,
+        sample_rate: int,
+        attack_time: float = 0.01,
+        release_time: float = 0.1,
+        hold_time: float = 0.0,
+    ):
         """
         Initialize envelope follower.
 
@@ -71,7 +78,7 @@ class EnvelopeFollower:
             audio_mono = audio
 
         # Calculate RMS of the block
-        rms = np.sqrt(np.mean(audio_mono ** 2))
+        rms = np.sqrt(np.mean(audio_mono**2))
 
         # Update peak tracking
         if rms > self.peak_value:
@@ -81,9 +88,9 @@ class EnvelopeFollower:
             # Decay peak during hold
             if self.hold_counter > 0:
                 self.hold_counter -= 1
-                self.peak_value *= (1.0 - self.peak_decay_coeff)
+                self.peak_value *= 1.0 - self.peak_decay_coeff
             else:
-                self.peak_value *= (1.0 - self.peak_decay_coeff)
+                self.peak_value *= 1.0 - self.peak_decay_coeff
 
         # Use peak value for envelope following
         target = self.peak_value
@@ -114,9 +121,14 @@ class SidechainDetector:
     pumping effects, ducking, and dynamic parameter control.
     """
 
-    def __init__(self, sample_rate: int, attack_time: float = 0.001,
-                 release_time: float = 0.1, ratio: float = 4.0,
-                 threshold: float = 0.5):
+    def __init__(
+        self,
+        sample_rate: int,
+        attack_time: float = 0.001,
+        release_time: float = 0.1,
+        ratio: float = 4.0,
+        threshold: float = 0.5,
+    ):
         """
         Initialize sidechain detector.
 
@@ -163,7 +175,7 @@ class SidechainDetector:
             audio_mono = audio
 
         # Calculate RMS of the block
-        rms = np.sqrt(np.mean(audio_mono ** 2))
+        rms = np.sqrt(np.mean(audio_mono**2))
 
         # Apply compression curve
         if rms > self.threshold:
@@ -199,8 +211,7 @@ class RandomModulation:
     suitable for adding variation and unpredictability to sounds.
     """
 
-    def __init__(self, sample_rate: int, change_rate: float = 2.0,
-                 smooth_changes: bool = True):
+    def __init__(self, sample_rate: int, change_rate: float = 2.0, smooth_changes: bool = True):
         """
         Initialize random modulation.
 
@@ -245,7 +256,9 @@ class RandomModulation:
                 self.sample_counter = 0
 
                 if self.smooth_changes:
-                    self.smooth_step = (self.target_value - self.current_value) / self.smooth_samples
+                    self.smooth_step = (
+                        self.target_value - self.current_value
+                    ) / self.smooth_samples
                     self.smooth_counter = self.smooth_samples
                 else:
                     self.current_value = self.target_value
@@ -256,8 +269,9 @@ class RandomModulation:
                 self.smooth_counter -= 1
 
                 # Clamp to prevent overshoot
-                if (self.smooth_step > 0 and self.current_value > self.target_value) or \
-                   (self.smooth_step < 0 and self.current_value < self.target_value):
+                if (self.smooth_step > 0 and self.current_value > self.target_value) or (
+                    self.smooth_step < 0 and self.current_value < self.target_value
+                ):
                     self.current_value = self.target_value
                     self.smooth_counter = 0
 
@@ -282,8 +296,7 @@ class NoiseModulation:
     including white noise, pink noise, and brown noise.
     """
 
-    def __init__(self, sample_rate: int, noise_type: str = 'white',
-                 filter_cutoff: float = 1000.0):
+    def __init__(self, sample_rate: int, noise_type: str = "white", filter_cutoff: float = 1000.0):
         """
         Initialize noise modulation.
 
@@ -363,8 +376,16 @@ class NoiseModulation:
             self.pink_b[3] = 0.86650 * self.pink_b[3] + white * 0.3104856
             self.pink_b[4] = 0.55000 * self.pink_b[4] + white * 0.5329522
             self.pink_b[5] = -0.7616 * self.pink_b[5] - white * 0.0168980
-            pink = (self.pink_b[0] + self.pink_b[1] + self.pink_b[2] + self.pink_b[3] +
-                   self.pink_b[4] + self.pink_b[5] + self.pink_b[6] + white * 0.5362)
+            pink = (
+                self.pink_b[0]
+                + self.pink_b[1]
+                + self.pink_b[2]
+                + self.pink_b[3]
+                + self.pink_b[4]
+                + self.pink_b[5]
+                + self.pink_b[6]
+                + white * 0.5362
+            )
             self.pink_b[6] = white * 0.115926
 
             # Apply low-pass filtering
@@ -412,9 +433,9 @@ class NoiseModulation:
         Returns:
             Array of noise modulation values (-1.0 to 1.0)
         """
-        if self.noise_type == 'pink':
+        if self.noise_type == "pink":
             return self.generate_pink(block_size)
-        elif self.noise_type == 'brown':
+        elif self.noise_type == "brown":
             return self.generate_brown(block_size)
         else:  # default to white
             return self.generate_white(block_size)
@@ -516,15 +537,16 @@ class SFZDynamicModulation:
 
         # Configuration
         self.enabled_sources = {
-            'envelope_follower': True,
-            'sidechain_detector': True,
-            'random_modulation': True,
-            'noise_modulation': True,
-            'external_input': False  # Disabled by default
+            "envelope_follower": True,
+            "sidechain_detector": True,
+            "random_modulation": True,
+            "noise_modulation": True,
+            "external_input": False,  # Disabled by default
         }
 
-    def process_audio_modulation(self, audio: np.ndarray,
-                               modulation_params: dict[str, Any]) -> dict[str, np.ndarray]:
+    def process_audio_modulation(
+        self, audio: np.ndarray, modulation_params: dict[str, Any]
+    ) -> dict[str, np.ndarray]:
         """
         Process audio signal and generate dynamic modulation sources.
 
@@ -538,32 +560,32 @@ class SFZDynamicModulation:
         modulation_outputs = {}
 
         # Envelope following
-        if self.enabled_sources['envelope_follower'] and 'envelope_follow' in modulation_params:
+        if self.enabled_sources["envelope_follower"] and "envelope_follow" in modulation_params:
             envelope_value = self.envelope_follower.process(audio)
             # Convert to array for consistency
             block_size = len(audio) if audio.ndim == 1 else len(audio)
-            modulation_outputs['audio_envelope'] = np.full(block_size, envelope_value)
+            modulation_outputs["audio_envelope"] = np.full(block_size, envelope_value)
 
         # Sidechain detection
-        if self.enabled_sources['sidechain_detector'] and 'sidechain' in modulation_params:
+        if self.enabled_sources["sidechain_detector"] and "sidechain" in modulation_params:
             sidechain_value = self.sidechain_detector.process(audio)
             block_size = len(audio) if audio.ndim == 1 else len(audio)
-            modulation_outputs['sidechain_level'] = np.full(block_size, sidechain_value)
+            modulation_outputs["sidechain_level"] = np.full(block_size, sidechain_value)
 
         # Random modulation
-        if self.enabled_sources['random_modulation'] and 'random' in modulation_params:
+        if self.enabled_sources["random_modulation"] and "random" in modulation_params:
             block_size = len(audio) if audio.ndim == 1 else len(audio)
-            modulation_outputs['random'] = self.random_generator.generate(block_size)
+            modulation_outputs["random"] = self.random_generator.generate(block_size)
 
         # Noise modulation
-        if self.enabled_sources['noise_modulation'] and 'noise' in modulation_params:
+        if self.enabled_sources["noise_modulation"] and "noise" in modulation_params:
             block_size = len(audio) if audio.ndim == 1 else len(audio)
-            modulation_outputs['noise'] = self.noise_generator.generate(block_size)
+            modulation_outputs["noise"] = self.noise_generator.generate(block_size)
 
         # External input (would be updated from external source)
-        if self.enabled_sources['external_input'] and 'external' in modulation_params:
+        if self.enabled_sources["external_input"] and "external" in modulation_params:
             block_size = len(audio) if audio.ndim == 1 else len(audio)
-            modulation_outputs['external'] = self.external_input.generate(block_size)
+            modulation_outputs["external"] = self.external_input.generate(block_size)
 
         return modulation_outputs
 
@@ -576,8 +598,7 @@ class SFZDynamicModulation:
         """
         self.external_input.process_input(value)
 
-    def configure_source(self, source_name: str, enabled: bool,
-                        **kwargs) -> bool:
+    def configure_source(self, source_name: str, enabled: bool, **kwargs) -> bool:
         """
         Configure a modulation source.
 
@@ -595,32 +616,28 @@ class SFZDynamicModulation:
         self.enabled_sources[source_name] = enabled
 
         # Apply additional configuration
-        if source_name == 'envelope_follower':
-            if 'attack' in kwargs:
+        if source_name == "envelope_follower":
+            if "attack" in kwargs:
                 self.envelope_follower = EnvelopeFollower(
                     self.sample_rate,
-                    attack_time=kwargs['attack'],
-                    release_time=kwargs.get('release', 0.1)
+                    attack_time=kwargs["attack"],
+                    release_time=kwargs.get("release", 0.1),
                 )
-        elif source_name == 'sidechain_detector':
-            if 'attack' in kwargs:
+        elif source_name == "sidechain_detector":
+            if "attack" in kwargs:
                 self.sidechain_detector = SidechainDetector(
                     self.sample_rate,
-                    attack_time=kwargs['attack'],
-                    release_time=kwargs.get('release', 0.1)
+                    attack_time=kwargs["attack"],
+                    release_time=kwargs.get("release", 0.1),
                 )
-        elif source_name == 'random_modulation':
-            if 'rate' in kwargs:
+        elif source_name == "random_modulation":
+            if "rate" in kwargs:
                 self.random_generator = RandomModulation(
-                    self.sample_rate,
-                    change_rate=kwargs['rate']
+                    self.sample_rate, change_rate=kwargs["rate"]
                 )
-        elif source_name == 'noise_modulation':
-            if 'type' in kwargs:
-                self.noise_generator = NoiseModulation(
-                    self.sample_rate,
-                    noise_type=kwargs['type']
-                )
+        elif source_name == "noise_modulation":
+            if "type" in kwargs:
+                self.noise_generator = NoiseModulation(self.sample_rate, noise_type=kwargs["type"])
 
         return True
 
@@ -632,30 +649,30 @@ class SFZDynamicModulation:
             Dictionary with modulation system information
         """
         return {
-            'sample_rate': self.sample_rate,
-            'enabled_sources': self.enabled_sources.copy(),
-            'envelope_follower': {
-                'attack_time': self.envelope_follower.attack_time,
-                'release_time': self.envelope_follower.release_time,
-                'current_envelope': self.envelope_follower.envelope
+            "sample_rate": self.sample_rate,
+            "enabled_sources": self.enabled_sources.copy(),
+            "envelope_follower": {
+                "attack_time": self.envelope_follower.attack_time,
+                "release_time": self.envelope_follower.release_time,
+                "current_envelope": self.envelope_follower.envelope,
             },
-            'sidechain_detector': {
-                'attack_time': self.sidechain_detector.attack_time,
-                'release_time': self.sidechain_detector.release_time,
-                'current_envelope': self.sidechain_detector.envelope
+            "sidechain_detector": {
+                "attack_time": self.sidechain_detector.attack_time,
+                "release_time": self.sidechain_detector.release_time,
+                "current_envelope": self.sidechain_detector.envelope,
             },
-            'random_modulation': {
-                'change_rate': self.random_generator.change_rate,
-                'current_value': self.random_generator.current_value
+            "random_modulation": {
+                "change_rate": self.random_generator.change_rate,
+                "current_value": self.random_generator.current_value,
             },
-            'noise_modulation': {
-                'noise_type': self.noise_generator.noise_type,
-                'filter_cutoff': self.noise_generator.filter_cutoff
+            "noise_modulation": {
+                "noise_type": self.noise_generator.noise_type,
+                "filter_cutoff": self.noise_generator.filter_cutoff,
             },
-            'external_input': {
-                'current_value': self.external_input.current_value,
-                'smoothing': self.external_input.smoothing
-            }
+            "external_input": {
+                "current_value": self.external_input.current_value,
+                "smoothing": self.external_input.smoothing,
+            },
         }
 
     def reset_all_sources(self) -> None:
@@ -674,11 +691,11 @@ class SFZDynamicModulation:
             List of modulation source names
         """
         return [
-            'audio_envelope',  # From envelope follower
-            'sidechain_level', # From sidechain detector
-            'random',          # Random modulation
-            'noise',           # Noise modulation
-            'external'         # External input
+            "audio_envelope",  # From envelope follower
+            "sidechain_level",  # From sidechain detector
+            "random",  # Random modulation
+            "noise",  # Noise modulation
+            "external",  # External input
         ]
 
     def __str__(self) -> str:

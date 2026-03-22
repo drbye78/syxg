@@ -3,13 +3,15 @@ Test suite for SF2 file loader.
 
 Tests RIFF parsing, chunk handling, sample data retrieval.
 """
+
 from __future__ import annotations
 
-import pytest
 import os
 from pathlib import Path
-from synth.sf2 import sf2_file_loader
 
+import pytest
+
+from synth.sf2 import sf2_file_loader
 
 # Path to test soundfonts
 TESTS_DIR = Path(__file__).parent
@@ -137,10 +139,7 @@ class TestSF2FileLoader:
         loader.load_file()
 
         # Sample data chunks should be indexed
-        assert (
-            "smpl" in loader.sample_data_chunks
-            or "LIST_sdta" in loader.sample_data_chunks
-        )
+        assert "smpl" in loader.sample_data_chunks or "LIST_sdta" in loader.sample_data_chunks
 
     @pytest.mark.slow
     def test_get_sample_data_16bit(self, ref_sf2_path):

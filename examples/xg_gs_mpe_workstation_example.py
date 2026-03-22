@@ -10,14 +10,14 @@ Author: Claude (Anthropic)
 Date: January 2026
 """
 
-import numpy as np
-import time
 from pathlib import Path
-from typing import Dict, Any
+
+import numpy as np
+
+from synth.audio.writer import AudioWriter
 
 # XG Synthesizer imports
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-from synth.audio.writer import AudioWriter
 
 
 def create_workstation_synthesizer() -> ModernXGSynthesizer:
@@ -26,14 +26,14 @@ def create_workstation_synthesizer() -> ModernXGSynthesizer:
 
     # Initialize with professional settings
     synth = ModernXGSynthesizer(
-        sample_rate=48000,        # Professional sample rate
-        max_channels=32,          # S90/S70 expanded channel support
-        xg_enabled=True,          # XG specification compliance
-        gs_enabled=True,          # GS backward compatibility
-        mpe_enabled=True,         # Microtonal expression support
-        device_id=0x10,           # Standard XG device ID
-        gs_mode='auto',           # Auto-detect XG/GS mode
-        s90_mode=True             # S90/S70 workstation features
+        sample_rate=48000,  # Professional sample rate
+        max_channels=32,  # S90/S70 expanded channel support
+        xg_enabled=True,  # XG specification compliance
+        gs_enabled=True,  # GS backward compatibility
+        mpe_enabled=True,  # Microtonal expression support
+        device_id=0x10,  # Standard XG device ID
+        gs_mode="auto",  # Auto-detect XG/GS mode
+        s90_mode=True,  # S90/S70 workstation features
     )
 
     print("✅ XG/GS/MPE Workstation initialized successfully!")
@@ -78,7 +78,7 @@ def demonstrate_gs_compatibility(synth: ModernXGSynthesizer):
     print("\n🎼 Demonstrating GS Compatibility...")
 
     # Set GS mode explicitly
-    synth.set_gs_mode('gs')
+    synth.set_gs_mode("gs")
     print("✅ Switched to GS mode")
 
     # Get GS system information
@@ -87,7 +87,7 @@ def demonstrate_gs_compatibility(synth: ModernXGSynthesizer):
         print(f"✅ GS System Info: {gs_info.get('status', 'Unknown')}")
 
     # Switch back to XG mode
-    synth.set_gs_mode('xg')
+    synth.set_gs_mode("xg")
     print("✅ Switched back to XG mode")
 
     # Demonstrate GS part parameters
@@ -110,7 +110,7 @@ def demonstrate_mpe_support(synth: ModernXGSynthesizer):
 
     # Get MPE information
     mpe_info = synth.get_mpe_info()
-    if mpe_info.get('enabled', False):
+    if mpe_info.get("enabled", False):
         print("✅ MPE Status: Enabled")
         print(f"   Zones: {mpe_info.get('zones', 0)}")
         print(f"   Active Notes: {mpe_info.get('active_notes', 0)}")
@@ -148,7 +148,7 @@ def demonstrate_workstation_features(synth: ModernXGSynthesizer):
         print(f"✅ Receive Channel Mapping: {len(mapping.get('parts', {}))} parts configured")
 
     # Apply musical temperament
-    success = synth.apply_temperament('equal')  # Equal temperament
+    success = synth.apply_temperament("equal")  # Equal temperament
     if success:
         print("✅ Musical Temperament: Equal temperament applied")
 
@@ -211,7 +211,7 @@ workstation_features:
 
     # Save to temporary file
     config_path = Path("temp_workstation_config.xgml")
-    with open(config_path, 'w') as f:
+    with open(config_path, "w") as f:
         f.write(xgml_config)
 
     # Load XGML configuration
@@ -243,28 +243,38 @@ def generate_workstation_demo_audio(synth: ModernXGSynthesizer) -> np.ndarray:
     # MIDI sequence demonstrating XG/GS/MPE features
     midi_events = [
         # XG System Setup (time 0.0)
-        {'time': 0.0, 'type': 'control_change', 'channel': 0, 'controller': 91, 'value': 40},  # Reverb Send
-        {'time': 0.0, 'type': 'control_change', 'channel': 0, 'controller': 93, 'value': 20},  # Chorus Send
-
+        {
+            "time": 0.0,
+            "type": "control_change",
+            "channel": 0,
+            "controller": 91,
+            "value": 40,
+        },  # Reverb Send
+        {
+            "time": 0.0,
+            "type": "control_change",
+            "channel": 0,
+            "controller": 93,
+            "value": 20,
+        },  # Chorus Send
         # Piano melody (XG channel 0)
-        {'time': 0.0, 'type': 'note_on', 'channel': 0, 'note': 60, 'velocity': 80},   # C4
-        {'time': 0.5, 'type': 'note_off', 'channel': 0, 'note': 60, 'velocity': 40},
-        {'time': 0.5, 'type': 'note_on', 'channel': 0, 'note': 64, 'velocity': 75},   # E4
-        {'time': 1.0, 'type': 'note_off', 'channel': 0, 'note': 64, 'velocity': 40},
-        {'time': 1.0, 'type': 'note_on', 'channel': 0, 'note': 67, 'velocity': 85},   # G4
-        {'time': 1.5, 'type': 'note_off', 'channel': 0, 'note': 67, 'velocity': 40},
-        {'time': 1.5, 'type': 'note_on', 'channel': 0, 'note': 72, 'velocity': 90},   # C5
-        {'time': 2.5, 'type': 'note_off', 'channel': 0, 'note': 72, 'velocity': 40},
-
+        {"time": 0.0, "type": "note_on", "channel": 0, "note": 60, "velocity": 80},  # C4
+        {"time": 0.5, "type": "note_off", "channel": 0, "note": 60, "velocity": 40},
+        {"time": 0.5, "type": "note_on", "channel": 0, "note": 64, "velocity": 75},  # E4
+        {"time": 1.0, "type": "note_off", "channel": 0, "note": 64, "velocity": 40},
+        {"time": 1.0, "type": "note_on", "channel": 0, "note": 67, "velocity": 85},  # G4
+        {"time": 1.5, "type": "note_off", "channel": 0, "note": 67, "velocity": 40},
+        {"time": 1.5, "type": "note_on", "channel": 0, "note": 72, "velocity": 90},  # C5
+        {"time": 2.5, "type": "note_off", "channel": 0, "note": 72, "velocity": 40},
         # Drum pattern (XG channel 9)
-        {'time': 0.0, 'type': 'note_on', 'channel': 9, 'note': 36, 'velocity': 100},   # Kick
-        {'time': 0.5, 'type': 'note_off', 'channel': 9, 'note': 36, 'velocity': 40},
-        {'time': 0.25, 'type': 'note_on', 'channel': 9, 'note': 38, 'velocity': 95},   # Snare
-        {'time': 0.75, 'type': 'note_off', 'channel': 9, 'note': 38, 'velocity': 40},
-        {'time': 1.0, 'type': 'note_on', 'channel': 9, 'note': 36, 'velocity': 90},    # Kick
-        {'time': 1.5, 'type': 'note_off', 'channel': 9, 'note': 36, 'velocity': 40},
-        {'time': 1.25, 'type': 'note_on', 'channel': 9, 'note': 38, 'velocity': 85},   # Snare
-        {'time': 1.75, 'type': 'note_off', 'channel': 9, 'note': 38, 'velocity': 40},
+        {"time": 0.0, "type": "note_on", "channel": 9, "note": 36, "velocity": 100},  # Kick
+        {"time": 0.5, "type": "note_off", "channel": 9, "note": 36, "velocity": 40},
+        {"time": 0.25, "type": "note_on", "channel": 9, "note": 38, "velocity": 95},  # Snare
+        {"time": 0.75, "type": "note_off", "channel": 9, "note": 38, "velocity": 40},
+        {"time": 1.0, "type": "note_on", "channel": 9, "note": 36, "velocity": 90},  # Kick
+        {"time": 1.5, "type": "note_off", "channel": 9, "note": 36, "velocity": 40},
+        {"time": 1.25, "type": "note_on", "channel": 9, "note": 38, "velocity": 85},  # Snare
+        {"time": 1.75, "type": "note_off", "channel": 9, "note": 38, "velocity": 40},
     ]
 
     # Send MIDI message block
@@ -282,7 +292,9 @@ def generate_workstation_demo_audio(synth: ModernXGSynthesizer) -> np.ndarray:
     # Concatenate all blocks
     full_audio = np.concatenate(audio_data, axis=0)
 
-    print(f"✅ Generated {len(full_audio)} samples ({len(full_audio)/synth.sample_rate:.1f} seconds)")
+    print(
+        f"✅ Generated {len(full_audio)} samples ({len(full_audio) / synth.sample_rate:.1f} seconds)"
+    )
 
     return full_audio
 
@@ -353,6 +365,7 @@ def main():
     except Exception as e:
         print(f"❌ Error during demonstration: {e}")
         import traceback
+
         traceback.print_exc()
 
 

@@ -18,18 +18,17 @@ Architecture:
 - Contiguous memory layouts optimized for cache efficiency
 - Stereo processing with channel-specific coefficients
 """
+
 from __future__ import annotations
 
 import math
-import numpy as np
-from typing import Any
-from collections.abc import Callable
-from ..math.fast_approx import fast_math
 import threading
 from collections import deque
-import numba as nb
-from numba import jit, float32, int32, boolean
 
+import numpy as np
+from numba import jit
+
+from ..math.fast_approx import fast_math
 
 # Filter type constants for ultra-fast comparisons
 FILTER_LOWPASS = 0
@@ -39,10 +38,25 @@ FILTER_HIGHPASS = 2
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_filter_block(
-    input_left: np.ndarray, input_right: np.ndarray, output_left: np.ndarray, output_right: np.ndarray,
-    b0_l: float, b1_l: float, b2_l: float, a1_l: float, a2_l: float,
-    b0_r: float, b1_r: float, b2_r: float, a1_r: float, a2_r: float,
-    x_l: np.ndarray, y_l: np.ndarray, x_r: np.ndarray, y_r: np.ndarray, block_size: int
+    input_left: np.ndarray,
+    input_right: np.ndarray,
+    output_left: np.ndarray,
+    output_right: np.ndarray,
+    b0_l: float,
+    b1_l: float,
+    b2_l: float,
+    a1_l: float,
+    a2_l: float,
+    b0_r: float,
+    b1_r: float,
+    b2_r: float,
+    a1_r: float,
+    a2_r: float,
+    x_l: np.ndarray,
+    y_l: np.ndarray,
+    x_r: np.ndarray,
+    y_r: np.ndarray,
+    block_size: int,
 ):
     """
     NUMBA-COMPILED: Ultra-fast filter block processing with SIMD operations.
@@ -66,33 +80,25 @@ def _numba_process_filter_block(
     for i in range(block_size):
         # Left channel processing
         left_in = input_left[i]
-        left_out = (b0_l * left_in +
-                   b1_l * x_l[0] +
-                   b2_l * x_l[1] -
-                   a1_l * y_l[0] -
-                   a2_l * y_l[1])
+        left_out = b0_l * left_in + b1_l * x_l[0] + b2_l * x_l[1] - a1_l * y_l[0] - a2_l * y_l[1]
 
         # Update left channel delay buffers
         x_l[1] = x_l[0]  # x[n-2] = x[n-1]
         x_l[0] = left_in  # x[n-1] = x[n]
         y_l[1] = y_l[0]  # y[n-2] = y[n-1]
-        y_l[0] = left_out # y[n-1] = y[n]
+        y_l[0] = left_out  # y[n-1] = y[n]
 
         output_left[i] = left_out
 
         # Right channel processing
         right_in = input_right[i]
-        right_out = (b0_r * right_in +
-                    b1_r * x_r[0] +
-                    b2_r * x_r[1] -
-                    a1_r * y_r[0] -
-                    a2_r * y_r[1])
+        right_out = b0_r * right_in + b1_r * x_r[0] + b2_r * x_r[1] - a1_r * y_r[0] - a2_r * y_r[1]
 
         # Update right channel delay buffers
         x_r[1] = x_r[0]  # x[n-2] = x[n-1]
-        x_r[0] = right_in # x[n-1] = x[n]
+        x_r[0] = right_in  # x[n-1] = x[n]
         y_r[1] = y_r[0]  # y[n-2] = y[n-1]
-        y_r[0] = right_out # y[n-1] = y[n]
+        y_r[0] = right_out  # y[n-1] = y[n]
 
         output_right[i] = right_out
 
@@ -101,9 +107,20 @@ def _numba_process_filter_block(
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_filter_block_tdf2(
-    input_left: np.ndarray, input_right: np.ndarray, output_left: np.ndarray, output_right: np.ndarray,
-    b0: float, b1: float, b2: float, a1: float, a2: float,
-    z1_l: float, z2_l: float, z1_r: float, z2_r: float, block_size: int
+    input_left: np.ndarray,
+    input_right: np.ndarray,
+    output_left: np.ndarray,
+    output_right: np.ndarray,
+    b0: float,
+    b1: float,
+    b2: float,
+    a1: float,
+    a2: float,
+    z1_l: float,
+    z2_l: float,
+    z1_r: float,
+    z2_r: float,
+    block_size: int,
 ):
     """
     NUMBA-COMPILED: Transposed Direct Form II (TDF-II) filter processing.
@@ -156,8 +173,14 @@ class FilterPool:
     - OptimizedCoefficientManager integration for instant filter coefficients
     """
 
-    def __init__(self, max_filters: int = 1000, block_size: int = 1024,
-                 memory_pool=None, sample_rate: int = 48000, coeff_manager=None):
+    def __init__(
+        self,
+        max_filters: int = 1000,
+        block_size: int = 1024,
+        memory_pool=None,
+        sample_rate: int = 48000,
+        coeff_manager=None,
+    ):
         """
         Initialize ultra-fast filter pool.
 
@@ -189,12 +212,13 @@ class FilterPool:
             filter_obj = UltraFastResonantFilter(
                 block_size=self.block_size,
                 memory_pool=self.memory_pool,
-                sample_rate=self.sample_rate
+                sample_rate=self.sample_rate,
             )
             self.pool.append(filter_obj)
 
-    def acquire_filter(self, cutoff=1000.0, resonance=0.7, filter_type="lowpass",
-                      key_follow=0.5, stereo_width=0.5) -> UltraFastResonantFilter:
+    def acquire_filter(
+        self, cutoff=1000.0, resonance=0.7, filter_type="lowpass", key_follow=0.5, stereo_width=0.5
+    ) -> UltraFastResonantFilter:
         """
         ULTRA-FAST: Acquire filter from pool or create new one.
 
@@ -217,17 +241,24 @@ class FilterPool:
             filter_obj.reset()
             # Update parameters
             filter_obj.set_parameters(
-                cutoff=cutoff, resonance=resonance, filter_type=filter_type,
-                key_follow=key_follow, stereo_width=stereo_width
+                cutoff=cutoff,
+                resonance=resonance,
+                filter_type=filter_type,
+                key_follow=key_follow,
+                stereo_width=stereo_width,
             )
             return filter_obj
         except IndexError:
             # Pool empty - create new filter (fallback path)
             return UltraFastResonantFilter(
-                cutoff=cutoff, resonance=resonance, filter_type=filter_type,
-                key_follow=key_follow, stereo_width=stereo_width,
-                block_size=self.block_size, memory_pool=self.memory_pool,
-                sample_rate=self.sample_rate
+                cutoff=cutoff,
+                resonance=resonance,
+                filter_type=filter_type,
+                key_follow=key_follow,
+                stereo_width=stereo_width,
+                block_size=self.block_size,
+                memory_pool=self.memory_pool,
+                sample_rate=self.sample_rate,
             )
 
     def release_filter(self, filter_obj: UltraFastResonantFilter) -> None:
@@ -254,34 +285,72 @@ class FilterPool:
     def get_pool_stats(self) -> dict[str, int]:
         """Get pool statistics for monitoring."""
         return {
-            'pooled_filters': len(self.pool),
-            'max_filters': self.max_filters,
-            'block_size': self.block_size,
-            'sample_rate': self.sample_rate
+            "pooled_filters": len(self.pool),
+            "max_filters": self.max_filters,
+            "block_size": self.block_size,
+            "sample_rate": self.sample_rate,
         }
 
 
 class UltraFastResonantFilter:
     """ULTRA-FAST resonant filter with block processing and SIMD optimization"""
 
-    __slots__ = ('cutoff', 'resonance', 'filter_type', 'filter_type_int', 'key_follow', 'stereo_width',
-                 'sample_rate', 'block_size', 'brightness_mod', 'harmonic_content_mod',
-                 'modulated_stereo_width', 'coeffs_dirty', '_coeff_cache',
-                 'b0_l', 'b1_l', 'b2_l', 'a1_l', 'a2_l', 'b0_r', 'b1_r', 'b2_r', 'a1_r', 'a2_r',
-                 'x_l', 'y_l', 'x_r', 'y_r', 'memory_pool', 'is_pooled',
-                 'coeff_manager', 'use_coeff_manager')
+    __slots__ = (
+        "_coeff_cache",
+        "a1_l",
+        "a1_r",
+        "a2_l",
+        "a2_r",
+        "b0_l",
+        "b0_r",
+        "b1_l",
+        "b1_r",
+        "b2_l",
+        "b2_r",
+        "block_size",
+        "brightness_mod",
+        "coeff_manager",
+        "coeffs_dirty",
+        "cutoff",
+        "filter_type",
+        "filter_type_int",
+        "harmonic_content_mod",
+        "is_pooled",
+        "key_follow",
+        "memory_pool",
+        "modulated_stereo_width",
+        "resonance",
+        "sample_rate",
+        "stereo_width",
+        "use_coeff_manager",
+        "x_l",
+        "x_r",
+        "y_l",
+        "y_r",
+    )
 
     # Global coefficient cache for performance
     _global_coeff_cache = {}
     _cache_lock = threading.RLock()
 
-    def __init__(self, cutoff=1000.0, resonance=0.7, filter_type="lowpass",
-                 key_follow=0.5, stereo_width=0.5, sample_rate=48000,
-                 block_size=1024, memory_pool=None, coeff_manager=None):
+    def __init__(
+        self,
+        cutoff=1000.0,
+        resonance=0.7,
+        filter_type="lowpass",
+        key_follow=0.5,
+        stereo_width=0.5,
+        sample_rate=48000,
+        block_size=1024,
+        memory_pool=None,
+        coeff_manager=None,
+    ):
         self.cutoff = cutoff
         self.resonance = resonance
         self.filter_type = filter_type
-        self.filter_type_int = self._filter_type_to_int(filter_type)  # Integer filter type for Numba
+        self.filter_type_int = self._filter_type_to_int(
+            filter_type
+        )  # Integer filter type for Numba
         self.key_follow = key_follow
         self.stereo_width = stereo_width  # 0.0 (mono) to 1.0 (full stereo)
         self.sample_rate = sample_rate
@@ -314,7 +383,6 @@ class UltraFastResonantFilter:
         # Buffers for right channel
         self.x_r = [0.0, 0.0]
         self.y_r = [0.0, 0.0]
-
 
     def _calculate_coefficients(self, channel):
         """Calculate filter coefficients for the specified channel with OptimizedCoefficientManager integration"""
@@ -357,7 +425,7 @@ class UltraFastResonantFilter:
             round(self.harmonic_content_mod, 2),
             round(self.modulated_stereo_width, 2),
             channel,
-            self.sample_rate
+            self.sample_rate,
         )
 
         # Check global cache first
@@ -391,7 +459,7 @@ class UltraFastResonantFilter:
         effective_resonance = max(0.001, min(2.0, effective_resonance))
 
         # Calculate omega with comprehensive bounds checking
-        omega = 2 * math.pi * min(effective_cutoff, self.sample_rate/2) / self.sample_rate
+        omega = 2 * math.pi * min(effective_cutoff, self.sample_rate / 2) / self.sample_rate
         # Apply bounds checking to prevent division by near-zero
         safe_resonance = max(0.001, min(2.0, effective_resonance))
         alpha = fast_math.fast_sin(omega) / (2 * safe_resonance)
@@ -422,7 +490,7 @@ class UltraFastResonantFilter:
             a2 = 1 - alpha
 
         # Normalization
-        coeffs = (b0/a0, b1/a0, b2/a0, a1/a0, a2/a0)
+        coeffs = (b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0)
 
         # Cache the result (limit cache size to prevent memory bloat)
         with UltraFastResonantFilter._cache_lock:
@@ -436,12 +504,19 @@ class UltraFastResonantFilter:
         filter_map = {
             "lowpass": FILTER_LOWPASS,
             "bandpass": FILTER_BANDPASS,
-            "highpass": FILTER_HIGHPASS
+            "highpass": FILTER_HIGHPASS,
         }
         return filter_map.get(filter_type, FILTER_LOWPASS)
 
-    def set_parameters(self, cutoff=None, resonance=None, filter_type=None, key_follow=None, stereo_width=None,
-                      modulated_stereo_width=None):
+    def set_parameters(
+        self,
+        cutoff=None,
+        resonance=None,
+        filter_type=None,
+        key_follow=None,
+        stereo_width=None,
+        modulated_stereo_width=None,
+    ):
         """Set filter parameters"""
         # Optimize parameter setting to reduce max/min calls
         changed = False
@@ -549,11 +624,13 @@ class UltraFastResonantFilter:
             left_in = right_in = input_sample
 
         # Process left channel
-        left_out = (self.b0_l * left_in +
-                   self.b1_l * self.x_l[0] +
-                   self.b2_l * self.x_l[1] -
-                   self.a1_l * self.y_l[0] -
-                   self.a2_l * self.y_l[1])
+        left_out = (
+            self.b0_l * left_in
+            + self.b1_l * self.x_l[0]
+            + self.b2_l * self.x_l[1]
+            - self.a1_l * self.y_l[0]
+            - self.a2_l * self.y_l[1]
+        )
 
         # Update left channel buffers
         self.x_l[1] = self.x_l[0]
@@ -562,11 +639,13 @@ class UltraFastResonantFilter:
         self.y_l[0] = left_out
 
         # Process right channel
-        right_out = (self.b0_r * right_in +
-                    self.b1_r * self.x_r[0] +
-                    self.b2_r * self.x_r[1] -
-                    self.a1_r * self.y_r[0] -
-                    self.a2_r * self.y_r[1])
+        right_out = (
+            self.b0_r * right_in
+            + self.b1_r * self.x_r[0]
+            + self.b2_r * self.x_r[1]
+            - self.a1_r * self.y_r[0]
+            - self.a2_r * self.y_r[1]
+        )
 
         # Update right channel buffers
         self.x_r[1] = self.x_r[0]
@@ -592,10 +671,14 @@ class UltraFastResonantFilter:
         # Mark coefficients as dirty
         self.coeffs_dirty = True
 
-    def process_block(self, input_left: np.ndarray, input_right: np.ndarray,
-                     output_left: np.ndarray | None = None, 
-                     output_right: np.ndarray | None = None,
-                     num_samples: int | None = None) -> tuple[np.ndarray, np.ndarray]:
+    def process_block(
+        self,
+        input_left: np.ndarray,
+        input_right: np.ndarray,
+        output_left: np.ndarray | None = None,
+        output_right: np.ndarray | None = None,
+        num_samples: int | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         ULTRA-FAST: Process block of stereo samples through the filter.
 
@@ -633,10 +716,25 @@ class UltraFastResonantFilter:
         y_r_arr = np.array(self.y_r, dtype=np.float32)
 
         (x_l_arr, y_l_arr, x_r_arr, y_r_arr) = _numba_process_filter_block(
-            input_left, input_right, output_left, output_right,
-            float(self.b0_l), float(self.b1_l), float(self.b2_l), float(self.a1_l), float(self.a2_l),
-            float(self.b0_r), float(self.b1_r), float(self.b2_r), float(self.a1_r), float(self.a2_r),
-            x_l_arr, y_l_arr, x_r_arr, y_r_arr, num_samples
+            input_left,
+            input_right,
+            output_left,
+            output_right,
+            float(self.b0_l),
+            float(self.b1_l),
+            float(self.b2_l),
+            float(self.a1_l),
+            float(self.a2_l),
+            float(self.b0_r),
+            float(self.b1_r),
+            float(self.b2_r),
+            float(self.a1_r),
+            float(self.a2_r),
+            x_l_arr,
+            y_l_arr,
+            x_r_arr,
+            y_r_arr,
+            num_samples,
         )
 
         # Update delay buffers

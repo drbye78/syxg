@@ -4,17 +4,18 @@ Yamaha Motif Effects System
 Implementation of Yamaha Motif effects processing with multiple effect types
 and individual part processing.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from collections.abc import Callable
 import math
-from ..math.fast_approx import fast_math
+from typing import Any
+
+import numpy as np
 
 
 class MotifEffectType:
     """Motif effect type constants"""
+
     # Reverb types
     HALL_1 = 0
     HALL_2 = 1
@@ -72,10 +73,10 @@ class MotifReverbEffect:
 
         # Reverb parameters
         self.room_size = 0.5  # 0.0-1.0
-        self.damping = 0.3    # 0.0-1.0
+        self.damping = 0.3  # 0.0-1.0
         self.wet_level = 0.3  # 0.0-1.0
         self.dry_level = 0.7  # 0.0-1.0
-        self.pre_delay = 20   # ms
+        self.pre_delay = 20  # ms
 
         # Reverb state
         self.delay_lines = []
@@ -99,10 +100,15 @@ class MotifReverbEffect:
             # Low-pass filter for each delay line
             self.filter_states.append([0.0, 0.0])
 
-    def set_parameters(self, effect_type: int = MotifEffectType.HALL_1,
-                      room_size: float = 0.5, damping: float = 0.3,
-                      wet_level: float = 0.3, dry_level: float = 0.7,
-                      pre_delay: int = 20):
+    def set_parameters(
+        self,
+        effect_type: int = MotifEffectType.HALL_1,
+        room_size: float = 0.5,
+        damping: float = 0.3,
+        wet_level: float = 0.3,
+        dry_level: float = 0.7,
+        pre_delay: int = 20,
+    ):
         """Set reverb parameters"""
         self.effect_type = effect_type
         self.room_size = max(0.0, min(1.0, room_size))
@@ -163,9 +169,9 @@ class MotifChorusEffect:
         self.effect_type = MotifEffectType.CHORUS_1
 
         # Chorus parameters
-        self.depth = 0.3      # 0.0-1.0
-        self.speed = 0.5      # Hz
-        self.feedback = 0.2   # 0.0-1.0
+        self.depth = 0.3  # 0.0-1.0
+        self.speed = 0.5  # Hz
+        self.feedback = 0.2  # 0.0-1.0
         self.wet_level = 0.4  # 0.0-1.0
         self.dry_level = 0.6  # 0.0-1.0
 
@@ -174,10 +180,15 @@ class MotifChorusEffect:
         self.delay_pos = 0
         self.lfo_phase = 0.0
 
-    def set_parameters(self, effect_type: int = MotifEffectType.CHORUS_1,
-                      depth: float = 0.3, speed: float = 0.5,
-                      feedback: float = 0.2, wet_level: float = 0.4,
-                      dry_level: float = 0.6):
+    def set_parameters(
+        self,
+        effect_type: int = MotifEffectType.CHORUS_1,
+        depth: float = 0.3,
+        speed: float = 0.5,
+        feedback: float = 0.2,
+        wet_level: float = 0.4,
+        dry_level: float = 0.6,
+    ):
         """Set chorus parameters"""
         self.effect_type = effect_type
         self.depth = max(0.0, min(1.0, depth))
@@ -219,21 +230,26 @@ class MotifDelayEffect:
         self.effect_type = MotifEffectType.DELAY_LR
 
         # Delay parameters
-        self.delay_time = 500    # ms
-        self.feedback = 0.3      # 0.0-1.0
-        self.wet_level = 0.4     # 0.0-1.0
-        self.dry_level = 0.6     # 0.0-1.0
-        self.high_cut = 8000     # Hz
+        self.delay_time = 500  # ms
+        self.feedback = 0.3  # 0.0-1.0
+        self.wet_level = 0.4  # 0.0-1.0
+        self.dry_level = 0.6  # 0.0-1.0
+        self.high_cut = 8000  # Hz
 
         # Delay state
         self.delay_samples = int(self.delay_time * sample_rate / 1000)
         self.delay_line = np.zeros(max(2048, self.delay_samples * 2))
         self.delay_pos = 0
 
-    def set_parameters(self, effect_type: int = MotifEffectType.DELAY_LR,
-                      delay_time: int = 500, feedback: float = 0.3,
-                      wet_level: float = 0.4, dry_level: float = 0.6,
-                      high_cut: int = 8000):
+    def set_parameters(
+        self,
+        effect_type: int = MotifEffectType.DELAY_LR,
+        delay_time: int = 500,
+        feedback: float = 0.3,
+        wet_level: float = 0.4,
+        dry_level: float = 0.6,
+        high_cut: int = 8000,
+    ):
         """Set delay parameters"""
         self.effect_type = effect_type
         self.delay_time = max(50, min(2000, delay_time))
@@ -278,14 +294,19 @@ class MotifDistortionEffect:
         self.effect_type = MotifEffectType.DISTORTION_1
 
         # Distortion parameters
-        self.drive = 0.5       # 0.0-1.0
-        self.tone = 0.5        # 0.0-1.0
-        self.wet_level = 0.8   # 0.0-1.0
-        self.dry_level = 0.2   # 0.0-1.0
+        self.drive = 0.5  # 0.0-1.0
+        self.tone = 0.5  # 0.0-1.0
+        self.wet_level = 0.8  # 0.0-1.0
+        self.dry_level = 0.2  # 0.0-1.0
 
-    def set_parameters(self, effect_type: int = MotifEffectType.DISTORTION_1,
-                      drive: float = 0.5, tone: float = 0.5,
-                      wet_level: float = 0.8, dry_level: float = 0.2):
+    def set_parameters(
+        self,
+        effect_type: int = MotifEffectType.DISTORTION_1,
+        drive: float = 0.5,
+        tone: float = 0.5,
+        wet_level: float = 0.8,
+        dry_level: float = 0.2,
+    ):
         """Set distortion parameters"""
         self.effect_type = effect_type
         self.drive = max(0.0, min(1.0, drive))
@@ -342,13 +363,13 @@ class MotifEQEffect:
         self.effect_type = MotifEffectType.PEQ_1
 
         # EQ parameters (5-band PEQ)
-        self.low_gain = 0.0     # dB
+        self.low_gain = 0.0  # dB
         self.low_mid_gain = 0.0
         self.mid_gain = 0.0
         self.high_mid_gain = 0.0
         self.high_gain = 0.0
 
-        self.low_freq = 80       # Hz
+        self.low_freq = 80  # Hz
         self.low_mid_freq = 250
         self.mid_freq = 1000
         self.high_mid_freq = 4000
@@ -357,10 +378,15 @@ class MotifEQEffect:
         # Filter states
         self.filter_states = {}
 
-    def set_parameters(self, effect_type: int = MotifEffectType.PEQ_1,
-                      low_gain: float = 0.0, low_mid_gain: float = 0.0,
-                      mid_gain: float = 0.0, high_mid_gain: float = 0.0,
-                      high_gain: float = 0.0):
+    def set_parameters(
+        self,
+        effect_type: int = MotifEffectType.PEQ_1,
+        low_gain: float = 0.0,
+        low_mid_gain: float = 0.0,
+        mid_gain: float = 0.0,
+        high_mid_gain: float = 0.0,
+        high_gain: float = 0.0,
+    ):
         """Set EQ parameters"""
         self.effect_type = effect_type
         self.low_gain = max(-12.0, min(12.0, low_gain))
@@ -380,7 +406,7 @@ class MotifEQEffect:
             (self.low_mid_freq, self.low_mid_gain),
             (self.mid_freq, self.mid_gain),
             (self.high_mid_freq, self.high_mid_gain),
-            (self.high_freq, self.high_gain)
+            (self.high_freq, self.high_gain),
         ]
 
         for freq, gain_db in bands:
@@ -421,19 +447,24 @@ class MotifDynamicsEffect:
 
         # Dynamics parameters
         self.threshold = -12.0  # dB
-        self.ratio = 4.0        # 1:ratio
-        self.attack = 10        # ms
-        self.release = 100      # ms
+        self.ratio = 4.0  # 1:ratio
+        self.attack = 10  # ms
+        self.release = 100  # ms
         self.makeup_gain = 0.0  # dB
 
         # State
         self.envelope = 0.0
         self.gain_reduction = 1.0
 
-    def set_parameters(self, effect_type: int = MotifEffectType.COMPRESSOR,
-                      threshold: float = -12.0, ratio: float = 4.0,
-                      attack: int = 10, release: int = 100,
-                      makeup_gain: float = 0.0):
+    def set_parameters(
+        self,
+        effect_type: int = MotifEffectType.COMPRESSOR,
+        threshold: float = -12.0,
+        ratio: float = 4.0,
+        attack: int = 10,
+        release: int = 100,
+        makeup_gain: float = 0.0,
+    ):
         """Set dynamics parameters"""
         self.effect_type = effect_type
         self.threshold = max(-40.0, min(0.0, threshold))
@@ -463,7 +494,7 @@ class MotifDynamicsEffect:
         # Calculate gain reduction
         if self.envelope > self.threshold:
             over_threshold = self.envelope - self.threshold
-            gain_reduction_db = over_threshold * (1.0 - 1.0/self.ratio)
+            gain_reduction_db = over_threshold * (1.0 - 1.0 / self.ratio)
             self.gain_reduction = 10.0 ** (-gain_reduction_db / 20.0)
         else:
             self.gain_reduction = 1.0
@@ -489,12 +520,12 @@ class MotifEffectsProcessor:
 
         # Effect instances
         self.effects = {
-            'reverb': MotifReverbEffect(sample_rate),
-            'chorus': MotifChorusEffect(sample_rate),
-            'delay': MotifDelayEffect(sample_rate),
-            'distortion': MotifDistortionEffect(sample_rate),
-            'eq': MotifEQEffect(sample_rate),
-            'dynamics': MotifDynamicsEffect(sample_rate)
+            "reverb": MotifReverbEffect(sample_rate),
+            "chorus": MotifChorusEffect(sample_rate),
+            "delay": MotifDelayEffect(sample_rate),
+            "distortion": MotifDistortionEffect(sample_rate),
+            "eq": MotifEQEffect(sample_rate),
+            "dynamics": MotifDynamicsEffect(sample_rate),
         }
 
         # Part routing (16 parts)
@@ -507,25 +538,25 @@ class MotifEffectsProcessor:
         """Initialize part routing to effects"""
         for part in range(16):
             self.part_routing[part] = {
-                'reverb_send': 40,
-                'chorus_send': 0,
-                'delay_send': 0,
-                'variation_send': 0,
-                'insertion_effect': None,
-                'master_effect': 'reverb'
+                "reverb_send": 40,
+                "chorus_send": 0,
+                "delay_send": 0,
+                "variation_send": 0,
+                "insertion_effect": None,
+                "master_effect": "reverb",
             }
 
     def set_part_effect_send(self, part: int, effect_type: str, send_level: int):
         """Set effect send level for a part (0-127)"""
         if part in self.part_routing:
-            self.part_routing[part][f'{effect_type}_send'] = max(0, min(127, send_level))
+            self.part_routing[part][f"{effect_type}_send"] = max(0, min(127, send_level))
 
     def set_part_insertion_effect(self, part: int, effect_type: int, parameters: dict[str, Any]):
         """Set insertion effect for a part"""
         if part in self.part_routing:
-            self.part_routing[part]['insertion_effect'] = {
-                'type': effect_type,
-                'parameters': parameters
+            self.part_routing[part]["insertion_effect"] = {
+                "type": effect_type,
+                "parameters": parameters,
             }
 
     def set_system_effect(self, effect_category: str, effect_type: int, parameters: dict[str, Any]):
@@ -534,50 +565,50 @@ class MotifEffectsProcessor:
             effect = self.effects[effect_category]
 
             # Apply parameters based on effect type
-            if effect_category == 'reverb':
+            if effect_category == "reverb":
                 effect.set_parameters(
                     effect_type=effect_type,
-                    room_size=parameters.get('room_size', 0.5),
-                    damping=parameters.get('damping', 0.3),
-                    wet_level=parameters.get('wet_level', 0.3),
-                    dry_level=parameters.get('dry_level', 0.7)
+                    room_size=parameters.get("room_size", 0.5),
+                    damping=parameters.get("damping", 0.3),
+                    wet_level=parameters.get("wet_level", 0.3),
+                    dry_level=parameters.get("dry_level", 0.7),
                 )
-            elif effect_category == 'chorus':
+            elif effect_category == "chorus":
                 effect.set_parameters(
                     effect_type=effect_type,
-                    depth=parameters.get('depth', 0.3),
-                    speed=parameters.get('speed', 0.5),
-                    feedback=parameters.get('feedback', 0.2),
-                    wet_level=parameters.get('wet_level', 0.4)
+                    depth=parameters.get("depth", 0.3),
+                    speed=parameters.get("speed", 0.5),
+                    feedback=parameters.get("feedback", 0.2),
+                    wet_level=parameters.get("wet_level", 0.4),
                 )
-            elif effect_category == 'delay':
+            elif effect_category == "delay":
                 effect.set_parameters(
                     effect_type=effect_type,
-                    delay_time=parameters.get('delay_time', 500),
-                    feedback=parameters.get('feedback', 0.3),
-                    wet_level=parameters.get('wet_level', 0.4)
+                    delay_time=parameters.get("delay_time", 500),
+                    feedback=parameters.get("feedback", 0.3),
+                    wet_level=parameters.get("wet_level", 0.4),
                 )
-            elif effect_category == 'distortion':
+            elif effect_category == "distortion":
                 effect.set_parameters(
                     effect_type=effect_type,
-                    drive=parameters.get('drive', 0.5),
-                    tone=parameters.get('tone', 0.5),
-                    wet_level=parameters.get('wet_level', 0.8)
+                    drive=parameters.get("drive", 0.5),
+                    tone=parameters.get("tone", 0.5),
+                    wet_level=parameters.get("wet_level", 0.8),
                 )
-            elif effect_category == 'eq':
+            elif effect_category == "eq":
                 effect.set_parameters(
                     effect_type=effect_type,
-                    low_gain=parameters.get('low_gain', 0.0),
-                    mid_gain=parameters.get('mid_gain', 0.0),
-                    high_gain=parameters.get('high_gain', 0.0)
+                    low_gain=parameters.get("low_gain", 0.0),
+                    mid_gain=parameters.get("mid_gain", 0.0),
+                    high_gain=parameters.get("high_gain", 0.0),
                 )
-            elif effect_category == 'dynamics':
+            elif effect_category == "dynamics":
                 effect.set_parameters(
                     effect_type=effect_type,
-                    threshold=parameters.get('threshold', -12.0),
-                    ratio=parameters.get('ratio', 4.0),
-                    attack=parameters.get('attack', 10),
-                    release=parameters.get('release', 100)
+                    threshold=parameters.get("threshold", -12.0),
+                    ratio=parameters.get("ratio", 4.0),
+                    attack=parameters.get("attack", 10),
+                    release=parameters.get("release", 100),
                 )
 
     def process_part_sample(self, part: int, input_sample: float) -> float:
@@ -589,29 +620,29 @@ class MotifEffectsProcessor:
         output = input_sample
 
         # Apply insertion effect first (if any)
-        if routing['insertion_effect']:
-            effect_config = routing['insertion_effect']
+        if routing["insertion_effect"]:
+            effect_config = routing["insertion_effect"]
             output = self._apply_insertion_effect(output, effect_config)
 
         # Apply system effects based on send levels
         system_effects = []
 
         # Reverb send
-        if routing['reverb_send'] > 0:
-            send_level = routing['reverb_send'] / 127.0
-            reverb_wet = self.effects['reverb'].process_sample(output * send_level)
+        if routing["reverb_send"] > 0:
+            send_level = routing["reverb_send"] / 127.0
+            reverb_wet = self.effects["reverb"].process_sample(output * send_level)
             system_effects.append(reverb_wet)
 
         # Chorus send
-        if routing['chorus_send'] > 0:
-            send_level = routing['chorus_send'] / 127.0
-            chorus_wet = self.effects['chorus'].process_sample(output * send_level)
+        if routing["chorus_send"] > 0:
+            send_level = routing["chorus_send"] / 127.0
+            chorus_wet = self.effects["chorus"].process_sample(output * send_level)
             system_effects.append(chorus_wet)
 
         # Delay send
-        if routing['delay_send'] > 0:
-            send_level = routing['delay_send'] / 127.0
-            delay_wet = self.effects['delay'].process_sample(output * send_level)
+        if routing["delay_send"] > 0:
+            send_level = routing["delay_send"] / 127.0
+            delay_wet = self.effects["delay"].process_sample(output * send_level)
             system_effects.append(delay_wet)
 
         # Mix system effects
@@ -624,19 +655,27 @@ class MotifEffectsProcessor:
 
     def _apply_insertion_effect(self, input_sample: float, effect_config: dict[str, Any]) -> float:
         """Apply insertion effect to sample"""
-        effect_type = effect_config['type']
-        parameters = effect_config['parameters']
+        effect_type = effect_config["type"]
+        parameters = effect_config["parameters"]
 
         # Route to appropriate effect processor
-        if effect_type in [MotifEffectType.DISTORTION_1, MotifEffectType.DISTORTION_2,
-                          MotifEffectType.OVERDRIVE_1, MotifEffectType.OVERDRIVE_2]:
-            return self.effects['distortion'].process_sample(input_sample)
+        if effect_type in [
+            MotifEffectType.DISTORTION_1,
+            MotifEffectType.DISTORTION_2,
+            MotifEffectType.OVERDRIVE_1,
+            MotifEffectType.OVERDRIVE_2,
+        ]:
+            return self.effects["distortion"].process_sample(input_sample)
 
-        elif effect_type in [MotifEffectType.COMPRESSOR, MotifEffectType.LIMITER, MotifEffectType.GATE]:
-            return self.effects['dynamics'].process_sample(input_sample)
+        elif effect_type in [
+            MotifEffectType.COMPRESSOR,
+            MotifEffectType.LIMITER,
+            MotifEffectType.GATE,
+        ]:
+            return self.effects["dynamics"].process_sample(input_sample)
 
         elif effect_type in [MotifEffectType.PEQ_1, MotifEffectType.PEQ_2, MotifEffectType.GEQ_1]:
-            return self.effects['eq'].process_sample(input_sample)
+            return self.effects["eq"].process_sample(input_sample)
 
         # Default: pass through
         return input_sample
@@ -644,20 +683,20 @@ class MotifEffectsProcessor:
     def get_effect_capabilities(self) -> dict[str, Any]:
         """Get effect system capabilities"""
         return {
-            'total_effect_types': 40,
-            'system_effects': {
-                'reverb': 7,      # Hall 1/2, Room 1/2, Stage 1/2, Plate
-                'chorus': 6,      # Chorus 1/2, Celeste 1/2, Flanger 1/2
-                'delay': 5,       # Delay L/R/LR, Echo, Cross Delay
-                'distortion': 4,  # Distortion 1/2, Overdrive 1/2
-                'eq': 3,          # PEQ 1/2, GEQ 1
-                'dynamics': 3,    # Compressor, Limiter, Gate
-                'special': 5      # Phaser 1/2, Tremolo, Auto Wah, Rotary
+            "total_effect_types": 40,
+            "system_effects": {
+                "reverb": 7,  # Hall 1/2, Room 1/2, Stage 1/2, Plate
+                "chorus": 6,  # Chorus 1/2, Celeste 1/2, Flanger 1/2
+                "delay": 5,  # Delay L/R/LR, Echo, Cross Delay
+                "distortion": 4,  # Distortion 1/2, Overdrive 1/2
+                "eq": 3,  # PEQ 1/2, GEQ 1
+                "dynamics": 3,  # Compressor, Limiter, Gate
+                "special": 5,  # Phaser 1/2, Tremolo, Auto Wah, Rotary
             },
-            'insertion_effects': 7,  # Per-part effects
-            'master_effects': 3,     # System effects
-            'parts_supported': 16,
-            'sample_rate': self.sample_rate
+            "insertion_effects": 7,  # Per-part effects
+            "master_effects": 3,  # System effects
+            "parts_supported": 16,
+            "sample_rate": self.sample_rate,
         }
 
     def reset_all_effects(self):
@@ -669,18 +708,22 @@ class MotifEffectsProcessor:
     def get_effects_status(self) -> dict[str, Any]:
         """Get current effects status"""
         return {
-            'system_effects_active': {
-                name: True for name in self.effects.keys()
-            },
-            'parts_with_insertion': sum(1 for p in self.part_routing.values()
-                                      if p['insertion_effect'] is not None),
-            'total_parts': len(self.part_routing)
+            "system_effects_active": dict.fromkeys(self.effects.keys(), True),
+            "parts_with_insertion": sum(
+                1 for p in self.part_routing.values() if p["insertion_effect"] is not None
+            ),
+            "total_parts": len(self.part_routing),
         }
 
 
 # Export classes
 __all__ = [
-    'MotifEffectType', 'MotifReverbEffect', 'MotifChorusEffect',
-    'MotifDelayEffect', 'MotifDistortionEffect', 'MotifEQEffect',
-    'MotifDynamicsEffect', 'MotifEffectsProcessor'
+    "MotifChorusEffect",
+    "MotifDelayEffect",
+    "MotifDistortionEffect",
+    "MotifDynamicsEffect",
+    "MotifEQEffect",
+    "MotifEffectType",
+    "MotifEffectsProcessor",
+    "MotifReverbEffect",
 ]

@@ -2,12 +2,13 @@
 Modulation destinations for XG synthesizer.
 Defines all available modulation destinations.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 
 class ModulationDestination:
     """Class for representing modulation destination"""
+
     FILTER_CUTOFF = "filter_cutoff"
     PITCH = "pitch"
     FILTER_RESONANCE = "filter_resonance"
@@ -85,5 +86,5 @@ class ModulationDestination:
             ModulationDestination.COARSE_TUNE,
             ModulationDestination.FINE_TUNE,
             ModulationDestination.DETUNE,
-            ModulationDestination.PHASER_DEPTH
+            ModulationDestination.PHASER_DEPTH,
         ]

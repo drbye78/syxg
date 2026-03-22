@@ -19,37 +19,37 @@ Architecture:
 - Object pooling to minimize memory allocation overhead
 - Pre-allocated audio buffers for zero-allocation rendering
 """
+
 from __future__ import annotations
 
-import numpy as np
-import threading
-import sys
 import os
-from typing import Any
-from collections.abc import Callable
+import sys
+import threading
 import time
+from collections.abc import Callable
+from typing import Any
 
+import numpy as np
+
+from synth.channel.vectorized_channel_renderer import VectorizedChannelRenderer
+from synth.core.buffer_pool import XGBufferPool
 from synth.core.envelope import EnvelopePool
 from synth.core.filter import FilterPool
 from synth.core.oscillator import OscillatorPool
 from synth.core.panner import PannerPool
-from synth.core.buffer_pool import XGBufferPool
-from synth.channel.vectorized_channel_renderer import VectorizedChannelRenderer
 
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from ..core.constants import DEFAULT_CONFIG
-from .optimized_coefficient_manager import (
-    OptimizedCoefficientManager,
-    get_global_coefficient_manager,
-)
+from ..midi.parser import MIDIMessage
 from ..sf2.manager import SF2Manager
 from ..xg.drum_manager import DrumManager
-from ..channel.channel_note import PartialGeneratorPool
 from ..xg.xg_receive_channel_manager import XGReceiveChannelManager
 from ..xg.xg_rpn_controller import XGRPNController
-from ..midi.parser import MIDIMessage
+from .optimized_coefficient_manager import (
+    get_global_coefficient_manager,
+)
 
 # MIDI Message Type Constants (for maintainability)
 MSG_TYPE_NOTE_OFF = "note_off"
@@ -65,9 +65,8 @@ from ..audio.writer import AudioWriter
 
 # XG Effects System Integration - Production-Ready Effects Coordinator
 from ..effects import (
-    XGEffectsCoordinator,          # Main coordinator (production-ready)
-    XGReverbType, XGChorusType, XGVariationType,  # Core XG types
-)
+    XGEffectsCoordinator,  # Main coordinator (production-ready)
+    )
 from ..effects.xg_nrpn_controller import XGNRPNController
 from ..effects.xg_sysex_controller import XGSYSEXController
 
@@ -100,7 +99,7 @@ class OptimizedXGSynthesizer:
         sample_rate: int = DEFAULT_CONFIG["SAMPLE_RATE"],
         max_polyphony: int = DEFAULT_CONFIG["MAX_POLYPHONY"],
         block_size: int = DEFAULT_CONFIG["BLOCK_SIZE"],
-        sf2_files = None,
+        sf2_files=None,
         param_cache=None,
         render_log_level: int = 0,
         voice_allocation_mode: int = 1,  # Default to XG priority polyphonic
@@ -140,8 +139,7 @@ class OptimizedXGSynthesizer:
 
         # Memory and object pooling system - XGBufferPool for advanced buffer management
         self.memory_pool = XGBufferPool(
-            sample_rate=sample_rate,
-            max_block_size=block_size
+            sample_rate=sample_rate, max_block_size=block_size
         )  # Advanced zero-allocation buffer pool
         self._initialize_object_pools()
 
@@ -154,9 +152,7 @@ class OptimizedXGSynthesizer:
         self.drum_manager = DrumManager()
 
         # SF2 file management
-        self.sf2_manager = SF2Manager(
-            param_cache=param_cache, drum_manager=self.drum_manager
-        )
+        self.sf2_manager = SF2Manager(param_cache=param_cache, drum_manager=self.drum_manager)
         if sf2_files:
             self.sf2_manager.set_sf2_files(sf2_files)
 
@@ -169,7 +165,7 @@ class OptimizedXGSynthesizer:
         self.effects_coordinator = XGEffectsCoordinator(
             sample_rate=sample_rate,
             block_size=block_size,
-            max_channels=self.num_channels  # 16 for XG
+            max_channels=self.num_channels,  # 16 for XG
         )
         self.effects_coordinator.reset_all_effects()  # Set XG defaults
 
@@ -186,12 +182,15 @@ class OptimizedXGSynthesizer:
         self.receive_channel_manager = XGReceiveChannelManager(num_parts=self.num_channels)
 
         # Initialize optimized coefficient manager for performance optimization
-        from .optimized_coefficient_manager import get_global_coefficient_manager
+
         self.coeff_manager = get_global_coefficient_manager()
 
         # Initialize partial generator pool for XG partial management
         from ..xg.channel_note import PartialGeneratorPool
-        self.partial_pool = PartialGeneratorPool(max_size=512)  # Pool for up to 512 partial generators
+
+        self.partial_pool = PartialGeneratorPool(
+            max_size=512
+        )  # Pool for up to 512 partial generators
 
         # Initialize message processing state
         self._message_sequence: list[MIDIMessage] = []
@@ -226,12 +225,13 @@ class OptimizedXGSynthesizer:
         # NEW: Architecture selection
         if self.architecture == "voice":
             # Use new Voice architecture
-            from ..voice.voice_factory import VoiceFactory
             from ..engine.synthesis_engine import SynthesisEngineRegistry
+            from ..voice.voice_factory import VoiceFactory
 
             # Initialize voice architecture components
             self.engine_registry = SynthesisEngineRegistry()
             from .sf2_engine import SF2Engine
+
             sf2_engine = SF2Engine()
             self.engine_registry.register_engine(sf2_engine)
 
@@ -240,6 +240,7 @@ class OptimizedXGSynthesizer:
             for channel in range(self.num_channels):
                 # Create Voice-based channel
                 from ..channel.channel import Channel
+
                 voice_channel = Channel(channel, self.voice_factory, self.sample_rate)
                 self.channel_renderers[channel] = voice_channel
 
@@ -262,7 +263,9 @@ class OptimizedXGSynthesizer:
         self.effect_input = self.memory_pool.get_stereo_buffer(self.block_size)
         self.effect_output = self.memory_pool.get_stereo_buffer(self.block_size)
 
-    def get_audio_buffer(self, size: int, channels: int = 1, zero_buffer: bool = True) -> np.ndarray:
+    def get_audio_buffer(
+        self, size: int, channels: int = 1, zero_buffer: bool = True
+    ) -> np.ndarray:
         """Get an audio buffer from the XGBufferPool."""
         if size == self.block_size and channels == 1:
             return self.memory_pool.get_mono_buffer(size)
@@ -286,14 +289,33 @@ class OptimizedXGSynthesizer:
     def _initialize_object_pools(self):
         """Initialize object pools for frequently allocated objects."""
         # Envelope object pool
-        self.envelope_pool = EnvelopePool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        self.envelope_pool = EnvelopePool(
+            block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate
+        )
         # Channel-level LFO pool for shared channel LFOs
-        self.lfo_pool = OscillatorPool(max_oscillators=500, block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        self.lfo_pool = OscillatorPool(
+            max_oscillators=500,
+            block_size=self.block_size,
+            memory_pool=self.memory_pool,
+            sample_rate=self.sample_rate,
+        )
         # Dedicated LFO pool for partials to avoid LFO contention (LFO bottleneck fix)
-        self.partial_lfo_pool = OscillatorPool(max_oscillators=1000, block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        self.partial_lfo_pool = OscillatorPool(
+            max_oscillators=1000,
+            block_size=self.block_size,
+            memory_pool=self.memory_pool,
+            sample_rate=self.sample_rate,
+        )
         # Filter pool with OptimizedCoefficientManager integration for instant coefficient lookups
-        self.filter_pool = FilterPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate, coeff_manager=self.coeff_manager)
-        self.panner_pool = PannerPool(block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate)
+        self.filter_pool = FilterPool(
+            block_size=self.block_size,
+            memory_pool=self.memory_pool,
+            sample_rate=self.sample_rate,
+            coeff_manager=self.coeff_manager,
+        )
+        self.panner_pool = PannerPool(
+            block_size=self.block_size, memory_pool=self.memory_pool, sample_rate=self.sample_rate
+        )
 
     def _initialize_xg(self):
         """Initialize XG synthesizer according to XG MIDI specification."""
@@ -323,7 +345,7 @@ class OptimizedXGSynthesizer:
             # This will naturally call all the numba functions used in normal operation
             dummy_messages = [
                 MIDIMessage(type="note_on", channel=0, note=60, velocity=100, time=0.0),
-                MIDIMessage(type="note_off", channel=0, note=60, velocity=0, time=0.1)
+                MIDIMessage(type="note_off", channel=0, note=60, velocity=0, time=0.1),
             ]
             self.send_midi_message_block(dummy_messages)
 
@@ -333,7 +355,7 @@ class OptimizedXGSynthesizer:
             # Reset to clean state
             self.reset()
 
-        except Exception as e:
+        except Exception:
             # If warm-up fails, just continue - numba will compile on first use
             pass
 
@@ -390,7 +412,7 @@ class OptimizedXGSynthesizer:
         """
         with self.lock:
             if 0 <= channel < len(self.channel_renderers) and 0 <= mode <= 7:
-                if hasattr(self.channel_renderers[channel], 'set_part_mode'):
+                if hasattr(self.channel_renderers[channel], "set_part_mode"):
                     self.channel_renderers[channel].set_part_mode(mode)
                     print(f"🎹 XG Part Mode: Channel {channel} set to mode {mode}")
                     return True
@@ -446,22 +468,26 @@ class OptimizedXGSynthesizer:
                     elif message.control == 84:
                         # XG Part Mode Control (CC 84) - set part mode for this channel
                         # Map 0-127 to part modes 0-7 (XG specification)
-                        part_mode = min(message.value // 18, 7)  # Divide range evenly across 8 modes
-                        if hasattr(channel_renderer, 'set_part_mode'):
+                        part_mode = min(
+                            message.value // 18, 7
+                        )  # Divide range evenly across 8 modes
+                        if hasattr(channel_renderer, "set_part_mode"):
                             channel_renderer.set_part_mode(part_mode)
                     elif message.control in (98, 99, 6, 38):
                         # NRPN messages - route to NRPN controller
                         self._handle_nrpn_message(message.control, message.value)
                     elif message.control in (91, 93, 94):
                         # Effect send levels - route to effects coordinator
-                        effect_type = {91: 'reverb', 93: 'chorus', 94: 'variation'}[message.control]
+                        effect_type = {91: "reverb", 93: "chorus", 94: "variation"}[message.control]
                         level = message.value / 127.0  # Convert to 0.0-1.0
                         self.effects_coordinator.set_effect_send_level(part_id, effect_type, level)
                     else:
                         # Forward other control changes to channel renderer
                         channel_renderer.control_change(message.control, message.value)
                 elif msg_type == MSG_TYPE_PROGRAM_CHANGE:
-                    self._handle_program_change(part_id, message.program)  # Use part_id, not midi_channel
+                    self._handle_program_change(
+                        part_id, message.program
+                    )  # Use part_id, not midi_channel
                 elif msg_type == MSG_TYPE_CHANNEL_PRESSURE:
                     # Forward channel pressure to channel renderer
                     channel_renderer.set_channel_pressure(message.pressure)
@@ -520,7 +546,7 @@ class OptimizedXGSynthesizer:
             return
 
         # Route to XG SYSEX controller for comprehensive XG SYSEX handling
-        if hasattr(self, 'sysex_controller') and self.sysex_controller:
+        if hasattr(self, "sysex_controller") and self.sysex_controller:
             try:
                 response = self.sysex_controller.process_sysex(data)
                 if response:
@@ -532,7 +558,9 @@ class OptimizedXGSynthesizer:
                         except Exception as callback_error:
                             print(f"Warning: SYSEX response callback failed: {callback_error}")
                     else:
-                        print(f"XG SYSEX: Processed command, response available ({len(response)} bytes) - no callback configured")
+                        print(
+                            f"XG SYSEX: Processed command, response available ({len(response)} bytes) - no callback configured"
+                        )
                 return
             except Exception as e:
                 print(f"XG SYSEX: Error processing message: {e}")
@@ -543,7 +571,7 @@ class OptimizedXGSynthesizer:
                 part_id = data[5] if len(data) > 5 else 0
                 part_mode = data[6] if len(data) > 6 else 0
                 if 0 <= part_id < len(self.channel_renderers) and 0 <= part_mode <= 7:
-                    if hasattr(self.channel_renderers[part_id], 'set_part_mode'):
+                    if hasattr(self.channel_renderers[part_id], "set_part_mode"):
                         self.channel_renderers[part_id].set_part_mode(part_mode)
                         print(f"🎹 XG SYSEX: Part {part_id} mode set to {part_mode}")
             elif data[4] == 0x08:  # Receive Channel
@@ -568,31 +596,31 @@ class OptimizedXGSynthesizer:
             value: Control change value (0-127)
         """
         # Initialize NRPN state if not exists
-        if not hasattr(self, '_nrpn_state'):
+        if not hasattr(self, "_nrpn_state"):
             self._nrpn_state: dict[str, int | None] = {
-                'msb': None,      # NRPN MSB (CC 99)
-                'lsb': None,      # NRPN LSB (CC 98)
-                'data_msb': None, # Data Entry MSB (CC 6)
-                'data_lsb': None  # Data Entry LSB (CC 38)
+                "msb": None,  # NRPN MSB (CC 99)
+                "lsb": None,  # NRPN LSB (CC 98)
+                "data_msb": None,  # Data Entry MSB (CC 6)
+                "data_lsb": None,  # Data Entry LSB (CC 38)
             }
 
         # Update NRPN state based on controller
         if cc_number == 99:  # NRPN MSB
-            self._nrpn_state['msb'] = value
+            self._nrpn_state["msb"] = value
             # Reset data when NRPN is set
-            self._nrpn_state['data_msb'] = None
-            self._nrpn_state['data_lsb'] = None
+            self._nrpn_state["data_msb"] = None
+            self._nrpn_state["data_lsb"] = None
         elif cc_number == 98:  # NRPN LSB
-            self._nrpn_state['lsb'] = value
+            self._nrpn_state["lsb"] = value
             # Reset data when NRPN is set
-            self._nrpn_state['data_msb'] = None
-            self._nrpn_state['data_lsb'] = None
+            self._nrpn_state["data_msb"] = None
+            self._nrpn_state["data_lsb"] = None
         elif cc_number == 6:  # Data Entry MSB
-            self._nrpn_state['data_msb'] = value
+            self._nrpn_state["data_msb"] = value
             # Process complete NRPN message if we have all required parts
             self._process_complete_nrpn_message()
         elif cc_number == 38:  # Data Entry LSB
-            self._nrpn_state['data_lsb'] = value
+            self._nrpn_state["data_lsb"] = value
             # Process complete NRPN message if we have all required parts
             self._process_complete_nrpn_message()
 
@@ -606,25 +634,23 @@ class OptimizedXGSynthesizer:
         state = self._nrpn_state
 
         # Check if we have minimum required parts for NRPN processing
-        if (state['msb'] is not None and
-            state['lsb'] is not None and
-            state['data_msb'] is not None):
-
+        if state["msb"] is not None and state["lsb"] is not None and state["data_msb"] is not None:
             # Process the NRPN message through the XG NRPN controller
-            if hasattr(self, 'nrpn_controller') and self.nrpn_controller:
+            if hasattr(self, "nrpn_controller") and self.nrpn_controller:
                 try:
                     # Use 0 for LSB if not provided (common case)
-                    data_lsb = state['data_lsb'] if state['data_lsb'] is not None else 0
+                    data_lsb = state["data_lsb"] if state["data_lsb"] is not None else 0
 
                     # Process NRPN through effects coordinator
                     self.nrpn_controller.process_nrpn(
-                        state['msb'], state['lsb'],
-                        state['data_msb'], data_lsb
+                        state["msb"], state["lsb"], state["data_msb"], data_lsb
                     )
 
                     # Log successful NRPN processing
-                    nrpn_value = (state['data_msb'] << 7) | data_lsb
-                    print(f"🎛️  NRPN: Processed {state['msb']:3d}:{state['lsb']:3d} = {nrpn_value:5d}")
+                    nrpn_value = (state["data_msb"] << 7) | data_lsb
+                    print(
+                        f"🎛️  NRPN: Processed {state['msb']:3d}:{state['lsb']:3d} = {nrpn_value:5d}"
+                    )
 
                 except Exception as e:
                     print(f"Warning: NRPN processing failed for {state['msb']}:{state['lsb']}: {e}")
@@ -634,13 +660,8 @@ class OptimizedXGSynthesizer:
 
     def _reset_nrpn_state(self):
         """Reset NRPN state to prepare for next message sequence."""
-        if hasattr(self, '_nrpn_state'):
-            self._nrpn_state = {
-                'msb': None,
-                'lsb': None,
-                'data_msb': None,
-                'data_lsb': None
-            }
+        if hasattr(self, "_nrpn_state"):
+            self._nrpn_state = {"msb": None, "lsb": None, "data_msb": None, "data_lsb": None}
 
     def generate_audio_block_sample_accurate(self) -> np.ndarray:
         """
@@ -685,12 +706,12 @@ class OptimizedXGSynthesizer:
 
         # Initialize performance counters for this audio block
         performance_counters = {
-            'envelope_blocks_processed': 0,
-            'lfo_blocks_processed': 0,
-            'filter_blocks_processed': 0,
-            'wavetable_blocks_processed': 0,
-            'partial_blocks_processed': 0,
-            'channel_note_blocks_processed': 0
+            "envelope_blocks_processed": 0,
+            "lfo_blocks_processed": 0,
+            "filter_blocks_processed": 0,
+            "wavetable_blocks_processed": 0,
+            "partial_blocks_processed": 0,
+            "channel_note_blocks_processed": 0,
         }
 
         # Store counters in instance variable for component access
@@ -698,9 +719,15 @@ class OptimizedXGSynthesizer:
 
         # MIDI event counters
         midi_events_consumed = {
-            'sysex': 0, 'note_on': 0, 'note_off': 0, 'control_change': 0,
-            'program_change': 0, 'channel_pressure': 0, 'pitch_bend': 0,
-            'poly_pressure': 0, 'other': 0
+            "sysex": 0,
+            "note_on": 0,
+            "note_off": 0,
+            "control_change": 0,
+            "program_change": 0,
+            "channel_pressure": 0,
+            "pitch_bend": 0,
+            "poly_pressure": 0,
+            "other": 0,
         }
         segments_processed = 0
 
@@ -730,7 +757,7 @@ class OptimizedXGSynthesizer:
                     if msg_type in midi_events_consumed:
                         midi_events_consumed[msg_type] += 1
                     else:
-                        midi_events_consumed['other'] += 1
+                        midi_events_consumed["other"] += 1
 
                     if message.type == MSG_TYPE_SYSEX:
                         self.send_sysex(message)
@@ -756,7 +783,6 @@ class OptimizedXGSynthesizer:
                 channel_audio = self._generate_channel_audio_vectorized(segment_length)
                 channels_rendering_time += time.perf_counter() - channels_start
 
-
                 # Process through new XG effects coordinator (zero-allocation processing)
                 effects_start = time.perf_counter()
                 # Use buffer from XGBufferPool to maintain zero-allocation principle
@@ -766,7 +792,9 @@ class OptimizedXGSynthesizer:
                 )
                 effect_processing_time += time.perf_counter() - effects_start
 
-                self.out_buffer[block_offset : block_offset + segment_length] = final_stereo_segment[:segment_length]
+                self.out_buffer[block_offset : block_offset + segment_length] = (
+                    final_stereo_segment[:segment_length]
+                )
 
                 # Return buffer to pool to maintain zero-allocation
                 self.memory_pool.return_stereo_buffer(final_stereo_segment)
@@ -783,24 +811,45 @@ class OptimizedXGSynthesizer:
             total_time = time.perf_counter() - start_time
 
             # Get final counter values from instance counters
-            envelope_blocks_processed = self._current_performance_counters.get('envelope_blocks_processed', 0)
-            lfo_blocks_processed = self._current_performance_counters.get('lfo_blocks_processed', 0)
-            filter_blocks_processed = self._current_performance_counters.get('filter_blocks_processed', 0)
-            wavetable_blocks_processed = self._current_performance_counters.get('wavetable_blocks_processed', 0)
-            partial_blocks_processed = self._current_performance_counters.get('partial_blocks_processed', 0)
-            channel_note_blocks_processed = self._current_performance_counters.get('channel_note_blocks_processed', 0)
+            envelope_blocks_processed = self._current_performance_counters.get(
+                "envelope_blocks_processed", 0
+            )
+            lfo_blocks_processed = self._current_performance_counters.get("lfo_blocks_processed", 0)
+            filter_blocks_processed = self._current_performance_counters.get(
+                "filter_blocks_processed", 0
+            )
+            wavetable_blocks_processed = self._current_performance_counters.get(
+                "wavetable_blocks_processed", 0
+            )
+            partial_blocks_processed = self._current_performance_counters.get(
+                "partial_blocks_processed", 0
+            )
+            channel_note_blocks_processed = self._current_performance_counters.get(
+                "channel_note_blocks_processed", 0
+            )
 
             self._log_comprehensive_performance_stats(
-                self._current_time, midi_processing_time, envelope_processing_time, lfo_processing_time,
-                filter_processing_time, wavetable_rendering_time, partial_generator_rendering_time,
-                channel_notes_rendering_time, channels_rendering_time, effect_processing_time,
-                midi_events_consumed, segments_processed,
-                envelope_blocks_processed, lfo_blocks_processed, filter_blocks_processed,
-                wavetable_blocks_processed, partial_blocks_processed, channel_note_blocks_processed
+                self._current_time,
+                midi_processing_time,
+                envelope_processing_time,
+                lfo_processing_time,
+                filter_processing_time,
+                wavetable_rendering_time,
+                partial_generator_rendering_time,
+                channel_notes_rendering_time,
+                channels_rendering_time,
+                effect_processing_time,
+                midi_events_consumed,
+                segments_processed,
+                envelope_blocks_processed,
+                lfo_blocks_processed,
+                filter_blocks_processed,
+                wavetable_blocks_processed,
+                partial_blocks_processed,
+                channel_note_blocks_processed,
             )
 
             return self.out_buffer
-
 
     def _generate_channel_audio_vectorized(self, block_size: int) -> list[np.ndarray]:
         """
@@ -822,7 +871,9 @@ class OptimizedXGSynthesizer:
             if channel_renderer.is_active():
                 try:
                     # Generate audio block for this specific channel
-                    channel_left, channel_right = channel_renderer.generate_sample_block_vectorized(block_size)
+                    channel_left, channel_right = channel_renderer.generate_sample_block_vectorized(
+                        block_size
+                    )
 
                     # Apply volume and pan in-place
                     if self.master_volume < 1.0:
@@ -846,9 +897,6 @@ class OptimizedXGSynthesizer:
             self._log_channel_audio_rendering(block_size)
 
         return self.channel_buffers
-
-
-
 
     def rewind(self):
         """
@@ -900,34 +948,34 @@ class OptimizedXGSynthesizer:
             # Clean up channel renderers
             for renderer in self.channel_renderers:
                 try:
-                    if hasattr(renderer, 'cleanup'):
+                    if hasattr(renderer, "cleanup"):
                         renderer.cleanup()
                 except:
                     pass
 
             # Return main audio buffers to XGBufferPool
-            if hasattr(self, 'out_buffer') and self.out_buffer is not None:
+            if hasattr(self, "out_buffer") and self.out_buffer is not None:
                 self.memory_pool.return_stereo_buffer(self.out_buffer)
                 self.out_buffer = None
 
-            if hasattr(self, 'temp_left') and self.temp_left is not None:
+            if hasattr(self, "temp_left") and self.temp_left is not None:
                 self.memory_pool.return_mono_buffer(self.temp_left)
                 self.temp_left = None
 
-            if hasattr(self, 'temp_right') and self.temp_right is not None:
+            if hasattr(self, "temp_right") and self.temp_right is not None:
                 self.memory_pool.return_mono_buffer(self.temp_right)
                 self.temp_right = None
 
-            if hasattr(self, 'effect_input') and self.effect_input is not None:
+            if hasattr(self, "effect_input") and self.effect_input is not None:
                 self.memory_pool.return_stereo_buffer(self.effect_input)
                 self.effect_input = None
 
-            if hasattr(self, 'effect_output') and self.effect_output is not None:
+            if hasattr(self, "effect_output") and self.effect_output is not None:
                 self.memory_pool.return_stereo_buffer(self.effect_output)
                 self.effect_output = None
 
             # Return channel buffers
-            if hasattr(self, 'channel_buffers'):
+            if hasattr(self, "channel_buffers"):
                 for buffer in self.channel_buffers:
                     if buffer is not None:
                         self.memory_pool.return_stereo_buffer(buffer)
@@ -935,7 +983,7 @@ class OptimizedXGSynthesizer:
 
             # Clear references
             self.channel_renderers.clear()
-            if hasattr(self, '_message_sequence'):
+            if hasattr(self, "_message_sequence"):
                 self._message_sequence.clear()
 
     def reset(self):
@@ -945,21 +993,21 @@ class OptimizedXGSynthesizer:
             for renderer in self.channel_renderers:
                 try:
                     renderer.all_sound_off()
-                    if hasattr(renderer, 'cleanup_buffers'):
+                    if hasattr(renderer, "cleanup_buffers"):
                         renderer.cleanup_buffers()
                 except:
                     pass
 
             # Reset channel renderers
             for renderer in self.channel_renderers:
-                if hasattr(renderer, 'reset'):
+                if hasattr(renderer, "reset"):
                     renderer.reset()
 
             # Reset drum manager
             self.drum_manager.reset_all_drum_parameters()
 
             # Reset effects coordinator to XG defaults
-            if hasattr(self.effects_coordinator, 'reset_all_effects'):
+            if hasattr(self.effects_coordinator, "reset_all_effects"):
                 self.effects_coordinator.reset_all_effects()
 
             # Reset message sequence and consumption state
@@ -970,17 +1018,35 @@ class OptimizedXGSynthesizer:
             # Reinitialize XG
             self._initialize_xg()
 
-    def _log_comprehensive_performance_stats(self, total_time, midi_processing_time, envelope_processing_time,
-                                           lfo_processing_time, filter_processing_time, wavetable_rendering_time,
-                                           partial_generator_rendering_time, channel_notes_rendering_time,
-                                           channels_rendering_time, effect_processing_time,
-                                           midi_events_consumed, segments_processed,
-                                           envelope_blocks_processed, lfo_blocks_processed, filter_blocks_processed,
-                                           wavetable_blocks_processed, partial_blocks_processed, channel_note_blocks_processed):
+    def _log_comprehensive_performance_stats(
+        self,
+        total_time,
+        midi_processing_time,
+        envelope_processing_time,
+        lfo_processing_time,
+        filter_processing_time,
+        wavetable_rendering_time,
+        partial_generator_rendering_time,
+        channel_notes_rendering_time,
+        channels_rendering_time,
+        effect_processing_time,
+        midi_events_consumed,
+        segments_processed,
+        envelope_blocks_processed,
+        lfo_blocks_processed,
+        filter_blocks_processed,
+        wavetable_blocks_processed,
+        partial_blocks_processed,
+        channel_note_blocks_processed,
+    ):
         """Log comprehensive performance statistics to file after each audio block generation."""
         # Collect total statistics
-        total_active_channels = sum(1 for renderer in self.channel_renderers if renderer.is_active())
-        total_active_channel_notes = sum(len(renderer.active_notes) for renderer in self.channel_renderers)
+        total_active_channels = sum(
+            1 for renderer in self.channel_renderers if renderer.is_active()
+        )
+        total_active_channel_notes = sum(
+            len(renderer.active_notes) for renderer in self.channel_renderers
+        )
         total_active_partials = sum(
             sum(1 for partial in channel_note.partials if partial.is_active())
             for renderer in self.channel_renderers
@@ -989,14 +1055,22 @@ class OptimizedXGSynthesizer:
 
         # Collect LFO statistics
         total_active_lfos = sum(
-            len([lfo for lfo in renderer.lfos if hasattr(lfo, 'is_active') and lfo.is_active()])
+            len([lfo for lfo in renderer.lfos if hasattr(lfo, "is_active") and lfo.is_active()])
             for renderer in self.channel_renderers
         )
 
         # Collect resonant filter statistics
         total_active_filters = sum(
-            sum(len([partial for partial in channel_note.partials if hasattr(partial, 'filter') and partial.filter is not None])
-                for channel_note in renderer.active_notes.values())
+            sum(
+                len(
+                    [
+                        partial
+                        for partial in channel_note.partials
+                        if hasattr(partial, "filter") and partial.filter is not None
+                    ]
+                )
+                for channel_note in renderer.active_notes.values()
+            )
             for renderer in self.channel_renderers
         )
 
@@ -1020,11 +1094,13 @@ class OptimizedXGSynthesizer:
         for channel_idx, renderer in enumerate(self.channel_renderers):
             if renderer.is_active():
                 channel_notes = len(renderer.active_notes)
-                channel_partials = sum(len(channel_note.partials) for channel_note in renderer.active_notes.values())
+                channel_partials = sum(
+                    len(channel_note.partials) for channel_note in renderer.active_notes.values()
+                )
 
                 # Get channel MIDI settings from channel renderer
-                bank = getattr(renderer, 'bank', 0)
-                program = getattr(renderer, 'program', 0)
+                bank = getattr(renderer, "bank", 0)
+                program = getattr(renderer, "program", 0)
 
                 # Get SF2 preset name if available
                 preset_name = self._get_sf2_preset_name(bank, program)
@@ -1033,7 +1109,7 @@ class OptimizedXGSynthesizer:
                 receive_channel = self.receive_channel_manager.get_receive_channel(channel_idx)
                 if receive_channel is None:
                     receive_channel = channel_idx  # Fallback to direct mapping
-                part_mode = getattr(renderer, 'part_mode', 0)  # Default to normal mode
+                part_mode = getattr(renderer, "part_mode", 0)  # Default to normal mode
 
                 # Calculate per-channel RMS from the channel buffer used in mixing
                 if self.channel_buffers[channel_idx] is not None:
@@ -1044,51 +1120,53 @@ class OptimizedXGSynthesizer:
                 else:
                     ch_rms = 0.0
 
-                per_channel_stats.append({
-                    'channel': channel_idx,
-                    'receive_channel': receive_channel,
-                    'part_mode': part_mode,
-                    'bank': bank,
-                    'program': program,
-                    'preset_name': preset_name,
-                    'active_notes': channel_notes,
-                    'active_partials': channel_partials,
-                    'rms': ch_rms
-                })
+                per_channel_stats.append(
+                    {
+                        "channel": channel_idx,
+                        "receive_channel": receive_channel,
+                        "part_mode": part_mode,
+                        "bank": bank,
+                        "program": program,
+                        "preset_name": preset_name,
+                        "active_notes": channel_notes,
+                        "active_partials": channel_partials,
+                        "rms": ch_rms,
+                    }
+                )
 
         # Write comprehensive statistics to log file
         log_data = {
-            'timestamp': time.time(),
-            'current_time': total_time,
-            'midi_processing_time': midi_processing_time,
-            'envelope_processing_time': envelope_processing_time,
-            'lfo_processing_time': lfo_processing_time,
-            'filter_processing_time': filter_processing_time,
-            'wavetable_rendering_time': wavetable_rendering_time,
-            'partial_generator_rendering_time': partial_generator_rendering_time,
-            'channel_notes_rendering_time': channel_notes_rendering_time,
-            'channels_rendering_time': channels_rendering_time,
-            'effect_processing_time': effect_processing_time,
-            'total_active_channels': total_active_channels,
-            'total_active_channel_notes': total_active_channel_notes,
-            'total_active_partials': total_active_partials,
-            'total_active_lfos': total_active_lfos,
-            'total_active_filters': total_active_filters,
-            'audio_output_rms': rms_total,
-            'segments_processed': segments_processed,
-            'midi_events_consumed': midi_events_consumed,
-            'total_midi_events': sum(midi_events_consumed.values()),
-            'system_effects': system_effects_status,
-            'insertion_effects': insertion_effects,
-            'blocks_processed': {
-                'envelope': envelope_blocks_processed,
-                'lfo': lfo_blocks_processed,
-                'filter': filter_blocks_processed,
-                'wavetable': wavetable_blocks_processed,
-                'partial': partial_blocks_processed,
-                'channel_note': channel_note_blocks_processed
+            "timestamp": time.time(),
+            "current_time": total_time,
+            "midi_processing_time": midi_processing_time,
+            "envelope_processing_time": envelope_processing_time,
+            "lfo_processing_time": lfo_processing_time,
+            "filter_processing_time": filter_processing_time,
+            "wavetable_rendering_time": wavetable_rendering_time,
+            "partial_generator_rendering_time": partial_generator_rendering_time,
+            "channel_notes_rendering_time": channel_notes_rendering_time,
+            "channels_rendering_time": channels_rendering_time,
+            "effect_processing_time": effect_processing_time,
+            "total_active_channels": total_active_channels,
+            "total_active_channel_notes": total_active_channel_notes,
+            "total_active_partials": total_active_partials,
+            "total_active_lfos": total_active_lfos,
+            "total_active_filters": total_active_filters,
+            "audio_output_rms": rms_total,
+            "segments_processed": segments_processed,
+            "midi_events_consumed": midi_events_consumed,
+            "total_midi_events": sum(midi_events_consumed.values()),
+            "system_effects": system_effects_status,
+            "insertion_effects": insertion_effects,
+            "blocks_processed": {
+                "envelope": envelope_blocks_processed,
+                "lfo": lfo_blocks_processed,
+                "filter": filter_blocks_processed,
+                "wavetable": wavetable_blocks_processed,
+                "partial": partial_blocks_processed,
+                "channel_note": channel_note_blocks_processed,
             },
-            'per_channel_stats': per_channel_stats
+            "per_channel_stats": per_channel_stats,
         }
 
         # Write to log file
@@ -1099,14 +1177,20 @@ class OptimizedXGSynthesizer:
         try:
             state = self.effects_coordinator.get_current_state()
             return {
-                'reverb': 'ON' if state.get('reverb_params', {}).get('level', 0) > 0 else 'OFF',
-                'chorus': 'ON' if state.get('chorus_params', {}).get('level', 0) > 0 else 'OFF',
-                'variation': 'ON' if state.get('variation_params', {}).get('level', 0) > 0 else 'OFF',
-                'multi_eq': 'ON' if any(state.get('equalizer_params', {}).get(param, 0) != 0
-                                      for param in ['low_gain', 'mid_gain', 'high_gain']) else 'OFF'
+                "reverb": "ON" if state.get("reverb_params", {}).get("level", 0) > 0 else "OFF",
+                "chorus": "ON" if state.get("chorus_params", {}).get("level", 0) > 0 else "OFF",
+                "variation": "ON"
+                if state.get("variation_params", {}).get("level", 0) > 0
+                else "OFF",
+                "multi_eq": "ON"
+                if any(
+                    state.get("equalizer_params", {}).get(param, 0) != 0
+                    for param in ["low_gain", "mid_gain", "high_gain"]
+                )
+                else "OFF",
             }
         except:
-            return {'reverb': 'UNK', 'chorus': 'UNK', 'variation': 'UNK', 'multi_eq': 'UNK'}
+            return {"reverb": "UNK", "chorus": "UNK", "variation": "UNK", "multi_eq": "UNK"}
 
     def _get_insertion_effects_status(self):
         """Get status of insertion effects during block processing."""
@@ -1115,7 +1199,7 @@ class OptimizedXGSynthesizer:
             state = self.effects_coordinator.get_current_state()
 
             # Check if insertion effects are available in the coordinator
-            if hasattr(self.effects_coordinator, 'insertion_effects'):
+            if hasattr(self.effects_coordinator, "insertion_effects"):
                 num_channels = len(self.effects_coordinator.insertion_effects)
                 if num_channels > 0:
                     return f"{num_channels} channels available"
@@ -1127,7 +1211,7 @@ class OptimizedXGSynthesizer:
         except Exception as e:
             # Log error but don't crash the performance logging
             print(f"Warning: Failed to get insertion effects status: {e}")
-            return 'UNK'
+            return "UNK"
 
     def _get_sf2_preset_name(self, bank: int, program: int) -> str:
         """Get the SF2 preset name for a given bank and program."""
@@ -1156,18 +1240,20 @@ class OptimizedXGSynthesizer:
             log_file = os.path.join(log_dir, "performance.log")
 
             # Create/recreate the log file with a header
-            header = f"{'='*80}\n"
-            header += f"XG SYNTHESIZER PERFORMANCE LOG - SESSION STARTED\n"
-            header += f"{'='*80}\n"
-            header += f"Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}\n"
-            header += f"Synthesizer: OptimizedXGSynthesizer\n"
+            header = f"{'=' * 80}\n"
+            header += "XG SYNTHESIZER PERFORMANCE LOG - SESSION STARTED\n"
+            header += f"{'=' * 80}\n"
+            header += (
+                f"Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}\n"
+            )
+            header += "Synthesizer: OptimizedXGSynthesizer\n"
             header += f"Sample Rate: {self.sample_rate} Hz\n"
             header += f"Block Size: {self.block_size} samples\n"
             header += f"Max Polyphony: {self.max_polyphony} voices\n"
-            header += f"{'='*80}\n\n"
+            header += f"{'=' * 80}\n\n"
 
             # Write header to recreate the file
-            with open(log_file, 'w', encoding='utf-8') as f:
+            with open(log_file, "w", encoding="utf-8") as f:
                 f.write(header)
 
         except Exception as e:
@@ -1185,12 +1271,12 @@ class OptimizedXGSynthesizer:
             log_file = os.path.join(log_dir, "performance.log")
 
             # Format the log entry
-            timestamp = log_data['timestamp']
-            current_time = log_data['current_time']
+            timestamp = log_data["timestamp"]
+            current_time = log_data["current_time"]
 
             # Build the log entry
             log_entry = f"[{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))}] Performance Report:\n"
-            log_entry += f"  Current Time: {current_time*1000:.3f}ms\n"
+            log_entry += f"  Current Time: {current_time * 1000:.3f}ms\n"
             log_entry += f"  Active Resources: channels={log_data['total_active_channels']}, notes={log_data['total_active_channel_notes']}, partials={log_data['total_active_partials']}, LFOs={log_data['total_active_lfos']}, filters={log_data['total_active_filters']}\n"
             log_entry += f"  System Effects: reverb={log_data['system_effects']['reverb']}, chorus={log_data['system_effects']['chorus']}, variation={log_data['system_effects']['variation']}, multi_eq={log_data['system_effects']['multi_eq']}\n"
             log_entry += f"  Insertion Effects: {log_data['insertion_effects']}\n"
@@ -1198,21 +1284,21 @@ class OptimizedXGSynthesizer:
             log_entry += f"  Audio Output RMS: {log_data['audio_output_rms']:.6f}\n"
 
             # Processing times
-            log_entry += f"  Processing Times (ms):\n"
-            times = log_data['blocks_processed']
-            log_entry += f"    MIDI: {log_data['midi_processing_time']*1000:.3f}, Envelope: {log_data['envelope_processing_time']*1000:.3f} ({times['envelope']} blocks), LFO: {log_data['lfo_processing_time']*1000:.3f} ({times['lfo']} blocks)\n"
-            log_entry += f"    Filter: {log_data['filter_processing_time']*1000:.3f} ({times['filter']} blocks), Wavetable: {log_data['wavetable_rendering_time']*1000:.3f} ({times['wavetable']} blocks), Partials: {log_data['partial_generator_rendering_time']*1000:.3f} ({times['partial']} blocks)\n"
-            log_entry += f"    Channel Notes: {log_data['channel_notes_rendering_time']*1000:.3f} ({times['channel_note']} blocks), Channels: {log_data['channels_rendering_time']*1000:.3f}, Effects: {log_data['effect_processing_time']*1000:.3f}\n"
+            log_entry += "  Processing Times (ms):\n"
+            times = log_data["blocks_processed"]
+            log_entry += f"    MIDI: {log_data['midi_processing_time'] * 1000:.3f}, Envelope: {log_data['envelope_processing_time'] * 1000:.3f} ({times['envelope']} blocks), LFO: {log_data['lfo_processing_time'] * 1000:.3f} ({times['lfo']} blocks)\n"
+            log_entry += f"    Filter: {log_data['filter_processing_time'] * 1000:.3f} ({times['filter']} blocks), Wavetable: {log_data['wavetable_rendering_time'] * 1000:.3f} ({times['wavetable']} blocks), Partials: {log_data['partial_generator_rendering_time'] * 1000:.3f} ({times['partial']} blocks)\n"
+            log_entry += f"    Channel Notes: {log_data['channel_notes_rendering_time'] * 1000:.3f} ({times['channel_note']} blocks), Channels: {log_data['channels_rendering_time'] * 1000:.3f}, Effects: {log_data['effect_processing_time'] * 1000:.3f}\n"
 
             # Per-channel statistics
-            log_entry += f"  Per-Channel Statistics:\n"
-            for stat in log_data['per_channel_stats']:
+            log_entry += "  Per-Channel Statistics:\n"
+            for stat in log_data["per_channel_stats"]:
                 log_entry += f"    Ch{stat['channel']:2d} (RX:{stat['receive_channel']:2d}, Mode:{stat['part_mode']:1d}, Bank:{stat['bank']:3d}, Prog:{stat['program']:3d}, Preset:{stat['preset_name'][:12]:12}): notes={stat['active_notes']:2d}, partials={stat['active_partials']:2d}, RMS={stat['rms']:.6f}\n"
 
             log_entry += "\n"
 
             # Write to file (append mode)
-            with open(log_file, 'a', encoding='utf-8') as f:
+            with open(log_file, "a", encoding="utf-8") as f:
                 f.write(log_entry)
 
         except Exception as e:
@@ -1252,7 +1338,7 @@ class OptimizedXGSynthesizer:
 
     def _log_channel_audio_rendering(self, block_size: int):
         """Log channel audio rendering based on the configured log level."""
-        if self.render_log_level == 0 or not hasattr(self, 'audio_writers'):
+        if self.render_log_level == 0 or not hasattr(self, "audio_writers"):
             return
 
         # Level 1: Dry stereo output before effects processing
@@ -1271,9 +1357,14 @@ class OptimizedXGSynthesizer:
         if self.render_log_level >= 2:
             for channel_idx in range(self.num_channels):
                 writer_key = f"channel_{channel_idx}"
-                if writer_key in self.audio_writers and self.channel_buffers[channel_idx] is not None:
+                if (
+                    writer_key in self.audio_writers
+                    and self.channel_buffers[channel_idx] is not None
+                ):
                     # Write only the first block_size samples of individual channel output
-                    self.audio_writers[writer_key].write(self.channel_buffers[channel_idx][:block_size])
+                    self.audio_writers[writer_key].write(
+                        self.channel_buffers[channel_idx][:block_size]
+                    )
 
         # Level 3: Output of each active channel note
         if self.render_log_level >= 3:
@@ -1285,11 +1376,15 @@ class OptimizedXGSynthesizer:
                         # Create writer if it doesn't exist
                         if writer_key not in self.audio_writers:
                             self.audio_writers[writer_key] = self.audio_writer.create_writer(
-                                os.path.join("render_logs", f"level3_channel_{channel_idx}_note_{note_num}.wav"), "wav"
+                                os.path.join(
+                                    "render_logs",
+                                    f"level3_channel_{channel_idx}_note_{note_num}.wav",
+                                ),
+                                "wav",
                             ).__enter__()
 
                         # Generate note audio and write it
-                        if hasattr(channel_note, 'generate_sample_block'):
+                        if hasattr(channel_note, "generate_sample_block"):
                             # Get appropriately sized buffers for this block
                             if block_size == self.block_size:
                                 # Use XGBufferPool buffers for standard size
@@ -1302,17 +1397,29 @@ class OptimizedXGSynthesizer:
 
                             try:
                                 channel_note.generate_sample_block(
-                                    block_size, note_left, note_right,
-                                    mod_wheel=renderer.controllers[1] if 1 in renderer.controllers else 0,
-                                    breath_controller=renderer.controllers[2] if 2 in renderer.controllers else 0,
-                                    foot_controller=renderer.controllers[4] if 4 in renderer.controllers else 0,
-                                    brightness=renderer.controllers[72] if 72 in renderer.controllers else 64,
-                                    harmonic_content=renderer.controllers[71] if 71 in renderer.controllers else 64,
+                                    block_size,
+                                    note_left,
+                                    note_right,
+                                    mod_wheel=renderer.controllers[1]
+                                    if 1 in renderer.controllers
+                                    else 0,
+                                    breath_controller=renderer.controllers[2]
+                                    if 2 in renderer.controllers
+                                    else 0,
+                                    foot_controller=renderer.controllers[4]
+                                    if 4 in renderer.controllers
+                                    else 0,
+                                    brightness=renderer.controllers[72]
+                                    if 72 in renderer.controllers
+                                    else 64,
+                                    harmonic_content=renderer.controllers[71]
+                                    if 71 in renderer.controllers
+                                    else 64,
                                     channel_pressure_value=renderer.channel_pressure_value,
                                     key_pressure=renderer.key_pressure_values.get(note_num, 0),
                                     volume=renderer.volume,
                                     expression=renderer.expression,
-                                    global_pitch_mod=0.0
+                                    global_pitch_mod=0.0,
                                 )
 
                                 # Combine into stereo and write
@@ -1327,26 +1434,26 @@ class OptimizedXGSynthesizer:
     def _finalize_audio_logging(self):
         """Finalize and close all audio logging streams."""
         # Close all audio writers
-        if hasattr(self, 'audio_writers') and self.audio_writers:
+        if hasattr(self, "audio_writers") and self.audio_writers:
             for writer in self.audio_writers.values():
                 try:
-                    if hasattr(writer, '__exit__'):
+                    if hasattr(writer, "__exit__"):
                         writer.__exit__(None, None, None)
                 except:
                     pass
 
         # Clear writer references
-        if hasattr(self, 'audio_writers'):
+        if hasattr(self, "audio_writers"):
             self.audio_writers.clear()
-        if hasattr(self, 'note_writers'):
+        if hasattr(self, "note_writers"):
             self.note_writers.clear()
 
         # Clear accumulators
-        if hasattr(self, 'dry_output_accumulator'):
+        if hasattr(self, "dry_output_accumulator"):
             self.dry_output_accumulator.clear()
-        if hasattr(self, 'channel_accumulators'):
+        if hasattr(self, "channel_accumulators"):
             self.channel_accumulators.clear()
-        if hasattr(self, 'note_accumulators'):
+        if hasattr(self, "note_accumulators"):
             self.note_accumulators.clear()
 
     def __del__(self):

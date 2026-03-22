@@ -5,14 +5,19 @@ Plugin that adds Jupiter-X specific analog synthesis features to the base analog
 Eliminates duplication by extending the existing analog synthesis rather than creating
 a parallel implementation.
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 import numpy as np
 
 from ..base_plugin import (
-    SynthesisFeaturePlugin, PluginMetadata, PluginLoadContext,
-    PluginType, PluginCompatibility
+    PluginCompatibility,
+    PluginLoadContext,
+    PluginMetadata,
+    PluginType,
+    SynthesisFeaturePlugin,
 )
 
 
@@ -42,31 +47,31 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
                 "dual_oscillator_mode": {
                     "type": "bool",
                     "default": True,
-                    "description": "Enable dual oscillator Jupiter-X mode"
+                    "description": "Enable dual oscillator Jupiter-X mode",
                 },
                 "oscillator_sync": {
                     "type": "bool",
                     "default": False,
-                    "description": "Enable oscillator hard sync"
+                    "description": "Enable oscillator hard sync",
                 },
                 "ring_modulation": {
                     "type": "bool",
                     "default": False,
-                    "description": "Enable oscillator ring modulation"
+                    "description": "Enable oscillator ring modulation",
                 },
                 "filter_configuration": {
                     "type": "enum",
                     "default": "series",
                     "options": ["series", "parallel", "dual"],
-                    "description": "Filter routing configuration"
+                    "description": "Filter routing configuration",
                 },
                 "envelope_shape": {
                     "type": "enum",
                     "default": "analog",
                     "options": ["analog", "digital", "exponential"],
-                    "description": "Envelope curve shape"
-                }
-            }
+                    "description": "Envelope curve shape",
+                },
+            },
         )
         super().__init__(metadata)
 
@@ -92,7 +97,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         # Sub-oscillator
         self.sub_oscillator_enabled = False
         self.sub_oscillator_octave = -1  # -2, -1 octaves below
-        self.sub_oscillator_waveform = 'square'
+        self.sub_oscillator_waveform = "square"
         self.sub_oscillator_level = 0.0
 
         # Waveform morphing and mixing
@@ -101,7 +106,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         self.osc2_morph_position = 0.0
 
         # Advanced noise generation
-        self.noise_color = 'white'  # white, pink, blue, brown
+        self.noise_color = "white"  # white, pink, blue, brown
         self.noise_level = 0.0
 
         # Oscillator state for advanced features
@@ -113,29 +118,29 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         # Jupiter-X specific waveforms
         self.jupiter_x_waveforms = {
-            'sawtooth': self._generate_jupiter_x_sawtooth,
-            'square': self._generate_jupiter_x_square,
-            'triangle': self._generate_jupiter_x_triangle,
-            'sine': self._generate_jupiter_x_sine,
-            'noise': self._generate_jupiter_x_noise
+            "sawtooth": self._generate_jupiter_x_sawtooth,
+            "square": self._generate_jupiter_x_square,
+            "triangle": self._generate_jupiter_x_triangle,
+            "sine": self._generate_jupiter_x_sine,
+            "noise": self._generate_jupiter_x_noise,
         }
 
         # Dual oscillator state
-        self.osc1_waveform = 'sawtooth'
-        self.osc2_waveform = 'square'
+        self.osc1_waveform = "sawtooth"
+        self.osc2_waveform = "square"
         self.osc1_level = 1.0
         self.osc2_level = 0.5
         self.osc2_detune = 0.0  # In semitones
 
         # ===== PHASE 2.2: ADVANCED FILTER FEATURES =====
         # Multi-mode filter system
-        self.filter1_type = 'lpf'  # lpf, hpf, bpf, notch, comb
+        self.filter1_type = "lpf"  # lpf, hpf, bpf, notch, comb
         self.filter1_cutoff = 1000.0
         self.filter1_resonance = 0.0
         self.filter1_drive = 1.0
         self.filter1_slope = 12  # dB/octave (12, 24)
 
-        self.filter2_type = 'lpf'
+        self.filter2_type = "lpf"
         self.filter2_cutoff = 2000.0
         self.filter2_resonance = 0.0
         self.filter2_drive = 1.0
@@ -154,11 +159,11 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         # Velocity sensitivity
         self.velocity_to_cutoff = 0.0  # -1.0 to +1.0
         self.velocity_to_resonance = 0.0
-        self.velocity_curve = 'linear'  # linear, convex, concave
+        self.velocity_curve = "linear"  # linear, convex, concave
 
         # Filter saturation and drive
         self.input_drive = 1.0  # 1.0 = no drive, >1.0 = saturation
-        self.saturation_type = 'soft'  # soft, hard, vintage, tape
+        self.saturation_type = "soft"  # soft, hard, vintage, tape
 
         # Parallel filter routing
         self.parallel_filter_mix = 0.0  # 0.0 = series, 1.0 = parallel
@@ -175,30 +180,30 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         self.envelope_stages = 4  # ADSR default, expandable to 8
         self.envelope_loop_enabled = False
         self.envelope_loop_start = 2  # Start looping from sustain
-        self.envelope_loop_end = 3    # Loop to release
-        self.envelope_sustain_mode = 'normal'  # normal, loop, gated
+        self.envelope_loop_end = 3  # Loop to release
+        self.envelope_sustain_mode = "normal"  # normal, loop, gated
 
         # Envelope curves per stage
-        self.attack_curve = 'convex'   # convex, concave, linear, exponential, logarithmic
-        self.decay_curve = 'exponential'
-        self.sustain_curve = 'linear'
-        self.release_curve = 'exponential'
+        self.attack_curve = "convex"  # convex, concave, linear, exponential, logarithmic
+        self.decay_curve = "exponential"
+        self.sustain_curve = "linear"
+        self.release_curve = "exponential"
 
         # Velocity sensitivity per stage
-        self.velocity_to_attack = 0.0      # -1.0 to +1.0
+        self.velocity_to_attack = 0.0  # -1.0 to +1.0
         self.velocity_to_decay = 0.0
         self.velocity_to_sustain = 0.0
         self.velocity_to_release = 0.0
 
         # Envelope retrigger modes
-        self.envelope_retrigger_mode = 'single'  # single, multi, alternate
+        self.envelope_retrigger_mode = "single"  # single, multi, alternate
         self.envelope_legato_mode = False
         self.envelope_reset_on_note_off = True
 
         # Keyboard scaling and tracking
-        self.envelope_key_tracking = 0.0    # -1.0 to +1.0
-        self.envelope_key_center = 60       # MIDI note center
-        self.envelope_velocity_curve = 'linear'  # linear, convex, concave
+        self.envelope_key_tracking = 0.0  # -1.0 to +1.0
+        self.envelope_key_center = 60  # MIDI note center
+        self.envelope_velocity_curve = "linear"  # linear, convex, concave
 
         # Advanced envelope state
         self.envelope_current_stage = 0
@@ -213,32 +218,48 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         # ===== PHASE 2.3: ADVANCED ENVELOPE METHODS =====
 
-    def configure_multi_stage_envelope(self, stages: int = 4, loop_enabled: bool = False,
-                                      loop_start: int = 2, loop_end: int = 3,
-                                      sustain_mode: str = 'normal'):
+    def configure_multi_stage_envelope(
+        self,
+        stages: int = 4,
+        loop_enabled: bool = False,
+        loop_start: int = 2,
+        loop_end: int = 3,
+        sustain_mode: str = "normal",
+    ):
         """Configure multi-stage envelope system."""
         self.envelope_stages = max(2, min(8, stages))  # 2-8 stages
         self.envelope_loop_enabled = loop_enabled
         self.envelope_loop_start = max(0, min(self.envelope_stages - 1, loop_start))
         self.envelope_loop_end = max(0, min(self.envelope_stages - 1, loop_end))
 
-        valid_modes = ['normal', 'loop', 'gated']
-        self.envelope_sustain_mode = sustain_mode if sustain_mode in valid_modes else 'normal'
+        valid_modes = ["normal", "loop", "gated"]
+        self.envelope_sustain_mode = sustain_mode if sustain_mode in valid_modes else "normal"
 
-        print(f"🎛️ Multi-stage envelope: {self.envelope_stages} stages, loop {'enabled' if self.envelope_loop_enabled else 'disabled'} ({self.envelope_sustain_mode} mode)")
+        print(
+            f"🎛️ Multi-stage envelope: {self.envelope_stages} stages, loop {'enabled' if self.envelope_loop_enabled else 'disabled'} ({self.envelope_sustain_mode} mode)"
+        )
 
-    def set_envelope_curves(self, attack_curve: str = 'convex', decay_curve: str = 'exponential',
-                           sustain_curve: str = 'linear', release_curve: str = 'exponential'):
+    def set_envelope_curves(
+        self,
+        attack_curve: str = "convex",
+        decay_curve: str = "exponential",
+        sustain_curve: str = "linear",
+        release_curve: str = "exponential",
+    ):
         """Set envelope curve shapes per stage."""
-        valid_curves = ['linear', 'convex', 'concave', 'exponential', 'logarithmic']
-        self.attack_curve = attack_curve if attack_curve in valid_curves else 'convex'
-        self.decay_curve = decay_curve if decay_curve in valid_curves else 'exponential'
-        self.sustain_curve = sustain_curve if sustain_curve in valid_curves else 'linear'
-        self.release_curve = release_curve if release_curve in valid_curves else 'exponential'
+        valid_curves = ["linear", "convex", "concave", "exponential", "logarithmic"]
+        self.attack_curve = attack_curve if attack_curve in valid_curves else "convex"
+        self.decay_curve = decay_curve if decay_curve in valid_curves else "exponential"
+        self.sustain_curve = sustain_curve if sustain_curve in valid_curves else "linear"
+        self.release_curve = release_curve if release_curve in valid_curves else "exponential"
 
-        print(f"🎛️ Envelope curves: A={self.attack_curve}, D={self.decay_curve}, S={self.sustain_curve}, R={self.release_curve}")
+        print(
+            f"🎛️ Envelope curves: A={self.attack_curve}, D={self.decay_curve}, S={self.sustain_curve}, R={self.release_curve}"
+        )
 
-    def set_envelope_levels_times(self, levels: list[float] | None = None, times: list[float] | None = None):
+    def set_envelope_levels_times(
+        self, levels: list[float] | None = None, times: list[float] | None = None
+    ):
         """Set envelope level and time values for all stages."""
         if levels is None:
             levels = [0.0, 1.0, 0.7, 0.0]  # Default ADSR
@@ -247,42 +268,63 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         # Ensure we have the right number of values
         max_stages = len(self.envelope_levels)
-        self.envelope_levels[:len(levels)] = [max(0.0, min(1.0, lvl)) for lvl in levels[:max_stages]]
-        self.envelope_times[:len(times)] = [max(0.0, min(10.0, t)) for t in times[:max_stages]]
+        self.envelope_levels[: len(levels)] = [
+            max(0.0, min(1.0, lvl)) for lvl in levels[:max_stages]
+        ]
+        self.envelope_times[: len(times)] = [max(0.0, min(10.0, t)) for t in times[:max_stages]]
 
-        print(f"🎛️ Envelope levels: {self.envelope_levels[:self.envelope_stages]}")
-        print(f"🎛️ Envelope times: {self.envelope_times[:self.envelope_stages]}")
+        print(f"🎛️ Envelope levels: {self.envelope_levels[: self.envelope_stages]}")
+        print(f"🎛️ Envelope times: {self.envelope_times[: self.envelope_stages]}")
 
-    def set_velocity_sensitivity_per_stage(self, attack_sens: float = 0.0, decay_sens: float = 0.0,
-                                         sustain_sens: float = 0.0, release_sens: float = 0.0):
+    def set_velocity_sensitivity_per_stage(
+        self,
+        attack_sens: float = 0.0,
+        decay_sens: float = 0.0,
+        sustain_sens: float = 0.0,
+        release_sens: float = 0.0,
+    ):
         """Set velocity sensitivity for each envelope stage."""
         self.velocity_to_attack = max(-1.0, min(1.0, attack_sens))
         self.velocity_to_decay = max(-1.0, min(1.0, decay_sens))
         self.velocity_to_sustain = max(-1.0, min(1.0, sustain_sens))
         self.velocity_to_release = max(-1.0, min(1.0, release_sens))
 
-        print(f"🎛️ Velocity sensitivity per stage: A{self.velocity_to_attack:.2f}, D{self.velocity_to_decay:.2f}, S{self.velocity_to_sustain:.2f}, R{self.velocity_to_release:.2f}")
+        print(
+            f"🎛️ Velocity sensitivity per stage: A{self.velocity_to_attack:.2f}, D{self.velocity_to_decay:.2f}, S{self.velocity_to_sustain:.2f}, R{self.velocity_to_release:.2f}"
+        )
 
-    def set_envelope_retrigger_mode(self, mode: str = 'single', legato: bool = False, reset_on_note_off: bool = True):
+    def set_envelope_retrigger_mode(
+        self, mode: str = "single", legato: bool = False, reset_on_note_off: bool = True
+    ):
         """Configure envelope retrigger behavior."""
-        valid_modes = ['single', 'multi', 'alternate']
-        self.envelope_retrigger_mode = mode if mode in valid_modes else 'single'
+        valid_modes = ["single", "multi", "alternate"]
+        self.envelope_retrigger_mode = mode if mode in valid_modes else "single"
         self.envelope_legato_mode = legato
         self.envelope_reset_on_note_off = reset_on_note_off
 
-        print(f"🎛️ Envelope retrigger: {self.envelope_retrigger_mode} mode, legato {'enabled' if self.envelope_legato_mode else 'disabled'}")
+        print(
+            f"🎛️ Envelope retrigger: {self.envelope_retrigger_mode} mode, legato {'enabled' if self.envelope_legato_mode else 'disabled'}"
+        )
 
-    def set_envelope_key_tracking(self, amount: float = 0.0, center_note: int = 60, velocity_curve: str = 'linear'):
+    def set_envelope_key_tracking(
+        self, amount: float = 0.0, center_note: int = 60, velocity_curve: str = "linear"
+    ):
         """Configure envelope keyboard tracking and velocity curve."""
         self.envelope_key_tracking = max(-1.0, min(1.0, amount))
         self.envelope_key_center = max(0, min(127, center_note))
 
-        valid_curves = ['linear', 'convex', 'concave']
-        self.envelope_velocity_curve = velocity_curve if velocity_curve in valid_curves else 'linear'
+        valid_curves = ["linear", "convex", "concave"]
+        self.envelope_velocity_curve = (
+            velocity_curve if velocity_curve in valid_curves else "linear"
+        )
 
-        print(f"🎛️ Envelope key tracking: {self.envelope_key_tracking:.2f} (center: {self.envelope_key_center}), velocity curve: {self.envelope_velocity_curve}")
+        print(
+            f"🎛️ Envelope key tracking: {self.envelope_key_tracking:.2f} (center: {self.envelope_key_center}), velocity curve: {self.envelope_velocity_curve}"
+        )
 
-    def process_envelope(self, delta_time: float, note: int, velocity: int, note_on: bool, note_off: bool) -> float:
+    def process_envelope(
+        self, delta_time: float, note: int, velocity: int, note_on: bool, note_off: bool
+    ) -> float:
         """
         Process multi-stage envelope and return current envelope value.
 
@@ -326,12 +368,18 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         if not note_on:
             return False
 
-        if self.envelope_retrigger_mode == 'single':
-            return self.envelope_current_stage == self.envelope_stages - 1  # Only retrigger when finished
-        elif self.envelope_retrigger_mode == 'multi':
+        if self.envelope_retrigger_mode == "single":
+            return (
+                self.envelope_current_stage == self.envelope_stages - 1
+            )  # Only retrigger when finished
+        elif self.envelope_retrigger_mode == "multi":
             return True  # Always retrigger
-        elif self.envelope_retrigger_mode == 'alternate':
-            return self.envelope_current_stage >= self.envelope_loop_end if self.envelope_loop_enabled else True
+        elif self.envelope_retrigger_mode == "alternate":
+            return (
+                self.envelope_current_stage >= self.envelope_loop_end
+                if self.envelope_loop_enabled
+                else True
+            )
 
         return False
 
@@ -349,12 +397,16 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         # Get stage parameters
         start_level = self.envelope_levels[stage]
-        end_level = self.envelope_levels[stage + 1] if stage + 1 < len(self.envelope_levels) else start_level
+        end_level = (
+            self.envelope_levels[stage + 1]
+            if stage + 1 < len(self.envelope_levels)
+            else start_level
+        )
         stage_time = self.envelope_times[stage]
 
         # Apply velocity sensitivity to levels
-        start_level = self._apply_velocity_to_level(start_level, velocity, stage, 'start')
-        end_level = self._apply_velocity_to_level(end_level, velocity, stage, 'end')
+        start_level = self._apply_velocity_to_level(start_level, velocity, stage, "start")
+        end_level = self._apply_velocity_to_level(end_level, velocity, stage, "end")
 
         # Apply key tracking to time
         stage_time = self._apply_key_tracking_to_time(stage_time, note)
@@ -373,7 +425,9 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         return max(0.0, min(1.0, current_level))
 
-    def _apply_velocity_to_level(self, base_level: float, velocity: int, stage: int, level_type: str) -> float:
+    def _apply_velocity_to_level(
+        self, base_level: float, velocity: int, stage: int, level_type: str
+    ) -> float:
         """Apply velocity sensitivity to envelope level."""
         sens = 0.0
 
@@ -417,18 +471,18 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
     def _calculate_envelope_velocity_factor(self, vel_norm: float) -> float:
         """Calculate velocity factor based on envelope velocity curve."""
-        if self.envelope_velocity_curve == 'linear':
+        if self.envelope_velocity_curve == "linear":
             return vel_norm
-        elif self.envelope_velocity_curve == 'convex':
+        elif self.envelope_velocity_curve == "convex":
             return vel_norm * vel_norm
-        elif self.envelope_velocity_curve == 'concave':
+        elif self.envelope_velocity_curve == "concave":
             return 1.0 - (1.0 - vel_norm) * (1.0 - vel_norm)
         else:
             return vel_norm
 
     def _apply_envelope_curve(self, factor: float, stage: int) -> float:
         """Apply curve shaping to envelope interpolation factor."""
-        curve_type = 'linear'
+        curve_type = "linear"
 
         # Get curve type for this stage
         if stage == 0:  # Attack
@@ -441,15 +495,15 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
             curve_type = self.release_curve
 
         # Apply curve
-        if curve_type == 'linear':
+        if curve_type == "linear":
             return factor
-        elif curve_type == 'convex':
+        elif curve_type == "convex":
             return factor * factor
-        elif curve_type == 'concave':
+        elif curve_type == "concave":
             return 1.0 - (1.0 - factor) * (1.0 - factor)
-        elif curve_type == 'exponential':
+        elif curve_type == "exponential":
             return 1.0 - np.exp(-factor * 5.0) if factor < 1.0 else 1.0
-        elif curve_type == 'logarithmic':
+        elif curve_type == "logarithmic":
             return np.log(1.0 + factor * 9.0) / np.log(10.0) if factor > 0 else 0.0
         else:
             return factor
@@ -486,46 +540,46 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
     def get_advanced_envelope_features(self) -> dict[str, Any]:
         """Get status of all advanced envelope features."""
         return {
-            'multi_stage_config': {
-                'stages': self.envelope_stages,
-                'loop_enabled': self.envelope_loop_enabled,
-                'loop_start': self.envelope_loop_start,
-                'loop_end': self.envelope_loop_end,
-                'sustain_mode': self.envelope_sustain_mode
+            "multi_stage_config": {
+                "stages": self.envelope_stages,
+                "loop_enabled": self.envelope_loop_enabled,
+                "loop_start": self.envelope_loop_start,
+                "loop_end": self.envelope_loop_end,
+                "sustain_mode": self.envelope_sustain_mode,
             },
-            'curves': {
-                'attack': self.attack_curve,
-                'decay': self.decay_curve,
-                'sustain': self.sustain_curve,
-                'release': self.release_curve
+            "curves": {
+                "attack": self.attack_curve,
+                "decay": self.decay_curve,
+                "sustain": self.sustain_curve,
+                "release": self.release_curve,
             },
-            'velocity_sensitivity': {
-                'attack': self.velocity_to_attack,
-                'decay': self.velocity_to_decay,
-                'sustain': self.velocity_to_sustain,
-                'release': self.velocity_to_release
+            "velocity_sensitivity": {
+                "attack": self.velocity_to_attack,
+                "decay": self.velocity_to_decay,
+                "sustain": self.velocity_to_sustain,
+                "release": self.velocity_to_release,
             },
-            'retrigger_config': {
-                'mode': self.envelope_retrigger_mode,
-                'legato': self.envelope_legato_mode,
-                'reset_on_note_off': self.envelope_reset_on_note_off
+            "retrigger_config": {
+                "mode": self.envelope_retrigger_mode,
+                "legato": self.envelope_legato_mode,
+                "reset_on_note_off": self.envelope_reset_on_note_off,
             },
-            'key_tracking': {
-                'amount': self.envelope_key_tracking,
-                'center_note': self.envelope_key_center,
-                'velocity_curve': self.envelope_velocity_curve
+            "key_tracking": {
+                "amount": self.envelope_key_tracking,
+                "center_note": self.envelope_key_center,
+                "velocity_curve": self.envelope_velocity_curve,
             },
-            'envelope_state': {
-                'current_stage': self.envelope_current_stage,
-                'stage_time': self.envelope_stage_time,
-                'loop_count': self.envelope_loop_count,
-                'last_velocity': self.envelope_last_velocity,
-                'last_note': self.envelope_last_note
+            "envelope_state": {
+                "current_stage": self.envelope_current_stage,
+                "stage_time": self.envelope_stage_time,
+                "loop_count": self.envelope_loop_count,
+                "last_velocity": self.envelope_last_velocity,
+                "last_note": self.envelope_last_note,
             },
-            'levels_times': {
-                'levels': self.envelope_levels[:self.envelope_stages],
-                'times': self.envelope_times[:self.envelope_stages]
-            }
+            "levels_times": {
+                "levels": self.envelope_levels[: self.envelope_stages],
+                "times": self.envelope_times[: self.envelope_stages],
+            },
         }
 
         # Envelope state
@@ -576,7 +630,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
     def _initialize_jupiter_x_analog_features(self):
         """Initialize Jupiter-X specific analog features."""
         # Set up dual oscillator architecture
-        if hasattr(self.analog_engine, 'enable_dual_oscillators'):
+        if hasattr(self.analog_engine, "enable_dual_oscillators"):
             self.analog_engine.enable_dual_oscillators(self.dual_oscillator_mode)
 
         # Configure Jupiter-X specific filter routing
@@ -590,7 +644,7 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         if not self.analog_engine:
             return
 
-        if hasattr(self.analog_engine, 'set_filter_configuration'):
+        if hasattr(self.analog_engine, "set_filter_configuration"):
             if self.filter_configuration == "series":
                 self.analog_engine.set_filter_configuration("series")
             elif self.filter_configuration == "parallel":
@@ -605,42 +659,42 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
             return
 
         # Set envelope curve shapes
-        if hasattr(self.analog_engine, 'set_envelope_shape'):
-            self.analog_engine.set_envelope_shape('amplitude', self.envelope_shape)
-            self.analog_engine.set_envelope_shape('filter', self.envelope_shape)
+        if hasattr(self.analog_engine, "set_envelope_shape"):
+            self.analog_engine.set_envelope_shape("amplitude", self.envelope_shape)
+            self.analog_engine.set_envelope_shape("filter", self.envelope_shape)
 
     def get_synthesis_features(self) -> dict[str, Any]:
         """Get Jupiter-X analog synthesis features."""
         return {
-            'dual_oscillator': {
-                'enabled': self.dual_oscillator_mode,
-                'osc1_waveform': self.osc1_waveform,
-                'osc2_waveform': self.osc2_waveform,
-                'osc1_level': self.osc1_level,
-                'osc2_level': self.osc2_level,
-                'osc2_detune': self.osc2_detune
+            "dual_oscillator": {
+                "enabled": self.dual_oscillator_mode,
+                "osc1_waveform": self.osc1_waveform,
+                "osc2_waveform": self.osc2_waveform,
+                "osc1_level": self.osc1_level,
+                "osc2_level": self.osc2_level,
+                "osc2_detune": self.osc2_detune,
             },
-            'oscillator_modulation': {
-                'sync': self.oscillator_sync_enabled,
-                'ring_modulation': self.ring_modulation_enabled
+            "oscillator_modulation": {
+                "sync": self.oscillator_sync_enabled,
+                "ring_modulation": self.ring_modulation_enabled,
             },
-            'filter_system': {
-                'configuration': self.filter_configuration,
-                'dual_filters': self.filter_configuration == "dual",
-                'filter1_cutoff': self.filter1_cutoff,
-                'filter1_resonance': self.filter1_resonance,
-                'filter2_cutoff': self.filter2_cutoff,
-                'filter2_resonance': self.filter2_resonance
+            "filter_system": {
+                "configuration": self.filter_configuration,
+                "dual_filters": self.filter_configuration == "dual",
+                "filter1_cutoff": self.filter1_cutoff,
+                "filter1_resonance": self.filter1_resonance,
+                "filter2_cutoff": self.filter2_cutoff,
+                "filter2_resonance": self.filter2_resonance,
             },
-            'envelope_system': {
-                'shape': self.envelope_shape,
-                'amp_envelope_shape': self.amp_envelope_shape,
-                'filter_envelope_shape': self.filter_envelope_shape
+            "envelope_system": {
+                "shape": self.envelope_shape,
+                "amp_envelope_shape": self.amp_envelope_shape,
+                "filter_envelope_shape": self.filter_envelope_shape,
             },
-            'waveforms': {
-                'available': list(self.jupiter_x_waveforms.keys()),
-                'jupiter_x_specific': True
-            }
+            "waveforms": {
+                "available": list(self.jupiter_x_waveforms.keys()),
+                "jupiter_x_specific": True,
+            },
         }
 
     def set_parameter(self, name: str, value: Any) -> bool:
@@ -677,22 +731,22 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
             "oscillator_sync": self.oscillator_sync_enabled,
             "ring_modulation": self.ring_modulation_enabled,
             "filter_configuration": self.filter_configuration,
-            "envelope_shape": self.envelope_shape
+            "envelope_shape": self.envelope_shape,
         }
 
     def _update_dual_oscillator_mode(self):
         """Update dual oscillator mode."""
-        if self.analog_engine and hasattr(self.analog_engine, 'enable_dual_oscillators'):
+        if self.analog_engine and hasattr(self.analog_engine, "enable_dual_oscillators"):
             self.analog_engine.enable_dual_oscillators(self.dual_oscillator_mode)
 
     def _update_oscillator_sync(self):
         """Update oscillator sync settings."""
-        if self.analog_engine and hasattr(self.analog_engine, 'enable_oscillator_sync'):
+        if self.analog_engine and hasattr(self.analog_engine, "enable_oscillator_sync"):
             self.analog_engine.enable_oscillator_sync(self.oscillator_sync_enabled)
 
     def _update_ring_modulation(self):
         """Update ring modulation settings."""
-        if self.analog_engine and hasattr(self.analog_engine, 'enable_ring_modulation'):
+        if self.analog_engine and hasattr(self.analog_engine, "enable_ring_modulation"):
             self.analog_engine.enable_ring_modulation(self.ring_modulation_enabled)
 
     def process_midi_message(self, status: int, data1: int, data2: int) -> bool:
@@ -742,22 +796,22 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
     def _update_oscillator_levels(self):
         """Update oscillator levels."""
-        if self.analog_engine and hasattr(self.analog_engine, 'set_oscillator_levels'):
+        if self.analog_engine and hasattr(self.analog_engine, "set_oscillator_levels"):
             self.analog_engine.set_oscillator_levels(self.osc1_level, self.osc2_level)
 
     def _update_oscillator_detune(self):
         """Update oscillator detune."""
-        if self.analog_engine and hasattr(self.analog_engine, 'set_oscillator_detune'):
+        if self.analog_engine and hasattr(self.analog_engine, "set_oscillator_detune"):
             self.analog_engine.set_oscillator_detune(self.osc2_detune)
 
     def _update_filter_cutoff(self, filter_num: int, cutoff: float):
         """Update filter cutoff frequency."""
-        if self.analog_engine and hasattr(self.analog_engine, 'set_filter_cutoff'):
+        if self.analog_engine and hasattr(self.analog_engine, "set_filter_cutoff"):
             self.analog_engine.set_filter_cutoff(filter_num, cutoff)
 
     def _update_filter_resonance(self, filter_num: int, resonance: float):
         """Update filter resonance."""
-        if self.analog_engine and hasattr(self.analog_engine, 'set_filter_resonance'):
+        if self.analog_engine and hasattr(self.analog_engine, "set_filter_resonance"):
             self.analog_engine.set_filter_resonance(filter_num, resonance)
 
     def set_oscillator_waveform(self, osc_num: int, waveform: str) -> bool:
@@ -765,13 +819,13 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         if osc_num == 1:
             if waveform in self.jupiter_x_waveforms:
                 self.osc1_waveform = waveform
-                if self.analog_engine and hasattr(self.analog_engine, 'set_oscillator_waveform'):
+                if self.analog_engine and hasattr(self.analog_engine, "set_oscillator_waveform"):
                     self.analog_engine.set_oscillator_waveform(1, waveform)
                 return True
         elif osc_num == 2:
             if waveform in self.jupiter_x_waveforms:
                 self.osc2_waveform = waveform
-                if self.analog_engine and hasattr(self.analog_engine, 'set_oscillator_waveform'):
+                if self.analog_engine and hasattr(self.analog_engine, "set_oscillator_waveform"):
                     self.analog_engine.set_oscillator_waveform(2, waveform)
                 return True
 
@@ -813,8 +867,9 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         # Filtered noise for better sound
         return np.random.uniform(-1.0, 1.0)
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
-                        block_size: int) -> np.ndarray | None:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray | None:
         """
         Generate additional analog samples with Jupiter-X features.
 
@@ -857,31 +912,41 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         self.pwm_enabled = enabled
         self.pwm_amount = max(0.0, min(1.0, amount))
         self.pwm_lfo_depth = max(0.0, min(1.0, lfo_depth))
-        print(f"🎛️ PWM {'enabled' if enabled else 'disabled'} (amount: {self.pwm_amount:.2f}, LFO: {self.pwm_lfo_depth:.2f})")
+        print(
+            f"🎛️ PWM {'enabled' if enabled else 'disabled'} (amount: {self.pwm_amount:.2f}, LFO: {self.pwm_lfo_depth:.2f})"
+        )
 
-    def enable_sub_oscillator(self, enabled: bool = True, octave: int = -1, waveform: str = 'square', level: float = 0.5):
+    def enable_sub_oscillator(
+        self, enabled: bool = True, octave: int = -1, waveform: str = "square", level: float = 0.5
+    ):
         """Enable sub-oscillator."""
         self.sub_oscillator_enabled = enabled
         self.sub_oscillator_octave = octave if octave in [-2, -1] else -1
-        self.sub_oscillator_waveform = waveform if waveform in ['square', 'sine'] else 'square'
+        self.sub_oscillator_waveform = waveform if waveform in ["square", "sine"] else "square"
         self.sub_oscillator_level = max(0.0, min(1.0, level))
-        print(f"🎛️ Sub-oscillator {'enabled' if enabled else 'disabled'} (octave: {self.sub_oscillator_octave}, waveform: {self.sub_oscillator_waveform})")
+        print(
+            f"🎛️ Sub-oscillator {'enabled' if enabled else 'disabled'} (octave: {self.sub_oscillator_octave}, waveform: {self.sub_oscillator_waveform})"
+        )
 
-    def set_waveform_morphing(self, enabled: bool = True, osc1_position: float = 0.0, osc2_position: float = 0.0):
+    def set_waveform_morphing(
+        self, enabled: bool = True, osc1_position: float = 0.0, osc2_position: float = 0.0
+    ):
         """Enable waveform morphing between oscillator types."""
         self.waveform_morphing_enabled = enabled
         self.osc1_morph_position = max(0.0, min(1.0, osc1_position))
         self.osc2_morph_position = max(0.0, min(1.0, osc2_position))
         print(f"🎛️ Waveform morphing {'enabled' if enabled else 'disabled'}")
 
-    def set_noise_color(self, color: str = 'white', level: float = 0.0):
+    def set_noise_color(self, color: str = "white", level: float = 0.0):
         """Set noise color and level."""
-        valid_colors = ['white', 'pink', 'blue', 'brown']
-        self.noise_color = color if color in valid_colors else 'white'
+        valid_colors = ["white", "pink", "blue", "brown"]
+        self.noise_color = color if color in valid_colors else "white"
         self.noise_level = max(0.0, min(1.0, level))
         print(f"🎛️ Noise: {self.noise_color} color, level {self.noise_level:.2f}")
 
-    def _apply_oscillator_sync(self, osc1_freq: float, osc2_freq: float, sample_rate: float) -> tuple[float, float]:
+    def _apply_oscillator_sync(
+        self, osc1_freq: float, osc2_freq: float, sample_rate: float
+    ) -> tuple[float, float]:
         """
         Apply oscillator sync effects.
 
@@ -903,7 +968,9 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         return osc1_freq, osc2_freq
 
-    def _apply_cross_modulation(self, osc1_sample: float, osc2_sample: float) -> tuple[float, float]:
+    def _apply_cross_modulation(
+        self, osc1_sample: float, osc2_sample: float
+    ) -> tuple[float, float]:
         """Apply cross-modulation between oscillators."""
         if not self.cross_modulation_enabled or self.cross_modulation_amount <= 0.0:
             return osc1_sample, osc2_sample
@@ -942,16 +1009,16 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
             return 0.0
 
         # Calculate sub-oscillator frequency
-        sub_freq = frequency * (2.0 ** self.sub_oscillator_octave)  # Octave below
+        sub_freq = frequency * (2.0**self.sub_oscillator_octave)  # Octave below
 
         # Update phase
         phase_increment = sub_freq / sample_rate
         self.sub_osc_phase = (self.sub_osc_phase + phase_increment) % 1.0
 
         # Generate waveform
-        if self.sub_oscillator_waveform == 'square':
+        if self.sub_oscillator_waveform == "square":
             sample = 1.0 if self.sub_osc_phase < 0.5 else -1.0
-        elif self.sub_oscillator_waveform == 'sine':
+        elif self.sub_oscillator_waveform == "sine":
             sample = np.sin(2 * np.pi * self.sub_osc_phase)
         else:
             sample = 1.0 if self.sub_osc_phase < 0.5 else -1.0  # Default to square
@@ -989,23 +1056,23 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         if self.noise_level <= 0.0:
             return 0.0
 
-        if self.noise_color == 'white':
+        if self.noise_color == "white":
             # Standard white noise
             return np.random.uniform(-1.0, 1.0) * self.noise_level
 
-        elif self.noise_color == 'pink':
+        elif self.noise_color == "pink":
             # Pink noise (1/f) - simplified approximation
             white = np.random.uniform(-1.0, 1.0)
             # Very basic pink noise approximation
             return (white * 0.5 + np.random.uniform(-1.0, 1.0) * 0.3) * self.noise_level
 
-        elif self.noise_color == 'blue':
+        elif self.noise_color == "blue":
             # Blue noise (higher frequencies) - simplified
             white = np.random.uniform(-1.0, 1.0)
             # Amplify high frequencies
             return white * self.noise_level * 1.2
 
-        elif self.noise_color == 'brown':
+        elif self.noise_color == "brown":
             # Brown noise (1/f^2) - very low frequency
             white = np.random.uniform(-1.0, 1.0)
             # Low-pass filtered approximation
@@ -1016,50 +1083,47 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
     def get_advanced_oscillator_features(self) -> dict[str, Any]:
         """Get status of all advanced oscillator features."""
         return {
-            'sync_modes': {
-                'hard_sync': self.hard_sync_enabled,
-                'soft_sync': self.soft_sync_enabled,
-                'cross_modulation': {
-                    'enabled': self.cross_modulation_enabled,
-                    'amount': self.cross_modulation_amount
-                }
+            "sync_modes": {
+                "hard_sync": self.hard_sync_enabled,
+                "soft_sync": self.soft_sync_enabled,
+                "cross_modulation": {
+                    "enabled": self.cross_modulation_enabled,
+                    "amount": self.cross_modulation_amount,
+                },
             },
-            'pwm': {
-                'enabled': self.pwm_enabled,
-                'amount': self.pwm_amount,
-                'lfo_depth': self.pwm_lfo_depth
+            "pwm": {
+                "enabled": self.pwm_enabled,
+                "amount": self.pwm_amount,
+                "lfo_depth": self.pwm_lfo_depth,
             },
-            'sub_oscillator': {
-                'enabled': self.sub_oscillator_enabled,
-                'octave': self.sub_oscillator_octave,
-                'waveform': self.sub_oscillator_waveform,
-                'level': self.sub_oscillator_level
+            "sub_oscillator": {
+                "enabled": self.sub_oscillator_enabled,
+                "octave": self.sub_oscillator_octave,
+                "waveform": self.sub_oscillator_waveform,
+                "level": self.sub_oscillator_level,
             },
-            'waveform_morphing': {
-                'enabled': self.waveform_morphing_enabled,
-                'osc1_position': self.osc1_morph_position,
-                'osc2_position': self.osc2_morph_position
+            "waveform_morphing": {
+                "enabled": self.waveform_morphing_enabled,
+                "osc1_position": self.osc1_morph_position,
+                "osc2_position": self.osc2_morph_position,
             },
-            'noise': {
-                'color': self.noise_color,
-                'level': self.noise_level
+            "noise": {"color": self.noise_color, "level": self.noise_level},
+            "oscillator_state": {
+                "osc1_phase": self.osc1_phase,
+                "osc2_phase": self.osc2_phase,
+                "sub_osc_phase": self.sub_osc_phase,
+                "pwm_phase": self.pwm_phase,
+                "sync_triggered": self.sync_triggered,
             },
-            'oscillator_state': {
-                'osc1_phase': self.osc1_phase,
-                'osc2_phase': self.osc2_phase,
-                'sub_osc_phase': self.sub_osc_phase,
-                'pwm_phase': self.pwm_phase,
-                'sync_triggered': self.sync_triggered
-            }
         }
 
     # ===== PHASE 2.2: ADVANCED FILTER METHODS =====
 
     def set_filter_type(self, filter_num: int, filter_type: str):
         """Set filter type for specified filter (1 or 2)."""
-        valid_types = ['lpf', 'hpf', 'bpf', 'notch', 'comb']
+        valid_types = ["lpf", "hpf", "bpf", "notch", "comb"]
         if filter_type not in valid_types:
-            filter_type = 'lpf'
+            filter_type = "lpf"
 
         if filter_num == 1:
             self.filter1_type = filter_type
@@ -1091,39 +1155,51 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         print(f"🎛️ Filter {filter_num} drive set to {drive:.1f}x")
 
-    def configure_filter_envelope(self, amount: float = 0.0, polarity: int = 1, velocity_sens: float = 0.0):
+    def configure_filter_envelope(
+        self, amount: float = 0.0, polarity: int = 1, velocity_sens: float = 0.0
+    ):
         """Configure filter envelope integration."""
         self.filter_envelope_amount = max(-1.0, min(1.0, amount))
         self.filter_envelope_polarity = 1 if polarity >= 0 else -1
         self.filter_envelope_velocity_sens = max(0.0, min(1.0, velocity_sens))
-        print(f"🎛️ Filter envelope: amount {self.filter_envelope_amount:.2f}, polarity {'positive' if self.filter_envelope_polarity > 0 else 'negative'}")
+        print(
+            f"🎛️ Filter envelope: amount {self.filter_envelope_amount:.2f}, polarity {'positive' if self.filter_envelope_polarity > 0 else 'negative'}"
+        )
 
     def set_key_tracking(self, amount: float = 0.0, center_note: int = 60):
         """Configure filter key tracking."""
         self.filter_key_tracking = max(-1.0, min(1.0, amount))
         self.filter_key_center = max(0, min(127, center_note))
-        print(f"🎛️ Filter key tracking: {self.filter_key_tracking:.2f} (center: {self.filter_key_center})")
+        print(
+            f"🎛️ Filter key tracking: {self.filter_key_tracking:.2f} (center: {self.filter_key_center})"
+        )
 
-    def set_velocity_sensitivity(self, cutoff_sens: float = 0.0, resonance_sens: float = 0.0, curve: str = 'linear'):
+    def set_velocity_sensitivity(
+        self, cutoff_sens: float = 0.0, resonance_sens: float = 0.0, curve: str = "linear"
+    ):
         """Configure velocity sensitivity for filter parameters."""
         self.velocity_to_cutoff = max(-1.0, min(1.0, cutoff_sens))
         self.velocity_to_resonance = max(-1.0, min(1.0, resonance_sens))
-        valid_curves = ['linear', 'convex', 'concave']
-        self.velocity_curve = curve if curve in valid_curves else 'linear'
-        print(f"🎛️ Velocity sensitivity: cutoff {self.velocity_to_cutoff:.2f}, resonance {self.velocity_to_resonance:.2f} ({self.velocity_curve})")
+        valid_curves = ["linear", "convex", "concave"]
+        self.velocity_curve = curve if curve in valid_curves else "linear"
+        print(
+            f"🎛️ Velocity sensitivity: cutoff {self.velocity_to_cutoff:.2f}, resonance {self.velocity_to_resonance:.2f} ({self.velocity_curve})"
+        )
 
-    def set_input_drive(self, drive: float = 1.0, saturation_type: str = 'soft'):
+    def set_input_drive(self, drive: float = 1.0, saturation_type: str = "soft"):
         """Configure input drive and saturation."""
         self.input_drive = max(1.0, min(4.0, drive))
-        valid_types = ['soft', 'hard', 'vintage', 'tape']
-        self.saturation_type = saturation_type if saturation_type in valid_types else 'soft'
+        valid_types = ["soft", "hard", "vintage", "tape"]
+        self.saturation_type = saturation_type if saturation_type in valid_types else "soft"
         print(f"🎛️ Input drive: {self.input_drive:.1f}x ({self.saturation_type} saturation)")
 
     def set_parallel_routing(self, mix: float = 0.0, separation: float = 0.0):
         """Configure parallel filter routing."""
         self.parallel_filter_mix = max(0.0, min(1.0, mix))
         self.filter_separation = max(0.0, min(1.0, separation))
-        print(f"🎛️ Parallel routing: mix {self.parallel_filter_mix:.2f}, separation {self.filter_separation:.2f}")
+        print(
+            f"🎛️ Parallel routing: mix {self.parallel_filter_mix:.2f}, separation {self.filter_separation:.2f}"
+        )
 
     def _apply_input_drive(self, sample: float) -> float:
         """Apply input drive and saturation to sample."""
@@ -1134,25 +1210,27 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         driven = sample * self.input_drive
 
         # Apply saturation based on type
-        if self.saturation_type == 'soft':
+        if self.saturation_type == "soft":
             # Soft clipping
             driven = np.tanh(driven)
-        elif self.saturation_type == 'hard':
+        elif self.saturation_type == "hard":
             # Hard clipping
             driven = max(-1.0, min(1.0, driven))
-        elif self.saturation_type == 'vintage':
+        elif self.saturation_type == "vintage":
             # Asymmetric soft clipping (common in analog gear)
             if driven > 0:
                 driven = np.tanh(driven * 0.8)
             else:
                 driven = np.tanh(driven * 1.2)
-        elif self.saturation_type == 'tape':
+        elif self.saturation_type == "tape":
             # Tape saturation approximation
             driven = driven * (1.0 + driven * driven * 0.1)
 
         return driven
 
-    def _apply_filter_envelope(self, base_cutoff: float, envelope_value: float, velocity: int) -> float:
+    def _apply_filter_envelope(
+        self, base_cutoff: float, envelope_value: float, velocity: int
+    ) -> float:
         """Apply filter envelope modulation."""
         if abs(self.filter_envelope_amount) < 0.01:
             return base_cutoff
@@ -1182,7 +1260,9 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         return max(20.0, min(20000.0, base_cutoff * tracking_factor))
 
-    def _apply_velocity_to_filter(self, base_cutoff: float, base_resonance: float, velocity: int) -> tuple[float, float]:
+    def _apply_velocity_to_filter(
+        self, base_cutoff: float, base_resonance: float, velocity: int
+    ) -> tuple[float, float]:
         """Apply velocity sensitivity to filter parameters."""
         cutoff = base_cutoff
         resonance = base_resonance
@@ -1207,12 +1287,12 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         """Calculate velocity factor based on curve type."""
         vel_norm = velocity / 127.0  # 0.0 to 1.0
 
-        if self.velocity_curve == 'linear':
+        if self.velocity_curve == "linear":
             factor = vel_norm
-        elif self.velocity_curve == 'convex':
+        elif self.velocity_curve == "convex":
             # Convex curve (more sensitive at low velocities)
             factor = vel_norm * vel_norm
-        elif self.velocity_curve == 'concave':
+        elif self.velocity_curve == "concave":
             # Concave curve (more sensitive at high velocities)
             factor = 1.0 - (1.0 - vel_norm) * (1.0 - vel_norm)
         else:
@@ -1221,7 +1301,9 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         # Apply sensitivity
         return 1.0 + (factor - 0.5) * sensitivity * 2.0
 
-    def _process_filter(self, filter_num: int, sample: float, cutoff: float, resonance: float, sample_rate: float) -> float:
+    def _process_filter(
+        self, filter_num: int, sample: float, cutoff: float, resonance: float, sample_rate: float
+    ) -> float:
         """Process sample through specified filter."""
         if filter_num == 1:
             filter_type = self.filter1_type
@@ -1240,34 +1322,34 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         new_z2 = z2
 
         # Calculate filter coefficients
-        if filter_type in ['lpf', 'hpf', 'bpf', 'notch']:
+        if filter_type in ["lpf", "hpf", "bpf", "notch"]:
             # State variable filter implementation
             f = 2.0 * np.sin(np.pi * cutoff / sample_rate)  # Pre-warped frequency
             q = 1.0 / (2.0 * resonance + 0.5)  # Quality factor
 
             # State variable filter equations
-            if filter_type == 'lpf':
+            if filter_type == "lpf":
                 # Low pass
                 filtered = z2 + f * z1
                 new_z1 = z1 + f * (sample - filtered) * q
                 new_z2 = filtered + f * new_z1
-            elif filter_type == 'hpf':
+            elif filter_type == "hpf":
                 # High pass
                 filtered = sample - z2 - q * z1
                 new_z1 = z1 + f * filtered
                 new_z2 = new_z1 + f * filtered
-            elif filter_type == 'bpf':
+            elif filter_type == "bpf":
                 # Band pass
                 filtered = q * z1
                 new_z1 = z1 + f * (sample - filtered)
                 new_z2 = filtered + f * new_z1
-            elif filter_type == 'notch':
+            elif filter_type == "notch":
                 # Notch
                 filtered = sample - q * z1
                 new_z1 = z1 + f * filtered
                 new_z2 = filtered + f * new_z1
 
-        elif filter_type == 'comb':
+        elif filter_type == "comb":
             # Comb filter (simple implementation)
             delay_samples = int(sample_rate / cutoff)
             # Simplified comb filter - would need delay buffer in real implementation
@@ -1291,7 +1373,9 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
 
         return filtered
 
-    def _apply_parallel_routing(self, series_output: float, filter1_output: float, filter2_output: float) -> float:
+    def _apply_parallel_routing(
+        self, series_output: float, filter1_output: float, filter2_output: float
+    ) -> float:
         """Apply parallel filter routing."""
         if self.parallel_filter_mix <= 0.0:
             return series_output  # Pure series
@@ -1303,7 +1387,10 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
         else:
             # Blend series and parallel
             parallel_mix = (filter1_output + filter2_output) * 0.5
-            return series_output * (1.0 - self.parallel_filter_mix) + parallel_mix * self.parallel_filter_mix
+            return (
+                series_output * (1.0 - self.parallel_filter_mix)
+                + parallel_mix * self.parallel_filter_mix
+            )
 
     def _reset_filter_state(self, filter_num: int):
         """Reset filter state for specified filter."""
@@ -1317,58 +1404,58 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
     def get_advanced_filter_features(self) -> dict[str, Any]:
         """Get status of all advanced filter features."""
         return {
-            'multi_mode_filters': {
-                'filter1': {
-                    'type': self.filter1_type,
-                    'cutoff': self.filter1_cutoff,
-                    'resonance': self.filter1_resonance,
-                    'drive': self.filter1_drive,
-                    'slope': self.filter1_slope
+            "multi_mode_filters": {
+                "filter1": {
+                    "type": self.filter1_type,
+                    "cutoff": self.filter1_cutoff,
+                    "resonance": self.filter1_resonance,
+                    "drive": self.filter1_drive,
+                    "slope": self.filter1_slope,
                 },
-                'filter2': {
-                    'type': self.filter2_type,
-                    'cutoff': self.filter2_cutoff,
-                    'resonance': self.filter2_resonance,
-                    'drive': self.filter2_drive,
-                    'slope': self.filter2_slope
-                }
+                "filter2": {
+                    "type": self.filter2_type,
+                    "cutoff": self.filter2_cutoff,
+                    "resonance": self.filter2_resonance,
+                    "drive": self.filter2_drive,
+                    "slope": self.filter2_slope,
+                },
             },
-            'filter_envelope': {
-                'amount': self.filter_envelope_amount,
-                'polarity': 'positive' if self.filter_envelope_polarity > 0 else 'negative',
-                'velocity_sensitivity': self.filter_envelope_velocity_sens
+            "filter_envelope": {
+                "amount": self.filter_envelope_amount,
+                "polarity": "positive" if self.filter_envelope_polarity > 0 else "negative",
+                "velocity_sensitivity": self.filter_envelope_velocity_sens,
             },
-            'key_tracking': {
-                'amount': self.filter_key_tracking,
-                'center_note': self.filter_key_center
+            "key_tracking": {
+                "amount": self.filter_key_tracking,
+                "center_note": self.filter_key_center,
             },
-            'velocity_sensitivity': {
-                'cutoff': self.velocity_to_cutoff,
-                'resonance': self.velocity_to_resonance,
-                'curve': self.velocity_curve
+            "velocity_sensitivity": {
+                "cutoff": self.velocity_to_cutoff,
+                "resonance": self.velocity_to_resonance,
+                "curve": self.velocity_curve,
             },
-            'drive_saturation': {
-                'input_drive': self.input_drive,
-                'saturation_type': self.saturation_type
+            "drive_saturation": {
+                "input_drive": self.input_drive,
+                "saturation_type": self.saturation_type,
             },
-            'parallel_routing': {
-                'mix': self.parallel_filter_mix,
-                'separation': self.filter_separation
-            }
+            "parallel_routing": {
+                "mix": self.parallel_filter_mix,
+                "separation": self.filter_separation,
+            },
         }
 
     def get_analog_engine_status(self) -> dict[str, Any]:
         """Get Jupiter-X analog engine status."""
         return {
-            'dual_oscillator_mode': self.dual_oscillator_mode,
-            'oscillator_sync': self.oscillator_sync_enabled,
-            'ring_modulation': self.ring_modulation_enabled,
-            'filter_configuration': self.filter_configuration,
-            'envelope_shape': self.envelope_shape,
-            'osc1_waveform': self.osc1_waveform,
-            'osc2_waveform': self.osc2_waveform,
-            'available_waveforms': self.get_available_waveforms(),
-            'advanced_oscillator_features': self.get_advanced_oscillator_features(),
-            'advanced_filter_features': self.get_advanced_filter_features(),
-            'features_active': self.is_active()
+            "dual_oscillator_mode": self.dual_oscillator_mode,
+            "oscillator_sync": self.oscillator_sync_enabled,
+            "ring_modulation": self.ring_modulation_enabled,
+            "filter_configuration": self.filter_configuration,
+            "envelope_shape": self.envelope_shape,
+            "osc1_waveform": self.osc1_waveform,
+            "osc2_waveform": self.osc2_waveform,
+            "available_waveforms": self.get_available_waveforms(),
+            "advanced_oscillator_features": self.get_advanced_oscillator_features(),
+            "advanced_filter_features": self.get_advanced_filter_features(),
+            "features_active": self.is_active(),
         }

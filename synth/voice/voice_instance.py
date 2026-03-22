@@ -8,17 +8,18 @@ Refactored to work with IRegion interface.
 
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
-import time
 import logging
+import time
+from typing import Any
 
-from ..partial.region import IRegion, RegionState
+import numpy as np
+
+from ..partial.region import IRegion
 
 logger = logging.getLogger(__name__)
 
 # Global registry for voice instances by ID
-_voice_instances: dict[int, "VoiceInstance"] = {}
+_voice_instances: dict[int, VoiceInstance] = {}
 
 
 class VoiceInstance:
@@ -38,28 +39,28 @@ class VoiceInstance:
     """
 
     __slots__ = [
-        "voice_id",
-        "note",
-        "velocity",
-        "channel",
-        "sample_rate",
-        "regions",
-        "active_regions",
-        "start_time",
-        "release_triggered",
-        "released",
         "_pending_removal",
-        "modulation_state",
-        "per_note_modulation",
-        "master_volume",
-        "pan",
-        "transpose",
+        "active_regions",
+        "aftertouch",
         "articulation",
         "articulation_parameters",
-        "pitch_offset",
-        "timbre",
-        "aftertouch",
+        "channel",
         "filter_cutoff_offset",
+        "master_volume",
+        "modulation_state",
+        "note",
+        "pan",
+        "per_note_modulation",
+        "pitch_offset",
+        "regions",
+        "release_triggered",
+        "released",
+        "sample_rate",
+        "start_time",
+        "timbre",
+        "transpose",
+        "velocity",
+        "voice_id",
     ]
 
     def __init__(
@@ -138,7 +139,7 @@ class VoiceInstance:
         self.filter_cutoff_offset = 0
 
     @classmethod
-    def get_voice(cls, voice_id: int) -> "VoiceInstance | None":
+    def get_voice(cls, voice_id: int) -> VoiceInstance | None:
         """Get voice instance by ID."""
         return _voice_instances.get(voice_id)
 

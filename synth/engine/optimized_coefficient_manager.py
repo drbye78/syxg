@@ -2,11 +2,13 @@
 OPTIMIZED COEFFICIENT MANAGER - PERFORMANCE OPTIMIZATION
 Manages pre-computed coefficients with lazy updates to eliminate expensive calculations from inner loops.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
 import threading
+from typing import Any
+
+import numpy as np
 
 
 class OptimizedCoefficientManager:
@@ -38,14 +40,14 @@ class OptimizedCoefficientManager:
 
         # Pre-computed XG controller coefficients
         self.xg_coefficients = {
-            'brightness': np.zeros(128, dtype=np.float32),
-            'filter_cutoff': np.zeros(128, dtype=np.float32),
-            'vibrato_rate': np.zeros(128, dtype=np.float32),
-            'harmonic_content': np.zeros(128, dtype=np.float32),
-            'release_time': np.zeros(128, dtype=np.float32),
-            'attack_time': np.zeros(128, dtype=np.float32),
-            'decay_time': np.zeros(128, dtype=np.float32),
-            'vibrato_depth': np.zeros(128, dtype=np.float32)
+            "brightness": np.zeros(128, dtype=np.float32),
+            "filter_cutoff": np.zeros(128, dtype=np.float32),
+            "vibrato_rate": np.zeros(128, dtype=np.float32),
+            "harmonic_content": np.zeros(128, dtype=np.float32),
+            "release_time": np.zeros(128, dtype=np.float32),
+            "attack_time": np.zeros(128, dtype=np.float32),
+            "decay_time": np.zeros(128, dtype=np.float32),
+            "vibrato_depth": np.zeros(128, dtype=np.float32),
         }
         self._dirty_xg = {key: np.ones(128, dtype=bool) for key in self.xg_coefficients}
 
@@ -63,8 +65,6 @@ class OptimizedCoefficientManager:
 
         # Initialize all coefficients
         self._precompute_all_coefficients()
-
-
 
     def _precompute_all_coefficients(self):
         """Pre-compute all coefficient tables on initialization."""
@@ -96,7 +96,7 @@ class OptimizedCoefficientManager:
         # This eliminates expensive sqrt() calls from sample processing loops
         self.pan_coefficients[pan_value] = [
             np.sqrt(1.0 - pan),  # Left channel gain
-            np.sqrt(pan)         # Right channel gain
+            np.sqrt(pan),  # Right channel gain
         ]
         self._dirty_pan[pan_value] = False
 
@@ -130,31 +130,31 @@ class OptimizedCoefficientManager:
 
     def _update_xg_coefficient_unsafe(self, coeff_type: str, value: int):
         """Update XG coefficient (unsafe version - assumes lock held)."""
-        if coeff_type == 'brightness':
+        if coeff_type == "brightness":
             # XG Brightness: semitones = ((value - 64) / 64.0) * 24.0
             # brightness_mult = 2.0 ** (semitones / 12.0)
             semitones = ((value - 64) / 64.0) * 24.0
             brightness_mult = 2.0 ** (semitones / 12.0)
             self.xg_coefficients[coeff_type][value] = brightness_mult
 
-        elif coeff_type == 'filter_cutoff':
+        elif coeff_type == "filter_cutoff":
             # XG Filter Cutoff: freq_ratio = 2.0 ** ((value - 64) / 32.0)
             freq_ratio = 2.0 ** ((value - 64) / 32.0)
             self.xg_coefficients[coeff_type][value] = freq_ratio
 
-        elif coeff_type == 'vibrato_rate':
+        elif coeff_type == "vibrato_rate":
             # XG Vibrato Rate: rate_hz = 0.1 * (10.0 ** (value * 2.0 / 127.0))
             rate_hz = 0.1 * (10.0 ** (value * 2.0 / 127.0))
             self.xg_coefficients[coeff_type][value] = rate_hz
 
-        elif coeff_type == 'harmonic_content':
+        elif coeff_type == "harmonic_content":
             # XG Harmonic Content: semitones = ((value - 64) / 64.0) * 24.0
             # resonance = max(0.0, min(2.0, 0.7 + semitones * 0.05))
             semitones = ((value - 64) / 64.0) * 24.0
             resonance = max(0.0, min(2.0, 0.7 + semitones * 0.05))
             self.xg_coefficients[coeff_type][value] = resonance
 
-        elif coeff_type == 'release_time':
+        elif coeff_type == "release_time":
             # XG Release Time: logarithmic mapping 0.001 to 18.0 seconds
             if value <= 64:
                 release_time = 0.001 + (value / 64.0) * 0.999
@@ -162,7 +162,7 @@ class OptimizedCoefficientManager:
                 release_time = 1.0 + ((value - 64) / 63.0) * 17.0
             self.xg_coefficients[coeff_type][value] = release_time
 
-        elif coeff_type == 'attack_time':
+        elif coeff_type == "attack_time":
             # XG Attack Time: logarithmic mapping 0.001 to 6.0 seconds
             if value <= 64:
                 attack_time = 0.001 + (value / 64.0) * 0.999
@@ -170,7 +170,7 @@ class OptimizedCoefficientManager:
                 attack_time = 1.0 + ((value - 64) / 63.0) * 5.0
             self.xg_coefficients[coeff_type][value] = attack_time
 
-        elif coeff_type == 'decay_time':
+        elif coeff_type == "decay_time":
             # XG Decay Time: logarithmic mapping 0.001 to 24.0 seconds
             if value <= 64:
                 decay_time = 0.001 + (value / 64.0) * 0.999
@@ -178,7 +178,7 @@ class OptimizedCoefficientManager:
                 decay_time = 1.0 + ((value - 64) / 63.0) * 23.0
             self.xg_coefficients[coeff_type][value] = decay_time
 
-        elif coeff_type == 'vibrato_depth':
+        elif coeff_type == "vibrato_depth":
             # XG Vibrato Depth: depth_cents = (value / 127.0) * 600.0
             depth_cents = (value / 127.0) * 600.0
             self.xg_coefficients[coeff_type][value] = depth_cents
@@ -193,8 +193,9 @@ class OptimizedCoefficientManager:
         return float(self.xg_coefficients[coeff_type][value])
 
     # EXPANSION: Filter coefficient caching for performance optimization
-    def get_filter_coefficients(self, cutoff_hz: float, resonance: float, filter_type: str,
-                               sample_rate: int) -> tuple[float, float, float, float, float]:
+    def get_filter_coefficients(
+        self, cutoff_hz: float, resonance: float, filter_type: str, sample_rate: int
+    ) -> tuple[float, float, float, float, float]:
         """
         Get cached filter coefficients for common filter configurations.
 
@@ -214,7 +215,7 @@ class OptimizedCoefficientManager:
             round(cutoff_hz, 1),  # Round cutoff to nearest 0.1 Hz
             round(resonance, 2),  # Round resonance to nearest 0.01
             filter_type,
-            sample_rate
+            sample_rate,
         )
 
         with self.lock:
@@ -223,7 +224,9 @@ class OptimizedCoefficientManager:
                 return self.filter_coefficients[cache_key]
 
             # Calculate coefficients if not cached
-            coeffs = self._calculate_filter_coefficients(cutoff_hz, resonance, filter_type, sample_rate)
+            coeffs = self._calculate_filter_coefficients(
+                cutoff_hz, resonance, filter_type, sample_rate
+            )
 
             # Cache result (with size limit)
             if len(self.filter_coefficients) < self._filter_coeff_cache_size:
@@ -231,8 +234,9 @@ class OptimizedCoefficientManager:
 
             return coeffs
 
-    def _calculate_filter_coefficients(self, cutoff_hz: float, resonance: float,
-                                     filter_type: str, sample_rate: int) -> tuple[float, float, float, float, float]:
+    def _calculate_filter_coefficients(
+        self, cutoff_hz: float, resonance: float, filter_type: str, sample_rate: int
+    ) -> tuple[float, float, float, float, float]:
         """Calculate biquad filter coefficients."""
         # Clamp inputs to reasonable ranges
         cutoff_hz = max(20.0, min(cutoff_hz, sample_rate / 2.5))
@@ -321,8 +325,9 @@ class OptimizedCoefficientManager:
             return samples
 
     # EXPANSION: LFO coefficient caching
-    def get_lfo_coefficients(self, rate_hz: float, depth: float, waveform: str,
-                           sample_rate: int) -> tuple[float, float]:
+    def get_lfo_coefficients(
+        self, rate_hz: float, depth: float, waveform: str, sample_rate: int
+    ) -> tuple[float, float]:
         """
         Get cached LFO increment and depth coefficients.
 
@@ -343,9 +348,9 @@ class OptimizedCoefficientManager:
 
         cache_key = (
             round(rate_hz, 2),  # Round rate to 0.01 Hz precision
-            round(depth, 3),    # Round depth to 0.001 precision
+            round(depth, 3),  # Round depth to 0.001 precision
             waveform,
-            sample_rate
+            sample_rate,
         )
 
         with self.lock:
@@ -375,32 +380,34 @@ class OptimizedCoefficientManager:
         """
         with self.lock:
             return {
-                'pan_coefficients': {
-                    'size': len(self.pan_coefficients),
-                    'memory_kb': self.pan_coefficients.nbytes / 1024,
-                    'dirty_count': np.sum(self._dirty_pan)
+                "pan_coefficients": {
+                    "size": len(self.pan_coefficients),
+                    "memory_kb": self.pan_coefficients.nbytes / 1024,
+                    "dirty_count": np.sum(self._dirty_pan),
                 },
-                'xg_coefficients': {
-                    'size': len(self.xg_coefficients),
-                    'total_entries': sum(len(arr) for arr in self.xg_coefficients.values()),
-                    'memory_kb': sum(arr.nbytes for arr in self.xg_coefficients.values()) / 1024,
-                    'dirty_counts': {k: int(np.sum(v)) for k, v in self._dirty_xg.items()}
+                "xg_coefficients": {
+                    "size": len(self.xg_coefficients),
+                    "total_entries": sum(len(arr) for arr in self.xg_coefficients.values()),
+                    "memory_kb": sum(arr.nbytes for arr in self.xg_coefficients.values()) / 1024,
+                    "dirty_counts": {k: int(np.sum(v)) for k, v in self._dirty_xg.items()},
                 },
-                'filter_coefficients': {
-                    'cached_entries': len(self.filter_coefficients),
-                    'cache_limit': self._filter_coeff_cache_size,
-                    'cache_utilization': len(self.filter_coefficients) / self._filter_coeff_cache_size
+                "filter_coefficients": {
+                    "cached_entries": len(self.filter_coefficients),
+                    "cache_limit": self._filter_coeff_cache_size,
+                    "cache_utilization": len(self.filter_coefficients)
+                    / self._filter_coeff_cache_size,
                 },
-                'envelope_time_samples': {
-                    'cached_entries': len(self.envelope_time_samples),
-                    'cache_limit': self._envelope_cache_size,
-                    'cache_utilization': len(self.envelope_time_samples) / self._envelope_cache_size
+                "envelope_time_samples": {
+                    "cached_entries": len(self.envelope_time_samples),
+                    "cache_limit": self._envelope_cache_size,
+                    "cache_utilization": len(self.envelope_time_samples)
+                    / self._envelope_cache_size,
                 },
-                'lfo_coefficients': {
-                    'cached_entries': len(self.lfo_coefficients),
-                    'cache_limit': self._lfo_cache_size,
-                    'cache_utilization': len(self.lfo_coefficients) / self._lfo_cache_size
-                }
+                "lfo_coefficients": {
+                    "cached_entries": len(self.lfo_coefficients),
+                    "cache_limit": self._lfo_cache_size,
+                    "cache_utilization": len(self.lfo_coefficients) / self._lfo_cache_size,
+                },
             }
 
     def clear_caches(self):
@@ -409,8 +416,6 @@ class OptimizedCoefficientManager:
             self.filter_coefficients.clear()
             self.envelope_time_samples.clear()
             self.lfo_coefficients.clear()
-
-
 
     def mark_pan_dirty(self, pan_value: int):
         """Mark panning coefficient as dirty (needs recalculation)."""

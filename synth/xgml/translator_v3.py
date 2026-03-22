@@ -12,11 +12,10 @@ Advanced translator for XGML v3.0 with complete feature support including:
 from __future__ import annotations
 
 from typing import Any
-from dataclasses import dataclass
-from enum import Enum
 
-from .parser_v3 import XGMLConfigV3, ConfigurationSection
 from synth.midi import MIDIMessage
+
+from .parser_v3 import XGMLConfigV3
 
 
 class TranslationError(Exception):

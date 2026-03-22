@@ -4,18 +4,22 @@ Synthesizer Configuration Management
 Central configuration system for synthesizer settings, hardware profiles,
 performance presets, and system parameters.
 """
+
 from __future__ import annotations
 
 import json
 import os
+import tempfile
 from typing import Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(slots=True)
 class AudioConfig:
     """Audio system configuration"""
+
     sample_rate: int = 44100
     buffer_size: int = 1024
     channels: int = 2
@@ -27,6 +31,7 @@ class AudioConfig:
 @dataclass(slots=True)
 class EngineConfig:
     """Synthesis engine configuration"""
+
     default_engine_priority: dict[str, int] | None = None
     max_voices_per_engine: dict[str, int] | None = None
     engine_enabled: dict[str, bool] | None = None
@@ -34,24 +39,40 @@ class EngineConfig:
     def __post_init__(self):
         if self.default_engine_priority is None:
             self.default_engine_priority = {
-                'fdsp': 10, 'an': 9, 'sf2': 8, 'xg': 7,
-                'fm': 6, 'wavetable': 5, 'additive': 4
+                "fdsp": 10,
+                "an": 9,
+                "sf2": 8,
+                "xg": 7,
+                "fm": 6,
+                "wavetable": 5,
+                "additive": 4,
             }
         if self.max_voices_per_engine is None:
             self.max_voices_per_engine = {
-                'fdsp': 32, 'an': 32, 'sf2': 64, 'xg': 64,
-                'fm': 32, 'wavetable': 32, 'additive': 32
+                "fdsp": 32,
+                "an": 32,
+                "sf2": 64,
+                "xg": 64,
+                "fm": 32,
+                "wavetable": 32,
+                "additive": 32,
             }
         if self.engine_enabled is None:
             self.engine_enabled = {
-                'fdsp': True, 'an': True, 'sf2': True, 'xg': True,
-                'fm': True, 'wavetable': True, 'additive': True
+                "fdsp": True,
+                "an": True,
+                "sf2": True,
+                "xg": True,
+                "fm": True,
+                "wavetable": True,
+                "additive": True,
             }
 
 
 @dataclass(slots=True)
 class MemoryConfig:
     """Memory management configuration"""
+
     sample_cache_mb: int = 512
     preset_cache_mb: int = 64
     max_loaded_samples: int = 1000
@@ -62,9 +83,10 @@ class MemoryConfig:
 @dataclass(slots=True)
 class PerformanceConfig:
     """Performance optimization settings"""
+
     polyphony_limit: int = 64
-    voice_stealing_strategy: str = 'priority'  # 'priority', 'oldest', 'quietest'
-    cpu_optimization_level: str = 'balanced'  # 'maximum', 'balanced', 'quality'
+    voice_stealing_strategy: str = "priority"  # 'priority', 'oldest', 'quietest'
+    cpu_optimization_level: str = "balanced"  # 'maximum', 'balanced', 'quality'
     memory_optimization: bool = True
     background_processing: bool = True
     real_time_priority: bool = True
@@ -73,7 +95,8 @@ class PerformanceConfig:
 @dataclass(slots=True)
 class HardwareConfig:
     """Hardware compatibility configuration"""
-    model: str = 'S90'  # 'S70', 'S90', 'S90ES'
+
+    model: str = "S90"  # 'S70', 'S90', 'S90ES'
     simulate_hardware_latency: bool = True
     hardware_parameter_ranges: bool = True
     authentic_voice_allocation: bool = True
@@ -82,43 +105,45 @@ class HardwareConfig:
 @dataclass(slots=True)
 class MIDIConfig:
     """MIDI system configuration"""
+
     input_device: str | None = None
     output_device: str | None = None
     midi_through: bool = False
     sysex_enabled: bool = True
     nrpn_enabled: bool = True
     rpn_enabled: bool = True
-    midi_clock_source: str = 'internal'  # 'internal', 'external', 'auto'
+    midi_clock_source: str = "internal"  # 'internal', 'external', 'auto'
 
 
 @dataclass(slots=True)
 class PathConfig:
     """File system paths configuration"""
+
     sample_directories: list[str] = None
     preset_directories: list[str] = None
-    user_data_directory: str = '~/.syxg'
-    temp_directory: str = '/tmp/syxg'
-    log_directory: str = '~/.syxg/logs'
+    user_data_directory: str = "~/.syxg"
+    temp_directory: str = ""
+    log_directory: str = "~/.syxg/logs"
 
     def __post_init__(self):
         if self.sample_directories is None:
             self.sample_directories = [
-                '~/.syxg/samples',
-                '/usr/share/sounds/sf2',
-                '/usr/share/soundfonts'
+                "~/.syxg/samples",
+                "/usr/share/sounds/sf2",
+                "/usr/share/soundfonts",
             ]
         if self.preset_directories is None:
-            self.preset_directories = [
-                '~/.syxg/presets',
-                './presets'
-            ]
+            self.preset_directories = ["~/.syxg/presets", "./presets"]
+        if not self.temp_directory:
+            self.temp_directory = os.path.join(tempfile.gettempdir(), "syxg")
 
 
 @dataclass(slots=True)
 class InterfaceConfig:
     """User interface configuration"""
-    theme: str = 'dark'
-    language: str = 'en'
+
+    theme: str = "dark"
+    language: str = "en"
     show_tooltips: bool = True
     auto_save_settings: bool = True
     keyboard_shortcuts: dict[str, str] = None
@@ -126,10 +151,10 @@ class InterfaceConfig:
     def __post_init__(self):
         if self.keyboard_shortcuts is None:
             self.keyboard_shortcuts = {
-                'play': 'space',
-                'stop': 'escape',
-                'record': 'r',
-                'save': 'ctrl+s'
+                "play": "space",
+                "stop": "escape",
+                "record": "r",
+                "save": "ctrl+s",
             }
 
 
@@ -165,9 +190,9 @@ class SynthConfig:
 
     def _get_default_config_path(self) -> str:
         """Get default configuration file path"""
-        config_dir = Path.home() / '.syxg'
+        config_dir = Path.home() / ".syxg"
         config_dir.mkdir(exist_ok=True)
-        return str(config_dir / 'config.json')
+        return str(config_dir / "config.json")
 
     def load(self, config_file: str | None = None) -> bool:
         """
@@ -187,19 +212,19 @@ class SynthConfig:
                     data = json.load(f)
 
                 # Load configuration sections
-                self._load_audio_config(data.get('audio', {}))
-                self._load_engine_config(data.get('engine', {}))
-                self._load_memory_config(data.get('memory', {}))
-                self._load_performance_config(data.get('performance', {}))
-                self._load_hardware_config(data.get('hardware', {}))
-                self._load_midi_config(data.get('midi', {}))
-                self._load_path_config(data.get('paths', {}))
-                self._load_interface_config(data.get('interface', {}))
+                self._load_audio_config(data.get("audio", {}))
+                self._load_engine_config(data.get("engine", {}))
+                self._load_memory_config(data.get("memory", {}))
+                self._load_performance_config(data.get("performance", {}))
+                self._load_hardware_config(data.get("hardware", {}))
+                self._load_midi_config(data.get("midi", {}))
+                self._load_path_config(data.get("paths", {}))
+                self._load_interface_config(data.get("interface", {}))
 
                 # Load metadata
-                self.version = data.get('version', self.version)
-                self.last_modified = data.get('last_modified')
-                self.created = data.get('created')
+                self.version = data.get("version", self.version)
+                self.last_modified = data.get("last_modified")
+                self.created = data.get("created")
 
                 return True
             else:
@@ -226,17 +251,17 @@ class SynthConfig:
         try:
             # Prepare configuration data
             config_data = {
-                'version': self.version,
-                'audio': asdict(self.audio),
-                'engine': asdict(self.engine),
-                'memory': asdict(self.memory),
-                'performance': asdict(self.performance),
-                'hardware': asdict(self.hardware),
-                'midi': asdict(self.midi),
-                'paths': asdict(self.paths),
-                'interface': asdict(self.interface),
-                'last_modified': self._get_timestamp(),
-                'created': self.created or self._get_timestamp()
+                "version": self.version,
+                "audio": asdict(self.audio),
+                "engine": asdict(self.engine),
+                "memory": asdict(self.memory),
+                "performance": asdict(self.performance),
+                "hardware": asdict(self.hardware),
+                "midi": asdict(self.midi),
+                "paths": asdict(self.paths),
+                "interface": asdict(self.interface),
+                "last_modified": self._get_timestamp(),
+                "created": self.created or self._get_timestamp(),
             }
 
             # Expand user paths
@@ -246,10 +271,10 @@ class SynthConfig:
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
 
             # Save configuration
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 json.dump(config_data, f, indent=2)
 
-            self.last_modified = config_data['last_modified']
+            self.last_modified = config_data["last_modified"]
             return True
 
         except Exception as e:
@@ -309,10 +334,14 @@ class SynthConfig:
         expanded = config_data.copy()
 
         # Expand paths in path configuration
-        if 'paths' in expanded:
-            paths = expanded['paths']
-            for key in ['sample_directories', 'preset_directories',
-                       'user_data_directory', 'log_directory']:
+        if "paths" in expanded:
+            paths = expanded["paths"]
+            for key in [
+                "sample_directories",
+                "preset_directories",
+                "user_data_directory",
+                "log_directory",
+            ]:
                 if key in paths and isinstance(paths[key], str):
                     paths[key] = os.path.expanduser(paths[key])
                 elif key in paths and isinstance(paths[key], list):
@@ -323,6 +352,7 @@ class SynthConfig:
     def _get_timestamp(self) -> str:
         """Get current timestamp"""
         from datetime import datetime
+
         return datetime.now().isoformat()
 
     def get_expanded_paths(self) -> PathConfig:
@@ -361,11 +391,13 @@ class SynthConfig:
         # Performance validation
         if self.performance.polyphony_limit < 1 or self.performance.polyphony_limit > 256:
             errors.append(f"Invalid polyphony limit: {self.performance.polyphony_limit}")
-        if self.performance.voice_stealing_strategy not in ['priority', 'oldest', 'quietest']:
-            errors.append(f"Invalid voice stealing strategy: {self.performance.voice_stealing_strategy}")
+        if self.performance.voice_stealing_strategy not in ["priority", "oldest", "quietest"]:
+            errors.append(
+                f"Invalid voice stealing strategy: {self.performance.voice_stealing_strategy}"
+            )
 
         # Hardware validation
-        if self.hardware.model not in ['S70', 'S90', 'S90ES']:
+        if self.hardware.model not in ["S70", "S90", "S90ES"]:
             errors.append(f"Invalid hardware model: {self.hardware.model}")
 
         return errors
@@ -392,27 +424,27 @@ class SynthConfig:
             Preset configuration or None
         """
         presets = {
-            'maximum_performance': {
-                'polyphony_limit': 32,
-                'cpu_optimization_level': 'maximum',
-                'memory_optimization': True,
-                'background_processing': False,
-                'sample_cache_mb': 256
+            "maximum_performance": {
+                "polyphony_limit": 32,
+                "cpu_optimization_level": "maximum",
+                "memory_optimization": True,
+                "background_processing": False,
+                "sample_cache_mb": 256,
             },
-            'balanced': {
-                'polyphony_limit': 48,
-                'cpu_optimization_level': 'balanced',
-                'memory_optimization': True,
-                'background_processing': True,
-                'sample_cache_mb': 384
+            "balanced": {
+                "polyphony_limit": 48,
+                "cpu_optimization_level": "balanced",
+                "memory_optimization": True,
+                "background_processing": True,
+                "sample_cache_mb": 384,
             },
-            'maximum_quality': {
-                'polyphony_limit': 64,
-                'cpu_optimization_level': 'quality',
-                'memory_optimization': False,
-                'background_processing': True,
-                'sample_cache_mb': 512
-            }
+            "maximum_quality": {
+                "polyphony_limit": 64,
+                "cpu_optimization_level": "quality",
+                "memory_optimization": False,
+                "background_processing": True,
+                "sample_cache_mb": 512,
+            },
         }
 
         return presets.get(preset_name)
@@ -448,24 +480,24 @@ class SynthConfig:
             Hardware profile configuration
         """
         profiles = {
-            'S70': {
-                'polyphony_limit': 64,
-                'an_engines': False,
-                'wave_rom_mb': 32,
-                'sample_cache_mb': 256
+            "S70": {
+                "polyphony_limit": 64,
+                "an_engines": False,
+                "wave_rom_mb": 32,
+                "sample_cache_mb": 256,
             },
-            'S90': {
-                'polyphony_limit': 64,
-                'an_engines': True,
-                'wave_rom_mb': 64,
-                'sample_cache_mb': 384
+            "S90": {
+                "polyphony_limit": 64,
+                "an_engines": True,
+                "wave_rom_mb": 64,
+                "sample_cache_mb": 384,
             },
-            'S90ES': {
-                'polyphony_limit': 128,
-                'an_engines': True,
-                'wave_rom_mb': 64,
-                'sample_cache_mb': 512
-            }
+            "S90ES": {
+                "polyphony_limit": 128,
+                "an_engines": True,
+                "wave_rom_mb": 64,
+                "sample_cache_mb": 512,
+            },
         }
 
         return profiles.get(model)
@@ -494,32 +526,32 @@ class SynthConfig:
     def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary"""
         return {
-            'version': self.version,
-            'audio': asdict(self.audio),
-            'engine': asdict(self.engine),
-            'memory': asdict(self.memory),
-            'performance': asdict(self.performance),
-            'hardware': asdict(self.hardware),
-            'midi': asdict(self.midi),
-            'paths': asdict(self.paths),
-            'interface': asdict(self.interface),
-            'last_modified': self.last_modified,
-            'created': self.created
+            "version": self.version,
+            "audio": asdict(self.audio),
+            "engine": asdict(self.engine),
+            "memory": asdict(self.memory),
+            "performance": asdict(self.performance),
+            "hardware": asdict(self.hardware),
+            "midi": asdict(self.midi),
+            "paths": asdict(self.paths),
+            "interface": asdict(self.interface),
+            "last_modified": self.last_modified,
+            "created": self.created,
         }
 
     def from_dict(self, data: dict[str, Any]):
         """Load configuration from dictionary"""
-        self.version = data.get('version', self.version)
-        self._load_audio_config(data.get('audio', {}))
-        self._load_engine_config(data.get('engine', {}))
-        self._load_memory_config(data.get('memory', {}))
-        self._load_performance_config(data.get('performance', {}))
-        self._load_hardware_config(data.get('hardware', {}))
-        self._load_midi_config(data.get('midi', {}))
-        self._load_path_config(data.get('paths', {}))
-        self._load_interface_config(data.get('interface', {}))
-        self.last_modified = data.get('last_modified')
-        self.created = data.get('created')
+        self.version = data.get("version", self.version)
+        self._load_audio_config(data.get("audio", {}))
+        self._load_engine_config(data.get("engine", {}))
+        self._load_memory_config(data.get("memory", {}))
+        self._load_performance_config(data.get("performance", {}))
+        self._load_hardware_config(data.get("hardware", {}))
+        self._load_midi_config(data.get("midi", {}))
+        self._load_path_config(data.get("paths", {}))
+        self._load_interface_config(data.get("interface", {}))
+        self.last_modified = data.get("last_modified")
+        self.created = data.get("created")
 
     def __str__(self) -> str:
         """String representation"""

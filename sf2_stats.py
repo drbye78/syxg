@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -111,19 +110,21 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
 
             if not bag_data or len(bag_data) < 2:
                 # Preset with no zones
-                presets_data.append({
-                    "soundfont_file": sf2_file.name,
-                    "soundfont_name": soundfont_name,
-                    "bank": bank,
-                    "program": program,
-                    "preset_name": preset_name,
-                    "num_instruments": 0,
-                    "num_zones": 0,
-                    "num_samples": 0,
-                    "total_sample_size_bytes": 0,
-                    "num_generators": 0,
-                    "num_modulators": 0,
-                })
+                presets_data.append(
+                    {
+                        "soundfont_file": sf2_file.name,
+                        "soundfont_name": soundfont_name,
+                        "bank": bank,
+                        "program": program,
+                        "preset_name": preset_name,
+                        "num_instruments": 0,
+                        "num_zones": 0,
+                        "num_samples": 0,
+                        "total_sample_size_bytes": 0,
+                        "num_generators": 0,
+                        "num_modulators": 0,
+                    }
+                )
                 continue
 
             # Get global generator and modulator ranges
@@ -133,8 +134,12 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
             mod_end_global = bag_data[-1][1]
 
             # Get generator and modulator data
-            gen_data = loader.get_generator_data_in_range("preset", gen_start_global, gen_end_global + 1)
-            mod_data = loader.get_modulator_data_in_range("preset", mod_start_global, mod_end_global + 1)
+            gen_data = loader.get_generator_data_in_range(
+                "preset", gen_start_global, gen_end_global + 1
+            )
+            mod_data = loader.get_modulator_data_in_range(
+                "preset", mod_start_global, mod_end_global + 1
+            )
 
             # Track unique instruments and their details
             instrument_indices = set()
@@ -193,14 +198,20 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
                 # Get next instrument's bag index
                 if inst_idx < num_instruments - 1:
                     next_inst_header = loader.parse_instrument_header_at_index(inst_idx + 1)
-                    next_inst_bag_index = next_inst_header["bag_index"] if next_inst_header else inst_bag_index + 1
+                    next_inst_bag_index = (
+                        next_inst_header["bag_index"] if next_inst_header else inst_bag_index + 1
+                    )
                 else:
                     # Last instrument
                     bag_data_inst = loader.get_bag_data("instrument")
-                    next_inst_bag_index = len(bag_data_inst) if bag_data_inst else inst_bag_index + 1
+                    next_inst_bag_index = (
+                        len(bag_data_inst) if bag_data_inst else inst_bag_index + 1
+                    )
 
                 # Get bag data for this instrument's zones
-                inst_bag_data = loader.get_bag_data_in_range("instrument", inst_bag_index, next_inst_bag_index + 1)
+                inst_bag_data = loader.get_bag_data_in_range(
+                    "instrument", inst_bag_index, next_inst_bag_index + 1
+                )
 
                 if not inst_bag_data or len(inst_bag_data) < 2:
                     continue
@@ -212,8 +223,12 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
                 inst_mod_end_global = inst_bag_data[-1][1]
 
                 # Get generator and modulator data
-                inst_gen_data = loader.get_generator_data_in_range("instrument", inst_gen_start_global, inst_gen_end_global + 1)
-                inst_mod_data = loader.get_modulator_data_in_range("instrument", inst_mod_start_global, inst_mod_end_global + 1)
+                inst_gen_data = loader.get_generator_data_in_range(
+                    "instrument", inst_gen_start_global, inst_gen_end_global + 1
+                )
+                inst_mod_data = loader.get_modulator_data_in_range(
+                    "instrument", inst_mod_start_global, inst_mod_end_global + 1
+                )
 
                 # Process each instrument zone
                 for zone_idx in range(len(inst_bag_data) - 1):
@@ -239,7 +254,9 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
                     total_instrument_modulators += zone_modulators
 
                     # Get zone generators to find sample ID
-                    zone_gen_data = inst_gen_data[gen_start_local:gen_end_local] if inst_gen_data else []
+                    zone_gen_data = (
+                        inst_gen_data[gen_start_local:gen_end_local] if inst_gen_data else []
+                    )
 
                     for gen_type, gen_amount in zone_gen_data:
                         if gen_type == 53:  # sampleStartAddrCoarseOffset (sample ID)
@@ -265,25 +282,28 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
                 except:
                     pass
 
-            presets_data.append({
-                "soundfont_file": sf2_file.name,
-                "soundfont_name": soundfont_name,
-                "bank": bank,
-                "program": program,
-                "preset_name": preset_name,
-                "num_instruments": len(instrument_indices),
-                "num_zones": total_instrument_zones,
-                "num_samples": len(sample_ids),
-                "total_sample_size_bytes": total_sample_size,
-                "num_generators": total_instrument_generators,
-                "num_modulators": total_instrument_modulators,
-            })
+            presets_data.append(
+                {
+                    "soundfont_file": sf2_file.name,
+                    "soundfont_name": soundfont_name,
+                    "bank": bank,
+                    "program": program,
+                    "preset_name": preset_name,
+                    "num_instruments": len(instrument_indices),
+                    "num_zones": total_instrument_zones,
+                    "num_samples": len(sample_ids),
+                    "total_sample_size_bytes": total_sample_size,
+                    "num_generators": total_instrument_generators,
+                    "num_modulators": total_instrument_modulators,
+                }
+            )
 
         return presets_data
 
     except Exception as e:
         print(f"  Error scanning {sf2_file.name}: {e}")
         import traceback
+
         traceback.print_exc()
         return None
 

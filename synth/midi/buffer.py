@@ -4,6 +4,7 @@ Unified Buffered MIDI Processing
 Time-ordered message buffering and processing for both real-time and sequenced MIDI.
 Provides a clean interface for managing MIDI message timing and delivery.
 """
+
 from __future__ import annotations
 
 import heapq
@@ -32,7 +33,7 @@ class MessageBuffer:
 
         # Message heaps for time-ordered processing
         self.message_heap: list[tuple[float, int, MIDIMessage]] = []  # (time, priority, message)
-        self.sysex_heap: list[tuple[float, int, MIDIMessage]] = []    # (time, priority, message)
+        self.sysex_heap: list[tuple[float, int, MIDIMessage]] = []  # (time, priority, message)
 
         # Current time tracking
         self.current_time = 0.0
@@ -181,10 +182,10 @@ class MessageBuffer:
         """Get buffer status information."""
         with self.lock:
             return {
-                'pending_messages': len(self.message_heap),
-                'pending_sysex': len(self.sysex_heap),
-                'total_pending': self.get_pending_count(),
-                'next_message_time': self.get_next_message_time(),
-                'current_time': self.current_time,
-                'block_start_time': self.block_start_time
+                "pending_messages": len(self.message_heap),
+                "pending_sysex": len(self.sysex_heap),
+                "total_pending": self.get_pending_count(),
+                "next_message_time": self.get_next_message_time(),
+                "current_time": self.current_time,
+                "block_start_time": self.block_start_time,
             }

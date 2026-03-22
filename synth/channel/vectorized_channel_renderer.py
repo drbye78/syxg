@@ -4,20 +4,18 @@ XG Channel Renderer
 Handles audio synthesis for individual MIDI channels using vectorized operations.
 Supports XG specification features including voice allocation, modulation, and effects routing.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-import math
-
-# Import internal modules
-from ..core.constants import DEFAULT_CONFIG
-from ..engine.optimized_coefficient_manager import get_global_coefficient_manager
-from ..core.oscillator import XGLFO  # XG-compliant LFO
-from ..modulation.vectorized_matrix import VectorizedModulationMatrix
-from ..partial.partial_generator import XGPartialGenerator
 # Import VoiceManager dynamically to avoid circular imports
 import importlib
+from typing import Any
+
+import numpy as np
+
+# Import internal modules
+from ..engine.optimized_coefficient_manager import get_global_coefficient_manager
+from ..modulation.vectorized_matrix import VectorizedModulationMatrix
 from ..voice.voice_priority import VoicePriority
 from .channel_note import ChannelNote
 
@@ -58,7 +56,7 @@ class VectorizedChannelRenderer:
         self.is_drum = False  # Default to melodic mode
 
         # XG voice management system (dynamic import to avoid circular imports)
-        voice_manager_module = importlib.import_module('synth.voice.voice_manager')
+        voice_manager_module = importlib.import_module("synth.voice.voice_manager")
         VoiceManager = voice_manager_module.VoiceManager
         self.voice_manager = VoiceManager(synth.max_polyphony)
         self.polyphony_limit = synth.max_polyphony
@@ -128,21 +126,15 @@ class VectorizedChannelRenderer:
         # Set XG modulation routing for channel LFOs
         # LFO1: Pitch modulation (vibrato) - XG default
         self.lfos[0].set_modulation_routing(pitch=True, filter=False, amplitude=False)
-        self.lfos[0].set_modulation_depths(
-            pitch_cents=50.0, filter_depth=0.0, amplitude_depth=0.0
-        )
+        self.lfos[0].set_modulation_depths(pitch_cents=50.0, filter_depth=0.0, amplitude_depth=0.0)
 
         # LFO2: Filter modulation - optional
         self.lfos[1].set_modulation_routing(pitch=False, filter=True, amplitude=False)
-        self.lfos[1].set_modulation_depths(
-            pitch_cents=0.0, filter_depth=0.3, amplitude_depth=0.0
-        )
+        self.lfos[1].set_modulation_depths(pitch_cents=0.0, filter_depth=0.3, amplitude_depth=0.0)
 
         # LFO3: Amplitude modulation (tremolo) - optional
         self.lfos[2].set_modulation_routing(pitch=False, filter=False, amplitude=True)
-        self.lfos[2].set_modulation_depths(
-            pitch_cents=0.0, filter_depth=0.0, amplitude_depth=0.3
-        )
+        self.lfos[2].set_modulation_depths(pitch_cents=0.0, filter_depth=0.0, amplitude_depth=0.3)
 
         # XG LFO modulation state for channel-wide modulation
         self.lfo_pitch_modulation = 0.0
@@ -191,7 +183,7 @@ class VectorizedChannelRenderer:
         self.rpn_active = False  # RPN sequence in progress
 
         # Hold 2 pedal state - GM optional compliance
-        self.hold2_active = False   # CC69
+        self.hold2_active = False  # CC69
 
         # Local control state - GM optional
         self.local_control = True  # CC122 - True = local control on
@@ -237,42 +229,28 @@ class VectorizedChannelRenderer:
         )
 
         # Amp Envelope -> Filter Cutoff
-        self.mod_matrix.set_route(
-            3, "amp_env", "filter_cutoff", amount=0.5, polarity=1.0
-        )
+        self.mod_matrix.set_route(3, "amp_env", "filter_cutoff", amount=0.5, polarity=1.0)
 
         # LFO1 -> Filter Cutoff
         self.mod_matrix.set_route(4, "lfo1", "filter_cutoff", amount=0.3, polarity=1.0)
 
         # Velocity -> Amplitude
-        self.mod_matrix.set_route(
-            5, "velocity", "amp", amount=0.5, velocity_sensitivity=0.5
-        )
+        self.mod_matrix.set_route(5, "velocity", "amp", amount=0.5, velocity_sensitivity=0.5)
 
         # Note Number -> Pitch (basic pitch mapping)
-        self.mod_matrix.set_route(
-            6, "note_number", "pitch", amount=1.0, key_scaling=1.0
-        )
+        self.mod_matrix.set_route(6, "note_number", "pitch", amount=1.0, key_scaling=1.0)
 
         # Mod Wheel -> LFO1 Depth (vibrato control)
-        self.mod_matrix.set_route(
-            7, "mod_wheel", "lfo1_depth", amount=1.0, polarity=1.0
-        )
+        self.mod_matrix.set_route(7, "mod_wheel", "lfo1_depth", amount=1.0, polarity=1.0)
 
         # Breath Controller -> LFO1 Depth
-        self.mod_matrix.set_route(
-            8, "breath_controller", "lfo1_depth", amount=0.8, polarity=1.0
-        )
+        self.mod_matrix.set_route(8, "breath_controller", "lfo1_depth", amount=0.8, polarity=1.0)
 
         # Foot Controller -> Filter Cutoff
-        self.mod_matrix.set_route(
-            9, "foot_controller", "filter_cutoff", amount=0.5, polarity=1.0
-        )
+        self.mod_matrix.set_route(9, "foot_controller", "filter_cutoff", amount=0.5, polarity=1.0)
 
         # Channel Aftertouch -> LFO1 Depth
-        self.mod_matrix.set_route(
-            10, "channel_aftertouch", "lfo1_depth", amount=0.6, polarity=1.0
-        )
+        self.mod_matrix.set_route(10, "channel_aftertouch", "lfo1_depth", amount=0.6, polarity=1.0)
 
         # Key Aftertouch -> Filter Resonance
         self.mod_matrix.set_route(
@@ -280,9 +258,7 @@ class VectorizedChannelRenderer:
         )
 
         # Brightness -> Filter Cutoff (XG controller 72)
-        self.mod_matrix.set_route(
-            12, "brightness", "filter_cutoff", amount=0.7, polarity=1.0
-        )
+        self.mod_matrix.set_route(12, "brightness", "filter_cutoff", amount=0.7, polarity=1.0)
 
         # Harmonic Content -> Filter Resonance (XG controller 71)
         self.mod_matrix.set_route(
@@ -312,25 +288,21 @@ class VectorizedChannelRenderer:
             77: "vibrato_rate",
             78: "vibrato_depth",
             79: "vibrato_delay",
-
             # General Purpose Buttons
             80: "gp_button_1",
             81: "gp_button_2",
             82: "gp_button_3",
             83: "gp_button_4",
-
             # XG Pedals/Controllers
             66: "sostenuto_pedal",
             67: "soft_pedal",
             68: "legato_foot_switch",
             69: "hold2_pedal",
             70: "sound_controller_1",
-
             # Portamento
             5: "portamento_time",
             65: "portamento_on_off",
             84: "portamento_control",
-
             # Effects
             92: "effects_2_depth",
             95: "effects_5_depth",
@@ -852,34 +824,20 @@ class VectorizedChannelRenderer:
                     if partial.is_active():
                         if new_preset == "bright":
                             # Bright: higher cutoff, faster attack
-                            partial.filter_cutoff = min(
-                                20000, partial.filter_cutoff * 1.5
-                            )
-                            partial.amp_attack_time = max(
-                                0.001, partial.amp_attack_time * 0.7
-                            )
+                            partial.filter_cutoff = min(20000, partial.filter_cutoff * 1.5)
+                            partial.amp_attack_time = max(0.001, partial.amp_attack_time * 0.7)
                         elif new_preset == "dark":
                             # Dark: lower cutoff, slower attack
-                            partial.filter_cutoff = (
-                                max(20, partial.filter_cutoff, 1000) * 0.7
-                            )
-                            partial.amp_attack_time = min(
-                                2.0, partial.amp_attack_time * 1.3
-                            )
+                            partial.filter_cutoff = max(20, partial.filter_cutoff, 1000) * 0.7
+                            partial.amp_attack_time = min(2.0, partial.amp_attack_time * 1.3)
                         elif new_preset == "aggressive":
                             # Aggressive: higher resonance, faster decay
                             partial.filter_resonance = min(
                                 2.0,
-                                (
-                                    partial.filter_resonance
-                                    if partial.filter_resonance
-                                    else 0.7
-                                )
+                                (partial.filter_resonance if partial.filter_resonance else 0.7)
                                 * 1.5,
                             )
-                            partial.amp_decay_time = max(
-                                0.01, partial.amp_decay_time * 0.6
-                            )
+                            partial.amp_decay_time = max(0.01, partial.amp_decay_time * 0.6)
                         elif new_preset == "mellow":
                             # Mellow: lower resonance, slower decay
                             partial.filter_resonance = max(
@@ -890,9 +848,7 @@ class VectorizedChannelRenderer:
         """Check if this channel renderer has any active notes with optimized check."""
         # Clean up inactive notes with optimized cleanup
         inactive_notes = [
-            note
-            for note, channel_note in self.active_notes.items()
-            if not channel_note.is_active()
+            note for note, channel_note in self.active_notes.items() if not channel_note.is_active()
         ]
         for note in inactive_notes:
             # Clean up the channel note to release LFOs and other resources
@@ -914,9 +870,7 @@ class VectorizedChannelRenderer:
         ch_right.fill(0.0)
         return ch_left, ch_right
 
-    def generate_sample_block_vectorized(
-        self, block_size: int
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def generate_sample_block_vectorized(self, block_size: int) -> tuple[np.ndarray, np.ndarray]:
         """
         Generate audio sample block for this channel using vectorized operations.
 
@@ -941,9 +895,7 @@ class VectorizedChannelRenderer:
 
         # Calculate pitch bend modulation with optimized calculation
         pitch_bend_range_cents = self.pitch_bend_range * 100
-        pitch_bend_offset = (
-            (self.pitch_bend_value - 8192) / 8192.0
-        ) * pitch_bend_range_cents
+        pitch_bend_offset = ((self.pitch_bend_value - 8192) / 8192.0) * pitch_bend_range_cents
         global_pitch_mod = pitch_bend_offset
 
         # LAZY PARAMETER UPDATE: Apply cached controller changes during audio processing
@@ -967,9 +919,7 @@ class VectorizedChannelRenderer:
             )
 
         # Apply final clipping with vectorized operations - OPTIMIZED CLIPPING
-        np.clip(
-            self.left_buffer[:block_size], -1.0, 1.0, out=self.left_buffer[:block_size]
-        )
+        np.clip(self.left_buffer[:block_size], -1.0, 1.0, out=self.left_buffer[:block_size])
         np.clip(
             self.right_buffer[:block_size],
             -1.0,
@@ -1324,14 +1274,18 @@ class VectorizedChannelRenderer:
 
                         # Enhanced modulation for aggressive character
                         if partial.filter_envelope:
-                            partial.filter_envelope.attack = max(0.001, partial.filter_envelope.attack * 0.5)
-                            partial.filter_envelope.decay = max(0.01, partial.filter_envelope.decay * 0.7)
+                            partial.filter_envelope.attack = max(
+                                0.001, partial.filter_envelope.attack * 0.5
+                            )
+                            partial.filter_envelope.decay = max(
+                                0.01, partial.filter_envelope.decay * 0.7
+                            )
 
         # Adjust LFO parameters for more intense modulation
         if self.lfos:
             for lfo in self.lfos:
                 lfo.depth *= 1.5  # Increase modulation depth
-                lfo.rate *= 1.2   # Slightly faster modulation
+                lfo.rate *= 1.2  # Slightly faster modulation
 
     def _apply_analog_mode_parameters(self):
         """Apply Analog Mode parameters (XG Warmer Sound mode)."""
@@ -1354,14 +1308,18 @@ class VectorizedChannelRenderer:
 
                         # Soften filter envelope for more natural response
                         if partial.filter_envelope:
-                            partial.filter_envelope.attack = min(1.0, partial.filter_envelope.attack * 1.5)
-                            partial.filter_envelope.decay = min(3.0, partial.filter_envelope.decay * 1.3)
+                            partial.filter_envelope.attack = min(
+                                1.0, partial.filter_envelope.attack * 1.5
+                            )
+                            partial.filter_envelope.decay = min(
+                                3.0, partial.filter_envelope.decay * 1.3
+                            )
 
         # Reduce LFO modulation for warmer sound
         if self.lfos:
             for lfo in self.lfos:
                 lfo.depth *= 0.7  # Reduce modulation intensity
-                lfo.rate *= 0.8   # Slower modulation
+                lfo.rate *= 0.8  # Slower modulation
 
     def _apply_max_resonance_mode_parameters(self):
         """Apply Max Resonance Mode parameters (XG High Resonance mode)."""
@@ -1380,8 +1338,12 @@ class VectorizedChannelRenderer:
 
                         # Enhance filter envelope for more dynamic resonance
                         if partial.filter_envelope:
-                            partial.filter_envelope.sustain = min(1.0, partial.filter_envelope.sustain * 1.2)
-                            partial.filter_envelope.decay = min(5.0, partial.filter_envelope.decay * 1.3)
+                            partial.filter_envelope.sustain = min(
+                                1.0, partial.filter_envelope.sustain * 1.2
+                            )
+                            partial.filter_envelope.decay = min(
+                                5.0, partial.filter_envelope.decay * 1.3
+                            )
 
         # Reduce LFO modulation slightly to avoid overwhelming resonance
         if self.lfos:
@@ -1409,7 +1371,7 @@ class VectorizedChannelRenderer:
                         if i % 2 == 0:
                             partial.pan = max(-1.0, partial.pan - 0.1)  # Slightly left
                         else:
-                            partial.pan = min(1.0, partial.pan + 0.1)   # Slightly right
+                            partial.pan = min(1.0, partial.pan + 0.1)  # Slightly right
 
         # Reduce mono-compatible effects to enhance stereo perception
         if self.lfos:
@@ -1437,8 +1399,12 @@ class VectorizedChannelRenderer:
 
                         # Adjust envelope for wah response
                         if partial.filter_envelope:
-                            partial.filter_envelope.attack = max(0.001, partial.filter_envelope.attack * 0.8)
-                            partial.filter_envelope.decay = min(2.0, partial.filter_envelope.decay * 1.5)
+                            partial.filter_envelope.attack = max(
+                                0.001, partial.filter_envelope.attack * 0.8
+                            )
+                            partial.filter_envelope.decay = min(
+                                2.0, partial.filter_envelope.decay * 1.5
+                            )
 
         # Add LFO modulation to filter cutoff for automatic wah sweep
         self.mod_matrix.set_route(4, "lfo1", "filter_cutoff", amount=0.8, polarity=1.0)
@@ -1454,9 +1420,7 @@ class VectorizedChannelRenderer:
         # Makes the instrument more responsive to playing dynamics
 
         # Increase velocity sensitivity in modulation matrix
-        self.mod_matrix.set_route(
-            5, "velocity", "amp", amount=1.2, velocity_sensitivity=1.5
-        )
+        self.mod_matrix.set_route(5, "velocity", "amp", amount=1.2, velocity_sensitivity=1.5)
         self.mod_matrix.set_route(
             11, "velocity", "filter_cutoff", amount=0.7, velocity_sensitivity=1.2
         )
@@ -1471,10 +1435,14 @@ class VectorizedChannelRenderer:
                     if partial.is_active():
                         # Make envelopes more velocity-sensitive
                         if partial.amp_envelope:
-                            partial.amp_envelope.velocity_sense = min(2.0, partial.amp_envelope.velocity_sense * 1.5)
+                            partial.amp_envelope.velocity_sense = min(
+                                2.0, partial.amp_envelope.velocity_sense * 1.5
+                            )
 
                         if partial.filter_envelope:
-                            partial.filter_envelope.velocity_sense = min(2.0, partial.filter_envelope.velocity_sense * 1.3)
+                            partial.filter_envelope.velocity_sense = min(
+                                2.0, partial.filter_envelope.velocity_sense * 1.3
+                            )
 
         # Slightly increase LFO depth for more dynamic movement
         if self.lfos:
@@ -1492,10 +1460,18 @@ class VectorizedChannelRenderer:
                     if partial.is_active():
                         # Aggressive envelope for distorted character
                         if partial.amp_envelope:
-                            partial.amp_attack_time = max(0.001, partial.amp_attack_time * 0.2)  # Very fast attack
-                            partial.amp_decay_time = max(0.01, partial.amp_decay_time * 0.5)   # Fast decay
-                            partial.amp_sustain_level = max(0.3, partial.amp_sustain_level * 0.7)  # Compressed sustain
-                            partial.amp_release_time = min(3.0, partial.amp_release_time * 0.8)   # Moderate release
+                            partial.amp_attack_time = max(
+                                0.001, partial.amp_attack_time * 0.2
+                            )  # Very fast attack
+                            partial.amp_decay_time = max(
+                                0.01, partial.amp_decay_time * 0.5
+                            )  # Fast decay
+                            partial.amp_sustain_level = max(
+                                0.3, partial.amp_sustain_level * 0.7
+                            )  # Compressed sustain
+                            partial.amp_release_time = min(
+                                3.0, partial.amp_release_time * 0.8
+                            )  # Moderate release
 
                         # High resonance and bright filter for distortion harmonics
                         partial.filter_resonance = min(2.0, (partial.filter_resonance or 0.7) * 2.5)
@@ -1503,20 +1479,28 @@ class VectorizedChannelRenderer:
 
                         # Aggressive filter envelope
                         if partial.filter_envelope:
-                            partial.filter_envelope.attack = max(0.001, partial.filter_envelope.attack * 0.3)
-                            partial.filter_envelope.decay = max(0.01, partial.filter_envelope.decay * 0.6)
-                            partial.filter_envelope.sustain = max(0.2, partial.filter_envelope.sustain * 0.8)
+                            partial.filter_envelope.attack = max(
+                                0.001, partial.filter_envelope.attack * 0.3
+                            )
+                            partial.filter_envelope.decay = max(
+                                0.01, partial.filter_envelope.decay * 0.6
+                            )
+                            partial.filter_envelope.sustain = max(
+                                0.2, partial.filter_envelope.sustain * 0.8
+                            )
 
         # Enhanced LFO modulation for distorted character
         if self.lfos:
             for lfo in self.lfos:
                 lfo.depth *= 1.3  # More intense modulation
-                lfo.rate *= 1.1   # Slightly faster for edgy feel
+                lfo.rate *= 1.1  # Slightly faster for edgy feel
 
         # Add distortion-specific modulation routes
         self.mod_matrix.set_route(13, "lfo2", "filter_resonance", amount=0.3, polarity=1.0)
 
-    def _handle_nrpn_complete(self, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int) -> bool:
+    def _handle_nrpn_complete(
+        self, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int
+    ) -> bool:
         """
         Handle completed NRPN message routing.
 
@@ -1532,7 +1516,7 @@ class VectorizedChannelRenderer:
         # Check if this is a system NRPN (MSB 0-3) - includes effects parameters
         if nrpn_msb <= 3:  # MSB 0-3: System Effects (Reverb, Chorus, Variation)
             # Route to XG effects manager
-            if hasattr(self.synth, 'effects_manager'):
+            if hasattr(self.synth, "effects_manager"):
                 return self.synth.effects_manager.handle_nrpn_system_effects(
                     nrpn_msb, nrpn_lsb, data_msb, data_lsb, self.channel
                 )
@@ -1540,13 +1524,13 @@ class VectorizedChannelRenderer:
         # Check if this is a channel-specific effect NRPN (MSB 1-15)
         elif 1 <= nrpn_msb <= 15:
             # Route to effect manager with channel specified
-            if hasattr(self.synth, 'effects_manager'):
+            if hasattr(self.synth, "effects_manager"):
                 return self.synth.effects_manager.handle_nrpn(
                     nrpn_msb, nrpn_lsb, data_msb, data_lsb, self.channel
                 )
 
         # Check if this is a drum NRPN (MSB 40-41) and we're on drum channel
-        elif 40 <= nrpn_msb <= 41 and self.channel == 9 and hasattr(self.synth, 'drum_manager'):
+        elif 40 <= nrpn_msb <= 41 and self.channel == 9 and hasattr(self.synth, "drum_manager"):
             # Route to drum manager
             return self.synth.drum_manager.handle_xg_drum_setup_nrpn(
                 self.channel, nrpn_msb, nrpn_lsb, data_msb, data_lsb
@@ -1556,9 +1540,9 @@ class VectorizedChannelRenderer:
         elif nrpn_msb == 0 and nrpn_lsb == 440:
             # Control pitch envelope depth for all partial generators
             for note in self.active_notes.values():
-                if hasattr(note, 'partials'):
+                if hasattr(note, "partials"):
                     for partial in note.partials:
-                        if hasattr(partial, 'update_pitch_envelope_depth'):
+                        if hasattr(partial, "update_pitch_envelope_depth"):
                             partial.update_pitch_envelope_depth(data_msb)
             return True
 
@@ -1567,7 +1551,7 @@ class VectorizedChannelRenderer:
             # Route XG Voice parameters to all active partial generators
             # These are voice-level synthesis parameters that affect all partials
             for note in self.active_notes.values():
-                if hasattr(note, 'partials'):
+                if hasattr(note, "partials"):
                     for partial in note.partials:
                         self._route_xg_voice_nrpn_to_partial(partial, nrpn_lsb, data_msb, data_lsb)
             return True
@@ -1618,7 +1602,9 @@ class VectorizedChannelRenderer:
         # Unknown RPN
         return False
 
-    def _route_xg_voice_nrpn_to_partial(self, partial, nrpn_lsb: int, data_msb: int, data_lsb: int) -> None:
+    def _route_xg_voice_nrpn_to_partial(
+        self, partial, nrpn_lsb: int, data_msb: int, data_lsb: int
+    ) -> None:
         """
         Route XG Voice NRPN parameters (MSB 127) to appropriate partial generator methods.
 
@@ -1629,18 +1615,22 @@ class VectorizedChannelRenderer:
         try:
             if nrpn_lsb == 0:
                 # Element Switch - bit field for active elements
-                partial._process_element_switch(data_msb) if hasattr(partial, '_process_element_switch') else None
+                partial._process_element_switch(data_msb) if hasattr(
+                    partial, "_process_element_switch"
+                ) else None
             elif nrpn_lsb == 1:
                 # Detune Adjustment - fine pitch
                 detune_cents = ((data_msb - 64) * 100) / 16.0
-                partial._calc_detune(detune_cents) if hasattr(partial, '_calc_detune') else None
+                partial._calc_detune(detune_cents) if hasattr(partial, "_calc_detune") else None
             elif nrpn_lsb == 2:
                 # Volume Control
-                partial._level_control(data_msb / 127.0) if hasattr(partial, '_level_control') else None
+                partial._level_control(data_msb / 127.0) if hasattr(
+                    partial, "_level_control"
+                ) else None
             elif nrpn_lsb == 3:
                 # Pan Control (-1 to +1)
-                pan = ((data_msb - 64) / 63.0)
-                partial._pan_control(pan) if hasattr(partial, '_pan_control') else None
+                pan = (data_msb - 64) / 63.0
+                partial._pan_control(pan) if hasattr(partial, "_pan_control") else None
             # Add more XG Voice NRPN handlers as needed
         except Exception:
             # Ignore NRPN routing errors to maintain stability
@@ -1687,7 +1677,7 @@ class VectorizedChannelRenderer:
         # Increment current RPN parameter value by 1
         if self.rpn_active:
             # Get current parameter value (RPN uses single byte values)
-            current_value = self.controllers[6] if hasattr(self, 'controllers') else 64
+            current_value = self.controllers[6] if hasattr(self, "controllers") else 64
 
             # Increment the parameter value
             new_value = min(127, current_value + 1)
@@ -1703,7 +1693,7 @@ class VectorizedChannelRenderer:
         # Decrement current RPN parameter value by 1
         if self.rpn_active:
             # Get current parameter value (RPN uses single byte values)
-            current_value = self.controllers[6] if hasattr(self, 'controllers') else 64
+            current_value = self.controllers[6] if hasattr(self, "controllers") else 64
 
             # Decrement the parameter value
             new_value = max(0, current_value - 1)
@@ -1722,8 +1712,8 @@ class VectorizedChannelRenderer:
         # Set standard defaults
         self.controllers[7] = 100  # Volume
         self.controllers[11] = 127  # Expression
-        self.controllers[10] = 64   # Pan center
-        self.controllers[64] = 0    # Sustain off
+        self.controllers[10] = 64  # Pan center
+        self.controllers[64] = 0  # Sustain off
 
         # Reset channel parameters
         self.volume = 100
@@ -1772,7 +1762,7 @@ class VectorizedChannelRenderer:
                 for partial in channel_note.partials:
                     if partial.is_active() and partial.amp_envelope:
                         # Hold 2 creates additional sustain independent of main sustain pedal
-                        if hasattr(partial.amp_envelope, 'hold2'):
+                        if hasattr(partial.amp_envelope, "hold2"):
                             partial.amp_envelope.hold2 = self.hold2_active
 
     def _handle_sound_controller_1(self, value: int):
@@ -1783,7 +1773,7 @@ class VectorizedChannelRenderer:
         # Apply to third LFO (used for tremolo/amplitude modulation)
         if self.lfos and len(self.lfos) >= 3:
             self.lfos[2].depth = tremolo_depth
-            if hasattr(self.lfos[2], 'update_xg_tremolo_depth'):
+            if hasattr(self.lfos[2], "update_xg_tremolo_depth"):
                 self.lfos[2].update_xg_tremolo_depth(value)
 
     def _handle_portamento_control(self, value: int):

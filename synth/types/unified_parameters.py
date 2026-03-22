@@ -126,16 +126,18 @@ REAL-TIME PERFORMANCE: Sub-millisecond parameter update latency
 THREAD SAFETY: Concurrent access protection for multi-threaded operation
 MEMORY EFFICIENCY: Minimal memory footprint for parameter storage
 """
+
 from __future__ import annotations
 
-from typing import Any
+import math
 from collections.abc import Callable
 from enum import Enum
-import math
+from typing import Any
 
 
 class ParameterScope(Enum):
     """Parameter scope definitions."""
+
     GLOBAL = "global"
     CHANNEL = "channel"
     VOICE = "voice"
@@ -144,6 +146,7 @@ class ParameterScope(Enum):
 
 class ParameterSource(Enum):
     """Parameter source definitions."""
+
     INTERNAL = "internal"
     MIDI_CC = "midi_cc"
     NRPN = "nrpn"
@@ -159,8 +162,14 @@ class ParameterUpdate:
     Supports Jupiter-X parameter mappings with hardware-accurate curves.
     """
 
-    def __init__(self, name: str, value: float, scope: ParameterScope = ParameterScope.GLOBAL,
-                 source: ParameterSource = ParameterSource.INTERNAL, channel: int | None = None):
+    def __init__(
+        self,
+        name: str,
+        value: float,
+        scope: ParameterScope = ParameterScope.GLOBAL,
+        source: ParameterSource = ParameterSource.INTERNAL,
+        channel: int | None = None,
+    ):
         """
         Initialize parameter update.
 
@@ -181,17 +190,18 @@ class ParameterUpdate:
     def _get_timestamp(self) -> float:
         """Get current timestamp."""
         import time
+
         return time.time()
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
-            'name': self.name,
-            'value': self.value,
-            'scope': self.scope.value,
-            'source': self.source.value,
-            'channel': self.channel,
-            'timestamp': self.timestamp
+            "name": self.name,
+            "value": self.value,
+            "scope": self.scope.value,
+            "source": self.source.value,
+            "channel": self.channel,
+            "timestamp": self.timestamp,
         }
 
 
@@ -205,66 +215,59 @@ class JupiterXParameterMapping:
     # Jupiter-X parameter ranges and curves
     PARAMETER_RANGES = {
         # Oscillator parameters
-        'osc1_waveform': {'min': 0, 'max': 127, 'default': 0, 'curve': 'linear'},
-        'osc1_coarse_tune': {'min': 0, 'max': 127, 'default': 64, 'curve': 'linear'},
-        'osc1_fine_tune': {'min': 0, 'max': 127, 'default': 64, 'curve': 'linear'},
-        'osc1_level': {'min': 0, 'max': 127, 'default': 100, 'curve': 'linear'},
-
-        'osc2_waveform': {'min': 0, 'max': 127, 'default': 0, 'curve': 'linear'},
-        'osc2_coarse_tune': {'min': 0, 'max': 127, 'default': 64, 'curve': 'linear'},
-        'osc2_fine_tune': {'min': 0, 'max': 127, 'default': 64, 'curve': 'linear'},
-        'osc2_level': {'min': 0, 'max': 127, 'default': 100, 'curve': 'linear'},
-
+        "osc1_waveform": {"min": 0, "max": 127, "default": 0, "curve": "linear"},
+        "osc1_coarse_tune": {"min": 0, "max": 127, "default": 64, "curve": "linear"},
+        "osc1_fine_tune": {"min": 0, "max": 127, "default": 64, "curve": "linear"},
+        "osc1_level": {"min": 0, "max": 127, "default": 100, "curve": "linear"},
+        "osc2_waveform": {"min": 0, "max": 127, "default": 0, "curve": "linear"},
+        "osc2_coarse_tune": {"min": 0, "max": 127, "default": 64, "curve": "linear"},
+        "osc2_fine_tune": {"min": 0, "max": 127, "default": 64, "curve": "linear"},
+        "osc2_level": {"min": 0, "max": 127, "default": 100, "curve": "linear"},
         # Filter parameters
-        'filter_cutoff': {'min': 0, 'max': 127, 'default': 64, 'curve': 'exponential'},
-        'filter_resonance': {'min': 0, 'max': 127, 'default': 0, 'curve': 'linear'},
-        'filter_drive': {'min': 0, 'max': 127, 'default': 0, 'curve': 'exponential'},
-        'filter_type': {'min': 0, 'max': 3, 'default': 0, 'curve': 'linear'},
-
+        "filter_cutoff": {"min": 0, "max": 127, "default": 64, "curve": "exponential"},
+        "filter_resonance": {"min": 0, "max": 127, "default": 0, "curve": "linear"},
+        "filter_drive": {"min": 0, "max": 127, "default": 0, "curve": "exponential"},
+        "filter_type": {"min": 0, "max": 3, "default": 0, "curve": "linear"},
         # Amplifier parameters
-        'amp_level': {'min': 0, 'max': 127, 'default': 100, 'curve': 'linear'},
-        'amp_attack': {'min': 0, 'max': 127, 'default': 0, 'curve': 'exponential'},
-        'amp_decay': {'min': 0, 'max': 127, 'default': 64, 'curve': 'exponential'},
-        'amp_sustain': {'min': 0, 'max': 127, 'default': 127, 'curve': 'linear'},
-        'amp_release': {'min': 0, 'max': 127, 'default': 64, 'curve': 'exponential'},
-
+        "amp_level": {"min": 0, "max": 127, "default": 100, "curve": "linear"},
+        "amp_attack": {"min": 0, "max": 127, "default": 0, "curve": "exponential"},
+        "amp_decay": {"min": 0, "max": 127, "default": 64, "curve": "exponential"},
+        "amp_sustain": {"min": 0, "max": 127, "default": 127, "curve": "linear"},
+        "amp_release": {"min": 0, "max": 127, "default": 64, "curve": "exponential"},
         # LFO parameters
-        'lfo1_rate': {'min': 0, 'max': 127, 'default': 64, 'curve': 'exponential'},
-        'lfo1_depth': {'min': 0, 'max': 127, 'default': 0, 'curve': 'linear'},
-        'lfo1_waveform': {'min': 0, 'max': 3, 'default': 0, 'curve': 'linear'},
-
-        'lfo2_rate': {'min': 0, 'max': 127, 'default': 32, 'curve': 'exponential'},
-        'lfo2_depth': {'min': 0, 'max': 127, 'default': 0, 'curve': 'linear'},
-        'lfo2_waveform': {'min': 0, 'max': 3, 'default': 1, 'curve': 'linear'},
-
+        "lfo1_rate": {"min": 0, "max": 127, "default": 64, "curve": "exponential"},
+        "lfo1_depth": {"min": 0, "max": 127, "default": 0, "curve": "linear"},
+        "lfo1_waveform": {"min": 0, "max": 3, "default": 0, "curve": "linear"},
+        "lfo2_rate": {"min": 0, "max": 127, "default": 32, "curve": "exponential"},
+        "lfo2_depth": {"min": 0, "max": 127, "default": 0, "curve": "linear"},
+        "lfo2_waveform": {"min": 0, "max": 3, "default": 1, "curve": "linear"},
         # Effects parameters
-        'distortion_drive': {'min': 0, 'max': 127, 'default': 0, 'curve': 'exponential'},
-        'distortion_tone': {'min': 0, 'max': 127, 'default': 64, 'curve': 'linear'},
-        'phaser_rate': {'min': 0, 'max': 127, 'default': 32, 'curve': 'exponential'},
-        'phaser_depth': {'min': 0, 'max': 127, 'default': 64, 'curve': 'linear'},
-
+        "distortion_drive": {"min": 0, "max": 127, "default": 0, "curve": "exponential"},
+        "distortion_tone": {"min": 0, "max": 127, "default": 64, "curve": "linear"},
+        "phaser_rate": {"min": 0, "max": 127, "default": 32, "curve": "exponential"},
+        "phaser_depth": {"min": 0, "max": 127, "default": 64, "curve": "linear"},
         # Performance parameters
-        'pitch_bend_range': {'min': 0, 'max': 24, 'default': 2, 'curve': 'linear'},
-        'portamento_time': {'min': 0, 'max': 127, 'default': 0, 'curve': 'exponential'},
-        'transpose': {'min': 0, 'max': 127, 'default': 64, 'curve': 'linear'},
+        "pitch_bend_range": {"min": 0, "max": 24, "default": 2, "curve": "linear"},
+        "portamento_time": {"min": 0, "max": 127, "default": 0, "curve": "exponential"},
+        "transpose": {"min": 0, "max": 127, "default": 64, "curve": "linear"},
     }
 
     # MIDI CC mappings for Jupiter-X
     MIDI_CC_MAPPINGS = {
-        1: 'modulation_wheel',
-        7: 'volume',
-        10: 'pan',
-        11: 'expression',
-        64: 'sustain_pedal',
-        65: 'portamento_on_off',
-        84: 'portamento_time',
-        74: 'filter_cutoff',
-        71: 'filter_resonance',
-        79: 'filter_drive',
-        73: 'amp_attack',
-        75: 'amp_decay',
-        79: 'amp_release',
-        72: 'amp_release',  # Alternative mapping
+        1: "modulation_wheel",
+        7: "volume",
+        10: "pan",
+        11: "expression",
+        64: "sustain_pedal",
+        65: "portamento_on_off",
+        84: "portamento_time",
+        74: "filter_cutoff",
+        71: "filter_resonance",
+        79: "filter_drive",
+        73: "amp_attack",
+        75: "amp_decay",
+        79: "amp_release",
+        72: "amp_release",  # Alternative mapping
     }
 
     @classmethod
@@ -294,7 +297,7 @@ class JupiterXParameterMapping:
         """
         param_info = cls.get_parameter_range(param_name)
         if param_info:
-            return max(param_info['min'], min(param_info['max'], value))
+            return max(param_info["min"], min(param_info["max"], value))
         return value
 
     @classmethod
@@ -313,11 +316,11 @@ class JupiterXParameterMapping:
         if not param_info:
             return midi_value / 127.0
 
-        curve_type = param_info.get('curve', 'linear')
+        curve_type = param_info.get("curve", "linear")
 
-        if curve_type == 'linear':
+        if curve_type == "linear":
             return midi_value / 127.0
-        elif curve_type == 'exponential':
+        elif curve_type == "exponential":
             # Exponential curve for frequency/time parameters
             if midi_value == 0:
                 return 0.0
@@ -360,10 +363,16 @@ class UnifiedParameterSystem:
     def _initialize_default_parameters(self):
         """Initialize default parameter values from Jupiter-X mappings."""
         for param_name, param_info in JupiterXParameterMapping.PARAMETER_RANGES.items():
-            self.parameter_values[param_name] = param_info['default']
+            self.parameter_values[param_name] = param_info["default"]
 
-    def set_parameter(self, param_name: str, value: float, scope: ParameterScope = ParameterScope.GLOBAL,
-                     source: ParameterSource = ParameterSource.INTERNAL, channel: int | None = None) -> bool:
+    def set_parameter(
+        self,
+        param_name: str,
+        value: float,
+        scope: ParameterScope = ParameterScope.GLOBAL,
+        source: ParameterSource = ParameterSource.INTERNAL,
+        channel: int | None = None,
+    ) -> bool:
         """
         Set parameter value with validation and callbacks.
 
@@ -392,7 +401,7 @@ class UnifiedParameterSystem:
 
         # Maintain history size limit
         if len(self.parameter_history) > self.max_history_size:
-            self.parameter_history = self.parameter_history[-self.max_history_size:]
+            self.parameter_history = self.parameter_history[-self.max_history_size :]
 
         # Trigger callbacks if value changed
         if old_value != validated_value:
@@ -460,7 +469,9 @@ class UnifiedParameterSystem:
                 except Exception as e:
                     print(f"Parameter callback error for {param_name}: {e}")
 
-    def process_midi_cc(self, cc_number: int, cc_value: int, channel: int = 0) -> ParameterUpdate | None:
+    def process_midi_cc(
+        self, cc_number: int, cc_value: int, channel: int = 0
+    ) -> ParameterUpdate | None:
         """
         Process MIDI CC message and create parameter update.
 
@@ -479,22 +490,21 @@ class UnifiedParameterSystem:
 
             # Create parameter update
             update = ParameterUpdate(
-                param_name,
-                curved_value,
-                ParameterScope.CHANNEL,
-                ParameterSource.MIDI_CC,
-                channel
+                param_name, curved_value, ParameterScope.CHANNEL, ParameterSource.MIDI_CC, channel
             )
 
             # Apply the update
-            self.set_parameter(param_name, curved_value, ParameterScope.CHANNEL,
-                             ParameterSource.MIDI_CC, channel)
+            self.set_parameter(
+                param_name, curved_value, ParameterScope.CHANNEL, ParameterSource.MIDI_CC, channel
+            )
 
             return update
 
         return None
 
-    def get_parameter_history(self, param_name: str | None = None, limit: int = 50) -> list[ParameterUpdate]:
+    def get_parameter_history(
+        self, param_name: str | None = None, limit: int = 50
+    ) -> list[ParameterUpdate]:
         """
         Get parameter update history.
 
@@ -526,17 +536,20 @@ class UnifiedParameterSystem:
             Parameter system status and statistics
         """
         return {
-            'total_parameters': len(self.parameter_values),
-            'total_callbacks': sum(len(callbacks) for callbacks in self.parameter_callbacks.values()),
-            'history_size': len(self.parameter_history),
-            'max_history_size': self.max_history_size,
-            'parameter_names': list(self.parameter_values.keys()),
-            'callback_parameters': list(self.parameter_callbacks.keys())
+            "total_parameters": len(self.parameter_values),
+            "total_callbacks": sum(
+                len(callbacks) for callbacks in self.parameter_callbacks.values()
+            ),
+            "history_size": len(self.parameter_history),
+            "max_history_size": self.max_history_size,
+            "parameter_names": list(self.parameter_values.keys()),
+            "callback_parameters": list(self.parameter_callbacks.keys()),
         }
 
 
 # Global unified parameter system instance
 _unified_parameter_system = None
+
 
 def get_unified_parameter_system() -> UnifiedParameterSystem:
     """

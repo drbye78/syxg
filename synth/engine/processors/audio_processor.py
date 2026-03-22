@@ -5,18 +5,13 @@ Production-quality audio processing for XG/GS/MPE synthesizer with
 sample-perfect MIDI timing, buffered message processing, and
 professional audio effects integration.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
-import time
-import math
+from typing import Any
+
 import numpy as np
-from pathlib import Path
-import os
-import hashlib
-import weakref
 
 
 class AudioProcessor:
@@ -58,7 +53,7 @@ class AudioProcessor:
             Audio data as numpy array with shape (block_size, 2)
         """
         with self.lock:
-            if hasattr(self.synthesizer, 'performance_monitor'):
+            if hasattr(self.synthesizer, "performance_monitor"):
                 self.synthesizer.performance_monitor.update(audio_blocks_generated=1)
 
             # Use default block size if not specified
@@ -97,7 +92,9 @@ class AudioProcessor:
         with self.lock:
             # Ensure output buffer is correctly sized
             if self.synthesizer.output_buffer.shape[0] != block_size:
-                self.synthesizer.output_buffer = self.synthesizer.buffer_pool.get_stereo_buffer(block_size)
+                self.synthesizer.output_buffer = self.synthesizer.buffer_pool.get_stereo_buffer(
+                    block_size
+                )
 
             # Clear output buffer (SIMD optimized)
             self.synthesizer.output_buffer.fill(0.0)
@@ -116,7 +113,8 @@ class AudioProcessor:
                 messages_in_segment = 0
                 while (
                     at_index < len(self._message_sequence)
-                    and self._message_sequence[at_index].timestamp <= at_time + self._minimum_time_slice
+                    and self._message_sequence[at_index].timestamp
+                    <= at_time + self._minimum_time_slice
                 ):
                     message = self._message_sequence[at_index]
                     at_index += 1
@@ -152,14 +150,23 @@ class AudioProcessor:
                         elif channel_audio.shape[0] != segment_length:
                             # Resize channel_audio to match segment_length
                             if channel_audio.shape[0] < segment_length:
-                                padding = np.zeros((segment_length - channel_audio.shape[0], 2), dtype=np.float32)
+                                padding = np.zeros(
+                                    (segment_length - channel_audio.shape[0], 2), dtype=np.float32
+                                )
                                 channel_audio = np.vstack([channel_audio, padding])
                             else:
                                 channel_audio = channel_audio[:segment_length]
 
                         # Mix to output (SIMD addition)
-                        np.add(self.synthesizer.output_buffer[block_offset:block_offset + segment_length],
-                              channel_audio, out=self.synthesizer.output_buffer[block_offset:block_offset + segment_length])
+                        np.add(
+                            self.synthesizer.output_buffer[
+                                block_offset : block_offset + segment_length
+                            ],
+                            channel_audio,
+                            out=self.synthesizer.output_buffer[
+                                block_offset : block_offset + segment_length
+                            ],
+                        )
 
                         active_voices += channel.get_active_voice_count()
 
@@ -172,7 +179,7 @@ class AudioProcessor:
             self._current_time = at_time
 
             # Update performance metrics
-            if hasattr(self.synthesizer, 'performance_monitor'):
+            if hasattr(self.synthesizer, "performance_monitor"):
                 self.synthesizer.performance_monitor.update(active_voices=active_voices)
 
             # Apply XG effects if enabled and there are active voices
@@ -196,7 +203,9 @@ class AudioProcessor:
         """
         # Ensure output buffer is correctly sized
         if self.synthesizer.output_buffer.shape[0] != block_size:
-            self.synthesizer.output_buffer = self.synthesizer.buffer_pool.get_stereo_buffer(block_size)
+            self.synthesizer.output_buffer = self.synthesizer.buffer_pool.get_stereo_buffer(
+                block_size
+            )
 
         # Clear output buffer (SIMD optimized)
         self.synthesizer.output_buffer.fill(0.0)
@@ -253,15 +262,24 @@ class AudioProcessor:
                         # Resize channel_audio to match segment_length
                         if channel_audio.shape[0] < segment_length:
                             # Pad with zeros
-                            padding = np.zeros((segment_length - channel_audio.shape[0], 2), dtype=np.float32)
+                            padding = np.zeros(
+                                (segment_length - channel_audio.shape[0], 2), dtype=np.float32
+                            )
                             channel_audio = np.vstack([channel_audio, padding])
                         else:
                             # Truncate
                             channel_audio = channel_audio[:segment_length]
 
                     # Mix to output (SIMD addition)
-                    np.add(self.synthesizer.output_buffer[block_offset:block_offset + segment_length],
-                          channel_audio, out=self.synthesizer.output_buffer[block_offset:block_offset + segment_length])
+                    np.add(
+                        self.synthesizer.output_buffer[
+                            block_offset : block_offset + segment_length
+                        ],
+                        channel_audio,
+                        out=self.synthesizer.output_buffer[
+                            block_offset : block_offset + segment_length
+                        ],
+                    )
 
                     active_voices += channel.get_active_voice_count()
 
@@ -274,7 +292,7 @@ class AudioProcessor:
         self._current_time = at_time
 
         # Update performance metrics
-        if hasattr(self.synthesizer, 'performance_monitor'):
+        if hasattr(self.synthesizer, "performance_monitor"):
             self.synthesizer.performance_monitor.update(active_voices=active_voices)
 
         # Apply XG effects if enabled and there are active voices
@@ -297,7 +315,9 @@ class AudioProcessor:
         """
         # Ensure correct buffer size
         if block_size != self.synthesizer.output_buffer.shape[0]:
-            self.synthesizer.output_buffer = self.synthesizer.buffer_pool.get_stereo_buffer(block_size)
+            self.synthesizer.output_buffer = self.synthesizer.buffer_pool.get_stereo_buffer(
+                block_size
+            )
 
         # Clear output buffer (SIMD optimized)
         self.synthesizer.output_buffer.fill(0.0)
@@ -320,19 +340,24 @@ class AudioProcessor:
                 elif channel_audio.shape[0] != block_size:
                     # Resize channel_audio to match block_size
                     if channel_audio.shape[0] < block_size:
-                        padding = np.zeros((block_size - channel_audio.shape[0], 2), dtype=np.float32)
+                        padding = np.zeros(
+                            (block_size - channel_audio.shape[0], 2), dtype=np.float32
+                        )
                         channel_audio = np.vstack([channel_audio, padding])
                     else:
                         channel_audio = channel_audio[:block_size]
 
                 # Mix to output (SIMD addition)
-                np.add(self.synthesizer.output_buffer[:block_size], channel_audio,
-                      out=self.synthesizer.output_buffer[:block_size])
+                np.add(
+                    self.synthesizer.output_buffer[:block_size],
+                    channel_audio,
+                    out=self.synthesizer.output_buffer[:block_size],
+                )
 
                 active_voices += channel.get_active_voice_count()
 
         # Update performance metrics
-        if hasattr(self.synthesizer, 'performance_monitor'):
+        if hasattr(self.synthesizer, "performance_monitor"):
             self.synthesizer.performance_monitor.update(active_voices=active_voices)
 
         # Apply XG effects if enabled
@@ -359,8 +384,10 @@ class AudioProcessor:
             block_size: Size of audio block
         """
         # Use XG effects coordinator
-        channel_audio_list = [self.synthesizer.channel_buffers[i][:block_size]
-                            for i in range(len(self.synthesizer.channels))]
+        channel_audio_list = [
+            self.synthesizer.channel_buffers[i][:block_size]
+            for i in range(len(self.synthesizer.channels))
+        ]
 
         self.synthesizer.effects_coordinator.process_channels_to_stereo_zero_alloc(
             channel_audio_list, self.synthesizer.output_buffer[:block_size], block_size

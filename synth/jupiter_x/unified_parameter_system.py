@@ -4,18 +4,19 @@ Jupiter-X Unified Parameter System
 Complete parameter management system providing unified access to all
 synthesis parameters across GS, Jupiter-X, and advanced features.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
-import threading
 import json
-import os
+import threading
+from collections.abc import Callable
 from enum import Enum
+from typing import Any
 
 
 class ParameterScope(Enum):
     """Parameter scope definitions."""
+
     GLOBAL = "global"
     PART = "part"
     ENGINE = "engine"
@@ -26,6 +27,7 @@ class ParameterScope(Enum):
 
 class ParameterType(Enum):
     """Parameter type definitions."""
+
     INT = "int"
     FLOAT = "float"
     BOOL = "bool"
@@ -38,10 +40,20 @@ class ParameterType(Enum):
 class ParameterDefinition:
     """Complete parameter definition with metadata."""
 
-    def __init__(self, name: str, scope: ParameterScope, param_type: ParameterType,
-                 address: tuple[int, ...], default_value: Any, min_value: Any = None,
-                 max_value: Any = None, enum_values: list[str] = None,
-                 unit: str = "", description: str = "", tags: list[str] = None):
+    def __init__(
+        self,
+        name: str,
+        scope: ParameterScope,
+        param_type: ParameterType,
+        address: tuple[int, ...],
+        default_value: Any,
+        min_value: Any = None,
+        max_value: Any = None,
+        enum_values: list[str] = None,
+        unit: str = "",
+        description: str = "",
+        tags: list[str] = None,
+    ):
         self.name = name
         self.scope = scope
         self.param_type = param_type
@@ -120,19 +132,19 @@ class ParameterDefinition:
     def get_parameter_info(self) -> dict[str, Any]:
         """Get comprehensive parameter information."""
         return {
-            'name': self.name,
-            'scope': self.scope.value,
-            'type': self.param_type.value,
-            'address': self.address,
-            'current_value': self.current_value,
-            'default_value': self.default_value,
-            'min_value': self.min_value,
-            'max_value': self.max_value,
-            'enum_values': self.enum_values,
-            'unit': self.unit,
-            'description': self.description,
-            'tags': self.tags,
-            'metadata': self.metadata,
+            "name": self.name,
+            "scope": self.scope.value,
+            "type": self.param_type.value,
+            "address": self.address,
+            "current_value": self.current_value,
+            "default_value": self.default_value,
+            "min_value": self.min_value,
+            "max_value": self.max_value,
+            "enum_values": self.enum_values,
+            "unit": self.unit,
+            "description": self.description,
+            "tags": self.tags,
+            "metadata": self.metadata,
         }
 
 
@@ -178,123 +190,259 @@ class JupiterXUnifiedParameterSystem:
         """Initialize comprehensive parameter registry."""
         with self.lock:
             # ===== SYSTEM PARAMETERS =====
-            self._add_parameter(ParameterDefinition(
-                "master_volume", ParameterScope.GLOBAL, ParameterType.FLOAT,
-                (0, 0), 1.0, 0.0, 1.0, unit="level",
-                description="Master output volume"
-            ))
+            self._add_parameter(
+                ParameterDefinition(
+                    "master_volume",
+                    ParameterScope.GLOBAL,
+                    ParameterType.FLOAT,
+                    (0, 0),
+                    1.0,
+                    0.0,
+                    1.0,
+                    unit="level",
+                    description="Master output volume",
+                )
+            )
 
-            self._add_parameter(ParameterDefinition(
-                "master_pan", ParameterScope.GLOBAL, ParameterType.FLOAT,
-                (0, 1), 0.0, -1.0, 1.0, unit="pan",
-                description="Master stereo pan"
-            ))
+            self._add_parameter(
+                ParameterDefinition(
+                    "master_pan",
+                    ParameterScope.GLOBAL,
+                    ParameterType.FLOAT,
+                    (0, 1),
+                    0.0,
+                    -1.0,
+                    1.0,
+                    unit="pan",
+                    description="Master stereo pan",
+                )
+            )
 
             # ===== PART PARAMETERS =====
             for part_num in range(16):
                 # Basic part parameters
-                self._add_parameter(ParameterDefinition(
-                    f"part_{part_num}_volume", ParameterScope.PART, ParameterType.FLOAT,
-                    (1, part_num, 0), 1.0, 0.0, 1.0, unit="level",
-                    description=f"Part {part_num} volume"
-                ))
+                self._add_parameter(
+                    ParameterDefinition(
+                        f"part_{part_num}_volume",
+                        ParameterScope.PART,
+                        ParameterType.FLOAT,
+                        (1, part_num, 0),
+                        1.0,
+                        0.0,
+                        1.0,
+                        unit="level",
+                        description=f"Part {part_num} volume",
+                    )
+                )
 
-                self._add_parameter(ParameterDefinition(
-                    f"part_{part_num}_pan", ParameterScope.PART, ParameterType.FLOAT,
-                    (1, part_num, 1), 0.0, -1.0, 1.0, unit="pan",
-                    description=f"Part {part_num} pan"
-                ))
+                self._add_parameter(
+                    ParameterDefinition(
+                        f"part_{part_num}_pan",
+                        ParameterScope.PART,
+                        ParameterType.FLOAT,
+                        (1, part_num, 1),
+                        0.0,
+                        -1.0,
+                        1.0,
+                        unit="pan",
+                        description=f"Part {part_num} pan",
+                    )
+                )
 
                 # Engine selection
-                self._add_parameter(ParameterDefinition(
-                    f"part_{part_num}_engine_mode", ParameterScope.PART, ParameterType.ENUM,
-                    (1, part_num, 2), 0, 0, 1, ["GS", "Jupiter-X"],
-                    description=f"Part {part_num} engine mode"
-                ))
+                self._add_parameter(
+                    ParameterDefinition(
+                        f"part_{part_num}_engine_mode",
+                        ParameterScope.PART,
+                        ParameterType.ENUM,
+                        (1, part_num, 2),
+                        0,
+                        0,
+                        1,
+                        ["GS", "Jupiter-X"],
+                        description=f"Part {part_num} engine mode",
+                    )
+                )
 
-                self._add_parameter(ParameterDefinition(
-                    f"part_{part_num}_jupiter_engine", ParameterScope.PART, ParameterType.ENUM,
-                    (1, part_num, 3), 0, 0, 3, ["Analog", "Digital", "FM", "External"],
-                    description=f"Part {part_num} Jupiter-X engine type"
-                ))
+                self._add_parameter(
+                    ParameterDefinition(
+                        f"part_{part_num}_jupiter_engine",
+                        ParameterScope.PART,
+                        ParameterType.ENUM,
+                        (1, part_num, 3),
+                        0,
+                        0,
+                        3,
+                        ["Analog", "Digital", "FM", "External"],
+                        description=f"Part {part_num} Jupiter-X engine type",
+                    )
+                )
 
             # ===== ENGINE PARAMETERS =====
             engine_types = ["analog", "digital", "fm", "external"]
             for part_num in range(16):
                 for engine_idx, engine_name in enumerate(engine_types):
                     # Engine level
-                    self._add_parameter(ParameterDefinition(
-                        f"part_{part_num}_{engine_name}_level", ParameterScope.ENGINE, ParameterType.FLOAT,
-                        (2, part_num, engine_idx, 0), 1.0, 0.0, 1.0, unit="level",
-                        description=f"Part {part_num} {engine_name} engine level"
-                    ))
+                    self._add_parameter(
+                        ParameterDefinition(
+                            f"part_{part_num}_{engine_name}_level",
+                            ParameterScope.ENGINE,
+                            ParameterType.FLOAT,
+                            (2, part_num, engine_idx, 0),
+                            1.0,
+                            0.0,
+                            1.0,
+                            unit="level",
+                            description=f"Part {part_num} {engine_name} engine level",
+                        )
+                    )
 
                     # Engine-specific parameters (simplified - would be expanded)
-                    self._add_parameter(ParameterDefinition(
-                        f"part_{part_num}_{engine_name}_attack", ParameterScope.ENGINE, ParameterType.FLOAT,
-                        (2, part_num, engine_idx, 1), 0.01, 0.001, 10.0, unit="seconds",
-                        description=f"Part {part_num} {engine_name} attack time"
-                    ))
+                    self._add_parameter(
+                        ParameterDefinition(
+                            f"part_{part_num}_{engine_name}_attack",
+                            ParameterScope.ENGINE,
+                            ParameterType.FLOAT,
+                            (2, part_num, engine_idx, 1),
+                            0.01,
+                            0.001,
+                            10.0,
+                            unit="seconds",
+                            description=f"Part {part_num} {engine_name} attack time",
+                        )
+                    )
 
-                    self._add_parameter(ParameterDefinition(
-                        f"part_{part_num}_{engine_name}_decay", ParameterScope.ENGINE, ParameterType.FLOAT,
-                        (2, part_num, engine_idx, 2), 0.3, 0.001, 10.0, unit="seconds",
-                        description=f"Part {part_num} {engine_name} decay time"
-                    ))
+                    self._add_parameter(
+                        ParameterDefinition(
+                            f"part_{part_num}_{engine_name}_decay",
+                            ParameterScope.ENGINE,
+                            ParameterType.FLOAT,
+                            (2, part_num, engine_idx, 2),
+                            0.3,
+                            0.001,
+                            10.0,
+                            unit="seconds",
+                            description=f"Part {part_num} {engine_name} decay time",
+                        )
+                    )
 
             # ===== ARPEGGIATOR PARAMETERS =====
             for part_num in range(16):
-                self._add_parameter(ParameterDefinition(
-                    f"part_{part_num}_arp_enabled", ParameterScope.ARPEGGIATOR, ParameterType.BOOL,
-                    (3, part_num, 0), False, description=f"Part {part_num} arpeggiator enable"
-                ))
+                self._add_parameter(
+                    ParameterDefinition(
+                        f"part_{part_num}_arp_enabled",
+                        ParameterScope.ARPEGGIATOR,
+                        ParameterType.BOOL,
+                        (3, part_num, 0),
+                        False,
+                        description=f"Part {part_num} arpeggiator enable",
+                    )
+                )
 
-                self._add_parameter(ParameterDefinition(
-                    f"part_{part_num}_arp_pattern", ParameterScope.ARPEGGIATOR, ParameterType.INT,
-                    (3, part_num, 1), 0, 0, 31, unit="pattern",
-                    description=f"Part {part_num} arpeggiator pattern"
-                ))
+                self._add_parameter(
+                    ParameterDefinition(
+                        f"part_{part_num}_arp_pattern",
+                        ParameterScope.ARPEGGIATOR,
+                        ParameterType.INT,
+                        (3, part_num, 1),
+                        0,
+                        0,
+                        31,
+                        unit="pattern",
+                        description=f"Part {part_num} arpeggiator pattern",
+                    )
+                )
 
-                self._add_parameter(ParameterDefinition(
-                    f"part_{part_num}_arp_tempo", ParameterScope.ARPEGGIATOR, ParameterType.FLOAT,
-                    (3, part_num, 2), 120.0, 20.0, 300.0, unit="bpm",
-                    description=f"Part {part_num} arpeggiator tempo"
-                ))
+                self._add_parameter(
+                    ParameterDefinition(
+                        f"part_{part_num}_arp_tempo",
+                        ParameterScope.ARPEGGIATOR,
+                        ParameterType.FLOAT,
+                        (3, part_num, 2),
+                        120.0,
+                        20.0,
+                        300.0,
+                        unit="bpm",
+                        description=f"Part {part_num} arpeggiator tempo",
+                    )
+                )
 
             # ===== MPE PARAMETERS =====
-            self._add_parameter(ParameterDefinition(
-                "mpe_enabled", ParameterScope.MPE, ParameterType.BOOL,
-                (4, 0), False, description="MPE mode enable"
-            ))
+            self._add_parameter(
+                ParameterDefinition(
+                    "mpe_enabled",
+                    ParameterScope.MPE,
+                    ParameterType.BOOL,
+                    (4, 0),
+                    False,
+                    description="MPE mode enable",
+                )
+            )
 
-            self._add_parameter(ParameterDefinition(
-                "mpe_lower_zone_master", ParameterScope.MPE, ParameterType.INT,
-                (4, 1), 0, 0, 15, unit="channel",
-                description="MPE lower zone master channel"
-            ))
+            self._add_parameter(
+                ParameterDefinition(
+                    "mpe_lower_zone_master",
+                    ParameterScope.MPE,
+                    ParameterType.INT,
+                    (4, 1),
+                    0,
+                    0,
+                    15,
+                    unit="channel",
+                    description="MPE lower zone master channel",
+                )
+            )
 
-            self._add_parameter(ParameterDefinition(
-                "mpe_upper_zone_master", ParameterScope.MPE, ParameterType.INT,
-                (4, 2), 9, 0, 15, unit="channel",
-                description="MPE upper zone master channel"
-            ))
+            self._add_parameter(
+                ParameterDefinition(
+                    "mpe_upper_zone_master",
+                    ParameterScope.MPE,
+                    ParameterType.INT,
+                    (4, 2),
+                    9,
+                    0,
+                    15,
+                    unit="channel",
+                    description="MPE upper zone master channel",
+                )
+            )
 
             # ===== EFFECTS PARAMETERS =====
-            self._add_parameter(ParameterDefinition(
-                "reverb_enabled", ParameterScope.EFFECT, ParameterType.BOOL,
-                (5, 0), True, description="Reverb effect enable"
-            ))
+            self._add_parameter(
+                ParameterDefinition(
+                    "reverb_enabled",
+                    ParameterScope.EFFECT,
+                    ParameterType.BOOL,
+                    (5, 0),
+                    True,
+                    description="Reverb effect enable",
+                )
+            )
 
-            self._add_parameter(ParameterDefinition(
-                "chorus_enabled", ParameterScope.EFFECT, ParameterType.BOOL,
-                (5, 1), False, description="Chorus effect enable"
-            ))
+            self._add_parameter(
+                ParameterDefinition(
+                    "chorus_enabled",
+                    ParameterScope.EFFECT,
+                    ParameterType.BOOL,
+                    (5, 1),
+                    False,
+                    description="Chorus effect enable",
+                )
+            )
 
-            self._add_parameter(ParameterDefinition(
-                "reverb_level", ParameterScope.EFFECT, ParameterType.FLOAT,
-                (5, 2), 0.3, 0.0, 1.0, unit="level",
-                description="Reverb wet/dry mix"
-            ))
+            self._add_parameter(
+                ParameterDefinition(
+                    "reverb_level",
+                    ParameterScope.EFFECT,
+                    ParameterType.FLOAT,
+                    (5, 2),
+                    0.3,
+                    0.0,
+                    1.0,
+                    unit="level",
+                    description="Reverb wet/dry mix",
+                )
+            )
 
     def _add_parameter(self, param: ParameterDefinition):
         """Add parameter to registry."""
@@ -302,8 +450,9 @@ class JupiterXUnifiedParameterSystem:
         self.parameters_by_address[param.address] = param
         self.parameters_by_scope[param.scope][param.name] = param
 
-    def set_component_references(self, component_manager=None, arpeggiator=None,
-                               mpe_manager=None, effects_coordinator=None):
+    def set_component_references(
+        self, component_manager=None, arpeggiator=None, mpe_manager=None, effects_coordinator=None
+    ):
         """Set references to component managers."""
         self.component_manager = component_manager
         self.arpeggiator = arpeggiator
@@ -362,8 +511,9 @@ class JupiterXUnifiedParameterSystem:
         with self.lock:
             return self.parameters.get(param_name)
 
-    def _propagate_parameter_change(self, param: ParameterDefinition,
-                                   value: Any, source: str) -> bool:
+    def _propagate_parameter_change(
+        self, param: ParameterDefinition, value: Any, source: str
+    ) -> bool:
         """Propagate parameter change to appropriate component."""
         try:
             scope, *address_parts = param.address
@@ -433,7 +583,9 @@ class JupiterXUnifiedParameterSystem:
                 if param.param_type == ParameterType.FLOAT:
                     normalized_value = value / 127.0
                     if param.min_value is not None and param.max_value is not None:
-                        normalized_value = param.min_value + normalized_value * (param.max_value - param.min_value)
+                        normalized_value = param.min_value + normalized_value * (
+                            param.max_value - param.min_value
+                        )
                     return self.set_parameter(param_name, normalized_value, "midi")
                 elif param.param_type == ParameterType.INT:
                     return self.set_parameter(param_name, value, "midi")
@@ -453,7 +605,9 @@ class JupiterXUnifiedParameterSystem:
                 if param.param_type == ParameterType.FLOAT:
                     normalized_value = value / 16383.0  # 14-bit NRPN
                     if param.min_value is not None and param.max_value is not None:
-                        normalized_value = param.min_value + normalized_value * (param.max_value - param.min_value)
+                        normalized_value = param.min_value + normalized_value * (
+                            param.max_value - param.min_value
+                        )
                     return self.set_parameter(param_name, normalized_value, "midi")
                 else:
                     # For non-float parameters, use MSB only
@@ -462,8 +616,9 @@ class JupiterXUnifiedParameterSystem:
 
         return False
 
-    def add_midi_mapping(self, param_name: str, midi_type: str,
-                        channel: int, controller: int) -> bool:
+    def add_midi_mapping(
+        self, param_name: str, midi_type: str, channel: int, controller: int
+    ) -> bool:
         """Add MIDI mapping for parameter."""
         with self.lock:
             if param_name not in self.parameters:
@@ -478,8 +633,9 @@ class JupiterXUnifiedParameterSystem:
 
             return True
 
-    def remove_midi_mapping(self, param_name: str, midi_type: str,
-                           channel: int, controller: int) -> bool:
+    def remove_midi_mapping(
+        self, param_name: str, midi_type: str, channel: int, controller: int
+    ) -> bool:
         """Remove MIDI mapping for parameter."""
         with self.lock:
             if midi_type == "cc":
@@ -534,8 +690,9 @@ class JupiterXUnifiedParameterSystem:
 
             return success
 
-    def get_parameter_list(self, scope: ParameterScope = None,
-                          tags: list[str] = None) -> list[dict[str, Any]]:
+    def get_parameter_list(
+        self, scope: ParameterScope = None, tags: list[str] = None
+    ) -> list[dict[str, Any]]:
         """Get list of parameters with optional filtering."""
         with self.lock:
             params = []
@@ -558,8 +715,8 @@ class JupiterXUnifiedParameterSystem:
         """Get all MIDI mappings."""
         with self.lock:
             return {
-                'cc_mappings': dict(self.cc_mappings),
-                'nrpn_mappings': dict(self.nrpn_mappings),
+                "cc_mappings": dict(self.cc_mappings),
+                "nrpn_mappings": dict(self.nrpn_mappings),
             }
 
     def reset_to_defaults(self) -> bool:
@@ -575,13 +732,15 @@ class JupiterXUnifiedParameterSystem:
         """Export current parameter state to JSON file."""
         try:
             state = {
-                'parameters': {name: param.current_value for name, param in self.parameters.items()},
-                'presets': self.presets,
-                'current_preset': self.current_preset,
-                'midi_mappings': self.get_midi_mappings(),
+                "parameters": {
+                    name: param.current_value for name, param in self.parameters.items()
+                },
+                "presets": self.presets,
+                "current_preset": self.current_preset,
+                "midi_mappings": self.get_midi_mappings(),
             }
 
-            with open(filename, 'w') as f:
+            with open(filename, "w") as f:
                 json.dump(state, f, indent=2)
 
             return True
@@ -596,21 +755,21 @@ class JupiterXUnifiedParameterSystem:
                 state = json.load(f)
 
             # Restore parameters
-            if 'parameters' in state:
-                for param_name, value in state['parameters'].items():
+            if "parameters" in state:
+                for param_name, value in state["parameters"].items():
                     self.set_parameter(param_name, value, "import")
 
             # Restore presets
-            if 'presets' in state:
-                self.presets.update(state['presets'])
+            if "presets" in state:
+                self.presets.update(state["presets"])
 
             # Restore MIDI mappings
-            if 'midi_mappings' in state:
-                mappings = state['midi_mappings']
-                if 'cc_mappings' in mappings:
-                    self.cc_mappings.update(mappings['cc_mappings'])
-                if 'nrpn_mappings' in mappings:
-                    self.nrpn_mappings.update(mappings['nrpn_mappings'])
+            if "midi_mappings" in state:
+                mappings = state["midi_mappings"]
+                if "cc_mappings" in mappings:
+                    self.cc_mappings.update(mappings["cc_mappings"])
+                if "nrpn_mappings" in mappings:
+                    self.nrpn_mappings.update(mappings["nrpn_mappings"])
 
             return True
         except Exception as e:
@@ -621,25 +780,32 @@ class JupiterXUnifiedParameterSystem:
         """Get comprehensive system information."""
         with self.lock:
             return {
-                'total_parameters': len(self.parameters),
-                'parameters_by_scope': {scope.value: len(params) for scope, params in self.parameters_by_scope.items()},
-                'midi_mappings': {
-                    'cc_count': len(self.cc_mappings),
-                    'nrpn_count': len(self.nrpn_mappings),
+                "total_parameters": len(self.parameters),
+                "parameters_by_scope": {
+                    scope.value: len(params) for scope, params in self.parameters_by_scope.items()
                 },
-                'presets': {
-                    'total': len(self.presets),
-                    'banks': list(self.preset_banks.keys()),
-                    'current': self.current_preset,
+                "midi_mappings": {
+                    "cc_count": len(self.cc_mappings),
+                    "nrpn_count": len(self.nrpn_mappings),
                 },
-                'component_status': {
-                    'component_manager': self.component_manager is not None,
-                    'arpeggiator': self.arpeggiator is not None,
-                    'mpe_manager': self.mpe_manager is not None,
-                    'effects_coordinator': self.effects_coordinator is not None,
+                "presets": {
+                    "total": len(self.presets),
+                    "banks": list(self.preset_banks.keys()),
+                    "current": self.current_preset,
+                },
+                "component_status": {
+                    "component_manager": self.component_manager is not None,
+                    "arpeggiator": self.arpeggiator is not None,
+                    "mpe_manager": self.mpe_manager is not None,
+                    "effects_coordinator": self.effects_coordinator is not None,
                 },
             }
 
 
 # Export the unified parameter system
-__all__ = ['JupiterXUnifiedParameterSystem', 'ParameterDefinition', 'ParameterScope', 'ParameterType']
+__all__ = [
+    "JupiterXUnifiedParameterSystem",
+    "ParameterDefinition",
+    "ParameterScope",
+    "ParameterType",
+]

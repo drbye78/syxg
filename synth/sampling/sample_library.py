@@ -4,12 +4,13 @@ Sample Library - Sample Management and Organization
 Provides comprehensive sample library management for the XG synthesizer,
 including sample organization, search, categorization, and metadata handling.
 """
+
 from __future__ import annotations
 
-import os
 import json
-from typing import Any
+import os
 import threading
+from typing import Any
 
 
 class SampleLibrary:
@@ -42,20 +43,20 @@ class SampleLibrary:
     def _initialize_categories(self):
         """Initialize default sample categories."""
         self.categories = {
-            'drums': [],
-            'bass': [],
-            'guitar': [],
-            'piano': [],
-            'strings': [],
-            'brass': [],
-            'woodwind': [],
-            'percussion': [],
-            'fx': [],
-            'vocals': [],
-            'synth': [],
-            'ethnic': [],
-            'loops': [],
-            'oneshots': []
+            "drums": [],
+            "bass": [],
+            "guitar": [],
+            "piano": [],
+            "strings": [],
+            "brass": [],
+            "woodwind": [],
+            "percussion": [],
+            "fx": [],
+            "vocals": [],
+            "synth": [],
+            "ethnic": [],
+            "loops": [],
+            "oneshots": [],
         }
 
     def add_library_path(self, path: str) -> bool:
@@ -126,7 +127,7 @@ class SampleLibrary:
 
     def _is_sample_file(self, filename: str) -> bool:
         """Check if file is a sample file."""
-        sample_extensions = {'.wav', '.aiff', '.flac', '.ogg', '.mp3', '.raw', '.pcm'}
+        sample_extensions = {".wav", ".aiff", ".flac", ".ogg", ".mp3", ".raw", ".pcm"}
         _, ext = os.path.splitext(filename.lower())
         return ext in sample_extensions
 
@@ -136,14 +137,14 @@ class SampleLibrary:
 
         # Basic metadata
         metadata = {
-            'id': sample_id,
-            'path': file_path,
-            'filename': os.path.basename(file_path),
-            'directory': os.path.dirname(file_path),
-            'size_bytes': os.path.getsize(file_path) if os.path.exists(file_path) else 0,
-            'date_added': self._get_current_timestamp(),
-            'categories': self._guess_categories(file_path),
-            'tags': []
+            "id": sample_id,
+            "path": file_path,
+            "filename": os.path.basename(file_path),
+            "directory": os.path.dirname(file_path),
+            "size_bytes": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
+            "date_added": self._get_current_timestamp(),
+            "categories": self._guess_categories(file_path),
+            "tags": [],
         }
 
         # Try to get audio metadata
@@ -157,6 +158,7 @@ class SampleLibrary:
     def _generate_sample_id(self, file_path: str) -> str:
         """Generate unique sample ID."""
         import hashlib
+
         return hashlib.md5(file_path.encode()).hexdigest()[:16]
 
     def _guess_categories(self, file_path: str) -> list[str]:
@@ -165,32 +167,32 @@ class SampleLibrary:
         categories = []
 
         # Check path for category hints
-        if any(word in path_lower for word in ['drum', 'percussion', 'kit']):
-            categories.append('drums')
-        if any(word in path_lower for word in ['bass', 'sub']):
-            categories.append('bass')
-        if any(word in path_lower for word in ['guitar', 'gtr']):
-            categories.append('guitar')
-        if any(word in path_lower for word in ['piano', 'keys']):
-            categories.append('piano')
-        if any(word in path_lower for word in ['string', 'violin', 'cello']):
-            categories.append('strings')
-        if any(word in path_lower for word in ['brass', 'trumpet', 'trombone']):
-            categories.append('brass')
-        if any(word in path_lower for word in ['woodwind', 'flute', 'sax']):
-            categories.append('woodwind')
-        if any(word in path_lower for word in ['fx', 'effect', 'sfx']):
-            categories.append('fx')
-        if any(word in path_lower for word in ['vocal', 'voice', 'sing']):
-            categories.append('vocals')
-        if any(word in path_lower for word in ['synth', 'synthesis']):
-            categories.append('synth')
-        if any(word in path_lower for word in ['loop', 'pattern']):
-            categories.append('loops')
-        if any(word in path_lower for word in ['oneshot', 'hit']):
-            categories.append('oneshots')
+        if any(word in path_lower for word in ["drum", "percussion", "kit"]):
+            categories.append("drums")
+        if any(word in path_lower for word in ["bass", "sub"]):
+            categories.append("bass")
+        if any(word in path_lower for word in ["guitar", "gtr"]):
+            categories.append("guitar")
+        if any(word in path_lower for word in ["piano", "keys"]):
+            categories.append("piano")
+        if any(word in path_lower for word in ["string", "violin", "cello"]):
+            categories.append("strings")
+        if any(word in path_lower for word in ["brass", "trumpet", "trombone"]):
+            categories.append("brass")
+        if any(word in path_lower for word in ["woodwind", "flute", "sax"]):
+            categories.append("woodwind")
+        if any(word in path_lower for word in ["fx", "effect", "sfx"]):
+            categories.append("fx")
+        if any(word in path_lower for word in ["vocal", "voice", "sing"]):
+            categories.append("vocals")
+        if any(word in path_lower for word in ["synth", "synthesis"]):
+            categories.append("synth")
+        if any(word in path_lower for word in ["loop", "pattern"]):
+            categories.append("loops")
+        if any(word in path_lower for word in ["oneshot", "hit"]):
+            categories.append("oneshots")
 
-        return categories if categories else ['uncategorized']
+        return categories if categories else ["uncategorized"]
 
     def _get_audio_info(self, file_path: str) -> dict[str, Any] | None:
         """Get audio file information."""
@@ -199,51 +201,55 @@ class SampleLibrary:
             stat = os.stat(file_path)
 
             info = {
-                'file_size': stat.st_size,
-                'modified_time': stat.st_mtime,
-                'created_time': stat.st_ctime
+                "file_size": stat.st_size,
+                "modified_time": stat.st_mtime,
+                "created_time": stat.st_ctime,
             }
 
             # Try to get audio metadata using PyAV
             try:
                 import av
-                
+
                 container = av.open(file_path)
-                
+
                 # Find audio stream
                 audio_stream = None
                 for stream in container.streams:
-                    if stream.type == 'audio':
+                    if stream.type == "audio":
                         audio_stream = stream
                         break
-                
+
                 if audio_stream:
                     # Calculate duration
                     if audio_stream.duration and audio_stream.time_base:
                         duration_seconds = float(audio_stream.duration * audio_stream.time_base)
                     else:
                         duration_seconds = 0
-                    
-                    info.update({
-                        'sample_rate': audio_stream.sample_rate,
-                        'channels': audio_stream.channels,
-                        'frames': audio_stream.frames or 0,
-                        'duration_seconds': duration_seconds,
-                        'codec': audio_stream.codec.name if audio_stream.codec else 'unknown',
-                        'bit_depth': self._get_bit_depth_from_format(audio_stream.format.name)
-                    })
-                
+
+                    info.update(
+                        {
+                            "sample_rate": audio_stream.sample_rate,
+                            "channels": audio_stream.channels,
+                            "frames": audio_stream.frames or 0,
+                            "duration_seconds": duration_seconds,
+                            "codec": audio_stream.codec.name if audio_stream.codec else "unknown",
+                            "bit_depth": self._get_bit_depth_from_format(audio_stream.format.name),
+                        }
+                    )
+
                 container.close()
-                
+
             except ImportError:
                 # Fallback: assume 44.1kHz stereo
                 estimated_frames = (stat.st_size * 44100) // (2 * 2)  # rough estimate
-                info.update({
-                    'sample_rate': 44100,
-                    'channels': 2,
-                    'estimated_frames': estimated_frames,
-                    'estimated_duration': estimated_frames / 44100
-                })
+                info.update(
+                    {
+                        "sample_rate": 44100,
+                        "channels": 2,
+                        "estimated_frames": estimated_frames,
+                        "estimated_duration": estimated_frames / 44100,
+                    }
+                )
             except Exception:
                 pass
 
@@ -255,26 +261,41 @@ class SampleLibrary:
     def _get_bit_depth_from_format(self, format_name: str) -> int:
         """
         Get bit depth from PyAV format name.
-        
+
         Args:
             format_name: PyAV format name (e.g., 'flt', 's16', 's32', 'u8')
-        
+
         Returns:
             Bit depth in bits (8, 16, 24, 32, 64), defaults to 16
         """
         format_map = {
-            'u8': 8, 's16': 16, 's32': 32, 'flt': 32, 'dbl': 64,
-            'u8p': 8, 's16p': 16, 's32p': 32, 'fltp': 32, 'dblp': 64,
-            'pcm_s16le': 16, 'pcm_s24le': 24, 'pcm_s32le': 32,
-            'pcm_f32le': 32, 'pcm_f64le': 64,
-            'mp3': 16, 'aac': 16, 'vorbis': 16, 'flac': 24,
+            "u8": 8,
+            "s16": 16,
+            "s32": 32,
+            "flt": 32,
+            "dbl": 64,
+            "u8p": 8,
+            "s16p": 16,
+            "s32p": 32,
+            "fltp": 32,
+            "dblp": 64,
+            "pcm_s16le": 16,
+            "pcm_s24le": 24,
+            "pcm_s32le": 32,
+            "pcm_f32le": 32,
+            "pcm_f64le": 64,
+            "mp3": 16,
+            "aac": 16,
+            "vorbis": 16,
+            "flac": 24,
         }
-        base_format = format_name.lower().rstrip('p')
+        base_format = format_name.lower().rstrip("p")
         return format_map.get(base_format, format_map.get(format_name.lower(), 16))
 
     def _get_current_timestamp(self) -> float:
         """Get current timestamp."""
         import time
+
         return time.time()
 
     def _update_categories(self):
@@ -285,12 +306,13 @@ class SampleLibrary:
 
         # Rebuild from samples
         for sample in self.samples.values():
-            for category in sample.get('categories', []):
+            for category in sample.get("categories", []):
                 if category in self.categories:
-                    self.categories[category].append(sample['id'])
+                    self.categories[category].append(sample["id"])
 
-    def search_samples(self, query: str, category: str | None = None,
-                      tags: list[str] | None = None) -> list[dict[str, Any]]:
+    def search_samples(
+        self, query: str, category: str | None = None, tags: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         """
         Search samples by query.
 
@@ -308,21 +330,23 @@ class SampleLibrary:
 
             for sample in self.samples.values():
                 # Category filter
-                if category and category not in sample.get('categories', []):
+                if category and category not in sample.get("categories", []):
                     continue
 
                 # Tag filter
                 if tags:
-                    sample_tags = sample.get('tags', [])
+                    sample_tags = sample.get("tags", [])
                     if not all(tag in sample_tags for tag in tags):
                         continue
 
                 # Text search
-                searchable_text = ' '.join([
-                    sample.get('filename', ''),
-                    ' '.join(sample.get('categories', [])),
-                    ' '.join(sample.get('tags', []))
-                ]).lower()
+                searchable_text = " ".join(
+                    [
+                        sample.get("filename", ""),
+                        " ".join(sample.get("categories", [])),
+                        " ".join(sample.get("tags", [])),
+                    ]
+                ).lower()
 
                 if query_lower in searchable_text:
                     results.append(sample.copy())
@@ -369,10 +393,10 @@ class SampleLibrary:
         """
         with self.lock:
             if sample_id in self.samples:
-                if 'tags' not in self.samples[sample_id]:
-                    self.samples[sample_id]['tags'] = []
-                if tag not in self.samples[sample_id]['tags']:
-                    self.samples[sample_id]['tags'].append(tag)
+                if "tags" not in self.samples[sample_id]:
+                    self.samples[sample_id]["tags"] = []
+                if tag not in self.samples[sample_id]["tags"]:
+                    self.samples[sample_id]["tags"].append(tag)
                 return True
             return False
 
@@ -389,9 +413,9 @@ class SampleLibrary:
         """
         with self.lock:
             if sample_id in self.samples:
-                if 'tags' in self.samples[sample_id]:
-                    if tag in self.samples[sample_id]['tags']:
-                        self.samples[sample_id]['tags'].remove(tag)
+                if "tags" in self.samples[sample_id]:
+                    if tag in self.samples[sample_id]["tags"]:
+                        self.samples[sample_id]["tags"].remove(tag)
                         return True
             return False
 
@@ -408,13 +432,13 @@ class SampleLibrary:
         with self.lock:
             try:
                 data = {
-                    'library_paths': self.library_paths,
-                    'samples': self.samples,
-                    'categories': self.categories,
-                    'metadata': self.metadata
+                    "library_paths": self.library_paths,
+                    "samples": self.samples,
+                    "categories": self.categories,
+                    "metadata": self.metadata,
                 }
 
-                with open(filename, 'w') as f:
+                with open(filename, "w") as f:
                     json.dump(data, f, indent=2)
 
                 return True
@@ -436,10 +460,10 @@ class SampleLibrary:
                 with open(filename) as f:
                     data = json.load(f)
 
-                self.library_paths = data.get('library_paths', [])
-                self.samples = data.get('samples', {})
-                self.categories = data.get('categories', {})
-                self.metadata = data.get('metadata', {})
+                self.library_paths = data.get("library_paths", [])
+                self.samples = data.get("samples", {})
+                self.categories = data.get("categories", {})
+                self.metadata = data.get("metadata", {})
 
                 return True
             except Exception:
@@ -453,16 +477,16 @@ class SampleLibrary:
             Library statistics
         """
         with self.lock:
-            total_size = sum(s.get('size_bytes', 0) for s in self.samples.values())
+            total_size = sum(s.get("size_bytes", 0) for s in self.samples.values())
             categories_count = {cat: len(samples) for cat, samples in self.categories.items()}
 
             return {
-                'total_samples': len(self.samples),
-                'total_size_bytes': total_size,
-                'total_size_mb': total_size / (1024 * 1024),
-                'categories': categories_count,
-                'library_paths': len(self.library_paths),
-                'scan_in_progress': self.scan_in_progress
+                "total_samples": len(self.samples),
+                "total_size_bytes": total_size,
+                "total_size_mb": total_size / (1024 * 1024),
+                "categories": categories_count,
+                "library_paths": len(self.library_paths),
+                "scan_in_progress": self.scan_in_progress,
             }
 
     def clear_library(self):

@@ -8,15 +8,10 @@ synthesizer configuration and real-time parameter updates.
 
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
 import time
-import math
 from pathlib import Path
-import os
-import hashlib
-import weakref
+from typing import Any
 
 
 class XGMLConfigSystem:

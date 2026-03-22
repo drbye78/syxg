@@ -4,9 +4,11 @@ FM Partial Implementation
 Provides FM synthesis partial for the voice-based architecture.
 Wraps FMEngine functionality for integration with the Voice system.
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 import numpy as np
 
 from .partial import SynthesisPartial
@@ -31,16 +33,14 @@ class FMPartial(SynthesisPartial):
         super().__init__(params, sample_rate)
 
         # FM-specific parameters
-        self.algorithm = params.get('algorithm', 'basic')
-        self.num_operators = params.get('num_operators', 6)
-        self.operator_params = params.get('operator_params', {})
+        self.algorithm = params.get("algorithm", "basic")
+        self.num_operators = params.get("num_operators", 6)
+        self.operator_params = params.get("operator_params", {})
 
         # Create FM engine instance for this partial
         from ..engine.fm_engine import FMEngine
-        self.fm_engine = FMEngine(
-            num_operators=self.num_operators,
-            sample_rate=sample_rate
-        )
+
+        self.fm_engine = FMEngine(num_operators=self.num_operators, sample_rate=sample_rate)
 
         # Configure FM engine
         self.fm_engine.set_algorithm(self.algorithm)
@@ -66,10 +66,7 @@ class FMPartial(SynthesisPartial):
 
         # Use stored note and velocity for generation
         return self.fm_engine.generate_samples(
-            self.params.get('note', 60),
-            self.params.get('velocity', 100),
-            modulation,
-            block_size
+            self.params.get("note", 60), self.params.get("velocity", 100), modulation, block_size
         )
 
     def note_on(self, velocity: int, note: int) -> None:
@@ -86,7 +83,7 @@ class FMPartial(SynthesisPartial):
     def note_off(self) -> None:
         """Handle note-off event."""
         super().note_off()
-        self.fm_engine.note_off(self.params.get('note', 60))
+        self.fm_engine.note_off(self.params.get("note", 60))
 
     def is_active(self) -> bool:
         """
@@ -111,16 +108,20 @@ class FMPartial(SynthesisPartial):
     def reset(self) -> None:
         """Reset partial to initial state."""
         super().reset()
-        if hasattr(self, 'fm_engine'):
+        if hasattr(self, "fm_engine"):
             self.fm_engine.reset()
 
     def get_partial_info(self) -> dict[str, Any]:
         """Get FM partial information."""
         info = super().get_partial_info()
-        info.update({
-            'engine_type': 'fm',
-            'algorithm': self.algorithm,
-            'num_operators': self.num_operators,
-            'fm_engine_info': self.fm_engine.get_engine_info() if hasattr(self.fm_engine, 'get_engine_info') else {}
-        })
+        info.update(
+            {
+                "engine_type": "fm",
+                "algorithm": self.algorithm,
+                "num_operators": self.num_operators,
+                "fm_engine_info": self.fm_engine.get_engine_info()
+                if hasattr(self.fm_engine, "get_engine_info")
+                else {},
+            }
+        )
         return info

@@ -5,23 +5,25 @@ Complete SFZ v2 synthesis engine implementation that integrates with the
 modern synthesizer architecture. Provides professional sample playback
 with advanced features like velocity layers, round robin, crossfading, etc.
 """
+
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
 import os
+from typing import Any
 
-from ..engine.synthesis_engine import SynthesisEngine
-from ..engine.region_descriptor import RegionDescriptor
+import numpy as np
+
+from ..audio.sample_manager import PyAVSampleManager
 from ..engine.preset_info import PresetInfo
+from ..engine.region_descriptor import RegionDescriptor
+from ..engine.synthesis_engine import SynthesisEngine
 from ..partial.region import IRegion
-from .sfz_parser import SFZParser, SFZInstrument
+from .controller_mapping import SFZControllerMapper
+from .dynamic_modulation import SFZDynamicModulation
+from .sfz_parser import SFZInstrument, SFZParser
 from .sfz_region import SFZRegion
 from .voice_effects import SFZVoiceEffectsProcessor
 from .voice_modulation import SFZVoiceModulationMatrix
-from .dynamic_modulation import SFZDynamicModulation
-from .controller_mapping import SFZControllerMapper
-from ..audio.sample_manager import PyAVSampleManager, SFZSample
 
 
 class SFZEngine(SynthesisEngine):
@@ -36,8 +38,12 @@ class SFZEngine(SynthesisEngine):
     - Professional envelope and filter systems
     """
 
-    def __init__(self, sample_rate: int = 44100, block_size: int = 1024,
-                 sample_manager: PyAVSampleManager | None = None):
+    def __init__(
+        self,
+        sample_rate: int = 44100,
+        block_size: int = 1024,
+        sample_manager: PyAVSampleManager | None = None,
+    ):
         """
         Initialize SFZ synthesis engine.
 
@@ -95,7 +101,7 @@ class SFZEngine(SynthesisEngine):
 
     def get_engine_type(self) -> str:
         """Return engine type identifier."""
-        return 'sfz'
+        return "sfz"
 
     def load_instrument(self, sfz_path: str) -> bool:
         """
@@ -127,7 +133,9 @@ class SFZEngine(SynthesisEngine):
             # Cache regions for performance
             self._cache_instrument_regions(instrument, key)
 
-            print(f"🎹 SFZ: Loaded instrument '{key}' with {len(instrument.get_all_regions())} regions")
+            print(
+                f"🎹 SFZ: Loaded instrument '{key}' with {len(instrument.get_all_regions())} regions"
+            )
             return True
 
         except Exception as e:
@@ -140,8 +148,8 @@ class SFZEngine(SynthesisEngine):
 
         # Collect all unique sample paths
         for region in instrument.get_all_regions():
-            if region.has_opcode('sample'):
-                sample_path = region.get_value('sample')
+            if region.has_opcode("sample"):
+                sample_path = region.get_value("sample")
                 if sample_path:
                     sample_paths.add(sample_path)
 
@@ -172,18 +180,18 @@ class SFZEngine(SynthesisEngine):
             channel_params: Dictionary of channel parameters
         """
         # Channel transpose
-        if 'transpose' in channel_params:
-            self._channel_transpose = channel_params['transpose']
+        if "transpose" in channel_params:
+            self._channel_transpose = channel_params["transpose"]
 
         # Key range filtering
-        if 'key_range_low' in channel_params:
-            self._key_range_low = max(0, min(127, channel_params['key_range_low']))
-        if 'key_range_high' in channel_params:
-            self._key_range_high = max(0, min(127, channel_params['key_range_high']))
+        if "key_range_low" in channel_params:
+            self._key_range_low = max(0, min(127, channel_params["key_range_low"]))
+        if "key_range_high" in channel_params:
+            self._key_range_high = max(0, min(127, channel_params["key_range_high"]))
 
         # XG drum kit
-        if 'drum_kit' in channel_params:
-            self._drum_kit = channel_params['drum_kit']
+        if "drum_kit" in channel_params:
+            self._drum_kit = channel_params["drum_kit"]
 
         # Propagate to all regions in cache
         for regions in self.region_cache.values():
@@ -229,18 +237,18 @@ class SFZEngine(SynthesisEngine):
             part_params: GS part parameters
         """
         # GS volume (0-127)
-        if 'volume' in part_params:
-            self._gs_volume = part_params['volume'] / 127.0
+        if "volume" in part_params:
+            self._gs_volume = part_params["volume"] / 127.0
 
         # GS pan (-64 to +63)
-        if 'pan' in part_params:
-            self._gs_pan = part_params['pan'] / 64.0
+        if "pan" in part_params:
+            self._gs_pan = part_params["pan"] / 64.0
 
         # GS effects sends
-        if 'reverb_send' in part_params:
-            self._gs_reverb_send = part_params['reverb_send'] / 127.0
-        if 'chorus_send' in part_params:
-            self._gs_chorus_send = part_params['chorus_send'] / 127.0
+        if "reverb_send" in part_params:
+            self._gs_reverb_send = part_params["reverb_send"] / 127.0
+        if "chorus_send" in part_params:
+            self._gs_chorus_send = part_params["chorus_send"] / 127.0
 
     def can_allocate_voice(self) -> bool:
         """
@@ -305,19 +313,21 @@ class SFZEngine(SynthesisEngine):
             Dictionary with channel state
         """
         return {
-            'transpose': self._channel_transpose,
-            'key_range': (self._key_range_low, self._key_range_high),
-            'drum_kit': self._drum_kit,
-            'receive_channels': self.receive_channels.copy(),
-            'gs_volume': self._gs_volume,
-            'gs_pan': self._gs_pan,
-            'gs_reverb_send': self._gs_reverb_send,
-            'gs_chorus_send': self._gs_chorus_send,
-            'voice_reserve': self.voice_reserve,
-            'active_voices': len(self.active_voices)
+            "transpose": self._channel_transpose,
+            "key_range": (self._key_range_low, self._key_range_high),
+            "drum_kit": self._drum_kit,
+            "receive_channels": self.receive_channels.copy(),
+            "gs_volume": self._gs_volume,
+            "gs_pan": self._gs_pan,
+            "gs_reverb_send": self._gs_reverb_send,
+            "gs_chorus_send": self._gs_chorus_send,
+            "voice_reserve": self.voice_reserve,
+            "active_voices": len(self.active_voices),
         }
 
-    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> list[SFZRegion]:
+    def get_regions_for_note(
+        self, note: int, velocity: int, program: int = 0, bank: int = 0
+    ) -> list[SFZRegion]:
         """
         Get all regions that should play for a given note/velocity.
 
@@ -339,8 +349,9 @@ class SFZEngine(SynthesisEngine):
             return []
 
         # Get cached regions for current instrument
-        instrument_key = next((k for k, v in self.loaded_instruments.items()
-                              if v == self.current_instrument), None)
+        instrument_key = next(
+            (k for k, v in self.loaded_instruments.items() if v == self.current_instrument), None
+        )
         if not instrument_key or instrument_key not in self.region_cache:
             return []
 
@@ -374,7 +385,9 @@ class SFZEngine(SynthesisEngine):
 
         return selected_regions
 
-    def _select_round_robin_region(self, regions: list[SFZRegion], note: int, velocity: int) -> SFZRegion | None:
+    def _select_round_robin_region(
+        self, regions: list[SFZRegion], note: int, velocity: int
+    ) -> SFZRegion | None:
         """
         Select a region from a round robin group.
 
@@ -431,12 +444,12 @@ class SFZEngine(SynthesisEngine):
             bank=bank,
             program=program,
             name=self.current_instrument.name or "SFZ Instrument",
-            engine_type='sfz',
+            engine_type="sfz",
             region_descriptors=regions,
             master_level=1.0,
             master_pan=0.0,
             reverb_send=0.0,
-            chorus_send=0.0
+            chorus_send=0.0,
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
@@ -470,62 +483,61 @@ class SFZEngine(SynthesisEngine):
 
         for idx, sfz_region in enumerate(sfz_regions):
             # Convert SFZ region to RegionDescriptor
-            region_params = sfz_region.to_dict() if hasattr(sfz_region, 'to_dict') else {}
+            region_params = sfz_region.to_dict() if hasattr(sfz_region, "to_dict") else {}
 
             # Extract key range from region
-            lokey = region_params.get('lokey', 0)
-            hikey = region_params.get('hikey', 127)
+            lokey = region_params.get("lokey", 0)
+            hikey = region_params.get("hikey", 127)
             key_range = (lokey, hikey)
 
             # Extract velocity range
-            lovel = region_params.get('lovel', 0)
-            hivel = region_params.get('hivel', 127)
+            lovel = region_params.get("lovel", 0)
+            hivel = region_params.get("hivel", 127)
             velocity_range = (lovel, hivel)
 
             # Get sample info
-            sample_path = region_params.get('sample', None)
+            sample_path = region_params.get("sample", None)
             sample_id = None  # SFZ uses paths rather than IDs
 
             # Build generator parameters
             generator_params = {
-                'volume': region_params.get('volume', 0.0),
-                'pan': region_params.get('pan', 0.0),
-                'cutoff': region_params.get('cutoff', 20000.0),
-                'resonance': region_params.get('resonance', 0.0),
-                'amp_attack': region_params.get('ampeg_attack', 0.0),
-                'amp_decay': region_params.get('ampeg_decay', 0.0),
-                'amp_sustain': region_params.get('ampeg_sustain', 1.0),
-                'amp_release': region_params.get('ampeg_release', 0.0),
-                'pitch_keycenter': region_params.get('pitch_keycenter', 60),
-                'coarse_tune': region_params.get('transpose', 0),
-                'fine_tune': region_params.get('tune', 0),
-                'loop_mode': region_params.get('loop_mode', 'no_loop'),
-                'loop_start': region_params.get('loop_start', 0),
-                'loop_end': region_params.get('loop_end', 0),
+                "volume": region_params.get("volume", 0.0),
+                "pan": region_params.get("pan", 0.0),
+                "cutoff": region_params.get("cutoff", 20000.0),
+                "resonance": region_params.get("resonance", 0.0),
+                "amp_attack": region_params.get("ampeg_attack", 0.0),
+                "amp_decay": region_params.get("ampeg_decay", 0.0),
+                "amp_sustain": region_params.get("ampeg_sustain", 1.0),
+                "amp_release": region_params.get("ampeg_release", 0.0),
+                "pitch_keycenter": region_params.get("pitch_keycenter", 60),
+                "coarse_tune": region_params.get("transpose", 0),
+                "fine_tune": region_params.get("tune", 0),
+                "loop_mode": region_params.get("loop_mode", "no_loop"),
+                "loop_start": region_params.get("loop_start", 0),
+                "loop_end": region_params.get("loop_end", 0),
             }
 
             # Get round-robin info
-            rr_group = region_params.get('round_robin_group', 0)
+            rr_group = region_params.get("round_robin_group", 0)
             rr_position = idx
 
             descriptor = RegionDescriptor(
                 region_id=idx,
-                engine_type='sfz',
+                engine_type="sfz",
                 key_range=key_range,
                 velocity_range=velocity_range,
                 round_robin_group=rr_group,
                 round_robin_position=rr_position,
                 sample_id=sample_id,
                 sample_path=sample_path,
-                generator_params=generator_params
+                generator_params=generator_params,
             )
 
             descriptors.append(descriptor)
 
         return descriptors
 
-    def _create_base_region(self, descriptor: RegionDescriptor,
-                           sample_rate: int) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create SFZ base region without S.Art2 wrapper.
 
@@ -541,13 +553,13 @@ class SFZEngine(SynthesisEngine):
 
         # Add sample path if available
         if descriptor.sample_path:
-            region_params['sample'] = descriptor.sample_path
+            region_params["sample"] = descriptor.sample_path
 
         # Add key/velocity ranges
-        region_params['lokey'] = descriptor.key_range[0]
-        region_params['hikey'] = descriptor.key_range[1]
-        region_params['lovel'] = descriptor.velocity_range[0]
-        region_params['hivel'] = descriptor.velocity_range[1]
+        region_params["lokey"] = descriptor.key_range[0]
+        region_params["hikey"] = descriptor.key_range[1]
+        region_params["lovel"] = descriptor.velocity_range[0]
+        region_params["hivel"] = descriptor.velocity_range[1]
 
         # Create SFZRegion
         region = SFZRegion(region_params, self.sample_manager)
@@ -567,7 +579,7 @@ class SFZEngine(SynthesisEngine):
         Returns:
             True if sample loaded or not needed, False if loading failed
         """
-        if not hasattr(region, 'load_sample'):
+        if not hasattr(region, "load_sample"):
             return True  # Not an SFZ region or doesn't need sample loading
 
         try:
@@ -578,8 +590,9 @@ class SFZEngine(SynthesisEngine):
 
     # ========== END NEW REGION-BASED ARCHITECTURE METHODS ==========
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
-                        block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Generate audio samples for a note using SFZ synthesis.
 
@@ -634,38 +647,73 @@ class SFZEngine(SynthesisEngine):
 
     def get_supported_formats(self) -> list[str]:
         """Get list of supported file formats."""
-        return ['.sfz']
+        return [".sfz"]
 
     def get_engine_info(self) -> dict[str, Any]:
         """Get SFZ engine information and capabilities."""
         if self._engine_info is None:
             self._engine_info = {
-                'name': 'SFZ v2 Synthesis Engine',
-                'type': 'sfz',
-                'version': '2.0',
-                'capabilities': [
-                    'sample_playback', 'multi_format_support', 'velocity_layers',
-                    'round_robin', 'crossfading', 'envelopes', 'filters',
-                    'real_time_modulation', 'stereo_samples', 'looping',
-                    'pitch_modulation', 'filter_modulation'
+                "name": "SFZ v2 Synthesis Engine",
+                "type": "sfz",
+                "version": "2.0",
+                "capabilities": [
+                    "sample_playback",
+                    "multi_format_support",
+                    "velocity_layers",
+                    "round_robin",
+                    "crossfading",
+                    "envelopes",
+                    "filters",
+                    "real_time_modulation",
+                    "stereo_samples",
+                    "looping",
+                    "pitch_modulation",
+                    "filter_modulation",
                 ],
-                'formats': ['.sfz'],
-                'supported_sample_formats': ['.wav', '.aiff', '.flac', '.ogg', '.mp3'],
-                'max_regions': 1000,
-                'polyphony': 256,
-                'parameters': [
-                    'sample', 'lokey', 'hikey', 'lovel', 'hivel', 'pitch_keycenter',
-                    'volume', 'pan', 'cutoff', 'resonance', 'ampeg_attack', 'ampeg_decay',
-                    'ampeg_sustain', 'ampeg_release', 'round_robin', 'loop_mode'
+                "formats": [".sfz"],
+                "supported_sample_formats": [".wav", ".aiff", ".flac", ".ogg", ".mp3"],
+                "max_regions": 1000,
+                "polyphony": 256,
+                "parameters": [
+                    "sample",
+                    "lokey",
+                    "hikey",
+                    "lovel",
+                    "hivel",
+                    "pitch_keycenter",
+                    "volume",
+                    "pan",
+                    "cutoff",
+                    "resonance",
+                    "ampeg_attack",
+                    "ampeg_decay",
+                    "ampeg_sustain",
+                    "ampeg_release",
+                    "round_robin",
+                    "loop_mode",
                 ],
-                'modulation_sources': [
-                    'velocity', 'key', 'cc1-cc127', 'aftertouch', 'pitch_bend',
-                    'amp_env', 'filter_env', 'lfo1', 'lfo2'
+                "modulation_sources": [
+                    "velocity",
+                    "key",
+                    "cc1-cc127",
+                    "aftertouch",
+                    "pitch_bend",
+                    "amp_env",
+                    "filter_env",
+                    "lfo1",
+                    "lfo2",
                 ],
-                'modulation_destinations': [
-                    'volume', 'pan', 'pitch', 'cutoff', 'resonance',
-                    'lfo1_freq', 'lfo1_depth', 'lfo2_freq', 'lfo2_depth'
-                ]
+                "modulation_destinations": [
+                    "volume",
+                    "pan",
+                    "pitch",
+                    "cutoff",
+                    "resonance",
+                    "lfo1_freq",
+                    "lfo1_depth",
+                    "lfo2_freq",
+                    "lfo2_depth",
+                ],
             }
 
         return self._engine_info
@@ -708,9 +756,10 @@ class SFZEngine(SynthesisEngine):
                 del self.region_cache[instrument_name]
 
             # Clear current instrument if it was unloaded
-            if self.current_instrument and \
-               instrument_name == next((k for k, v in self.loaded_instruments.items()
-                                       if v == self.current_instrument), None):
+            if self.current_instrument and instrument_name == next(
+                (k for k, v in self.loaded_instruments.items() if v == self.current_instrument),
+                None,
+            ):
                 self.current_instrument = None
 
             return True
@@ -721,10 +770,10 @@ class SFZEngine(SynthesisEngine):
         cache_stats = self.sample_manager.get_cache_stats()
 
         return {
-            'loaded_instruments': len(self.loaded_instruments),
-            'cached_regions': sum(len(regions) for regions in self.region_cache.values()),
-            'sample_cache': cache_stats,
-            'total_memory_mb': cache_stats.get('memory_used_mb', 0)
+            "loaded_instruments": len(self.loaded_instruments),
+            "cached_regions": sum(len(regions) for regions in self.region_cache.values()),
+            "sample_cache": cache_stats,
+            "total_memory_mb": cache_stats.get("memory_used_mb", 0),
         }
 
     def reset(self) -> None:
@@ -770,13 +819,15 @@ class SFZEngine(SynthesisEngine):
 
                 # Check for very large instruments
                 if len(regions) > 1000:
-                    issues.append(f"Warning: Instrument has {len(regions)} regions (recommended max: 1000)")
+                    issues.append(
+                        f"Warning: Instrument has {len(regions)} regions (recommended max: 1000)"
+                    )
 
                 # Check for missing samples
                 missing_samples = 0
                 for region in regions:
-                    if region.has_opcode('sample'):
-                        sample_path = region.get_value('sample')
+                    if region.has_opcode("sample"):
+                        sample_path = region.get_value("sample")
                         if sample_path and not os.path.exists(sample_path):
                             missing_samples += 1
 
@@ -789,7 +840,7 @@ class SFZEngine(SynthesisEngine):
             return len(issues) == 0, issues
 
         except Exception as e:
-            return False, [f"Validation failed: {str(e)}"]
+            return False, [f"Validation failed: {e!s}"]
 
     def __str__(self) -> str:
         """String representation."""

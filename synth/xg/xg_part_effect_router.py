@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 #!/usr/bin/env python3
 """
 XG PART EFFECT ROUTER
@@ -15,7 +16,6 @@ Provides:
 
 import threading
 from typing import Any
-from enum import Enum
 
 
 class XGPartEffectRouter:
@@ -35,14 +35,14 @@ class XGPartEffectRouter:
 
     # XG Effect Types for routing
     EFFECT_TYPES = {
-        'reverb': {'msb': 32, 'description': 'Reverb Send Assignment'},
-        'chorus': {'msb': 33, 'description': 'Chorus Send Assignment'},
-        'variation': {'msb': 34, 'description': 'Variation Send Assignment'},
-        'reserved_35': {'msb': 35, 'description': 'Reserved'},
-        'reserved_36': {'msb': 36, 'description': 'Reserved'},
-        'reserved_37': {'msb': 37, 'description': 'Reserved'},
-        'reserved_38': {'msb': 38, 'description': 'Reserved'},
-        'reserved_39': {'msb': 39, 'description': 'Reserved'},
+        "reverb": {"msb": 32, "description": "Reverb Send Assignment"},
+        "chorus": {"msb": 33, "description": "Chorus Send Assignment"},
+        "variation": {"msb": 34, "description": "Variation Send Assignment"},
+        "reserved_35": {"msb": 35, "description": "Reserved"},
+        "reserved_36": {"msb": 36, "description": "Reserved"},
+        "reserved_37": {"msb": 37, "description": "Reserved"},
+        "reserved_38": {"msb": 38, "description": "Reserved"},
+        "reserved_39": {"msb": 39, "description": "Reserved"},
     }
 
     def __init__(self, num_channels: int = 16, num_effect_units: int = 10):
@@ -94,7 +94,7 @@ class XGPartEffectRouter:
         with self.lock:
             if not (0 <= channel < self.num_channels):
                 return False
-            if effect_type not in ['reverb', 'chorus', 'variation']:
+            if effect_type not in ["reverb", "chorus", "variation"]:
                 return False
             if not (0 <= unit_number <= 127):
                 return False
@@ -123,8 +123,10 @@ class XGPartEffectRouter:
             Effect unit number (0=off/bypass, 1-127=effect unit), or 1 (default) if not set
         """
         with self.lock:
-            if (channel in self.effect_assignments and
-                effect_type in self.effect_assignments[channel]):
+            if (
+                channel in self.effect_assignments
+                and effect_type in self.effect_assignments[channel]
+            ):
                 return self.effect_assignments[channel][effect_type]
 
             # XG Default: All channels send to effect unit 1 by default
@@ -141,7 +143,7 @@ class XGPartEffectRouter:
             Dictionary mapping effect types to assigned effect units
         """
         result = {}
-        for effect_type in ['reverb', 'chorus', 'variation']:
+        for effect_type in ["reverb", "chorus", "variation"]:
             result[effect_type] = self.get_channel_effect_unit(channel, effect_type)
         return result
 
@@ -174,9 +176,9 @@ class XGPartEffectRouter:
 
             # Map MSB to effect type
             effect_map = {
-                32: 'reverb',
-                33: 'chorus',
-                34: 'variation',
+                32: "reverb",
+                33: "chorus",
+                34: "variation",
                 # 35-39 reserved for future/advanced routing
             }
 
@@ -215,8 +217,9 @@ class XGPartEffectRouter:
             # Future implementations could add advanced routing features
             return True
 
-    def handle_nrpn_message(self, channel: int, nrpn_msb: int, nrpn_lsb: int,
-                          data_msb: int, data_lsb: int) -> bool:
+    def handle_nrpn_message(
+        self, channel: int, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int
+    ) -> bool:
         """
         Handle complete NRPN message for effect routing.
 
@@ -246,15 +249,17 @@ class XGPartEffectRouter:
             status = {}
 
             # Channel assignments
-            status['channel_assignments'] = {}
+            status["channel_assignments"] = {}
             for channel in range(self.num_channels):
-                status['channel_assignments'][f'channel_{channel}'] = self.get_channel_effect_assignment(channel)
+                status["channel_assignments"][f"channel_{channel}"] = (
+                    self.get_channel_effect_assignment(channel)
+                )
 
             # Raw parameters
-            status['raw_parameters'] = self.routing_parameters.copy()
+            status["raw_parameters"] = self.routing_parameters.copy()
 
             # Summary statistics
-            status['summary'] = self.get_routing_summary()
+            status["summary"] = self.get_routing_summary()
 
             return status
 
@@ -266,14 +271,14 @@ class XGPartEffectRouter:
             Summary of routing assignments
         """
         summary = {
-            'total_channels': self.num_channels,
-            'effect_types': ['reverb', 'chorus', 'variation'],
-            'assignment_counts': {},
-            'routed_channels': {},
-            'bypassed_channels': {},
+            "total_channels": self.num_channels,
+            "effect_types": ["reverb", "chorus", "variation"],
+            "assignment_counts": {},
+            "routed_channels": {},
+            "bypassed_channels": {},
         }
 
-        for effect_type in ['reverb', 'chorus', 'variation']:
+        for effect_type in ["reverb", "chorus", "variation"]:
             count = 0
             routed = []
             bypassed = []
@@ -286,9 +291,9 @@ class XGPartEffectRouter:
                 else:  # Bypassed
                     bypassed.append(channel)
 
-            summary['assignment_counts'][effect_type] = count
-            summary['routed_channels'][effect_type] = routed
-            summary['bypassed_channels'][effect_type] = bypassed
+            summary["assignment_counts"][effect_type] = count
+            summary["routed_channels"][effect_type] = routed
+            summary["bypassed_channels"][effect_type] = bypassed
 
         return summary
 
@@ -389,7 +394,7 @@ class XGPartEffectRouter:
 
                             # Apply to effect assignment if applicable
                             if msb <= 34:  # Main effect types
-                                effect_map = {32: 'reverb', 33: 'chorus', 34: 'variation'}
+                                effect_map = {32: "reverb", 33: "chorus", 34: "variation"}
                                 effect_type = effect_map[msb]
 
                                 if lsb < self.num_channels:  # Valid channel
@@ -412,9 +417,9 @@ class XGPartEffectRouter:
         output = [f"XG Part Effect Router - {self.num_channels} channels:"]
         output.append("─" * 50)
 
-        for effect_type in ['reverb', 'chorus', 'variation']:
-            count = summary['assignment_counts'][effect_type]
-            routed = summary['routed_channels'][effect_type]
+        for effect_type in ["reverb", "chorus", "variation"]:
+            count = summary["assignment_counts"][effect_type]
+            routed = summary["routed_channels"][effect_type]
             output.append(f"{effect_type.title()}: {count} channels active")
             if routed:
                 output.append(f"  Routed: {routed}")

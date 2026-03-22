@@ -4,17 +4,10 @@ GS Component System - Complete GS Implementation
 Production-quality GS synthesizer components with complete GS specification compliance.
 Contains GS MIDI processor and state management for Roland GS compatibility.
 """
+
 from __future__ import annotations
 
 from typing import Any
-from collections.abc import Callable
-import threading
-import time
-import math
-from pathlib import Path
-import os
-import hashlib
-import weakref
 
 
 class GSMIDIProcessor:
@@ -29,9 +22,9 @@ class GSMIDIProcessor:
         """Initialize fast routing tables"""
         # GS SYSEX commands (Roland ID 0x41)
         self.sysex_routes = {
-            0x42: self._process_gs_reset,              # GS Reset
-            0x40: self._process_gs_data_set,           # Data Set
-            0x41: self._process_gs_data_request,       # Data Request
+            0x42: self._process_gs_reset,  # GS Reset
+            0x40: self._process_gs_data_set,  # Data Set
+            0x41: self._process_gs_data_request,  # Data Request
         }
 
     def process_message(self, message_bytes: bytes) -> bool:
@@ -76,7 +69,7 @@ class GSMIDIProcessor:
         # GS Reset: F0 41 [dev] 42 12 00 00 [sum] F7
         if len(data) >= 9 and data[4] == 0x12 and data[5] == 0x00 and data[6] == 0x00:
             # Reset GS system to defaults
-            if hasattr(self.components, 'reset_all_components'):
+            if hasattr(self.components, "reset_all_components"):
                 self.components.reset_all_components()
                 print("GS: System reset to defaults")
                 return True
@@ -94,7 +87,9 @@ class GSMIDIProcessor:
         data_bytes = data[8:-2]  # Exclude checksum and F7
 
         # Process parameter change
-        return self.components.process_parameter_change(bytes([data[5], data[6], data[7]]), data_bytes[0] if data_bytes else 0)
+        return self.components.process_parameter_change(
+            bytes([data[5], data[6], data[7]]), data_bytes[0] if data_bytes else 0
+        )
 
     def _process_gs_data_request(self, data: bytes) -> bool:
         """Process GS Data Request SYSEX"""
@@ -104,7 +99,7 @@ class GSMIDIProcessor:
 
     def process_nrpn(self, controller: int, value: int) -> bool:
         """Process NRPN controller messages"""
-        if hasattr(self.components, 'nrpn_controller') and self.components.nrpn_controller:
+        if hasattr(self.components, "nrpn_controller") and self.components.nrpn_controller:
             return self.components.nrpn_controller.process_nrpn_message(controller, value)
         return False
 
@@ -120,16 +115,21 @@ class GSStateManager:
     def _init_parameter_cache(self):
         """Initialize parameter cache for fast access"""
         self.parameter_cache = {
-            'master_volume': lambda: self.components.get_component('system_params').master_volume,
-            'reverb_level': lambda: self.components.get_component('system_params').reverb_send_level,
-            'chorus_level': lambda: self.components.get_component('system_params').chorus_send_level,
+            "master_volume": lambda: self.components.get_component("system_params").master_volume,
+            "reverb_level": lambda: (
+                self.components.get_component("system_params").reverb_send_level
+            ),
+            "chorus_level": lambda: (
+                self.components.get_component("system_params").chorus_send_level
+            ),
         }
 
         # Part parameter cache
         for part_num in range(16):
-            self.parameter_cache[f'part_{part_num}_volume'] = lambda p=part_num: (
-                self.components.get_component('multipart').get_part(p).volume if
-                self.components.get_component('multipart').get_part(p) else 100
+            self.parameter_cache[f"part_{part_num}_volume"] = lambda p=part_num: (
+                self.components.get_component("multipart").get_part(p).volume
+                if self.components.get_component("multipart").get_part(p)
+                else 100
             )
 
     def get_parameter(self, param_name: str):
@@ -140,7 +140,7 @@ class GSStateManager:
     def get_effects_config(self) -> dict[str, Any]:
         """Get effects configuration for audio processing"""
         return {
-            'reverb_enabled': self.get_parameter('reverb_level') > 0,
-            'chorus_enabled': self.get_parameter('chorus_level') > 0,
-            'master_volume': self.get_parameter('master_volume') or 100,
+            "reverb_enabled": self.get_parameter("reverb_level") > 0,
+            "chorus_enabled": self.get_parameter("chorus_level") > 0,
+            "master_volume": self.get_parameter("master_volume") or 100,
         }

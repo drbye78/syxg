@@ -2,16 +2,22 @@
 Modulation routes for XG synthesizer.
 Defines modulation route configuration and processing.
 """
-from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
+from __future__ import annotations
 
 
 class ModulationRoute:
     """Modulation route in the modulation matrix"""
-    def __init__(self, source, destination, amount=0.0, polarity=1.0,
-                 velocity_sensitivity=0.0, key_scaling=0.0):
+
+    def __init__(
+        self,
+        source,
+        destination,
+        amount=0.0,
+        polarity=1.0,
+        velocity_sensitivity=0.0,
+        key_scaling=0.0,
+    ):
         """
         Initialization of modulation route
 

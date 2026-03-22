@@ -4,13 +4,13 @@ Jupiter-X Arpeggiator Implementation
 Grid-based arpeggiator system for Jupiter-X with pattern sequencing,
 velocity control, and real-time parameter modulation.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
 import time
-import numpy as np
+from collections.abc import Callable
+from typing import Any
 
 from .constants import *
 
@@ -28,32 +28,34 @@ class JupiterXArpeggiatorPattern:
         self.name = name
 
         # Grid dimensions
-        self.grid_width = ARPEGGIATOR_GRID_WIDTH   # 8
-        self.grid_height = ARPEGGIATOR_GRID_HEIGHT # 8
+        self.grid_width = ARPEGGIATOR_GRID_WIDTH  # 8
+        self.grid_height = ARPEGGIATOR_GRID_HEIGHT  # 8
 
         # Pattern grid: 1 = note on, 0 = note off
-        self.grid: list[list[int]] = [[0 for _ in range(self.grid_width)]
-                                     for _ in range(self.grid_height)]
+        self.grid: list[list[int]] = [
+            [0 for _ in range(self.grid_width)] for _ in range(self.grid_height)
+        ]
 
         # ===== PHASE 3: ADVANCED 64-STEP PATTERNS =====
         # Enhanced grid for 64-step patterns (16x8 for 128 steps)
-        self.grid_width = 16   # 16 steps per beat (was 8)
-        self.grid_height = 8   # 8 rows for notes (was 8)
+        self.grid_width = 16  # 16 steps per beat (was 8)
+        self.grid_height = 8  # 8 rows for notes (was 8)
 
         # Reinitialize grid for 128 steps (16 beats x 8 steps per beat)
-        self.grid: list[list[int]] = [[0 for _ in range(self.grid_width)]
-                                     for _ in range(self.grid_height)]
+        self.grid: list[list[int]] = [
+            [0 for _ in range(self.grid_width)] for _ in range(self.grid_height)
+        ]
 
         # Pattern parameters - enhanced for 64-step support
-        self.length_beats = 4.0      # Pattern length in beats (was 1.0)
+        self.length_beats = 4.0  # Pattern length in beats (was 1.0)
         self.gate_time = DEFAULT_ARPEGGIATOR_GATE_TIME / 127.0  # 0.0-1.0
-        self.swing_amount = DEFAULT_ARPEGGIATOR_SWING / 100.0   # -1.0 to 1.0
-        self.octave_range = DEFAULT_ARPEGGIATOR_OCTAVE_RANGE     # 1-4
+        self.swing_amount = DEFAULT_ARPEGGIATOR_SWING / 100.0  # -1.0 to 1.0
+        self.octave_range = DEFAULT_ARPEGGIATOR_OCTAVE_RANGE  # 1-4
 
         # Advanced triggering modes (Phase 3)
-        self.trigger_mode = 'normal'  # normal, retrigger, legato, alternate
-        self.note_order = 'up'        # up, down, up-down, random, chord
-        self.velocity_mode = 'original'  # original, fixed, accent, scale
+        self.trigger_mode = "normal"  # normal, retrigger, legato, alternate
+        self.note_order = "up"  # up, down, up-down, random, chord
+        self.velocity_mode = "original"  # original, fixed, accent, scale
         self.accent_pattern: list[float] = [1.0] * 64  # Per-step accent (was 16)
 
         # Pattern looping and sequencing
@@ -65,8 +67,8 @@ class JupiterXArpeggiatorPattern:
 
         # Advanced timing controls
         self.step_length = 1.0 / 16.0  # 16th notes (was fixed)
-        self.humanize_amount = 0.0     # 0.0-1.0 timing randomization
-        self.velocity_humanize = 0.0   # 0.0-1.0 velocity randomization
+        self.humanize_amount = 0.0  # 0.0-1.0 timing randomization
+        self.velocity_humanize = 0.0  # 0.0-1.0 velocity randomization
 
         # Real-time pattern editing
         self.real_time_editing = False
@@ -79,9 +81,9 @@ class JupiterXArpeggiatorPattern:
         self.morph_speed = 0.1
 
         # Jupiter-X specific features
-        self.jx_pattern_type = 'melodic'  # melodic, chord, bass, percussion
-        self.jx_complexity = 'simple'     # simple, complex, evolving
-        self.jx_style = 'classic'         # classic, modern, experimental
+        self.jx_pattern_type = "melodic"  # melodic, chord, bass, percussion
+        self.jx_complexity = "simple"  # simple, complex, evolving
+        self.jx_style = "classic"  # classic, modern, experimental
 
         # Velocity settings
         self.velocity_mode = 0  # 0=Original, 1=Fixed, 2=Accent pattern
@@ -146,16 +148,16 @@ class JupiterXArpeggiatorPattern:
                         velocity = self._calculate_step_velocity(step)
 
                         step_info = {
-                            'step': step_time + (octave * self.length_beats),
-                            'note_offset': note_offset + octave_offset,
-                            'velocity': velocity,
-                            'gate_time': gate_duration,
-                            'original_step': step,
-                            'octave': octave
+                            "step": step_time + (octave * self.length_beats),
+                            "note_offset": note_offset + octave_offset,
+                            "velocity": velocity,
+                            "gate_time": gate_duration,
+                            "original_step": step,
+                            "octave": octave,
                         }
                         active_steps.append(step_info)
 
-        return sorted(active_steps, key=lambda x: x['step'])
+        return sorted(active_steps, key=lambda x: x["step"])
 
     def _grid_row_to_note_offset(self, row: int) -> int:
         """Convert grid row to note offset from root."""
@@ -190,16 +192,16 @@ class JupiterXArpeggiatorPattern:
         active_cells = sum(sum(row) for row in self.grid)
 
         return {
-            'id': self.pattern_id,
-            'name': self.name,
-            'grid_size': (self.grid_width, self.grid_height),
-            'active_cells': active_cells,
-            'length_beats': self.length_beats,
-            'gate_time': self.gate_time,
-            'swing_amount': self.swing_amount,
-            'octave_range': self.octave_range,
-            'velocity_mode': self.velocity_mode,
-            'fixed_velocity': self.fixed_velocity,
+            "id": self.pattern_id,
+            "name": self.name,
+            "grid_size": (self.grid_width, self.grid_height),
+            "active_cells": active_cells,
+            "length_beats": self.length_beats,
+            "gate_time": self.gate_time,
+            "swing_amount": self.swing_amount,
+            "octave_range": self.octave_range,
+            "velocity_mode": self.velocity_mode,
+            "fixed_velocity": self.fixed_velocity,
         }
 
 
@@ -237,50 +239,226 @@ class JupiterXArpeggiatorEngine:
 
         # ===== BASIC SEQUENTIAL PATTERNS =====
         basic_patterns = [
-            ("Up", [[1,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                    [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Down", [[0,0,0,0, 0,0,0,1], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                     [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Up-Down", [[1,0,0,0, 0,0,0,1], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                        [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Random", [[1,0,1,0, 0,1,0,0], [0,1,0,0, 1,0,0,1], [0,0,0,1, 0,0,1,0], [1,0,0,0, 0,1,0,1],
-                        [0,1,0,1, 0,0,0,0], [0,0,1,0, 1,0,1,0], [1,0,0,1, 0,1,0,0], [0,1,0,0, 1,0,0,1]]),
+            (
+                "Up",
+                [
+                    [1, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Down",
+                [
+                    [0, 0, 0, 0, 0, 0, 0, 1],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Up-Down",
+                [
+                    [1, 0, 0, 0, 0, 0, 0, 1],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Random",
+                [
+                    [1, 0, 1, 0, 0, 1, 0, 0],
+                    [0, 1, 0, 0, 1, 0, 0, 1],
+                    [0, 0, 0, 1, 0, 0, 1, 0],
+                    [1, 0, 0, 0, 0, 1, 0, 1],
+                    [0, 1, 0, 1, 0, 0, 0, 0],
+                    [0, 0, 1, 0, 1, 0, 1, 0],
+                    [1, 0, 0, 1, 0, 1, 0, 0],
+                    [0, 1, 0, 0, 1, 0, 0, 1],
+                ],
+            ),
         ]
 
         # ===== CHORD-BASED PATTERNS =====
         chord_patterns = [
-            ("Major Chord", [[1,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                           [0,1,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,1,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Minor Chord", [[1,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                           [0,0,1,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,1,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("7th Chord", [[1,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                          [0,1,0,0, 0,0,0,0], [0,0,1,0, 0,0,0,0], [0,0,0,1, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Sus4 Chord", [[1,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                           [0,0,1,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,1,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
+            (
+                "Major Chord",
+                [
+                    [1, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 1, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Minor Chord",
+                [
+                    [1, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 1, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "7th Chord",
+                [
+                    [1, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 1, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Sus4 Chord",
+                [
+                    [1, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 1, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
         ]
 
         # ===== RHYTHMIC PATTERNS =====
         rhythmic_patterns = [
-            ("16th Notes", [[1,1,1,1, 1,1,1,1], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                           [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("8th Notes", [[1,0,1,0, 1,0,1,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                          [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Triplet", [[1,0,0,1, 0,0,1,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                        [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Dotted", [[1,0,0,1, 0,1,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0],
-                       [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
+            (
+                "16th Notes",
+                [
+                    [1, 1, 1, 1, 1, 1, 1, 1],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "8th Notes",
+                [
+                    [1, 0, 1, 0, 1, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Triplet",
+                [
+                    [1, 0, 0, 1, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Dotted",
+                [
+                    [1, 0, 0, 1, 0, 1, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
         ]
 
         # ===== COMPLEX POLYRHYTHMIC PATTERNS =====
         complex_patterns = [
-            ("Polyrhythm 3:4", [[1,0,1,0, 1,0,0,0], [0,1,0,1, 0,0,1,0], [0,0,0,0, 0,1,0,1], [0,0,0,0, 0,0,0,0],
-                               [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Euclidean 5:8", [[1,0,1,0, 1,0,1,0], [0,1,0,1, 0,1,0,0], [0,0,0,0, 0,0,0,1], [0,0,0,0, 0,0,0,0],
-                              [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Broken Chords", [[1,0,0,0, 0,1,0,0], [0,0,1,0, 0,0,0,1], [0,1,0,0, 1,0,0,0], [0,0,0,1, 0,0,1,0],
-                              [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0], [0,0,0,0, 0,0,0,0]]),
-            ("Arpeggiated Bass", [[1,0,0,0, 0,0,1,0], [0,1,0,0, 0,0,0,0], [0,0,1,0, 0,0,0,0], [0,0,0,1, 0,0,0,0],
-                                 [0,0,0,0, 1,0,0,0], [0,0,0,0, 0,1,0,0], [0,0,0,0, 0,0,1,0], [0,0,0,0, 0,0,0,1]]),
+            (
+                "Polyrhythm 3:4",
+                [
+                    [1, 0, 1, 0, 1, 0, 0, 0],
+                    [0, 1, 0, 1, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 1, 0, 1],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Euclidean 5:8",
+                [
+                    [1, 0, 1, 0, 1, 0, 1, 0],
+                    [0, 1, 0, 1, 0, 1, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 1],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Broken Chords",
+                [
+                    [1, 0, 0, 0, 0, 1, 0, 0],
+                    [0, 0, 1, 0, 0, 0, 0, 1],
+                    [0, 1, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0],
+                ],
+            ),
+            (
+                "Arpeggiated Bass",
+                [
+                    [1, 0, 0, 0, 0, 0, 1, 0],
+                    [0, 1, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 1, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 1],
+                ],
+            ),
         ]
 
         # Combine all pattern categories
@@ -297,9 +475,20 @@ class JupiterXArpeggiatorEngine:
 
         # Add variations of existing patterns to reach 32 total
         base_patterns = list(self.patterns.values())[:4]  # Use first 4 as bases
-        variation_names = ["Variation 1", "Variation 2", "Variation 3", "Variation 4",
-                          "Alt 1", "Alt 2", "Alt 3", "Alt 4",
-                          "Mod 1", "Mod 2", "Mod 3", "Mod 4"]
+        variation_names = [
+            "Variation 1",
+            "Variation 2",
+            "Variation 3",
+            "Variation 4",
+            "Alt 1",
+            "Alt 2",
+            "Alt 3",
+            "Alt 4",
+            "Mod 1",
+            "Mod 2",
+            "Mod 3",
+            "Mod 4",
+        ]
 
         for i, base_pattern in enumerate(base_patterns):
             for j, var_name in enumerate(variation_names):
@@ -316,7 +505,7 @@ class JupiterXArpeggiatorEngine:
                         # Apply variations
                         if "Variation" in var_name:
                             # Shift pattern
-                            shift_x = (j % 4)
+                            shift_x = j % 4
                             new_x = (x + shift_x) % pattern.grid_width
                             pattern.set_grid_cell(new_x, y, original)
                         elif "Alt" in var_name:
@@ -497,16 +686,16 @@ class JupiterXArpeggiatorInstance:
         # Convert to absolute notes and schedule
         self.active_arpeggio_notes = []
         for step_info in active_steps:
-            absolute_note = self.current_root_note + step_info['note_offset']
+            absolute_note = self.current_root_note + step_info["note_offset"]
 
             # Ensure note is in valid MIDI range
             if 0 <= absolute_note <= 127:
                 arpeggio_note = {
-                    'note': absolute_note,
-                    'velocity': step_info['velocity'],
-                    'step_time': step_info['step'],
-                    'gate_time': step_info['gate_time'],
-                    'scheduled': False
+                    "note": absolute_note,
+                    "velocity": step_info["velocity"],
+                    "step_time": step_info["step"],
+                    "gate_time": step_info["gate_time"],
+                    "scheduled": False,
                 }
                 self.active_arpeggio_notes.append(arpeggio_note)
 
@@ -522,32 +711,38 @@ class JupiterXArpeggiatorInstance:
 
             # Process each scheduled note
             for arpeggio_note in self.active_arpeggio_notes:
-                if not arpeggio_note['scheduled']:
-                    note_time = self.pattern_start_time + (arpeggio_note['step_time'] * self.step_duration * 4)
+                if not arpeggio_note["scheduled"]:
+                    note_time = self.pattern_start_time + (
+                        arpeggio_note["step_time"] * self.step_duration * 4
+                    )
 
                     if current_time >= note_time:
                         # Trigger note
-                        velocity = arpeggio_note['velocity']
+                        velocity = arpeggio_note["velocity"]
                         if self.engine.note_on_callback:
-                            self.engine.note_on_callback(self.part_number, arpeggio_note['note'], velocity)
+                            self.engine.note_on_callback(
+                                self.part_number, arpeggio_note["note"], velocity
+                            )
 
-                        arpeggio_note['scheduled'] = True
-                        arpeggio_note['trigger_time'] = current_time
+                        arpeggio_note["scheduled"] = True
+                        arpeggio_note["trigger_time"] = current_time
 
                         # Schedule note-off
-                        gate_duration = arpeggio_note['gate_time'] * self.step_duration * 4
-                        arpeggio_note['off_time'] = current_time + gate_duration
+                        gate_duration = arpeggio_note["gate_time"] * self.step_duration * 4
+                        arpeggio_note["off_time"] = current_time + gate_duration
 
-                elif 'off_time' in arpeggio_note and current_time >= arpeggio_note['off_time']:
+                elif "off_time" in arpeggio_note and current_time >= arpeggio_note["off_time"]:
                     # Trigger note-off
                     if self.engine.note_off_callback:
-                        self.engine.note_off_callback(self.part_number, arpeggio_note['note'])
+                        self.engine.note_off_callback(self.part_number, arpeggio_note["note"])
 
                     # Remove from active notes
-                    arpeggio_note['completed'] = True
+                    arpeggio_note["completed"] = True
 
             # Remove completed notes
-            self.active_arpeggio_notes = [n for n in self.active_arpeggio_notes if not n.get('completed', False)]
+            self.active_arpeggio_notes = [
+                n for n in self.active_arpeggio_notes if not n.get("completed", False)
+            ]
 
             # Check if pattern should loop
             pattern_duration = self.current_pattern.length_beats * self.step_duration * 4
@@ -565,10 +760,10 @@ class JupiterXArpeggiatorInstance:
         """Get arpeggiator status."""
         with self.lock:
             return {
-                'enabled': self.enabled,
-                'pattern': self.current_pattern.name if self.current_pattern else None,
-                'active_notes': len(self.active_notes),
-                'current_root': self.current_root_note,
-                'active_arpeggio_notes': len(self.active_arpeggio_notes),
-                'current_step': self.current_step,
+                "enabled": self.enabled,
+                "pattern": self.current_pattern.name if self.current_pattern else None,
+                "active_notes": len(self.active_notes),
+                "current_root": self.current_root_note,
+                "active_arpeggio_notes": len(self.active_arpeggio_notes),
+                "current_step": self.current_step,
             }

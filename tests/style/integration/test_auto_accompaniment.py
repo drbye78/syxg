@@ -8,16 +8,17 @@ Integration tests for the AutoAccompaniment class including:
 - Track mute/solo
 - Tempo changes
 """
+
 from __future__ import annotations
 
-import pytest
 import time
-from unittest.mock import Mock
+
+import pytest
 
 from synth.style.auto_accompaniment import (
+    AccompanimentMode,
     AutoAccompaniment,
     AutoAccompanimentConfig,
-    AccompanimentMode,
     StylePlaybackState,
 )
 from synth.style.style import StyleSectionType, TrackType
@@ -34,10 +35,7 @@ class TestAutoAccompanimentPlayback:
             sync_start_enabled=False,
         )
         return AutoAccompaniment(
-            style=sample_style,
-            synthesizer=mock_synthesizer,
-            config=config,
-            sample_rate=44100
+            style=sample_style, synthesizer=mock_synthesizer, config=config, sample_rate=44100
         )
 
     def test_start_playback(self, accompaniment):
@@ -74,10 +72,7 @@ class TestChordTriggeredNotes:
             sync_start_enabled=False,
         )
         return AutoAccompaniment(
-            style=sample_style,
-            synthesizer=mock_synthesizer,
-            config=config,
-            sample_rate=44100
+            style=sample_style, synthesizer=mock_synthesizer, config=config, sample_rate=44100
         )
 
     def test_chord_triggers_style_notes(self, accompaniment, mock_synthesizer):
@@ -127,10 +122,7 @@ class TestSectionChanges:
             auto_fill_enabled=False,
         )
         return AutoAccompaniment(
-            style=sample_style,
-            synthesizer=mock_synthesizer,
-            config=config,
-            sample_rate=44100
+            style=sample_style, synthesizer=mock_synthesizer, config=config, sample_rate=44100
         )
 
     def test_change_main_section(self, accompaniment):
@@ -181,10 +173,7 @@ class TestTrackControl:
             sync_start_enabled=False,
         )
         return AutoAccompaniment(
-            style=sample_style,
-            synthesizer=mock_synthesizer,
-            config=config,
-            sample_rate=44100
+            style=sample_style, synthesizer=mock_synthesizer, config=config, sample_rate=44100
         )
 
     def test_mute_track(self, accompaniment):
@@ -231,10 +220,7 @@ class TestTempoControl:
             sync_start_enabled=False,
         )
         return AutoAccompaniment(
-            style=sample_style,
-            synthesizer=mock_synthesizer,
-            config=config,
-            sample_rate=44100
+            style=sample_style, synthesizer=mock_synthesizer, config=config, sample_rate=44100
         )
 
     def test_change_tempo(self, accompaniment):
@@ -268,10 +254,7 @@ class TestFillTriggering:
             auto_fill_enabled=True,
         )
         return AutoAccompaniment(
-            style=sample_style,
-            synthesizer=mock_synthesizer,
-            config=config,
-            sample_rate=44100
+            style=sample_style, synthesizer=mock_synthesizer, config=config, sample_rate=44100
         )
 
     def test_trigger_fill(self, accompaniment):
@@ -304,10 +287,7 @@ class TestStatusReporting:
             sync_start_enabled=False,
         )
         return AutoAccompaniment(
-            style=sample_style,
-            synthesizer=mock_synthesizer,
-            config=config,
-            sample_rate=44100
+            style=sample_style, synthesizer=mock_synthesizer, config=config, sample_rate=44100
         )
 
     def test_get_status(self, accompaniment):
@@ -343,10 +323,7 @@ class TestSyncStart:
             sync_start_enabled=True,
         )
         return AutoAccompaniment(
-            style=sample_style,
-            synthesizer=mock_synthesizer,
-            config=config,
-            sample_rate=44100
+            style=sample_style, synthesizer=mock_synthesizer, config=config, sample_rate=44100
         )
 
     def test_sync_start_waits(self, accompaniment_sync):

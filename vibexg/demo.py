@@ -4,6 +4,7 @@ Vibexg Demo Mode - Demo patterns for testing audio output
 This module provides demo patterns to test the audio output and
 synthesizer functionality without requiring external MIDI input.
 """
+
 from __future__ import annotations
 
 import logging
@@ -65,13 +66,13 @@ class DemoMode:
         match pattern:
             case "scale":
                 self._play_scale()
-            
+
             case "chords":
                 self._play_chords()
-            
+
             case "arpeggio":
                 self._play_arpeggio()
-            
+
             case _:
                 logger.warning(f"Unknown demo pattern: {pattern}")
                 self._play_scale()  # Default to scale
@@ -86,10 +87,10 @@ class DemoMode:
             channel: MIDI channel (0-15)
         """
         msg = MIDIMessage(
-            type='note_on',
+            type="note_on",
             channel=channel,
-            data={'note': note, 'velocity': velocity},
-            timestamp=time.time()
+            data={"note": note, "velocity": velocity},
+            timestamp=time.time(),
         )
         self.synthesizer.midi_parser.parse_bytes(midimessage_to_bytes(msg))
 
@@ -103,10 +104,10 @@ class DemoMode:
             channel: MIDI channel (0-15)
         """
         msg = MIDIMessage(
-            type='note_off',
+            type="note_off",
             channel=channel,
-            data={'note': note, 'velocity': velocity},
-            timestamp=time.time()
+            data={"note": note, "velocity": velocity},
+            timestamp=time.time(),
         )
         self.synthesizer.midi_parser.parse_bytes(midimessage_to_bytes(msg))
 

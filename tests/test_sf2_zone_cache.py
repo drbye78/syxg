@@ -3,9 +3,9 @@ Test suite for SF2 zone cache.
 
 Tests AVLRangeTree, HierarchicalZoneCache, and SF2ZoneCacheManager.
 """
+
 from __future__ import annotations
 
-import pytest
 from synth.sf2 import sf2_zone_cache
 from synth.sf2.sf2_data_model import SF2Zone
 

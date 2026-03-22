@@ -10,11 +10,11 @@ Example:
     def note_on(channel: MIDIChannel, note: MIDINote, velocity: MIDIVelocity) -> None:
         ...
 """
+
 from __future__ import annotations
 
-from typing import Annotated, TypeAlias, Literal, Protocol, TypedDict, NewType
 from enum import IntEnum
-
+from typing import Annotated, Literal, NewType, Protocol, TypeAlias, TypedDict
 
 # =============================================================================
 # MIDI Value Types (Annotated with ranges)
@@ -91,10 +91,10 @@ EffectReturn: TypeAlias = Annotated[float, 0.0, 1.0]
 # =============================================================================
 
 # Timestamp in seconds (0.0 to infinity)
-Timestamp: TypeAlias = Annotated[float, 0.0, float('inf')]
+Timestamp: TypeAlias = Annotated[float, 0.0, float("inf")]
 
 # Duration in seconds (0.0 to infinity)
-Duration: TypeAlias = Annotated[float, 0.0, float('inf')]
+Duration: TypeAlias = Annotated[float, 0.0, float("inf")]
 
 # Tempo in BPM (20-300 BPM)
 TempoBPM: TypeAlias = Annotated[float, 20.0, 300.0]
@@ -172,8 +172,10 @@ SampleData: TypeAlias = dict[str, float | int | str | AudioBuffer]
 # Protocol Definitions (Structural Subtyping)
 # =============================================================================
 
+
 class MIDIMessageProtocol(Protocol):
     """Protocol for MIDI message-like objects."""
+
     type: str
     channel: MIDIChannel | None
     data: MIDIMessageData
@@ -186,20 +188,18 @@ class MIDIMessageProtocol(Protocol):
 
 class SynthesisEngineProtocol(Protocol):
     """Protocol for synthesis engine-like objects."""
+
     name: str
     sample_rate: SampleRate
 
     def generate_samples(
-        self,
-        note: MIDINote,
-        velocity: MIDIVelocity,
-        modulation: dict[str, float],
-        num_samples: int
+        self, note: MIDINote, velocity: MIDIVelocity, modulation: dict[str, float], num_samples: int
     ) -> AudioBuffer: ...
 
 
 class EffectProtocol(Protocol):
     """Protocol for effect-like objects."""
+
     name: str
     effect_type: str
 
@@ -210,8 +210,10 @@ class EffectProtocol(Protocol):
 # TypedDict Definitions
 # =============================================================================
 
+
 class EngineInfo(TypedDict, total=False):
     """Information about a synthesis engine."""
+
     name: str
     type: str
     polyphony: int
@@ -221,6 +223,7 @@ class EngineInfo(TypedDict, total=False):
 
 class VoiceInfo(TypedDict, total=False):
     """Information about an active voice."""
+
     channel: MIDIChannel
     note: MIDINote
     velocity: MIDIVelocity
@@ -231,6 +234,7 @@ class VoiceInfo(TypedDict, total=False):
 
 class EffectInfo(TypedDict, total=False):
     """Information about an effect."""
+
     name: str
     type: str
     enabled: bool
@@ -239,6 +243,7 @@ class EffectInfo(TypedDict, total=False):
 
 class PresetInfo(TypedDict, total=False):
     """Information about a preset."""
+
     name: str
     programs: dict[MIDIChannel, MIDIProgram]
     volumes: dict[MIDIChannel, AudioGain]
@@ -252,15 +257,15 @@ class PresetInfo(TypedDict, total=False):
 # =============================================================================
 
 # Unique identifiers
-VoiceID = NewType('VoiceID', int)
-PresetID = NewType('PresetID', str)
-EffectID = NewType('EffectID', str)
-EngineID = NewType('EngineID', str)
+VoiceID = NewType("VoiceID", int)
+PresetID = NewType("PresetID", str)
+EffectID = NewType("EffectID", str)
+EngineID = NewType("EngineID", str)
 
 # File paths
-FilePath = NewType('FilePath', str)
-SoundFontPath = NewType('SoundFontPath', str)
-SFZPath = NewType('SFZPath', str)
+FilePath = NewType("FilePath", str)
+SoundFontPath = NewType("SoundFontPath", str)
+SFZPath = NewType("SFZPath", str)
 
 # =============================================================================
 # Literal Types
@@ -268,54 +273,54 @@ SFZPath = NewType('SFZPath', str)
 
 # MIDI Message Types
 MIDIMessageType: TypeAlias = Literal[
-    'note_on',
-    'note_off',
-    'control_change',
-    'program_change',
-    'channel_pressure',
-    'poly_pressure',
-    'pitch_bend',
-    'sysex',
-    'time_code',
-    'song_position',
-    'song_select',
-    'tune_request',
-    'clock',
-    'start',
-    'continue',
-    'stop',
-    'active_sensing',
-    'system_reset',
+    "note_on",
+    "note_off",
+    "control_change",
+    "program_change",
+    "channel_pressure",
+    "poly_pressure",
+    "pitch_bend",
+    "sysex",
+    "time_code",
+    "song_position",
+    "song_select",
+    "tune_request",
+    "clock",
+    "start",
+    "continue",
+    "stop",
+    "active_sensing",
+    "system_reset",
 ]
 
 # Synthesis Engine Types
 EngineType: TypeAlias = Literal[
-    'sf2',
-    'sfz',
-    'fm',
-    'an',
-    'fdsp',
-    'wavetable',
-    'additive',
-    'granular',
-    'spectral',
-    'physical',
+    "sf2",
+    "sfz",
+    "fm",
+    "an",
+    "fdsp",
+    "wavetable",
+    "additive",
+    "granular",
+    "spectral",
+    "physical",
 ]
 
 # Effect Types
 EffectType: TypeAlias = Literal[
-    'reverb',
-    'chorus',
-    'delay',
-    'eq',
-    'compressor',
-    'limiter',
-    'distortion',
-    'overdrive',
-    'phaser',
-    'flanger',
-    'wah',
-    'filter',
+    "reverb",
+    "chorus",
+    "delay",
+    "eq",
+    "compressor",
+    "limiter",
+    "distortion",
+    "overdrive",
+    "phaser",
+    "flanger",
+    "wah",
+    "filter",
 ]
 
 # =============================================================================
@@ -338,8 +343,10 @@ ParameterValue: TypeAlias = float | int | str | None
 # Enumerations
 # =============================================================================
 
+
 class ProcessingPriority(IntEnum):
     """Processing priority levels for audio threads."""
+
     LOW = 0
     NORMAL = 1
     HIGH = 2
@@ -348,6 +355,7 @@ class ProcessingPriority(IntEnum):
 
 class ThreadState(IntEnum):
     """Thread state enumeration."""
+
     STOPPED = 0
     STARTING = 1
     RUNNING = 2
@@ -356,6 +364,7 @@ class ThreadState(IntEnum):
 
 class AudioFormat(IntEnum):
     """Audio format enumeration."""
+
     INT16 = 0
     INT24 = 1
     INT32 = 2
@@ -366,6 +375,7 @@ class AudioFormat(IntEnum):
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 def validate_midi_value(value: int, min_val: int = 0, max_val: int = 127) -> int:
     """Validate and clamp MIDI value to valid range."""

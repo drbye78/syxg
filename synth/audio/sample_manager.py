@@ -267,14 +267,16 @@ QUALITY ASSURANCE:
 - COMPATIBILITY TESTING: Multi-platform and multi-format testing
 - USER EXPERIENCE: Professional user interface and workflow design
 """
+
 from __future__ import annotations
 
 import os
+import threading
+from pathlib import Path
+from typing import Any
+
 import av
 import numpy as np
-from typing import Any
-from pathlib import Path
-import threading
 
 
 class SampleCache:
@@ -335,9 +337,9 @@ class SampleCache:
 
     def _estimate_size(self, item: Any) -> int:
         """Estimate memory usage of an item"""
-        if hasattr(item, 'data') and hasattr(item.data, 'nbytes'):
+        if hasattr(item, "data") and hasattr(item.data, "nbytes"):
             return item.data.nbytes
-        elif hasattr(item, '__sizeof__'):
+        elif hasattr(item, "__sizeof__"):
             return item.__sizeof__()
         else:
             return 1024  # Default estimate
@@ -345,6 +347,7 @@ class SampleCache:
     def _current_time(self) -> float:
         """Get current time for LRU tracking"""
         import time
+
         return time.time()
 
 
@@ -394,8 +397,9 @@ class StreamingSample:
             samples_to_copy = min(num_samples - samples_read, available_samples)
 
             if samples_to_copy > 0:
-                output[samples_read:samples_read + samples_to_copy] = \
-                    self.current_frame[self.frame_offset:self.frame_offset + samples_to_copy]
+                output[samples_read : samples_read + samples_to_copy] = self.current_frame[
+                    self.frame_offset : self.frame_offset + samples_to_copy
+                ]
                 samples_read += samples_to_copy
                 self.frame_offset += samples_to_copy
                 self.position += samples_to_copy
@@ -405,18 +409,26 @@ class StreamingSample:
     def get_metadata(self) -> dict[str, Any]:
         """Get stream metadata"""
         return {
-            'sample_rate': self.stream.sample_rate,
-            'channels': self.stream.channels,
-            'duration_samples': self.stream.duration or 0,
-            'bit_depth': self._get_bit_depth(),
-            'codec': self.stream.codec.name
+            "sample_rate": self.stream.sample_rate,
+            "channels": self.stream.channels,
+            "duration_samples": self.stream.duration or 0,
+            "bit_depth": self._get_bit_depth(),
+            "codec": self.stream.codec.name,
         }
 
     def _get_bit_depth(self) -> int:
         """Determine bit depth from stream"""
         format_map = {
-            'u8': 8, 's16': 16, 's32': 32, 'flt': 32, 'dbl': 64,
-            'u8p': 8, 's16p': 16, 's32p': 32, 'fltp': 32, 'dblp': 64,
+            "u8": 8,
+            "s16": 16,
+            "s32": 32,
+            "flt": 32,
+            "dbl": 64,
+            "u8p": 8,
+            "s16p": 16,
+            "s32p": 32,
+            "fltp": 32,
+            "dblp": 64,
         }
         return format_map.get(self.stream.format.name, 16)
 
@@ -432,11 +444,11 @@ class SFZSample:
         self.data = data  # Shape: (samples, channels)
         self.metadata = metadata
         self.path = path
-        self.sample_rate = metadata['sample_rate']
-        self.channels = metadata['channels']
-        self.loop_start = metadata.get('loop_start', 0)
-        self.loop_end = metadata.get('loop_end', len(data))
-        self.cues: list[dict[str, Any]] = metadata.get('cues', [])
+        self.sample_rate = metadata["sample_rate"]
+        self.channels = metadata["channels"]
+        self.loop_start = metadata.get("loop_start", 0)
+        self.loop_end = metadata.get("loop_end", len(data))
+        self.cues: list[dict[str, Any]] = metadata.get("cues", [])
 
     def is_stereo(self) -> bool:
         """Check if sample is stereo"""
@@ -467,8 +479,18 @@ class PyAVSampleManager:
     """
 
     SUPPORTED_FORMATS = {
-        '.wav', '.aiff', '.aif', '.flac', '.ogg', '.mp3',
-        '.aac', '.m4a', '.wma', '.ape', '.wv', '.tta'
+        ".wav",
+        ".aiff",
+        ".aif",
+        ".flac",
+        ".ogg",
+        ".mp3",
+        ".aac",
+        ".m4a",
+        ".wma",
+        ".ape",
+        ".wv",
+        ".tta",
     }
 
     def __init__(self, max_memory_mb: float = 512.0):
@@ -522,7 +544,7 @@ class PyAVSampleManager:
             # Get audio stream
             audio_stream = None
             for stream in container.streams:
-                if stream.type == 'audio':
+                if stream.type == "audio":
                     audio_stream = stream
                     break
 
@@ -565,7 +587,7 @@ class PyAVSampleManager:
             audio_stream = None
 
             for stream in container.streams:
-                if stream.type == 'audio':
+                if stream.type == "audio":
                     audio_stream = stream
                     break
 
@@ -578,41 +600,50 @@ class PyAVSampleManager:
         except Exception as e:
             raise RuntimeError(f"Failed to create streaming sample {path}: {e}")
 
-    def _extract_metadata(self, stream: av.audio.AudioStream,
-                         container: av.container.Container) -> dict[str, Any]:
+    def _extract_metadata(
+        self, stream: av.audio.AudioStream, container: av.container.Container
+    ) -> dict[str, Any]:
         """Extract comprehensive metadata using PyAV"""
         metadata = {
-            'sample_rate': stream.sample_rate,
-            'channels': stream.channels,
-            'duration_samples': stream.duration or 0,
-            'bit_depth': self._get_bit_depth(stream),
-            'codec': stream.codec.name,
-            'format': container.format.name if container.format else 'unknown'
+            "sample_rate": stream.sample_rate,
+            "channels": stream.channels,
+            "duration_samples": stream.duration or 0,
+            "bit_depth": self._get_bit_depth(stream),
+            "codec": stream.codec.name,
+            "format": container.format.name if container.format else "unknown",
         }
 
         # Extract loop points from metadata
         if container.metadata:
-            loop_start = container.metadata.get('loop_start')
-            loop_end = container.metadata.get('loop_end')
+            loop_start = container.metadata.get("loop_start")
+            loop_end = container.metadata.get("loop_end")
             if loop_start and loop_end:
-                metadata['loop_start'] = int(loop_start)
-                metadata['loop_end'] = int(loop_end)
+                metadata["loop_start"] = int(loop_start)
+                metadata["loop_end"] = int(loop_end)
 
         # Extract cue points (if supported by format)
-        metadata['cues'] = self._extract_cues(container)
+        metadata["cues"] = self._extract_cues(container)
 
         # Extract other metadata
         for key, value in container.metadata.items():
-            if key not in ['loop_start', 'loop_end']:
-                metadata[f'metadata_{key}'] = value
+            if key not in ["loop_start", "loop_end"]:
+                metadata[f"metadata_{key}"] = value
 
         return metadata
 
     def _get_bit_depth(self, stream: av.audio.AudioStream) -> int:
         """Determine bit depth from PyAV stream format"""
         format_bits = {
-            'u8': 8, 's16': 16, 's32': 32, 'flt': 32, 'dbl': 64,
-            'u8p': 8, 's16p': 16, 's32p': 32, 'fltp': 32, 'dblp': 64,
+            "u8": 8,
+            "s16": 16,
+            "s32": 32,
+            "flt": 32,
+            "dbl": 64,
+            "u8p": 8,
+            "s16p": 16,
+            "s32p": 32,
+            "fltp": 32,
+            "dblp": 64,
         }
         return format_bits.get(stream.format.name, 16)
 
@@ -641,9 +672,9 @@ class PyAVSampleManager:
     def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics"""
         return {
-            'cached_samples': len(self.cache.cache),
-            'memory_used_mb': self.cache.current_memory_bytes / (1024 * 1024),
-            'max_memory_mb': self.cache.max_memory_bytes / (1024 * 1024)
+            "cached_samples": len(self.cache.cache),
+            "memory_used_mb": self.cache.current_memory_bytes / (1024 * 1024),
+            "max_memory_mb": self.cache.max_memory_bytes / (1024 * 1024),
         }
 
     def get_supported_formats(self) -> list[str]:
@@ -660,7 +691,7 @@ class PyAVSampleManager:
         try:
             # Quick validation - try to open with PyAV
             container = av.open(path)
-            has_audio = any(stream.type == 'audio' for stream in container.streams)
+            has_audio = any(stream.type == "audio" for stream in container.streams)
             container.close()
 
             if not has_audio:

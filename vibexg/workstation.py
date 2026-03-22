@@ -5,13 +5,12 @@ This module provides the XGWorkstation class, which is the main
 orchestration class that coordinates all components of the virtual
 XG synthesizer workstation.
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import queue
-import signal
-import sys
 import threading
 import time
 from pathlib import Path
@@ -21,31 +20,40 @@ from synth.core.config_manager import ConfigManager
 from synth.core.synthesizer import Synthesizer
 from synth.midi import MIDIMessage
 
-from .audio_outputs import AudioOutputEngine, SoundDeviceOutput, FileAudioOutput
+from .audio_outputs import AudioOutputEngine, FileAudioOutput, SoundDeviceOutput
 from .demo import DemoMode
-from .managers import PresetManager, MIDILearnManager, StyleEngineIntegration
-from .midi_inputs import MIDIInputInterface, MidoPortInput, VirtualPortInput, NetworkMIDIInput, KeyboardInput, FileMIDIInput, StdinMIDIInput
+from .managers import MIDILearnManager, PresetManager, StyleEngineIntegration
+from .midi_inputs import (
+    FileMIDIInput,
+    KeyboardInput,
+    MIDIInputInterface,
+    MidoPortInput,
+    NetworkMIDIInput,
+    StdinMIDIInput,
+    VirtualPortInput,
+)
 from .tui import TUIControlSurface
 from .types import (
-    WorkstationState,
-    PresetData,
-    MIDIInputConfig,
-    AudioOutputConfig,
-    InputInterfaceType,
-    AudioOutputType,
-    DEFAULT_SAMPLE_RATE,
     DEFAULT_BUFFER_SIZE,
+    DEFAULT_SAMPLE_RATE,
+    AudioOutputConfig,
+    AudioOutputType,
+    InputInterfaceType,
+    MIDIInputConfig,
+    PresetData,
+    WorkstationState,
 )
 from .utils import midimessage_to_bytes
 
 # Conditional import for Rich TUI
 try:
     from rich.console import Console
+    from rich.layout import Layout
+    from rich.live import Live
     from rich.panel import Panel
     from rich.table import Table
-    from rich.live import Live
-    from rich.layout import Layout
     from rich.text import Text
+
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -78,13 +86,13 @@ class XGWorkstation:
         self.state = WorkstationState()
 
         # Initialize core synthesizer
-        sample_rate = self.config.get('sample_rate', DEFAULT_SAMPLE_RATE)
-        buffer_size = self.config.get('buffer_size', DEFAULT_BUFFER_SIZE)
+        sample_rate = self.config.get("sample_rate", DEFAULT_SAMPLE_RATE)
+        buffer_size = self.config.get("buffer_size", DEFAULT_BUFFER_SIZE)
 
         self.synthesizer = Synthesizer(
             sample_rate=sample_rate,
             buffer_size=buffer_size,
-            enable_audio_output=False  # We handle audio output separately
+            enable_audio_output=False,  # We handle audio output separately
         )
 
         # MIDI input interfaces
@@ -106,7 +114,7 @@ class XGWorkstation:
         self.voice_count_samples = 0
 
         # Preset manager
-        preset_dir = self.config.get('preset_dir', 'presets')
+        preset_dir = self.config.get("preset_dir", "presets")
         self.preset_manager = PresetManager(preset_dir)
 
         # MIDI Learn manager
@@ -143,38 +151,42 @@ class XGWorkstation:
 
     def _initialize_style_engine(self):
         """Initialize style engine."""
-        style_paths = self.config.get('style_paths', [])
+        style_paths = self.config.get("style_paths", [])
         if style_paths:
             self.style_engine.initialize(style_paths)
 
     def _load_configuration(self):
         """Load configuration from file or defaults."""
-        config_path = self.config.get('config_file', 'config.yaml')
+        config_path = self.config.get("config_file", "config.yaml")
         if os.path.exists(config_path):
             try:
                 config_manager = ConfigManager(config_path)
                 config_manager.load()
                 # Apply relevant settings
-                self.state.tempo = config_manager.get_tempo() if hasattr(config_manager, 'get_tempo') else 120.0
-                self.state.master_volume = config_manager.get_volume() if hasattr(config_manager, 'get_volume') else 0.8
+                self.state.tempo = (
+                    config_manager.get_tempo() if hasattr(config_manager, "get_tempo") else 120.0
+                )
+                self.state.master_volume = (
+                    config_manager.get_volume() if hasattr(config_manager, "get_volume") else 0.8
+                )
                 logger.info(f"Configuration loaded from {config_path}")
             except Exception as e:
                 logger.warning(f"Failed to load configuration: {e}")
 
     def _setup_midi_inputs(self):
         """Setup MIDI input interfaces from configuration."""
-        input_configs = self.config.get('midi_inputs', [])
+        input_configs = self.config.get("midi_inputs", [])
 
         for input_config in input_configs:
-            interface_type = InputInterfaceType(input_config.get('type', 'mido_port'))
+            interface_type = InputInterfaceType(input_config.get("type", "mido_port"))
             config = MIDIInputConfig(
                 interface_type=interface_type,
-                name=input_config.get('name', ''),
-                port_name=input_config.get('port_name', ''),
-                channel_filter=input_config.get('channel_filter'),
-                velocity_offset=input_config.get('velocity_offset', 0),
-                transpose=input_config.get('transpose', 0),
-                options=input_config.get('options', {})
+                name=input_config.get("name", ""),
+                port_name=input_config.get("port_name", ""),
+                channel_filter=input_config.get("channel_filter"),
+                velocity_offset=input_config.get("velocity_offset", 0),
+                transpose=input_config.get("transpose", 0),
+                options=input_config.get("options", {}),
             )
 
             interface = self._create_midi_interface(config)
@@ -185,7 +197,7 @@ class XGWorkstation:
         if not self.midi_inputs:
             config = MIDIInputConfig(interface_type=InputInterfaceType.KEYBOARD)
             interface = KeyboardInput(config, self._handle_midi_message)
-            self.midi_inputs['keyboard'] = interface
+            self.midi_inputs["keyboard"] = interface
 
     def _create_midi_interface(self, config: MIDIInputConfig) -> MIDIInputInterface | None:
         """
@@ -200,44 +212,44 @@ class XGWorkstation:
         match config.interface_type:
             case InputInterfaceType.MIDO_PORT:
                 return MidoPortInput(config, self._handle_midi_message)
-            
+
             case InputInterfaceType.VIRTUAL_PORT:
                 return VirtualPortInput(config, self._handle_midi_message)
-            
+
             case InputInterfaceType.NETWORK_MIDI:
                 return NetworkMIDIInput(config, self._handle_midi_message)
-            
+
             case InputInterfaceType.KEYBOARD:
                 return KeyboardInput(config, self._handle_midi_message)
-            
+
             case InputInterfaceType.MIDI_FILE:
                 return FileMIDIInput(config, self._handle_midi_message)
-            
+
             case InputInterfaceType.STDIN:
                 return StdinMIDIInput(config, self._handle_midi_message)
-            
+
             case _:
                 logger.warning(f"Unknown MIDI input type: {config.interface_type}")
                 return None
 
     def _setup_audio_outputs(self):
         """Setup audio output engines from configuration."""
-        output_config = self.config.get('audio_output', {})
-        output_type = AudioOutputType(output_config.get('type', 'sounddevice'))
+        output_config = self.config.get("audio_output", {})
+        output_type = AudioOutputType(output_config.get("type", "sounddevice"))
 
         config = AudioOutputConfig(
             output_type=output_type,
-            device_name=output_config.get('device_name', ''),
-            file_path=output_config.get('file_path', ''),
-            file_format=output_config.get('file_format', 'wav'),
-            sample_rate=output_config.get('sample_rate', DEFAULT_SAMPLE_RATE),
-            buffer_size=output_config.get('buffer_size', DEFAULT_BUFFER_SIZE)
+            device_name=output_config.get("device_name", ""),
+            file_path=output_config.get("file_path", ""),
+            file_format=output_config.get("file_format", "wav"),
+            sample_rate=output_config.get("sample_rate", DEFAULT_SAMPLE_RATE),
+            buffer_size=output_config.get("buffer_size", DEFAULT_BUFFER_SIZE),
         )
 
         if config.output_type == AudioOutputType.SOUNDDEVICE:
-            self.audio_outputs['main'] = SoundDeviceOutput(config, self.synthesizer)
+            self.audio_outputs["main"] = SoundDeviceOutput(config, self.synthesizer)
         elif config.output_type == AudioOutputType.FILE:
-            self.audio_outputs['file'] = FileAudioOutput(config, self.synthesizer)
+            self.audio_outputs["file"] = FileAudioOutput(config, self.synthesizer)
 
     def _handle_midi_message(self, message: MIDIMessage):
         """
@@ -255,9 +267,9 @@ class XGWorkstation:
             self._record_event(message)
 
         # Process through MIDI Learn
-        if message.type == 'control_change':
-            cc = message.data.get('controller', 0)
-            value = message.data.get('value', 0)
+        if message.type == "control_change":
+            cc = message.data.get("controller", 0)
+            value = message.data.get("value", 0)
             self.midi_learn.process_cc(cc, value, message.channel or 0)
 
         # Send to synthesizer (FULL MIDI ROUTING IMPLEMENTED)
@@ -266,12 +278,12 @@ class XGWorkstation:
 
         # Update state for note messages
         match message.type:
-            case 'note_on':
+            case "note_on":
                 self.state.voices_active += 1
-            
-            case 'note_off':
+
+            case "note_off":
                 self.state.voices_active = max(0, self.state.voices_active - 1)
-            
+
             case _:
                 pass  # No voice count change for other message types
 
@@ -283,10 +295,10 @@ class XGWorkstation:
             message: MIDIMessage to record
         """
         event = {
-            'type': message.type,
-            'channel': message.channel,
-            'data': message.data,
-            'timestamp': time.time() - self.recording_start_time
+            "type": message.type,
+            "channel": message.channel,
+            "data": message.data,
+            "timestamp": time.time() - self.recording_start_time,
         }
         self.recorded_events.append(event)
 
@@ -360,16 +372,16 @@ class XGWorkstation:
                 break
 
             # Wait until event time
-            wait_time = event['timestamp'] - (time.time() - start_time)
+            wait_time = event["timestamp"] - (time.time() - start_time)
             if wait_time > 0:
                 time.sleep(wait_time)
 
             # Create and send MIDI message
             msg = MIDIMessage(
-                type=event['type'],
-                channel=event['channel'],
-                data=event['data'],
-                timestamp=time.time()
+                type=event["type"],
+                channel=event["channel"],
+                data=event["data"],
+                timestamp=time.time(),
             )
             self._handle_midi_message(msg)
 
@@ -447,7 +459,7 @@ class XGWorkstation:
             name=self.state.current_preset,
             master_volume=self.state.master_volume,
             tempo=self.state.tempo,
-            midi_learn_mappings=self.midi_learn.export_mappings()['mappings']
+            midi_learn_mappings=self.midi_learn.export_mappings()["mappings"],
         )
         return preset
 
@@ -462,15 +474,15 @@ class XGWorkstation:
         self.state.tempo = preset.tempo
 
         # Apply MIDI Learn mappings
-        self.midi_learn.import_mappings({'mappings': preset.midi_learn_mappings})
+        self.midi_learn.import_mappings({"mappings": preset.midi_learn_mappings})
 
         # Apply program changes
         for channel, program in preset.programs.items():
             msg = MIDIMessage(
-                type='program_change',
+                type="program_change",
                 channel=channel,
-                data={'program': program},
-                timestamp=time.time()
+                data={"program": program},
+                timestamp=time.time(),
             )
             self._handle_midi_message(msg)
 
@@ -500,33 +512,37 @@ class XGWorkstation:
             else:
                 # Simple console mode
                 print("XG Workstation running. Press Ctrl+C to stop.")
-                print("Commands: r=record, p=play, s=stop, m=metronome, +/-=tempo, v=volume, d=demo, q=quit")
+                print(
+                    "Commands: r=record, p=play, s=stop, m=metronome, +/-=tempo, v=volume, d=demo, q=quit"
+                )
 
                 while self.state.running:
                     cmd = input("> ").strip().lower()
-                    if cmd == 'r':
+                    if cmd == "r":
                         self.toggle_recording()
-                    elif cmd == 'p':
+                    elif cmd == "p":
                         self.toggle_playback()
-                    elif cmd == 's':
+                    elif cmd == "s":
                         self.state.playing = False
                         self.state.metronome = False
-                    elif cmd == 'm':
+                    elif cmd == "m":
                         self.toggle_metronome()
-                    elif cmd == '+':
+                    elif cmd == "+":
                         self.change_tempo(5)
-                    elif cmd == '-':
+                    elif cmd == "-":
                         self.change_tempo(-5)
-                    elif cmd == 'v':
+                    elif cmd == "v":
                         vol = input("Volume (0-100): ").strip()
                         self.state.master_volume = int(vol) / 100
-                    elif cmd == 'd':
+                    elif cmd == "d":
                         pattern = input("Demo pattern (scale/chords/arpeggio): ").strip()
                         self.run_demo(pattern or "scale")
-                    elif cmd == 'q':
+                    elif cmd == "q":
                         break
-                    elif cmd == 'h':
-                        print("Commands: r=record, p=play, s=stop, m=metronome, +/-=tempo, v=volume, d=demo, q=quit")
+                    elif cmd == "h":
+                        print(
+                            "Commands: r=record, p=play, s=stop, m=metronome, +/-=tempo, v=volume, d=demo, q=quit"
+                        )
         except KeyboardInterrupt:
             pass
         finally:

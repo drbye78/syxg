@@ -25,47 +25,48 @@ Usage:
     # Create accompaniment engine
     engine = AutoAccompaniment(style, synthesizer)
     engine.start()
-    
+
     # Get scale detection
     scale_detector = ScaleDetector()
     scale_detector.add_note(60)
     current_scale = scale_detector.get_current_scale()
 """
+
 from __future__ import annotations
 
-from .style import Style, StyleCategory, StyleSection, StyleSectionType
-from .style_track import StyleTrack, TrackType
-from .style_ots import OneTouchSettings, OTSPreset
-from .chord_detector import ChordDetector, ChordType, ChordRoot, DetectedChord
-from .auto_accompaniment import AutoAccompaniment, AccompanimentMode
-from .style_player import StylePlayer, SectionTransition
-from .registration import RegistrationMemory, RegistrationBank, Registration
-from .style_loader import StyleLoader, StyleValidationError
-from .dynamics import StyleDynamics, DynamicsParameter
+from .auto_accompaniment import AccompanimentMode, AutoAccompaniment
+from .chord_detector import ChordDetector, ChordRoot, ChordType, DetectedChord
+from .dynamics import DynamicsParameter, StyleDynamics
 from .groove import (
     GrooveQuantizer,
-    GrooveType,
     GrooveTemplate,
+    GrooveType,
     get_default_groove_quantizer,
-)
-from .midi_learn import MIDILearn, MIDILearnMapping, LearnTargetType
-from .scale import (
-    ScaleDetector,
-    ScaleType,
-    ScalePattern,
-    DetectedScale,
-    ScaleDetectionConfig,
-    get_scale_detector,
-    SCALE_PATTERNS,
 )
 from .integrations import (
     StyleEffectsIntegration,
-    StyleVoiceIntegration,
-    StyleModulationIntegration,
-    StyleSequencerIntegration,
-    StyleMPEIntegration,
     StyleIntegrations,
+    StyleModulationIntegration,
+    StyleMPEIntegration,
+    StyleSequencerIntegration,
+    StyleVoiceIntegration,
 )
+from .midi_learn import LearnTargetType, MIDILearn, MIDILearnMapping
+from .registration import Registration, RegistrationBank, RegistrationMemory
+from .scale import (
+    SCALE_PATTERNS,
+    DetectedScale,
+    ScaleDetectionConfig,
+    ScaleDetector,
+    ScalePattern,
+    ScaleType,
+    get_scale_detector,
+)
+from .style import Style, StyleCategory, StyleSection, StyleSectionType
+from .style_loader import StyleLoader, StyleValidationError
+from .style_ots import OneTouchSettings, OTSPreset
+from .style_player import SectionTransition, StylePlayer
+from .style_track import StyleTrack, TrackType
 
 __version__ = "1.2.0"
 

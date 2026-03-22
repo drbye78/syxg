@@ -4,6 +4,7 @@ XGML Backward Compatibility Layer
 Provides automatic conversion from XGML v2.1 to XGML v3.0 format.
 Ensures seamless migration while maintaining all functionality.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -39,7 +40,7 @@ class XGMLCompatibilityConverter:
             "xg_dsl_version": "3.0",
             "description": v2_config.get("description"),
             "timestamp": v2_config.get("timestamp"),
-            "metadata": v2_config.get("metadata", {})
+            "metadata": v2_config.get("metadata", {}),
         }
 
         # Convert sections
@@ -63,7 +64,9 @@ class XGMLCompatibilityConverter:
         if "channels" in v2_basic:
             for channel_name, channel_config in v2_basic["channels"].items():
                 # Add new v3.0 parameters with defaults
-                if "volume" in channel_config and isinstance(channel_config["volume"], (int, float)):
+                if "volume" in channel_config and isinstance(
+                    channel_config["volume"], (int, float)
+                ):
                     # Ensure volume is in correct range
                     volume = max(0, min(127, int(channel_config["volume"])))
                     channel_config["volume"] = volume
@@ -116,11 +119,7 @@ class XGMLCompatibilityConverter:
         v3_filter = {}
 
         # Convert basic parameters
-        param_mapping = {
-            "cutoff": "cutoff",
-            "resonance": "resonance",
-            "type": "type"
-        }
+        param_mapping = {"cutoff": "cutoff", "resonance": "resonance", "type": "type"}
 
         for v2_param, v3_param in param_mapping.items():
             if v2_param in v2_filter:
@@ -141,12 +140,7 @@ class XGMLCompatibilityConverter:
             v3_lfo_config = {}
 
             # Ensure required parameters
-            defaults = {
-                "waveform": "sine",
-                "speed": 64,
-                "pitch_depth": 0,
-                "filter_depth": 0
-            }
+            defaults = {"waveform": "sine", "speed": 64, "pitch_depth": 0, "filter_depth": 0}
 
             for param, default_value in defaults.items():
                 v3_lfo_config[param] = lfo_config.get(param, default_value)
@@ -181,16 +175,21 @@ class XGMLCompatibilityConverter:
                         "hall_1": {"algorithm": "hall_1", "parameters": {"level": 0.5}},
                         "hall_2": {"algorithm": "hall_2", "parameters": {"level": 0.5}},
                         "room_1": {"algorithm": "room_1", "parameters": {"level": 0.4}},
-                        "room_2": {"algorithm": "room_2", "parameters": {"level": 0.4}}
+                        "room_2": {"algorithm": "room_2", "parameters": {"level": 0.4}},
                     }
                     if reverb_value in reverb_mapping:
                         v3_system_effects["reverb"] = reverb_mapping[reverb_value]
                     else:
-                        self.conversion_warnings.append(f"Unknown reverb type '{reverb_value}', using hall_1")
+                        self.conversion_warnings.append(
+                            f"Unknown reverb type '{reverb_value}', using hall_1"
+                        )
                         v3_system_effects["reverb"] = reverb_mapping["hall_1"]
                 else:
                     # Assume it's already in a compatible format
-                    v3_system_effects["reverb"] = {"algorithm": "hall_1", "parameters": {"level": reverb_value}}
+                    v3_system_effects["reverb"] = {
+                        "algorithm": "hall_1",
+                        "parameters": {"level": reverb_value},
+                    }
 
             # Convert chorus
             if "chorus" in v2_effects["system"]:
@@ -199,12 +198,14 @@ class XGMLCompatibilityConverter:
                     chorus_mapping = {
                         "chorus_1": {"algorithm": "chorus_1", "parameters": {"mix": 0.5}},
                         "chorus_2": {"algorithm": "chorus_2", "parameters": {"mix": 0.5}},
-                        "celeste_1": {"algorithm": "celeste", "parameters": {"mix": 0.3}}
+                        "celeste_1": {"algorithm": "celeste", "parameters": {"mix": 0.3}},
                     }
                     if chorus_value in chorus_mapping:
                         v3_system_effects["chorus"] = chorus_mapping[chorus_value]
                     else:
-                        self.conversion_warnings.append(f"Unknown chorus type '{chorus_value}', using chorus_1")
+                        self.conversion_warnings.append(
+                            f"Unknown chorus type '{chorus_value}', using chorus_1"
+                        )
                         v3_system_effects["chorus"] = chorus_mapping["chorus_1"]
 
             if v3_system_effects:
@@ -218,12 +219,16 @@ class XGMLCompatibilityConverter:
                     "delay_lcr": {"type": 12, "parameters": {"delay_time": 300, "feedback": 0.3}},
                     "delay_lr": {"type": 13, "parameters": {"delay_time": 400, "feedback": 0.2}},
                     "echo": {"type": 14, "parameters": {"delay_time": 500, "feedback": 0.4}},
-                    "cross_delay": {"type": 15, "parameters": {"delay_time": 200, "feedback": 0.3}}
+                    "cross_delay": {"type": 15, "parameters": {"delay_time": 200, "feedback": 0.3}},
                 }
                 if variation_value in variation_mapping:
-                    v3_effects["effects_processing"]["variation_effects"] = [variation_mapping[variation_value]]
+                    v3_effects["effects_processing"]["variation_effects"] = [
+                        variation_mapping[variation_value]
+                    ]
                 else:
-                    self.conversion_warnings.append(f"Unknown variation effect '{variation_value}', skipping")
+                    self.conversion_warnings.append(
+                        f"Unknown variation effect '{variation_value}', skipping"
+                    )
 
         return v3_effects
 
@@ -240,19 +245,23 @@ class XGMLCompatibilityConverter:
 
                 # Convert FM-X engine
                 if v2_section == "fm_x_engine":
-                    v3_engines["synthesis_engines"]["fm_x_engine"] = self._convert_fm_x_engine(v2_engine_config)
+                    v3_engines["synthesis_engines"]["fm_x_engine"] = self._convert_fm_x_engine(
+                        v2_engine_config
+                    )
                     has_engines = True
 
                 # Convert SFZ engine
                 elif v2_section == "sfz_engine":
-                    v3_engines["synthesis_engines"]["sfz_engine"] = self._convert_sfz_engine(v2_engine_config)
+                    v3_engines["synthesis_engines"]["sfz_engine"] = self._convert_sfz_engine(
+                        v2_engine_config
+                    )
                     has_engines = True
 
         if has_engines:
             # Add default engine registry
             v3_engines["synthesis_engines"]["registry"] = {
                 "default_engine": "fm" if "fm_x_engine" in v2_config else "sfz",
-                "fallback_engine": "sf2"
+                "fallback_engine": "sf2",
             }
 
         return v3_engines if has_engines else {}
@@ -262,7 +271,7 @@ class XGMLCompatibilityConverter:
         v3_fm_config = {
             "enabled": True,
             "algorithm": v2_fm_config.get("algorithm", 0),
-            "algorithm_name": f"Algorithm {v2_fm_config.get('algorithm', 0)}"
+            "algorithm_name": f"Algorithm {v2_fm_config.get('algorithm', 0)}",
         }
 
         # Convert operators
@@ -277,8 +286,8 @@ class XGMLCompatibilityConverter:
                     "waveform": "sine",
                     "envelope": {
                         "levels": [0.0, 1.0, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0],
-                        "rates": [0.01, 0.3, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0]
-                    }
+                        "rates": [0.01, 0.3, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0],
+                    },
                 }
                 v3_fm_config["operators"][op_name] = v3_op_config
 
@@ -289,7 +298,7 @@ class XGMLCompatibilityConverter:
         v3_sfz_config = {
             "enabled": True,
             "instrument_path": v2_sfz_config.get("instrument_path", ""),
-            "global_parameters": v2_sfz_config.get("global_parameters", {})
+            "global_parameters": v2_sfz_config.get("global_parameters", {}),
         }
 
         return v3_sfz_config
@@ -360,5 +369,5 @@ class XGMLv2CompatibilityLayer:
         return {
             "warnings": self.converter.get_conversion_warnings(),
             "errors": self.converter.get_conversion_errors(),
-            "has_issues": self.converter.has_conversion_issues()
+            "has_issues": self.converter.has_conversion_issues(),
         }

@@ -13,11 +13,12 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
+from collections.abc import Callable
+from typing import Any
 
 
 class XGCompatibilityModes:
@@ -36,57 +37,57 @@ class XGCompatibilityModes:
     """
 
     # Compatibility mode constants
-    MODE_GM = 'GM'      # General MIDI
-    MODE_GM2 = 'GM2'    # General MIDI 2
-    MODE_XG = 'XG'      # Extended General MIDI (XG)
+    MODE_GM = "GM"  # General MIDI
+    MODE_GM2 = "GM2"  # General MIDI 2
+    MODE_XG = "XG"  # Extended General MIDI (XG)
 
     # Mode-specific defaults
     MODE_DEFAULTS = {
         MODE_GM: {
-            'description': 'General MIDI (GM) - 128 voices, basic effects',
-            'max_voices': 128,
-            'max_parts': 16,
-            'effects_support': 'basic',
-            'drum_channels': [9],  # Channel 10 (9 zero-indexed)
-            'voice_allocation': 'static',  # Fixed voice assignment
-            'parameter_defaults': {
-                'reverb_type': 0x01,  # Basic reverb
-                'chorus_type': 0x41,  # Basic chorus
-                'variation_type': 0x00,  # No variation
-                'multi_part_mode': False,  # Single part mode
-                'voice_reserve': [8] * 16,  # Equal allocation
-            }
+            "description": "General MIDI (GM) - 128 voices, basic effects",
+            "max_voices": 128,
+            "max_parts": 16,
+            "effects_support": "basic",
+            "drum_channels": [9],  # Channel 10 (9 zero-indexed)
+            "voice_allocation": "static",  # Fixed voice assignment
+            "parameter_defaults": {
+                "reverb_type": 0x01,  # Basic reverb
+                "chorus_type": 0x41,  # Basic chorus
+                "variation_type": 0x00,  # No variation
+                "multi_part_mode": False,  # Single part mode
+                "voice_reserve": [8] * 16,  # Equal allocation
+            },
         },
         MODE_GM2: {
-            'description': 'General MIDI 2 (GM2) - Enhanced GM with more controls',
-            'max_voices': 128,
-            'max_parts': 16,
-            'effects_support': 'enhanced',
-            'drum_channels': [9],  # Channel 10
-            'voice_allocation': 'dynamic',  # Dynamic voice allocation
-            'parameter_defaults': {
-                'reverb_type': 0x01,  # Hall 1
-                'chorus_type': 0x41,  # Chorus 1
-                'variation_type': 0x10,  # Chorus 1
-                'multi_part_mode': True,  # Multi-part support
-                'voice_reserve': [8] * 16,  # Equal allocation
-            }
+            "description": "General MIDI 2 (GM2) - Enhanced GM with more controls",
+            "max_voices": 128,
+            "max_parts": 16,
+            "effects_support": "enhanced",
+            "drum_channels": [9],  # Channel 10
+            "voice_allocation": "dynamic",  # Dynamic voice allocation
+            "parameter_defaults": {
+                "reverb_type": 0x01,  # Hall 1
+                "chorus_type": 0x41,  # Chorus 1
+                "variation_type": 0x10,  # Chorus 1
+                "multi_part_mode": True,  # Multi-part support
+                "voice_reserve": [8] * 16,  # Equal allocation
+            },
         },
         MODE_XG: {
-            'description': 'Extended General MIDI (XG) - Full XG specification',
-            'max_voices': 128,
-            'max_parts': 16,
-            'effects_support': 'full',
-            'drum_channels': [9],  # Channel 10 (can be extended)
-            'voice_allocation': 'intelligent',  # XG intelligent allocation
-            'parameter_defaults': {
-                'reverb_type': 0x01,  # Hall 1
-                'chorus_type': 0x41,  # Chorus 1
-                'variation_type': 0x10,  # Chorus 1
-                'multi_part_mode': True,  # Full multi-part
-                'voice_reserve': [8] * 16,  # XG defaults
-            }
-        }
+            "description": "Extended General MIDI (XG) - Full XG specification",
+            "max_voices": 128,
+            "max_parts": 16,
+            "effects_support": "full",
+            "drum_channels": [9],  # Channel 10 (can be extended)
+            "voice_allocation": "intelligent",  # XG intelligent allocation
+            "parameter_defaults": {
+                "reverb_type": 0x01,  # Hall 1
+                "chorus_type": 0x41,  # Chorus 1
+                "variation_type": 0x10,  # Chorus 1
+                "multi_part_mode": True,  # Full multi-part
+                "voice_reserve": [8] * 16,  # XG defaults
+            },
+        },
     }
 
     def __init__(self):
@@ -133,7 +134,9 @@ class XGCompatibilityModes:
                 return None
 
             command = data[4]
-            command_data = data[5:-2]  # Exclude F0, manufacturer, device, model, command, checksum, F7
+            command_data = data[
+                5:-2
+            ]  # Exclude F0, manufacturer, device, model, command, checksum, F7
 
             # Handle mode switching commands
             if command == 0x02:  # XG ON/OFF
@@ -158,18 +161,10 @@ class XGCompatibilityModes:
 
         if mode_value == 0x00:  # XG ON
             self.set_compatibility_mode(self.MODE_XG)
-            return {
-                'type': 'mode_switch',
-                'mode': self.MODE_XG,
-                'action': 'xg_on'
-            }
+            return {"type": "mode_switch", "mode": self.MODE_XG, "action": "xg_on"}
         elif mode_value == 0x01:  # XG OFF (switch to GM)
             self.set_compatibility_mode(self.MODE_GM)
-            return {
-                'type': 'mode_switch',
-                'mode': self.MODE_GM,
-                'action': 'xg_off'
-            }
+            return {"type": "mode_switch", "mode": self.MODE_GM, "action": "xg_off"}
 
         return None
 
@@ -182,18 +177,10 @@ class XGCompatibilityModes:
 
         if mode_value == 0x00:  # GM Mode
             self.set_compatibility_mode(self.MODE_GM)
-            return {
-                'type': 'mode_switch',
-                'mode': self.MODE_GM,
-                'action': 'gm_mode'
-            }
+            return {"type": "mode_switch", "mode": self.MODE_GM, "action": "gm_mode"}
         elif mode_value == 0x01:  # GM2 Mode
             self.set_compatibility_mode(self.MODE_GM2)
-            return {
-                'type': 'mode_switch',
-                'mode': self.MODE_GM2,
-                'action': 'gm2_mode'
-            }
+            return {"type": "mode_switch", "mode": self.MODE_GM2, "action": "gm2_mode"}
 
         return None
 
@@ -201,11 +188,7 @@ class XGCompatibilityModes:
         """Handle XG reset: F0 43 [dev] 4C 04 F7"""
         # Reset to XG mode with defaults
         self.set_compatibility_mode(self.MODE_XG, reset_parameters=True)
-        return {
-            'type': 'reset',
-            'mode': self.MODE_XG,
-            'action': 'xg_reset'
-        }
+        return {"type": "reset", "mode": self.MODE_XG, "action": "xg_reset"}
 
     def set_compatibility_mode(self, mode: str, reset_parameters: bool = True) -> bool:
         """
@@ -259,7 +242,7 @@ class XGCompatibilityModes:
         mode_name = mode or self.current_mode
         if mode_name in self.MODE_DEFAULTS:
             info = self.MODE_DEFAULTS[mode_name].copy()
-            info['current'] = (mode_name == self.current_mode)
+            info["current"] = mode_name == self.current_mode
             return info
         return None
 
@@ -292,7 +275,7 @@ class XGCompatibilityModes:
         mode_name = mode if mode is not None else self.current_mode
         mode_info = self.get_mode_info(mode_name)
         if mode_info:
-            return mode_info.get('parameter_defaults', {})
+            return mode_info.get("parameter_defaults", {})
         return None
 
     def should_use_multi_part_mode(self) -> bool:
@@ -304,7 +287,7 @@ class XGCompatibilityModes:
         """
         defaults = self.get_mode_specific_defaults()
         if defaults:
-            return defaults.get('multi_part_mode', False)
+            return defaults.get("multi_part_mode", False)
         return False
 
     def get_max_voices_for_mode(self) -> int:
@@ -316,7 +299,7 @@ class XGCompatibilityModes:
         """
         mode_info = self.get_mode_info()
         if mode_info:
-            return mode_info.get('max_voices', 128)
+            return mode_info.get("max_voices", 128)
         return 128
 
     def get_supported_effects_for_mode(self) -> str:
@@ -328,8 +311,8 @@ class XGCompatibilityModes:
         """
         mode_info = self.get_mode_info()
         if mode_info:
-            return mode_info.get('effects_support', 'basic')
-        return 'basic'
+            return mode_info.get("effects_support", "basic")
+        return "basic"
 
     # SYSEX message creation methods
 
@@ -428,12 +411,12 @@ class XGCompatibilityModes:
         # GM2 supports more than GM
         if mode == self.MODE_GM2:
             # GM2 supports most XG parameters except advanced ones
-            advanced_params = {'variation_type', 'multi_part_mode'}
+            advanced_params = {"variation_type", "multi_part_mode"}
             return parameter_name not in advanced_params
 
         # GM supports only basic parameters
         if mode == self.MODE_GM:
-            basic_params = {'reverb_type', 'chorus_type', 'voice_reserve'}
+            basic_params = {"reverb_type", "chorus_type", "voice_reserve"}
             return parameter_name in basic_params
 
         return False
@@ -449,15 +432,17 @@ class XGCompatibilityModes:
         mode_info = self.get_mode_info(current_mode)
 
         return {
-            'current_mode': current_mode,
-            'mode_description': mode_info.get('description', 'Unknown') if mode_info else 'Unknown',
-            'max_voices': mode_info.get('max_voices', 128) if mode_info else 128,
-            'max_parts': mode_info.get('max_parts', 16) if mode_info else 16,
-            'effects_support': mode_info.get('effects_support', 'basic') if mode_info else 'basic',
-            'voice_allocation': mode_info.get('voice_allocation', 'static') if mode_info else 'static',
-            'drum_channels': mode_info.get('drum_channels', [9]) if mode_info else [9],
-            'available_modes': self.get_available_modes(),
-            'multi_part_supported': self.should_use_multi_part_mode()
+            "current_mode": current_mode,
+            "mode_description": mode_info.get("description", "Unknown") if mode_info else "Unknown",
+            "max_voices": mode_info.get("max_voices", 128) if mode_info else 128,
+            "max_parts": mode_info.get("max_parts", 16) if mode_info else 16,
+            "effects_support": mode_info.get("effects_support", "basic") if mode_info else "basic",
+            "voice_allocation": mode_info.get("voice_allocation", "static")
+            if mode_info
+            else "static",
+            "drum_channels": mode_info.get("drum_channels", [9]) if mode_info else [9],
+            "available_modes": self.get_available_modes(),
+            "multi_part_supported": self.should_use_multi_part_mode(),
         }
 
     # Status and monitoring
@@ -466,14 +451,14 @@ class XGCompatibilityModes:
         """Get compatibility modes status."""
         with self.lock:
             return {
-                'current_mode': self.current_mode,
-                'available_modes': self.get_available_modes(),
-                'mode_info': self.get_mode_info(),
-                'compatibility_report': self.get_mode_compatibility_report(),
-                'callbacks_configured': {
-                    'mode_change': self.mode_change_callback is not None,
-                    'sysex': self.sysex_callback is not None
-                }
+                "current_mode": self.current_mode,
+                "available_modes": self.get_available_modes(),
+                "mode_info": self.get_mode_info(),
+                "compatibility_report": self.get_mode_compatibility_report(),
+                "callbacks_configured": {
+                    "mode_change": self.mode_change_callback is not None,
+                    "sysex": self.sysex_callback is not None,
+                },
             }
 
     def reset_to_xg_mode(self):

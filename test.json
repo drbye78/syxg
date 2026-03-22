@@ -1,0 +1,14 @@
+{
+  "name": "Test Preset",
+  "programs": {},
+  "volumes": {},
+  "pans": {},
+  "reverb_sends": {},
+  "chorus_sends": {},
+  "master_volume": 0.8,
+  "tempo": 120.0,
+  "effects_config": {},
+  "midi_learn_mappings": [],
+  "created_at": "Sun Mar 22 15:17:06 2026",
+  "modified_at": "Sun Mar 22 15:17:06 2026"
+}

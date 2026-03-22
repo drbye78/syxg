@@ -4,13 +4,14 @@ Recording Engine - Real-time MIDI and Audio Recording
 Provides comprehensive recording capabilities for the XG sequencer,
 including MIDI sequence recording, audio recording, and overdub features.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
 import threading
 import time
-import os
+from typing import Any
+
+import numpy as np
 
 
 class RecordingEngine:
@@ -187,9 +188,7 @@ class RecordingEngine:
             if track_number not in self.audio_buffers:
                 self.audio_buffers[track_number] = []
 
-            self.audio_buffers[track_number].append(
-                (block_position, audio_block.copy())
-            )
+            self.audio_buffers[track_number].append((block_position, audio_block.copy()))
 
             # Update track length
             end_position = block_position + len(audio_block)
@@ -368,9 +367,7 @@ class RecordingEngine:
                 return True
             return False
 
-    def export_track(
-        self, track_number: int, filename: str, format_type: str = "midi"
-    ) -> bool:
+    def export_track(self, track_number: int, filename: str, format_type: str = "midi") -> bool:
         """
         Export track data to file.
 
@@ -445,6 +442,7 @@ class RecordingEngine:
         """Export audio track to WAV file."""
         try:
             import wave
+
             import numpy as np
 
             audio_data = track.get("audio_data")
@@ -453,9 +451,7 @@ class RecordingEngine:
                 if not audio_buffers:
                     return False
                 # Concatenate audio blocks
-                audio_data = np.concatenate(
-                    [block for _, block in sorted(audio_buffers)]
-                )
+                audio_data = np.concatenate([block for _, block in sorted(audio_buffers)])
 
             if audio_data is None or len(audio_data) == 0:
                 return False
@@ -588,6 +584,7 @@ class RecordingEngine:
         """Import audio track from WAV file."""
         try:
             import wave
+
             import numpy as np
 
             with wave.open(filename, "rb") as wav_file:
@@ -618,9 +615,7 @@ class RecordingEngine:
                 elif num_channels > 2:
                     # Mix down to stereo
                     audio_float = np.mean(audio_float[:, :2], axis=1, keepdims=True)
-                    audio_float = np.column_stack(
-                        [audio_float[:, 0], audio_float[:, 0]]
-                    )
+                    audio_float = np.column_stack([audio_float[:, 0], audio_float[:, 0]])
 
             # Create or update track
             self.tracks[track_number] = {
@@ -632,9 +627,7 @@ class RecordingEngine:
             }
 
             self.sample_rate = sample_rate
-            print(
-                f"✓ Imported audio track from {filename} ({len(audio_float)} samples)"
-            )
+            print(f"✓ Imported audio track from {filename} ({len(audio_float)} samples)")
             return True
         except Exception as e:
             print(f"Error importing WAV: {e}")
@@ -664,9 +657,7 @@ class RecordingEngine:
             Recording statistics
         """
         with self.lock:
-            total_events = sum(
-                len(track.get("events", [])) for track in self.tracks.values()
-            )
+            total_events = sum(len(track.get("events", [])) for track in self.tracks.values())
             total_tracks = len(self.tracks)
 
             return {

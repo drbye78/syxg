@@ -4,9 +4,11 @@ SF2 Data Model Classes
 Core data classes for SF2 SoundFont representation with 100% SF2 compliance.
 Includes proper zone processing, generator inheritance, and modulation support.
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 import numpy as np
 
 
@@ -37,9 +39,7 @@ class SF2Zone:
         self.velocity_range: tuple[int, int] = (0, 127)
 
         # Zone type classification
-        self.is_global: bool = (
-            False  # True if zone has no sample and full key/vel range
-        )
+        self.is_global: bool = False  # True if zone has no sample and full key/vel range
 
         # Instrument linking (for preset zones)
         self.instrument_index: int = -1
@@ -505,9 +505,7 @@ class SF2Sample:
                     break
 
                 sample_bytes = data[i : i + 3]
-                sample_int = int.from_bytes(
-                    sample_bytes, byteorder="little", signed=True
-                )
+                sample_int = int.from_bytes(sample_bytes, byteorder="little", signed=True)
                 if sample_int & 0x800000:
                     sample_int |= 0xFF000000
                 sample = sample_int / 8388608.0
@@ -590,10 +588,7 @@ class RangeTreeNode:
         Returns:
             True if ranges overlap
         """
-        return (
-            self.key_min <= note <= self.key_max
-            and self.vel_min <= velocity <= self.vel_max
-        )
+        return self.key_min <= note <= self.key_max and self.vel_min <= velocity <= self.vel_max
 
 
 class RangeTree:

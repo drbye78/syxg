@@ -29,24 +29,27 @@ Usage:
     # Or via NRPN
     synth.process_nrpn(channel=0, msb=1, lsb=1, value=0)
 """
+
 from __future__ import annotations
 
-from .sart2_region import SArt2Region, SArt2RegionFactory
 from .articulation_controller import ArticulationController
-from .nrpn import YamahaNRPNMapper, midi_note_to_frequency
-from .mappings import (
-    NRPN_ARTICULATION_MAP,
-    MSB_CATEGORIES,
-    ARTICULATION_ALIASES,
-    get_articulation_from_nrpn,
-    get_nrpn_for_articulation,
-    get_category_for_msb,
-)
-from .modifiers import SF2SampleModifier
 from .controllers import (
     ArticulationController as ArticulationControllerAlt,
+)
+from .controllers import (
     create_articulation_controller,
 )
+from .mappings import (
+    ARTICULATION_ALIASES,
+    MSB_CATEGORIES,
+    NRPN_ARTICULATION_MAP,
+    get_articulation_from_nrpn,
+    get_category_for_msb,
+    get_nrpn_for_articulation,
+)
+from .modifiers import SF2SampleModifier
+from .nrpn import YamahaNRPNMapper, midi_note_to_frequency
+from .sart2_region import SArt2Region, SArt2RegionFactory
 
 __version__ = "3.1.0"
 
@@ -88,8 +91,7 @@ def __getattr__(name):
         import warnings
 
         warnings.warn(
-            f"{name} is deprecated and will be removed in a future version. "
-            f"{_DEPRECATED[name]}",
+            f"{name} is deprecated and will be removed in a future version. {_DEPRECATED[name]}",
             DeprecationWarning,
             stacklevel=2,
         )

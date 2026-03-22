@@ -12,9 +12,10 @@ SF2Region implements SF2 wavetable synthesis with:
 
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
 import logging
+from typing import Any
+
+import numpy as np
 
 from ..engine.region_descriptor import RegionDescriptor
 from ..partial.region import IRegion, RegionState
@@ -41,25 +42,25 @@ class SF2Region(IRegion):
     """
 
     __slots__ = [
-        "synth",
-        "soundfont_manager",
-        "_sample_data",
-        "_loop_start",
+        "_coarse_tune",
+        "_exclusive_class",
+        "_fine_tune",
+        "_generator_params",
+        "_key_range",
         "_loop_end",
         "_loop_mode",
-        "_root_key",
-        "_coarse_tune",
-        "_fine_tune",
-        "_sample_position",
-        "_phase_step",
-        "_sf2_zone",
-        "_sf2_preset",
-        "_sf2_instrument",
-        "_generator_params",
+        "_loop_start",
         "_modulators",
-        "_key_range",
+        "_phase_step",
+        "_root_key",
+        "_sample_data",
+        "_sample_position",
+        "_sf2_instrument",
+        "_sf2_preset",
+        "_sf2_zone",
         "_velocity_range",
-        "_exclusive_class",
+        "soundfont_manager",
+        "synth",
     ]
 
     def __init__(
@@ -554,7 +555,7 @@ class SF2Region(IRegion):
                             # Re-interleave stereo output
                             output[0 : block_size * 2 : 2] = filtered_left
                             output[1 : block_size * 2 : 2] = filtered_right
-                except Exception as e:
+                except Exception:
                     # Skip filter on any error - don't crash
                     pass
 
@@ -581,9 +582,7 @@ class SF2Region(IRegion):
         mip_level = self._select_mip_map_level()
 
         # Get mip-mapped sample data
-        sample_data_left, sample_data_right = self._get_mip_map_data(
-            mip_level, is_stereo_data
-        )
+        sample_data_left, sample_data_right = self._get_mip_map_data(mip_level, is_stereo_data)
 
         if sample_data_left is None or len(sample_data_left) == 0:
             return
@@ -615,12 +614,20 @@ class SF2Region(IRegion):
 
                 # Get right channel samples
                 s1_r = sample_data_right[pos_int] if sample_data_right is not None else s1_l
-                s2_r = sample_data_right[min(pos_int + 1, mip_sample_length - 1)] if sample_data_right is not None else s2_l
+                s2_r = (
+                    sample_data_right[min(pos_int + 1, mip_sample_length - 1)]
+                    if sample_data_right is not None
+                    else s2_l
+                )
                 sample_right = s1_r + frac * (s2_r - s1_r)
             else:
                 # End of sample
                 sample_left = sample_data_left[-1] if mip_sample_length > 0 else 0.0
-                sample_right = sample_data_right[-1] if sample_data_right is not None and mip_sample_length > 0 else sample_left
+                sample_right = (
+                    sample_data_right[-1]
+                    if sample_data_right is not None and mip_sample_length > 0
+                    else sample_left
+                )
 
             # Handle SF2 looping in mip space
             pos = self._handle_sf2_looping_mip(

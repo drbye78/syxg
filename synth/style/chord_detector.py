@@ -4,13 +4,15 @@ Chord Detection System - Real-time Musical Chord Recognition
 Provides comprehensive chord detection for auto-accompaniment,
 supporting multiple detection algorithms and chord types.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum, auto
-from collections.abc import Callable
 import threading
 import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum, auto
+
 import numpy as np
 
 
@@ -215,11 +217,7 @@ class ChordType(Enum):
         elif "m7b5" in name or "m7♭5" in name or "ø" in name:
             return ChordType.HALF_DIMINISHED
         elif "maj7" in name or "Δ7" in name or "maj9" in name:
-            return (
-                ChordType.MAJOR_SEVENTH_NINTH
-                if "9" in name
-                else ChordType.MAJOR_SEVENTH
-            )
+            return ChordType.MAJOR_SEVENTH_NINTH if "9" in name else ChordType.MAJOR_SEVENTH
         elif "m7" in name or "min7" in name:
             return ChordType.MINOR_SEVENTH
         elif "mMaj7" in name:
@@ -267,7 +265,9 @@ class DetectedChord:
             self.chord_name = f"{self.root.name_display}{self.chord_type.name_display}"
             if self.is_inversion and self.bass_note is not None:
                 bass_name = ChordRoot.from_midi(self.bass_note).name_display
-                self.chord_name = f"{self.root.name_display}{self.chord_type.name_display}/{bass_name}"
+                self.chord_name = (
+                    f"{self.root.name_display}{self.chord_type.name_display}/{bass_name}"
+                )
 
     @property
     def root_midi(self) -> int:
@@ -367,19 +367,13 @@ class ChordDetector:
             (0, 4, 7, 10, 14, 17): ChordType.ELEVENTH,
         }
 
-    def note_on(
-        self, note: int, velocity: int = 100, timestamp: float | None = None
-    ):
+    def note_on(self, note: int, velocity: int = 100, timestamp: float | None = None):
         """Register a note-on event"""
         if timestamp is None:
             timestamp = time.time()
 
         with self._lock:
-            if (
-                self.config.detection_zone_low
-                <= note
-                <= self.config.detection_zone_high
-            ):
+            if self.config.detection_zone_low <= note <= self.config.detection_zone_high:
                 self._active_notes[note] = (velocity, timestamp)
                 self._detect_chord()
 
@@ -403,10 +397,7 @@ class ChordDetector:
 
         notes = sorted(self._active_notes.keys())
 
-        if (
-            notes[-1] - notes[0]
-            > self.config.detection_zone_high - self.config.detection_zone_low
-        ):
+        if notes[-1] - notes[0] > self.config.detection_zone_high - self.config.detection_zone_low:
             self._last_chord = None
             return
 
@@ -497,9 +488,7 @@ class ChordDetector:
         for note in notes:
             chroma[note % 12] += 1
         if self.config.chroma_weighting:
-            weights = np.array(
-                [1.0, 0.8, 0.9, 0.8, 1.0, 0.9, 0.8, 1.0, 0.8, 0.9, 0.8, 0.9]
-            )
+            weights = np.array([1.0, 0.8, 0.9, 0.8, 1.0, 0.9, 0.8, 1.0, 0.8, 0.9, 0.8, 0.9])
             chroma = chroma * weights
         return chroma / (np.sum(chroma) + 0.001)
 
@@ -528,9 +517,7 @@ class ChordDetector:
         with self._lock:
             return self._chord_history[-count:]
 
-    def force_chord(
-        self, root: ChordRoot, chord_type: ChordType, bass_note: int | None = None
-    ):
+    def force_chord(self, root: ChordRoot, chord_type: ChordType, bass_note: int | None = None):
         """Force a specific chord (for manual input)"""
         chord = DetectedChord(
             root=root,
@@ -560,9 +547,7 @@ class ChordDetector:
         with self._lock:
             return {
                 "active_notes": len(self._active_notes),
-                "current_chord": self._last_chord.chord_name
-                if self._last_chord
-                else None,
+                "current_chord": self._last_chord.chord_name if self._last_chord else None,
                 "detection_count": self._detection_count,
                 "history_count": len(self._chord_history),
                 "config": {

@@ -4,11 +4,12 @@ MIDI File Handler - Standard MIDI File Import/Export
 Provides comprehensive MIDI file handling capabilities including Standard MIDI Files (SMF)
 format 0 and 1 support, with import/export functionality for the XG sequencer.
 """
+
 from __future__ import annotations
 
+import math
 import struct
 from typing import Any, BinaryIO
-import math
 
 
 class MIDIFileHandler:
@@ -82,7 +83,7 @@ class MIDIFileHandler:
             MIDI file data dictionary or None if error
         """
         try:
-            with open(filename, 'rb') as f:
+            with open(filename, "rb") as f:
                 return self._parse_midi_file(f)
         except Exception as e:
             print(f"Error loading MIDI file {filename}: {e}")
@@ -92,11 +93,11 @@ class MIDIFileHandler:
         """Parse MIDI file from binary stream."""
         # Read header chunk
         header = self._read_chunk(file)
-        if header['type'] != b'MThd':
+        if header["type"] != b"MThd":
             raise ValueError("Not a valid MIDI file")
 
         # Parse header data
-        header_data = struct.unpack('>HHH', header['data'])
+        header_data = struct.unpack(">HHH", header["data"])
         format_type = header_data[0]
         num_tracks = header_data[1]
         division = header_data[2]
@@ -117,19 +118,19 @@ class MIDIFileHandler:
         tracks = []
         for i in range(num_tracks):
             track_chunk = self._read_chunk(file)
-            if track_chunk['type'] != b'MTrk':
+            if track_chunk["type"] != b"MTrk":
                 continue
 
-            track_events = self._parse_track(track_chunk['data'])
+            track_events = self._parse_track(track_chunk["data"])
             tracks.append(track_events)
 
         return {
-            'format': format_type,
-            'num_tracks': num_tracks,
-            'ppq': ppq,
-            'smpte_format': smpte_format,
-            'ticks_per_frame': ticks_per_frame,
-            'tracks': tracks
+            "format": format_type,
+            "num_tracks": num_tracks,
+            "ppq": ppq,
+            "smpte_format": smpte_format,
+            "ticks_per_frame": ticks_per_frame,
+            "tracks": tracks,
         }
 
     def _read_chunk(self, file: BinaryIO) -> dict[str, Any]:
@@ -138,14 +139,10 @@ class MIDIFileHandler:
         if len(chunk_type) != 4:
             raise ValueError("Unexpected end of file")
 
-        chunk_length = struct.unpack('>I', file.read(4))[0]
+        chunk_length = struct.unpack(">I", file.read(4))[0]
         chunk_data = file.read(chunk_length)
 
-        return {
-            'type': chunk_type,
-            'length': chunk_length,
-            'data': chunk_data
-        }
+        return {"type": chunk_type, "length": chunk_length, "data": chunk_data}
 
     def _parse_track(self, track_data: bytes) -> list[dict[str, Any]]:
         """Parse a track's event data."""
@@ -178,7 +175,7 @@ class MIDIFileHandler:
             event = self._parse_event(track_data, pos, status, ticks)
             if event:
                 events.append(event)
-                pos = event.get('next_pos', pos + event.get('data_length', 0))
+                pos = event.get("next_pos", pos + event.get("data_length", 0))
 
         return events
 
@@ -191,47 +188,47 @@ class MIDIFileHandler:
             note = data[pos]
             velocity = data[pos + 1]
             return {
-                'ticks': ticks,
-                'type': 'note_off',
-                'channel': channel,
-                'note': note,
-                'velocity': velocity,
-                'data_length': 2
+                "ticks": ticks,
+                "type": "note_off",
+                "channel": channel,
+                "note": note,
+                "velocity": velocity,
+                "data_length": 2,
             }
 
         elif event_type == self.NOTE_ON:
             note = data[pos]
             velocity = data[pos + 1]
-            event_type_str = 'note_off' if velocity == 0 else 'note_on'
+            event_type_str = "note_off" if velocity == 0 else "note_on"
             return {
-                'ticks': ticks,
-                'type': event_type_str,
-                'channel': channel,
-                'note': note,
-                'velocity': velocity,
-                'data_length': 2
+                "ticks": ticks,
+                "type": event_type_str,
+                "channel": channel,
+                "note": note,
+                "velocity": velocity,
+                "data_length": 2,
             }
 
         elif event_type == self.CONTROL_CHANGE:
             controller = data[pos]
             value = data[pos + 1]
             return {
-                'ticks': ticks,
-                'type': 'control_change',
-                'channel': channel,
-                'controller': controller,
-                'value': value,
-                'data_length': 2
+                "ticks": ticks,
+                "type": "control_change",
+                "channel": channel,
+                "controller": controller,
+                "value": value,
+                "data_length": 2,
             }
 
         elif event_type == self.PROGRAM_CHANGE:
             program = data[pos]
             return {
-                'ticks': ticks,
-                'type': 'program_change',
-                'channel': channel,
-                'program': program,
-                'data_length': 1
+                "ticks": ticks,
+                "type": "program_change",
+                "channel": channel,
+                "program": program,
+                "data_length": 1,
             }
 
         elif event_type == self.PITCH_BEND:
@@ -239,22 +236,22 @@ class MIDIFileHandler:
             msb = data[pos + 1]
             value = (msb << 7) | lsb
             return {
-                'ticks': ticks,
-                'type': 'pitch_bend',
-                'channel': channel,
-                'value': value,
-                'data_length': 2
+                "ticks": ticks,
+                "type": "pitch_bend",
+                "channel": channel,
+                "value": value,
+                "data_length": 2,
             }
 
         elif status == self.SYSTEM_EXCLUSIVE or status == self.END_OF_EXCLUSIVE:
             # System exclusive - variable length
             length, new_pos = self._read_variable_length(data, pos)
-            sysex_data = data[new_pos:new_pos + length]
+            sysex_data = data[new_pos : new_pos + length]
             return {
-                'ticks': ticks,
-                'type': 'system_exclusive',
-                'data': sysex_data,
-                'next_pos': new_pos + length
+                "ticks": ticks,
+                "type": "system_exclusive",
+                "data": sysex_data,
+                "next_pos": new_pos + length,
             }
 
         elif status == 0xFF:
@@ -262,13 +259,15 @@ class MIDIFileHandler:
             meta_type = data[pos]
             pos += 1
             length, pos = self._read_variable_length(data, pos)
-            meta_data = data[pos:pos + length]
+            meta_data = data[pos : pos + length]
 
             return self._parse_meta_event(meta_type, meta_data, ticks, pos + length)
 
         return None
 
-    def _parse_meta_event(self, meta_type: int, data: bytes, ticks: int, next_pos: int) -> dict[str, Any]:
+    def _parse_meta_event(
+        self, meta_type: int, data: bytes, ticks: int, next_pos: int
+    ) -> dict[str, Any]:
         """Parse a meta event."""
         if meta_type == self.META_SET_TEMPO:
             # Tempo: 3 bytes microseconds per quarter note
@@ -276,10 +275,10 @@ class MIDIFileHandler:
                 microseconds = (data[0] << 16) | (data[1] << 8) | data[2]
                 tempo = 60000000 / microseconds  # BPM
                 return {
-                    'ticks': ticks,
-                    'type': 'tempo_change',
-                    'tempo': tempo,
-                    'next_pos': next_pos
+                    "ticks": ticks,
+                    "type": "tempo_change",
+                    "tempo": tempo,
+                    "next_pos": next_pos,
                 }
 
         elif meta_type == self.META_TIME_SIGNATURE:
@@ -288,44 +287,35 @@ class MIDIFileHandler:
                 numerator = data[0]
                 denominator = 2 ** data[1]  # Denominator is 2^data[1]
                 return {
-                    'ticks': ticks,
-                    'type': 'time_signature',
-                    'numerator': numerator,
-                    'denominator': denominator,
-                    'next_pos': next_pos
+                    "ticks": ticks,
+                    "type": "time_signature",
+                    "numerator": numerator,
+                    "denominator": denominator,
+                    "next_pos": next_pos,
                 }
 
         elif meta_type == self.META_TRACK_NAME:
             # Track name
-            name = data.decode('utf-8', errors='ignore')
-            return {
-                'ticks': ticks,
-                'type': 'track_name',
-                'name': name,
-                'next_pos': next_pos
-            }
+            name = data.decode("utf-8", errors="ignore")
+            return {"ticks": ticks, "type": "track_name", "name": name, "next_pos": next_pos}
 
         elif meta_type == self.META_END_OF_TRACK:
-            return {
-                'ticks': ticks,
-                'type': 'end_of_track',
-                'next_pos': next_pos
-            }
+            return {"ticks": ticks, "type": "end_of_track", "next_pos": next_pos}
 
         # Generic meta event
         return {
-            'ticks': ticks,
-            'type': 'meta_event',
-            'meta_type': meta_type,
-            'data': data,
-            'next_pos': next_pos
+            "ticks": ticks,
+            "type": "meta_event",
+            "meta_type": meta_type,
+            "data": data,
+            "next_pos": next_pos,
         }
 
     def _read_variable_length(self, data: bytes, pos: int) -> tuple[int, int]:
         """Read a variable-length quantity from MIDI data."""
         value = 0
         i = 0
-        
+
         # Limit to maximum 4 bytes to prevent infinite loops with malformed data
         max_bytes = 4
 
@@ -354,7 +344,7 @@ class MIDIFileHandler:
             Success status
         """
         try:
-            with open(filename, 'wb') as f:
+            with open(filename, "wb") as f:
                 self._write_midi_file(midi_data, f)
             return True
         except Exception as e:
@@ -363,22 +353,22 @@ class MIDIFileHandler:
 
     def _write_midi_file(self, midi_data: dict[str, Any], file: BinaryIO):
         """Write MIDI file to binary stream."""
-        format_type = midi_data.get('format', 1)
-        tracks = midi_data.get('tracks', [])
-        ppq = midi_data.get('ppq', 960)
+        format_type = midi_data.get("format", 1)
+        tracks = midi_data.get("tracks", [])
+        ppq = midi_data.get("ppq", 960)
 
         # Write header chunk
-        self._write_chunk(file, b'MThd', struct.pack('>HHH', format_type, len(tracks), ppq))
+        self._write_chunk(file, b"MThd", struct.pack(">HHH", format_type, len(tracks), ppq))
 
         # Write track chunks
         for track_events in tracks:
             track_data = self._encode_track(track_events)
-            self._write_chunk(file, b'MTrk', track_data)
+            self._write_chunk(file, b"MTrk", track_data)
 
     def _write_chunk(self, file: BinaryIO, chunk_type: bytes, data: bytes):
         """Write a MIDI file chunk."""
         file.write(chunk_type)
-        file.write(struct.pack('>I', len(data)))
+        file.write(struct.pack(">I", len(data)))
         file.write(data)
 
     def _encode_track(self, events: list[dict[str, Any]]) -> bytes:
@@ -387,7 +377,7 @@ class MIDIFileHandler:
         last_ticks = 0
 
         for event in events:
-            ticks = event.get('ticks', 0)
+            ticks = event.get("ticks", 0)
             delta_time = ticks - last_ticks
             last_ticks = ticks
 
@@ -406,46 +396,50 @@ class MIDIFileHandler:
 
     def _encode_event(self, event: dict[str, Any]) -> bytes:
         """Encode a MIDI event to bytes."""
-        event_type = event.get('type')
+        event_type = event.get("type")
 
-        if event_type in ['note_on', 'note_off']:
-            status = (self.NOTE_ON if event_type == 'note_on' else self.NOTE_OFF) | event.get('channel', 0)
-            return bytes([status, event.get('note', 60), event.get('velocity', 64)])
+        if event_type in ["note_on", "note_off"]:
+            status = (self.NOTE_ON if event_type == "note_on" else self.NOTE_OFF) | event.get(
+                "channel", 0
+            )
+            return bytes([status, event.get("note", 60), event.get("velocity", 64)])
 
-        elif event_type == 'control_change':
-            status = self.CONTROL_CHANGE | event.get('channel', 0)
-            return bytes([status, event.get('controller', 0), event.get('value', 0)])
+        elif event_type == "control_change":
+            status = self.CONTROL_CHANGE | event.get("channel", 0)
+            return bytes([status, event.get("controller", 0), event.get("value", 0)])
 
-        elif event_type == 'program_change':
-            status = self.PROGRAM_CHANGE | event.get('channel', 0)
-            return bytes([status, event.get('program', 0)])
+        elif event_type == "program_change":
+            status = self.PROGRAM_CHANGE | event.get("channel", 0)
+            return bytes([status, event.get("program", 0)])
 
-        elif event_type == 'pitch_bend':
-            status = self.PITCH_BEND | event.get('channel', 0)
-            value = event.get('value', 8192)
+        elif event_type == "pitch_bend":
+            status = self.PITCH_BEND | event.get("channel", 0)
+            value = event.get("value", 8192)
             lsb = value & 0x7F
             msb = (value >> 7) & 0x7F
             return bytes([status, lsb, msb])
 
-        elif event_type == 'tempo_change':
-            tempo = event.get('tempo', 120.0)
+        elif event_type == "tempo_change":
+            tempo = event.get("tempo", 120.0)
             microseconds = int(60000000 / tempo)
-            data = bytes([(microseconds >> 16) & 0xFF, (microseconds >> 8) & 0xFF, microseconds & 0xFF])
-            return b'\xFF\x51\x03' + data
+            data = bytes(
+                [(microseconds >> 16) & 0xFF, (microseconds >> 8) & 0xFF, microseconds & 0xFF]
+            )
+            return b"\xff\x51\x03" + data
 
-        elif event_type == 'time_signature':
-            numerator = event.get('numerator', 4)
-            denominator = event.get('denominator', 4)
+        elif event_type == "time_signature":
+            numerator = event.get("numerator", 4)
+            denominator = event.get("denominator", 4)
             denominator_exp = int(math.log2(denominator))
             return bytes([0xFF, 0x58, 0x04, numerator, denominator_exp, 24, 8])
 
         # Default: empty event
-        return b''
+        return b""
 
     def _write_variable_length(self, value: int) -> bytes:
         """Write a variable-length quantity."""
         if value == 0:
-            return b'\x00'
+            return b"\x00"
 
         data = bytearray()
         while value > 0:
@@ -467,8 +461,8 @@ class MIDIFileHandler:
         Returns:
             Sequencer-compatible format
         """
-        tracks = midi_data.get('tracks', [])
-        ppq = midi_data.get('ppq', 960)
+        tracks = midi_data.get("tracks", [])
+        ppq = midi_data.get("ppq", 960)
 
         sequencer_tracks = {}
 
@@ -479,30 +473,36 @@ class MIDIFileHandler:
             time_sig_events = []
 
             for event in track_events:
-                event_type = event.get('type')
+                event_type = event.get("type")
 
-                if event_type in ['note_on', 'note_off', 'control_change', 'program_change', 'pitch_bend']:
+                if event_type in [
+                    "note_on",
+                    "note_off",
+                    "control_change",
+                    "program_change",
+                    "pitch_bend",
+                ]:
                     midi_events.append(event)
-                elif event_type == 'track_name':
-                    track_name = event.get('name', track_name)
-                elif event_type == 'tempo_change':
+                elif event_type == "track_name":
+                    track_name = event.get("name", track_name)
+                elif event_type == "tempo_change":
                     tempo_events.append(event)
-                elif event_type == 'time_signature':
+                elif event_type == "time_signature":
                     time_sig_events.append(event)
 
             sequencer_tracks[track_idx] = {
-                'name': track_name,
-                'events': midi_events,
-                'tempo_events': tempo_events,
-                'time_signature_events': time_sig_events
+                "name": track_name,
+                "events": midi_events,
+                "tempo_events": tempo_events,
+                "time_signature_events": time_sig_events,
             }
 
         return {
-            'format': 'sequencer',
-            'ppq': ppq,
-            'tracks': sequencer_tracks,
-            'tempo_events': tempo_events,
-            'time_signature_events': time_sig_events
+            "format": "sequencer",
+            "ppq": ppq,
+            "tracks": sequencer_tracks,
+            "tempo_events": tempo_events,
+            "time_signature_events": time_sig_events,
         }
 
     def get_midi_file_info(self, midi_data: dict[str, Any]) -> dict[str, Any]:
@@ -515,25 +515,25 @@ class MIDIFileHandler:
         Returns:
             File information
         """
-        tracks = midi_data.get('tracks', [])
+        tracks = midi_data.get("tracks", [])
         total_events = sum(len(track) for track in tracks)
 
         # Calculate duration (simplified)
         max_ticks = 0
         for track in tracks:
             for event in track:
-                max_ticks = max(max_ticks, event.get('ticks', 0))
+                max_ticks = max(max_ticks, event.get("ticks", 0))
 
         # Assume 120 BPM for duration calculation
-        ppq = midi_data.get('ppq', 960)
+        ppq = midi_data.get("ppq", 960)
         tempo = 120.0  # BPM
         duration_seconds = (max_ticks / ppq) * (60.0 / tempo)
 
         return {
-            'format': midi_data.get('format', 1),
-            'num_tracks': len(tracks),
-            'total_events': total_events,
-            'ppq': ppq,
-            'duration_seconds': duration_seconds,
-            'duration_minutes': duration_seconds / 60.0
+            "format": midi_data.get("format", 1),
+            "num_tracks": len(tracks),
+            "total_events": total_events,
+            "ppq": ppq,
+            "duration_seconds": duration_seconds,
+            "duration_minutes": duration_seconds / 60.0,
         }

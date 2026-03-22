@@ -4,19 +4,25 @@ S90/S70 Control Surface Mapping
 Authentic control surface mapping for S90/S70 synthesizers,
 including assignable knobs, buttons, and parameter assignment.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
+from typing import Any
 
 
 class ControlAssignment:
     """Represents a control surface assignment"""
 
-    def __init__(self, control_id: int, parameter_path: str,
-                 min_value: float = 0.0, max_value: float = 127.0,
-                 curve: str = 'linear', name: str = ''):
+    def __init__(
+        self,
+        control_id: int,
+        parameter_path: str,
+        min_value: float = 0.0,
+        max_value: float = 127.0,
+        curve: str = "linear",
+        name: str = "",
+    ):
         """
         Initialize control assignment.
 
@@ -49,14 +55,14 @@ class ControlAssignment:
         normalized = midi_value / 127.0
 
         # Apply curve
-        if self.curve == 'log':
+        if self.curve == "log":
             # Logarithmic curve (good for frequency parameters)
             if normalized < 0.01:
                 normalized = 0.01  # Avoid log(0)
             normalized = math.log10(normalized * 99 + 1) / 2.0
-        elif self.curve == 'exp':
+        elif self.curve == "exp":
             # Exponential curve (good for resonance)
-            normalized = normalized ** 2
+            normalized = normalized**2
 
         # Scale to parameter range
         return self.min_value + normalized * (self.max_value - self.min_value)
@@ -106,13 +112,13 @@ class S90S70ControlSurfaceMapping:
 
         # Control surface layout
         self.control_layout = {
-            'knobs': list(range(1, 5)),      # Assignable knobs 1-4
-            'buttons': list(range(81, 85)),  # Assignable buttons A-D
-            'data_entry': 6,                 # Data entry slider
-            'mod_wheel': 1,                  # Mod wheel
-            'pitch_bend': 'pitch_bend',     # Pitch bend wheel
-            'foot_pedal': 4,                # Foot pedal (CC4)
-            'foot_switch': 64               # Foot switch (CC64)
+            "knobs": list(range(1, 5)),  # Assignable knobs 1-4
+            "buttons": list(range(81, 85)),  # Assignable buttons A-D
+            "data_entry": 6,  # Data entry slider
+            "mod_wheel": 1,  # Mod wheel
+            "pitch_bend": "pitch_bend",  # Pitch bend wheel
+            "foot_pedal": 4,  # Foot pedal (CC4)
+            "foot_switch": 64,  # Foot switch (CC64)
         }
 
         # Default assignments
@@ -126,10 +132,10 @@ class S90S70ControlSurfaceMapping:
 
         # Default knob assignments (S90/S70 style)
         default_knobs = [
-            ControlAssignment(1, 'filter.cutoff', 0, 127, 'linear', 'Cutoff'),
-            ControlAssignment(2, 'filter.resonance', 0, 127, 'exp', 'Resonance'),
-            ControlAssignment(3, 'amplitude.attack', 0, 127, 'log', 'Attack'),
-            ControlAssignment(4, 'amplitude.decay', 0, 127, 'log', 'Decay')
+            ControlAssignment(1, "filter.cutoff", 0, 127, "linear", "Cutoff"),
+            ControlAssignment(2, "filter.resonance", 0, 127, "exp", "Resonance"),
+            ControlAssignment(3, "amplitude.attack", 0, 127, "log", "Attack"),
+            ControlAssignment(4, "amplitude.decay", 0, 127, "log", "Decay"),
         ]
 
         # Create default group
@@ -142,20 +148,31 @@ class S90S70ControlSurfaceMapping:
 
         # Performance controls (always available)
         self.performance_assignments = {
-            self.control_layout['mod_wheel']: ControlAssignment(
-                self.control_layout['mod_wheel'], 'modulation.depth', 0, 127, 'linear', 'Mod Wheel'
+            self.control_layout["mod_wheel"]: ControlAssignment(
+                self.control_layout["mod_wheel"], "modulation.depth", 0, 127, "linear", "Mod Wheel"
             ),
-            self.control_layout['foot_pedal']: ControlAssignment(
-                self.control_layout['foot_pedal'], 'volume.expression', 0, 127, 'linear', 'Expression'
+            self.control_layout["foot_pedal"]: ControlAssignment(
+                self.control_layout["foot_pedal"],
+                "volume.expression",
+                0,
+                127,
+                "linear",
+                "Expression",
             ),
-            self.control_layout['data_entry']: ControlAssignment(
-                self.control_layout['data_entry'], 'data_entry', 0, 127, 'linear', 'Data Entry'
-            )
+            self.control_layout["data_entry"]: ControlAssignment(
+                self.control_layout["data_entry"], "data_entry", 0, 127, "linear", "Data Entry"
+            ),
         }
 
-    def assign_control(self, control_id: int, parameter_path: str,
-                      min_value: float = 0.0, max_value: float = 127.0,
-                      curve: str = 'linear', name: str = '') -> bool:
+    def assign_control(
+        self,
+        control_id: int,
+        parameter_path: str,
+        min_value: float = 0.0,
+        max_value: float = 127.0,
+        curve: str = "linear",
+        name: str = "",
+    ) -> bool:
         """
         Assign a parameter to a control.
 
@@ -211,15 +228,15 @@ class S90S70ControlSurfaceMapping:
                 # Remove from groups
                 for group in self.groups.values():
                     group.controls = [
-                        ctrl for ctrl in group.controls
-                        if ctrl.control_id != control_id
+                        ctrl for ctrl in group.controls if ctrl.control_id != control_id
                     ]
 
                 return True
             return False
 
-    def create_control_group(self, group_id: int, name: str,
-                           control_assignments: list[ControlAssignment]) -> bool:
+    def create_control_group(
+        self, group_id: int, name: str, control_assignments: list[ControlAssignment]
+    ) -> bool:
         """
         Create a control group.
 
@@ -304,11 +321,11 @@ class S90S70ControlSurfaceMapping:
             if assignment:
                 parameter_value = assignment.apply_value(midi_value)
                 return {
-                    'parameter_path': assignment.parameter_path,
-                    'value': parameter_value,
-                    'control_id': control_id,
-                    'midi_value': midi_value,
-                    'assignment_name': assignment.name
+                    "parameter_path": assignment.parameter_path,
+                    "value": parameter_value,
+                    "control_id": control_id,
+                    "midi_value": midi_value,
+                    "assignment_name": assignment.name,
                 }
 
             return None
@@ -320,8 +337,8 @@ class S90S70ControlSurfaceMapping:
     def _get_available_controls(self) -> list[int]:
         """Get all assignable controls"""
         controls = []
-        controls.extend(self.control_layout['knobs'])
-        controls.extend(self.control_layout['buttons'])
+        controls.extend(self.control_layout["knobs"])
+        controls.extend(self.control_layout["buttons"])
         return controls
 
     def get_control_groups(self) -> dict[int, dict[str, Any]]:
@@ -329,10 +346,10 @@ class S90S70ControlSurfaceMapping:
         with self.lock:
             return {
                 group_id: {
-                    'name': group.name,
-                    'active': group.active,
-                    'controls': len(group.controls),
-                    'control_ids': [ctrl.control_id for ctrl in group.controls]
+                    "name": group.name,
+                    "active": group.active,
+                    "controls": len(group.controls),
+                    "control_ids": [ctrl.control_id for ctrl in group.controls],
                 }
                 for group_id, group in self.groups.items()
             }
@@ -350,38 +367,39 @@ class S90S70ControlSurfaceMapping:
         with self.lock:
             try:
                 export_data = {
-                    'assignments': {
+                    "assignments": {
                         ctrl_id: {
-                            'parameter_path': assignment.parameter_path,
-                            'min_value': assignment.min_value,
-                            'max_value': assignment.max_value,
-                            'curve': assignment.curve,
-                            'name': assignment.name
+                            "parameter_path": assignment.parameter_path,
+                            "min_value": assignment.min_value,
+                            "max_value": assignment.max_value,
+                            "curve": assignment.curve,
+                            "name": assignment.name,
                         }
                         for ctrl_id, assignment in self.assignments.items()
                     },
-                    'groups': {
+                    "groups": {
                         group_id: {
-                            'name': group.name,
-                            'active': group.active,
-                            'controls': [
+                            "name": group.name,
+                            "active": group.active,
+                            "controls": [
                                 {
-                                    'control_id': ctrl.control_id,
-                                    'parameter_path': ctrl.parameter_path,
-                                    'min_value': ctrl.min_value,
-                                    'max_value': ctrl.max_value,
-                                    'curve': ctrl.curve,
-                                    'name': ctrl.name
+                                    "control_id": ctrl.control_id,
+                                    "parameter_path": ctrl.parameter_path,
+                                    "min_value": ctrl.min_value,
+                                    "max_value": ctrl.max_value,
+                                    "curve": ctrl.curve,
+                                    "name": ctrl.name,
                                 }
                                 for ctrl in group.controls
-                            ]
+                            ],
                         }
                         for group_id, group in self.groups.items()
-                    }
+                    },
                 }
 
                 import json
-                with open(filename, 'w') as f:
+
+                with open(filename, "w") as f:
                     json.dump(export_data, f, indent=2)
 
                 return True
@@ -401,6 +419,7 @@ class S90S70ControlSurfaceMapping:
         with self.lock:
             try:
                 import json
+
                 with open(filename) as f:
                     import_data = json.load(f)
 
@@ -409,36 +428,36 @@ class S90S70ControlSurfaceMapping:
                 self.groups.clear()
 
                 # Import assignments
-                for ctrl_id_str, assignment_data in import_data.get('assignments', {}).items():
+                for ctrl_id_str, assignment_data in import_data.get("assignments", {}).items():
                     ctrl_id = int(ctrl_id_str)
                     assignment = ControlAssignment(
                         ctrl_id,
-                        assignment_data['parameter_path'],
-                        assignment_data['min_value'],
-                        assignment_data['max_value'],
-                        assignment_data['curve'],
-                        assignment_data['name']
+                        assignment_data["parameter_path"],
+                        assignment_data["min_value"],
+                        assignment_data["max_value"],
+                        assignment_data["curve"],
+                        assignment_data["name"],
                     )
                     self.assignments[ctrl_id] = assignment
 
                 # Import groups
-                for group_id_str, group_data in import_data.get('groups', {}).items():
+                for group_id_str, group_data in import_data.get("groups", {}).items():
                     group_id = int(group_id_str)
 
                     controls = []
-                    for ctrl_data in group_data.get('controls', []):
+                    for ctrl_data in group_data.get("controls", []):
                         ctrl = ControlAssignment(
-                            ctrl_data['control_id'],
-                            ctrl_data['parameter_path'],
-                            ctrl_data['min_value'],
-                            ctrl_data['max_value'],
-                            ctrl_data['curve'],
-                            ctrl_data['name']
+                            ctrl_data["control_id"],
+                            ctrl_data["parameter_path"],
+                            ctrl_data["min_value"],
+                            ctrl_data["max_value"],
+                            ctrl_data["curve"],
+                            ctrl_data["name"],
                         )
                         controls.append(ctrl)
 
-                    group = ControlGroup(group_id, group_data['name'], controls)
-                    group.active = group_data.get('active', False)
+                    group = ControlGroup(group_id, group_data["name"], controls)
+                    group.active = group_data.get("active", False)
                     self.groups[group_id] = group
 
                 return True
@@ -448,24 +467,24 @@ class S90S70ControlSurfaceMapping:
     def get_control_surface_layout(self) -> dict[str, Any]:
         """Get control surface layout information"""
         return {
-            'knobs': {
-                'count': len(self.control_layout['knobs']),
-                'ids': self.control_layout['knobs'],
-                'description': 'Assignable control knobs 1-4'
+            "knobs": {
+                "count": len(self.control_layout["knobs"]),
+                "ids": self.control_layout["knobs"],
+                "description": "Assignable control knobs 1-4",
             },
-            'buttons': {
-                'count': len(self.control_layout['buttons']),
-                'ids': self.control_layout['buttons'],
-                'description': 'Assignable buttons A-D'
+            "buttons": {
+                "count": len(self.control_layout["buttons"]),
+                "ids": self.control_layout["buttons"],
+                "description": "Assignable buttons A-D",
             },
-            'fixed_controls': {
-                'mod_wheel': self.control_layout['mod_wheel'],
-                'pitch_bend': self.control_layout['pitch_bend'],
-                'data_entry': self.control_layout['data_entry'],
-                'foot_pedal': self.control_layout['foot_pedal'],
-                'foot_switch': self.control_layout['foot_switch']
+            "fixed_controls": {
+                "mod_wheel": self.control_layout["mod_wheel"],
+                "pitch_bend": self.control_layout["pitch_bend"],
+                "data_entry": self.control_layout["data_entry"],
+                "foot_pedal": self.control_layout["foot_pedal"],
+                "foot_switch": self.control_layout["foot_switch"],
             },
-            'total_assignable': len(self._get_available_controls())
+            "total_assignable": len(self._get_available_controls()),
         }
 
     def create_preset_group(self, preset_name: str) -> int:
@@ -550,11 +569,12 @@ class S90S70ControlSurfaceMapping:
             active_groups = sum(1 for group in self.groups.values() if group.active)
 
             return {
-                'assigned_controls': assigned_controls,
-                'total_groups': total_groups,
-                'active_groups': active_groups,
-                'available_controls': len(self._get_available_controls()),
-                'assignment_percentage': (assigned_controls / len(self._get_available_controls())) * 100
+                "assigned_controls": assigned_controls,
+                "total_groups": total_groups,
+                "active_groups": active_groups,
+                "available_controls": len(self._get_available_controls()),
+                "assignment_percentage": (assigned_controls / len(self._get_available_controls()))
+                * 100,
             }
 
 

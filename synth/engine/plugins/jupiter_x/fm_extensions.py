@@ -5,14 +5,19 @@ Plugin that adds Jupiter-X specific FM synthesis features to the base FM engine.
 Eliminates duplication by extending the existing FMEngine rather than creating
 a parallel implementation.
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 import numpy as np
 
 from ..base_plugin import (
-    SynthesisFeaturePlugin, PluginMetadata, PluginLoadContext,
-    PluginType, PluginCompatibility
+    PluginCompatibility,
+    PluginLoadContext,
+    PluginMetadata,
+    PluginType,
+    SynthesisFeaturePlugin,
 )
 
 
@@ -43,21 +48,21 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
                 "vocal_formants": {
                     "type": "bool",
                     "default": False,
-                    "description": "Enable vocal formant synthesis"
+                    "description": "Enable vocal formant synthesis",
                 },
                 "ring_modulation": {
                     "type": "bool",
                     "default": True,
-                    "description": "Enable ring modulation between operators"
+                    "description": "Enable ring modulation between operators",
                 },
                 "feedback_enhancement": {
                     "type": "float",
                     "default": 1.0,
                     "min": 0.0,
                     "max": 2.0,
-                    "description": "Feedback enhancement factor"
-                }
-            }
+                    "description": "Feedback enhancement factor",
+                },
+            },
         )
 
     def __init__(self):
@@ -75,21 +80,21 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
                 "vocal_formants": {
                     "type": "bool",
                     "default": False,
-                    "description": "Enable vocal formant synthesis"
+                    "description": "Enable vocal formant synthesis",
                 },
                 "ring_modulation": {
                     "type": "bool",
                     "default": True,
-                    "description": "Enable ring modulation between operators"
+                    "description": "Enable ring modulation between operators",
                 },
                 "feedback_enhancement": {
                     "type": "float",
                     "default": 1.0,
                     "min": 0.0,
                     "max": 2.0,
-                    "description": "Feedback enhancement factor"
-                }
-            }
+                    "description": "Feedback enhancement factor",
+                },
+            },
         )
         super().__init__(metadata)
 
@@ -109,7 +114,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         # Operator feedback routing
         self.multiple_feedback_paths = False
         self.feedback_coloring_enabled = False
-        self.feedback_coloring_type = 'lowpass'  # lowpass, highpass, bandpass
+        self.feedback_coloring_type = "lowpass"  # lowpass, highpass, bandpass
 
         # Operator panning and stereo positioning
         self.operator_stereo_enabled = False
@@ -137,11 +142,11 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         # Formant data for vocal synthesis (vowel formants in Hz)
         self.vowel_formants = {
-            'a': [800, 1150, 2900, 3900, 4950],  # "ah" as in "father"
-            'e': [400, 1700, 2600, 3200, 3580],  # "eh" as in "bed"
-            'i': [270, 2140, 2950, 3900, 4950],  # "ee" as in "beet"
-            'o': [450, 800, 2830, 3800, 4950],   # "oh" as in "boat"
-            'u': [325, 700, 2700, 3800, 4950],   # "oo" as in "boot"
+            "a": [800, 1150, 2900, 3900, 4950],  # "ah" as in "father"
+            "e": [400, 1700, 2600, 3200, 3580],  # "eh" as in "bed"
+            "i": [270, 2140, 2950, 3900, 4950],  # "ee" as in "beet"
+            "o": [450, 800, 2830, 3800, 4950],  # "oh" as in "boat"
+            "u": [325, 700, 2700, 3800, 4950],  # "oo" as in "boot"
         }
 
         # Ring modulation connections
@@ -198,8 +203,8 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
     def _initialize_jupiter_x_fm_features(self):
         """Initialize Jupiter-X specific FM features."""
         # Set up enhanced feedback algorithms
-        if hasattr(self.fm_engine, 'set_feedback_algorithm'):
-            self.fm_engine.set_feedback_algorithm('jupiter_x_enhanced')
+        if hasattr(self.fm_engine, "set_feedback_algorithm"):
+            self.fm_engine.set_feedback_algorithm("jupiter_x_enhanced")
 
         # Initialize ring modulation system
         self._setup_ring_modulation()
@@ -208,7 +213,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         """Set up ring modulation between operators."""
         # Jupiter-X style ring modulation routing
         # Connect operator outputs to create complex timbres
-        if hasattr(self.fm_engine, 'add_ring_modulation_connection'):
+        if hasattr(self.fm_engine, "add_ring_modulation_connection"):
             # Example: Connect operator 1 output to operator 2 input
             self.fm_engine.add_ring_modulation_connection(0, 1)
             self.fm_engine.add_ring_modulation_connection(2, 3)
@@ -217,25 +222,25 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
     def get_synthesis_features(self) -> dict[str, Any]:
         """Get Jupiter-X FM synthesis features."""
         return {
-            'vocal_formants': {
-                'enabled': self.vocal_formants_enabled,
-                'available_vowels': list(self.vowel_formants.keys()),
-                'formant_count': 5
+            "vocal_formants": {
+                "enabled": self.vocal_formants_enabled,
+                "available_vowels": list(self.vowel_formants.keys()),
+                "formant_count": 5,
             },
-            'ring_modulation': {
-                'enabled': self.ring_modulation_enabled,
-                'connections': self.ring_mod_connections,
-                'max_connections': 8
+            "ring_modulation": {
+                "enabled": self.ring_modulation_enabled,
+                "connections": self.ring_mod_connections,
+                "max_connections": 8,
             },
-            'feedback_enhancement': {
-                'factor': self.feedback_enhancement,
-                'algorithm': 'jupiter_x_enhanced'
+            "feedback_enhancement": {
+                "factor": self.feedback_enhancement,
+                "algorithm": "jupiter_x_enhanced",
             },
-            'operator_extensions': {
-                'formant_shaping': True,
-                'harmonic_enhancement': True,
-                'dynamic_feedback': True
-            }
+            "operator_extensions": {
+                "formant_shaping": True,
+                "harmonic_enhancement": True,
+                "dynamic_feedback": True,
+            },
         }
 
     def set_parameter(self, name: str, value: Any) -> bool:
@@ -260,7 +265,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         return {
             "vocal_formants": self.vocal_formants_enabled,
             "ring_modulation": self.ring_modulation_enabled,
-            "feedback_enhancement": self.feedback_enhancement
+            "feedback_enhancement": self.feedback_enhancement,
         }
 
     def _update_vocal_formants(self):
@@ -270,12 +275,12 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         if self.vocal_formants_enabled:
             # Configure operators for vocal synthesis
-            if hasattr(self.fm_engine, 'configure_formant_operator'):
+            if hasattr(self.fm_engine, "configure_formant_operator"):
                 # Set up formant filter on operator 4 (typically carrier)
-                self.fm_engine.configure_formant_operator(3, self.vowel_formants['a'])
+                self.fm_engine.configure_formant_operator(3, self.vowel_formants["a"])
         else:
             # Disable formant processing
-            if hasattr(self.fm_engine, 'disable_formant_operator'):
+            if hasattr(self.fm_engine, "disable_formant_operator"):
                 self.fm_engine.disable_formant_operator(3)
 
     def _update_ring_modulation(self):
@@ -288,7 +293,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
             self._setup_ring_modulation()
         else:
             # Remove all ring modulation connections
-            if hasattr(self.fm_engine, 'clear_ring_modulation'):
+            if hasattr(self.fm_engine, "clear_ring_modulation"):
                 self.fm_engine.clear_ring_modulation()
             self.ring_mod_connections.clear()
 
@@ -298,7 +303,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
             return
 
         # Apply feedback enhancement factor
-        if hasattr(self.fm_engine, 'set_feedback_factor'):
+        if hasattr(self.fm_engine, "set_feedback_factor"):
             self.fm_engine.set_feedback_factor(self.feedback_enhancement)
 
     def process_midi_message(self, status: int, data1: int, data2: int) -> bool:
@@ -321,11 +326,12 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
     def _set_vowel_formant(self, vowel: str):
         """Set the current vowel formant."""
         if vowel in self.vowel_formants and self.fm_engine:
-            if hasattr(self.fm_engine, 'configure_formant_operator'):
+            if hasattr(self.fm_engine, "configure_formant_operator"):
                 self.fm_engine.configure_formant_operator(3, self.vowel_formants[vowel])
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
-                        block_size: int) -> np.ndarray | None:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray | None:
         """
         Generate additional FM samples with Jupiter-X features.
 
@@ -348,47 +354,57 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         self.algorithm_morphing_enabled = enabled
         self.algorithm_morph_speed = max(0.01, min(1.0, morph_speed))
 
-        if self.fm_engine and hasattr(self.fm_engine, 'enable_algorithm_morphing'):
+        if self.fm_engine and hasattr(self.fm_engine, "enable_algorithm_morphing"):
             self.fm_engine.enable_algorithm_morphing(enabled, self.algorithm_morph_speed)
 
-        print(f"🎛️ Algorithm morphing {'enabled' if enabled else 'disabled'} (speed: {self.algorithm_morph_speed:.2f})")
+        print(
+            f"🎛️ Algorithm morphing {'enabled' if enabled else 'disabled'} (speed: {self.algorithm_morph_speed:.2f})"
+        )
 
-    def set_algorithm_morph_targets(self, source_algorithm: int, target_algorithm: int, morph_factor: float = 0.0):
+    def set_algorithm_morph_targets(
+        self, source_algorithm: int, target_algorithm: int, morph_factor: float = 0.0
+    ):
         """Set algorithm morphing targets and current morph factor."""
         self.current_algorithm = max(0, min(31, source_algorithm))  # 0-31 algorithms
         self.target_algorithm = max(0, min(31, target_algorithm))
         self.algorithm_morph_factor = max(0.0, min(1.0, morph_factor))
 
-        if self.fm_engine and hasattr(self.fm_engine, 'set_algorithm_morphing'):
-            self.fm_engine.set_algorithm_morphing(self.current_algorithm, self.target_algorithm, self.algorithm_morph_factor)
+        if self.fm_engine and hasattr(self.fm_engine, "set_algorithm_morphing"):
+            self.fm_engine.set_algorithm_morphing(
+                self.current_algorithm, self.target_algorithm, self.algorithm_morph_factor
+            )
 
-        print(f"🎛️ Algorithm morphing: {self.current_algorithm} → {self.target_algorithm} (factor: {self.algorithm_morph_factor:.2f})")
+        print(
+            f"🎛️ Algorithm morphing: {self.current_algorithm} → {self.target_algorithm} (factor: {self.algorithm_morph_factor:.2f})"
+        )
 
     def enable_multiple_feedback_paths(self, enabled: bool = True):
         """Enable multiple feedback paths for complex FM routing."""
         self.multiple_feedback_paths = enabled
 
-        if self.fm_engine and hasattr(self.fm_engine, 'enable_multiple_feedback'):
+        if self.fm_engine and hasattr(self.fm_engine, "enable_multiple_feedback"):
             self.fm_engine.enable_multiple_feedback(enabled)
 
         print(f"🎛️ Multiple feedback paths {'enabled' if enabled else 'disabled'}")
 
-    def enable_feedback_coloring(self, enabled: bool = True, filter_type: str = 'lowpass'):
+    def enable_feedback_coloring(self, enabled: bool = True, filter_type: str = "lowpass"):
         """Enable feedback coloring with filter types."""
         self.feedback_coloring_enabled = enabled
-        valid_types = ['lowpass', 'highpass', 'bandpass']
-        self.feedback_coloring_type = filter_type if filter_type in valid_types else 'lowpass'
+        valid_types = ["lowpass", "highpass", "bandpass"]
+        self.feedback_coloring_type = filter_type if filter_type in valid_types else "lowpass"
 
-        if self.fm_engine and hasattr(self.fm_engine, 'enable_feedback_coloring'):
+        if self.fm_engine and hasattr(self.fm_engine, "enable_feedback_coloring"):
             self.fm_engine.enable_feedback_coloring(enabled, self.feedback_coloring_type)
 
-        print(f"🎛️ Feedback coloring {'enabled' if enabled else 'disabled'} ({self.feedback_coloring_type})")
+        print(
+            f"🎛️ Feedback coloring {'enabled' if enabled else 'disabled'} ({self.feedback_coloring_type})"
+        )
 
     def enable_operator_stereo(self, enabled: bool = True):
         """Enable operator stereo positioning and panning."""
         self.operator_stereo_enabled = enabled
 
-        if self.fm_engine and hasattr(self.fm_engine, 'enable_operator_stereo'):
+        if self.fm_engine and hasattr(self.fm_engine, "enable_operator_stereo"):
             self.fm_engine.enable_operator_stereo(enabled)
 
         print(f"🎛️ Operator stereo {'enabled' if enabled else 'disabled'}")
@@ -397,7 +413,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         """Set pan positions for each operator (-1.0 to 1.0)."""
         self.operator_pan_positions = [max(-1.0, min(1.0, p)) for p in pan_positions[:6]]
 
-        if self.fm_engine and hasattr(self.fm_engine, 'set_operator_pan_positions'):
+        if self.fm_engine and hasattr(self.fm_engine, "set_operator_pan_positions"):
             self.fm_engine.set_operator_pan_positions(self.operator_pan_positions)
 
         print(f"🎛️ Operator pan positions set: {self.operator_pan_positions}")
@@ -406,7 +422,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         """Set velocity scaling for each operator."""
         self.operator_velocity_scaling = [max(0.0, min(2.0, s)) for s in scaling_factors[:6]]
 
-        if self.fm_engine and hasattr(self.fm_engine, 'set_operator_velocity_scaling'):
+        if self.fm_engine and hasattr(self.fm_engine, "set_operator_velocity_scaling"):
             self.fm_engine.set_operator_velocity_scaling(self.operator_velocity_scaling)
 
         print(f"🎛️ Operator velocity scaling: {self.operator_velocity_scaling}")
@@ -415,7 +431,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         """Set key scaling for each operator."""
         self.operator_key_scaling = [max(0.0, min(2.0, s)) for s in scaling_factors[:6]]
 
-        if self.fm_engine and hasattr(self.fm_engine, 'set_operator_key_scaling'):
+        if self.fm_engine and hasattr(self.fm_engine, "set_operator_key_scaling"):
             self.fm_engine.set_operator_key_scaling(self.operator_key_scaling)
 
         print(f"🎛️ Operator key scaling: {self.operator_key_scaling}")
@@ -424,7 +440,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         """Enable phase modulation for operators."""
         self.phase_modulation_enabled = enabled
 
-        if self.fm_engine and hasattr(self.fm_engine, 'enable_phase_modulation'):
+        if self.fm_engine and hasattr(self.fm_engine, "enable_phase_modulation"):
             self.fm_engine.enable_phase_modulation(enabled)
 
         print(f"🎛️ Phase modulation {'enabled' if enabled else 'disabled'}")
@@ -434,36 +450,44 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         self.through_zero_fm_enabled = enabled
         self.fm_index_modulation = max(0.1, min(5.0, index_mod))
 
-        if self.fm_engine and hasattr(self.fm_engine, 'enable_through_zero_fm'):
+        if self.fm_engine and hasattr(self.fm_engine, "enable_through_zero_fm"):
             self.fm_engine.enable_through_zero_fm(enabled, self.fm_index_modulation)
 
-        print(f"🎛️ Through-zero FM {'enabled' if enabled else 'disabled'} (index mod: {self.fm_index_modulation:.1f})")
+        print(
+            f"🎛️ Through-zero FM {'enabled' if enabled else 'disabled'} (index mod: {self.fm_index_modulation:.1f})"
+        )
 
     def enable_formant_fm(self, enabled: bool = True, smoothing: float = 0.1):
         """Enable formant-based FM synthesis for vocal sounds."""
         self.formant_fm_enabled = enabled
         self.vowel_transition_smoothing = max(0.01, min(1.0, smoothing))
 
-        if self.fm_engine and hasattr(self.fm_engine, 'enable_formant_fm'):
+        if self.fm_engine and hasattr(self.fm_engine, "enable_formant_fm"):
             self.fm_engine.enable_formant_fm(enabled, self.vowel_transition_smoothing)
 
-        print(f"🎛️ Formant FM {'enabled' if enabled else 'disabled'} (smoothing: {self.vowel_transition_smoothing:.2f})")
+        print(
+            f"🎛️ Formant FM {'enabled' if enabled else 'disabled'} (smoothing: {self.vowel_transition_smoothing:.2f})"
+        )
 
     def enable_dynamic_algorithm_switching(self, enabled: bool = True, threshold: float = 0.5):
         """Enable dynamic algorithm switching based on modulation."""
         self.dynamic_algorithm_switching = enabled
         self.algorithm_switch_threshold = max(0.0, min(1.0, threshold))
 
-        if self.fm_engine and hasattr(self.fm_engine, 'enable_dynamic_algorithm_switching'):
-            self.fm_engine.enable_dynamic_algorithm_switching(enabled, self.algorithm_switch_threshold)
+        if self.fm_engine and hasattr(self.fm_engine, "enable_dynamic_algorithm_switching"):
+            self.fm_engine.enable_dynamic_algorithm_switching(
+                enabled, self.algorithm_switch_threshold
+            )
 
-        print(f"🎛️ Dynamic algorithm switching {'enabled' if enabled else 'disabled'} (threshold: {self.algorithm_switch_threshold:.2f})")
+        print(
+            f"🎛️ Dynamic algorithm switching {'enabled' if enabled else 'disabled'} (threshold: {self.algorithm_switch_threshold:.2f})"
+        )
 
     def set_operator_detuning(self, detune_amounts: list[float]):
         """Set detuning amounts for each operator (in semitones)."""
         self.operator_detune_amounts = [max(-12.0, min(12.0, d)) for d in detune_amounts[:6]]
 
-        if self.fm_engine and hasattr(self.fm_engine, 'set_operator_detuning'):
+        if self.fm_engine and hasattr(self.fm_engine, "set_operator_detuning"):
             self.fm_engine.set_operator_detuning(self.operator_detune_amounts)
 
         print(f"🎛️ Operator detuning: {self.operator_detune_amounts}")
@@ -472,7 +496,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         """Set pitch modulation depths for each operator."""
         self.operator_pitch_modulation = [max(0.0, min(1.0, m)) for m in modulation_depths[:6]]
 
-        if self.fm_engine and hasattr(self.fm_engine, 'set_operator_pitch_modulation'):
+        if self.fm_engine and hasattr(self.fm_engine, "set_operator_pitch_modulation"):
             self.fm_engine.set_operator_pitch_modulation(self.operator_pitch_modulation)
 
         print(f"🎛️ Operator pitch modulation: {self.operator_pitch_modulation}")
@@ -481,14 +505,14 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         """Set amplitude modulation depths for each operator."""
         self.operator_amplitude_modulation = [max(0.0, min(1.0, m)) for m in modulation_depths[:6]]
 
-        if self.fm_engine and hasattr(self.fm_engine, 'set_operator_amplitude_modulation'):
+        if self.fm_engine and hasattr(self.fm_engine, "set_operator_amplitude_modulation"):
             self.fm_engine.set_operator_amplitude_modulation(self.operator_amplitude_modulation)
 
         print(f"🎛️ Operator amplitude modulation: {self.operator_amplitude_modulation}")
 
     def create_custom_algorithm(self, name: str, connections: list[tuple[int, int, float]]) -> bool:
         """Create a custom FM algorithm with specified operator connections."""
-        if not self.fm_engine or not hasattr(self.fm_engine, 'create_custom_algorithm'):
+        if not self.fm_engine or not hasattr(self.fm_engine, "create_custom_algorithm"):
             return False
 
         # Validate connections (operator indices 0-5, modulation amounts)
@@ -499,12 +523,14 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
 
         return self.fm_engine.create_custom_algorithm(name, valid_connections)
 
-    def morph_between_algorithms(self, algorithm1: int, algorithm2: int, morph_factor: float) -> bool:
+    def morph_between_algorithms(
+        self, algorithm1: int, algorithm2: int, morph_factor: float
+    ) -> bool:
         """Morph between two algorithms in real-time."""
         if not self.algorithm_morphing_enabled or not self.fm_engine:
             return False
 
-        if not hasattr(self.fm_engine, 'morph_algorithms'):
+        if not hasattr(self.fm_engine, "morph_algorithms"):
             return False
 
         factor = max(0.0, min(1.0, morph_factor))
@@ -515,7 +541,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if operator_index < 0 or operator_index > 5 or vowel not in self.vowel_formants:
             return False
 
-        if not self.fm_engine or not hasattr(self.fm_engine, 'apply_formant_to_operator'):
+        if not self.fm_engine or not hasattr(self.fm_engine, "apply_formant_to_operator"):
             return False
 
         return self.fm_engine.apply_formant_to_operator(operator_index, self.vowel_formants[vowel])
@@ -525,7 +551,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if not self.multiple_feedback_paths or not self.fm_engine:
             return False
 
-        if not hasattr(self.fm_engine, 'set_feedback_routing_matrix'):
+        if not hasattr(self.fm_engine, "set_feedback_routing_matrix"):
             return False
 
         # Validate 6x6 matrix
@@ -540,56 +566,56 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
     def get_advanced_fm_features(self) -> dict[str, Any]:
         """Get status of all advanced FM features."""
         return {
-            'algorithm_morphing': {
-                'enabled': self.algorithm_morphing_enabled,
-                'current_algorithm': self.current_algorithm,
-                'target_algorithm': self.target_algorithm,
-                'morph_factor': self.algorithm_morph_factor,
-                'morph_speed': self.algorithm_morph_speed
+            "algorithm_morphing": {
+                "enabled": self.algorithm_morphing_enabled,
+                "current_algorithm": self.current_algorithm,
+                "target_algorithm": self.target_algorithm,
+                "morph_factor": self.algorithm_morph_factor,
+                "morph_speed": self.algorithm_morph_speed,
             },
-            'feedback_system': {
-                'multiple_paths': self.multiple_feedback_paths,
-                'coloring_enabled': self.feedback_coloring_enabled,
-                'coloring_type': self.feedback_coloring_type,
-                'enhancement': self.feedback_enhancement
+            "feedback_system": {
+                "multiple_paths": self.multiple_feedback_paths,
+                "coloring_enabled": self.feedback_coloring_enabled,
+                "coloring_type": self.feedback_coloring_type,
+                "enhancement": self.feedback_enhancement,
             },
-            'operator_stereo': {
-                'enabled': self.operator_stereo_enabled,
-                'pan_positions': self.operator_pan_positions,
-                'level_offsets': self.operator_level_offsets
+            "operator_stereo": {
+                "enabled": self.operator_stereo_enabled,
+                "pan_positions": self.operator_pan_positions,
+                "level_offsets": self.operator_level_offsets,
             },
-            'operator_modulation': {
-                'velocity_scaling': self.operator_velocity_scaling,
-                'key_scaling': self.operator_key_scaling,
-                'detuning': self.operator_detune_amounts,
-                'pitch_modulation': self.operator_pitch_modulation,
-                'amplitude_modulation': self.operator_amplitude_modulation
+            "operator_modulation": {
+                "velocity_scaling": self.operator_velocity_scaling,
+                "key_scaling": self.operator_key_scaling,
+                "detuning": self.operator_detune_amounts,
+                "pitch_modulation": self.operator_pitch_modulation,
+                "amplitude_modulation": self.operator_amplitude_modulation,
             },
-            'advanced_fm': {
-                'phase_modulation': self.phase_modulation_enabled,
-                'through_zero_fm': self.through_zero_fm_enabled,
-                'fm_index_modulation': self.fm_index_modulation,
-                'formant_fm': self.formant_fm_enabled,
-                'vowel_transition_smoothing': self.vowel_transition_smoothing
+            "advanced_fm": {
+                "phase_modulation": self.phase_modulation_enabled,
+                "through_zero_fm": self.through_zero_fm_enabled,
+                "fm_index_modulation": self.fm_index_modulation,
+                "formant_fm": self.formant_fm_enabled,
+                "vowel_transition_smoothing": self.vowel_transition_smoothing,
             },
-            'dynamic_features': {
-                'algorithm_switching': self.dynamic_algorithm_switching,
-                'switch_threshold': self.algorithm_switch_threshold
+            "dynamic_features": {
+                "algorithm_switching": self.dynamic_algorithm_switching,
+                "switch_threshold": self.algorithm_switch_threshold,
             },
-            'vocal_synthesis': {
-                'formants_enabled': self.vocal_formants_enabled,
-                'available_vowels': list(self.vowel_formants.keys()),
-                'current_vowel': 'a'  # Default
-            }
+            "vocal_synthesis": {
+                "formants_enabled": self.vocal_formants_enabled,
+                "available_vowels": list(self.vowel_formants.keys()),
+                "current_vowel": "a",  # Default
+            },
         }
 
     def get_fm_x_status(self) -> dict[str, Any]:
         """Get Jupiter-X FM engine status."""
         return {
-            'vocal_formants': self.vocal_formants_enabled,
-            'ring_modulation': self.ring_modulation_enabled,
-            'feedback_enhancement': self.feedback_enhancement,
-            'ring_mod_connections': len(self.ring_mod_connections),
-            'advanced_fm_features': self.get_advanced_fm_features(),
-            'features_active': self.is_active()
+            "vocal_formants": self.vocal_formants_enabled,
+            "ring_modulation": self.ring_modulation_enabled,
+            "feedback_enhancement": self.feedback_enhancement,
+            "ring_mod_connections": len(self.ring_mod_connections),
+            "advanced_fm_features": self.get_advanced_fm_features(),
+            "features_active": self.is_active(),
         }

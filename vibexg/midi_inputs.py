@@ -9,6 +9,7 @@ This module provides various MIDI input interfaces including:
 - MIDI file playback
 - Stdin MIDI input for scripting
 """
+
 from __future__ import annotations
 
 import json
@@ -19,10 +20,17 @@ import threading
 import time
 from collections.abc import Callable
 
-from synth.midi import MIDIMessage, RealtimeParser, get_input_names, open_input, open_output, RTMIDI_AVAILABLE
+from synth.midi import (
+    RTMIDI_AVAILABLE,
+    MIDIMessage,
+    RealtimeParser,
+    get_input_names,
+    open_input,
+    open_output,
+)
 
-from .types import MIDIInputConfig, InputInterfaceType
 from .backends.network import NetworkMIDIHandler
+from .types import MIDIInputConfig
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +91,13 @@ class MIDIInputInterface:
 
             # Apply transpose
             if self.config.transpose and message.note is not None:
-                message.data['note'] = max(0, min(127, message.note + self.config.transpose))
+                message.data["note"] = max(0, min(127, message.note + self.config.transpose))
 
             # Apply velocity offset
             if self.config.velocity_offset and message.velocity is not None:
-                message.data['velocity'] = max(0, min(127, message.velocity + self.config.velocity_offset))
+                message.data["velocity"] = max(
+                    0, min(127, message.velocity + self.config.velocity_offset)
+                )
 
         self.message_callback(message)
 
@@ -106,7 +116,9 @@ class MidoPortInput(MIDIInputInterface):
 
     def _start_interface(self):
         if not RTMIDI_AVAILABLE:
-            logger.error("rtmidi not available for MIDI port input. Install with: pip install rtmidi")
+            logger.error(
+                "rtmidi not available for MIDI port input. Install with: pip install rtmidi"
+            )
             return
 
         try:
@@ -145,7 +157,9 @@ class VirtualPortInput(MIDIInputInterface):
 
     def _start_interface(self):
         if not RTMIDI_AVAILABLE:
-            logger.error("rtmidi not available for virtual port creation. Install with: pip install rtmidi")
+            logger.error(
+                "rtmidi not available for virtual port creation. Install with: pip install rtmidi"
+            )
             return
 
         try:
@@ -156,7 +170,7 @@ class VirtualPortInput(MIDIInputInterface):
             logger.error(f"Failed to create virtual MIDI port: {e}")
 
     def _stop_interface(self):
-        if hasattr(self, 'port') and self.port:
+        if hasattr(self, "port") and self.port:
             self.port.close()
 
 
@@ -171,8 +185,7 @@ class NetworkMIDIInput(MIDIInputInterface):
     def __init__(self, config: MIDIInputConfig, message_callback: Callable[[MIDIMessage], None]):
         super().__init__(config, message_callback)
         self.network_handler = NetworkMIDIHandler(
-            host=config.options.get('host', '0.0.0.0'),
-            port=config.options.get('port', 5004)
+            host=config.options.get("host", "0.0.0.0"), port=config.options.get("port", 5004)
         )
 
     def _start_interface(self):
@@ -213,12 +226,12 @@ class KeyboardInput(MIDIInputInterface):
 
         # White keys (C3 to C4)
         notes_white = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84]
-        for i, key in enumerate(white_keys[:len(notes_white)]):
+        for i, key in enumerate(white_keys[: len(notes_white)]):
             note_map[key] = notes_white[i]
 
         # Black keys
         notes_black = [61, 63, 66, 68, 70, 73, 75, 78, 80, 82]
-        for i, key in enumerate(black_keys[:len(notes_black)]):
+        for i, key in enumerate(black_keys[: len(notes_black)]):
             note_map[key] = notes_black[i]
 
         return note_map
@@ -233,10 +246,10 @@ class KeyboardInput(MIDIInputInterface):
                 if key.lower() in self.key_map:
                     note = self.key_map[key.lower()]
                     msg = MIDIMessage(
-                        type='note_on',
+                        type="note_on",
                         channel=0,
-                        data={'note': note, 'velocity': 80},
-                        timestamp=time.time()
+                        data={"note": note, "velocity": 80},
+                        timestamp=time.time(),
                     )
                     self._send_message(msg)
 
@@ -244,10 +257,10 @@ class KeyboardInput(MIDIInputInterface):
                 if key.lower() in self.key_map:
                     note = self.key_map[key.lower()]
                     msg = MIDIMessage(
-                        type='note_off',
+                        type="note_off",
                         channel=0,
-                        data={'note': note, 'velocity': 64},
-                        timestamp=time.time()
+                        data={"note": note, "velocity": 64},
+                        timestamp=time.time(),
                     )
                     self._send_message(msg)
 
@@ -258,7 +271,7 @@ class KeyboardInput(MIDIInputInterface):
             logger.error(f"Failed to start keyboard input: {e}")
 
     def _stop_interface(self):
-        if hasattr(self, 'keyboard_listener') and self.keyboard_listener:
+        if hasattr(self, "keyboard_listener") and self.keyboard_listener:
             self.keyboard_listener.stop()
 
 
@@ -272,9 +285,9 @@ class FileMIDIInput(MIDIInputInterface):
 
     def __init__(self, config: MIDIInputConfig, message_callback: Callable[[MIDIMessage], None]):
         super().__init__(config, message_callback)
-        self.file_path = config.options.get('file_path', '')
-        self.tempo_multiplier = config.options.get('tempo', 1.0)
-        self.loop = config.options.get('loop', False)
+        self.file_path = config.options.get("file_path", "")
+        self.tempo_multiplier = config.options.get("tempo", 1.0)
+        self.loop = config.options.get("loop", False)
 
     def _start_interface(self):
         self.thread = threading.Thread(target=self._playback_thread, daemon=True)
@@ -346,10 +359,10 @@ class StdinMIDIInput(MIDIInputInterface):
                 try:
                     data = json.loads(line)
                     msg = MIDIMessage(
-                        type=data.get('type', 'note_on'),
-                        channel=data.get('channel', 0),
-                        data=data.get('data', {}),
-                        timestamp=time.time()
+                        type=data.get("type", "note_on"),
+                        channel=data.get("channel", 0),
+                        data=data.get("data", {}),
+                        timestamp=time.time(),
                     )
                     self._send_message(msg)
                 except json.JSONDecodeError:

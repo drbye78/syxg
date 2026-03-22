@@ -7,9 +7,8 @@ and behavior for S90/S70 synthesizer presets.
 
 from __future__ import annotations
 
-from typing import Any
 import json
-import os
+from typing import Any
 
 
 class S90S70PresetBank:

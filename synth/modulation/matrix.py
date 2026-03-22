@@ -278,27 +278,26 @@ ARCHITECTURAL PRINCIPLES:
 - DEPENDENCY INVERSION: Abstract interfaces for modulation components
 - COMPOSITION OVER INHERITANCE: Flexible modulation system assembly
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 from .routes import ModulationRoute
 
 
 class ModulationMatrix:
     """
     Professional XG modulation matrix with advanced routing capabilities.
-    
+
     Supports up to 16 modulation routes with comprehensive source/destination
     mapping, velocity sensitivity, key scaling, and advanced modulation processing.
     """
-    
+
     def __init__(self, num_routes=16):
         self.routes = [None] * num_routes
         self.num_routes = num_routes
         # Pre-allocate modulation values dict to avoid allocation on every process call
         self.modulation_values = {}
-        
+
         # Advanced modulation features
         self.modulation_busses = {}  # Named modulation busses for complex routing
         self.curve_tables = {}  # Custom modulation curves
@@ -307,25 +306,34 @@ class ModulationMatrix:
     def _init_default_curves(self):
         """Initialize default modulation curves for advanced shaping."""
         import numpy as np
-        
+
         # Linear curve (default)
-        self.curve_tables['linear'] = np.linspace(0.0, 1.0, 128)
-        
+        self.curve_tables["linear"] = np.linspace(0.0, 1.0, 128)
+
         # Exponential curve for natural-sounding modulation
-        self.curve_tables['exponential'] = np.power(np.linspace(0.0, 1.0, 128), 2.0)
-        
+        self.curve_tables["exponential"] = np.power(np.linspace(0.0, 1.0, 128), 2.0)
+
         # Logarithmic curve for perceptual scaling
-        self.curve_tables['logarithmic'] = np.log10(1.0 + 9.0 * np.linspace(0.0, 1.0, 128))
-        
+        self.curve_tables["logarithmic"] = np.log10(1.0 + 9.0 * np.linspace(0.0, 1.0, 128))
+
         # S-curve for smooth transitions
         s = np.linspace(0.0, 1.0, 128)
-        self.curve_tables['s_curve'] = 3.0 * s**2 - 2.0 * s**3
-        
-        # Random/sample & hold curve
-        self.curve_tables['random'] = np.random.random(128)
+        self.curve_tables["s_curve"] = 3.0 * s**2 - 2.0 * s**3
 
-    def set_route(self, index, source, destination, amount=0.0, polarity=1.0,
-                  velocity_sensitivity=0.0, key_scaling=0.0, curve='linear'):
+        # Random/sample & hold curve
+        self.curve_tables["random"] = np.random.random(128)
+
+    def set_route(
+        self,
+        index,
+        source,
+        destination,
+        amount=0.0,
+        polarity=1.0,
+        velocity_sensitivity=0.0,
+        key_scaling=0.0,
+        curve="linear",
+    ):
         """
         Set advanced modulation route with curve shaping.
 
@@ -341,8 +349,7 @@ class ModulationMatrix:
         """
         if 0 <= index < self.num_routes:
             self.routes[index] = ModulationRoute(  # type: ignore
-                source, destination, amount, polarity,
-                velocity_sensitivity, key_scaling, curve
+                source, destination, amount, polarity, velocity_sensitivity, key_scaling, curve
             )
 
     def clear_route(self, index):

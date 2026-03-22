@@ -12,15 +12,16 @@ Features:
 - Callback system for recall/store events
 - Thread-safe operations
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
-from collections.abc import Callable
-from enum import Enum
 import json
 import threading
 import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 
 class RegistrationParameter(Enum):
@@ -114,7 +115,7 @@ class Registration:
                 freeze_mask.add(RegistrationParameter(p_value))
             except ValueError:
                 pass
-        
+
         return cls(
             slot_id=data.get("slot_id", 0),
             name=data.get("name", "New Registration"),
@@ -142,14 +143,14 @@ class Registration:
             modified_at=data.get("modified_at", time.time()),
             freeze_mask=freeze_mask,
         )
-    
+
     def set_freeze(self, parameter: RegistrationParameter, frozen: bool) -> None:
         if frozen:
             self.freeze_mask.add(parameter)
         else:
             self.freeze_mask.discard(parameter)
         self.modified_at = time.time()
-    
+
     def is_frozen(self, parameter: RegistrationParameter) -> bool:
         return parameter in self.freeze_mask
 
@@ -274,8 +275,9 @@ class RegistrationMemory:
             bank = self.get_current_bank()
             return bank.get_registration(self._current_slot)
 
-    def recall(self, bank: int | None = None, slot: int | None = None, 
-               ignore_freeze: bool = False) -> bool:
+    def recall(
+        self, bank: int | None = None, slot: int | None = None, ignore_freeze: bool = False
+    ) -> bool:
         with self._lock:
             target_bank = bank if bank is not None else self._current_bank
             target_slot = slot if slot is not None else self._current_slot
@@ -297,7 +299,7 @@ class RegistrationMemory:
     def _apply_registration(self, reg: Registration, ignore_freeze: bool = False):
         if not self._synthesizer:
             return
-        
+
         def is_frozen(param: RegistrationParameter) -> bool:
             if ignore_freeze:
                 return False
@@ -337,20 +339,25 @@ class RegistrationMemory:
 
         if not is_frozen(RegistrationParameter.TRANSPOSE):
             try:
-                if hasattr(self._synthesizer, 'set_transpose'):
+                if hasattr(self._synthesizer, "set_transpose"):
                     self._synthesizer.set_transpose(reg.transpose)
             except Exception:
                 pass
 
         if not is_frozen(RegistrationParameter.VOLUME_MASTER):
             try:
-                if hasattr(self._synthesizer, 'set_master_volume'):
+                if hasattr(self._synthesizer, "set_master_volume"):
                     self._synthesizer.set_master_volume(reg.master_volume)
             except Exception:
                 pass
 
-    def store(self, name: str = "", bank: int | None = None, 
-              slot: int | None = None, capture_all: bool = True) -> bool:
+    def store(
+        self,
+        name: str = "",
+        bank: int | None = None,
+        slot: int | None = None,
+        capture_all: bool = True,
+    ) -> bool:
         with self._lock:
             target_bank = bank if bank is not None else self._current_bank
             target_slot = slot if slot is not None else self._current_slot
@@ -363,8 +370,9 @@ class RegistrationMemory:
             self._notify_change()
             return result
 
-    def _create_registration_from_current(self, slot: int, name: str, 
-                                          capture_all: bool = True) -> Registration:
+    def _create_registration_from_current(
+        self, slot: int, name: str, capture_all: bool = True
+    ) -> Registration:
         reg = Registration(slot_id=slot, name=name or f"Registration {slot + 1}")
         if self._synthesizer:
             try:
@@ -379,7 +387,9 @@ class RegistrationMemory:
                         }
             except Exception:
                 pass
-        if self._style_player and (capture_all or RegistrationParameter.STYLE not in self._global_freeze):
+        if self._style_player and (
+            capture_all or RegistrationParameter.STYLE not in self._global_freeze
+        ):
             reg.style_tempo = int(getattr(self._style_player, "tempo", 120))
         if self._ots and (capture_all or RegistrationParameter.OTS not in self._global_freeze):
             reg.ots_preset = getattr(self._ots, "active_preset_id", 0)
@@ -388,6 +398,7 @@ class RegistrationMemory:
     def copy_slot(self, from_bank: int, from_slot: int, to_bank: int, to_slot: int) -> bool:
         with self._lock:
             import copy
+
             source = self._banks.get(from_bank)
             if not source:
                 return False
@@ -405,6 +416,7 @@ class RegistrationMemory:
     def swap_slots(self, bank1: int, slot1: int, bank2: int, slot2: int) -> bool:
         with self._lock:
             import copy
+
             bank1_obj = self._banks.get(bank1)
             bank2_obj = self._banks.get(bank2)
             if not bank1_obj or not bank2_obj:

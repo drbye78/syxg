@@ -3,9 +3,9 @@ Vibexg Network Backend - RTP-MIDI / AppleMIDI implementation
 
 This module provides network MIDI (RTP-MIDI / AppleMIDI) connection handling.
 """
+
 from __future__ import annotations
 
-import logging
 import socket
 import threading
 from collections.abc import Callable
@@ -116,7 +116,7 @@ class NetworkMIDIHandler:
         offset = 0
 
         # Check for RTP-MIDI signature
-        if len(data) > 4 and data[0:4] == b'\x00\x00\x00\x00':
+        if len(data) > 4 and data[0:4] == b"\x00\x00\x00\x00":
             offset = 4  # Simple header
 
         # Parse MIDI commands
@@ -163,20 +163,21 @@ class NetworkMIDIHandler:
         channel = status & 0x0F
 
         if msg_type == 0x8:
-            return MIDIMessage(type='note_off', channel=channel,
-                             data={'note': data1, 'velocity': data2})
+            return MIDIMessage(
+                type="note_off", channel=channel, data={"note": data1, "velocity": data2}
+            )
         elif msg_type == 0x9:
-            return MIDIMessage(type='note_on', channel=channel,
-                             data={'note': data1, 'velocity': data2})
+            return MIDIMessage(
+                type="note_on", channel=channel, data={"note": data1, "velocity": data2}
+            )
         elif msg_type == 0xB:
-            return MIDIMessage(type='control_change', channel=channel,
-                             data={'controller': data1, 'value': data2})
+            return MIDIMessage(
+                type="control_change", channel=channel, data={"controller": data1, "value": data2}
+            )
         elif msg_type == 0xC:
-            return MIDIMessage(type='program_change', channel=channel,
-                             data={'program': data1})
+            return MIDIMessage(type="program_change", channel=channel, data={"program": data1})
         elif msg_type == 0xE:
             pitch_value = (data2 << 7) | data1
-            return MIDIMessage(type='pitch_bend', channel=channel,
-                             data={'value': pitch_value})
+            return MIDIMessage(type="pitch_bend", channel=channel, data={"value": pitch_value})
 
         return None

@@ -7,20 +7,17 @@ Tests for the StyleLoader class including:
 - Style validation
 - Style creation utilities
 """
+
 from __future__ import annotations
 
 import pytest
-import tempfile
-from pathlib import Path
 
-from synth.style.style_loader import StyleLoader, StyleValidationError
 from synth.style.style import (
-    Style,
-    StyleMetadata,
+    StyleCategory,
     StyleSectionType,
     TrackType,
-    StyleCategory,
 )
+from synth.style.style_loader import StyleLoader, StyleValidationError
 
 
 class TestStyleLoaderValid:

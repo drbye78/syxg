@@ -4,11 +4,12 @@ SFZ Parser - Complete SFZ v2 Format Parser
 Parses SFZ (Sample Format Zipped) files with full v2 specification support.
 Handles all standard opcodes, sections, and advanced features.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 
 class SFZOpcode:
@@ -21,7 +22,7 @@ class SFZOpcode:
 
     def __str__(self) -> str:
         if self.parameters:
-            param_str = ' '.join(f"{k}={v}" for k, v in self.parameters.items())
+            param_str = " ".join(f"{k}={v}" for k, v in self.parameters.items())
             return f"{self.name}={self.value} {param_str}"
         return f"{self.name}={self.value}"
 
@@ -61,7 +62,7 @@ class SFZRegion:
         return result
 
     def __str__(self) -> str:
-        opcodes_str = ' '.join(str(opcode) for opcode in self.opcodes.values())
+        opcodes_str = " ".join(str(opcode) for opcode in self.opcodes.values())
         return f"<region> {opcodes_str}"
 
     def __repr__(self) -> str:
@@ -91,7 +92,7 @@ class SFZGroup:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert group to dictionary for processing."""
-        result = {'regions': [region.to_dict() for region in self.regions]}
+        result = {"regions": [region.to_dict() for region in self.regions]}
         for name, opcode in self.opcodes.items():
             result[name] = opcode.value
         return result
@@ -150,12 +151,12 @@ class SFZInstrument:
     def to_dict(self) -> dict[str, Any]:
         """Convert instrument to dictionary."""
         return {
-            'filename': self.filename,
-            'path': self.path,
-            'global': {name: opcode.value for name, opcode in self.global_opcodes.items()},
-            'control': {name: opcode.value for name, opcode in self.control_opcodes.items()},
-            'groups': [group.to_dict() for group in self.groups],
-            'total_regions': sum(len(group.regions) for group in self.groups)
+            "filename": self.filename,
+            "path": self.path,
+            "global": {name: opcode.value for name, opcode in self.global_opcodes.items()},
+            "control": {name: opcode.value for name, opcode in self.control_opcodes.items()},
+            "groups": [group.to_dict() for group in self.groups],
+            "total_regions": sum(len(group.regions) for group in self.groups),
         }
 
     def __str__(self) -> str:
@@ -177,65 +178,78 @@ class SFZParser:
     """
 
     # SFZ section headers
-    SECTION_HEADERS = {'<global>', '<group>', '<region>', '<control>'}
+    SECTION_HEADERS = {"<global>", "<group>", "<region>", "<control>"}
 
     # Standard SFZ opcodes (not exhaustive - covers most common)
     STANDARD_OPCODES = {
         # Sample definition
-        'sample': str,
-
+        "sample": str,
         # Key range
-        'lokey': int, 'hikey': int, 'key': int,
-        'lovel': int, 'hivel': int,
-
+        "lokey": int,
+        "hikey": int,
+        "key": int,
+        "lovel": int,
+        "hivel": int,
         # Velocity and other triggers
-        'trigger': str,  # attack, release, first, legato
-
+        "trigger": str,  # attack, release, first, legato
         # Pitch
-        'pitch_keycenter': int, 'tune': int, 'fine_tune': float,
-
+        "pitch_keycenter": int,
+        "tune": int,
+        "fine_tune": float,
         # Amplitude
-        'volume': float, 'pan': float, 'width': float,
-
+        "volume": float,
+        "pan": float,
+        "width": float,
         # Filter
-        'cutoff': float, 'resonance': float, 'fil_type': str,
-
+        "cutoff": float,
+        "resonance": float,
+        "fil_type": str,
         # Envelope - Amplitude
-        'ampeg_attack': float, 'ampeg_decay': float,
-        'ampeg_sustain': float, 'ampeg_release': float,
-        'ampeg_delay': float, 'ampeg_hold': float,
-
+        "ampeg_attack": float,
+        "ampeg_decay": float,
+        "ampeg_sustain": float,
+        "ampeg_release": float,
+        "ampeg_delay": float,
+        "ampeg_hold": float,
         # Envelope - Filter
-        'fileg_attack': float, 'fileg_decay': float,
-        'fileg_sustain': float, 'fileg_release': float,
-
+        "fileg_attack": float,
+        "fileg_decay": float,
+        "fileg_sustain": float,
+        "fileg_release": float,
         # Loop
-        'loop_mode': str, 'loop_start': int, 'loop_end': int,
-
+        "loop_mode": str,
+        "loop_start": int,
+        "loop_end": int,
         # Round robin and sequence
-        'seq_position': int, 'seq_length': int,
-        'round_robin': int, 'round_robin_group': int,
-
+        "seq_position": int,
+        "seq_length": int,
+        "round_robin": int,
+        "round_robin_group": int,
         # Crossfading
-        'velocity_crossfade': str, 'note_crossfade': str,
-
+        "velocity_crossfade": str,
+        "note_crossfade": str,
         # Effects sends
-        'reverb_send': float, 'chorus_send': float, 'delay_send': float,
-
+        "reverb_send": float,
+        "chorus_send": float,
+        "delay_send": float,
         # LFO
-        'lfo1_freq': float, 'lfo1_depth': float,
-        'lfo2_freq': float, 'lfo2_depth': float,
-
+        "lfo1_freq": float,
+        "lfo1_depth": float,
+        "lfo2_freq": float,
+        "lfo2_depth": float,
         # Modulation
-        'mod1_src': str, 'mod1_dest': str, 'mod1_amount': float,
-        'mod2_src': str, 'mod2_dest': str, 'mod2_amount': float,
+        "mod1_src": str,
+        "mod1_dest": str,
+        "mod1_amount": float,
+        "mod2_src": str,
+        "mod2_dest": str,
+        "mod2_amount": float,
         # ... (many more modulation opcodes)
-
         # Control opcodes
-        'default_path': str, 'set_cc': str,
-
+        "default_path": str,
+        "set_cc": str,
         # Comments (handled specially)
-        'comment': str,
+        "comment": str,
     }
 
     def __init__(self):
@@ -257,7 +271,7 @@ class SFZParser:
 
         self.current_sfz_directory = sfz_path.parent
 
-        with open(sfz_path, encoding='utf-8', errors='replace') as f:
+        with open(sfz_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
 
         return self.parse_string(content, str(sfz_path))
@@ -289,7 +303,7 @@ class SFZParser:
             # Check for section headers
             if line.lower() in self.SECTION_HEADERS:
                 current_section = line.lower()
-                if current_section == '<group>':
+                if current_section == "<group>":
                     current_group = SFZGroup()
                     instrument.add_group(current_group)
                 continue
@@ -304,7 +318,7 @@ class SFZParser:
     def _preprocess_content(self, content: str) -> list[str]:
         """Preprocess SFZ content into lines."""
         # Remove carriage returns and split into lines
-        lines = content.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+        lines = content.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 
         # Handle line continuations (backslashes)
         processed_lines = []
@@ -312,7 +326,7 @@ class SFZParser:
 
         for line in lines:
             line = line.strip()
-            if line.endswith('\\'):
+            if line.endswith("\\"):
                 current_line += line[:-1]
             else:
                 current_line += line
@@ -331,15 +345,15 @@ class SFZParser:
         opcodes = []
 
         # Handle comments
-        if '//' in line:
-            line = line.split('//')[0].strip()
+        if "//" in line:
+            line = line.split("//")[0].strip()
 
         # Split by whitespace but preserve quoted strings
         parts = self._split_preserving_quotes(line)
 
         for part in parts:
-            if '=' in part:
-                name, value_str = part.split('=', 1)
+            if "=" in part:
+                name, value_str = part.split("=", 1)
                 name = name.strip()
                 value = self._parse_value(name, value_str.strip())
                 opcodes.append(SFZOpcode(name, value))
@@ -377,8 +391,9 @@ class SFZParser:
     def _parse_value(self, opcode_name: str, value_str: str) -> Any:
         """Parse an opcode value based on its expected type."""
         # Handle quoted strings
-        if (value_str.startswith('"') and value_str.endswith('"')) or \
-           (value_str.startswith("'") and value_str.endswith("'")):
+        if (value_str.startswith('"') and value_str.endswith('"')) or (
+            value_str.startswith("'") and value_str.endswith("'")
+        ):
             return value_str[1:-1]
 
         # Get expected type from standard opcodes
@@ -397,7 +412,7 @@ class SFZParser:
                 return 0.0
         elif expected_type == str:
             # Handle path resolution for sample opcodes
-            if opcode_name == 'sample':
+            if opcode_name == "sample":
                 return self._resolve_sample_path(value_str)
             return value_str
         else:
@@ -407,7 +422,7 @@ class SFZParser:
     def _parse_note_name(self, note_str: str) -> int:
         """Parse note names (C4, D#5, etc.) to MIDI note numbers."""
         # Simple note name parser
-        note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+        note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
         # Check if it's already a number
         try:
@@ -416,7 +431,7 @@ class SFZParser:
             pass
 
         # Parse note name
-        match = re.match(r'^([A-G]#?)(\d+)$', note_str.upper())
+        match = re.match(r"^([A-G]#?)(\d+)$", note_str.upper())
         if match:
             note_name, octave = match.groups()
             octave = int(octave)
@@ -445,17 +460,18 @@ class SFZParser:
         # Convert back to string
         return str(resolved_path)
 
-    def _apply_opcode(self, instrument: SFZInstrument, section: str,
-                     group: SFZGroup | None, opcode: SFZOpcode):
+    def _apply_opcode(
+        self, instrument: SFZInstrument, section: str, group: SFZGroup | None, opcode: SFZOpcode
+    ):
         """Apply an opcode to the appropriate section."""
-        if section == '<global>':
+        if section == "<global>":
             instrument.set_global_opcode(opcode)
-        elif section == '<control>':
+        elif section == "<control>":
             instrument.set_control_opcode(opcode)
-        elif section == '<group>':
+        elif section == "<group>":
             if group:
                 group.set_opcode(opcode)
-        elif section == '<region>':
+        elif section == "<region>":
             if group:
                 # Create region if this is the first opcode
                 if not group.regions:
@@ -492,10 +508,10 @@ class SFZParser:
 
             # Check for required opcodes in regions
             for region in instrument.get_all_regions():
-                if not region.has_opcode('sample'):
+                if not region.has_opcode("sample"):
                     errors.append("Region missing required 'sample' opcode")
 
             return len(errors) == 0, errors
 
         except Exception as e:
-            return False, [f"Parse error: {str(e)}"]
+            return False, [f"Parse error: {e!s}"]

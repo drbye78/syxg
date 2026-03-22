@@ -6,14 +6,11 @@ Showcase the Roland JV-2080 workstation-level GS implementation with
 multi-part architecture, MFX effects, NRPN control, and advanced features.
 """
 
-import numpy as np
-from pathlib import Path
 import time
 
 # Import JV-2080 components
 from synth.gs.jv2080_component_manager import (
-    JV2080ComponentManager, JV2080SystemParameters, JV2080Part,
-    JV2080MultiPartSetup, JV2080MFXController, JV2080InsertEffects
+    JV2080ComponentManager,
 )
 
 
@@ -43,7 +40,7 @@ def demonstrate_multipart_architecture():
     print("-" * 50)
 
     manager = JV2080ComponentManager()
-    multipart = manager.get_component('multipart')
+    multipart = manager.get_component("multipart")
 
     print("🎛️  Configuring 16-part multitimbral setup...")
 
@@ -61,7 +58,9 @@ def demonstrate_multipart_architecture():
             part.volume = config["volume"]
             part.pan = config["pan"]
             part.instrument_number = config["instrument"]
-            print(f"   Part {i}: {config['name']} - Inst:{config['instrument']}, Vol:{config['volume']}, Pan:{config['pan']}")
+            print(
+                f"   Part {i}: {config['name']} - Inst:{config['instrument']}, Vol:{config['volume']}, Pan:{config['pan']}"
+            )
 
     # Configure voice allocation
     print("🎵 Setting voice allocation...")
@@ -87,7 +86,7 @@ def demonstrate_mfx_effects():
     print("-" * 50)
 
     manager = JV2080ComponentManager()
-    mfx = manager.get_component('mfx')
+    mfx = manager.get_component("mfx")
 
     print("🎛️  Exploring MFX effect types...")
 
@@ -97,7 +96,7 @@ def demonstrate_mfx_effects():
         (8, "CHORUS"),
         (12, "DELAY"),
         (14, "REVERB"),
-        (19, "PITCH SHIFTER")
+        (19, "PITCH SHIFTER"),
     ]
 
     for mfx_type, name in mfx_types_to_demo:
@@ -111,7 +110,7 @@ def demonstrate_mfx_effects():
             mfx.set_parameter(0, 80)  # Rate
             mfx.set_parameter(1, 40)  # Depth
             mfx.set_parameter(2, 100)  # Mix
-            print(f"     Chorus Settings - Rate:80, Depth:40, Mix:100")
+            print("     Chorus Settings - Rate:80, Depth:40, Mix:100")
 
     print("✅ MFX effects demonstration completed")
 
@@ -138,7 +137,7 @@ def demonstrate_nrpn_control():
     # NRPN sequence for master volume (0x01, 0x01)
     nrpn.process_nrpn_message(99, 0x01)  # NRPN MSB = 0x01 (system)
     nrpn.process_nrpn_message(98, 0x01)  # NRPN LSB = 0x01 (master volume)
-    nrpn.process_nrpn_message(6, 115)    # Data MSB = 115 (volume level)
+    nrpn.process_nrpn_message(6, 115)  # Data MSB = 115 (volume level)
 
     # Check if parameter was set
     volume = manager.get_parameter_value(bytes([0x00, 0x01]))
@@ -150,19 +149,19 @@ def demonstrate_nrpn_control():
     # NRPN sequence for part 0 volume (0x18, 0x02)
     nrpn.process_nrpn_message(99, 0x18)  # NRPN MSB = 0x18 (part 0)
     nrpn.process_nrpn_message(98, 0x02)  # NRPN LSB = 0x02 (volume)
-    nrpn.process_nrpn_message(6, 90)     # Data MSB = 90
+    nrpn.process_nrpn_message(6, 90)  # Data MSB = 90
 
     # Check part parameter
-    multipart = manager.get_component('multipart')
+    multipart = manager.get_component("multipart")
     part = multipart.get_part(0)
     if part:
         print(f"   Part 0 volume set to: {part.volume} (expected: 90)")
 
     # List parameter categories
     print("📊 NRPN Parameter Categories:")
-    system_params = nrpn.list_parameters('system')
-    part_params = nrpn.list_parameters('part')
-    effects_params = nrpn.list_parameters('effects')
+    system_params = nrpn.list_parameters("system")
+    part_params = nrpn.list_parameters("part")
+    effects_params = nrpn.list_parameters("effects")
 
     print(f"   System parameters: {len(system_params)}")
     print(f"   Part parameters: {len(part_params)}")
@@ -182,7 +181,7 @@ def demonstrate_insert_effects():
     print("-" * 50)
 
     manager = JV2080ComponentManager()
-    insert_fx = manager.get_component('insert_fx')
+    insert_fx = manager.get_component("insert_fx")
 
     print("🎛️  Configuring insert effects...")
 
@@ -193,10 +192,10 @@ def demonstrate_insert_effects():
 
     # Assign different effects to different parts
     assignments = [
-        (0, 1, "EQ"),      # Part 0: EQ
+        (0, 1, "EQ"),  # Part 0: EQ
         (1, 3, "CHORUS"),  # Part 1: Chorus
-        (2, 6, "DELAY"),   # Part 2: Delay
-        (3, 5, "DISTORTION"), # Part 3: Distortion
+        (2, 6, "DELAY"),  # Part 2: Delay
+        (3, 5, "DISTORTION"),  # Part 3: Distortion
     ]
 
     for part_num, effect_type, effect_name in assignments:
@@ -208,7 +207,7 @@ def demonstrate_insert_effects():
             insert_fx.set_effect_parameter(effect_type, 0, 70)  # Rate
             insert_fx.set_effect_parameter(effect_type, 1, 50)  # Depth
             insert_fx.set_effect_parameter(effect_type, 2, 80)  # Mix
-            print(f"     Chorus settings - Rate:70, Depth:50, Mix:80")
+            print("     Chorus settings - Rate:70, Depth:50, Mix:80")
 
     print("✅ Insert effects demonstration completed")
 
@@ -223,13 +222,27 @@ def demonstrate_system_integration():
     print("🎛️  Testing complete JV-2080 system integration...")
 
     # Configure a complete multi-part setup
-    multipart = manager.get_component('multipart')
+    multipart = manager.get_component("multipart")
 
     # Set up a 4-part arrangement
     setup_config = [
-        {"part": 0, "name": "Piano", "inst": 0, "vol": 100, "pan": 32, "effects": {"reverb": 20, "chorus": 30}},
+        {
+            "part": 0,
+            "name": "Piano",
+            "inst": 0,
+            "vol": 100,
+            "pan": 32,
+            "effects": {"reverb": 20, "chorus": 30},
+        },
         {"part": 1, "name": "Bass", "inst": 32, "vol": 90, "pan": 96, "effects": {"reverb": 15}},
-        {"part": 2, "name": "Strings", "inst": 48, "vol": 85, "pan": 64, "effects": {"chorus": 25, "delay": 20}},
+        {
+            "part": 2,
+            "name": "Strings",
+            "inst": 48,
+            "vol": 85,
+            "pan": 64,
+            "effects": {"chorus": 25, "delay": 20},
+        },
         {"part": 3, "name": "Drums", "inst": 128, "vol": 110, "pan": 64, "effects": {"reverb": 40}},
     ]
 
@@ -247,17 +260,19 @@ def demonstrate_system_integration():
             part.chorus_send = effects.get("chorus", 0)
             part.delay_send = effects.get("delay", 0)
 
-            print(f"   {config['name']}: Inst{config['inst']}, Vol{config['vol']}, Pan{config['pan']}, "
-                  f"Reverb{part.reverb_send}, Chorus{part.chorus_send}, Delay{part.delay_send}")
+            print(
+                f"   {config['name']}: Inst{config['inst']}, Vol{config['vol']}, Pan{config['pan']}, "
+                f"Reverb{part.reverb_send}, Chorus{part.chorus_send}, Delay{part.delay_send}"
+            )
 
     # Configure MFX
-    mfx = manager.get_component('mfx')
+    mfx = manager.get_component("mfx")
     mfx.set_mfx_type(8)  # Chorus
     mfx.mfx_level = 80
     print(f"   MFX: {mfx.get_mfx_type_name(8)}, Level: {mfx.mfx_level}")
 
     # Configure insert effects
-    insert_fx = manager.get_component('insert_fx')
+    insert_fx = manager.get_component("insert_fx")
     insert_fx.set_part_assignment(0, 1)  # Piano: EQ
     insert_fx.set_part_assignment(2, 3)  # Strings: Chorus
     print("   Insert Effects: Piano→EQ, Strings→Chorus")
@@ -265,7 +280,9 @@ def demonstrate_system_integration():
     # Get comprehensive system status
     system_info = manager.get_system_info()
     print(f"   System Status: {system_info['component_count']} components active")
-    print(f"   Voice Allocation: {system_info['multipart']['voice_allocation']['total_reserve']}/128 voices")
+    print(
+        f"   Voice Allocation: {system_info['multipart']['voice_allocation']['total_reserve']}/128 voices"
+    )
 
     print("✅ System integration demonstration completed")
 
@@ -281,7 +298,7 @@ def run_performance_test():
     manager = JV2080ComponentManager()
 
     # Configure a complex multi-part setup
-    multipart = manager.get_component('multipart')
+    multipart = manager.get_component("multipart")
     for i in range(8):  # Configure 8 parts
         part = multipart.get_part(i)
         if part:
@@ -294,7 +311,7 @@ def run_performance_test():
     print("   NRPN parameter system ready")
 
     # Test parameter access performance
-    import time
+
     start_time = time.time()
 
     # Perform 1000 parameter accesses

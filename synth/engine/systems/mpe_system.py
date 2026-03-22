@@ -4,17 +4,11 @@ MPE (Microtonal Expression) System - Complete MPE Implementation
 Production-quality Microtonal Expression system with per-note pitch bending,
 timbre control, and slide/lift parameters for expressive synthesis control.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
-import time
-import math
-from pathlib import Path
-import os
-import hashlib
-import weakref
+from typing import Any
 
 
 class MPESystem:
@@ -324,9 +318,7 @@ class MPESystem:
         Args:
             range_semitones: Pitch bend range in semitones
         """
-        self.global_pitch_bend_range = max(
-            1, min(96, range_semitones)
-        )  # Clamp to reasonable range
+        self.global_pitch_bend_range = max(1, min(96, range_semitones))  # Clamp to reasonable range
 
     def get_global_pitch_bend_range(self) -> int:
         """

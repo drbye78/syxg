@@ -303,18 +303,16 @@ PROFESSIONAL MUSIC PRODUCTION:
 - RECORDING COMPATIBILITY: Professional recording session integration
 - POST-PRODUCTION: Advanced editing capabilities for music production
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from collections.abc import Callable
 import threading
 import time
+from collections.abc import Callable
+from typing import Any
 
-from .sequencer_types import (
-    Pattern, NoteEvent, ControlEvent, QuantizeMode, GrooveTemplate
-)
 from .groove_quantizer import GrooveQuantizer
+from .sequencer_types import ControlEvent, GrooveTemplate, NoteEvent, Pattern, QuantizeMode
 
 
 class PatternSequencer:
@@ -351,7 +349,7 @@ class PatternSequencer:
 
         # Grid settings
         self.grid_resolution = 16  # 16th notes per beat
-        self.grid_length = 16      # Default 4 bars of 16th notes
+        self.grid_length = 16  # Default 4 bars of 16th notes
         self.current_step = 0
 
         # Step input state
@@ -373,8 +371,7 @@ class PatternSequencer:
         self.lock = threading.RLock()
         self.playback_thread: threading.Thread | None = None
 
-    def create_pattern(self, name: str, length: int = 16,
-                      resolution: int = 96) -> int:
+    def create_pattern(self, name: str, length: int = 16, resolution: int = 96) -> int:
         """
         Create a new pattern.
 
@@ -390,12 +387,7 @@ class PatternSequencer:
             pattern_id = self.next_pattern_id
             self.next_pattern_id += 1
 
-            pattern = Pattern(
-                id=pattern_id,
-                name=name,
-                length=length,
-                resolution=resolution
-            )
+            pattern = Pattern(id=pattern_id, name=name, length=length, resolution=resolution)
 
             self.patterns[pattern_id] = pattern
             return pattern_id
@@ -464,7 +456,7 @@ class PatternSequencer:
                     note_number=note.note_number,
                     velocity=note.velocity,
                     channel=note.channel,
-                    track_id=note.track_id
+                    track_id=note.track_id,
                 )
                 new_pattern.add_note(new_note)
 
@@ -474,7 +466,7 @@ class PatternSequencer:
                     controller=ctrl.controller,
                     value=ctrl.value,
                     channel=ctrl.channel,
-                    track_id=ctrl.track_id
+                    track_id=ctrl.track_id,
                 )
                 new_pattern.add_control(new_ctrl)
 
@@ -498,9 +490,16 @@ class PatternSequencer:
                 return True
             return False
 
-    def add_note_at_position(self, pattern_id: int, step: int, note_number: int,
-                           velocity: int = 100, duration: float = 0.25,
-                           channel: int = 0, track_id: int = 0) -> bool:
+    def add_note_at_position(
+        self,
+        pattern_id: int,
+        step: int,
+        note_number: int,
+        velocity: int = 100,
+        duration: float = 0.25,
+        channel: int = 0,
+        track_id: int = 0,
+    ) -> bool:
         """
         Add a note at a specific grid position.
 
@@ -532,7 +531,7 @@ class PatternSequencer:
                 note_number=note_number,
                 velocity=velocity,
                 channel=channel,
-                track_id=track_id
+                track_id=track_id,
             )
 
             pattern.add_note(note)
@@ -573,8 +572,13 @@ class PatternSequencer:
                 return True
             return False
 
-    def quantize_pattern(self, pattern_id: int, mode: QuantizeMode = None,
-                        strength: float = 1.0, groove_template: GrooveTemplate = None) -> bool:
+    def quantize_pattern(
+        self,
+        pattern_id: int,
+        mode: QuantizeMode = None,
+        strength: float = 1.0,
+        groove_template: GrooveTemplate = None,
+    ) -> bool:
         """
         Quantize a pattern.
 
@@ -594,9 +598,7 @@ class PatternSequencer:
 
             # Use groove quantizer for advanced quantization
             quantized_notes = self.groove_quantizer.quantize_notes(
-                pattern.notes,
-                mode or pattern.quantize_mode,
-                groove_template
+                pattern.notes, mode or pattern.quantize_mode, groove_template
             )
 
             # Replace pattern notes
@@ -624,8 +626,7 @@ class PatternSequencer:
                 return True
             return False
 
-    def start_playback(self, pattern_id: int | None = None,
-                      loop: bool = True) -> bool:
+    def start_playback(self, pattern_id: int | None = None, loop: bool = True) -> bool:
         """
         Start pattern playback.
 
@@ -711,12 +712,14 @@ class PatternSequencer:
 
                     # Schedule note off
                     note_off_time = note.time + note.duration
-                    threading.Timer(note_off_time - current_time,
-                                  lambda n=note: self._send_note_off(n)).start()
+                    threading.Timer(
+                        note_off_time - current_time, lambda n=note: self._send_note_off(n)
+                    ).start()
 
                 # Send control events
-                controls_to_send = [ctrl for ctrl in pattern.controls
-                                  if current_time <= ctrl.time < next_time]
+                controls_to_send = [
+                    ctrl for ctrl in pattern.controls if current_time <= ctrl.time < next_time
+                ]
 
                 for ctrl in controls_to_send:
                     if self.control_callback:
@@ -749,8 +752,9 @@ class PatternSequencer:
         if self.note_off_callback:
             self.note_off_callback(note.note_number, note.channel)
 
-    def enable_step_input(self, note_number: int = 60, velocity: int = 100,
-                         duration: float = 0.25) -> None:
+    def enable_step_input(
+        self, note_number: int = 60, velocity: int = 100, duration: float = 0.25
+    ) -> None:
         """
         Enable step input mode.
 
@@ -790,8 +794,11 @@ class PatternSequencer:
                 return False
 
             return self.add_note_at_position(
-                target_pattern, step, self.step_input_note,
-                self.step_input_velocity, self.step_input_duration
+                target_pattern,
+                step,
+                self.step_input_note,
+                self.step_input_velocity,
+                self.step_input_duration,
             )
 
     def set_pattern_chain(self, pattern_ids: list[int]) -> None:
@@ -832,7 +839,9 @@ class PatternSequencer:
                 return []
 
             # Initialize grid (128 notes x grid_length steps)
-            grid: list[list[int | None]] = [[None for _ in range(self.grid_length)] for _ in range(128)]
+            grid: list[list[int | None]] = [
+                [None for _ in range(self.grid_length)] for _ in range(128)
+            ]
 
             # Fill grid with notes
             for note in pattern.notes:
@@ -865,14 +874,14 @@ class PatternSequencer:
         with self.lock:
             return [
                 {
-                    'id': pattern.id,
-                    'name': pattern.name,
-                    'length': pattern.length,
-                    'note_count': len(pattern.notes),
-                    'control_count': len(pattern.controls),
-                    'tempo': pattern.tempo,
-                    'created_time': pattern.created_time,
-                    'modified_time': pattern.modified_time
+                    "id": pattern.id,
+                    "name": pattern.name,
+                    "length": pattern.length,
+                    "note_count": len(pattern.notes),
+                    "control_count": len(pattern.controls),
+                    "tempo": pattern.tempo,
+                    "created_time": pattern.created_time,
+                    "modified_time": pattern.modified_time,
                 }
                 for pattern in self.patterns.values()
             ]
@@ -881,13 +890,13 @@ class PatternSequencer:
         """Get current playback status."""
         with self.lock:
             return {
-                'is_playing': self.is_playing,
-                'current_pattern_id': self.current_pattern_id,
-                'current_position': self.current_position,
-                'loop_enabled': self.loop_enabled,
-                'step_input_enabled': self.step_input_enabled,
-                'pattern_chain': self.pattern_chain.copy(),
-                'current_chain_index': self.current_chain_index
+                "is_playing": self.is_playing,
+                "current_pattern_id": self.current_pattern_id,
+                "current_position": self.current_position,
+                "loop_enabled": self.loop_enabled,
+                "step_input_enabled": self.step_input_enabled,
+                "pattern_chain": self.pattern_chain.copy(),
+                "current_chain_index": self.current_chain_index,
             }
 
     def save_pattern_to_file(self, pattern_id: int, filename: str) -> bool:
@@ -908,7 +917,8 @@ class PatternSequencer:
 
             try:
                 import json
-                with open(filename, 'w') as f:
+
+                with open(filename, "w") as f:
                     json.dump(pattern.to_dict(), f, indent=2)
                 return True
             except Exception:
@@ -927,6 +937,7 @@ class PatternSequencer:
         with self.lock:
             try:
                 import json
+
                 with open(filename) as f:
                     data = json.load(f)
 

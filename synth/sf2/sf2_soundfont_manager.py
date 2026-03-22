@@ -4,12 +4,13 @@ SF2 SoundFont Manager
 Single optimized SF2 implementation managing multiple soundfonts with complete feature set.
 Handles ordering, blacklisting, remapping, and orchestrates all SF2 components.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from pathlib import Path
 import threading
 import time
+from pathlib import Path
+from typing import Any
 
 
 class SF2SoundFontManager:
@@ -35,7 +36,9 @@ class SF2SoundFontManager:
         self.loaded_files: dict[str, SF2SoundFont] = {}  # filepath -> soundfont
         self.file_order: list[str] = []  # File loading order for preset resolution
         self.file_blacklist: set[tuple[int, int]] = set()  # (bank, program) to blacklist
-        self.file_remapping: dict[tuple[int, int], tuple[int, int]] = {}  # (bank, program) -> (new_bank, new_program)
+        self.file_remapping: dict[
+            tuple[int, int], tuple[int, int]
+        ] = {}  # (bank, program) -> (new_bank, new_program)
 
         # Core components
         self.sample_processor = None  # Will be initialized when first file is loaded
@@ -52,9 +55,9 @@ class SF2SoundFontManager:
 
     def _initialize_components(self) -> None:
         """Initialize core SF2 components."""
+        from .sf2_modulation_engine import SF2ModulationEngine
         from .sf2_sample_processor import SF2SampleProcessor
         from .sf2_zone_cache import SF2ZoneCacheManager
-        from .sf2_modulation_engine import SF2ModulationEngine
 
         self.sample_processor = SF2SampleProcessor(cache_memory_mb=self.cache_memory_mb)
         self.zone_cache_manager = SF2ZoneCacheManager()
@@ -92,8 +95,10 @@ class SF2SoundFontManager:
 
             try:
                 from .sf2_soundfont import SF2SoundFont
-                soundfont = SF2SoundFont(filepath, self.sample_processor,
-                                       self.zone_cache_manager, self.modulation_engine)
+
+                soundfont = SF2SoundFont(
+                    filepath, self.sample_processor, self.zone_cache_manager, self.modulation_engine
+                )
 
                 if soundfont.load():
                     self.loaded_files[filepath] = soundfont
@@ -128,7 +133,7 @@ class SF2SoundFontManager:
         # Find insertion point (higher priority = earlier in list)
         insert_pos = 0
         for i, existing_file in enumerate(self.file_order):
-            existing_priority = getattr(self.loaded_files.get(existing_file), 'priority', 0)
+            existing_priority = getattr(self.loaded_files.get(existing_file), "priority", 0)
             if priority > existing_priority:
                 insert_pos = i
                 break
@@ -191,8 +196,9 @@ class SF2SoundFontManager:
 
             return True
 
-    def get_program_parameters(self, bank: int, program: int, note: int = 60,
-                             velocity: int = 100) -> dict[str, Any] | None:
+    def get_program_parameters(
+        self, bank: int, program: int, note: int = 60, velocity: int = 100
+    ) -> dict[str, Any] | None:
         """
         Get program parameters with remapping and blacklisting support.
 
@@ -226,11 +232,11 @@ class SF2SoundFontManager:
                         self.access_counts[filepath] += 1
 
                         # Add metadata
-                        params['source_file'] = filepath
-                        params['original_bank'] = original_bank
-                        params['original_program'] = original_program
-                        params['remapped_bank'] = bank
-                        params['remapped_program'] = program
+                        params["source_file"] = filepath
+                        params["original_bank"] = original_bank
+                        params["original_program"] = original_program
+                        params["remapped_bank"] = bank
+                        params["remapped_program"] = program
 
                         return params
 
@@ -257,7 +263,8 @@ class SF2SoundFontManager:
 
                     # Filter out blacklisted programs
                     filtered_programs = [
-                        (bank, prog, name) for bank, prog, name in file_programs
+                        (bank, prog, name)
+                        for bank, prog, name in file_programs
                         if (bank, prog) not in self.file_blacklist
                     ]
 
@@ -267,7 +274,9 @@ class SF2SoundFontManager:
         seen = set()
         unique_programs = []
 
-        for bank, program, name in reversed(programs):  # Process in reverse to prioritize later files
+        for bank, program, name in reversed(
+            programs
+        ):  # Process in reverse to prioritize later files
             key = (bank, program)
             if key not in seen:
                 seen.add(key)
@@ -295,8 +304,9 @@ class SF2SoundFontManager:
         """
         self.file_blacklist.discard((bank, program))
 
-    def remap_program(self, from_bank: int, from_program: int,
-                     to_bank: int, to_program: int) -> None:
+    def remap_program(
+        self, from_bank: int, from_program: int, to_bank: int, to_program: int
+    ) -> None:
         """
         Remap a program to different bank/program numbers.
 
@@ -366,8 +376,10 @@ class SF2SoundFontManager:
                             return sample_data
 
         return None
-    
-    def get_sample_info(self, sample_id: int, soundfont_path: str | None = None) -> dict[str, Any] | None:
+
+    def get_sample_info(
+        self, sample_id: int, soundfont_path: str | None = None
+    ) -> dict[str, Any] | None:
         """
         Get sample information (root key, name, sample rate, etc.).
 
@@ -397,7 +409,9 @@ class SF2SoundFontManager:
 
         return None
 
-    def get_sample_loop_info(self, sample_id: int, soundfont_path: str | None = None) -> dict[str, Any] | None:
+    def get_sample_loop_info(
+        self, sample_id: int, soundfont_path: str | None = None
+    ) -> dict[str, Any] | None:
         """
         Get sample loop information.
 
@@ -470,54 +484,53 @@ class SF2SoundFontManager:
         """
         with self._lock:
             stats = {
-                'loaded_files': len(self.loaded_files),
-                'file_order': self.file_order.copy(),
-                'total_blacklisted': len(self.file_blacklist),
-                'total_remapped': len(self.file_remapping),
-                'file_stats': {},
-                'memory_usage': self._get_memory_usage(),
-                'cache_performance': {}
+                "loaded_files": len(self.loaded_files),
+                "file_order": self.file_order.copy(),
+                "total_blacklisted": len(self.file_blacklist),
+                "total_remapped": len(self.file_remapping),
+                "file_stats": {},
+                "memory_usage": self._get_memory_usage(),
+                "cache_performance": {},
             }
 
             # Individual file statistics
             for filepath, soundfont in self.loaded_files.items():
                 file_stats = {
-                    'load_time': self.load_times.get(filepath, 0.0),
-                    'access_count': self.access_counts.get(filepath, 0),
-                    'program_count': len(soundfont.get_available_programs()),
-                    'priority': getattr(soundfont, 'priority', 0)
+                    "load_time": self.load_times.get(filepath, 0.0),
+                    "access_count": self.access_counts.get(filepath, 0),
+                    "program_count": len(soundfont.get_available_programs()),
+                    "priority": getattr(soundfont, "priority", 0),
                 }
-                stats['file_stats'][filepath] = file_stats
+                stats["file_stats"][filepath] = file_stats
 
             # Cache performance
             if self.sample_processor:
-                stats['cache_performance'] = self.sample_processor.get_performance_stats()
+                stats["cache_performance"] = self.sample_processor.get_performance_stats()
 
             # Zone cache stats
             if self.zone_cache_manager:
-                stats['zone_cache_stats'] = self.zone_cache_manager.get_performance_stats()
+                stats["zone_cache_stats"] = self.zone_cache_manager.get_performance_stats()
 
             return stats
 
     def _get_memory_usage(self) -> dict[str, Any]:
         """Get memory usage across all components."""
-        memory_stats = {
-            'total_mb': 0.0,
-            'components': {}
-        }
+        memory_stats = {"total_mb": 0.0, "components": {}}
 
         # Sample processor memory
         if self.sample_processor:
             sample_stats = self.sample_processor.get_performance_stats()
-            cache_stats = sample_stats.get('cache_stats', {})
-            memory_stats['components']['sample_cache'] = cache_stats.get('memory_usage_mb', 0.0)
-            memory_stats['total_mb'] += memory_stats['components']['sample_cache']
+            cache_stats = sample_stats.get("cache_stats", {})
+            memory_stats["components"]["sample_cache"] = cache_stats.get("memory_usage_mb", 0.0)
+            memory_stats["total_mb"] += memory_stats["components"]["sample_cache"]
 
         # Zone cache memory
         if self.zone_cache_manager:
             zone_stats = self.zone_cache_manager.get_memory_usage()
-            memory_stats['components']['zone_cache'] = zone_stats.get('total_zones', 0) * 0.001  # Rough estimate
-            memory_stats['total_mb'] += memory_stats['components']['zone_cache']
+            memory_stats["components"]["zone_cache"] = (
+                zone_stats.get("total_zones", 0) * 0.001
+            )  # Rough estimate
+            memory_stats["total_mb"] += memory_stats["components"]["zone_cache"]
 
         return memory_stats
 
@@ -546,7 +559,9 @@ class SF2SoundFontManager:
 
             self.clear_all_caches()
 
-    def get_soundfont_info(self, filepath: str | None = None) -> dict[str, Any] | list[dict[str, Any]]:
+    def get_soundfont_info(
+        self, filepath: str | None = None
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         """
         Get information about loaded soundfonts.
 

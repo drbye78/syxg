@@ -4,11 +4,11 @@ SFZ Voice-Level Modulation Matrix
 Provides advanced modulation routing at the voice level for SFZ instruments,
 enabling complex modulation chains and professional control over synthesis parameters.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import math
+from typing import Any
 
 
 class ModulationRoute:
@@ -19,9 +19,16 @@ class ModulationRoute:
     configurable amount, polarity, and transformation curve.
     """
 
-    def __init__(self, source: str, destination: str, amount: float = 1.0,
-                 polarity: float = 1.0, curve: str = 'linear',
-                 min_val: float = 0.0, max_val: float = 1.0):
+    def __init__(
+        self,
+        source: str,
+        destination: str,
+        amount: float = 1.0,
+        polarity: float = 1.0,
+        curve: str = "linear",
+        min_val: float = 0.0,
+        max_val: float = 1.0,
+    ):
         """
         Initialize modulation route.
 
@@ -45,10 +52,12 @@ class ModulationRoute:
 
         # Curve functions
         self._curve_functions = {
-            'linear': lambda x: x,
-            'exponential': lambda x: x ** 2 if x >= 0 else -(abs(x) ** 2),
-            'logarithmic': lambda x: math.log10(abs(x) * 9 + 1) * (1 if x >= 0 else -1) if x != 0 else 0,
-            'sine': lambda x: math.sin(x * math.pi / 2)
+            "linear": lambda x: x,
+            "exponential": lambda x: x**2 if x >= 0 else -(abs(x) ** 2),
+            "logarithmic": lambda x: (
+                math.log10(abs(x) * 9 + 1) * (1 if x >= 0 else -1) if x != 0 else 0
+            ),
+            "sine": lambda x: math.sin(x * math.pi / 2),
         }
 
     def process(self, source_value: float) -> float:
@@ -121,37 +130,40 @@ class SFZVoiceModulationMatrix:
         """Initialize default modulation source values."""
         self.source_values = {
             # MIDI sources
-            'velocity': 0.0,        # 0.0-1.0
-            'key_number': 0.0,      # 0.0-1.0 (normalized note number)
-            'aftertouch': 0.0,      # 0.0-1.0
-            'pitch_bend': 0.0,      # -1.0 to 1.0
-            'mod_wheel': 0.0,       # 0.0-1.0
-
+            "velocity": 0.0,  # 0.0-1.0
+            "key_number": 0.0,  # 0.0-1.0 (normalized note number)
+            "aftertouch": 0.0,  # 0.0-1.0
+            "pitch_bend": 0.0,  # -1.0 to 1.0
+            "mod_wheel": 0.0,  # 0.0-1.0
             # Envelope sources
-            'amp_envelope': 0.0,    # 0.0-1.0
-            'filter_envelope': 0.0, # 0.0-1.0
-
+            "amp_envelope": 0.0,  # 0.0-1.0
+            "filter_envelope": 0.0,  # 0.0-1.0
             # LFO sources
-            'lfo1': 0.0,            # -1.0 to 1.0
-            'lfo2': 0.0,            # -1.0 to 1.0
-
+            "lfo1": 0.0,  # -1.0 to 1.0
+            "lfo2": 0.0,  # -1.0 to 1.0
             # Controller sources
-            'breath_controller': 0.0,   # 0.0-1.0
-            'foot_controller': 0.0,     # 0.0-1.0
-            'expression': 1.0,          # 0.0-1.0
-            'sustain_pedal': 0.0,       # 0.0-1.0
-
+            "breath_controller": 0.0,  # 0.0-1.0
+            "foot_controller": 0.0,  # 0.0-1.0
+            "expression": 1.0,  # 0.0-1.0
+            "sustain_pedal": 0.0,  # 0.0-1.0
             # Advanced sources
-            'random': 0.0,          # -1.0 to 1.0 (sample & hold)
-            'noise': 0.0,           # -1.0 to 1.0 (filtered noise)
-            'audio_envelope': 0.0,  # 0.0-1.0 (from audio signal)
-            'sidechain': 0.0,       # 0.0-1.0 (compressor sidechain)
+            "random": 0.0,  # -1.0 to 1.0 (sample & hold)
+            "noise": 0.0,  # -1.0 to 1.0 (filtered noise)
+            "audio_envelope": 0.0,  # 0.0-1.0 (from audio signal)
+            "sidechain": 0.0,  # 0.0-1.0 (compressor sidechain)
         }
 
-    def add_route(self, source: str, destination: str, amount: float = 1.0,
-                  polarity: float = 1.0, curve: str = 'linear',
-                  min_val: float = 0.0, max_val: float = 1.0,
-                  group: str = None) -> bool:
+    def add_route(
+        self,
+        source: str,
+        destination: str,
+        amount: float = 1.0,
+        polarity: float = 1.0,
+        curve: str = "linear",
+        min_val: float = 0.0,
+        max_val: float = 1.0,
+        group: str = None,
+    ) -> bool:
         """
         Add a modulation route to the matrix.
 
@@ -172,8 +184,7 @@ class SFZVoiceModulationMatrix:
             return False
 
         # Create new route
-        route = ModulationRoute(source, destination, amount, polarity,
-                               curve, min_val, max_val)
+        route = ModulationRoute(source, destination, amount, polarity, curve, min_val, max_val)
         self.routes.append(route)
 
         route_index = len(self.routes) - 1
@@ -309,15 +320,15 @@ class SFZVoiceModulationMatrix:
         if 0 <= route_index < len(self.routes):
             route = self.routes[route_index]
             return {
-                'source': route.source,
-                'destination': route.destination,
-                'amount': route.amount,
-                'polarity': route.polarity,
-                'curve': route.curve,
-                'min_val': route.min_val,
-                'max_val': route.max_val,
-                'enabled': route.enabled,
-                'current_source_value': self.source_values.get(route.source, 0.0)
+                "source": route.source,
+                "destination": route.destination,
+                "amount": route.amount,
+                "polarity": route.polarity,
+                "curve": route.curve,
+                "min_val": route.min_val,
+                "max_val": route.max_val,
+                "enabled": route.enabled,
+                "current_source_value": self.source_values.get(route.source, 0.0),
             }
         return None
 
@@ -343,8 +354,9 @@ class SFZVoiceModulationMatrix:
         if group_name not in self.route_groups:
             return []
 
-        return [self.get_route_info(i) for i in self.route_groups[group_name]
-                if i < len(self.routes)]
+        return [
+            self.get_route_info(i) for i in self.route_groups[group_name] if i < len(self.routes)
+        ]
 
     def get_source_value(self, source_name: str) -> float:
         """
@@ -375,13 +387,13 @@ class SFZVoiceModulationMatrix:
             Matrix status and configuration
         """
         return {
-            'total_routes': len(self.routes),
-            'max_routes': self.max_routes,
-            'active_routes': sum(1 for r in self.routes if r.enabled),
-            'groups': list(self.route_groups.keys()),
-            'sources': list(self.source_values.keys()),
-            'destinations': list(set(r.destination for r in self.routes)),
-            'utilization_percent': (len(self.routes) / self.max_routes) * 100
+            "total_routes": len(self.routes),
+            "max_routes": self.max_routes,
+            "active_routes": sum(1 for r in self.routes if r.enabled),
+            "groups": list(self.route_groups.keys()),
+            "sources": list(self.source_values.keys()),
+            "destinations": list(set(r.destination for r in self.routes)),
+            "utilization_percent": (len(self.routes) / self.max_routes) * 100,
         }
 
     def create_preset(self, preset_name: str) -> dict[str, Any]:
@@ -394,48 +406,135 @@ class SFZVoiceModulationMatrix:
         Returns:
             Preset configuration dictionary
         """
-        if preset_name == 'basic_synth':
+        if preset_name == "basic_synth":
             return {
-                'name': 'Basic Synth Modulation',
-                'description': 'Standard synthesizer modulation setup',
-                'routes': [
-                    {'source': 'velocity', 'destination': 'volume', 'amount': 0.3, 'curve': 'linear'},
-                    {'source': 'velocity', 'destination': 'filter_cutoff', 'amount': 0.5, 'curve': 'exponential'},
-                    {'source': 'mod_wheel', 'destination': 'lfo1_depth', 'amount': 1.0, 'curve': 'linear'},
-                    {'source': 'lfo1', 'destination': 'pitch', 'amount': 0.1, 'polarity': -1.0, 'curve': 'sine'},
-                    {'source': 'filter_envelope', 'destination': 'filter_cutoff', 'amount': 0.7, 'curve': 'exponential'},
-                ]
+                "name": "Basic Synth Modulation",
+                "description": "Standard synthesizer modulation setup",
+                "routes": [
+                    {
+                        "source": "velocity",
+                        "destination": "volume",
+                        "amount": 0.3,
+                        "curve": "linear",
+                    },
+                    {
+                        "source": "velocity",
+                        "destination": "filter_cutoff",
+                        "amount": 0.5,
+                        "curve": "exponential",
+                    },
+                    {
+                        "source": "mod_wheel",
+                        "destination": "lfo1_depth",
+                        "amount": 1.0,
+                        "curve": "linear",
+                    },
+                    {
+                        "source": "lfo1",
+                        "destination": "pitch",
+                        "amount": 0.1,
+                        "polarity": -1.0,
+                        "curve": "sine",
+                    },
+                    {
+                        "source": "filter_envelope",
+                        "destination": "filter_cutoff",
+                        "amount": 0.7,
+                        "curve": "exponential",
+                    },
+                ],
             }
-        elif preset_name == 'advanced_lead':
+        elif preset_name == "advanced_lead":
             return {
-                'name': 'Advanced Lead Modulation',
-                'description': 'Complex modulation for lead sounds',
-                'routes': [
-                    {'source': 'velocity', 'destination': 'volume', 'amount': 0.4, 'curve': 'logarithmic'},
-                    {'source': 'velocity', 'destination': 'filter_cutoff', 'amount': 0.8, 'curve': 'exponential'},
-                    {'source': 'aftertouch', 'destination': 'lfo2_depth', 'amount': 0.6, 'curve': 'linear'},
-                    {'source': 'breath_controller', 'destination': 'filter_resonance', 'amount': 0.5, 'curve': 'linear'},
-                    {'source': 'lfo1', 'destination': 'pitch', 'amount': 0.05, 'polarity': 1.0, 'curve': 'sine'},
-                    {'source': 'lfo2', 'destination': 'filter_cutoff', 'amount': 0.3, 'curve': 'sine'},
-                    {'source': 'amp_envelope', 'destination': 'pan', 'amount': 0.2, 'curve': 'sine'},
-                    {'source': 'random', 'destination': 'pan', 'amount': 0.1, 'curve': 'linear'},
-                ]
+                "name": "Advanced Lead Modulation",
+                "description": "Complex modulation for lead sounds",
+                "routes": [
+                    {
+                        "source": "velocity",
+                        "destination": "volume",
+                        "amount": 0.4,
+                        "curve": "logarithmic",
+                    },
+                    {
+                        "source": "velocity",
+                        "destination": "filter_cutoff",
+                        "amount": 0.8,
+                        "curve": "exponential",
+                    },
+                    {
+                        "source": "aftertouch",
+                        "destination": "lfo2_depth",
+                        "amount": 0.6,
+                        "curve": "linear",
+                    },
+                    {
+                        "source": "breath_controller",
+                        "destination": "filter_resonance",
+                        "amount": 0.5,
+                        "curve": "linear",
+                    },
+                    {
+                        "source": "lfo1",
+                        "destination": "pitch",
+                        "amount": 0.05,
+                        "polarity": 1.0,
+                        "curve": "sine",
+                    },
+                    {
+                        "source": "lfo2",
+                        "destination": "filter_cutoff",
+                        "amount": 0.3,
+                        "curve": "sine",
+                    },
+                    {
+                        "source": "amp_envelope",
+                        "destination": "pan",
+                        "amount": 0.2,
+                        "curve": "sine",
+                    },
+                    {"source": "random", "destination": "pan", "amount": 0.1, "curve": "linear"},
+                ],
             }
-        elif preset_name == 'pad_sound':
+        elif preset_name == "pad_sound":
             return {
-                'name': 'Pad Sound Modulation',
-                'description': 'Slow, evolving modulation for pad sounds',
-                'routes': [
-                    {'source': 'velocity', 'destination': 'volume', 'amount': 0.2, 'curve': 'linear'},
-                    {'source': 'lfo1', 'destination': 'filter_cutoff', 'amount': 0.4, 'curve': 'sine'},
-                    {'source': 'lfo2', 'destination': 'pan', 'amount': 0.3, 'curve': 'sine'},
-                    {'source': 'expression', 'destination': 'volume', 'amount': 0.5, 'curve': 'linear'},
-                    {'source': 'filter_envelope', 'destination': 'filter_cutoff', 'amount': 0.6, 'curve': 'exponential'},
-                    {'source': 'audio_envelope', 'destination': 'sidechain', 'amount': 0.8, 'curve': 'logarithmic'},
-                ]
+                "name": "Pad Sound Modulation",
+                "description": "Slow, evolving modulation for pad sounds",
+                "routes": [
+                    {
+                        "source": "velocity",
+                        "destination": "volume",
+                        "amount": 0.2,
+                        "curve": "linear",
+                    },
+                    {
+                        "source": "lfo1",
+                        "destination": "filter_cutoff",
+                        "amount": 0.4,
+                        "curve": "sine",
+                    },
+                    {"source": "lfo2", "destination": "pan", "amount": 0.3, "curve": "sine"},
+                    {
+                        "source": "expression",
+                        "destination": "volume",
+                        "amount": 0.5,
+                        "curve": "linear",
+                    },
+                    {
+                        "source": "filter_envelope",
+                        "destination": "filter_cutoff",
+                        "amount": 0.6,
+                        "curve": "exponential",
+                    },
+                    {
+                        "source": "audio_envelope",
+                        "destination": "sidechain",
+                        "amount": 0.8,
+                        "curve": "logarithmic",
+                    },
+                ],
             }
 
-        return {'name': 'Unknown Preset', 'routes': []}
+        return {"name": "Unknown Preset", "routes": []}
 
     def load_preset(self, preset_config: dict[str, Any]) -> bool:
         """
@@ -448,13 +547,13 @@ class SFZVoiceModulationMatrix:
             True if preset loaded successfully
         """
         try:
-            routes = preset_config.get('routes', [])
+            routes = preset_config.get("routes", [])
             for route_config in routes:
-                source = route_config['source']
-                destination = route_config['destination']
-                amount = route_config.get('amount', 1.0)
-                polarity = route_config.get('polarity', 1.0)
-                curve = route_config.get('curve', 'linear')
+                source = route_config["source"]
+                destination = route_config["destination"]
+                amount = route_config.get("amount", 1.0)
+                polarity = route_config.get("polarity", 1.0)
+                curve = route_config.get("curve", "linear")
 
                 if not self.add_route(source, destination, amount, polarity, curve):
                     return False
@@ -473,21 +572,23 @@ class SFZVoiceModulationMatrix:
         """
         routes_data = []
         for route in self.routes:
-            routes_data.append({
-                'source': route.source,
-                'destination': route.destination,
-                'amount': route.amount,
-                'polarity': route.polarity,
-                'curve': route.curve,
-                'min_val': route.min_val,
-                'max_val': route.max_val,
-                'enabled': route.enabled
-            })
+            routes_data.append(
+                {
+                    "source": route.source,
+                    "destination": route.destination,
+                    "amount": route.amount,
+                    "polarity": route.polarity,
+                    "curve": route.curve,
+                    "min_val": route.min_val,
+                    "max_val": route.max_val,
+                    "enabled": route.enabled,
+                }
+            )
 
         return {
-            'routes': routes_data,
-            'groups': self.route_groups.copy(),
-            'source_values': self.source_values.copy()
+            "routes": routes_data,
+            "groups": self.route_groups.copy(),
+            "source_values": self.source_values.copy(),
         }
 
     def import_matrix(self, data: dict[str, Any]) -> bool:
@@ -505,26 +606,27 @@ class SFZVoiceModulationMatrix:
             self.clear_routes()
 
             # Import routes
-            routes_data = data.get('routes', [])
+            routes_data = data.get("routes", [])
             for route_data in routes_data:
-                source = route_data['source']
-                destination = route_data['destination']
-                amount = route_data.get('amount', 1.0)
-                polarity = route_data.get('polarity', 1.0)
-                curve = route_data.get('curve', 'linear')
-                min_val = route_data.get('min_val', 0.0)
-                max_val = route_data.get('max_val', 1.0)
+                source = route_data["source"]
+                destination = route_data["destination"]
+                amount = route_data.get("amount", 1.0)
+                polarity = route_data.get("polarity", 1.0)
+                curve = route_data.get("curve", "linear")
+                min_val = route_data.get("min_val", 0.0)
+                max_val = route_data.get("max_val", 1.0)
 
-                route = ModulationRoute(source, destination, amount, polarity,
-                                      curve, min_val, max_val)
-                route.enabled = route_data.get('enabled', True)
+                route = ModulationRoute(
+                    source, destination, amount, polarity, curve, min_val, max_val
+                )
+                route.enabled = route_data.get("enabled", True)
                 self.routes.append(route)
 
             # Import groups
-            self.route_groups = data.get('groups', {}).copy()
+            self.route_groups = data.get("groups", {}).copy()
 
             # Import source values
-            self.source_values.update(data.get('source_values', {}))
+            self.source_values.update(data.get("source_values", {}))
 
             return True
 

@@ -10,11 +10,10 @@ Copyright (c) 2025
 
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
 import time
-import math
+from collections.abc import Callable
+from typing import Any
 
 
 class ArpeggiatorPattern:
@@ -955,7 +954,7 @@ class YamahaArpeggiatorEngine:
 
         print(f"🎹 Arpeggiator: Loaded {len(self.patterns)} comprehensive built-in patterns")
         print(
-            f"   Categories: Basic, Seventh, Extended, Rhythmic, World, Special, Inversions, Drum"
+            "   Categories: Basic, Seventh, Extended, Rhythmic, World, Special, Inversions, Drum"
         )
         print(
             f"   Chord Types: {len(chord_types)} supported ({', '.join(list(chord_types.keys())[:5])}...)"

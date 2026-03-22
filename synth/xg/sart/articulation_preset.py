@@ -4,12 +4,13 @@ S.Art2 Articulation Preset System
 Provides articulation preset management for Modern XG Synth.
 Supports program-specific articulation configurations with velocity/key splits.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
-from enum import Enum
 import json
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 
 class ArticulationType(Enum):
@@ -104,9 +105,7 @@ class ArticulationPreset:
     category: str = ""  # e.g., 'piano', 'strings', 'guitar'
     instrument: str = ""  # e.g., 'grand_piano', 'violin'
 
-    def get_articulation(
-        self, note: int, velocity: int
-    ) -> tuple[str, dict[str, float]]:
+    def get_articulation(self, note: int, velocity: int) -> tuple[str, dict[str, float]]:
         """
         Get articulation and parameters for note/velocity.
 
@@ -143,9 +142,7 @@ class ArticulationPreset:
         # Return default
         return (self.default_articulation, params)
 
-    def add_velocity_split(
-        self, vel_low: int, vel_high: int, articulation: str, **params
-    ) -> None:
+    def add_velocity_split(self, vel_low: int, vel_high: int, articulation: str, **params) -> None:
         """Add velocity split."""
         split = VelocitySplit(
             vel_low=vel_low,
@@ -155,9 +152,7 @@ class ArticulationPreset:
         )
         self.velocity_splits.append(split)
 
-    def add_key_split(
-        self, key_low: int, key_high: int, articulation: str, **params
-    ) -> None:
+    def add_key_split(self, key_low: int, key_high: int, articulation: str, **params) -> None:
         """Add key split."""
         split = KeySplit(
             key_low=key_low,

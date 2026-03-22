@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 #!/usr/bin/env python3
 """
 XG DRUM KIT STATE MANAGER
@@ -14,10 +15,8 @@ Provides:
 - Thread-safe access for live performance
 """
 
-import numpy as np
-from typing import Any
 from enum import Enum
-from ..core.constants import XG_CONSTANTS
+from typing import Any
 
 
 class XGDrumParameter(Enum):
@@ -43,9 +42,33 @@ class XGDrumParameter(Enum):
     DRUM_PAN_BASE = (40, 14, "drum_pan_base", "Individual Drum Pan", 0, 127, float)
     DRUM_REVERB_BASE = (40, 15, "drum_reverb_base", "Individual Reverb Send", 0, 127, float)
     DRUM_CHORUS_BASE = (40, 16, "drum_chorus_base", "Individual Chorus Send", 0, 127, float)
-    DRUM_VARIATION_BASE = (40, 17, "drum_variation_base", "Individual Variation Send", 0, 127, float)
-    DRUM_PITCH_OFFSET_BASE = (40, 18, "drum_pitch_offset_base", "Individual Pitch Offset", 0, 127, float)
-    DRUM_DECAY_OFFSET_BASE = (40, 19, "drum_decay_offset_base", "Individual Decay Offset", 0, 127, float)
+    DRUM_VARIATION_BASE = (
+        40,
+        17,
+        "drum_variation_base",
+        "Individual Variation Send",
+        0,
+        127,
+        float,
+    )
+    DRUM_PITCH_OFFSET_BASE = (
+        40,
+        18,
+        "drum_pitch_offset_base",
+        "Individual Pitch Offset",
+        0,
+        127,
+        float,
+    )
+    DRUM_DECAY_OFFSET_BASE = (
+        40,
+        19,
+        "drum_decay_offset_base",
+        "Individual Decay Offset",
+        0,
+        127,
+        float,
+    )
     DRUM_LEVEL_CURVE_BASE = (40, 20, "drum_level_curve_base", "Individual Level Curve", 0, 127, int)
 
     # MSB 41: Drum Details parameters (LSB 0-127)
@@ -89,15 +112,29 @@ class XGDrumKitStateManager:
 
     # XG Drum Kit Names (standard kits)
     XG_DRUM_KITS = {
-        0: "Standard Kit 1", 1: "Standard Kit 2", 2: "Standard Kit 3",
-        8: "Room Kit", 9: "Hip Hop Kit", 10: "Jungle Kit",
-        16: "Power Kit", 17: "Power Kit 2", 18: "Power Kit 3",
-        24: "Electronic Kit", 25: "Analog Kit", 26: "Dance Kit",
-        32: "Jazz Kit", 33: "Jazz Kit 2", 34: "Jazz Kit 3",
-        40: "Brush Kit", 41: "Brush Kit 2",
-        48: "Orchestra Kit", 49: "Orchestra Kit 2",
-        56: "SFX Kit 1", 57: "SFX Kit 2", 58: "SFX Kit 3",
-        127: "Custom Kit"
+        0: "Standard Kit 1",
+        1: "Standard Kit 2",
+        2: "Standard Kit 3",
+        8: "Room Kit",
+        9: "Hip Hop Kit",
+        10: "Jungle Kit",
+        16: "Power Kit",
+        17: "Power Kit 2",
+        18: "Power Kit 3",
+        24: "Electronic Kit",
+        25: "Analog Kit",
+        26: "Dance Kit",
+        32: "Jazz Kit",
+        33: "Jazz Kit 2",
+        34: "Jazz Kit 3",
+        40: "Brush Kit",
+        41: "Brush Kit 2",
+        48: "Orchestra Kit",
+        49: "Orchestra Kit 2",
+        56: "SFX Kit 1",
+        57: "SFX Kit 2",
+        58: "SFX Kit 3",
+        127: "Custom Kit",
     }
 
     def __init__(self, num_channels: int = 16):
@@ -138,43 +175,44 @@ class XGDrumKitStateManager:
             # Initialize default drum detail parameters
             self.drum_detail_parameters[channel] = {}
             for note in range(128):  # All possible MIDI notes
-                self.drum_detail_parameters[channel][note] = self._create_default_drum_detail_parameters()
+                self.drum_detail_parameters[channel][note] = (
+                    self._create_default_drum_detail_parameters()
+                )
 
     def _create_default_kit_parameters(self) -> dict[str, Any]:
         """Create default XG kit parameters."""
         return {
-            'kit_number': 0,
-            'name': 'Standard Kit 1',
-            'global_level': 1.0,
-            'global_pan': 0.0,  # Center
-            'global_reverb_send': 0.4,
-            'global_chorus_send': 0.0,
-            'velocity_curve': 0,  # Linear
+            "kit_number": 0,
+            "name": "Standard Kit 1",
+            "global_level": 1.0,
+            "global_pan": 0.0,  # Center
+            "global_reverb_send": 0.4,
+            "global_chorus_send": 0.0,
+            "velocity_curve": 0,  # Linear
             # Individual drum assignments would go here
         }
 
     def _create_default_drum_detail_parameters(self) -> dict[str, Any]:
         """Create default XG drum detail parameters."""
         return {
-            'wave_number': 0,
-            'coarse_tune': 0.0,  # No change
-            'fine_tune': 0.0,    # No change
-            'attack_time': 0.0,  # Default attack
-            'decay_time': 2.0,   # 2 seconds default
-            'cutoff_frequency': 1000.0,  # 1kHz default
-            'resonance': 0.0,    # No resonance
-            'eg_attack': 0.0,
-            'eg_decay': 2.0,
-            'vel_pitch_sens': 0.0,
-            'vel_filter_sens': 0.0,
-            'vel_amp_sens': 0.0,
-            'lfo_rate': 5.0,     # 5 Hz
-            'lfo_depth': 0.0,    # No modulation
-            'lfo_waveform': 0,   # Sine
+            "wave_number": 0,
+            "coarse_tune": 0.0,  # No change
+            "fine_tune": 0.0,  # No change
+            "attack_time": 0.0,  # Default attack
+            "decay_time": 2.0,  # 2 seconds default
+            "cutoff_frequency": 1000.0,  # 1kHz default
+            "resonance": 0.0,  # No resonance
+            "eg_attack": 0.0,
+            "eg_decay": 2.0,
+            "vel_pitch_sens": 0.0,
+            "vel_filter_sens": 0.0,
+            "vel_amp_sens": 0.0,
+            "lfo_rate": 5.0,  # 5 Hz
+            "lfo_depth": 0.0,  # No modulation
+            "lfo_waveform": 0,  # Sine
         }
 
-    def set_kit_parameter(self, channel: int, kit_number: int,
-                         param_name: str, value: Any) -> bool:
+    def set_kit_parameter(self, channel: int, kit_number: int, param_name: str, value: Any) -> bool:
         """
         Set a drum kit parameter value.
 
@@ -220,15 +258,18 @@ class XGDrumKitStateManager:
             Parameter value or None if not found
         """
         with self.lock:
-            if (channel in self.kit_parameters and
-                kit_number in self.kit_parameters[channel] and
-                param_name in self.kit_parameters[channel][kit_number]):
+            if (
+                channel in self.kit_parameters
+                and kit_number in self.kit_parameters[channel]
+                and param_name in self.kit_parameters[channel][kit_number]
+            ):
                 return self.kit_parameters[channel][kit_number][param_name]
 
         return None
 
-    def set_drum_detail_parameter(self, channel: int, note: int,
-                                param_name: str, value: Any) -> bool:
+    def set_drum_detail_parameter(
+        self, channel: int, note: int, param_name: str, value: Any
+    ) -> bool:
         """
         Set a drum detail parameter for a specific note.
 
@@ -251,7 +292,9 @@ class XGDrumKitStateManager:
             if channel not in self.drum_detail_parameters:
                 self.drum_detail_parameters[channel] = {}
             if note not in self.drum_detail_parameters[channel]:
-                self.drum_detail_parameters[channel][note] = self._create_default_drum_detail_parameters()
+                self.drum_detail_parameters[channel][note] = (
+                    self._create_default_drum_detail_parameters()
+                )
 
             # Validate and set parameter
             if self._validate_parameter(param_name, value):
@@ -274,9 +317,11 @@ class XGDrumKitStateManager:
             Parameter value or None if not found
         """
         with self.lock:
-            if (channel in self.drum_detail_parameters and
-                note in self.drum_detail_parameters[channel] and
-                param_name in self.drum_detail_parameters[channel][note]):
+            if (
+                channel in self.drum_detail_parameters
+                and note in self.drum_detail_parameters[channel]
+                and param_name in self.drum_detail_parameters[channel][note]
+            ):
                 return self.drum_detail_parameters[channel][note][param_name]
 
         return None
@@ -296,31 +341,31 @@ class XGDrumKitStateManager:
         with self.lock:
             # Map LSB to parameter
             param_map = {
-                0: ('kit_number', lambda v: v),  # Direct kit selection
-                3: ('level', lambda v: v / 127.0),  # 0.0-1.0
-                4: ('pan', lambda v: (v - 64) / 64.0),  # -1.0 to +1.0
-                5: ('reverb_send', lambda v: v / 127.0),  # 0.0-1.0
-                6: ('chorus_send', lambda v: v / 127.0),  # 0.0-1.0
-                7: ('variation_send', lambda v: v / 127.0),  # 0.0-1.0
-                8: ('velocity_curve', lambda v: v),  # Direct curve selection
-                9: ('alter_pitch', lambda v: (v - 64) / 64.0),  # -1.0 to +1.0
-                10: ('decay_time', lambda v: v / 127.0 * 10.0),  # 0-10 seconds
-                11: ('vibrato_rate', lambda v: v / 127.0 * 20.0),  # 0-20 Hz
-                12: ('vibrato_depth', lambda v: v / 127.0),  # 0.0-1.0
+                0: ("kit_number", lambda v: v),  # Direct kit selection
+                3: ("level", lambda v: v / 127.0),  # 0.0-1.0
+                4: ("pan", lambda v: (v - 64) / 64.0),  # -1.0 to +1.0
+                5: ("reverb_send", lambda v: v / 127.0),  # 0.0-1.0
+                6: ("chorus_send", lambda v: v / 127.0),  # 0.0-1.0
+                7: ("variation_send", lambda v: v / 127.0),  # 0.0-1.0
+                8: ("velocity_curve", lambda v: v),  # Direct curve selection
+                9: ("alter_pitch", lambda v: (v - 64) / 64.0),  # -1.0 to +1.0
+                10: ("decay_time", lambda v: v / 127.0 * 10.0),  # 0-10 seconds
+                11: ("vibrato_rate", lambda v: v / 127.0 * 20.0),  # 0-20 Hz
+                12: ("vibrato_depth", lambda v: v / 127.0),  # 0.0-1.0
             }
 
             # Individual drum parameters (LSB 13-127)
             if 13 <= lsb <= 127:
                 drum_note = lsb - 13  # Map LSB to drum note
                 individual_params = [
-                    ('level', lambda v: v / 127.0),
-                    ('pan', lambda v: (v - 64) / 64.0),
-                    ('reverb_send', lambda v: v / 127.0),
-                    ('chorus_send', lambda v: v / 127.0),
-                    ('variation_send', lambda v: v / 127.0),
-                    ('alter_pitch', lambda v: (v - 64) / 64.0),
-                    ('decay_time', lambda v: v / 127.0 * 10.0),
-                    ('velocity_curve', lambda v: v),
+                    ("level", lambda v: v / 127.0),
+                    ("pan", lambda v: (v - 64) / 64.0),
+                    ("reverb_send", lambda v: v / 127.0),
+                    ("chorus_send", lambda v: v / 127.0),
+                    ("variation_send", lambda v: v / 127.0),
+                    ("alter_pitch", lambda v: (v - 64) / 64.0),
+                    ("decay_time", lambda v: v / 127.0 * 10.0),
+                    ("velocity_curve", lambda v: v),
                 ]
 
                 param_index = (lsb - 13) % len(individual_params)
@@ -329,25 +374,31 @@ class XGDrumKitStateManager:
                 # Set individual drum parameter
                 converted_value = converter(value)
                 kit_number = self.channel_kit_selections.get(channel, 0)
-                return self.set_kit_parameter(channel, kit_number,
-                                            f'drum_{drum_note}_{param_name}',
-                                            converted_value)
+                return self.set_kit_parameter(
+                    channel, kit_number, f"drum_{drum_note}_{param_name}", converted_value
+                )
 
             elif lsb in param_map:
                 param_name, converter = param_map[lsb]
                 converted_value = converter(value)
 
                 # For kit number selection, update channel kit selection
-                if param_name == 'kit_number':
+                if param_name == "kit_number":
                     self.channel_kit_selections[channel] = int(converted_value)
                     # Initialize kit parameters if not exist
                     if channel not in self.kit_parameters:
                         self.kit_parameters[channel] = {}
                     if converted_value not in self.kit_parameters[channel]:
-                        self.kit_parameters[channel][converted_value] = self._create_default_kit_parameters()
+                        self.kit_parameters[channel][converted_value] = (
+                            self._create_default_kit_parameters()
+                        )
 
-                return self.set_kit_parameter(channel, self.channel_kit_selections.get(channel, 0),
-                                            param_name, converted_value)
+                return self.set_kit_parameter(
+                    channel,
+                    self.channel_kit_selections.get(channel, 0),
+                    param_name,
+                    converted_value,
+                )
 
         return False
 
@@ -366,22 +417,22 @@ class XGDrumKitStateManager:
         with self.lock:
             # Map LSB to drum detail parameter
             param_map = {
-                0: ('wave_number_lsb', lambda v: v),
-                1: ('wave_number_msb', lambda v: v),
-                32: ('coarse_tune', lambda v: (v - 64) / 64.0),  # -1.0 to +1.0 semitones
-                33: ('fine_tune', lambda v: (v - 64) / 64.0),    # -1.0 to +1.0 semitones
-                34: ('attack_time', lambda v: v / 127.0 * 5.0),  # 0-5 seconds
-                35: ('decay_time_detailed', lambda v: v / 127.0 * 20.0),  # 0-20 seconds
-                36: ('cutoff_frequency', lambda v: 20 + (v / 127.0) * 19980),  # 20Hz-20kHz
-                37: ('resonance', lambda v: v / 127.0),  # 0.0-1.0
-                38: ('eg_attack_detail', lambda v: v / 127.0 * 10.0),  # 0-10 seconds
-                39: ('eg_decay_detail', lambda v: v / 127.0 * 20.0),  # 0-20 seconds
-                40: ('vel_pitch_sens', lambda v: (v - 64) / 64.0),  # -1.0 to +1.0
-                41: ('vel_filter_sens', lambda v: (v - 64) / 64.0), # -1.0 to +1.0
-                42: ('vel_amp_sens', lambda v: (v - 64) / 64.0),    # -1.0 to +1.0
-                43: ('lfo_rate', lambda v: v / 127.0 * 20.0),  # 0-20 Hz
-                44: ('lfo_depth', lambda v: v / 127.0),        # 0.0-1.0
-                45: ('lfo_waveform', lambda v: v % 4),         # 0-3 waveforms
+                0: ("wave_number_lsb", lambda v: v),
+                1: ("wave_number_msb", lambda v: v),
+                32: ("coarse_tune", lambda v: (v - 64) / 64.0),  # -1.0 to +1.0 semitones
+                33: ("fine_tune", lambda v: (v - 64) / 64.0),  # -1.0 to +1.0 semitones
+                34: ("attack_time", lambda v: v / 127.0 * 5.0),  # 0-5 seconds
+                35: ("decay_time_detailed", lambda v: v / 127.0 * 20.0),  # 0-20 seconds
+                36: ("cutoff_frequency", lambda v: 20 + (v / 127.0) * 19980),  # 20Hz-20kHz
+                37: ("resonance", lambda v: v / 127.0),  # 0.0-1.0
+                38: ("eg_attack_detail", lambda v: v / 127.0 * 10.0),  # 0-10 seconds
+                39: ("eg_decay_detail", lambda v: v / 127.0 * 20.0),  # 0-20 seconds
+                40: ("vel_pitch_sens", lambda v: (v - 64) / 64.0),  # -1.0 to +1.0
+                41: ("vel_filter_sens", lambda v: (v - 64) / 64.0),  # -1.0 to +1.0
+                42: ("vel_amp_sens", lambda v: (v - 64) / 64.0),  # -1.0 to +1.0
+                43: ("lfo_rate", lambda v: v / 127.0 * 20.0),  # 0-20 Hz
+                44: ("lfo_depth", lambda v: v / 127.0),  # 0.0-1.0
+                45: ("lfo_waveform", lambda v: v % 4),  # 0-3 waveforms
             }
 
             if lsb in param_map:
@@ -391,7 +442,9 @@ class XGDrumKitStateManager:
                 # Apply to all drum notes initially (can be refined per note later)
                 success = True
                 for note in range(128):
-                    if not self.set_drum_detail_parameter(channel, note, param_name, converted_value):
+                    if not self.set_drum_detail_parameter(
+                        channel, note, param_name, converted_value
+                    ):
                         success = False
 
                 return success
@@ -411,14 +464,18 @@ class XGDrumKitStateManager:
         """Get parameters for currently selected kit on channel."""
         with self.lock:
             kit_number = self.channel_kit_selections.get(channel, 0)
-            return self.kit_parameters.get(channel, {}).get(kit_number, self._create_default_kit_parameters())
+            return self.kit_parameters.get(channel, {}).get(
+                kit_number, self._create_default_kit_parameters()
+            )
 
     def get_drum_note_parameters(self, channel: int, note: int) -> dict[str, Any]:
         """Get all parameters for a specific drum note on channel."""
         with self.lock:
             # Combine kit parameters and note-specific parameters
             kit_params = self.get_current_kit_parameters(channel)
-            note_params = self.drum_detail_parameters.get(channel, {}).get(note, self._create_default_drum_detail_parameters())
+            note_params = self.drum_detail_parameters.get(channel, {}).get(
+                note, self._create_default_drum_detail_parameters()
+            )
 
             # Merge parameters (note-specific override kit defaults)
             merged = kit_params.copy()
@@ -473,7 +530,9 @@ class XGDrumKitStateManager:
                 self.kit_parameters[channel] = {0: self._create_default_kit_parameters()}
                 self.drum_detail_parameters[channel] = {}
                 for note in range(128):
-                    self.drum_detail_parameters[channel][note] = self._create_default_drum_detail_parameters()
+                    self.drum_detail_parameters[channel][note] = (
+                        self._create_default_drum_detail_parameters()
+                    )
                 self._parameter_cache_dirty = True
 
     def get_kit_name(self, kit_number: int) -> str:
@@ -518,6 +577,6 @@ import threading
 
 def get_xg_drum_kit_manager(num_channels: int = 16) -> XGDrumKitStateManager:
     """Get singleton XG drum kit manager instance."""
-    if not hasattr(get_xg_drum_kit_manager, '_instance'):
+    if not hasattr(get_xg_drum_kit_manager, "_instance"):
         get_xg_drum_kit_manager._instance = XGDrumKitStateManager(num_channels)
     return get_xg_drum_kit_manager._instance

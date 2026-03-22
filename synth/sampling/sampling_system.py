@@ -5,17 +5,16 @@ Complete sampling and sample management system providing professional
 workstation-grade recording, editing, and manipulation capabilities.
 Provides authentic Motif-compatible sampling workflow.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from collections.abc import Callable
-import threading
 import time
-import math
 import wave
-import audioop
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+
+import numpy as np
 
 
 class Sample:
@@ -41,7 +40,7 @@ class Sample:
 
         # Sample properties
         self.root_note = 60  # MIDI note number
-        self.fine_tune = 0   # cents
+        self.fine_tune = 0  # cents
         self.volume = 1.0
 
         # Processing flags
@@ -55,7 +54,7 @@ class Sample:
 
     def get_rms_level(self) -> float:
         """Get RMS level of the sample"""
-        return np.sqrt(np.mean(self.data ** 2))
+        return np.sqrt(np.mean(self.data**2))
 
     def normalize(self, target_level: float = 1.0):
         """Normalize sample to target level"""
@@ -113,6 +112,7 @@ class Sample:
         """Resample to new sample rate"""
         if new_sample_rate != self.sample_rate:
             from scipy import signal
+
             # Simple resampling (in practice, use better algorithms)
             ratio = new_sample_rate / self.sample_rate
             new_length = int(self.length * ratio)
@@ -123,21 +123,21 @@ class Sample:
     def get_sample_info(self) -> dict[str, Any]:
         """Get comprehensive sample information"""
         return {
-            'name': self.name,
-            'length': self.length,
-            'duration': self.get_duration(),
-            'sample_rate': self.sample_rate,
-            'channels': self.channels,
-            'bit_depth': self.bit_depth,
-            'rms_level': self.get_rms_level(),
-            'root_note': self.root_note,
-            'fine_tune': self.fine_tune,
-            'loop_enabled': self.loop_enabled,
-            'loop_start': self.loop_start,
-            'loop_end': self.loop_end,
-            'normalized': self.normalized,
-            'fade_in_applied': self.fade_in_applied,
-            'fade_out_applied': self.fade_out_applied
+            "name": self.name,
+            "length": self.length,
+            "duration": self.get_duration(),
+            "sample_rate": self.sample_rate,
+            "channels": self.channels,
+            "bit_depth": self.bit_depth,
+            "rms_level": self.get_rms_level(),
+            "root_note": self.root_note,
+            "fine_tune": self.fine_tune,
+            "loop_enabled": self.loop_enabled,
+            "loop_start": self.loop_start,
+            "loop_end": self.loop_end,
+            "normalized": self.normalized,
+            "fade_in_applied": self.fade_in_applied,
+            "fade_out_applied": self.fade_out_applied,
         }
 
 
@@ -199,7 +199,7 @@ class AudioRecorder:
 
         # Update level monitoring
         if self.level_callback:
-            rms_level = np.sqrt(np.mean(processed_data ** 2))
+            rms_level = np.sqrt(np.mean(processed_data**2))
             self.level_callback(rms_level)
 
 
@@ -264,17 +264,17 @@ class SampleEditor:
         fade_in = np.linspace(0.0, 1.0, fade_samples)
 
         # Apply crossfade
-        self.current_sample.data[start:start + fade_samples] *= fade_out
-        self.current_sample.data[end - fade_samples:end] *= fade_in
+        self.current_sample.data[start : start + fade_samples] *= fade_out
+        self.current_sample.data[end - fade_samples : end] *= fade_in
 
         # Mix the crossfade regions
         crossfade_region = (
-            self.current_sample.data[start:start + fade_samples] +
-            self.current_sample.data[end - fade_samples:end]
+            self.current_sample.data[start : start + fade_samples]
+            + self.current_sample.data[end - fade_samples : end]
         )
 
-        self.current_sample.data[start:start + fade_samples] = crossfade_region
-        self.current_sample.data[end - fade_samples:end] = crossfade_region
+        self.current_sample.data[start : start + fade_samples] = crossfade_region
+        self.current_sample.data[end - fade_samples : end] = crossfade_region
 
         return True
 
@@ -304,7 +304,7 @@ class SampleEditor:
         self.current_sample.data = np.interp(
             np.linspace(0, self.current_sample.length - 1, new_length),
             np.arange(self.current_sample.length),
-            self.current_sample.data
+            self.current_sample.data,
         )
         self.current_sample.length = len(self.current_sample.data)
         return True
@@ -341,7 +341,9 @@ class WaveformGenerator:
         sample = Sample(data, self.sample_rate, f"Sine_{frequency}Hz")
         return sample
 
-    def create_square_wave(self, frequency: float, duration: float, amplitude: float = 1.0) -> Sample:
+    def create_square_wave(
+        self, frequency: float, duration: float, amplitude: float = 1.0
+    ) -> Sample:
         """Create square wave sample"""
         length = int(duration * self.sample_rate)
         t = np.linspace(0, duration, length, endpoint=False)
@@ -350,7 +352,9 @@ class WaveformGenerator:
         sample = Sample(data, self.sample_rate, f"Square_{frequency}Hz")
         return sample
 
-    def create_sawtooth_wave(self, frequency: float, duration: float, amplitude: float = 1.0) -> Sample:
+    def create_sawtooth_wave(
+        self, frequency: float, duration: float, amplitude: float = 1.0
+    ) -> Sample:
         """Create sawtooth wave sample"""
         length = int(duration * self.sample_rate)
         t = np.linspace(0, duration, length, endpoint=False)
@@ -359,7 +363,9 @@ class WaveformGenerator:
         sample = Sample(data, self.sample_rate, f"Saw_{frequency}Hz")
         return sample
 
-    def create_triangle_wave(self, frequency: float, duration: float, amplitude: float = 1.0) -> Sample:
+    def create_triangle_wave(
+        self, frequency: float, duration: float, amplitude: float = 1.0
+    ) -> Sample:
         """Create triangle wave sample"""
         length = int(duration * self.sample_rate)
         t = np.linspace(0, duration, length, endpoint=False)
@@ -428,9 +434,9 @@ class SampleManager:
 
         # Sample categories
         self.categories = {
-            'user': [],      # User-recorded samples
-            'factory': [],   # Factory samples
-            'generated': []  # Generated waveforms
+            "user": [],  # User-recorded samples
+            "factory": [],  # Factory samples
+            "generated": [],  # Generated waveforms
         }
 
         # Tools
@@ -520,7 +526,7 @@ class SampleManager:
                 wav_data = sample.data
 
             # Write WAV file
-            with wave.open(file_path, 'wb') as wav_file:
+            with wave.open(file_path, "wb") as wav_file:
                 wav_file.setnchannels(sample.channels)
                 wav_file.setsampwidth(2)  # 16-bit
                 wav_file.setframerate(sample.sample_rate)
@@ -536,7 +542,7 @@ class SampleManager:
     def load_sample_from_file(self, file_path: str, name: str | None = None) -> bool:
         """Load sample from WAV file"""
         try:
-            with wave.open(file_path, 'rb') as wav_file:
+            with wave.open(file_path, "rb") as wav_file:
                 # Get file info
                 channels = wav_file.getnchannels()
                 sample_rate = wav_file.getframerate()
@@ -648,18 +654,20 @@ class SampleManager:
         total_duration = sum(s.get_duration() for s in self.samples.values())
 
         return {
-            'total_samples': total_samples,
-            'total_duration': total_duration,
-            'memory_used_mb': self.memory_used_mb,
-            'memory_limit_mb': self.max_memory_mb,
-            'sample_limit': self.max_samples,
-            'categories': {cat: len(samples) for cat, samples in self.categories.items()},
-            'recording_active': self.recorder.is_recording if hasattr(self.recorder, 'is_recording') else False,
-            'samples': {name: s.get_sample_info() for name, s in list(self.samples.items())[:10]}  # First 10 samples
+            "total_samples": total_samples,
+            "total_duration": total_duration,
+            "memory_used_mb": self.memory_used_mb,
+            "memory_limit_mb": self.max_memory_mb,
+            "sample_limit": self.max_samples,
+            "categories": {cat: len(samples) for cat, samples in self.categories.items()},
+            "recording_active": self.recorder.is_recording
+            if hasattr(self.recorder, "is_recording")
+            else False,
+            "samples": {
+                name: s.get_sample_info() for name, s in list(self.samples.items())[:10]
+            },  # First 10 samples
         }
 
 
 # Export classes
-__all__ = [
-    'Sample', 'AudioRecorder', 'SampleEditor', 'WaveformGenerator', 'SampleManager'
-]
+__all__ = ["AudioRecorder", "Sample", "SampleEditor", "SampleManager", "WaveformGenerator"]

@@ -22,23 +22,25 @@ Performance Categories:
 - Buffer Management: Pool usage and allocation monitoring
 - MIDI Control: Parameter update response times
 """
+
 from __future__ import annotations
 
-import time
-import numpy as np
-import threading
-import psutil
 import os
-from typing import Any
-from collections.abc import Callable
+import threading
+import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
+from typing import Any
+
+import numpy as np
+import psutil
 
 # Import our core components for monitoring
 try:
-    from .effects_coordinator import XGEffectsCoordinator
     from ..core.buffer_pool import XGBufferPool
+    from .effects_coordinator import XGEffectsCoordinator
 except ImportError:
     # Fallback for development
     pass
@@ -46,6 +48,7 @@ except ImportError:
 
 class XGPerformanceMetric(IntEnum):
     """XG Performance Metrics"""
+
     CPU_PERCENT = 0
     MEMORY_MB = 1
     LATENCY_MS = 2
@@ -57,6 +60,7 @@ class XGPerformanceMetric(IntEnum):
 
 class XGProfilingEvent(IntEnum):
     """Profiling Events for Timeline Tracking"""
+
     PROCESS_START = 0
     PROCESS_END = 1
     PARAMETER_UPDATE = 2
@@ -69,9 +73,10 @@ class XGProfilingEvent(IntEnum):
 @dataclass(slots=True)
 class XGProcessStats:
     """XG Processing Statistics Structure"""
+
     total_blocks: int = 0
     total_time_ms: float = 0.0
-    min_latency_ms: float = float('inf')
+    min_latency_ms: float = float("inf")
     max_latency_ms: float = 0.0
     avg_latency_ms: float = 0.0
     cpu_percent_avg: float = 0.0
@@ -84,6 +89,7 @@ class XGProcessStats:
 @dataclass(slots=True)
 class XGEffectProfile:
     """XG Effect Profile Data"""
+
     effect_type: str
     active_channels: int = 0
     processing_time_ms: float = 0.0
@@ -217,12 +223,20 @@ class XGPerformanceProfiler:
 
                 # Trigger alert if threshold exceeded
                 if latency_ms > self.latency_threshold_ms:
-                    self._trigger_alert("HIGH_LATENCY", f"Latency {latency_ms:.1f}ms > threshold {self.latency_threshold_ms:.1f}ms")
+                    self._trigger_alert(
+                        "HIGH_LATENCY",
+                        f"Latency {latency_ms:.1f}ms > threshold {self.latency_threshold_ms:.1f}ms",
+                    )
 
             return latency_ms
 
-    def record_effect_processing(self, effect_name: str, processing_time_ms: float,
-                               cpu_percent: float = 0.0, allocations: int = 0) -> None:
+    def record_effect_processing(
+        self,
+        effect_name: str,
+        processing_time_ms: float,
+        cpu_percent: float = 0.0,
+        allocations: int = 0,
+    ) -> None:
         """
         Record processing statistics for a specific effect.
 
@@ -276,61 +290,67 @@ class XGPerformanceProfiler:
             quality_score = self._calculate_quality_score()
 
             return {
-                'session_time_seconds': session_time_seconds,
-                'global_stats': {
-                    'blocks_processed': self.global_stats.total_blocks,
-                    'blocks_per_second': self.global_stats.total_blocks / session_time_seconds if session_time_seconds > 0 else 0,
-                    'latency_ms': {
-                        'current': self.latency_history[-1] if self.latency_history else 0,
-                        'average': self.global_stats.avg_latency_ms,
-                        'min': self.global_stats.min_latency_ms if self.global_stats.min_latency_ms != float('inf') else 0,
-                        'max': self.global_stats.max_latency_ms,
-                        'target': self.target_latency_ms,
+                "session_time_seconds": session_time_seconds,
+                "global_stats": {
+                    "blocks_processed": self.global_stats.total_blocks,
+                    "blocks_per_second": self.global_stats.total_blocks / session_time_seconds
+                    if session_time_seconds > 0
+                    else 0,
+                    "latency_ms": {
+                        "current": self.latency_history[-1] if self.latency_history else 0,
+                        "average": self.global_stats.avg_latency_ms,
+                        "min": self.global_stats.min_latency_ms
+                        if self.global_stats.min_latency_ms != float("inf")
+                        else 0,
+                        "max": self.global_stats.max_latency_ms,
+                        "target": self.target_latency_ms,
                     },
-                    'cpu_percent': {
-                        'current': current_cpu,
-                        'average': np.mean(list(self.cpu_history)) if self.cpu_history else 0,
-                        'peak': max(self.cpu_history) if self.cpu_history else 0,
+                    "cpu_percent": {
+                        "current": current_cpu,
+                        "average": np.mean(list(self.cpu_history)) if self.cpu_history else 0,
+                        "peak": max(self.cpu_history) if self.cpu_history else 0,
                     },
-                    'memory_mb': {
-                        'current': current_memory,
-                        'average': np.mean(list(self.memory_history)) if self.memory_history else 0,
-                        'peak': max(self.memory_history) if self.memory_history else 0,
+                    "memory_mb": {
+                        "current": current_memory,
+                        "average": np.mean(list(self.memory_history)) if self.memory_history else 0,
+                        "peak": max(self.memory_history) if self.memory_history else 0,
                     },
-                    'allocations': self.global_stats.buffer_allocations,
-                    'parameter_updates': self.global_stats.parameter_updates,
-                    'missed_deadlines': self.global_stats.missed_deadlines,
-                    'deadline_miss_rate': self.global_stats.missed_deadlines / total_blocks,
+                    "allocations": self.global_stats.buffer_allocations,
+                    "parameter_updates": self.global_stats.parameter_updates,
+                    "missed_deadlines": self.global_stats.missed_deadlines,
+                    "deadline_miss_rate": self.global_stats.missed_deadlines / total_blocks,
                 },
-                'quality_score': quality_score,
-                'effect_profiles': {
+                "quality_score": quality_score,
+                "effect_profiles": {
                     name: {
-                        'processing_time_ms': profile.processing_time_ms,
-                        'cpu_percent': profile.cpu_percent,
-                        'memory_usage_mb': profile.memory_usage_mb,
-                        'allocations': profile.allocations,
-                        'parameter_changes': profile.parameter_changes,
-                        'quality_score': profile.quality_score,
+                        "processing_time_ms": profile.processing_time_ms,
+                        "cpu_percent": profile.cpu_percent,
+                        "memory_usage_mb": profile.memory_usage_mb,
+                        "allocations": profile.allocations,
+                        "parameter_changes": profile.parameter_changes,
+                        "quality_score": profile.quality_score,
                     }
                     for name, profile in self.effect_profiles.items()
                 },
-                'system_effects': {
-                    'reverb': {
-                        'active': True,  # Would get from actual system
-                        'processing_time_ms': self.system_profile.processing_time_ms,
-                        'quality_score': self.system_profile.quality_score,
+                "system_effects": {
+                    "reverb": {
+                        "active": True,  # Would get from actual system
+                        "processing_time_ms": self.system_profile.processing_time_ms,
+                        "quality_score": self.system_profile.quality_score,
                     },
-                    'chorus': {
-                        'active': True,
-                        'processing_time_ms': self.system_profile.processing_time_ms,
-                        'quality_score': self.system_profile.quality_score,
-                    }
+                    "chorus": {
+                        "active": True,
+                        "processing_time_ms": self.system_profile.processing_time_ms,
+                        "quality_score": self.system_profile.quality_score,
+                    },
                 },
-                'alerts': {
-                    'cpu_high': current_cpu > self.cpu_threshold_percent,
-                    'latency_high': self.latency_history[-1] > self.latency_threshold_ms if self.latency_history else False,
-                    'memory_high': current_memory > self.memory_threshold_mb,
-                }
+                "alerts": {
+                    "cpu_high": current_cpu > self.cpu_threshold_percent,
+                    "latency_high": self.latency_history[-1] > self.latency_threshold_ms
+                    if self.latency_history
+                    else False,
+                    "memory_high": current_memory > self.memory_threshold_mb,
+                },
             }
 
     def _calculate_quality_score(self) -> float:
@@ -347,7 +367,11 @@ class XGPerformanceProfiler:
             Quality score from 0.0 to 1.0
         """
         # Latency quality (inverted - lower latency = higher quality)
-        latency_ratio = min(self.target_latency_ms / self.global_stats.avg_latency_ms, 1.0) if self.global_stats.avg_latency_ms > 0 else 1.0
+        latency_ratio = (
+            min(self.target_latency_ms / self.global_stats.avg_latency_ms, 1.0)
+            if self.global_stats.avg_latency_ms > 0
+            else 1.0
+        )
         quality_latency = latency_ratio
 
         # CPU quality (inverted - lower CPU for same work = higher quality)
@@ -359,15 +383,14 @@ class XGPerformanceProfiler:
         quality_memory = max(0, 1.0 - memory_usage / self.memory_threshold_mb)
 
         # Allocation quality (fewer allocations = higher quality)
-        alloc_penalty = min(self.global_stats.buffer_allocations / max(self.global_stats.total_blocks * 10, 1), 1.0)
+        alloc_penalty = min(
+            self.global_stats.buffer_allocations / max(self.global_stats.total_blocks * 10, 1), 1.0
+        )
         quality_alloc = 1.0 - alloc_penalty
 
         # Weighted final score
         final_score = (
-            quality_latency * 0.4 +
-            quality_cpu * 0.3 +
-            quality_memory * 0.2 +
-            quality_alloc * 0.1
+            quality_latency * 0.4 + quality_cpu * 0.3 + quality_memory * 0.2 + quality_alloc * 0.1
         )
 
         return max(0.0, min(1.0, final_score))
@@ -375,10 +398,10 @@ class XGPerformanceProfiler:
     def _trigger_alert(self, alert_type: str, message: str) -> None:
         """Trigger performance alert to all registered callbacks."""
         alert_data = {
-            'type': alert_type,
-            'message': message,
-            'timestamp': time.time(),
-            'performance_data': self.get_performance_report()
+            "type": alert_type,
+            "message": message,
+            "timestamp": time.time(),
+            "performance_data": self.get_performance_report(),
         }
 
         for callback in self.alert_callbacks:
@@ -398,7 +421,9 @@ class XGPerformanceProfiler:
                 if self.latency_history:
                     current_latency = self.latency_history[-1]
                     if current_latency > self.latency_threshold_ms * 1.5:  # 150% of threshold
-                        self._trigger_alert("CRITICAL_LATENCY", f"Critical latency: {current_latency:.1f}ms")
+                        self._trigger_alert(
+                            "CRITICAL_LATENCY", f"Critical latency: {current_latency:.1f}ms"
+                        )
 
                 # Periodic reset of statistics
                 current_time = time.time()
@@ -418,7 +443,7 @@ class XGPerformanceProfiler:
         self.memory_history.clear()
 
         # Reset min/max (they will be recalculated from new data)
-        self.global_stats.min_latency_ms = float('inf')
+        self.global_stats.min_latency_ms = float("inf")
         self.global_stats.max_latency_ms = 0.0
 
 
@@ -450,7 +475,9 @@ class XGMemoryProfiler:
         # Thread safety
         self.lock = threading.RLock()
 
-    def record_allocation(self, allocation_type: str, size_bytes: int, allocated: bool = True) -> None:
+    def record_allocation(
+        self, allocation_type: str, size_bytes: int, allocated: bool = True
+    ) -> None:
         """
         Record a memory allocation/deallocation event.
 
@@ -497,25 +524,25 @@ class XGMemoryProfiler:
     def get_memory_report(self) -> dict[str, Any]:
         """Generate detailed memory usage report."""
         with self.lock:
-            total_allocated = sum(
-                sum(samples) for samples in self.memory_samples.values()
-            )
+            total_allocated = sum(sum(samples) for samples in self.memory_samples.values())
 
             return {
-                'current_memory_mb': self.current_memory_mb,
-                'peak_memory_mb': self.peak_memory_mb,
-                'total_allocations': self.total_allocations,
-                'zero_alloc_violations': self.zero_alloc_violations,
-                'allocation_types': {
+                "current_memory_mb": self.current_memory_mb,
+                "peak_memory_mb": self.peak_memory_mb,
+                "total_allocations": self.total_allocations,
+                "zero_alloc_violations": self.zero_alloc_violations,
+                "allocation_types": {
                     alloc_type: {
-                        'count': len(samples),
-                        'total_mb': sum(samples),
-                        'average_mb': np.mean(samples) if samples else 0,
-                        'peak_mb': max(samples) if samples else 0,
+                        "count": len(samples),
+                        "total_mb": sum(samples),
+                        "average_mb": np.mean(samples) if samples else 0,
+                        "peak_mb": max(samples) if samples else 0,
                     }
                     for alloc_type, samples in self.memory_samples.items()
                 },
-                'compliance_score': max(0, 1.0 - (self.zero_alloc_violations / max(self.total_allocations, 1))),
+                "compliance_score": max(
+                    0, 1.0 - (self.zero_alloc_violations / max(self.total_allocations, 1))
+                ),
             }
 
 
@@ -598,7 +625,7 @@ class XGPerformanceMonitor:
         """
         with self.lock:
             report = self.profiler.get_performance_report()
-            report['memory'] = self.memory_profiler.get_memory_report()
+            report["memory"] = self.memory_profiler.get_memory_report()
             return report
 
     def add_performance_alert_callback(self, callback: Callable) -> None:
@@ -618,16 +645,20 @@ class XGPerformanceMonitor:
         """Create a default XG performance monitor with standard settings."""
         return XGPerformanceMonitor(target_latency_ms=10.0)  # <10ms for realtime
 
+
 # Global monitor instance for easy access
 _default_monitor = XGPerformanceMonitor.create_default_monitor()
+
 
 def get_global_monitor() -> XGPerformanceMonitor:
     """Get the global XG performance monitor instance."""
     return _default_monitor
 
+
 def enable_performance_monitoring() -> None:
     """Enable global performance monitoring."""
     _default_monitor.start_continuous_monitoring()
+
 
 def disable_performance_monitoring() -> None:
     """Disable global performance monitoring."""

@@ -5,12 +5,12 @@ Provides Jupiter-X style VCM (Virtual Circuit Modeling) effects that accurately
 replicate the analog circuit behavior of classic effects processors, including
 distortion, phaser, chorus, delay, and reverb algorithms.
 """
+
 from __future__ import annotations
 
-import numpy as np
 from typing import Any
-import math
-from ..effects.effects_coordinator import XGEffectsCoordinator
+
+import numpy as np
 
 
 class JupiterXVCMEffects:
@@ -54,7 +54,9 @@ class JupiterXVCMEffects:
         self.vcm_delay = JupiterXVCMDelay(self.sample_rate)
         self.vcm_reverb = JupiterXVCMReverb(self.sample_rate)
 
-    def process_vcm_chain(self, audio: np.ndarray, parameters: dict[str, Any] | None = None) -> np.ndarray:
+    def process_vcm_chain(
+        self, audio: np.ndarray, parameters: dict[str, Any] | None = None
+    ) -> np.ndarray:
         """
         Process audio through the complete Jupiter-X VCM effects chain.
 
@@ -78,75 +80,80 @@ class JupiterXVCMEffects:
             self.temp_buffer = np.zeros(len(audio), dtype=np.float32)
 
         # Copy input to processing buffer
-        np.copyto(self.output_buffer[:len(audio)], audio)
+        np.copyto(self.output_buffer[: len(audio)], audio)
 
         # Apply VCM effects chain in Jupiter-X order
         # 1. Distortion (if enabled)
         if self.vcm_distortion.enabled:
-            self.output_buffer[:len(audio)] = self.vcm_distortion.process(
-                self.output_buffer[:len(audio)])
+            self.output_buffer[: len(audio)] = self.vcm_distortion.process(
+                self.output_buffer[: len(audio)]
+            )
 
         # 2. Phaser (if enabled)
         if self.vcm_phaser.enabled:
-            self.output_buffer[:len(audio)] = self.vcm_phaser.process(
-                self.output_buffer[:len(audio)])
+            self.output_buffer[: len(audio)] = self.vcm_phaser.process(
+                self.output_buffer[: len(audio)]
+            )
 
         # 3. Chorus (if enabled)
         if self.vcm_chorus.enabled:
-            self.output_buffer[:len(audio)] = self.vcm_chorus.process(
-                self.output_buffer[:len(audio)])
+            self.output_buffer[: len(audio)] = self.vcm_chorus.process(
+                self.output_buffer[: len(audio)]
+            )
 
         # 4. Delay (if enabled)
         if self.vcm_delay.enabled:
-            self.output_buffer[:len(audio)] = self.vcm_delay.process(
-                self.output_buffer[:len(audio)])
+            self.output_buffer[: len(audio)] = self.vcm_delay.process(
+                self.output_buffer[: len(audio)]
+            )
 
         # 5. Reverb (if enabled)
         if self.vcm_reverb.enabled:
-            self.output_buffer[:len(audio)] = self.vcm_reverb.process(
-                self.output_buffer[:len(audio)])
+            self.output_buffer[: len(audio)] = self.vcm_reverb.process(
+                self.output_buffer[: len(audio)]
+            )
 
-        return self.output_buffer[:len(audio)]
+        return self.output_buffer[: len(audio)]
 
     def _apply_vcm_parameters(self, parameters: dict[str, Any]):
         """Apply VCM parameter settings to individual processors."""
         # Distortion parameters
-        if 'distortion_drive' in parameters:
-            self.vcm_distortion.drive = parameters['distortion_drive'] / 127.0
-        if 'distortion_tone' in parameters:
-            self.vcm_distortion.tone = parameters['distortion_tone'] / 127.0
-        if 'distortion_type' in parameters:
-            self.vcm_distortion.distortion_type = parameters['distortion_type']
+        if "distortion_drive" in parameters:
+            self.vcm_distortion.drive = parameters["distortion_drive"] / 127.0
+        if "distortion_tone" in parameters:
+            self.vcm_distortion.tone = parameters["distortion_tone"] / 127.0
+        if "distortion_type" in parameters:
+            self.vcm_distortion.distortion_type = parameters["distortion_type"]
 
         # Phaser parameters
-        if 'phaser_rate' in parameters:
-            self.vcm_phaser.rate = parameters['phaser_rate'] / 127.0
-        if 'phaser_depth' in parameters:
-            self.vcm_phaser.depth = parameters['phaser_depth'] / 127.0
-        if 'phaser_feedback' in parameters:
-            self.vcm_phaser.feedback = parameters['phaser_feedback'] / 127.0
+        if "phaser_rate" in parameters:
+            self.vcm_phaser.rate = parameters["phaser_rate"] / 127.0
+        if "phaser_depth" in parameters:
+            self.vcm_phaser.depth = parameters["phaser_depth"] / 127.0
+        if "phaser_feedback" in parameters:
+            self.vcm_phaser.feedback = parameters["phaser_feedback"] / 127.0
 
         # Chorus parameters
-        if 'chorus_rate' in parameters:
-            self.vcm_chorus.rate = parameters['chorus_rate'] / 127.0
-        if 'chorus_depth' in parameters:
-            self.vcm_chorus.depth = parameters['chorus_depth'] / 127.0
-        if 'chorus_delay' in parameters:
-            self.vcm_chorus.delay_time = 0.001 + (parameters['chorus_delay'] / 127.0) * 0.01
+        if "chorus_rate" in parameters:
+            self.vcm_chorus.rate = parameters["chorus_rate"] / 127.0
+        if "chorus_depth" in parameters:
+            self.vcm_chorus.depth = parameters["chorus_depth"] / 127.0
+        if "chorus_delay" in parameters:
+            self.vcm_chorus.delay_time = 0.001 + (parameters["chorus_delay"] / 127.0) * 0.01
 
         # Delay parameters
-        if 'delay_time' in parameters:
-            self.vcm_delay.delay_time = 0.01 + (parameters['delay_time'] / 127.0) * 1.0
-        if 'delay_feedback' in parameters:
-            self.vcm_delay.feedback = parameters['delay_feedback'] / 127.0
-        if 'delay_mix' in parameters:
-            self.vcm_delay.mix = parameters['delay_mix'] / 127.0
+        if "delay_time" in parameters:
+            self.vcm_delay.delay_time = 0.01 + (parameters["delay_time"] / 127.0) * 1.0
+        if "delay_feedback" in parameters:
+            self.vcm_delay.feedback = parameters["delay_feedback"] / 127.0
+        if "delay_mix" in parameters:
+            self.vcm_delay.mix = parameters["delay_mix"] / 127.0
 
         # Reverb parameters
-        if 'reverb_time' in parameters:
-            self.vcm_reverb.decay_time = 0.1 + (parameters['reverb_time'] / 127.0) * 5.0
-        if 'reverb_mix' in parameters:
-            self.vcm_reverb.mix = parameters['reverb_mix'] / 127.0
+        if "reverb_time" in parameters:
+            self.vcm_reverb.decay_time = 0.1 + (parameters["reverb_time"] / 127.0) * 5.0
+        if "reverb_mix" in parameters:
+            self.vcm_reverb.mix = parameters["reverb_mix"] / 127.0
 
     def enable_vcm_effect(self, effect_name: str, enabled: bool = True):
         """
@@ -157,11 +164,11 @@ class JupiterXVCMEffects:
             enabled: Whether to enable the effect
         """
         effect_map = {
-            'distortion': self.vcm_distortion,
-            'phaser': self.vcm_phaser,
-            'chorus': self.vcm_chorus,
-            'delay': self.vcm_delay,
-            'reverb': self.vcm_reverb
+            "distortion": self.vcm_distortion,
+            "phaser": self.vcm_phaser,
+            "chorus": self.vcm_chorus,
+            "delay": self.vcm_delay,
+            "reverb": self.vcm_reverb,
         }
 
         if effect_name in effect_map:
@@ -175,36 +182,36 @@ class JupiterXVCMEffects:
             Dictionary with VCM effects status
         """
         return {
-            'vcm_enabled': self.vcm_enabled,
-            'distortion': {
-                'enabled': self.vcm_distortion.enabled,
-                'drive': self.vcm_distortion.drive,
-                'tone': self.vcm_distortion.tone,
-                'type': self.vcm_distortion.distortion_type
+            "vcm_enabled": self.vcm_enabled,
+            "distortion": {
+                "enabled": self.vcm_distortion.enabled,
+                "drive": self.vcm_distortion.drive,
+                "tone": self.vcm_distortion.tone,
+                "type": self.vcm_distortion.distortion_type,
             },
-            'phaser': {
-                'enabled': self.vcm_phaser.enabled,
-                'rate': self.vcm_phaser.rate,
-                'depth': self.vcm_phaser.depth,
-                'feedback': self.vcm_phaser.feedback
+            "phaser": {
+                "enabled": self.vcm_phaser.enabled,
+                "rate": self.vcm_phaser.rate,
+                "depth": self.vcm_phaser.depth,
+                "feedback": self.vcm_phaser.feedback,
             },
-            'chorus': {
-                'enabled': self.vcm_chorus.enabled,
-                'rate': self.vcm_chorus.rate,
-                'depth': self.vcm_chorus.depth,
-                'delay': self.vcm_chorus.delay_time
+            "chorus": {
+                "enabled": self.vcm_chorus.enabled,
+                "rate": self.vcm_chorus.rate,
+                "depth": self.vcm_chorus.depth,
+                "delay": self.vcm_chorus.delay_time,
             },
-            'delay': {
-                'enabled': self.vcm_delay.enabled,
-                'time': self.vcm_delay.delay_time,
-                'feedback': self.vcm_delay.feedback,
-                'mix': self.vcm_delay.mix
+            "delay": {
+                "enabled": self.vcm_delay.enabled,
+                "time": self.vcm_delay.delay_time,
+                "feedback": self.vcm_delay.feedback,
+                "mix": self.vcm_delay.mix,
             },
-            'reverb': {
-                'enabled': self.vcm_reverb.enabled,
-                'decay_time': self.vcm_reverb.decay_time,
-                'mix': self.vcm_reverb.mix
-            }
+            "reverb": {
+                "enabled": self.vcm_reverb.enabled,
+                "decay_time": self.vcm_reverb.decay_time,
+                "mix": self.vcm_reverb.mix,
+            },
         }
 
     def reset_vcm_effects(self):
@@ -223,7 +230,7 @@ class JupiterXVCMDistortion:
         self.sample_rate = sample_rate
         self.enabled = False
         self.drive = 0.0  # 0-1
-        self.tone = 0.5   # 0-1
+        self.tone = 0.5  # 0-1
         self.distortion_type = 0  # 0=overdrive, 1=distortion, 2=fuzz
 
         # Internal state
@@ -237,7 +244,7 @@ class JupiterXVCMDistortion:
         processed = np.copy(audio)
 
         # Apply drive
-        processed *= (1.0 + self.drive * 3.0)
+        processed *= 1.0 + self.drive * 3.0
 
         # Apply distortion based on type
         if self.distortion_type == 0:  # Overdrive
@@ -246,9 +253,11 @@ class JupiterXVCMDistortion:
         elif self.distortion_type == 1:  # Distortion
             # Hard clipping with asymmetric response
             threshold = 0.7
-            processed = np.where(np.abs(processed) < threshold,
-                               processed,
-                               np.sign(processed) * (threshold + (np.abs(processed) - threshold) * 0.3))
+            processed = np.where(
+                np.abs(processed) < threshold,
+                processed,
+                np.sign(processed) * (threshold + (np.abs(processed) - threshold) * 0.3),
+            )
         elif self.distortion_type == 2:  # Fuzz
             # Extreme distortion with octave up
             sign = np.sign(processed)
@@ -262,13 +271,13 @@ class JupiterXVCMDistortion:
             alpha = 0.1 + self.tone * 0.4
             # Simple lowpass
             for i in range(1, len(processed)):
-                processed[i] = alpha * processed[i] + (1 - alpha) * processed[i-1]
+                processed[i] = alpha * processed[i] + (1 - alpha) * processed[i - 1]
         elif self.tone > 0.5:
             # Brighter tone - boost highs
             alpha = 0.6 + (self.tone - 0.5) * 0.4
             # Simple highpass
             for i in range(1, len(processed)):
-                processed[i] = alpha * (processed[i] - processed[i-1] + processed[i-1])
+                processed[i] = alpha * (processed[i] - processed[i - 1] + processed[i - 1])
 
         return processed
 
@@ -287,8 +296,8 @@ class JupiterXVCMPhaser:
     def __init__(self, sample_rate: int):
         self.sample_rate = sample_rate
         self.enabled = False
-        self.rate = 0.5    # 0-1
-        self.depth = 0.6   # 0-1
+        self.rate = 0.5  # 0-1
+        self.depth = 0.6  # 0-1
         self.feedback = 0.3  # 0-1
 
         # Phaser state
@@ -349,8 +358,8 @@ class JupiterXVCMChorus:
     def __init__(self, sample_rate: int):
         self.sample_rate = sample_rate
         self.enabled = False
-        self.rate = 0.5      # 0-1
-        self.depth = 0.6     # 0-1
+        self.rate = 0.5  # 0-1
+        self.depth = 0.6  # 0-1
         self.delay_time = 0.005  # 5ms base delay
 
         # Chorus state
@@ -409,8 +418,8 @@ class JupiterXVCMDelay:
         self.sample_rate = sample_rate
         self.enabled = False
         self.delay_time = 0.3  # 300ms
-        self.feedback = 0.3    # 0-1
-        self.mix = 0.3         # 0-1
+        self.feedback = 0.3  # 0-1
+        self.mix = 0.3  # 0-1
 
         # Delay state
         max_delay = int(sample_rate * 2.0)  # 2 seconds max
@@ -460,7 +469,7 @@ class JupiterXVCMReverb:
         self.sample_rate = sample_rate
         self.enabled = False
         self.decay_time = 2.0  # 2 seconds
-        self.mix = 0.3         # 0-1
+        self.mix = 0.3  # 0-1
 
         # Professional reverb state with comb and allpass filter network
         # Implements modified Schroeder reverb topology
@@ -470,20 +479,16 @@ class JupiterXVCMReverb:
         # Initialize comb filters with prime number delays for smooth reverb tail
         for delay_ms in [29.7, 37.1, 41.1, 43.7]:  # Prime delays in ms
             delay_samples = int((delay_ms / 1000.0) * sample_rate)
-            self.comb_filters.append({
-                'buffer': np.zeros(delay_samples, dtype=np.float32),
-                'index': 0,
-                'feedback': 0.84
-            })
+            self.comb_filters.append(
+                {"buffer": np.zeros(delay_samples, dtype=np.float32), "index": 0, "feedback": 0.84}
+            )
 
         # Initialize allpass filters for diffusion
         for delay_ms in [5.0, 1.7]:  # Allpass delays in ms
             delay_samples = int((delay_ms / 1000.0) * sample_rate)
-            self.allpass_filters.append({
-                'buffer': np.zeros(delay_samples, dtype=np.float32),
-                'index': 0,
-                'feedback': 0.7
-            })
+            self.allpass_filters.append(
+                {"buffer": np.zeros(delay_samples, dtype=np.float32), "index": 0, "feedback": 0.7}
+            )
 
     def process(self, audio: np.ndarray) -> np.ndarray:
         """Process audio through VCM reverb."""
@@ -498,16 +503,16 @@ class JupiterXVCMReverb:
             comb_output = np.zeros_like(audio)
             for i in range(len(audio)):
                 # Get delayed sample
-                delay_index = (comb['index'] - len(comb['buffer'])) % len(comb['buffer'])
-                delayed_sample = comb['buffer'][delay_index]
+                delay_index = (comb["index"] - len(comb["buffer"])) % len(comb["buffer"])
+                delayed_sample = comb["buffer"][delay_index]
 
                 # Comb filter
-                output_sample = audio[i] + delayed_sample * comb['feedback']
+                output_sample = audio[i] + delayed_sample * comb["feedback"]
                 comb_output[i] = output_sample
 
                 # Store in buffer
-                comb['buffer'][comb['index']] = output_sample
-                comb['index'] = (comb['index'] + 1) % len(comb['buffer'])
+                comb["buffer"][comb["index"]] = output_sample
+                comb["index"] = (comb["index"] + 1) % len(comb["buffer"])
 
             wet_signal += comb_output
 
@@ -517,16 +522,16 @@ class JupiterXVCMReverb:
         for allpass in self.allpass_filters:
             for i in range(len(wet_signal)):
                 # Get delayed sample
-                delay_index = (allpass['index'] - len(allpass['buffer'])) % len(allpass['buffer'])
-                delayed_sample = allpass['buffer'][delay_index]
+                delay_index = (allpass["index"] - len(allpass["buffer"])) % len(allpass["buffer"])
+                delayed_sample = allpass["buffer"][delay_index]
 
                 # Allpass filter
-                output_sample = wet_signal[i] + delayed_sample * allpass['feedback']
-                wet_signal[i] = delayed_sample - output_sample * allpass['feedback']
+                output_sample = wet_signal[i] + delayed_sample * allpass["feedback"]
+                wet_signal[i] = delayed_sample - output_sample * allpass["feedback"]
 
                 # Store in buffer
-                allpass['buffer'][allpass['index']] = output_sample
-                allpass['index'] = (allpass['index'] + 1) % len(allpass['buffer'])
+                allpass["buffer"][allpass["index"]] = output_sample
+                allpass["index"] = (allpass["index"] + 1) % len(allpass["buffer"])
 
         # Mix dry and wet signals
         processed = processed * (1.0 - self.mix) + wet_signal * self.mix
@@ -540,9 +545,9 @@ class JupiterXVCMReverb:
         self.mix = 0.3
 
         for comb in self.comb_filters:
-            comb['buffer'].fill(0)
-            comb['index'] = 0
+            comb["buffer"].fill(0)
+            comb["index"] = 0
 
         for allpass in self.allpass_filters:
-            allpass['buffer'].fill(0)
-            allpass['index'] = 0
+            allpass["buffer"].fill(0)
+            allpass["index"] = 0

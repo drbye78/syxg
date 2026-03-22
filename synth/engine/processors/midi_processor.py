@@ -4,22 +4,15 @@ MIDI Processing System - Complete MIDI Message Handling
 Production-quality MIDI message processing for XG/GS/MPE synthesizer with
 complete protocol support and sample-perfect timing.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
-import threading
-import time
 import math
 import struct
-from pathlib import Path
-import os
-import hashlib
-import weakref
+import threading
 
-from ...midi.realtime import RealtimeParser
 from ...midi.message import MIDIMessage
-from ...midi.ump_packets import MIDI1ToMIDI2Converter
+from ...midi.realtime import RealtimeParser
 
 
 class MIDIMessageProcessor:
@@ -53,33 +46,34 @@ class MIDIMessageProcessor:
         with self.lock:
             # Check if this looks like UMP data (starts with valid UMP message type)
             if len(message_bytes) >= 4:
-                first_word = struct.unpack('>I', message_bytes[:4])[0]
+                first_word = struct.unpack(">I", message_bytes[:4])[0]
                 ump_type = (first_word >> 28) & 0xF
-                
+
                 # If it's a valid UMP message type, treat as UMP
                 if ump_type in [0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0xF]:
                     # Process as UMP packets
                     ump_packets = self.parser.ump_parser.parse_packet_stream(message_bytes)
                     for packet in ump_packets:
                         # Convert UMP packet to MIDIMessage and process
-                        if hasattr(self.parser, '_convert_ump_to_midimessage'):
+                        if hasattr(self.parser, "_convert_ump_to_midimessage"):
                             midi_message = self.parser._convert_ump_to_midimessage(packet)
                             if midi_message:
                                 self._process_standard_midi(midi_message)
                     return
 
             # Check for XG receive channel SYSEX first
-            if (self.synthesizer.xg_enabled and
-                self._is_receive_channel_sysex(message_bytes)):
+            if self.synthesizer.xg_enabled and self._is_receive_channel_sysex(message_bytes):
                 self._handle_receive_channel_sysex(message_bytes)
-                if hasattr(self.synthesizer, 'performance_monitor'):
+                if hasattr(self.synthesizer, "performance_monitor"):
                     self.synthesizer.performance_monitor.update(xg_messages_processed=1)
                 return
 
             # GS processing if enabled (GS SYSEX)
-            if (self.synthesizer.gs_enabled and
-                hasattr(self.synthesizer, 'gs_midi_processor') and
-                self.synthesizer.gs_midi_processor.process_message(message_bytes)):
+            if (
+                self.synthesizer.gs_enabled
+                and hasattr(self.synthesizer, "gs_midi_processor")
+                and self.synthesizer.gs_midi_processor.process_message(message_bytes)
+            ):
                 return  # GS handled it
 
             # Parse raw bytes to MIDIMessage
@@ -91,10 +85,12 @@ class MIDIMessageProcessor:
             # Process each parsed message
             for midi_message in midi_messages:
                 # XG processing first if enabled
-                if (self.synthesizer.xg_enabled and
-                    hasattr(self.synthesizer, 'xg_midi_processor') and
-                    self.synthesizer.xg_midi_processor.process_message(message_bytes)):
-                    if hasattr(self.synthesizer, 'performance_monitor'):
+                if (
+                    self.synthesizer.xg_enabled
+                    and hasattr(self.synthesizer, "xg_midi_processor")
+                    and self.synthesizer.xg_midi_processor.process_message(message_bytes)
+                ):
+                    if hasattr(self.synthesizer, "performance_monitor"):
                         self.synthesizer.performance_monitor.update(xg_messages_processed=1)
                     return  # XG handled it
 
@@ -143,11 +139,13 @@ class MIDIMessageProcessor:
         if not (0 <= part_id <= 15):  # Valid XG part numbers
             return False
 
-        if not (0 <= channel <= 15 or channel == 254 or channel == 255):  # Valid channel numbers (0-15, 254=OFF, 255=ALL)
+        if not (
+            0 <= channel <= 15 or channel == 254 or channel == 255
+        ):  # Valid channel numbers (0-15, 254=OFF, 255=ALL)
             return False
 
         # Check device ID matches our device (if synthesizer has device_id attribute)
-        if hasattr(self.synthesizer, 'device_id'):
+        if hasattr(self.synthesizer, "device_id"):
             if data[2] != self.synthesizer.device_id:
                 return False
 
@@ -160,7 +158,9 @@ class MIDIMessageProcessor:
         Args:
             data: Raw SYSEX data
         """
-        if not self.synthesizer.xg_enabled or not hasattr(self.synthesizer, 'receive_channel_manager'):
+        if not self.synthesizer.xg_enabled or not hasattr(
+            self.synthesizer, "receive_channel_manager"
+        ):
             return
 
         # Extract part and channel from SYSEX data
@@ -179,8 +179,10 @@ class MIDIMessageProcessor:
 
         # Set the receive channel mapping
         if self.synthesizer.receive_channel_manager.set_receive_channel(part_id, midi_channel):
-            print(f"XG SYSEX: Part {part_id} receive channel set to "
-                  f"{'MIDI CH ' + str(midi_channel) if midi_channel < 16 else 'ALL' if midi_channel == 255 else 'OFF'}")
+            print(
+                f"XG SYSEX: Part {part_id} receive channel set to "
+                f"{'MIDI CH ' + str(midi_channel) if midi_channel < 16 else 'ALL' if midi_channel == 255 else 'OFF'}"
+            )
 
     def _process_standard_midi(self, midi_message):
         """
@@ -190,18 +192,22 @@ class MIDIMessageProcessor:
             midi_message: Parsed MIDIMessage object
         """
         # Handle SYSEX and other system messages that don't have channels
-        if midi_message.type == 'sysex':
+        if midi_message.type == "sysex":
             # Reconstruct SYSEX bytes from parsed message
-            sysex_data = midi_message.data.get('raw_data', [])
+            sysex_data = midi_message.data.get("raw_data", [])
 
             # Process Arpeggiator SYSEX messages first (Yamaha Motif)
-            if hasattr(self.synthesizer, 'arpeggiator_sysex_controller'):
-                result = self.synthesizer.arpeggiator_sysex_controller.process_sysex_message(bytes(sysex_data))
+            if hasattr(self.synthesizer, "arpeggiator_sysex_controller"):
+                result = self.synthesizer.arpeggiator_sysex_controller.process_sysex_message(
+                    bytes(sysex_data)
+                )
                 if result:
                     return  # Arpeggiator SYSEX handled it
 
             # Process GS SYSEX messages
-            if self.synthesizer.gs_enabled and self.synthesizer.gs_midi_processor.process_message(bytes(sysex_data)):
+            if self.synthesizer.gs_enabled and self.synthesizer.gs_midi_processor.process_message(
+                bytes(sysex_data)
+            ):
                 return  # GS handled it
 
             # Process XG SYSEX messages
@@ -224,14 +230,19 @@ class MIDIMessageProcessor:
             return
 
         # Arpeggiator processing first (Yamaha Motif style)
-        if hasattr(self.synthesizer, 'arpeggiator_system') and midi_message.type in ['note_on', 'note_off']:
+        if hasattr(self.synthesizer, "arpeggiator_system") and midi_message.type in [
+            "note_on",
+            "note_off",
+        ]:
             arpeggiator_status = self.synthesizer.arpeggiator_system.get_arpeggiator_status()
-            if arpeggiator_status and arpeggiator_status.get('enabled', False):
+            if arpeggiator_status and arpeggiator_status.get("enabled", False):
                 # Arpeggiator is active - let it handle the note through the system
-                note = midi_message.data.get('note', 60)
-                velocity = midi_message.data.get('velocity', 64)
-                if midi_message.type == 'note_on':
-                    self.synthesizer.arpeggiator_system.process_note_on(midi_channel, note, velocity)
+                note = midi_message.data.get("note", 60)
+                velocity = midi_message.data.get("velocity", 64)
+                if midi_message.type == "note_on":
+                    self.synthesizer.arpeggiator_system.process_note_on(
+                        midi_channel, note, velocity
+                    )
                 else:  # note_off
                     self.synthesizer.arpeggiator_system.process_note_off(midi_channel, note)
                 # Arpeggiator will generate its own note events via callbacks
@@ -239,8 +250,10 @@ class MIDIMessageProcessor:
             # Arpeggiator is inactive - continue with normal processing
 
         # XG receive channel mapping - route message to appropriate parts
-        if self.synthesizer.xg_enabled and hasattr(self.synthesizer, 'receive_channel_manager'):
-            target_parts = self.synthesizer.receive_channel_manager.get_parts_for_midi_channel(midi_channel)
+        if self.synthesizer.xg_enabled and hasattr(self.synthesizer, "receive_channel_manager"):
+            target_parts = self.synthesizer.receive_channel_manager.get_parts_for_midi_channel(
+                midi_channel
+            )
 
             if target_parts:
                 # Route message to all target parts
@@ -254,7 +267,7 @@ class MIDIMessageProcessor:
                     modified_message = self._apply_xg_channel_modifications(part_id, midi_message)
 
                     # Update channel XG state from message metadata
-                    if hasattr(modified_message, '_xg_metadata'):
+                    if hasattr(modified_message, "_xg_metadata"):
                         target_channel.update_xg_state_from_message(modified_message._xg_metadata)
 
                     # Process message based on type
@@ -263,7 +276,9 @@ class MIDIMessageProcessor:
                 # No specific mapping, use default 1:1
                 if midi_channel < len(self.synthesizer.channels):
                     target_channel = self.synthesizer.channels[midi_channel]
-                    modified_message = self._apply_xg_channel_modifications(midi_channel, midi_message)
+                    modified_message = self._apply_xg_channel_modifications(
+                        midi_channel, midi_message
+                    )
                     self._process_message_on_channel(target_channel, modified_message)
         else:
             # Fallback to direct 1:1 mapping when XG is disabled or manager not available
@@ -283,32 +298,39 @@ class MIDIMessageProcessor:
         msg_type = midi_message.type
         midi_channel = midi_message.channel
 
-        if msg_type == 'note_off':
-            note = midi_message.data.get('note', 60)
-            velocity = midi_message.data.get('velocity', 0)
+        if msg_type == "note_off":
+            note = midi_message.data.get("note", 60)
+            velocity = midi_message.data.get("velocity", 0)
             self.synthesizer._process_note_off_mpe(midi_channel, note, velocity)
-        elif msg_type == 'note_on':
-            note = midi_message.data.get('note', 60)
-            velocity = midi_message.data.get('velocity', 64)
+        elif msg_type == "note_on":
+            note = midi_message.data.get("note", 60)
+            velocity = midi_message.data.get("velocity", 64)
             if velocity == 0:
                 self.synthesizer._process_note_off_mpe(midi_channel, note, velocity)
             else:
                 self.synthesizer._process_note_on_mpe(midi_channel, note, velocity)
-        elif msg_type == 'poly_pressure':
-            note = midi_message.data.get('note', 60)
-            pressure = midi_message.data.get('pressure', 0)
+        elif msg_type == "poly_pressure":
+            note = midi_message.data.get("note", 60)
+            pressure = midi_message.data.get("pressure", 0)
             self.synthesizer._process_poly_pressure_mpe(midi_channel, note, pressure)
-        elif msg_type == 'control_change':
-            controller = midi_message.data.get('controller', 0)
-            value = midi_message.data.get('value', 0)
+        elif msg_type == "control_change":
+            controller = midi_message.data.get("controller", 0)
+            value = midi_message.data.get("value", 0)
 
             # MPE controller processing (highest priority)
-            if self.synthesizer.mpe_enabled and self.synthesizer._process_mpe_controller(midi_channel, controller, value):
+            if self.synthesizer.mpe_enabled and self.synthesizer._process_mpe_controller(
+                midi_channel, controller, value
+            ):
                 return  # MPE controller handled it
 
             # Arpeggiator NRPN processing (Yamaha Motif style - highest priority)
-            if hasattr(self.synthesizer, 'arpeggiator_nrpn_controller') and self.synthesizer.arpeggiator_nrpn_controller:
-                if self.synthesizer.arpeggiator_nrpn_controller.process_nrpn_message(controller, value):
+            if (
+                hasattr(self.synthesizer, "arpeggiator_nrpn_controller")
+                and self.synthesizer.arpeggiator_nrpn_controller
+            ):
+                if self.synthesizer.arpeggiator_nrpn_controller.process_nrpn_message(
+                    controller, value
+                ):
                     return  # Arpeggiator NRPN handled it
 
             # GS NRPN processing (GS uses NRPN for parameter control)
@@ -318,23 +340,25 @@ class MIDIMessageProcessor:
 
             # XG controller processing
             if self.synthesizer.xg_enabled:
-                applied = self.synthesizer.xg_components.get_component('controllers').apply_controller_value(
-                    target_channel.channel_number, controller, value
-                )
+                applied = self.synthesizer.xg_components.get_component(
+                    "controllers"
+                ).apply_controller_value(target_channel.channel_number, controller, value)
                 if applied:
                     return  # XG controller handled it
 
             target_channel.control_change(controller, value)
-        elif msg_type == 'program_change':
-            program = midi_message.data.get('program', 0)
+        elif msg_type == "program_change":
+            program = midi_message.data.get("program", 0)
             target_channel.program_change(program)
-        elif msg_type == 'channel_pressure':
-            pressure = midi_message.data.get('pressure', 0)
+        elif msg_type == "channel_pressure":
+            pressure = midi_message.data.get("pressure", 0)
             target_channel.set_channel_pressure(pressure)
-        elif msg_type == 'pitch_bend':
+        elif msg_type == "pitch_bend":
             # Check for MPE pitch bend first
-            pitch_value = midi_message.data.get('value', midi_message.data.get('pitch', 0))
-            if self.synthesizer.mpe_enabled and self.synthesizer._process_pitch_bend_mpe(midi_channel, pitch_value):
+            pitch_value = midi_message.data.get("value", midi_message.data.get("pitch", 0))
+            if self.synthesizer.mpe_enabled and self.synthesizer._process_pitch_bend_mpe(
+                midi_channel, pitch_value
+            ):
                 return  # MPE handled it
 
             # Convert pitch bend value to LSB/MSB for regular processing
@@ -353,7 +377,9 @@ class MIDIMessageProcessor:
         Returns:
             Modified MIDI message with XG transformations applied
         """
-        if not self.synthesizer.xg_enabled or not hasattr(self.synthesizer.channels[channel], 'xg_config'):
+        if not self.synthesizer.xg_enabled or not hasattr(
+            self.synthesizer.channels[channel], "xg_config"
+        ):
             return midi_message
 
         xg_config = self.synthesizer.channels[channel].xg_config
@@ -365,60 +391,60 @@ class MIDIMessageProcessor:
         modified_data = midi_message.data.copy()
 
         # Apply part level (volume scaling)
-        if 'part_level' in xg_config and xg_config['part_level'] != 100:
-            level_scale = xg_config['part_level'] / 100.0
-            if midi_message.type == 'note_on' and 'velocity' in modified_data:
+        if "part_level" in xg_config and xg_config["part_level"] != 100:
+            level_scale = xg_config["part_level"] / 100.0
+            if midi_message.type == "note_on" and "velocity" in modified_data:
                 # Scale velocity by part level
-                modified_velocity = max(1, int(modified_data['velocity'] * level_scale))
-                modified_data['velocity'] = modified_velocity
-                xg_metadata['velocity_scaled'] = True
-                xg_metadata['original_velocity'] = modified_data['velocity']
+                modified_velocity = max(1, int(modified_data["velocity"] * level_scale))
+                modified_data["velocity"] = modified_velocity
+                xg_metadata["velocity_scaled"] = True
+                xg_metadata["original_velocity"] = modified_data["velocity"]
 
         # Apply part pan (calculate pan gains for stereo output)
-        if 'part_pan' in xg_config and xg_config['part_pan'] != 64:
-            pan_position = (xg_config['part_pan'] - 64) / 63.0  # Convert to -1.0 to +1.0
+        if "part_pan" in xg_config and xg_config["part_pan"] != 64:
+            pan_position = (xg_config["part_pan"] - 64) / 63.0  # Convert to -1.0 to +1.0
             left_gain, right_gain = self._calculate_pan_gains(pan_position)
-            xg_metadata['pan_left_gain'] = left_gain
-            xg_metadata['pan_right_gain'] = right_gain
-            xg_metadata['pan_position'] = pan_position
+            xg_metadata["pan_left_gain"] = left_gain
+            xg_metadata["pan_right_gain"] = right_gain
+            xg_metadata["pan_position"] = pan_position
 
         # Handle drum kit assignments for percussion channel
-        if channel == 9 and 'drum_kit' in xg_config:  # Channel 10 (0-indexed as 9)
-            kit_number = xg_config['drum_kit']
-            if midi_message.type in ['note_on', 'note_off'] and 'note' in modified_data:
+        if channel == 9 and "drum_kit" in xg_config:  # Channel 10 (0-indexed as 9)
+            kit_number = xg_config["drum_kit"]
+            if midi_message.type in ["note_on", "note_off"] and "note" in modified_data:
                 # Apply drum kit note remapping
-                original_note = modified_data['note']
+                original_note = modified_data["note"]
                 remapped_note = self._remap_drum_note(original_note, kit_number)
                 if remapped_note != original_note:
-                    xg_metadata['original_note'] = original_note
-                    xg_metadata['drum_kit_applied'] = kit_number
-                    modified_data['note'] = remapped_note
+                    xg_metadata["original_note"] = original_note
+                    xg_metadata["drum_kit_applied"] = kit_number
+                    modified_data["note"] = remapped_note
 
         # Apply effects sends (store routing information for channel processing)
-        if 'effects_sends' in xg_config:
-            effects_sends = xg_config['effects_sends']
-            xg_metadata['effects_routing'] = {
-                'reverb_send': effects_sends.get('reverb', 40) / 127.0,  # Normalize to 0.0-1.0
-                'chorus_send': effects_sends.get('chorus', 0) / 127.0,
-                'variation_send': effects_sends.get('variation', 0) / 127.0
+        if "effects_sends" in xg_config:
+            effects_sends = xg_config["effects_sends"]
+            xg_metadata["effects_routing"] = {
+                "reverb_send": effects_sends.get("reverb", 40) / 127.0,  # Normalize to 0.0-1.0
+                "chorus_send": effects_sends.get("chorus", 0) / 127.0,
+                "variation_send": effects_sends.get("variation", 0) / 127.0,
             }
 
         # Apply part mode modifications
-        if 'part_mode' in xg_config:
-            part_mode = xg_config['part_mode']
+        if "part_mode" in xg_config:
+            part_mode = xg_config["part_mode"]
             if part_mode == 0:  # Normal mode - polyphonic
-                xg_metadata['part_mode'] = 'normal'
+                xg_metadata["part_mode"] = "normal"
             elif part_mode == 1:  # Single mode - monophonic
-                xg_metadata['part_mode'] = 'single'
-                xg_metadata['monophonic'] = True
+                xg_metadata["part_mode"] = "single"
+                xg_metadata["monophonic"] = True
             elif part_mode == 2:  # Layer mode - allow layering
-                xg_metadata['part_mode'] = 'layer'
-                xg_metadata['layered'] = True
+                xg_metadata["part_mode"] = "layer"
+                xg_metadata["layered"] = True
 
         # Apply voice reserve information
-        if 'voice_reserve' in xg_config:
-            voice_reserve = xg_config['voice_reserve']
-            xg_metadata['voice_reserve'] = voice_reserve
+        if "voice_reserve" in xg_config:
+            voice_reserve = xg_config["voice_reserve"]
+            xg_metadata["voice_reserve"] = voice_reserve
 
         # Create new message with modified data if any changes were made
         if modified_data != midi_message.data:
@@ -426,14 +452,14 @@ class MIDIMessageProcessor:
                 type=midi_message.type,
                 channel=midi_message.channel,
                 data=modified_data,
-                timestamp=midi_message.timestamp
+                timestamp=midi_message.timestamp,
             )
         else:
             modified_message = midi_message
 
         # Attach metadata to message (using setattr to avoid type checker issues)
         if xg_metadata:
-            setattr(modified_message, '_xg_metadata', xg_metadata)
+            modified_message._xg_metadata = xg_metadata
 
         return modified_message
 
@@ -477,8 +503,8 @@ class MIDIMessageProcessor:
             return note
 
         # Get drum kit configuration from XG components
-        drum_setup = self.synthesizer.xg_components.get_component('drum_setup')
-        if drum_setup and hasattr(drum_setup, 'get_drum_kit_mapping'):
+        drum_setup = self.synthesizer.xg_components.get_component("drum_setup")
+        if drum_setup and hasattr(drum_setup, "get_drum_kit_mapping"):
             # Get note mapping for this kit
             kit_mapping = drum_setup.get_drum_kit_mapping(kit_number)
             if kit_mapping and note in kit_mapping:

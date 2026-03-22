@@ -3,10 +3,11 @@ Song Mode - Advanced Sequencer Capabilities
 
 Provides song mode functionality for multi-track sequencing and arrangement.
 """
+
 from __future__ import annotations
 
-from typing import Any
 import threading
+from typing import Any
 
 
 class SongMode:
@@ -135,9 +136,7 @@ class SongMode:
 
             return True
 
-    def add_control_change(
-        self, track_number: int, tick: int, controller: int, value: int
-    ) -> bool:
+    def add_control_change(self, track_number: int, tick: int, controller: int, value: int) -> bool:
         """
         Add a control change event.
 
@@ -186,9 +185,7 @@ class SongMode:
 
             return True
 
-    def add_time_signature_change(
-        self, tick: int, numerator: int, denominator: int
-    ) -> bool:
+    def add_time_signature_change(self, tick: int, numerator: int, denominator: int) -> bool:
         """
         Add a time signature change.
 
@@ -300,19 +297,13 @@ class SongMode:
             # Check track events
             for track_data in self.tracks.values():
                 if track_data["events"]:
-                    max_tick = max(
-                        max_tick, max(event["tick"] for event in track_data["events"])
-                    )
+                    max_tick = max(max_tick, max(event["tick"] for event in track_data["events"]))
 
             # Check tempo and time signature events
             if self.tempo_events:
-                max_tick = max(
-                    max_tick, max(event["tick"] for event in self.tempo_events)
-                )
+                max_tick = max(max_tick, max(event["tick"] for event in self.tempo_events))
             if self.time_signature_events:
-                max_tick = max(
-                    max_tick, max(event["tick"] for event in self.time_signature_events)
-                )
+                max_tick = max(max_tick, max(event["tick"] for event in self.time_signature_events))
 
             self.song_length_ticks = max_tick
 
@@ -355,15 +346,11 @@ class SongMode:
                 "current_position": self.current_position,
                 "song_length": self.song_length_ticks,
                 "tempo": self.get_tempo_at_tick(self.current_position),
-                "time_signature": self.get_time_signature_at_tick(
-                    self.current_position
-                ),
+                "time_signature": self.get_time_signature_at_tick(self.current_position),
                 "loop_enabled": self.loop_enabled,
                 "loop_start": self.loop_start,
                 "loop_end": self.loop_end,
-                "active_tracks": len(
-                    [t for t in self.tracks.values() if not t["muted"]]
-                ),
+                "active_tracks": len([t for t in self.tracks.values() if not t["muted"]]),
             }
 
     def clear_track(self, track_number: int) -> bool:
@@ -428,8 +415,8 @@ class SongMode:
             Success status
         """
         try:
+
             from ..midi.file_handler import MIDIFileHandler
-            import os
 
             handler = MIDIFileHandler()
 
@@ -484,9 +471,7 @@ class SongMode:
                 midi_track = []
 
                 # Add track name
-                midi_track.append(
-                    {"type": "track_name", "ticks": 0, "name": track_data["name"]}
-                )
+                midi_track.append({"type": "track_name", "ticks": 0, "name": track_data["name"]})
 
                 # Add MIDI events
                 for event in track_data["events"]:

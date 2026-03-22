@@ -7,8 +7,8 @@ providing comprehensive parameter access via MIDI NRPN messages.
 
 from __future__ import annotations
 
-from typing import Any
 import threading
+from typing import Any
 
 
 class JV2080NRPNController:
@@ -772,7 +772,7 @@ class JV2080NRPNController:
                 parameters.append(
                     {"address": f"{msb:02X}:{lsb:02X}", "msb": msb, "lsb": lsb, **param_info}
                 )
-            elif category == "effects" and msb in [0x03, 0x04, 0x05] or 0x40 <= msb <= 0x47:
+            elif (category == "effects" and msb in [0x03, 0x04, 0x05]) or 0x40 <= msb <= 0x47:
                 parameters.append(
                     {"address": f"{msb:02X}:{lsb:02X}", "msb": msb, "lsb": lsb, **param_info}
                 )

@@ -3,13 +3,13 @@ Style Track - Individual Track Data Structure
 
 Represents a single track within a style (Rhythm, Bass, Chord, Pad, Phrase).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
-from enum import Enum
 
-from .style import TrackType, NoteEvent, CCEvent, StyleTrackData
+from .style import CCEvent, NoteEvent, StyleTrackData, TrackType
 
 
 @dataclass(slots=True)

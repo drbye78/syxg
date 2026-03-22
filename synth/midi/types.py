@@ -4,9 +4,10 @@ MIDI Type Definitions and Constants
 Centralized definitions for MIDI message types, status bytes, and utility functions.
 Provides a single source of truth for MIDI specifications and validation.
 """
+
 from __future__ import annotations
 
-from enum import Enum, StrEnum
+from enum import StrEnum
 
 
 class MessageType(StrEnum):
@@ -58,7 +59,7 @@ class MessageType(StrEnum):
     STREAM_MESSAGE = "stream_message"
     SYSTEM_MESSAGE = "system_message"
     UNKNOWN_UMP = "unknown_ump"
-    
+
     # MIDI 2.0 Channel Voice Messages
     MIDI_2_NOTE_ON = "midi2_note_on"
     MIDI_2_NOTE_OFF = "midi2_note_off"
@@ -70,30 +71,30 @@ class MessageType(StrEnum):
     MIDI_2_PER_NOTE_CONTROLLER = "midi2_per_note_controller"
     MIDI_2_RELATIVE_PER_NOTE_CONTROLLER = "midi2_relative_per_note_controller"
     MIDI_2_PER_NOTE_MANAGEMENT = "midi2_per_note_management"
-    
+
     # MIDI 2.0 Registered and Assignable Parameter Numbers
     MIDI_2_RPN = "midi2_rpn"
     MIDI_2_NRPN = "midi2_nrpn"
     MIDI_2_ASSIGNABLE_CONTROLLER = "midi2_assignable_controller"
-    
+
     # MIDI 2.0 Utilities
     MIDI_2_NOOP = "midi2_noop"
     MIDI_2_JITTER_REDUCTION_TIMESTAMP = "midi2_jitter_reduction_timestamp"
-    
+
     # MIDI 2.0 Property Exchange Messages
     MIDI_2_PROPERTY_GET = "midi2_property_get"
     MIDI_2_PROPERTY_SET = "midi2_property_set"
     MIDI_2_PROPERTY_NOTIFY = "midi2_property_notify"
     MIDI_2_PROPERTY_RESPONSE = "midi2_property_response"
-    
+
     # MIDI 2.0 Mixed Data Set Messages
     MIDI_2_MIXED_DATA_SET = "midi2_mixed_data_set"
     MIDI_2_DATA_INCREMENT = "midi2_data_increment"
     MIDI_2_DATA_DECREMENT = "midi2_data_decrement"
-    
+
     # MIDI 2.0 128-bit Messages
     MIDI_2_128_BIT_MESSAGE = "midi2_128_bit_message"
-    
+
     # MIDI 2.0 Flex Data Messages
     MIDI_2_FLEX_DATA_SIXTEEN = "midi2_flex_data_sixteen"
     MIDI_2_FLEX_DATA_TWENTY_FOUR = "midi2_flex_data_twenty_four"
@@ -198,11 +199,11 @@ MIDI_2_0_MESSAGE_TYPES: set[str] = {
 }
 
 ALL_MESSAGE_TYPES: set[str] = (
-    CHANNEL_MESSAGE_TYPES |
-    SYSTEM_MESSAGE_TYPES |
-    SYSEX_MESSAGE_TYPES |
-    MIDI_2_0_MESSAGE_TYPES |
-    {MessageType.META, MessageType.UNKNOWN_UMP}
+    CHANNEL_MESSAGE_TYPES
+    | SYSTEM_MESSAGE_TYPES
+    | SYSEX_MESSAGE_TYPES
+    | MIDI_2_0_MESSAGE_TYPES
+    | {MessageType.META, MessageType.UNKNOWN_UMP}
 )
 
 
@@ -239,7 +240,7 @@ class MIDIStatus:
     # System Common Messages
     SYSTEM_COMMON_MASK = 0xF0
     SYSTEM_REALTIME_MASK = 0xF8
-    
+
     # MIDI 2.0 Universal MIDI Packet (UMP) Status Types
     UMP_STATUS_TYPE_OTHER = 0x0
     UMP_STATUS_TYPE_MIDI_1_CHANNEL = 0x1
@@ -255,7 +256,7 @@ class XGConstants:
     """Yamaha XG-specific constants."""
 
     MANUFACTURER_ID = [0x43, 0x10]  # Yamaha XG
-    MODEL_ID = 0x4C                 # XG model
+    MODEL_ID = 0x4C  # XG model
 
     # XG Command Types
     BULK_DUMP = 0x00

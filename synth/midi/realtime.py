@@ -5,17 +5,24 @@ Handles real-time MIDI input processing for live synthesizer control.
 Converts raw MIDI bytes to structured messages and manages real-time message buffering.
 Supports both MIDI 1.0 and MIDI 2.0 Universal MIDI Packet (UMP) formats.
 """
+
 from __future__ import annotations
 
+import struct
+import threading
 import time
 from typing import Any
-from collections.abc import Callable
-import threading
-import struct
 
 from .message import MIDIMessage
 from .types import MIDIStatus, get_message_type_from_status
-from .ump_packets import UMPParser, UMPPacket, MIDI1ChannelVoicePacket, MIDI2ChannelVoicePacket, SysExUMP, UtilityUMP
+from .ump_packets import (
+    MIDI1ChannelVoicePacket,
+    MIDI2ChannelVoicePacket,
+    SysExUMP,
+    UMPPacket,
+    UMPParser,
+    UtilityUMP,
+)
 
 
 class RealtimeParser:
@@ -35,7 +42,7 @@ class RealtimeParser:
         self.in_sysex = False
         self.pending_message: dict[str, Any] | None = None  # For multi-byte messages
         self.lock = threading.RLock()
-        
+
         # UMP-specific state
         self.ump_parser = UMPParser()
         self.ump_buffer: bytes = b""
@@ -57,9 +64,9 @@ class RealtimeParser:
 
             # Check if this looks like UMP data (starts with valid UMP message type)
             if len(data) >= 4:
-                first_word = struct.unpack('>I', data[:4])[0]
+                first_word = struct.unpack(">I", data[:4])[0]
                 ump_type = (first_word >> 28) & 0xF
-                
+
                 # If it's a valid UMP message type, treat as UMP
                 if ump_type in [0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0xF]:
                     self.is_ump_mode = True
@@ -97,8 +104,12 @@ class RealtimeParser:
         Returns:
             MIDIMessage object or None
         """
-        from .ump_packets import MIDI1ChannelVoicePacket, MIDI2ChannelVoicePacket, SysExUMP, UtilityUMP
-        from .ump_packets import MIDI1ToMIDI2Converter
+        from .ump_packets import (
+            MIDI1ChannelVoicePacket,
+            MIDI2ChannelVoicePacket,
+            SysExUMP,
+            UtilityUMP,
+        )
 
         if isinstance(packet, MIDI2ChannelVoicePacket):
             # Convert MIDI 2.0 packet to MIDIMessage
@@ -115,12 +126,14 @@ class RealtimeParser:
         else:
             # For other packet types, create a generic message
             return MIDIMessage(
-                type='ump_packet',
-                data={'ump_type': packet.ump_type, 'group': packet.group},
-                timestamp=time.time()
+                type="ump_packet",
+                data={"ump_type": packet.ump_type, "group": packet.group},
+                timestamp=time.time(),
             )
 
-    def _convert_midi2_packet_to_message(self, packet: MIDI2ChannelVoicePacket) -> MIDIMessage | None:
+    def _convert_midi2_packet_to_message(
+        self, packet: MIDI2ChannelVoicePacket
+    ) -> MIDIMessage | None:
         """
         Convert MIDI 2.0 UMP packet to MIDIMessage.
 
@@ -143,68 +156,70 @@ class RealtimeParser:
             note = (data_word_1 >> 24) & 0xFF
             velocity = (data_word_2 >> 24) & 0xFF
             return MIDIMessage(
-                type='note_off',
+                type="note_off",
                 channel=channel,
-                data={'note': note, 'velocity': velocity},
-                timestamp=time.time()
+                data={"note": note, "velocity": velocity},
+                timestamp=time.time(),
             )
         elif message_type == 0x9:  # Note On
             note = (data_word_1 >> 24) & 0xFF
             velocity = (data_word_2 >> 24) & 0xFF
             return MIDIMessage(
-                type='note_on',
+                type="note_on",
                 channel=channel,
-                data={'note': note, 'velocity': velocity},
-                timestamp=time.time()
+                data={"note": note, "velocity": velocity},
+                timestamp=time.time(),
             )
         elif message_type == 0xA:  # Poly Pressure
             note = (data_word_1 >> 24) & 0xFF
             pressure = (data_word_2 >> 24) & 0xFF
             return MIDIMessage(
-                type='poly_pressure',
+                type="poly_pressure",
                 channel=channel,
-                data={'note': note, 'pressure': pressure},
-                timestamp=time.time()
+                data={"note": note, "pressure": pressure},
+                timestamp=time.time(),
             )
         elif message_type == 0xB:  # Control Change
             controller = (data_word_1 >> 24) & 0xFF
             value = (data_word_2 >> 24) & 0xFF
             return MIDIMessage(
-                type='control_change',
+                type="control_change",
                 channel=channel,
-                data={'controller': controller, 'value': value},
-                timestamp=time.time()
+                data={"controller": controller, "value": value},
+                timestamp=time.time(),
             )
         elif message_type == 0xC:  # Program Change
             program = (data_word_1 >> 24) & 0xFF
             return MIDIMessage(
-                type='program_change',
+                type="program_change",
                 channel=channel,
-                data={'program': program},
-                timestamp=time.time()
+                data={"program": program},
+                timestamp=time.time(),
             )
         elif message_type == 0xD:  # Channel Pressure
             pressure = (data_word_1 >> 24) & 0xFF
             return MIDIMessage(
-                type='channel_pressure',
+                type="channel_pressure",
                 channel=channel,
-                data={'pressure': pressure},
-                timestamp=time.time()
+                data={"pressure": pressure},
+                timestamp=time.time(),
             )
         elif message_type == 0xE:  # Pitch Bend
             # MIDI 2.0 pitch bend is 32-bit
             pitch_value = data_word_1
             return MIDIMessage(
-                type='pitch_bend',
+                type="pitch_bend",
                 channel=channel,
-                data={'value': pitch_value},
-                timestamp=time.time()
+                data={"value": pitch_value},
+                timestamp=time.time(),
             )
         # Add more message types as needed
 
         return None
 
-    def _convert_midi1_packet_to_message(self, packet: MIDI1ChannelVoicePacket) -> MIDIMessage | None:
+    def _convert_midi1_packet_to_message(
+        self, packet: MIDI1ChannelVoicePacket
+    ) -> MIDIMessage | None:
         """
         Convert MIDI 1.0 UMP packet to MIDIMessage.
 
@@ -220,53 +235,53 @@ class RealtimeParser:
 
         if message_type == 0x8:  # Note Off
             return MIDIMessage(
-                type='note_off',
+                type="note_off",
                 channel=channel,
-                data={'note': packet.data1, 'velocity': packet.data2},
-                timestamp=time.time()
+                data={"note": packet.data1, "velocity": packet.data2},
+                timestamp=time.time(),
             )
         elif message_type == 0x9:  # Note On
             return MIDIMessage(
-                type='note_on',
+                type="note_on",
                 channel=channel,
-                data={'note': packet.data1, 'velocity': packet.data2},
-                timestamp=time.time()
+                data={"note": packet.data1, "velocity": packet.data2},
+                timestamp=time.time(),
             )
         elif message_type == 0xA:  # Poly Pressure
             return MIDIMessage(
-                type='poly_pressure',
+                type="poly_pressure",
                 channel=channel,
-                data={'note': packet.data1, 'pressure': packet.data2},
-                timestamp=time.time()
+                data={"note": packet.data1, "pressure": packet.data2},
+                timestamp=time.time(),
             )
         elif message_type == 0xB:  # Control Change
             return MIDIMessage(
-                type='control_change',
+                type="control_change",
                 channel=channel,
-                data={'controller': packet.data1, 'value': packet.data2},
-                timestamp=time.time()
+                data={"controller": packet.data1, "value": packet.data2},
+                timestamp=time.time(),
             )
         elif message_type == 0xC:  # Program Change
             return MIDIMessage(
-                type='program_change',
+                type="program_change",
                 channel=channel,
-                data={'program': packet.data1},
-                timestamp=time.time()
+                data={"program": packet.data1},
+                timestamp=time.time(),
             )
         elif message_type == 0xD:  # Channel Pressure
             return MIDIMessage(
-                type='channel_pressure',
+                type="channel_pressure",
                 channel=channel,
-                data={'pressure': packet.data1},
-                timestamp=time.time()
+                data={"pressure": packet.data1},
+                timestamp=time.time(),
             )
         elif message_type == 0xE:  # Pitch Bend
             pitch_value = (packet.data2 << 7) | packet.data1
             return MIDIMessage(
-                type='pitch_bend',
+                type="pitch_bend",
                 channel=channel,
-                data={'value': pitch_value},
-                timestamp=time.time()
+                data={"value": pitch_value},
+                timestamp=time.time(),
             )
 
         return None
@@ -282,9 +297,7 @@ class RealtimeParser:
             MIDIMessage object or None
         """
         return MIDIMessage(
-            type='sysex',
-            data={'raw_data': list(packet.sys_ex_data)},
-            timestamp=time.time()
+            type="sysex", data={"raw_data": list(packet.sys_ex_data)}, timestamp=time.time()
         )
 
     def _convert_utility_packet_to_message(self, packet: UtilityUMP) -> MIDIMessage | None:
@@ -299,9 +312,9 @@ class RealtimeParser:
         """
         if packet.utility_type == 0x1:  # JR Timestamp
             return MIDIMessage(
-                type='jitter_reduction_timestamp',
-                data={'timestamp': packet.data},
-                timestamp=time.time()
+                type="jitter_reduction_timestamp",
+                data={"timestamp": packet.data},
+                timestamp=time.time(),
             )
         # Add other utility message types as needed
 
@@ -325,13 +338,13 @@ class RealtimeParser:
                     self.in_sysex = False
                     sysex_data = self.sysex_buffer.copy()
                     self.sysex_buffer.clear()
-                    return MIDIMessage(type='sysex', data={'raw_data': sysex_data})
-                
+                    return MIDIMessage(type="sysex", data={"raw_data": sysex_data})
+
                 case _ if len(self.sysex_buffer) < 1024:
                     # Continue collecting sysex data
                     self.sysex_buffer.append(byte)
                     return None
-                
+
                 case _:
                     # Buffer overflow - reset parser state
                     self.reset()
@@ -347,23 +360,33 @@ class RealtimeParser:
                     self.sysex_buffer.clear()
                     self.pending_message = None
                     return None
-                
-                case MIDIStatus.TIMING_CLOCK | MIDIStatus.START | MIDIStatus.CONTINUE | \
-                     MIDIStatus.STOP | MIDIStatus.ACTIVE_SENSING | MIDIStatus.SYSTEM_RESET:
+
+                case (
+                    MIDIStatus.TIMING_CLOCK
+                    | MIDIStatus.START
+                    | MIDIStatus.CONTINUE
+                    | MIDIStatus.STOP
+                    | MIDIStatus.ACTIVE_SENSING
+                    | MIDIStatus.SYSTEM_RESET
+                ):
                     # System real-time message (doesn't affect running status)
                     return self._parse_system_message(byte)
-                
-                case MIDIStatus.TIME_CODE | MIDIStatus.SONG_POSITION | \
-                     MIDIStatus.SONG_SELECT | MIDIStatus.TUNE_REQUEST:
+
+                case (
+                    MIDIStatus.TIME_CODE
+                    | MIDIStatus.SONG_POSITION
+                    | MIDIStatus.SONG_SELECT
+                    | MIDIStatus.TUNE_REQUEST
+                ):
                     # System common messages
                     return self._parse_system_common_message(byte)
-                
+
                 case status if (status & 0xF0) in [0x80, 0x90, 0xA0, 0xB0, 0xC0, 0xD0, 0xE0]:
                     # Channel message status - update running status
                     self.last_status = byte
                     self.pending_message = None
                     return None
-                
+
                 case _:
                     # Unknown status byte - reset parser
                     self.reset()
@@ -374,24 +397,27 @@ class RealtimeParser:
                 case (pending, _) if pending:
                     # Continue building pending message
                     return self._continue_channel_message(byte)
-                
+
                 case (_, last) if last and (last & 0xF0) in [0x80, 0x90, 0xA0, 0xB0, 0xE0]:
                     # Start building a 2-byte channel message
                     return self._start_channel_message(self.last_status, byte)
-                
+
                 case (_, last) if last and (last & 0xF0) in [0xC0, 0xD0]:
                     # 1-byte channel message with running status
                     return self._parse_channel_message_single(self.last_status, byte)
-                
-                case (pending, _) if pending and pending.get('type') in ['time_code', 'song_select']:
+
+                case (pending, _) if pending and pending.get("type") in [
+                    "time_code",
+                    "song_select",
+                ]:
                     # Handle system common messages that need data
                     return self._continue_system_common_message(byte)
-                
-                case (pending, _) if pending and pending.get('type') == 'song_position':
+
+                case (pending, _) if pending and pending.get("type") == "song_position":
                     # Start song position with first data byte
-                    self.pending_message['first_data'] = byte
+                    self.pending_message["first_data"] = byte
                     return None
-                
+
                 case _:
                     # Unexpected data byte - ignore
                     return None
@@ -409,25 +435,25 @@ class RealtimeParser:
         message_type = get_message_type_from_status(status)
 
         match message_type:
-            case 'time_code':
+            case "time_code":
                 # Time code needs 1 data byte - start pending message
-                self.pending_message = {'type': 'time_code'}
+                self.pending_message = {"type": "time_code"}
                 return None
-            
-            case 'song_position':
+
+            case "song_position":
                 # Song position needs 2 data bytes - start pending message
-                self.pending_message = {'type': 'song_position'}
+                self.pending_message = {"type": "song_position"}
                 return None
-            
-            case 'song_select':
+
+            case "song_select":
                 # Song select needs 1 data byte - start pending message
-                self.pending_message = {'type': 'song_select'}
+                self.pending_message = {"type": "song_select"}
                 return None
-            
-            case 'tune_request':
+
+            case "tune_request":
                 # Tune request has no data
-                return MIDIMessage(type='tune_request')
-            
+                return MIDIMessage(type="tune_request")
+
             case _:
                 return None
 
@@ -440,10 +466,10 @@ class RealtimeParser:
 
         # Create pending message for 2-byte messages
         self.pending_message = {
-            'status': status,
-            'type': message_type,
-            'channel': channel,
-            'first_data': first_data
+            "status": status,
+            "type": message_type,
+            "channel": channel,
+            "first_data": first_data,
         }
         return None  # Wait for second data byte
 
@@ -455,70 +481,66 @@ class RealtimeParser:
             return None
 
         msg = self.pending_message
-        message_type = msg['type']
+        message_type = msg["type"]
 
         # Clear pending message
         self.pending_message = None
 
         # Handle channel messages
-        if 'channel' in msg:
-            channel = msg['channel']
-            first_data = msg['first_data']
+        if "channel" in msg:
+            channel = msg["channel"]
+            first_data = msg["first_data"]
 
             match message_type:
-                case 'note_off':
+                case "note_off":
                     return MIDIMessage(
-                        type='note_off',
+                        type="note_off",
                         channel=channel,
-                        data={'note': first_data, 'velocity': byte}
+                        data={"note": first_data, "velocity": byte},
                     )
-                
-                case 'note_on':
+
+                case "note_on":
                     return MIDIMessage(
-                        type='note_on',
-                        channel=channel,
-                        data={'note': first_data, 'velocity': byte}
+                        type="note_on", channel=channel, data={"note": first_data, "velocity": byte}
                     )
-                
-                case 'poly_pressure':
+
+                case "poly_pressure":
                     return MIDIMessage(
-                        type='poly_pressure',
+                        type="poly_pressure",
                         channel=channel,
-                        data={'note': first_data, 'pressure': byte}
+                        data={"note": first_data, "pressure": byte},
                     )
-                
-                case 'control_change':
+
+                case "control_change":
                     return MIDIMessage(
-                        type='control_change',
+                        type="control_change",
                         channel=channel,
-                        data={'controller': first_data, 'value': byte}
+                        data={"controller": first_data, "value": byte},
                     )
-                
-                case 'pitch_bend':
+
+                case "pitch_bend":
                     # Combine LSB and MSB into 14-bit value
                     pitch_value = (byte << 7) | first_data
                     return MIDIMessage(
-                        type='pitch_bend',
-                        channel=channel,
-                        data={'value': pitch_value}
+                        type="pitch_bend", channel=channel, data={"value": pitch_value}
                     )
-                
+
                 case _:
                     return None
         else:
             # Handle system common messages
             match message_type:
-                case 'time_code':
-                    return MIDIMessage(type='time_code', data={'value': byte})
-                
-                case 'song_select':
-                    return MIDIMessage(type='song_select', data={'song': byte})
-                
-                case 'song_position':
-                    first_data = msg.get('first_data', 0)
+                case "time_code":
+                    return MIDIMessage(type="time_code", data={"value": byte})
+
+                case "song_select":
+                    return MIDIMessage(type="song_select", data={"song": byte})
+
+                case "song_position":
+                    first_data = msg.get("first_data", 0)
                     position = (byte << 7) | first_data
-                    return MIDIMessage(type='song_position', data={'position': position})
-                
+                    return MIDIMessage(type="song_position", data={"position": position})
+
                 case _:
                     return None
 
@@ -530,20 +552,14 @@ class RealtimeParser:
         channel = status & 0x0F
 
         match message_type:
-            case 'program_change':
+            case "program_change":
+                return MIDIMessage(type="program_change", channel=channel, data={"program": data})
+
+            case "channel_pressure":
                 return MIDIMessage(
-                    type='program_change',
-                    channel=channel,
-                    data={'program': data}
+                    type="channel_pressure", channel=channel, data={"pressure": data}
                 )
-            
-            case 'channel_pressure':
-                return MIDIMessage(
-                    type='channel_pressure',
-                    channel=channel,
-                    data={'pressure': data}
-                )
-            
+
             case _:
                 return None
 
@@ -555,19 +571,19 @@ class RealtimeParser:
             return None
 
         msg = self.pending_message
-        message_type = msg['type']
+        message_type = msg["type"]
 
         # Clear pending message
         self.pending_message = None
 
         # Handle system common messages
         match message_type:
-            case 'time_code':
-                return MIDIMessage(type='time_code', data={'value': byte})
-            
-            case 'song_select':
-                return MIDIMessage(type='song_select', data={'song': byte})
-            
+            case "time_code":
+                return MIDIMessage(type="time_code", data={"value": byte})
+
+            case "song_select":
+                return MIDIMessage(type="song_select", data={"song": byte})
+
             case _:
                 return None
 

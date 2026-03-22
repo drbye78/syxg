@@ -5,17 +5,20 @@ Provides complete Jupiter-X style arpeggiator with authentic patterns,
 real-time control, and advanced sequencing features that perfectly
 replicate the original Jupiter-X arpeggiator behavior.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from enum import Enum
 import threading
 import time
+from enum import Enum
+from typing import Any
+
+import numpy as np
 
 
 class ArpMode(Enum):
     """Jupiter-X arpeggiator modes."""
+
     UP = "up"
     DOWN = "down"
     UP_DOWN = "up_down"
@@ -27,6 +30,7 @@ class ArpMode(Enum):
 
 class ArpGateMode(Enum):
     """Arpeggiator gate modes."""
+
     STEP = "step"
     HOLD = "hold"
     TIE = "tie"
@@ -55,17 +59,17 @@ class JupiterXArpeggiator:
         self.enabled = False
         self.mode = ArpMode.UP
         self.octave_range = 1  # 1-4 octaves
-        self.gate_time = 0.8   # 0-1 (80% gate time)
-        self.rate = 1.0/8      # Note division (1/8 notes)
-        self.swing = 0.0       # -1 to 1 swing amount
-        self.velocity = 100    # Base velocity
+        self.gate_time = 0.8  # 0-1 (80% gate time)
+        self.rate = 1.0 / 8  # Note division (1/8 notes)
+        self.swing = 0.0  # -1 to 1 swing amount
+        self.velocity = 100  # Base velocity
         self.accent_amount = 20  # Velocity accent
 
         # Advanced settings
-        self.hold = False      # Hold mode
+        self.hold = False  # Hold mode
         self.one_shot = False  # One-shot mode
-        self.key_sync = True   # Key sync
-        self.motif_length = 16 # Motif length for complex patterns
+        self.key_sync = True  # Key sync
+        self.motif_length = 16  # Motif length for complex patterns
 
         # Pattern state
         self.active_notes: list[int] = []  # MIDI note numbers
@@ -251,21 +255,21 @@ class JupiterXArpeggiator:
 
             # Create note-on event
             note_event = {
-                'type': 'note_on',
-                'note': actual_note,
-                'velocity': velocity,
-                'time': current_time,
-                'gate_time': self.gate_time * self.step_time
+                "type": "note_on",
+                "note": actual_note,
+                "velocity": velocity,
+                "time": current_time,
+                "gate_time": self.gate_time * self.step_time,
             }
 
             events.append(note_event)
 
             # Schedule note-off
             note_off_event = {
-                'type': 'note_off',
-                'note': actual_note,
-                'time': current_time + (self.gate_time * self.step_time),
-                'velocity': 64
+                "type": "note_off",
+                "note": actual_note,
+                "time": current_time + (self.gate_time * self.step_time),
+                "velocity": 64,
             }
 
             events.append(note_off_event)
@@ -383,17 +387,17 @@ class JupiterXArpeggiator:
         """
         with self.lock:
             return {
-                'enabled': self.enabled,
-                'mode': self.mode.value,
-                'octave_range': self.octave_range,
-                'rate': self.rate,
-                'gate_time': self.gate_time,
-                'swing': self.swing,
-                'bpm': self.bpm,
-                'hold': self.hold,
-                'active_notes': len(self.active_notes),
-                'current_step': self.current_step,
-                'step_time': self.step_time
+                "enabled": self.enabled,
+                "mode": self.mode.value,
+                "octave_range": self.octave_range,
+                "rate": self.rate,
+                "gate_time": self.gate_time,
+                "swing": self.swing,
+                "bpm": self.bpm,
+                "hold": self.hold,
+                "active_notes": len(self.active_notes),
+                "current_step": self.current_step,
+                "step_time": self.step_time,
             }
 
     def reset(self):
@@ -403,7 +407,7 @@ class JupiterXArpeggiator:
             self.mode = ArpMode.UP
             self.octave_range = 1
             self.gate_time = 0.8
-            self.rate = 1.0/8
+            self.rate = 1.0 / 8
             self.swing = 0.0
             self.velocity = 100
             self.accent_amount = 20
@@ -435,30 +439,30 @@ class JupiterXArpPattern:
 
     # Predefined patterns
     PATTERNS = {
-        'basic_up': {
-            'name': 'Basic Up',
-            'steps': [0, 1, 2, 3, 4, 5, 6, 7],
-            'gates': [1, 1, 1, 1, 1, 1, 1, 1],
-            'velocities': [100, 100, 100, 100, 100, 100, 100, 100]
+        "basic_up": {
+            "name": "Basic Up",
+            "steps": [0, 1, 2, 3, 4, 5, 6, 7],
+            "gates": [1, 1, 1, 1, 1, 1, 1, 1],
+            "velocities": [100, 100, 100, 100, 100, 100, 100, 100],
         },
-        'walking_bass': {
-            'name': 'Walking Bass',
-            'steps': [0, 2, 4, 7, 0, 2, 4, 7],
-            'gates': [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
-            'velocities': [110, 100, 105, 115, 110, 100, 105, 115]
+        "walking_bass": {
+            "name": "Walking Bass",
+            "steps": [0, 2, 4, 7, 0, 2, 4, 7],
+            "gates": [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+            "velocities": [110, 100, 105, 115, 110, 100, 105, 115],
         },
-        'broken_chord': {
-            'name': 'Broken Chord',
-            'steps': [0, 2, 4, 7, 9, 11, 14, 16],
-            'gates': [1, 0.7, 1, 0.7, 1, 0.7, 1, 0.7],
-            'velocities': [120, 100, 115, 100, 118, 100, 122, 100]
+        "broken_chord": {
+            "name": "Broken Chord",
+            "steps": [0, 2, 4, 7, 9, 11, 14, 16],
+            "gates": [1, 0.7, 1, 0.7, 1, 0.7, 1, 0.7],
+            "velocities": [120, 100, 115, 100, 118, 100, 122, 100],
         },
-        'arp_peggio': {
-            'name': 'Arp-Peggio',
-            'steps': [0, 7, 12, 7, 0, 7, 12, 7],
-            'gates': [1, 0.5, 1, 0.5, 1, 0.5, 1, 0.5],
-            'velocities': [127, 80, 120, 80, 127, 80, 120, 80]
-        }
+        "arp_peggio": {
+            "name": "Arp-Peggio",
+            "steps": [0, 7, 12, 7, 0, 7, 12, 7],
+            "gates": [1, 0.5, 1, 0.5, 1, 0.5, 1, 0.5],
+            "velocities": [127, 80, 120, 80, 127, 80, 120, 80],
+        },
     }
 
     @classmethod
@@ -475,9 +479,13 @@ class JupiterXArpPattern:
         return cls.PATTERNS.get(pattern_name)
 
     @classmethod
-    def create_custom_pattern(cls, name: str, steps: list[int],
-                            gates: list[float] | None = None,
-                            velocities: list[int] | None = None) -> dict[str, Any]:
+    def create_custom_pattern(
+        cls,
+        name: str,
+        steps: list[int],
+        gates: list[float] | None = None,
+        velocities: list[int] | None = None,
+    ) -> dict[str, Any]:
         """
         Create custom pattern.
 
@@ -503,10 +511,10 @@ class JupiterXArpPattern:
         velocities = velocities[:length] + [100] * (length - len(velocities))
 
         return {
-            'name': name,
-            'steps': steps.copy(),
-            'gates': gates.copy(),
-            'velocities': velocities.copy()
+            "name": name,
+            "steps": steps.copy(),
+            "gates": gates.copy(),
+            "velocities": velocities.copy(),
         }
 
     @classmethod

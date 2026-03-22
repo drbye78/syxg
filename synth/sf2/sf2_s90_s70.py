@@ -8,10 +8,13 @@ Extends SF2 with S90/S70 AWM Stereo capabilities including:
 - Enhanced interpolation algorithms
 - Professional mixing and panning
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 import numpy as np
+
 from .sf2_sample_processor import StereoProcessor
 
 
@@ -65,9 +68,7 @@ class S90AWMConfiguration:
 
         self.velocity_layers[preset_key].append(layer_config)
 
-    def get_velocity_layer(
-        self, preset_key: str, velocity: int
-    ) -> dict[str, Any] | None:
+    def get_velocity_layer(self, preset_key: str, velocity: int) -> dict[str, Any] | None:
         """
         Get velocity layer for a given preset and velocity.
 
@@ -93,9 +94,7 @@ class S90AWMConfiguration:
 
         return None
 
-    def register_stereo_pair(
-        self, logical_name: str, left_sample: str, right_sample: str
-    ) -> None:
+    def register_stereo_pair(self, logical_name: str, left_sample: str, right_sample: str) -> None:
         """
         Register stereo sample pair for S90/S70 stereo management.
 
@@ -301,9 +300,7 @@ class S90AWMStereoProcessor:
 
         # Ensure valid bin ranges
         low_crossover_bin = max(1, min(low_crossover_bin, len(left) // 2))
-        high_crossover_bin = max(
-            low_crossover_bin + 1, min(high_crossover_bin, len(left) - 1)
-        )
+        high_crossover_bin = max(low_crossover_bin + 1, min(high_crossover_bin, len(left) - 1))
 
         # Apply frequency-dependent processing using FFT
         try:
@@ -363,12 +360,8 @@ class S90AWMStereoProcessor:
         right_high = right - right_low
 
         # Combine with frequency-dependent panning
-        result_left = (
-            center_low * 0.7 + left_high * 1.3
-        )  # Lows centered, highs enhanced left
-        result_right = (
-            center_low * 0.7 + right_high * 1.3
-        )  # Lows centered, highs enhanced right
+        result_left = center_low * 0.7 + left_high * 1.3  # Lows centered, highs enhanced left
+        result_right = center_low * 0.7 + right_high * 1.3  # Lows centered, highs enhanced right
 
         return result_left, result_right
 
@@ -414,9 +407,7 @@ class S90AWMStereoProcessor:
         gain_reduction[below_threshold] = 1.0
 
         # In soft knee region: gradual compression
-        in_knee = (envelope >= soft_threshold) & (
-            envelope <= threshold + knee_width / 2
-        )
+        in_knee = (envelope >= soft_threshold) & (envelope <= threshold + knee_width / 2)
         if np.any(in_knee):
             knee_ratio = 1.0 / ratio  # Inverse ratio for soft knee
             knee_factor = (envelope[in_knee] - soft_threshold) / knee_width
@@ -438,9 +429,7 @@ class S90AWMStereoProcessor:
 
         return left_compressed, right_compressed
 
-    def _calculate_rms_envelope(
-        self, signal: np.ndarray, window_size: int
-    ) -> np.ndarray:
+    def _calculate_rms_envelope(self, signal: np.ndarray, window_size: int) -> np.ndarray:
         """
         Calculate RMS envelope for compression.
 
@@ -453,9 +442,7 @@ class S90AWMStereoProcessor:
         """
         # Calculate RMS in sliding windows
         squared = signal**2
-        rms = np.sqrt(
-            np.convolve(squared, np.ones(window_size) / window_size, mode="same")
-        )
+        rms = np.sqrt(np.convolve(squared, np.ones(window_size) / window_size, mode="same"))
 
         # Normalize to 0-1 range based on signal level
         max_rms = np.max(rms)
@@ -493,14 +480,10 @@ class S90AWMStereoProcessor:
 
             if current_gain < previous_gain:
                 # Attack (gain reduction increasing)
-                smoothed[i] = previous_gain + attack_coeff * (
-                    current_gain - previous_gain
-                )
+                smoothed[i] = previous_gain + attack_coeff * (current_gain - previous_gain)
             else:
                 # Release (gain reduction decreasing)
-                smoothed[i] = previous_gain + release_coeff * (
-                    current_gain - previous_gain
-                )
+                smoothed[i] = previous_gain + release_coeff * (current_gain - previous_gain)
 
             previous_gain = smoothed[i]
 
@@ -551,9 +534,7 @@ class S90AWMLayerEngine:
         self.layer_cache: dict[str, list[dict[str, Any]]] = {}
         self.crossfade_samples = 8  # Samples for crossfade between layers
 
-    def add_layer_configuration(
-        self, preset_key: str, layers: list[dict[str, Any]]
-    ) -> None:
+    def add_layer_configuration(self, preset_key: str, layers: list[dict[str, Any]]) -> None:
         """
         Add layer configuration for a preset.
 
@@ -648,9 +629,7 @@ class S90AWMLayerEngine:
         else:
             # Crossfade region
             # Calculate crossfade position (0.0 = all layer1, 1.0 = all layer2)
-            crossfade_pos = (velocity - crossfade_start) / max(
-                1, crossfade_end - crossfade_start
-            )
+            crossfade_pos = (velocity - crossfade_start) / max(1, crossfade_end - crossfade_start)
 
             # Apply smooth crossfade curve (equal power)
             # layer1_gain = cos(crossfade_pos * π/2)
@@ -702,9 +681,7 @@ class S90AWMLayerEngine:
             if max_distance > 0:
                 # Normalize distance and apply Gaussian
                 normalized_distance = min(velocity_distance / max_distance, 1.0)
-                contribution_factor = np.exp(
-                    -2 * normalized_distance**2
-                )  # Gaussian falloff
+                contribution_factor = np.exp(-2 * normalized_distance**2)  # Gaussian falloff
             else:
                 contribution_factor = 1.0 if velocity_distance == 0 else 0.0
 
@@ -714,9 +691,7 @@ class S90AWMLayerEngine:
 
             # Pad sample to max length if necessary
             if len(sample_data) < max_len:
-                sample_data = np.pad(
-                    sample_data, (0, max_len - len(sample_data)), mode="constant"
-                )
+                sample_data = np.pad(sample_data, (0, max_len - len(sample_data)), mode="constant")
 
             # Add to mix
             contribution_signal = np.ones(max_len) * final_contribution
@@ -802,10 +777,8 @@ class S90AWMEngine:
             right_data = sample_data[mid_point:]
 
             # Apply AWM stereo processing
-            left_processed, right_processed = (
-                self.stereo_processor.process_stereo_sample(
-                    left_data, right_data, awm_config.mixing_parameters
-                )
+            left_processed, right_processed = self.stereo_processor.process_stereo_sample(
+                left_data, right_data, awm_config.mixing_parameters
             )
 
             # Apply compression and limiting
@@ -827,10 +800,8 @@ class S90AWMEngine:
 
         else:
             # Mono processing - convert to stereo with AWM enhancements
-            left_processed, right_processed = (
-                self.stereo_processor.process_stereo_sample(
-                    sample_data, sample_data, awm_config.mixing_parameters
-                )
+            left_processed, right_processed = self.stereo_processor.process_stereo_sample(
+                sample_data, sample_data, awm_config.mixing_parameters
             )
             processed_data = np.concatenate([left_processed, right_processed])
 
@@ -854,9 +825,7 @@ class S90AWMEngine:
             "active_configurations": len(self.configurations),
             "configured_soundfonts": list(self.configurations.keys()),
             "stereo_processor_status": {
-                "haas_effect_enabled": self.stereo_processor.mixing_params.get(
-                    "haas_effect", True
-                ),
+                "haas_effect_enabled": self.stereo_processor.mixing_params.get("haas_effect", True),
                 "frequency_panning_enabled": self.stereo_processor.mixing_params.get(
                     "frequency_panning", False
                 ),
@@ -905,9 +874,7 @@ def enable_s90_awm_features(sf2_manager: SF2SoundFontManager) -> S90AWMEngine:
     print(
         f"   - Multi-layer velocity switching: {len(awm_engine.layer_engine.layer_cache)} presets configured"
     )
-    print(
-        "   - Professional stereo processing: Haas effect, frequency panning, compression"
-    )
+    print("   - Professional stereo processing: Haas effect, frequency panning, compression")
     print("   - Advanced mixing algorithms: RMS-based compression, limiter")
     print("   - Real-time performance monitoring and optimization")
 
@@ -982,9 +949,7 @@ def _integrate_awm_with_sf2_manager(
                 sample = samples[sample_id]
                 return {
                     "name": sample.name if hasattr(sample, "name") else "",
-                    "sample_rate": sample.sample_rate
-                    if hasattr(sample, "sample_rate")
-                    else 44100,
+                    "sample_rate": sample.sample_rate if hasattr(sample, "sample_rate") else 44100,
                     "original_pitch": sample.original_pitch
                     if hasattr(sample, "original_pitch")
                     else 60,
@@ -1011,9 +976,7 @@ def _integrate_awm_with_sf2_manager(
     sf2_manager.configure_awm_for_soundfont = configure_awm_for_soundfont
 
     # Add method to update AWM mixing parameters
-    def update_awm_mixing_parameters(
-        soundfont_name: str, parameters: dict[str, float]
-    ) -> None:
+    def update_awm_mixing_parameters(soundfont_name: str, parameters: dict[str, float]) -> None:
         """
         Update AWM mixing parameters for a soundfont.
 
@@ -1099,9 +1062,7 @@ def get_awm_performance_metrics(awm_engine: S90AWMEngine) -> dict[str, Any]:
         "processing_stats": status.get("processing_stats", {}),
         "stereo_features": {
             "haas_effect": status["stereo_processor_status"]["haas_effect_enabled"],
-            "frequency_panning": status["stereo_processor_status"][
-                "frequency_panning_enabled"
-            ],
+            "frequency_panning": status["stereo_processor_status"]["frequency_panning_enabled"],
             "compression": status["stereo_processor_status"]["compression_enabled"],
             "limiter": status["stereo_processor_status"]["limiter_enabled"],
         },

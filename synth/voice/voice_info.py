@@ -2,16 +2,25 @@
 Voice information for XG synthesizer voice management.
 Contains information about active voices for allocation decisions.
 """
+
 from __future__ import annotations
 
 import time
-from .voice_priority import VoicePriority
+
 from ..channel.channel_note import ChannelNote
+from .voice_priority import VoicePriority
 
 
 class VoiceInfo:
     """Information about an active voice for voice management"""
-    def __init__(self, note: int, velocity: int, channel_note: ChannelNote, priority: int = VoicePriority.NORMAL):
+
+    def __init__(
+        self,
+        note: int,
+        velocity: int,
+        channel_note: ChannelNote,
+        priority: int = VoicePriority.NORMAL,
+    ):
         self.note = note
         self.velocity = velocity
         self.channel_note = channel_note
@@ -34,14 +43,22 @@ class VoiceInfo:
         # Notes in release phase get lower priority
         release_penalty = 0.5 if self.is_releasing else 0.0
 
-        return velocity_score * 0.4 + priority_score * 0.4 - age_penalty * 0.1 - release_penalty * 0.1
+        return (
+            velocity_score * 0.4 + priority_score * 0.4 - age_penalty * 0.1 - release_penalty * 0.1
+        )
 
     def start_release(self):
         """Mark voice as starting release phase"""
         self.is_releasing = True
         self.release_time = time.time()
 
-    def reset(self, note: int, velocity: int, channel_note: ChannelNote | None, priority: int = VoicePriority.NORMAL):
+    def reset(
+        self,
+        note: int,
+        velocity: int,
+        channel_note: ChannelNote | None,
+        priority: int = VoicePriority.NORMAL,
+    ):
         """Reset voice info for reuse from pool"""
         self.note = note
         self.velocity = velocity

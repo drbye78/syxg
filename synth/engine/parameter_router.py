@@ -6,11 +6,15 @@ parameters from the synthesizer level down to individual partials using the
 ParameterUpdate protocol. Now integrated with the unified parameter system
 for synthesizer-specific parameter handling.
 """
+
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
-from ..types.parameter_types import ParameterUpdate, ParameterScope, ParameterSource, SynthesizerType
-from ..types.unified_parameters import get_unified_parameter_system
+from typing import TYPE_CHECKING, Any
+
+from ..types.parameter_types import (
+    ParameterScope,
+    ParameterUpdate,
+)
 
 if TYPE_CHECKING:
     from .modern_xg_synthesizer import ModernXGSynthesizer
@@ -85,22 +89,22 @@ class ParameterRouter:
         value = param_update.value
         if not isinstance(value, (int, float)):
             return False
-        
+
         # Validate based on parameter type
         param_name = param_update.name.lower()
-        
+
         # Volume/pan parameters: 0-127 or 0.0-1.0
-        if 'volume' in param_name or 'pan' in param_name or 'gain' in param_name:
+        if "volume" in param_name or "pan" in param_name or "gain" in param_name:
             if not (0 <= value <= 127 or 0.0 <= value <= 1.0):
                 return False
-        
+
         # Pitch/tune parameters: cents or semitones
-        if 'tune' in param_name or 'pitch' in param_name or 'transpose' in param_name:
+        if "tune" in param_name or "pitch" in param_name or "transpose" in param_name:
             if not (-8192 <= value <= 8191 or -12 <= value <= 12):
                 return False
-        
+
         # Rate/depth parameters
-        if 'rate' in param_name or 'depth' in param_name or 'speed' in param_name:
+        if "rate" in param_name or "depth" in param_name or "speed" in param_name:
             if not (0 <= value <= 127 or 0.0 <= value <= 1.0):
                 return False
 
@@ -126,13 +130,16 @@ class ParameterRouter:
         if self._should_propagate_to_channels(param_update.name):
             # Propagate to all active channels
             for channel_num in range(16):
-                if hasattr(self.synthesizer, 'channels') and channel_num in self.synthesizer.channels:
+                if (
+                    hasattr(self.synthesizer, "channels")
+                    and channel_num in self.synthesizer.channels
+                ):
                     channel = self.synthesizer.channels[channel_num]
                     channel.apply_channel_parameter(param_update)
 
         # Determine if parameter needs effects routing
         if self._is_effects_parameter(param_update.name):
-            if hasattr(self.synthesizer, 'effects_coordinator'):
+            if hasattr(self.synthesizer, "effects_coordinator"):
                 self.synthesizer.effects_coordinator.apply_global_effects_parameter(param_update)
 
         # Log routing for debugging
@@ -154,7 +161,10 @@ class ParameterRouter:
             return False
 
         # Get target channel
-        if hasattr(self.synthesizer, 'channels') and param_update.channel in self.synthesizer.channels:
+        if (
+            hasattr(self.synthesizer, "channels")
+            and param_update.channel in self.synthesizer.channels
+        ):
             channel = self.synthesizer.channels[param_update.channel]
 
             # Apply to channel
@@ -188,7 +198,10 @@ class ParameterRouter:
 
         # Find target voice (this requires voice management system)
         # For now, broadcast to all voices in channel
-        if hasattr(self.synthesizer, 'channels') and param_update.channel in self.synthesizer.channels:
+        if (
+            hasattr(self.synthesizer, "channels")
+            and param_update.channel in self.synthesizer.channels
+        ):
             channel = self.synthesizer.channels[param_update.channel]
 
             for voice in channel.active_voices:
@@ -222,20 +235,23 @@ class ParameterRouter:
         self._log_parameter_route(param_update, f"partial_channel_{param_update.channel}")
 
         # Implement partial routing - find target partial
-        if hasattr(self.synthesizer, 'channels') and param_update.channel in self.synthesizer.channels:
+        if (
+            hasattr(self.synthesizer, "channels")
+            and param_update.channel in self.synthesizer.channels
+        ):
             channel = self.synthesizer.channels[param_update.channel]
-            
+
             # Get partial index from parameter update if available
-            partial_idx = getattr(param_update, 'partial_index', None)
-            
+            partial_idx = getattr(param_update, "partial_index", None)
+
             if partial_idx is not None:
                 # Route to specific partial
-                if hasattr(channel, 'partials') and partial_idx < len(channel.partials):
+                if hasattr(channel, "partials") and partial_idx < len(channel.partials):
                     partial = channel.partials[partial_idx]
                     partial.apply_partial_parameter(param_update)
             else:
                 # Route to all partials in the channel
-                if hasattr(channel, 'partials'):
+                if hasattr(channel, "partials"):
                     for partial in channel.partials:
                         partial.apply_partial_parameter(param_update)
 
@@ -253,8 +269,13 @@ class ParameterRouter:
         """
         # Parameters that affect individual channels
         channel_propagation_params = {
-            'master_volume', 'master_pan', 'master_tune', 'master_transpose',
-            'reverb_send', 'chorus_send', 'variation_send'
+            "master_volume",
+            "master_pan",
+            "master_tune",
+            "master_transpose",
+            "reverb_send",
+            "chorus_send",
+            "variation_send",
         }
 
         return param_name in channel_propagation_params
@@ -271,8 +292,13 @@ class ParameterRouter:
         """
         # Parameters that affect individual voices
         voice_propagation_params = {
-            'volume', 'pan', 'expression', 'pitch_bend',
-            'modulation_wheel', 'sustain_pedal', 'soft_pedal'
+            "volume",
+            "pan",
+            "expression",
+            "pitch_bend",
+            "modulation_wheel",
+            "sustain_pedal",
+            "soft_pedal",
         }
 
         return param_name in voice_propagation_params
@@ -288,9 +314,18 @@ class ParameterRouter:
             True if parameter affects effects
         """
         effects_params = {
-            'reverb_time', 'reverb_hf_damp', 'reverb_predelay', 'reverb_type',
-            'chorus_rate', 'chorus_depth', 'chorus_feedback', 'chorus_type',
-            'distortion_drive', 'distortion_tone', 'distortion_mix', 'distortion_type'
+            "reverb_time",
+            "reverb_hf_damp",
+            "reverb_predelay",
+            "reverb_type",
+            "chorus_rate",
+            "chorus_depth",
+            "chorus_feedback",
+            "chorus_type",
+            "distortion_drive",
+            "distortion_tone",
+            "distortion_mix",
+            "distortion_type",
         }
 
         return param_name in effects_params
@@ -304,13 +339,15 @@ class ParameterRouter:
             route_target: Target of the routing (e.g., "global", "channel_0")
         """
         route_info = {
-            'timestamp': self.synthesizer.current_time if hasattr(self.synthesizer, 'current_time') else 0,
-            'parameter': param_update.name,
-            'value': param_update.value,
-            'scope': param_update.scope.value,
-            'source': param_update.source.value,
-            'channel': param_update.channel,
-            'route_target': route_target
+            "timestamp": self.synthesizer.current_time
+            if hasattr(self.synthesizer, "current_time")
+            else 0,
+            "parameter": param_update.name,
+            "value": param_update.value,
+            "scope": param_update.scope.value,
+            "source": param_update.source.value,
+            "channel": param_update.channel,
+            "route_target": route_target,
         }
 
         self.route_history.append(route_info)
@@ -331,17 +368,17 @@ class ParameterRouter:
         source_counts = {}
 
         for route in self.route_history[-100:]:  # Last 100 routes
-            scope = route['scope']
-            source = route['source']
+            scope = route["scope"]
+            source = route["source"]
 
             scope_counts[scope] = scope_counts.get(scope, 0) + 1
             source_counts[source] = source_counts.get(source, 0) + 1
 
         return {
-            'total_routes': total_routes,
-            'recent_scope_distribution': scope_counts,
-            'recent_source_distribution': source_counts,
-            'cached_parameters': len(self.parameter_cache)
+            "total_routes": total_routes,
+            "recent_scope_distribution": scope_counts,
+            "recent_source_distribution": source_counts,
+            "cached_parameters": len(self.parameter_cache),
         }
 
     def clear_cache(self):
@@ -350,6 +387,7 @@ class ParameterRouter:
         self.route_history.clear()
 
         # Additional methods needed for synthesizer integration
+
     def register_source(self, name: str, source) -> None:
         """
         Register a parameter source.
@@ -358,7 +396,7 @@ class ParameterRouter:
             name: Source name
             source: Source object (must have process_control_message method)
         """
-        if not hasattr(self, 'sources'):
+        if not hasattr(self, "sources"):
             self.sources: dict[str, Any] = {}
         self.sources[name] = source
 
@@ -370,7 +408,7 @@ class ParameterRouter:
             name: Validator name
             validator_func: Validation function
         """
-        if not hasattr(self, 'validators'):
+        if not hasattr(self, "validators"):
             self.validators: dict[str, Any] = {}
         self.validators[name] = validator_func
 
@@ -382,11 +420,13 @@ class ParameterRouter:
             name: Monitor name
             monitor: Monitor object
         """
-        if not hasattr(self, 'monitors'):
+        if not hasattr(self, "monitors"):
             self.monitors: dict[str, Any] = {}
         self.monitors[name] = monitor
 
-    def route_parameter(self, param_path: str, value: float, channel: int = None, part: int = None) -> bool:
+    def route_parameter(
+        self, param_path: str, value: float, channel: int = None, part: int = None
+    ) -> bool:
         """
         Route a parameter change to the appropriate destination.
 
@@ -401,7 +441,7 @@ class ParameterRouter:
         """
         try:
             # Create parameter update
-            from ..types.parameter_types import ParameterUpdate, ParameterScope, ParameterSource
+            from ..types.parameter_types import ParameterScope, ParameterSource, ParameterUpdate
 
             if channel is not None:
                 scope = ParameterScope.CHANNEL
@@ -413,7 +453,7 @@ class ParameterRouter:
                 value=value,
                 scope=scope,
                 source=ParameterSource.INTERNAL,
-                channel=channel
+                channel=channel,
             )
 
             # Route using existing routing system
@@ -458,7 +498,7 @@ class ParameterRouter:
             return False
 
         # Check if we have specific validators
-        if hasattr(self, 'validators'):
+        if hasattr(self, "validators"):
             for validator in self.validators.values():
                 if callable(validator):
                     try:

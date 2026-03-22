@@ -4,13 +4,13 @@ SF2 Advanced Sample Processor
 Handles mono/stereo sample processing, mip-mapping, interpolation, and caching.
 Optimized for real-time synthesis with high-quality sample playback.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from collections import OrderedDict
 import threading
-import math
+from typing import Any
+
+import numpy as np
 
 
 class MipMapLevel:
@@ -34,7 +34,7 @@ class MipMapLevel:
         self.data = data
         self.sample_rate = sample_rate
         self.pitch_ratio = pitch_ratio
-        self.memory_usage = data.nbytes if hasattr(data, 'nbytes') else len(data) * 8
+        self.memory_usage = data.nbytes if hasattr(data, "nbytes") else len(data) * 8
 
 
 class SampleMipMap:
@@ -96,7 +96,7 @@ class SampleMipMap:
             level: Level to generate
         """
         current_data = self.levels[0].data
-        downsample_factor = 2 ** level
+        downsample_factor = 2**level
 
         if len(current_data) < downsample_factor * 4:
             # Don't downsample if too small for proper filtering
@@ -160,12 +160,14 @@ class SampleMipMap:
         sinc_kernel /= np.sum(sinc_kernel)  # Normalize
 
         # Apply Hamming window for better stop-band attenuation
-        hamming_window = 0.54 - 0.46 * np.cos(2 * np.pi * np.arange(filter_length) / (filter_length - 1))
+        hamming_window = 0.54 - 0.46 * np.cos(
+            2 * np.pi * np.arange(filter_length) / (filter_length - 1)
+        )
         filter_kernel = sinc_kernel * hamming_window
         filter_kernel /= np.sum(filter_kernel)  # Renormalize after windowing
 
         # Apply filter using convolution
-        filtered = np.convolve(data, filter_kernel, mode='same')
+        filtered = np.convolve(data, filter_kernel, mode="same")
 
         # Handle edge effects by using reflection
         # (This is a simplified approach; production systems would use more sophisticated methods)
@@ -260,7 +262,7 @@ class Interpolator:
     Supports linear, cubic, sinc, and other interpolation methods.
     """
 
-    def __init__(self, method: str = 'linear'):
+    def __init__(self, method: str = "linear"):
         """
         Initialize interpolator.
 
@@ -269,13 +271,14 @@ class Interpolator:
         """
         self.method = method
         self._interp_functions = {
-            'linear': self._linear_interp,
-            'cubic': self._cubic_interp,
-            'sinc': self._sinc_interp
+            "linear": self._linear_interp,
+            "cubic": self._cubic_interp,
+            "sinc": self._sinc_interp,
         }
 
-    def interpolate(self, sample_data: np.ndarray, ratio: float,
-                   target_length: int | None = None) -> np.ndarray:
+    def interpolate(
+        self, sample_data: np.ndarray, ratio: float, target_length: int | None = None
+    ) -> np.ndarray:
         """
         Interpolate sample data to new length.
 
@@ -314,10 +317,12 @@ class Interpolator:
         """Cubic interpolation using scipy if available, fallback to linear."""
         try:
             from scipy import interpolate
+
             # Create interpolation function
             x = np.arange(len(data))
-            f = interpolate.interp1d(x, data, kind='cubic', bounds_error=False,
-                                   fill_value=0.0)  # Use 0.0 as default
+            f = interpolate.interp1d(
+                x, data, kind="cubic", bounds_error=False, fill_value=0.0
+            )  # Use 0.0 as default
 
             # Interpolate to new length
             x_new = np.linspace(0, len(data) - 1, target_length)
@@ -334,6 +339,7 @@ class Interpolator:
         """Sinc interpolation for high quality."""
         try:
             from scipy.signal import resample
+
             # Use scipy's resample for sinc interpolation
             resampled = resample(data, target_length)
             return np.asarray(resampled, dtype=data.dtype)
@@ -380,8 +386,9 @@ class StereoProcessor:
         """
         return self.stereo_pairs.get(sample_name)
 
-    def process_stereo_width(self, left_data: np.ndarray, right_data: np.ndarray,
-                           width: float = 1.0) -> tuple[np.ndarray, np.ndarray]:
+    def process_stereo_width(
+        self, left_data: np.ndarray, right_data: np.ndarray, width: float = 1.0
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Process stereo width control.
 
@@ -505,11 +512,13 @@ class SF2SampleCache:
         """Get cache statistics."""
         with self.lock:
             return {
-                'cached_samples': len(self.cache),
-                'memory_usage_bytes': self.current_memory,
-                'memory_usage_mb': self.current_memory / (1024 * 1024),
-                'max_memory_mb': self.max_memory / (1024 * 1024),
-                'utilization': (self.current_memory / self.max_memory * 100) if self.max_memory > 0 else 0.0
+                "cached_samples": len(self.cache),
+                "memory_usage_bytes": self.current_memory,
+                "memory_usage_mb": self.current_memory / (1024 * 1024),
+                "max_memory_mb": self.max_memory / (1024 * 1024),
+                "utilization": (self.current_memory / self.max_memory * 100)
+                if self.max_memory > 0
+                else 0.0,
             }
 
 
@@ -530,15 +539,20 @@ class SF2SampleProcessor:
         self.sample_cache = SF2SampleCache(cache_memory_mb)
         self.mip_maps: dict[str, SampleMipMap] = {}
         self.mip_selectors: dict[str, MipLevelSelector] = {}
-        self.interpolator = Interpolator('linear')  # Default to linear
+        self.interpolator = Interpolator("linear")  # Default to linear
         self.stereo_processor = StereoProcessor()
 
         # Performance tracking
         self.cache_hits = 0
         self.cache_misses = 0
 
-    def process_sample(self, raw_data: bytes, sample_info: dict[str, Any],
-                      pitch_ratio: float = 1.0, interpolation: str = 'linear') -> np.ndarray | None:
+    def process_sample(
+        self,
+        raw_data: bytes,
+        sample_info: dict[str, Any],
+        pitch_ratio: float = 1.0,
+        interpolation: str = "linear",
+    ) -> np.ndarray | None:
         """
         Process sample data with all enhancements.
 
@@ -552,7 +566,7 @@ class SF2SampleProcessor:
             Processed sample data
         """
         # Create cache key
-        sample_name = sample_info.get('name', 'unknown')
+        sample_name = sample_info.get("name", "unknown")
         cache_key = f"{sample_name}_{pitch_ratio}_{interpolation}"
 
         # Check cache first
@@ -566,7 +580,9 @@ class SF2SampleProcessor:
             self.cache_misses += 1
 
         # Process sample data
-        processed_data = self._process_sample_data(raw_data, sample_info, pitch_ratio, interpolation)
+        processed_data = self._process_sample_data(
+            raw_data, sample_info, pitch_ratio, interpolation
+        )
 
         if processed_data is not None:
             # Cache the result
@@ -574,13 +590,14 @@ class SF2SampleProcessor:
 
         return processed_data
 
-    def _process_sample_data(self, raw_data: bytes, sample_info: dict[str, Any],
-                           pitch_ratio: float, interpolation: str) -> np.ndarray | None:
+    def _process_sample_data(
+        self, raw_data: bytes, sample_info: dict[str, Any], pitch_ratio: float, interpolation: str
+    ) -> np.ndarray | None:
         """Internal sample processing."""
         try:
             # Parse sample format
-            bit_depth = sample_info.get('bit_depth', 16)
-            is_stereo = sample_info.get('is_stereo', False)
+            bit_depth = sample_info.get("bit_depth", 16)
+            is_stereo = sample_info.get("is_stereo", False)
 
             # Convert raw data to numpy array
             if bit_depth == 16:
@@ -595,7 +612,7 @@ class SF2SampleProcessor:
                 sample_data = self._apply_mip_mapping(sample_data, sample_info, pitch_ratio)
 
             # Apply interpolation if needed
-            if interpolation != 'linear':
+            if interpolation != "linear":
                 self.interpolator.method = interpolation
                 # Interpolate to improve quality (example: slight oversampling)
                 target_length = int(len(sample_data) * 1.1)  # 10% oversampling
@@ -611,7 +628,7 @@ class SF2SampleProcessor:
         """Convert 16-bit sample data."""
         if len(data) == 0:
             return np.array([], dtype=np.float32)
-            
+
         samples = np.frombuffer(data, dtype=np.int16)
 
         if is_stereo:
@@ -628,7 +645,7 @@ class SF2SampleProcessor:
         """Convert 24-bit sample data."""
         if len(data) == 0:
             return np.array([], dtype=np.float32)
-            
+
         samples = []
 
         if is_stereo:
@@ -638,15 +655,15 @@ class SF2SampleProcessor:
                     break
 
                 # Left channel (first 3 bytes)
-                left_bytes = data[i:i+3]
-                left_int = int.from_bytes(left_bytes, byteorder='little', signed=True)
+                left_bytes = data[i : i + 3]
+                left_int = int.from_bytes(left_bytes, byteorder="little", signed=True)
                 if left_int & 0x800000:
                     left_int |= 0xFF000000
                 left_sample = left_int / 8388608.0
 
                 # Right channel (next 3 bytes)
-                right_bytes = data[i+3:i+6]
-                right_int = int.from_bytes(right_bytes, byteorder='little', signed=True)
+                right_bytes = data[i + 3 : i + 6]
+                right_int = int.from_bytes(right_bytes, byteorder="little", signed=True)
                 if right_int & 0x800000:
                     right_int |= 0xFF000000
                 right_sample = right_int / 8388608.0
@@ -664,8 +681,8 @@ class SF2SampleProcessor:
                 if i + 3 > len(data):
                     break
 
-                sample_bytes = data[i:i+3]
-                sample_int = int.from_bytes(sample_bytes, byteorder='little', signed=True)
+                sample_bytes = data[i : i + 3]
+                sample_int = int.from_bytes(sample_bytes, byteorder="little", signed=True)
                 if sample_int & 0x800000:
                     sample_int |= 0xFF000000
                 sample = sample_int / 8388608.0
@@ -673,11 +690,12 @@ class SF2SampleProcessor:
 
             return np.array(samples, dtype=np.float32)
 
-    def _apply_mip_mapping(self, sample_data: np.ndarray, sample_info: dict[str, Any],
-                          pitch_ratio: float) -> np.ndarray:
+    def _apply_mip_mapping(
+        self, sample_data: np.ndarray, sample_info: dict[str, Any], pitch_ratio: float
+    ) -> np.ndarray:
         """Apply mip-mapping for high-pitch playback."""
-        sample_name = sample_info.get('name', 'unknown')
-        sample_rate = sample_info.get('sample_rate', 44100)
+        sample_name = sample_info.get("name", "unknown")
+        sample_rate = sample_info.get("sample_rate", 44100)
 
         # Get or create mip-map
         if sample_name not in self.mip_maps:
@@ -700,21 +718,23 @@ class SF2SampleProcessor:
                         if len(sample_data.shape) == 1 and len(mip_data.shape) == 1:
                             # Both are mono, just adjust length
                             if len(mip_data) != len(sample_data):
-                                interpolator = Interpolator('linear')
-                                mip_data = interpolator.interpolate(mip_data, len(sample_data) / len(mip_data))
+                                interpolator = Interpolator("linear")
+                                mip_data = interpolator.interpolate(
+                                    mip_data, len(sample_data) / len(mip_data)
+                                )
                         elif len(sample_data.shape) > 1 and len(mip_data.shape) > 1:
                             # Both are stereo, adjust both channels
                             if mip_data.shape != sample_data.shape:
-                                interpolator = Interpolator('linear')
+                                interpolator = Interpolator("linear")
                                 if mip_data.shape[0] != sample_data.shape[0]:
                                     # Adjust number of frames
                                     new_data = np.zeros_like(sample_data)
                                     for ch in range(min(mip_data.shape[1], sample_data.shape[1])):
                                         channel_data = interpolator.interpolate(
-                                            mip_data[:, ch], 
-                                            sample_data.shape[0] / mip_data.shape[0]
+                                            mip_data[:, ch],
+                                            sample_data.shape[0] / mip_data.shape[0],
                                         )
-                                        new_data[:, ch] = channel_data[:sample_data.shape[0]]
+                                        new_data[:, ch] = channel_data[: sample_data.shape[0]]
                                     mip_data = new_data
                     return mip_data
             except Exception:
@@ -729,7 +749,7 @@ class SF2SampleProcessor:
         Args:
             method: Interpolation method ('linear', 'cubic', 'sinc')
         """
-        if method in ['linear', 'cubic', 'sinc']:
+        if method in ["linear", "cubic", "sinc"]:
             self.interpolator.method = method
 
     def configure_stereo_pair(self, logical_name: str, left_sample: str, right_sample: str) -> None:
@@ -755,8 +775,9 @@ class SF2SampleProcessor:
         """
         return self.stereo_processor.get_stereo_samples(sample_name)
 
-    def preload_sample(self, sample_name: str, sample_data: np.ndarray,
-                      sample_rate: float = 44100) -> None:
+    def preload_sample(
+        self, sample_name: str, sample_data: np.ndarray, sample_rate: float = 44100
+    ) -> None:
         """
         Preload sample into mip-map system.
 
@@ -785,15 +806,15 @@ class SF2SampleProcessor:
         hit_rate = (self.cache_hits / total_queries * 100) if total_queries > 0 else 0.0
 
         return {
-            'cache_stats': cache_stats,
-            'mip_maps': total_mip_maps,
-            'mip_memory_mb': total_mip_memory / (1024 * 1024),
-            'cache_hits': self.cache_hits,
-            'cache_misses': self.cache_misses,
-            'total_queries': total_queries,
-            'cache_hit_rate': round(hit_rate, 2),
-            'interpolation_method': self.interpolator.method,
-            'stereo_pairs': len(self.stereo_processor.stereo_pairs)
+            "cache_stats": cache_stats,
+            "mip_maps": total_mip_maps,
+            "mip_memory_mb": total_mip_memory / (1024 * 1024),
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "total_queries": total_queries,
+            "cache_hit_rate": round(hit_rate, 2),
+            "interpolation_method": self.interpolator.method,
+            "stereo_pairs": len(self.stereo_processor.stereo_pairs),
         }
 
     def clear_cache(self) -> None:

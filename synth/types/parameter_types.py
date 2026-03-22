@@ -4,40 +4,44 @@ Parameter types and protocols for the Modern XG Synthesizer.
 This module defines the standardized parameter update protocol and types
 used throughout the synthesizer architecture for hierarchical parameter routing.
 """
+
 from __future__ import annotations
 
-from typing import Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class ParameterScope(Enum):
     """Parameter scope levels in the synthesizer hierarchy"""
-    GLOBAL = "global"      # Affects entire synthesizer (reverb, master volume)
+
+    GLOBAL = "global"  # Affects entire synthesizer (reverb, master volume)
     SYNTHESIZER = "synthesizer"  # Affects specific synthesizer type (XG, GS, Jupiter-X)
-    CHANNEL = "channel"    # Affects specific MIDI channel (pan, volume, effects sends)
-    VOICE = "voice"        # Affects specific note/voice (pitch bend, aftertouch)
-    PARTIAL = "partial"    # Affects individual synthesis partial (filter, envelope)
+    CHANNEL = "channel"  # Affects specific MIDI channel (pan, volume, effects sends)
+    VOICE = "voice"  # Affects specific note/voice (pitch bend, aftertouch)
+    PARTIAL = "partial"  # Affects individual synthesis partial (filter, envelope)
 
 
 class SynthesizerType(Enum):
     """Supported synthesizer types for unified parameter management"""
-    MODERN = "modern"      # Modern XG synthesizer (base implementation)
-    XG = "xg"              # Yamaha XG specification
-    GS = "gs"              # Roland GS specification
+
+    MODERN = "modern"  # Modern XG synthesizer (base implementation)
+    XG = "xg"  # Yamaha XG specification
+    GS = "gs"  # Roland GS specification
     JUPITER_X = "jupiter_x"  # Roland Jupiter-X specification
-    MOTIF = "motif"        # Yamaha Motif series
-    FANTOM = "fantom"      # Roland Fantom series
-    KORG = "korg"          # Korg synthesizers
-    NORD = "nord"          # Clavia Nord series
+    MOTIF = "motif"  # Yamaha Motif series
+    FANTOM = "fantom"  # Roland Fantom series
+    KORG = "korg"  # Korg synthesizers
+    NORD = "nord"  # Clavia Nord series
 
 
 class ParameterSource(Enum):
     """Source of parameter update"""
-    NRPN = "nrpn"              # Non-Registered Parameter Number
+
+    NRPN = "nrpn"  # Non-Registered Parameter Number
     CONTROLLER = "controller"  # MIDI Controller (CC)
-    SYSEX = "sysex"            # System Exclusive message
-    INTERNAL = "internal"      # Internal synthesizer parameter
+    SYSEX = "sysex"  # System Exclusive message
+    INTERNAL = "internal"  # Internal synthesizer parameter
     XG_CHANNEL = "xg_channel"  # XG channel parameter
     AUTOMATION = "automation"  # DAW automation
 
@@ -50,11 +54,12 @@ class ParameterUpdate:
     This structure is used throughout the synthesizer to ensure consistent
     parameter passing between architectural layers.
     """
-    name: str                           # Parameter name (e.g., 'filter_cutoff', 'reverb_time')
-    value: float | int | str | bool # Parameter value (pre-scaled to appropriate range)
-    scope: ParameterScope              # Scope level (global/channel/voice/partial)
-    channel: int | None             # MIDI channel (0-15) for channel-scoped parameters
-    source: ParameterSource            # Source of the parameter update
+
+    name: str  # Parameter name (e.g., 'filter_cutoff', 'reverb_time')
+    value: float | int | str | bool  # Parameter value (pre-scaled to appropriate range)
+    scope: ParameterScope  # Scope level (global/channel/voice/partial)
+    channel: int | None  # MIDI channel (0-15) for channel-scoped parameters
+    source: ParameterSource  # Source of the parameter update
     synthesizer_type: SynthesizerType | None = None  # Target synthesizer type
     metadata: dict[str, Any] | None = None  # Additional context information
 
@@ -200,30 +205,23 @@ PARAMETER_RANGES = {
     ParameterNames.REVERB_SEND: (0.0, 1.0),
     ParameterNames.CHORUS_SEND: (0.0, 1.0),
     ParameterNames.VARIATION_SEND: (0.0, 1.0),
-
     # Bipolar parameters (-1.0 to +1.0)
     ParameterNames.PAN: (-1.0, 1.0),
     ParameterNames.PART_PAN: (-1.0, 1.0),
     ParameterNames.MASTER_PAN: (-1.0, 1.0),
-
     # Frequency parameters (20Hz-20kHz)
     ParameterNames.FILTER_CUTOFF: (20.0, 20000.0),
-
     # Resonance (0.0-4.0)
     ParameterNames.FILTER_RESONANCE: (0.0, 4.0),
-
     # Time parameters (various ranges)
     ParameterNames.AMPLITUDE_ATTACK: (0.001, 10.0),
     ParameterNames.AMPLITUDE_DECAY: (0.01, 30.0),
     ParameterNames.AMPLITUDE_SUSTAIN: (0.0, 1.0),
     ParameterNames.AMPLITUDE_RELEASE: (0.01, 30.0),
-
     # LFO Rate (0.1Hz-50Hz)
     ParameterNames.LFO_RATE: (0.1, 50.0),
-
     # LFO Depth (0.0-1.0)
     ParameterNames.LFO_DEPTH: (0.0, 1.0),
-
     # Tuning (±24 semitones, ±100 cents)
     ParameterNames.OSC_COARSE_TUNE: (-24, 24),
     ParameterNames.OSC_FINE_TUNE: (-100, 100),
@@ -263,7 +261,7 @@ def create_parameter_update(
     scope: ParameterScope,
     source: ParameterSource,
     channel: int | None = None,
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None,
 ) -> ParameterUpdate:
     """
     Factory function to create validated ParameterUpdate instances.
@@ -283,12 +281,7 @@ def create_parameter_update(
         ValueError: If parameter validation fails
     """
     update = ParameterUpdate(
-        name=name,
-        value=value,
-        scope=scope,
-        channel=channel,
-        source=source,
-        metadata=metadata
+        name=name, value=value, scope=scope, channel=channel, source=source, metadata=metadata
     )
 
     if not validate_parameter_update(update):

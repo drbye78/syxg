@@ -4,17 +4,10 @@ XG Component System - Clean XG Implementation
 Production-quality XG synthesizer components with complete XG specification compliance.
 Contains XG component manager, MIDI processor, and state management.
 """
+
 from __future__ import annotations
 
 from typing import Any
-from collections.abc import Callable
-import threading
-import time
-import math
-from pathlib import Path
-import os
-import hashlib
-import weakref
 
 
 class XGComponentManager:
@@ -33,27 +26,27 @@ class XGComponentManager:
     def _init_components(self):
         """Initialize all XG components - production quality"""
         # Import XG components
+        from ...xg.xg_compatibility_modes import XGCompatibilityModes
+        from ...xg.xg_controller_assignments import XGControllerAssignments
+        from ...xg.xg_drum_setup_parameters import XGDrumSetupParameters
+        from ...xg.xg_effects_enhancement import XGSystemEffectsEnhancement
+        from ...xg.xg_micro_tuning import XGMicroTuning
+        from ...xg.xg_multi_part_setup import XGMultiPartSetup
+        from ...xg.xg_realtime_control import XGRealtimeControl
         from ...xg.xg_sysex_controller import XGSystemExclusiveController
         from ...xg.xg_system_parameters import XGSystemEffectParameters
-        from ...xg.xg_multi_part_setup import XGMultiPartSetup
-        from ...xg.xg_controller_assignments import XGControllerAssignments
-        from ...xg.xg_effects_enhancement import XGSystemEffectsEnhancement
-        from ...xg.xg_drum_setup_parameters import XGDrumSetupParameters
-        from ...xg.xg_micro_tuning import XGMicroTuning
-        from ...xg.xg_realtime_control import XGRealtimeControl
-        from ...xg.xg_compatibility_modes import XGCompatibilityModes
 
         # Initialize all XG components
         self.components = {
-            'sysex': XGSystemExclusiveController(self.device_id),
-            'system_params': XGSystemEffectParameters(),
-            'multi_part': XGMultiPartSetup(self.max_channels),
-            'controllers': XGControllerAssignments(self.max_channels),
-            'effects': XGSystemEffectsEnhancement(self.sample_rate),
-            'drum_setup': XGDrumSetupParameters(self.max_channels),
-            'micro_tuning': XGMicroTuning(self.max_channels),
-            'realtime': XGRealtimeControl(self.device_id),
-            'compatibility': XGCompatibilityModes()
+            "sysex": XGSystemExclusiveController(self.device_id),
+            "system_params": XGSystemEffectParameters(),
+            "multi_part": XGMultiPartSetup(self.max_channels),
+            "controllers": XGControllerAssignments(self.max_channels),
+            "effects": XGSystemEffectsEnhancement(self.sample_rate),
+            "drum_setup": XGDrumSetupParameters(self.max_channels),
+            "micro_tuning": XGMicroTuning(self.max_channels),
+            "realtime": XGRealtimeControl(self.device_id),
+            "compatibility": XGCompatibilityModes(),
         }
 
     def get_component(self, name: str):
@@ -68,29 +61,29 @@ class XGComponentManager:
 
             # Parameter change
             if command == 0x08:
-                return self.components['realtime'].process_sysex_message(data)
+                return self.components["realtime"].process_sysex_message(data)
             # Display/LED control
             elif command in (0x10, 0x11):
-                return self.components['realtime'].process_sysex_message(data)
+                return self.components["realtime"].process_sysex_message(data)
             # Bulk operations
             elif command in (0x07, 0x09, 0x0A, 0x0C):
-                return self.components['realtime'].process_sysex_message(data)
+                return self.components["realtime"].process_sysex_message(data)
             # Mode switching
             elif command in (0x02, 0x03, 0x04):
-                return self.components['compatibility'].process_sysex_message(data)
+                return self.components["compatibility"].process_sysex_message(data)
 
         return None
 
     def reset_all(self):
         """Reset all XG components to defaults"""
         for component in self.components.values():
-            if hasattr(component, 'reset'):
+            if hasattr(component, "reset"):
                 component.reset()
 
     def cleanup(self):
         """Clean up all XG components"""
         for component in self.components.values():
-            if hasattr(component, 'cleanup'):
+            if hasattr(component, "cleanup"):
                 component.cleanup()
 
 
@@ -105,13 +98,15 @@ class XGMIDIProcessor:
     def _init_routing(self):
         """Initialize fast routing tables"""
         self.sysex_routes = {
-            0x08: self.components.get_component('realtime'),  # Parameter change (also used for receive channel)
-            0x10: self.components.get_component('realtime'),  # Display
-            0x11: self.components.get_component('realtime'),  # LED
-            0x07: self.components.get_component('realtime'),  # Bulk dump
-            0x02: self.components.get_component('compatibility'),  # XG ON/OFF
-            0x03: self.components.get_component('compatibility'),  # GM/GM2
-            0x04: self.components.get_component('compatibility'),  # XG Reset
+            0x08: self.components.get_component(
+                "realtime"
+            ),  # Parameter change (also used for receive channel)
+            0x10: self.components.get_component("realtime"),  # Display
+            0x11: self.components.get_component("realtime"),  # LED
+            0x07: self.components.get_component("realtime"),  # Bulk dump
+            0x02: self.components.get_component("compatibility"),  # XG ON/OFF
+            0x03: self.components.get_component("compatibility"),  # GM/GM2
+            0x04: self.components.get_component("compatibility"),  # XG Reset
         }
 
         # Note: Receive channel SYSEX (0x08 with specific format) will be handled
@@ -135,7 +130,7 @@ class XGMIDIProcessor:
         command = data[4]
         handler = self.sysex_routes.get(command)
 
-        if handler and hasattr(handler, 'process_sysex_message'):
+        if handler and hasattr(handler, "process_sysex_message"):
             return handler.process_sysex_message(data) is not None
 
         return False
@@ -152,16 +147,16 @@ class XGStateManager:
     def _init_parameter_cache(self):
         """Initialize parameter cache for fast access"""
         self.parameter_cache = {
-            'reverb_type': lambda: self.components.get_component('system_params').get_reverb_type(),
-            'chorus_type': lambda: self.components.get_component('system_params').get_chorus_type(),
-            'variation_type': lambda: self.components.get_component('effects').get_variation_type(),
+            "reverb_type": lambda: self.components.get_component("system_params").get_reverb_type(),
+            "chorus_type": lambda: self.components.get_component("system_params").get_chorus_type(),
+            "variation_type": lambda: self.components.get_component("effects").get_variation_type(),
         }
 
         # Drum kit cache
         for ch in range(16):
-            self.parameter_cache[f'drum_kit_ch{ch}'] = lambda c=ch: (
-                self.components.get_component('drum_setup').get_drum_kit_info(c)
-            )
+            self.parameter_cache[f"drum_kit_ch{ch}"] = lambda c=ch: self.components.get_component(
+                "drum_setup"
+            ).get_drum_kit_info(c)
 
     def get_parameter(self, param_name: str):
         """Get parameter value from cache"""
@@ -171,7 +166,7 @@ class XGStateManager:
     def get_effects_config(self) -> dict[str, Any]:
         """Get effects configuration for audio processing"""
         return {
-            'reverb_enabled': self.get_parameter('reverb_type') > 0,
-            'chorus_enabled': self.get_parameter('chorus_type') > 0,
-            'variation_enabled': self.get_parameter('variation_type') > 0,
+            "reverb_enabled": self.get_parameter("reverb_type") > 0,
+            "chorus_enabled": self.get_parameter("chorus_type") > 0,
+            "variation_enabled": self.get_parameter("variation_type") > 0,
         }

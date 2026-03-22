@@ -2,12 +2,13 @@
 Modulation sources for XG synthesizer.
 Defines all available modulation sources.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 
 class ModulationSource:
     """Class representing modulation source"""
+
     VELOCITY = "velocity"
     AFTER_TOUCH = "after_touch"
     MOD_WHEEL = "mod_wheel"
@@ -61,5 +62,5 @@ class ModulationSource:
             ModulationSource.DATA_ENTRY,
             ModulationSource.VOLUME_CC,
             ModulationSource.BALANCE,
-            ModulationSource.PORTAMENTO_TIME_CC
+            ModulationSource.PORTAMENTO_TIME_CC,
         ]

@@ -9,28 +9,37 @@ filtering, and XG-compliant modulation matrix routing.
 Uses Numba-compiled functions for efficient block-based processing of waveform
 generation, envelope application, and filtering with bilinear transform.
 """
+
 from __future__ import annotations
 
 import math
-from typing import Any
-from collections.abc import Callable
+
 import numpy as np
-import numba as nb
-from numba import jit, float32, int32, boolean
+from numba import jit
 
 from synth.core.oscillator import XGLFO
+
 # Import removed - wavetable functionality moved to new modular SF2 system
 # The new system uses SF2Manager from synth.sf2.core.manager
-from ..core.envelope import UltraFastADSREnvelope, EnvelopeState
-from ..core.filter import ResonantFilter
-from ..core.panner import StereoPanner
+from ..core.envelope import EnvelopeState
 from ..engine.optimized_coefficient_manager import get_global_coefficient_manager
+
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_generate_waveform_block_stereo_time_varying_numpy(
-    left_block: np.ndarray, right_block: np.ndarray, left_table: np.ndarray, right_table: np.ndarray,
-    table_length: int, phase: float, base_phase_step: float, pitch_mod_block: np.ndarray,
-    loop_mode: int, loop_start: int, loop_end: int, block_size: int, loop_direction: int
+    left_block: np.ndarray,
+    right_block: np.ndarray,
+    left_table: np.ndarray,
+    right_table: np.ndarray,
+    table_length: int,
+    phase: float,
+    base_phase_step: float,
+    pitch_mod_block: np.ndarray,
+    loop_mode: int,
+    loop_start: int,
+    loop_end: int,
+    block_size: int,
+    loop_direction: int,
 ):
     """
     Numba-compiled time-varying waveform generation for stereo NumPy arrays.
@@ -157,8 +166,13 @@ def _numba_generate_waveform_block_stereo_time_varying_numpy(
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_apply_time_varying_filter(
-    left_block, right_block, filter_cutoff_block, filter_resonance,
-    block_size, sample_rate, filter_state=None
+    left_block,
+    right_block,
+    filter_cutoff_block,
+    filter_resonance,
+    block_size,
+    sample_rate,
+    filter_state=None,
 ):
     """
     Apply time-varying second-order low-pass filter with bilinear transform.
@@ -245,7 +259,9 @@ def _numba_apply_time_varying_filter(
         input_right = right_block[i]
         # Clamp input to prevent overflow
         input_right = max(-10.0, min(10.0, input_right))
-        output_right = a0 * input_right + a1 * right_z1 + a2 * right_z2 - b1 * right_z1 - b2 * right_z2
+        output_right = (
+            a0 * input_right + a1 * right_z1 + a2 * right_z2 - b1 * right_z1 - b2 * right_z2
+        )
         # Clamp output to prevent overflow
         output_right = max(-10.0, min(10.0, output_right))
 
@@ -270,9 +286,18 @@ def _numba_apply_time_varying_filter(
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_generate_waveform_block_mono_time_varying_numpy(
-    left_block: np.ndarray, right_block: np.ndarray, sample_table: np.ndarray,
-    table_length: int, phase: float, base_phase_step: float, pitch_mod_block: np.ndarray,
-    loop_mode: int, loop_start: int, loop_end: int, block_size: int, loop_direction: int
+    left_block: np.ndarray,
+    right_block: np.ndarray,
+    sample_table: np.ndarray,
+    table_length: int,
+    phase: float,
+    base_phase_step: float,
+    pitch_mod_block: np.ndarray,
+    loop_mode: int,
+    loop_start: int,
+    loop_end: int,
+    block_size: int,
+    loop_direction: int,
 ):
     """
     Numba-compiled time-varying waveform generation for mono NumPy arrays.
@@ -386,8 +411,15 @@ def _numba_generate_waveform_block_mono_time_varying_numpy(
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_apply_envelope_and_modulation(
-    left_block, right_block, amp_env_block, level, amp_mod,
-    crossfade_factor, pan_left, pan_right, block_size
+    left_block,
+    right_block,
+    amp_env_block,
+    level,
+    amp_mod,
+    crossfade_factor,
+    pan_left,
+    pan_right,
+    block_size,
 ):
     """
     Numba-compiled envelope, level, crossfade, and panning application.
@@ -476,7 +508,7 @@ class XGPartialGenerator:
         self.amp_hold_time = partial_params.get("amp_hold", 0.0)
 
         # XG Filter envelope - can be disabled for drums
-        self.use_filter_env = partial_params.get("use_filter_env", False)#not is_drum)
+        self.use_filter_env = partial_params.get("use_filter_env", False)  # not is_drum)
         if self.use_filter_env:
             self.filter_attack_time = partial_params.get("filter_attack", 0.1)
             self.filter_decay_time = partial_params.get("filter_decay", 0.5)
@@ -486,7 +518,7 @@ class XGPartialGenerator:
             self.filter_hold_time = partial_params.get("filter_hold", 0.0)
 
         # XG Pitch envelope - can be disabled for drums
-        self.use_pitch_env = partial_params.get("use_pitch_env", False)#not is_drum)
+        self.use_pitch_env = partial_params.get("use_pitch_env", False)  # not is_drum)
         if self.use_pitch_env:
             self.pitch_attack_time = partial_params.get("pitch_attack", 0.05)
             self.pitch_decay_time = partial_params.get("pitch_decay", 0.1)
@@ -495,7 +527,9 @@ class XGPartialGenerator:
             self.pitch_delay_time = partial_params.get("pitch_delay", 0.0)
             self.pitch_hold_time = partial_params.get("pitch_hold", 0.0)
             # XG Pitch envelope depth - controllable amount (cents)
-            self.pitch_envelope_depth = partial_params.get("pitch_envelope_depth", 1200.0)  # Default ±1200 cents
+            self.pitch_envelope_depth = partial_params.get(
+                "pitch_envelope_depth", 1200.0
+            )  # Default ±1200 cents
 
         # XG Filter parameters
         filter_config = partial_params.get("filter", {})
@@ -504,9 +538,19 @@ class XGPartialGenerator:
         self.filter_type = filter_config.get("type", "lowpass")
         self.filter_key_follow = filter_config.get("key_follow", 0.5)
 
-    def __init__(self, synth, note: int, velocity: int, program: int,
-                  partial_id: int, partial_params: dict, is_drum: bool = False,
-                  sample_rate: int = 44100, bank: int = 0, use_modulation_matrix: bool = False):
+    def __init__(
+        self,
+        synth,
+        note: int,
+        velocity: int,
+        program: int,
+        partial_id: int,
+        partial_params: dict,
+        is_drum: bool = False,
+        sample_rate: int = 44100,
+        bank: int = 0,
+        use_modulation_matrix: bool = False,
+    ):
         """
         Initialize XG partial generator.
 
@@ -524,7 +568,7 @@ class XGPartialGenerator:
         """
         self.synth = synth
         # Handle case where synth is None (for testing)
-        if synth is not None and hasattr(synth, 'sf2_manager') and synth.sf2_manager is not None:
+        if synth is not None and hasattr(synth, "sf2_manager") and synth.sf2_manager is not None:
             self.wavetable: WavetableManager | None = synth.sf2_manager.get_manager()
         else:
             self.wavetable = None
@@ -586,7 +630,7 @@ class XGPartialGenerator:
                 waveform="sine",
                 rate=5.0,
                 depth=0.5,
-                delay=0.0
+                delay=0.0,
             )
             # Configure LFO modulation routing
             if i == 0:  # LFO1: Pitch modulation (vibrato)
@@ -667,8 +711,9 @@ class XGPartialGenerator:
 
         return antialiasing_cutoff
 
-    def _apply_antialiasing_filter(self, left_block: np.ndarray, right_block: np.ndarray,
-                                  block_size: int):
+    def _apply_antialiasing_filter(
+        self, left_block: np.ndarray, right_block: np.ndarray, block_size: int
+    ):
         """
         Apply antialiasing filter to prevent high-frequency aliasing artifacts.
 
@@ -692,9 +737,13 @@ class XGPartialGenerator:
         # Apply low-pass filter with high slope (24dB/octave) for effective antialiasing
         # Use resonance = 0.0 for flat response, focus on frequency attenuation
         _numba_apply_time_varying_filter(
-            left_block, right_block, cutoff_block,
+            left_block,
+            right_block,
+            cutoff_block,
             0.0,  # No resonance for clean antialiasing
-            block_size, self.sample_rate, self.antialiasing_filter_state
+            block_size,
+            self.sample_rate,
+            self.antialiasing_filter_state,
         )
 
         # XG Modulation cache
@@ -777,8 +826,10 @@ class XGPartialGenerator:
             return None
 
         # Get sample header from wavetable manager
-        cache_key = f'{self.bank}-{self.program}-{self.note}-{self.velocity}-{self.partial_id}'
-        header, soundfont_obj, valid = getattr(self.wavetable, 'partial_map', {}).get(cache_key, (None, None, False))
+        cache_key = f"{self.bank}-{self.program}-{self.note}-{self.velocity}-{self.partial_id}"
+        header, soundfont_obj, valid = getattr(self.wavetable, "partial_map", {}).get(
+            cache_key, (None, None, False)
+        )
 
         return header if valid else None
 
@@ -818,7 +869,7 @@ class XGPartialGenerator:
 
         # Calculate the original frequency of the sample (as it was recorded)
         original_freq = 440.0 * (2.0 ** ((original_pitch - 69) / 12.0))
-        
+
         # Apply pitch correction if present
         if pitch_correction_cents != 0:
             original_freq *= 2.0 ** (pitch_correction_cents / 1200.0)
@@ -831,7 +882,7 @@ class XGPartialGenerator:
 
         # Calculate the final phase step
         # This properly accounts for both the desired pitch change and sample rate differences
-        phase_step = frequency_ratio * sample_rate_ratio #* table_length
+        phase_step = frequency_ratio * sample_rate_ratio  # * table_length
 
         return phase_step
 
@@ -844,8 +895,7 @@ class XGPartialGenerator:
 
         # Get sample table from wavetable manager (only called once)
         sample_table = self.wavetable.get_partial_table(
-            self.note, self.program, self.partial_id,
-            self.velocity, self.bank
+            self.note, self.program, self.partial_id, self.velocity, self.bank
         )
 
         # Handle NumPy arrays returned by updated SampleParser
@@ -872,8 +922,10 @@ class XGPartialGenerator:
             return
 
         # Access the cached sample header from wavetable manager
-        cache_key = f'{self.bank}-{self.program}-{self.note}-{self.velocity}-{self.partial_id}'
-        header, soundfont_obj, valid = getattr(self.wavetable, 'partial_map', {}).get(cache_key, (None, None, False))
+        cache_key = f"{self.bank}-{self.program}-{self.note}-{self.velocity}-{self.partial_id}"
+        header, soundfont_obj, valid = getattr(self.wavetable, "partial_map", {}).get(
+            cache_key, (None, None, False)
+        )
 
         if header and valid:
             # Store sample boundaries (absolute indices in original file)
@@ -933,7 +985,7 @@ class XGPartialGenerator:
             sustain=self.amp_sustain_level,
             release=self.amp_release_time,
             velocity_sense=self._calculate_velocity_sense(),  # XG formula
-            key_scaling=0.0  # XG envelope key scaling handled separately
+            key_scaling=0.0,  # XG envelope key scaling handled separately
         )
         self.amp_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
         self.work_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
@@ -950,7 +1002,7 @@ class XGPartialGenerator:
                 sustain=self.filter_sustain_level,
                 release=self.filter_release_time,
                 velocity_sense=0.0,  # XG filter env typically not velocity-sensitive
-                key_scaling=0.0
+                key_scaling=0.0,
             )
             self.filter_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
         else:
@@ -967,7 +1019,7 @@ class XGPartialGenerator:
                 sustain=self.pitch_sustain_level,  # Fixed level per XG
                 release=self.pitch_release_time,
                 velocity_sense=0.0,  # XG pitch env typically not velocity-sensitive
-                key_scaling=0.0
+                key_scaling=0.0,
             )
             self.pitch_buffer = self.synth.memory_pool.get_mono_buffer(self.synth.block_size)
         else:
@@ -981,7 +1033,7 @@ class XGPartialGenerator:
             resonance=self.filter_resonance,
             filter_type=self.filter_type,
             key_follow=self.filter_key_follow,
-            stereo_width=1.0  # Enable stereo processing for partials
+            stereo_width=1.0,  # Enable stereo processing for partials
         )
 
     def _calculate_velocity_sense(self) -> float:
@@ -1023,14 +1075,18 @@ class XGPartialGenerator:
 
     def is_active(self) -> bool:
         """Check if XG partial is still active."""
-        return (self.active and
-                self.amp_envelope and
-                self.amp_envelope.state != EnvelopeState.IDLE)
+        return self.active and self.amp_envelope and self.amp_envelope.state != EnvelopeState.IDLE
 
-    def generate_sample_block(self, block_size: int, left_block: np.ndarray, right_block: np.ndarray, lfos: list[XGLFO],
-                              global_pitch_mod: float = 0.0,
-                              velocity_crossfade: float = 0.0,
-                              note_crossfade: float = 0.0) -> None:
+    def generate_sample_block(
+        self,
+        block_size: int,
+        left_block: np.ndarray,
+        right_block: np.ndarray,
+        lfos: list[XGLFO],
+        global_pitch_mod: float = 0.0,
+        velocity_crossfade: float = 0.0,
+        note_crossfade: float = 0.0,
+    ) -> None:
         """
         Generate XG partial audio block with FULL time-varying modulation processing.
 
@@ -1075,25 +1131,36 @@ class XGPartialGenerator:
 
         # Generate base waveform with TIME-VARYING pitch modulation
         # Mip-mapping handles quality reduction at sample loading level
-        self._generate_waveform_block_time_varying(left_block, right_block, self.work_buffer, block_size)
+        self._generate_waveform_block_time_varying(
+            left_block, right_block, self.work_buffer, block_size
+        )
 
         # Apply XG filter with TIME-VARYING envelope modulation
         if self.filter and self.use_filter_env and self.filter_envelope:
             filter_env_block = self.filter_envelope.generate_block(self.filter_buffer, block_size)
             # XG Filter envelope to cutoff modulation (±4800 cents range typically)
-            self.work_buffer[:block_size] = filter_env_block[:block_size] * 4800.0 * self.last_filter_mod
+            self.work_buffer[:block_size] = (
+                filter_env_block[:block_size] * 4800.0 * self.last_filter_mod
+            )
 
             # Add LFO modulation to filter cutoff (time-varying within block)
             if lfos:
                 lfo_filter_block = self._generate_lfo_filter_modulation_block(lfos, block_size)
-                self.work_buffer[:block_size] += lfo_filter_block[:block_size] * 4800.0  # Convert to cents
+                self.work_buffer[:block_size] += (
+                    lfo_filter_block[:block_size] * 4800.0
+                )  # Convert to cents
 
             filter_cutoff_freq_block = self._calculate_xg_filter_cutoff_block(self.work_buffer)
 
             # Apply TIME-VARYING filter processing
             _numba_apply_time_varying_filter(
-                left_block, right_block, filter_cutoff_freq_block,
-                self.filter_resonance, block_size, self.sample_rate, self.filter_state
+                left_block,
+                right_block,
+                filter_cutoff_freq_block,
+                self.filter_resonance,
+                block_size,
+                self.sample_rate,
+                self.filter_state,
             )
 
         # Generate time-varying amplitude modulation (LFO tremolo)
@@ -1113,9 +1180,15 @@ class XGPartialGenerator:
 
         # Use Numba-compiled function for ultra-fast SIMD processing
         _numba_apply_envelope_and_modulation(
-            left_block, right_block, self.work_buffer,
-            float(self.level), 1.0,  # amp_mod_block is already applied above
-            crossfade_factor, pan_left, pan_right, block_size
+            left_block,
+            right_block,
+            self.work_buffer,
+            float(self.level),
+            1.0,  # amp_mod_block is already applied above
+            crossfade_factor,
+            pan_left,
+            pan_right,
+            block_size,
         )
 
     def _calculate_key_follow_factor(self) -> float:
@@ -1134,7 +1207,7 @@ class XGPartialGenerator:
         log_factor = 0.073637  # approximately ln(1.059463) / ln(2) = 0.073637
         exponent = (note_distance / (108 - 21)) * log_factor
         result = math.exp(exponent * math.log(2.0))  # Use natural log for better performance
-        
+
         return result if self.note < center_note else 1.0 / result
 
     def _calculate_xg_filter_cutoff(self, env_mod_cents: float) -> float:
@@ -1153,7 +1226,9 @@ class XGPartialGenerator:
         # XG-compliant frequency clamping
         return max(20.0, min(20000.0, final_freq))
 
-    def _process_pitch_envelope_block(self, pitch_env_block: np.ndarray, block_size: int) -> np.ndarray:
+    def _process_pitch_envelope_block(
+        self, pitch_env_block: np.ndarray, block_size: int
+    ) -> np.ndarray:
         """Process XG pitch envelope for block (fixed sustain level)."""
         if self.pitch_envelope and self.pitch_envelope.state == EnvelopeState.SUSTAIN:
             # Fixed sustain per XG spec
@@ -1173,8 +1248,13 @@ class XGPartialGenerator:
         cents_range = ((value - 64) / 63.0) * 1200.0
         self.pitch_envelope_depth = max(-1200.0, min(2400.0, cents_range))  # Allow wider range
 
-    def _generate_waveform_block_time_varying(self, left_block: np.ndarray, right_block: np.ndarray,
-                                             pitch_mod_block: np.ndarray, block_size: int) -> None:
+    def _generate_waveform_block_time_varying(
+        self,
+        left_block: np.ndarray,
+        right_block: np.ndarray,
+        pitch_mod_block: np.ndarray,
+        block_size: int,
+    ) -> None:
         """Generate entire sample block with TIME-VARYING pitch modulation.
 
         This method implements proper XG-compliant time-varying pitch modulation within blocks,
@@ -1203,20 +1283,45 @@ class XGPartialGenerator:
             # Stereo samples - extract left and right arrays from the combined array
             left_table, right_table = sample_table
             # Stereo samples - use time-varying stereo Numba function
-            self.sample_position, self.loop_direction = _numba_generate_waveform_block_stereo_time_varying_numpy(
-                left_block, right_block, left_table, right_table, table_length,
-                self.sample_position, self.sample_advance_step, pitch_mod_block, self.loop_mode,
-                self.loop_start, self.loop_end, block_size, self.loop_direction
+            self.sample_position, self.loop_direction = (
+                _numba_generate_waveform_block_stereo_time_varying_numpy(
+                    left_block,
+                    right_block,
+                    left_table,
+                    right_table,
+                    table_length,
+                    self.sample_position,
+                    self.sample_advance_step,
+                    pitch_mod_block,
+                    self.loop_mode,
+                    self.loop_start,
+                    self.loop_end,
+                    block_size,
+                    self.loop_direction,
+                )
             )
         else:
             # Mono samples - use time-varying mono Numba function (expands to stereo)
-            self.sample_position, self.loop_direction = _numba_generate_waveform_block_mono_time_varying_numpy(
-                left_block, right_block, sample_table, table_length,
-                self.sample_position, self.sample_advance_step, pitch_mod_block, self.loop_mode,
-                self.loop_start, self.loop_end, block_size, self.loop_direction
+            self.sample_position, self.loop_direction = (
+                _numba_generate_waveform_block_mono_time_varying_numpy(
+                    left_block,
+                    right_block,
+                    sample_table,
+                    table_length,
+                    self.sample_position,
+                    self.sample_advance_step,
+                    pitch_mod_block,
+                    self.loop_mode,
+                    self.loop_start,
+                    self.loop_end,
+                    block_size,
+                    self.loop_direction,
+                )
             )
 
-    def _generate_lfo_pitch_modulation_block(self, lfos: list[XGLFO], block_size: int) -> np.ndarray:
+    def _generate_lfo_pitch_modulation_block(
+        self, lfos: list[XGLFO], block_size: int
+    ) -> np.ndarray:
         """Generate time-varying LFO pitch modulation block for XG compliance.
 
         CRITICAL FIX: Use dedicated partial LFOs instead of shared channel LFOs to avoid contention.
@@ -1228,10 +1333,10 @@ class XGPartialGenerator:
         Returns:
             Array of pitch modulation values in cents
         """
-        if not hasattr(self, 'dedicated_lfos') or len(self.dedicated_lfos) == 0:
+        if not hasattr(self, "dedicated_lfos") or len(self.dedicated_lfos) == 0:
             # Fallback to zero if no dedicated LFOs
             return np.zeros(block_size, dtype=np.float32)
-            
+
         pitch_mod_block = self.acc_buffer
         if pitch_mod_block is None:
             return np.zeros(block_size, dtype=np.float32)
@@ -1240,7 +1345,7 @@ class XGPartialGenerator:
         # Use dedicated LFO for pitch modulation (LFO1)
         if len(self.dedicated_lfos) > 0:
             lfo = self.dedicated_lfos[0]  # Dedicated pitch LFO
-            if lfo and hasattr(lfo, 'generate_block'):
+            if lfo and hasattr(lfo, "generate_block"):
                 lfo_block = lfo.generate_block(self.item_buffer, block_size)
                 # Apply LFO modulation with comprehensive bounds checking
                 if lfo_block is not None and len(lfo_block) >= block_size:
@@ -1253,7 +1358,9 @@ class XGPartialGenerator:
 
         return pitch_mod_block
 
-    def _generate_lfo_filter_modulation_block(self, lfos: list[XGLFO], block_size: int) -> np.ndarray:
+    def _generate_lfo_filter_modulation_block(
+        self, lfos: list[XGLFO], block_size: int
+    ) -> np.ndarray:
         """Generate time-varying LFO filter modulation block for XG compliance.
 
         CRITICAL FIX: Use dedicated partial LFOs instead of shared channel LFOs to avoid contention.
@@ -1265,10 +1372,10 @@ class XGPartialGenerator:
         Returns:
             Array of filter modulation values (0.0 to 1.0)
         """
-        if not hasattr(self, 'dedicated_lfos') or len(self.dedicated_lfos) < 2:
+        if not hasattr(self, "dedicated_lfos") or len(self.dedicated_lfos) < 2:
             # Fallback to zero if no dedicated LFOs
             return np.zeros(block_size, dtype=np.float32)
-            
+
         filter_mod_block = self.acc_buffer
         if filter_mod_block is None:
             return np.zeros(block_size, dtype=np.float32)
@@ -1277,7 +1384,7 @@ class XGPartialGenerator:
         # Use dedicated LFO for filter modulation (LFO2)
         if len(self.dedicated_lfos) > 1:
             lfo = self.dedicated_lfos[1]  # Dedicated filter LFO
-            if lfo and hasattr(lfo, 'generate_block'):
+            if lfo and hasattr(lfo, "generate_block"):
                 lfo_block = lfo.generate_block(self.item_buffer, block_size)
                 # Apply LFO filter modulation with comprehensive bounds checking
                 if lfo_block is not None and len(lfo_block) >= block_size:
@@ -1290,7 +1397,9 @@ class XGPartialGenerator:
 
         return filter_mod_block
 
-    def _generate_lfo_amplitude_modulation_block(self, lfos: list[XGLFO], block_size: int) -> np.ndarray:
+    def _generate_lfo_amplitude_modulation_block(
+        self, lfos: list[XGLFO], block_size: int
+    ) -> np.ndarray:
         """Generate time-varying LFO amplitude modulation block for XG tremolo.
 
         CRITICAL FIX: Use dedicated partial LFOs instead of shared channel LFOs to avoid contention.
@@ -1302,10 +1411,10 @@ class XGPartialGenerator:
         Returns:
             Array of amplitude modulation values (0.0 to 1.0, centered around 1.0)
         """
-        if not hasattr(self, 'dedicated_lfos') or len(self.dedicated_lfos) < 3:
+        if not hasattr(self, "dedicated_lfos") or len(self.dedicated_lfos) < 3:
             # Fallback to ones if no dedicated LFOs
             return np.ones(block_size, dtype=np.float32)
-            
+
         amp_mod_block = self.acc_buffer
         if amp_mod_block is None:
             return np.ones(block_size, dtype=np.float32)
@@ -1314,7 +1423,7 @@ class XGPartialGenerator:
         # Use dedicated LFO for amplitude modulation (LFO3)
         if len(self.dedicated_lfos) > 2:
             lfo = self.dedicated_lfos[2]  # Dedicated amplitude LFO
-            if lfo and hasattr(lfo, 'generate_block'):
+            if lfo and hasattr(lfo, "generate_block"):
                 lfo_block = lfo.generate_block(self.item_buffer, block_size)
 
                 if lfo_block is not None and len(lfo_block) >= block_size:
@@ -1360,10 +1469,10 @@ class XGPartialGenerator:
     def update_brightness(self, value: float):
         """XG Sound Controller 72 - Brightness (+/- 24 semitones)."""
         # Update coefficient manager with new brightness value
-        self.coeff_manager.update_xg_coefficient('brightness', int(value))
+        self.coeff_manager.update_xg_coefficient("brightness", int(value))
 
         # Get pre-computed brightness multiplier
-        brightness_mult = self.coeff_manager.get_xg_coefficient('brightness', int(value))
+        brightness_mult = self.coeff_manager.get_xg_coefficient("brightness", int(value))
         self.filter_cutoff = max(20, min(20000, 1000.0 * brightness_mult))
 
     def update_amp_release(self, value: float):
@@ -1391,10 +1500,10 @@ class XGPartialGenerator:
     def update_filter_cutoff(self, value: float):
         """XG Sound Controller 75 - Filter Cutoff Frequency."""
         # Update coefficient manager with new filter cutoff value
-        self.coeff_manager.update_xg_coefficient('filter_cutoff', int(value))
+        self.coeff_manager.update_xg_coefficient("filter_cutoff", int(value))
 
         # Get pre-computed frequency ratio
-        freq_ratio = self.coeff_manager.get_xg_coefficient('filter_cutoff', int(value))
+        freq_ratio = self.coeff_manager.get_xg_coefficient("filter_cutoff", int(value))
         self.filter_cutoff = max(20, min(20000, 1000.0 * freq_ratio))
 
     def update_amp_decay(self, value: float):
@@ -1411,17 +1520,21 @@ class XGPartialGenerator:
     def update_vibrato_rate(self, value: float):
         """XG Sound Controller 77 - Vibrato Rate."""
         # Update coefficient manager with new vibrato rate value
-        self.coeff_manager.update_xg_coefficient('vibrato_rate', int(value))
+        self.coeff_manager.update_xg_coefficient("vibrato_rate", int(value))
 
         # Get pre-computed rate
-        rate_hz = self.coeff_manager.get_xg_coefficient('vibrato_rate', int(value))
+        rate_hz = self.coeff_manager.get_xg_coefficient("vibrato_rate", int(value))
         # Store for use by dedicated LFO
         self.vibrato_rate = rate_hz
 
         # Apply rate to dedicated pitch LFO (LFO0)
-        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos is not None and len(self.dedicated_lfos) > 0:
+        if (
+            hasattr(self, "dedicated_lfos")
+            and self.dedicated_lfos is not None
+            and len(self.dedicated_lfos) > 0
+        ):
             lfo = self.dedicated_lfos[0]  # Dedicated pitch LFO
-            if lfo and hasattr(lfo, 'set_rate'):
+            if lfo and hasattr(lfo, "set_rate"):
                 lfo.set_rate(self.vibrato_rate)
 
     def update_vibrato_depth(self, value: float):
@@ -1432,15 +1545,22 @@ class XGPartialGenerator:
         self.vibrato_depth_cents = depth_cents
 
         # Apply depth to dedicated pitch LFO (LFO0)
-        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos is not None and len(self.dedicated_lfos) > 0:
+        if (
+            hasattr(self, "dedicated_lfos")
+            and self.dedicated_lfos is not None
+            and len(self.dedicated_lfos) > 0
+        ):
             lfo = self.dedicated_lfos[0]  # Pitch LFO
-            if lfo and hasattr(lfo, 'set_modulation_depths'):
-                lfo.set_modulation_depths(pitch_cents=self.vibrato_depth_cents, filter_depth=0.0, amplitude_depth=0.0)
+            if lfo and hasattr(lfo, "set_modulation_depths"):
+                lfo.set_modulation_depths(
+                    pitch_cents=self.vibrato_depth_cents, filter_depth=0.0, amplitude_depth=0.0
+                )
 
     # XG Modulation interface methods
 
-    def set_modulation_values(self, pitch_mod: float = 0.0, filter_mod: float = 0.0,
-                            amp_mod: float = 1.0):
+    def set_modulation_values(
+        self, pitch_mod: float = 0.0, filter_mod: float = 0.0, amp_mod: float = 1.0
+    ):
         """Set modulation values from XG modulation matrix."""
         self.last_pitch_mod = pitch_mod
         self.last_filter_mod = filter_mod
@@ -1452,7 +1572,7 @@ class XGPartialGenerator:
         self.active = False
 
         # Ensure cached sample table is initialized
-        if not hasattr(self, '_cached_sample_table'):
+        if not hasattr(self, "_cached_sample_table"):
             self._cached_sample_table = None
 
         # Reset envelopes to idle state
@@ -1480,9 +1600,18 @@ class XGPartialGenerator:
         self.loop_direction = 1
         self.loop_position = 0.0
 
-    def _reconfigure(self, synth, note: int, velocity: int, program: int,
-                    partial_id: int, partial_params: dict, is_drum: bool = False,
-                    sample_rate: int = 44100, bank: int = 0):
+    def _reconfigure(
+        self,
+        synth,
+        note: int,
+        velocity: int,
+        program: int,
+        partial_id: int,
+        partial_params: dict,
+        is_drum: bool = False,
+        sample_rate: int = 44100,
+        bank: int = 0,
+    ):
         """Reconfigure existing partial generator with new parameters."""
         # Update basic properties
         self.synth = synth
@@ -1522,7 +1651,7 @@ class XGPartialGenerator:
                 waveform="sine",
                 rate=5.0,
                 depth=0.5,
-                delay=0.0
+                delay=0.0,
             )
             # Configure LFO modulation routing
             if i == 0:  # LFO1: Pitch modulation (vibrato)
@@ -1575,7 +1704,7 @@ class XGPartialGenerator:
         lfo3_depth_mod = lfo_modulation_values.get("lfo3_depth", 0.0)
 
         # Apply rate modulation to dedicated LFOs
-        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos:
+        if hasattr(self, "dedicated_lfos") and self.dedicated_lfos:
             # LFO1: Pitch modulation (vibrato)
             if len(self.dedicated_lfos) > 0 and self.dedicated_lfos[0]:
                 self.dedicated_lfos[0].apply_rate_modulation(lfo1_rate_mod)
@@ -1611,8 +1740,10 @@ class XGPartialGenerator:
 
         if self.amp_envelope:
             self.amp_envelope.modulate_parameters(
-                attack_mod=amp_attack_mod, decay_mod=amp_decay_mod,
-                sustain_mod=amp_sustain_mod, release_mod=amp_release_mod
+                attack_mod=amp_attack_mod,
+                decay_mod=amp_decay_mod,
+                sustain_mod=amp_sustain_mod,
+                release_mod=amp_release_mod,
             )
 
         # Filter envelope modulation
@@ -1623,8 +1754,10 @@ class XGPartialGenerator:
             filter_release_mod = envelope_modulation_values.get("filter_release", 0.0)
 
             self.filter_envelope.modulate_parameters(
-                attack_mod=filter_attack_mod, decay_mod=filter_decay_mod,
-                sustain_mod=filter_sustain_mod, release_mod=filter_release_mod
+                attack_mod=filter_attack_mod,
+                decay_mod=filter_decay_mod,
+                sustain_mod=filter_sustain_mod,
+                release_mod=filter_release_mod,
             )
 
         # Pitch envelope modulation
@@ -1635,8 +1768,10 @@ class XGPartialGenerator:
             pitch_release_mod = envelope_modulation_values.get("pitch_release", 0.0)
 
             self.pitch_envelope.modulate_parameters(
-                attack_mod=pitch_attack_mod, decay_mod=pitch_decay_mod,
-                sustain_mod=pitch_sustain_mod, release_mod=pitch_release_mod
+                attack_mod=pitch_attack_mod,
+                decay_mod=pitch_decay_mod,
+                sustain_mod=pitch_sustain_mod,
+                release_mod=pitch_release_mod,
             )
 
     def apply_advanced_modulation(self, advanced_modulation_values: dict[str, float]):
@@ -1655,7 +1790,9 @@ class XGPartialGenerator:
         note_crossfade_mod = advanced_modulation_values.get("note_crossfade", 0.0)
 
         # Apply crossfade modulation to existing crossfade parameters
-        self.velocity_crossfade = np.clip(self.base_velocity_crossfade + velocity_crossfade_mod, 0.0, 1.0)
+        self.velocity_crossfade = np.clip(
+            self.base_velocity_crossfade + velocity_crossfade_mod, 0.0, 1.0
+        )
         self.note_crossfade = np.clip(self.base_note_crossfade + note_crossfade_mod, 0.0, 1.0)
 
         # Stereo width modulation
@@ -1667,7 +1804,7 @@ class XGPartialGenerator:
         tremolo_rate_mod = advanced_modulation_values.get("tremolo_rate", 0.0)
         tremolo_depth_mod = advanced_modulation_values.get("tremolo_depth", 0.0)
 
-        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos and len(self.dedicated_lfos) > 2:
+        if hasattr(self, "dedicated_lfos") and self.dedicated_lfos and len(self.dedicated_lfos) > 2:
             tremolo_lfo = self.dedicated_lfos[2]  # Dedicated amplitude LFO
             if tremolo_lfo:
                 tremolo_lfo.apply_rate_modulation(tremolo_rate_mod)
@@ -1733,7 +1870,7 @@ class XGPartialGenerator:
         self.pan = np.clip(self.base_pan + pan_mod, -1.0, 1.0)
 
         # Update stereo coefficients if stereo width is active
-        if hasattr(self, 'stereo_width') and self.stereo_width != 1.0:
+        if hasattr(self, "stereo_width") and self.stereo_width != 1.0:
             self._update_stereo_coefficients()
 
     def apply_modulation(self, synthesis_mod, lfo_mod, envelope_mod, advanced_mod):
@@ -1789,7 +1926,7 @@ class XGPartialGenerator:
         self.set_modulation_values(
             synthesis_mod.get("pitch", 0.0),
             synthesis_mod.get("filter_cutoff", 0.0),
-            synthesis_mod.get("amp", 1.0)
+            synthesis_mod.get("amp", 1.0),
         )
 
     def _apply_modulation_matrix_mode(self, synthesis_mod, lfo_mod, envelope_mod, advanced_mod):
@@ -1800,33 +1937,47 @@ class XGPartialGenerator:
         routing capabilities and XG specification compliance.
         """
         # Import modulation matrix here to avoid circular imports
-        from ..modulation.matrix import ModulationMatrix
 
         # Create modulation matrix instance if not already present
-        if not hasattr(self, 'modulation_matrix') or self.modulation_matrix is None:
+        if not hasattr(self, "modulation_matrix") or self.modulation_matrix is None:
             # Use vectorized matrix for better performance
             from ..modulation.vectorized_matrix import VectorizedModulationMatrix
+
             self.modulation_matrix = VectorizedModulationMatrix(num_routes=16)
             self._setup_modulation_matrix_routes()
 
         # Prepare modulation sources dictionary
-        sources = self._prepare_modulation_sources(synthesis_mod, lfo_mod, envelope_mod, advanced_mod)
+        sources = self._prepare_modulation_sources(
+            synthesis_mod, lfo_mod, envelope_mod, advanced_mod
+        )
 
         # Process through modulation matrix
         modulation_values = self.modulation_matrix.process(sources, self.velocity, self.note)
 
         # Separate modulation by type for different consumers
-        synthesis_matrix_mod = {k: v for k, v in modulation_values.items()
-                              if k in ['pitch', 'filter_cutoff', 'amp', 'pan']}
+        synthesis_matrix_mod = {
+            k: v
+            for k, v in modulation_values.items()
+            if k in ["pitch", "filter_cutoff", "amp", "pan"]
+        }
 
-        lfo_matrix_mod = {k: v for k, v in modulation_values.items()
-                         if k.startswith('lfo') and ('_rate' in k or '_depth' in k)}
+        lfo_matrix_mod = {
+            k: v
+            for k, v in modulation_values.items()
+            if k.startswith("lfo") and ("_rate" in k or "_depth" in k)
+        }
 
-        envelope_matrix_mod = {k: v for k, v in modulation_values.items()
-                              if any(x in k for x in ['attack', 'decay', 'sustain', 'release', 'hold'])}
+        envelope_matrix_mod = {
+            k: v
+            for k, v in modulation_values.items()
+            if any(x in k for x in ["attack", "decay", "sustain", "release", "hold"])
+        }
 
-        advanced_matrix_mod = {k: v for k, v in modulation_values.items()
-                              if k in ['velocity_crossfade', 'note_crossfade', 'stereo_width', 'tremolo_rate']}
+        advanced_matrix_mod = {
+            k: v
+            for k, v in modulation_values.items()
+            if k in ["velocity_crossfade", "note_crossfade", "stereo_width", "tremolo_rate"]
+        }
 
         # Apply modulation in correct order
         # 1. Envelope modulation (affects envelope shapes)
@@ -1847,7 +1998,7 @@ class XGPartialGenerator:
         self.set_modulation_values(
             synthesis_matrix_mod.get("pitch", 0.0),
             synthesis_matrix_mod.get("filter_cutoff", 0.0),
-            synthesis_matrix_mod.get("amp", 1.0)
+            synthesis_matrix_mod.get("amp", 1.0),
         )
 
     def _prepare_modulation_sources(self, synthesis_mod, lfo_mod, envelope_mod, advanced_mod):
@@ -1861,9 +2012,9 @@ class XGPartialGenerator:
             # Basic sources
             "velocity": self.velocity / 127.0,
             "after_touch": 0.0,  # Channel aftertouch (could be added later)
-            "mod_wheel": 0.0,    # Mod wheel (could be added later)
+            "mod_wheel": 0.0,  # Mod wheel (could be added later)
             "breath_controller": 0.0,  # Breath controller
-            "foot_controller": 0.0,     # Foot controller
+            "foot_controller": 0.0,  # Foot controller
             "data_entry": 100 / 127.0,  # Default data entry value
             "lfo1": 0.0,
             "lfo2": 0.0,
@@ -1871,9 +2022,9 @@ class XGPartialGenerator:
             "note_lfo1": 0.0,  # Note-level LFOs
             "note_lfo2": 0.0,
             "note_lfo3": 0.0,
-            "amp_env": 0.0,     # Current envelope value
+            "amp_env": 0.0,  # Current envelope value
             "filter_env": 0.0,  # Current filter envelope value
-            "pitch_env": 0.0,   # Current pitch envelope value
+            "pitch_env": 0.0,  # Current pitch envelope value
             "key_pressure": 0.0,
             "brightness": 0.0,
             "harmonic_content": 0.0,
@@ -1884,18 +2035,30 @@ class XGPartialGenerator:
         }
 
         # Update from current LFO states if available
-        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos:
+        if hasattr(self, "dedicated_lfos") and self.dedicated_lfos:
             for i, lfo in enumerate(self.dedicated_lfos):
                 if lfo is not None:
-                    sources[f"lfo{i+1}"] = lfo.step() if hasattr(lfo, 'step') else 0.0
+                    sources[f"lfo{i + 1}"] = lfo.step() if hasattr(lfo, "step") else 0.0
 
         # Update from envelope states if available
-        if hasattr(self, 'amp_envelope') and self.amp_envelope:
-            sources["amp_env"] = self.amp_envelope.current_value if hasattr(self.amp_envelope, 'current_value') else 0.0
-        if hasattr(self, 'filter_envelope') and self.filter_envelope:
-            sources["filter_env"] = self.filter_envelope.current_value if hasattr(self.filter_envelope, 'current_value') else 0.0
-        if hasattr(self, 'pitch_envelope') and self.pitch_envelope:
-            sources["pitch_env"] = self.pitch_envelope.current_value if hasattr(self.pitch_envelope, 'current_value') else 0.0
+        if hasattr(self, "amp_envelope") and self.amp_envelope:
+            sources["amp_env"] = (
+                self.amp_envelope.current_value
+                if hasattr(self.amp_envelope, "current_value")
+                else 0.0
+            )
+        if hasattr(self, "filter_envelope") and self.filter_envelope:
+            sources["filter_env"] = (
+                self.filter_envelope.current_value
+                if hasattr(self.filter_envelope, "current_value")
+                else 0.0
+            )
+        if hasattr(self, "pitch_envelope") and self.pitch_envelope:
+            sources["pitch_env"] = (
+                self.pitch_envelope.current_value
+                if hasattr(self.pitch_envelope, "current_value")
+                else 0.0
+            )
 
         return sources
 
@@ -1917,39 +2080,25 @@ class XGPartialGenerator:
 
         # STANDARD XG ROUTES (Routes 0-6: Basic modulation)
         # LFO1 -> Pitch (Vibrato) - primary vibrato
-        self.modulation_matrix.set_route(
-            0, "lfo1", "pitch", amount=50.0/100.0, polarity=1.0
-        )
+        self.modulation_matrix.set_route(0, "lfo1", "pitch", amount=50.0 / 100.0, polarity=1.0)
 
         # LFO2 -> Pitch (additional modulation)
-        self.modulation_matrix.set_route(
-            1, "lfo2", "pitch", amount=30.0/100.0, polarity=1.0
-        )
+        self.modulation_matrix.set_route(1, "lfo2", "pitch", amount=30.0 / 100.0, polarity=1.0)
 
         # LFO3 -> Pitch (subtle modulation)
-        self.modulation_matrix.set_route(
-            2, "lfo3", "pitch", amount=10.0/100.0, polarity=1.0
-        )
+        self.modulation_matrix.set_route(2, "lfo3", "pitch", amount=10.0 / 100.0, polarity=1.0)
 
         # Amp Envelope -> Filter Cutoff (timbral evolution)
-        self.modulation_matrix.set_route(
-            3, "amp_env", "filter_cutoff", amount=0.5, polarity=1.0
-        )
+        self.modulation_matrix.set_route(3, "amp_env", "filter_cutoff", amount=0.5, polarity=1.0)
 
         # LFO1 -> Filter Cutoff (wah/filter modulation)
-        self.modulation_matrix.set_route(
-            4, "lfo1", "filter_cutoff", amount=0.3, polarity=1.0
-        )
+        self.modulation_matrix.set_route(4, "lfo1", "filter_cutoff", amount=0.3, polarity=1.0)
 
         # Velocity -> Amplitude (dynamics)
-        self.modulation_matrix.set_route(
-            5, "velocity", "amp", amount=0.5, velocity_sensitivity=0.5
-        )
+        self.modulation_matrix.set_route(5, "velocity", "amp", amount=0.5, velocity_sensitivity=0.5)
 
         # Note Number -> Pitch (keyboard tracking)
-        self.modulation_matrix.set_route(
-            6, "note_number", "pitch", amount=1.0, key_scaling=1.0
-        )
+        self.modulation_matrix.set_route(6, "note_number", "pitch", amount=1.0, key_scaling=1.0)
 
         # ============================================================================
         # ADVANCED XG ROUTES (Routes 7-15: Controller and advanced modulation)
@@ -1957,9 +2106,7 @@ class XGPartialGenerator:
 
         # CONTROLLER ROUTES
         # Mod Wheel -> LFO1 Depth (vibrato control)
-        self.modulation_matrix.set_route(
-            7, "mod_wheel", "lfo1_depth", amount=1.0, polarity=1.0
-        )
+        self.modulation_matrix.set_route(7, "mod_wheel", "lfo1_depth", amount=1.0, polarity=1.0)
 
         # Breath Controller -> LFO1 Depth (expression vibrato)
         self.modulation_matrix.set_route(
@@ -1972,9 +2119,7 @@ class XGPartialGenerator:
         )
 
         # Channel Aftertouch -> LFO1 Depth (pressure vibrato)
-        self.modulation_matrix.set_route(
-            10, "after_touch", "lfo1_depth", amount=0.6, polarity=1.0
-        )
+        self.modulation_matrix.set_route(10, "after_touch", "lfo1_depth", amount=0.6, polarity=1.0)
 
         # Key Aftertouch -> Filter Resonance (timbral pressure)
         self.modulation_matrix.set_route(
@@ -1992,23 +2137,26 @@ class XGPartialGenerator:
         )
 
         # Volume CC -> Amplitude (additional level control)
-        self.modulation_matrix.set_route(
-            14, "volume_cc", "amp", amount=0.9, polarity=1.0
-        )
+        self.modulation_matrix.set_route(14, "volume_cc", "amp", amount=0.9, polarity=1.0)
 
         # Expression -> Amplitude (primary level control)
-        self.modulation_matrix.set_route(
-            15, "expression", "amp", amount=0.8, polarity=1.0
-        )
+        self.modulation_matrix.set_route(15, "expression", "amp", amount=0.8, polarity=1.0)
 
     # ============================================================================
     # MODULATION MATRIX CONTROL INTERFACE - XG COMPLIANT
     # Provides runtime control of modulation matrix routes for advanced synthesis
     # ============================================================================
 
-    def set_matrix_route(self, index: int, source: str, destination: str,
-                        amount: float = 0.0, polarity: float = 1.0,
-                        velocity_sensitivity: float = 0.0, key_scaling: float = 0.0):
+    def set_matrix_route(
+        self,
+        index: int,
+        source: str,
+        destination: str,
+        amount: float = 0.0,
+        polarity: float = 1.0,
+        velocity_sensitivity: float = 0.0,
+        key_scaling: float = 0.0,
+    ):
         """
         Set a modulation matrix route for advanced synthesis control.
 
@@ -2028,16 +2176,16 @@ class XGPartialGenerator:
             # Matrix not enabled - silently ignore
             return
 
-        if not hasattr(self, 'modulation_matrix') or self.modulation_matrix is None:
+        if not hasattr(self, "modulation_matrix") or self.modulation_matrix is None:
             # Create matrix if it doesn't exist
             from ..modulation.matrix import ModulationMatrix
+
             self.modulation_matrix = ModulationMatrix(num_routes=16)
             self._setup_modulation_matrix_routes()
 
         if 0 <= index < self.modulation_matrix.num_routes:
             self.modulation_matrix.set_route(
-                index, source, destination, amount,
-                polarity, velocity_sensitivity, key_scaling
+                index, source, destination, amount, polarity, velocity_sensitivity, key_scaling
             )
 
     def get_matrix_route(self, index: int) -> dict[str, any] | None:
@@ -2050,19 +2198,19 @@ class XGPartialGenerator:
         Returns:
             Route configuration dictionary or None if invalid index
         """
-        if not self.use_modulation_matrix or not hasattr(self, 'modulation_matrix'):
+        if not self.use_modulation_matrix or not hasattr(self, "modulation_matrix"):
             return None
 
         if 0 <= index < len(self.modulation_matrix.routes):
             route = self.modulation_matrix.routes[index]
             if route is not None:
                 return {
-                    'source': route.source,
-                    'destination': route.destination,
-                    'amount': route.amount,
-                    'polarity': route.polarity,
-                    'velocity_sensitivity': route.velocity_sensitivity,
-                    'key_scaling': route.key_scaling
+                    "source": route.source,
+                    "destination": route.destination,
+                    "amount": route.amount,
+                    "polarity": route.polarity,
+                    "velocity_sensitivity": route.velocity_sensitivity,
+                    "key_scaling": route.key_scaling,
                 }
         return None
 
@@ -2073,7 +2221,7 @@ class XGPartialGenerator:
         Args:
             index: Route index to clear (0-15)
         """
-        if not self.use_modulation_matrix or not hasattr(self, 'modulation_matrix'):
+        if not self.use_modulation_matrix or not hasattr(self, "modulation_matrix"):
             return
 
         self.modulation_matrix.clear_route(index)
@@ -2088,8 +2236,9 @@ class XGPartialGenerator:
         if not self.use_modulation_matrix:
             return
 
-        if not hasattr(self, 'modulation_matrix') or self.modulation_matrix is None:
+        if not hasattr(self, "modulation_matrix") or self.modulation_matrix is None:
             from ..modulation.matrix import ModulationMatrix
+
             self.modulation_matrix = ModulationMatrix(num_routes=16)
 
         self._setup_modulation_matrix_routes()
@@ -2102,26 +2251,30 @@ class XGPartialGenerator:
             Dictionary containing matrix status and active routes
         """
         if not self.use_modulation_matrix:
-            return {'enabled': False}
+            return {"enabled": False}
 
         status = {
-            'enabled': True,
-            'num_routes': self.modulation_matrix.num_routes if hasattr(self, 'modulation_matrix') else 0,
-            'active_routes': 0,
-            'routes': []
+            "enabled": True,
+            "num_routes": self.modulation_matrix.num_routes
+            if hasattr(self, "modulation_matrix")
+            else 0,
+            "active_routes": 0,
+            "routes": [],
         }
 
-        if hasattr(self, 'modulation_matrix') and self.modulation_matrix:
+        if hasattr(self, "modulation_matrix") and self.modulation_matrix:
             for i, route in enumerate(self.modulation_matrix.routes):
                 if route is not None:
-                    status['active_routes'] += 1
-                    status['routes'].append({
-                        'index': i,
-                        'source': route.source,
-                        'destination': route.destination,
-                        'amount': route.amount,
-                        'polarity': route.polarity
-                    })
+                    status["active_routes"] += 1
+                    status["routes"].append(
+                        {
+                            "index": i,
+                            "source": route.source,
+                            "destination": route.destination,
+                            "amount": route.amount,
+                            "polarity": route.polarity,
+                        }
+                    )
 
         return status
 
@@ -2135,46 +2288,48 @@ class XGPartialGenerator:
         # We don't need to manually return buffers to it
 
         # Clear buffer references (they will be garbage collected when XGBufferPool is cleaned up)
-        if hasattr(self, 'amp_buffer'):
+        if hasattr(self, "amp_buffer"):
             self.amp_buffer = None
-        if hasattr(self, 'work_buffer'):
+        if hasattr(self, "work_buffer"):
             self.work_buffer = None
-        if hasattr(self, 'acc_buffer'):
+        if hasattr(self, "acc_buffer"):
             self.acc_buffer = None
-        if hasattr(self, 'item_buffer'):
+        if hasattr(self, "item_buffer"):
             self.item_buffer = None
-        if hasattr(self, 'filter_buffer'):
+        if hasattr(self, "filter_buffer"):
             self.filter_buffer = None
-        if hasattr(self, 'pitch_buffer'):
+        if hasattr(self, "pitch_buffer"):
             self.pitch_buffer = None
 
         # Return dedicated LFOs to LFO pool (CRITICAL: prevent resource leaks)
-        if hasattr(self, 'dedicated_lfos') and self.dedicated_lfos is not None:
-            if hasattr(self.synth, 'partial_lfo_pool'):
+        if hasattr(self, "dedicated_lfos") and self.dedicated_lfos is not None:
+            if hasattr(self.synth, "partial_lfo_pool"):
                 for lfo in self.dedicated_lfos:
-                    if lfo is not None and hasattr(self.synth.partial_lfo_pool, 'release_oscillator'):
+                    if lfo is not None and hasattr(
+                        self.synth.partial_lfo_pool, "release_oscillator"
+                    ):
                         self.synth.partial_lfo_pool.release_oscillator(lfo)
             self.dedicated_lfos = None
 
         # Return envelopes to envelope pool
-        if hasattr(self, 'amp_envelope') and self.amp_envelope is not None:
-            if hasattr(self.synth, 'envelope_pool'):
+        if hasattr(self, "amp_envelope") and self.amp_envelope is not None:
+            if hasattr(self.synth, "envelope_pool"):
                 self.synth.envelope_pool.release_envelope(self.amp_envelope)
             self.amp_envelope = None
 
-        if hasattr(self, 'filter_envelope') and self.filter_envelope is not None:
-            if hasattr(self.synth, 'envelope_pool'):
+        if hasattr(self, "filter_envelope") and self.filter_envelope is not None:
+            if hasattr(self.synth, "envelope_pool"):
                 self.synth.envelope_pool.release_envelope(self.filter_envelope)
             self.filter_envelope = None
 
-        if hasattr(self, 'pitch_envelope') and self.pitch_envelope is not None:
-            if hasattr(self.synth, 'envelope_pool'):
+        if hasattr(self, "pitch_envelope") and self.pitch_envelope is not None:
+            if hasattr(self.synth, "envelope_pool"):
                 self.synth.envelope_pool.release_envelope(self.pitch_envelope)
             self.pitch_envelope = None
 
         # Return filter to filter pool
-        if hasattr(self, 'filter') and self.filter is not None:
-            if hasattr(self.synth, 'filter_pool'):
+        if hasattr(self, "filter") and self.filter is not None:
+            if hasattr(self.synth, "filter_pool"):
                 self.synth.filter_pool.release_filter(self.filter)
             self.filter = None
 
@@ -2189,7 +2344,6 @@ class XGPartialGenerator:
     def __del__(self):
         """Cleanup when XGPartialGenerator is destroyed."""
         self.cleanup()
-
 
     # ============================================================================
     # XG VOICE PARAMETER EXTENSIONS - PHASE A COMPLETION
@@ -2307,10 +2461,10 @@ class XGPartialGenerator:
         self.attack_velocity_factor = max(-1.0, min(1.0, rate_sensitivity))
 
         # Update envelope parameters if envelope exists
-        if hasattr(self, 'amp_envelope') and self.amp_envelope:
+        if hasattr(self, "amp_envelope") and self.amp_envelope:
             # Modify attack time based on velocity
             # Higher positive values = faster attack with higher velocity
-            base_attack = getattr(self.amp_envelope, '_attack_time', 0.01)
+            base_attack = getattr(self.amp_envelope, "_attack_time", 0.01)
             self.modified_attack_time = base_attack * (1.0 + rate_sensitivity * 0.5)
 
     def _pan_control(self, pan_position: float):
@@ -2330,7 +2484,7 @@ class XGPartialGenerator:
             self.voice_pan_right = 1.0 + self.voice_pan  # -1.0 results in 0.0
         elif self.voice_pan > 0:
             # Pan right: left gain reduced, right gain full
-            self.voice_pan_left = 1.0 - self.voice_pan   # 1.0 results in 0.0
+            self.voice_pan_left = 1.0 - self.voice_pan  # 1.0 results in 0.0
             self.voice_pan_right = 1.0
         else:
             # Center: both full gain
@@ -2356,14 +2510,14 @@ class XGPartialGenerator:
         # Configure polyphony behavior
         if assign_mode == 0:  # Single
             self.max_concurrent_voices = 1
-            self.voice_stealing_mode = 'single'
+            self.voice_stealing_mode = "single"
         elif assign_mode == 3:  # Mono
             self.max_concurrent_voices = 1
-            self.voice_stealing_mode = 'mono'
+            self.voice_stealing_mode = "mono"
             self.portamento_enabled = True
         else:  # Multi/Poly
             self.max_concurrent_voices = 8  # No limit
-            self.voice_stealing_mode = 'round_robin'
+            self.voice_stealing_mode = "round_robin"
 
     def _fine_tune_xg(self, fine_tune_cents: float):
         """Apply XG Fine Tuning (MSB 127, LSB 12).

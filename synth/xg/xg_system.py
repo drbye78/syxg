@@ -6,13 +6,14 @@ providing multi-part operation, effects management, and XG parameter control.
 
 Part of S90/S70 compatibility - Core Infrastructure (Phase 1).
 """
+
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
-from collections.abc import Callable
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from typing import Self
@@ -189,10 +190,10 @@ class XGSystem:
     def set_engine_registry(self, registry) -> Self:
         """
         Set synthesis engine registry reference.
-        
+
         Args:
             registry: Engine registry instance
-        
+
         Returns:
             Self for method chaining
         """
@@ -202,10 +203,10 @@ class XGSystem:
     def set_effects_coordinator(self, coordinator) -> Self:
         """
         Set effects coordinator reference.
-        
+
         Args:
             coordinator: Effects coordinator instance
-        
+
         Returns:
             Self for method chaining
         """
@@ -352,9 +353,7 @@ class XGSystem:
                 setattr(self.system_params, parameter, value)
 
                 if self.parameter_change_callback:
-                    self.parameter_change_callback(
-                        f"system.{parameter}", old_value, value
-                    )
+                    self.parameter_change_callback(f"system.{parameter}", old_value, value)
 
                 return True
             return False
@@ -637,12 +636,8 @@ class XGSystem:
                 and self.style_player is not None,
                 "auto_accompaniment_enabled": hasattr(self, "auto_accompaniment")
                 and self.auto_accompaniment_enabled,
-                "registration_memory_slots": getattr(
-                    self, "registration_memory_slots", 0
-                ),
-                "voice_reservation_enabled": getattr(
-                    self, "voice_reservation_enabled", False
-                ),
+                "registration_memory_slots": getattr(self, "registration_memory_slots", 0),
+                "voice_reservation_enabled": getattr(self, "voice_reservation_enabled", False),
                 "key_split_zones": getattr(self, "key_split_zones", []),
                 "velocity_switch_zones": getattr(self, "velocity_switch_zones", []),
                 "transpose_memory": getattr(self, "transpose_memory", {}),
@@ -654,49 +649,25 @@ class XGSystem:
                 "song_player_supported": getattr(self, "song_player_supported", False),
                 "usb_host_supported": getattr(self, "usb_host_supported", False),
                 "usb_device_supported": getattr(self, "usb_device_supported", False),
-                "audio_recording_supported": getattr(
-                    self, "audio_recording_supported", False
-                ),
+                "audio_recording_supported": getattr(self, "audio_recording_supported", False),
                 "sampling_supported": getattr(self, "sampling_supported", False),
-                "vocal_synthesis_supported": getattr(
-                    self, "vocal_synthesis_supported", False
-                ),
-                "auto_arrangement_supported": getattr(
-                    self, "auto_arrangement_supported", False
-                ),
-                "chord_detection_enabled": getattr(
-                    self, "chord_detection_enabled", False
-                ),
-                "scale_detection_enabled": getattr(
-                    self, "scale_detection_enabled", False
-                ),
+                "vocal_synthesis_supported": getattr(self, "vocal_synthesis_supported", False),
+                "auto_arrangement_supported": getattr(self, "auto_arrangement_supported", False),
+                "chord_detection_enabled": getattr(self, "chord_detection_enabled", False),
+                "scale_detection_enabled": getattr(self, "scale_detection_enabled", False),
                 "tempo_follow_enabled": getattr(self, "tempo_follow_enabled", False),
                 "sync_start_enabled": getattr(self, "sync_start_enabled", False),
                 "cue_control_supported": getattr(self, "cue_control_supported", False),
-                "marker_navigation_supported": getattr(
-                    self, "marker_navigation_supported", False
-                ),
-                "track_muting_supported": getattr(
-                    self, "track_muting_supported", False
-                ),
-                "track_soloing_supported": getattr(
-                    self, "track_soloing_supported", False
-                ),
-                "track_recording_supported": getattr(
-                    self, "track_recording_supported", False
-                ),
+                "marker_navigation_supported": getattr(self, "marker_navigation_supported", False),
+                "track_muting_supported": getattr(self, "track_muting_supported", False),
+                "track_soloing_supported": getattr(self, "track_soloing_supported", False),
+                "track_recording_supported": getattr(self, "track_recording_supported", False),
                 "realtime_recording_supported": getattr(
                     self, "realtime_recording_supported", False
                 ),
-                "step_recording_supported": getattr(
-                    self, "step_recording_supported", False
-                ),
-                "loop_recording_supported": getattr(
-                    self, "loop_recording_supported", False
-                ),
-                "punch_in_out_supported": getattr(
-                    self, "punch_in_out_supported", False
-                ),
+                "step_recording_supported": getattr(self, "step_recording_supported", False),
+                "loop_recording_supported": getattr(self, "loop_recording_supported", False),
+                "punch_in_out_supported": getattr(self, "punch_in_out_supported", False),
                 "quantize_settings": getattr(self, "quantize_settings", {}),
                 "swing_settings": getattr(self, "swing_settings", {}),
                 "humanize_settings": getattr(self, "humanize_settings", {}),
@@ -728,54 +699,24 @@ class XGSystem:
                 "pitch_bend_range": getattr(self, "pitch_bend_range", [-24, 24]),
                 "modulation_range": getattr(self, "modulation_range", [0, 127]),
                 "expression_range": getattr(self, "expression_range", [0, 127]),
-                "sustain_pedal_supported": getattr(
-                    self, "sustain_pedal_supported", True
-                ),
-                "sostenuto_pedal_supported": getattr(
-                    self, "sostenuto_pedal_supported", True
-                ),
+                "sustain_pedal_supported": getattr(self, "sustain_pedal_supported", True),
+                "sostenuto_pedal_supported": getattr(self, "sostenuto_pedal_supported", True),
                 "soft_pedal_supported": getattr(self, "soft_pedal_supported", True),
                 "damper_pedal_supported": getattr(self, "damper_pedal_supported", True),
-                "portamento_pedal_supported": getattr(
-                    self, "portamento_pedal_supported", True
-                ),
-                "heel_toe_pedal_supported": getattr(
-                    self, "heel_toe_pedal_supported", True
-                ),
+                "portamento_pedal_supported": getattr(self, "portamento_pedal_supported", True),
+                "heel_toe_pedal_supported": getattr(self, "heel_toe_pedal_supported", True),
                 "volume_pedal_supported": getattr(self, "volume_pedal_supported", True),
-                "expression_pedal_supported": getattr(
-                    self, "expression_pedal_supported", True
-                ),
-                "foot_controller_supported": getattr(
-                    self, "foot_controller_supported", True
-                ),
-                "breath_controller_supported": getattr(
-                    self, "breath_controller_supported", True
-                ),
-                "ribbon_controller_supported": getattr(
-                    self, "ribbon_controller_supported", True
-                ),
-                "wheel_controller_supported": getattr(
-                    self, "wheel_controller_supported", True
-                ),
-                "slider_controller_supported": getattr(
-                    self, "slider_controller_supported", True
-                ),
-                "knob_controller_supported": getattr(
-                    self, "knob_controller_supported", True
-                ),
-                "fader_controller_supported": getattr(
-                    self, "fader_controller_supported", True
-                ),
-                "button_controller_supported": getattr(
-                    self, "button_controller_supported", True
-                ),
-                "switch_controller_supported": getattr(
-                    self, "switch_controller_supported", True
-                ),
-                "encoder_controller_supported": getattr(
-                    self, "encoder_controller_supported", True
-                ),
+                "expression_pedal_supported": getattr(self, "expression_pedal_supported", True),
+                "foot_controller_supported": getattr(self, "foot_controller_supported", True),
+                "breath_controller_supported": getattr(self, "breath_controller_supported", True),
+                "ribbon_controller_supported": getattr(self, "ribbon_controller_supported", True),
+                "wheel_controller_supported": getattr(self, "wheel_controller_supported", True),
+                "slider_controller_supported": getattr(self, "slider_controller_supported", True),
+                "knob_controller_supported": getattr(self, "knob_controller_supported", True),
+                "fader_controller_supported": getattr(self, "fader_controller_supported", True),
+                "button_controller_supported": getattr(self, "button_controller_supported", True),
+                "switch_controller_supported": getattr(self, "switch_controller_supported", True),
+                "encoder_controller_supported": getattr(self, "encoder_controller_supported", True),
                 "touch_pad_supported": getattr(self, "touch_pad_supported", True),
                 "touch_screen_supported": getattr(self, "touch_screen_supported", True),
                 "display_resolution": getattr(self, "display_resolution", [0, 0]),
@@ -856,43 +797,21 @@ class XGSystem:
                 "operating_time": getattr(self, "operating_time", 0),
                 "standby_time": getattr(self, "standby_time", 0),
                 "sleep_mode_supported": getattr(self, "sleep_mode_supported", False),
-                "power_save_mode_supported": getattr(
-                    self, "power_save_mode_supported", False
-                ),
+                "power_save_mode_supported": getattr(self, "power_save_mode_supported", False),
                 "eco_mode_supported": getattr(self, "eco_mode_supported", False),
-                "performance_mode_supported": getattr(
-                    self, "performance_mode_supported", False
-                ),
+                "performance_mode_supported": getattr(self, "performance_mode_supported", False),
                 "studio_mode_supported": getattr(self, "studio_mode_supported", False),
                 "live_mode_supported": getattr(self, "live_mode_supported", False),
-                "practice_mode_supported": getattr(
-                    self, "practice_mode_supported", False
-                ),
-                "learning_mode_supported": getattr(
-                    self, "learning_mode_supported", False
-                ),
-                "teaching_mode_supported": getattr(
-                    self, "teaching_mode_supported", False
-                ),
-                "recording_mode_supported": getattr(
-                    self, "recording_mode_supported", False
-                ),
-                "playback_mode_supported": getattr(
-                    self, "playback_mode_supported", False
-                ),
-                "sequencing_mode_supported": getattr(
-                    self, "sequencing_mode_supported", False
-                ),
-                "arranging_mode_supported": getattr(
-                    self, "arranging_mode_supported", False
-                ),
-                "editing_mode_supported": getattr(
-                    self, "editing_mode_supported", False
-                ),
+                "practice_mode_supported": getattr(self, "practice_mode_supported", False),
+                "learning_mode_supported": getattr(self, "learning_mode_supported", False),
+                "teaching_mode_supported": getattr(self, "teaching_mode_supported", False),
+                "recording_mode_supported": getattr(self, "recording_mode_supported", False),
+                "playback_mode_supported": getattr(self, "playback_mode_supported", False),
+                "sequencing_mode_supported": getattr(self, "sequencing_mode_supported", False),
+                "arranging_mode_supported": getattr(self, "arranging_mode_supported", False),
+                "editing_mode_supported": getattr(self, "editing_mode_supported", False),
                 "mixing_mode_supported": getattr(self, "mixing_mode_supported", False),
-                "mastering_mode_supported": getattr(
-                    self, "mastering_mode_supported", False
-                ),
+                "mastering_mode_supported": getattr(self, "mastering_mode_supported", False),
                 "performance_mode": getattr(self, "performance_mode", "normal"),
                 "current_style": getattr(self, "current_style", ""),
                 "current_song": getattr(self, "current_song", ""),
@@ -900,9 +819,7 @@ class XGSystem:
                 "current_phrase": getattr(self, "current_phrase", ""),
                 "current_accompaniment": getattr(self, "current_accompaniment", ""),
                 "current_tempo": getattr(self, "current_tempo", 120.0),
-                "current_time_signature": getattr(
-                    self, "current_time_signature", [4, 4]
-                ),
+                "current_time_signature": getattr(self, "current_time_signature", [4, 4]),
                 "current_key": getattr(self, "current_key", 0),
                 "current_scale": getattr(self, "current_scale", "major"),
                 "current_chord": getattr(self, "current_chord", ""),
@@ -914,19 +831,11 @@ class XGSystem:
                 "current_intro_pattern": getattr(self, "current_intro_pattern", ""),
                 "current_end_pattern": getattr(self, "current_end_pattern", ""),
                 "current_ending_pattern": getattr(self, "current_ending_pattern", ""),
-                "current_transition_pattern": getattr(
-                    self, "current_transition_pattern", ""
-                ),
-                "current_variation_pattern": getattr(
-                    self, "current_variation_pattern", ""
-                ),
-                "current_accompaniment_pattern": getattr(
-                    self, "current_accompaniment_pattern", ""
-                ),
+                "current_transition_pattern": getattr(self, "current_transition_pattern", ""),
+                "current_variation_pattern": getattr(self, "current_variation_pattern", ""),
+                "current_accompaniment_pattern": getattr(self, "current_accompaniment_pattern", ""),
                 "current_style_volume": getattr(self, "current_style_volume", 100),
-                "current_accompaniment_volume": getattr(
-                    self, "current_accompaniment_volume", 100
-                ),
+                "current_accompaniment_volume": getattr(self, "current_accompaniment_volume", 100),
                 "current_drums_volume": getattr(self, "current_drums_volume", 100),
                 "current_bass_volume": getattr(self, "current_bass_volume", 100),
                 "current_chords_volume": getattr(self, "current_chords_volume", 100),
@@ -943,46 +852,26 @@ class XGSystem:
                 "style_reverb_settings": getattr(self, "style_reverb_settings", {}),
                 "style_chorus_settings": getattr(self, "style_chorus_settings", {}),
                 "style_delay_settings": getattr(self, "style_delay_settings", {}),
-                "style_variation_settings": getattr(
-                    self, "style_variation_settings", {}
-                ),
+                "style_variation_settings": getattr(self, "style_variation_settings", {}),
                 "style_filter_settings": getattr(self, "style_filter_settings", {}),
-                "style_modulation_settings": getattr(
-                    self, "style_modulation_settings", {}
-                ),
+                "style_modulation_settings": getattr(self, "style_modulation_settings", {}),
                 "style_dynamics_settings": getattr(self, "style_dynamics_settings", {}),
                 "style_pitch_settings": getattr(self, "style_pitch_settings", {}),
                 "style_timing_settings": getattr(self, "style_timing_settings", {}),
                 "style_humanize_settings": getattr(self, "style_humanize_settings", {}),
-                "style_expression_settings": getattr(
-                    self, "style_expression_settings", {}
-                ),
-                "style_articulation_settings": getattr(
-                    self, "style_articulation_settings", {}
-                ),
+                "style_expression_settings": getattr(self, "style_expression_settings", {}),
+                "style_articulation_settings": getattr(self, "style_articulation_settings", {}),
                 "style_playing_technique": getattr(self, "style_playing_technique", ""),
-                "style_accompaniment_pattern": getattr(
-                    self, "style_accompaniment_pattern", ""
-                ),
-                "style_accompaniment_style": getattr(
-                    self, "style_accompaniment_style", ""
-                ),
-                "style_accompaniment_genre": getattr(
-                    self, "style_accompaniment_genre", ""
-                ),
-                "style_accompaniment_tempo": getattr(
-                    self, "style_accompaniment_tempo", 120.0
-                ),
+                "style_accompaniment_pattern": getattr(self, "style_accompaniment_pattern", ""),
+                "style_accompaniment_style": getattr(self, "style_accompaniment_style", ""),
+                "style_accompaniment_genre": getattr(self, "style_accompaniment_genre", ""),
+                "style_accompaniment_tempo": getattr(self, "style_accompaniment_tempo", 120.0),
                 "style_accompaniment_time_signature": getattr(
                     self, "style_accompaniment_time_signature", [4, 4]
                 ),
                 "style_accompaniment_key": getattr(self, "style_accompaniment_key", 0),
-                "style_accompaniment_scale": getattr(
-                    self, "style_accompaniment_scale", "major"
-                ),
-                "style_accompaniment_chord": getattr(
-                    self, "style_accompaniment_chord", ""
-                ),
+                "style_accompaniment_scale": getattr(self, "style_accompaniment_scale", "major"),
+                "style_accompaniment_chord": getattr(self, "style_accompaniment_chord", ""),
                 "style_accompaniment_bass_pattern": getattr(
                     self, "style_accompaniment_bass_pattern", ""
                 ),
@@ -1322,9 +1211,7 @@ class XGSystem:
             return True
         return False
 
-    def process_style_midi(
-        self, channel: int, note: int, velocity: int, is_note_on: bool = True
-    ):
+    def process_style_midi(self, channel: int, note: int, velocity: int, is_note_on: bool = True):
         """Process MIDI through style player for chord detection"""
         player = self.get_style_player()
         if player and getattr(self, "auto_accompaniment_enabled", False):
@@ -1341,7 +1228,5 @@ class XGSystem:
         return {
             "playing": False,
             "style_loaded": False,
-            "auto_accompaniment_enabled": getattr(
-                self, "auto_accompaniment_enabled", False
-            ),
+            "auto_accompaniment_enabled": getattr(self, "auto_accompaniment_enabled", False),
         }

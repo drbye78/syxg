@@ -18,23 +18,27 @@ Architecture:
 - Contiguous memory layouts optimized for cache efficiency
 - Support for both mono and stereo input processing
 """
+
 from __future__ import annotations
 
 import math
-import numpy as np
-from typing import Any
-from collections.abc import Callable
-from ..math.fast_approx import fast_math
 import threading
 from collections import deque
-import numba as nb
-from numba import jit, float32, int32, boolean
+
+import numpy as np
+from numba import jit
+
+from ..math.fast_approx import fast_math
 
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_pan_block_mono(
-    input_mono: np.ndarray, output_left: np.ndarray, output_right: np.ndarray,
-    left_gain: float, right_gain: float, block_size: int
+    input_mono: np.ndarray,
+    output_left: np.ndarray,
+    output_right: np.ndarray,
+    left_gain: float,
+    right_gain: float,
+    block_size: int,
 ):
     """
     NUMBA-COMPILED: Ultra-fast mono-to-stereo panning block processing.
@@ -55,8 +59,13 @@ def _numba_process_pan_block_mono(
 
 @jit(nopython=True, fastmath=True, cache=True)
 def _numba_process_pan_block_stereo(
-    input_left: np.ndarray, input_right: np.ndarray, output_left: np.ndarray, output_right: np.ndarray,
-    left_gain: float, right_gain: float, block_size: int
+    input_left: np.ndarray,
+    input_right: np.ndarray,
+    output_left: np.ndarray,
+    output_right: np.ndarray,
+    left_gain: float,
+    right_gain: float,
+    block_size: int,
 ):
     """
     NUMBA-COMPILED: Ultra-fast stereo-to-stereo panning block processing.
@@ -93,8 +102,13 @@ class PannerPool:
     - Memory pool integration for buffer management
     """
 
-    def __init__(self, max_panners: int = 1000, block_size: int = 1024,
-                 memory_pool=None, sample_rate: int = 48000):
+    def __init__(
+        self,
+        max_panners: int = 1000,
+        block_size: int = 1024,
+        memory_pool=None,
+        sample_rate: int = 48000,
+    ):
         """
         Initialize ultra-fast panner pool.
 
@@ -124,7 +138,7 @@ class PannerPool:
             panner = UltraFastStereoPanner(
                 block_size=self.block_size,
                 memory_pool=self.memory_pool,
-                sample_rate=self.sample_rate
+                sample_rate=self.sample_rate,
             )
             self.pool.append(panner)
 
@@ -154,7 +168,7 @@ class PannerPool:
                 pan_position=pan_position,
                 block_size=self.block_size,
                 memory_pool=self.memory_pool,
-                sample_rate=self.sample_rate
+                sample_rate=self.sample_rate,
             )
 
     def release_panner(self, panner: UltraFastStereoPanner) -> None:
@@ -181,18 +195,25 @@ class PannerPool:
     def get_pool_stats(self) -> dict[str, int]:
         """Get pool statistics for monitoring."""
         return {
-            'pooled_panners': len(self.pool),
-            'max_panners': self.max_panners,
-            'block_size': self.block_size,
-            'sample_rate': self.sample_rate
+            "pooled_panners": len(self.pool),
+            "max_panners": self.max_panners,
+            "block_size": self.block_size,
+            "sample_rate": self.sample_rate,
         }
 
 
 class UltraFastStereoPanner:
     """ULTRA-FAST stereo panner with block processing and SIMD optimization"""
 
-    __slots__ = ('pan_position', 'sample_rate', 'block_size', 'left_gain', 'right_gain',
-                 'memory_pool', 'is_pooled')
+    __slots__ = (
+        "block_size",
+        "is_pooled",
+        "left_gain",
+        "memory_pool",
+        "pan_position",
+        "right_gain",
+        "sample_rate",
+    )
 
     def __init__(self, pan_position=0.5, sample_rate=48000, block_size=1024, memory_pool=None):
         """
@@ -281,9 +302,12 @@ class UltraFastStereoPanner:
         self.pan_position = 0.5
         self._update_gains()
 
-    def process_block_mono(self, input_mono: np.ndarray,
-                          output_left: np.ndarray | None = None,
-                          output_right: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    def process_block_mono(
+        self,
+        input_mono: np.ndarray,
+        output_left: np.ndarray | None = None,
+        output_right: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         ULTRA-FAST: Process block of mono samples to stereo.
 
@@ -309,8 +333,7 @@ class UltraFastStereoPanner:
 
         # Process block with Numba-compiled function
         _numba_process_pan_block_mono(
-            input_mono, output_left, output_right,
-            self.left_gain, self.right_gain, len(input_mono)
+            input_mono, output_left, output_right, self.left_gain, self.right_gain, len(input_mono)
         )
 
         # Type assertions for mypy
@@ -318,9 +341,13 @@ class UltraFastStereoPanner:
         assert output_right is not None
         return output_left, output_right
 
-    def process_block_stereo(self, input_left: np.ndarray, input_right: np.ndarray,
-                            output_left: np.ndarray | None = None,
-                            output_right: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    def process_block_stereo(
+        self,
+        input_left: np.ndarray,
+        input_right: np.ndarray,
+        output_left: np.ndarray | None = None,
+        output_right: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         ULTRA-FAST: Process block of stereo samples with additional panning.
 
@@ -339,8 +366,13 @@ class UltraFastStereoPanner:
 
         # Process block with Numba-compiled function
         _numba_process_pan_block_stereo(
-            input_left, input_right, output_left, output_right,
-            self.left_gain, self.right_gain, len(input_left)
+            input_left,
+            input_right,
+            output_left,
+            output_right,
+            self.left_gain,
+            self.right_gain,
+            len(input_left),
         )
 
         return output_left, output_right

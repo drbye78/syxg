@@ -14,11 +14,11 @@ XG RPN Parameter Map:
 
 Copyright (c) 2025
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
+from typing import Any
 
 
 class XGRPNController:
@@ -33,47 +33,47 @@ class XGRPNController:
     # XG RPN Parameter Definitions
     RPN_PARAMETERS = {
         (0, 0): {
-            'name': 'Pitch Bend Range',
-            'description': 'Pitch bend sensitivity in semitones (default: 2)',
-            'range': (0, 24),
-            'default': 2,
-            'unit': 'semitones'
+            "name": "Pitch Bend Range",
+            "description": "Pitch bend sensitivity in semitones (default: 2)",
+            "range": (0, 24),
+            "default": 2,
+            "unit": "semitones",
         },
         (0, 1): {
-            'name': 'Fine Tuning',
-            'description': 'Fine tuning adjustment in cents (±100 cents)',
-            'range': (-100, 100),
-            'default': 0,
-            'unit': 'cents'
+            "name": "Fine Tuning",
+            "description": "Fine tuning adjustment in cents (±100 cents)",
+            "range": (-100, 100),
+            "default": 0,
+            "unit": "cents",
         },
         (0, 2): {
-            'name': 'Coarse Tuning',
-            'description': 'Coarse tuning adjustment in semitones (±24 semitones)',
-            'range': (-24, 24),
-            'default': 0,
-            'unit': 'semitones'
+            "name": "Coarse Tuning",
+            "description": "Coarse tuning adjustment in semitones (±24 semitones)",
+            "range": (-24, 24),
+            "default": 0,
+            "unit": "semitones",
         },
         (0, 3): {
-            'name': 'Tuning Program Select',
-            'description': 'Select tuning program (0-127)',
-            'range': (0, 127),
-            'default': 0,
-            'unit': None
+            "name": "Tuning Program Select",
+            "description": "Select tuning program (0-127)",
+            "range": (0, 127),
+            "default": 0,
+            "unit": None,
         },
         (0, 4): {
-            'name': 'Tuning Bank Select',
-            'description': 'Select tuning bank (0-127)',
-            'range': (0, 127),
-            'default': 0,
-            'unit': None
+            "name": "Tuning Bank Select",
+            "description": "Select tuning bank (0-127)",
+            "range": (0, 127),
+            "default": 0,
+            "unit": None,
         },
         (0, 5): {
-            'name': 'Modulation Depth Range',
-            'description': 'Mod wheel sensitivity range (0-127)',
-            'range': (0, 127),
-            'default': 127,
-            'unit': None
-        }
+            "name": "Modulation Depth Range",
+            "description": "Mod wheel sensitivity range (0-127)",
+            "range": (0, 127),
+            "default": 127,
+            "unit": None,
+        },
     }
 
     def __init__(self):
@@ -97,7 +97,7 @@ class XGRPNController:
     def _initialize_default_values(self):
         """Initialize RPN parameters to XG defaults"""
         for rpn_key, param_info in self.RPN_PARAMETERS.items():
-            self.parameter_values[rpn_key] = param_info['default']
+            self.parameter_values[rpn_key] = param_info["default"]
 
     def handle_rpn_message(self, controller: int, value: int) -> tuple[int, int] | None:
         """
@@ -130,8 +130,9 @@ class XGRPNController:
                 if self.rpn_active and self.data_msb_received:
                     data_lsb = value
                     # Complete RPN message received
-                    parameter_set = self._process_rpn_complete(self.rpn_msb, self.rpn_lsb,
-                                                             self.data_msb, data_lsb)
+                    parameter_set = self._process_rpn_complete(
+                        self.rpn_msb, self.rpn_lsb, self.data_msb, data_lsb
+                    )
                     # Reset RPN state
                     self.rpn_active = False
                     self.data_msb_received = False
@@ -141,8 +142,9 @@ class XGRPNController:
 
             return None
 
-    def _process_rpn_complete(self, rpn_msb: int, rpn_lsb: int,
-                            data_msb: int, data_lsb: int) -> bool:
+    def _process_rpn_complete(
+        self, rpn_msb: int, rpn_lsb: int, data_msb: int, data_lsb: int
+    ) -> bool:
         """
         Process completed RPN message
 
@@ -166,15 +168,15 @@ class XGRPNController:
 
         # Validate and clamp parameter value
         param_info = self.RPN_PARAMETERS[rpn_key]
-        min_val, max_val = param_info['range']
+        min_val, max_val = param_info["range"]
 
-        if param_info['name'] == 'Fine Tuning':
+        if param_info["name"] == "Fine Tuning":
             # Fine tuning is signed: 0-63 = -100 to -1, 64=0, 65-127 = 1 to 100
             if data_msb < 64:
                 parameter_value = data_msb - 64  # -64 to -1
             else:
                 parameter_value = data_msb - 64  # 0 to 63
-        elif param_info['name'] == 'Coarse Tuning':
+        elif param_info["name"] == "Coarse Tuning":
             # Coarse tuning is signed: 0-63 = -24 to -1, 64=0, 65-127 = 1 to 63
             if data_msb < 64:
                 parameter_value = data_msb - 64  # -64 to -1, but clamp to -24
@@ -229,7 +231,7 @@ class XGRPNController:
 
         # Validate and clamp value
         param_info = self.RPN_PARAMETERS[rpn_key]
-        min_val, max_val = param_info['range']
+        min_val, max_val = param_info["range"]
         clamped_value = max(min_val, min(max_val, value))
 
         with self.lock:
@@ -258,7 +260,7 @@ class XGRPNController:
             return None
 
         info = self.RPN_PARAMETERS[rpn_key].copy()
-        info['current_value'] = self.parameter_values.get(rpn_key, info['default'])
+        info["current_value"] = self.parameter_values.get(rpn_key, info["default"])
         return info
 
     def list_all_rpn_parameters(self) -> dict[tuple[int, int], dict[str, Any]]:
@@ -271,7 +273,7 @@ class XGRPNController:
         result = {}
         for rpn_key, param_info in self.RPN_PARAMETERS.items():
             info = param_info.copy()
-            info['current_value'] = self.parameter_values.get(rpn_key, info['default'])
+            info["current_value"] = self.parameter_values.get(rpn_key, info["default"])
             result[rpn_key] = info
 
         return result
@@ -284,15 +286,15 @@ class XGRPNController:
             Dictionary containing all RPN state information
         """
         return {
-            'parameter_values': self.parameter_values.copy(),
-            'rpn_state': {
-                'rpn_msb': self.rpn_msb,
-                'rpn_lsb': self.rpn_lsb,
-                'rpn_active': self.rpn_active,
-                'data_msb': self.data_msb,
-                'data_msb_received': self.data_msb_received
+            "parameter_values": self.parameter_values.copy(),
+            "rpn_state": {
+                "rpn_msb": self.rpn_msb,
+                "rpn_lsb": self.rpn_lsb,
+                "rpn_active": self.rpn_active,
+                "data_msb": self.data_msb,
+                "data_msb_received": self.data_msb_received,
             },
-            'available_parameters': list(self.RPN_PARAMETERS.keys())
+            "available_parameters": list(self.RPN_PARAMETERS.keys()),
         }
 
     # XG-Specific RPN Parameter Applications
@@ -322,7 +324,9 @@ class XGRPNController:
             channel_renderer.fine_tune_rpn = fine_tune / 100.0  # Convert to ratio
 
         if coarse_tune is not None:
-            channel_renderer.coarse_tune_rpn = 2.0 ** (coarse_tune / 12.0)  # Convert to frequency ratio
+            channel_renderer.coarse_tune_rpn = 2.0 ** (
+                coarse_tune / 12.0
+            )  # Convert to frequency ratio
 
     def apply_modulation_range(self, channel_renderer) -> None:
         """

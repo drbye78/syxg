@@ -160,10 +160,11 @@ INTEGRATION PATTERNS:
 - Facade pattern for simplified component access
 - Observer pattern for parameter change notifications
 """
+
 from __future__ import annotations
 
-from typing import Any
 import threading
+from typing import Any
 
 
 class JV2080SystemParameters:
@@ -177,27 +178,27 @@ class JV2080SystemParameters:
     def __init__(self):
         # Master Controls
         self.master_volume = 100  # 0-127
-        self.master_pan = 64      # 0-127 (center = 64)
+        self.master_pan = 64  # 0-127 (center = 64)
         self.master_coarse_tune = 0  # -24 to +24 semitones
-        self.master_fine_tune = 0   # -50 to +50 cents
+        self.master_fine_tune = 0  # -50 to +50 cents
 
         # System Effects Send Levels
-        self.reverb_send_level = 0   # 0-127
-        self.chorus_send_level = 0   # 0-127
-        self.delay_send_level = 0    # 0-127
+        self.reverb_send_level = 0  # 0-127
+        self.chorus_send_level = 0  # 0-127
+        self.delay_send_level = 0  # 0-127
 
         # MFX Send Level
-        self.mfx_send_level = 0      # 0-127
+        self.mfx_send_level = 0  # 0-127
 
         # System Configuration
-        self.device_id = 0x10        # Default device ID
-        self.midi_channel = 0        # 0-15, 254=OFF, 255=ALL
-        self.local_control = True    # Local on/off
+        self.device_id = 0x10  # Default device ID
+        self.midi_channel = 0  # 0-15, 254=OFF, 255=ALL
+        self.local_control = True  # Local on/off
         self.program_change_mode = True  # Program change on/off
 
         # LCD Contrast & LED settings
-        self.lcd_contrast = 8        # 0-15
-        self.led_brightness = 8      # 0-15
+        self.lcd_contrast = 8  # 0-15
+        self.led_brightness = 8  # 0-15
 
     def reset_to_defaults(self):
         """Reset all parameters to JV-2080 defaults"""
@@ -222,7 +223,7 @@ class JV2080SystemParameters:
             0x00: self.master_volume,
             0x01: self.master_pan,
             0x02: self.master_coarse_tune + 64,  # Convert to 0-127 range
-            0x03: self.master_fine_tune + 64,    # Convert to 0-127 range
+            0x03: self.master_fine_tune + 64,  # Convert to 0-127 range
             0x04: self.reverb_send_level,
             0x05: self.chorus_send_level,
             0x06: self.delay_send_level,
@@ -286,31 +287,31 @@ class JV2080Part:
         self.sample_rate = sample_rate
 
         # Basic Settings
-        self.instrument_number = 0    # 0-895 (896 presets)
-        self.volume = 100            # 0-127
-        self.pan = 64               # 0-127 (center = 64)
-        self.coarse_tune = 0        # -24 to +24 semitones
-        self.fine_tune = 0          # -50 to +50 cents
+        self.instrument_number = 0  # 0-895 (896 presets)
+        self.volume = 100  # 0-127
+        self.pan = 64  # 0-127 (center = 64)
+        self.coarse_tune = 0  # -24 to +24 semitones
+        self.fine_tune = 0  # -50 to +50 cents
 
         # Effects Sends
-        self.reverb_send = 0         # 0-127
-        self.chorus_send = 0         # 0-127
-        self.delay_send = 0          # 0-127
-        self.mfx_send = 0            # 0-127
+        self.reverb_send = 0  # 0-127
+        self.chorus_send = 0  # 0-127
+        self.delay_send = 0  # 0-127
+        self.mfx_send = 0  # 0-127
 
         # Insert Effect Assignment
         self.insert_effect_assign = 0  # 0-7 (insert effect types)
 
         # Key/Velocity Ranges
-        self.key_range_low = 0       # 0-127
-        self.key_range_high = 127    # 0-127
+        self.key_range_low = 0  # 0-127
+        self.key_range_high = 127  # 0-127
         self.velocity_range_low = 0  # 0-127
         self.velocity_range_high = 127  # 0-127
 
         # MIDI Settings
         self.receive_channel = part_number  # 0-15, 254=OFF, 255=ALL
-        self.polyphony_mode = 0      # 0=MONO, 1=POLY
-        self.portamento_time = 0     # 0-127
+        self.polyphony_mode = 0  # 0=MONO, 1=POLY
+        self.portamento_time = 0  # 0-127
 
         # Layer Assignments (for voice layering)
         self.layer_assignments: list[int] = []
@@ -329,8 +330,10 @@ class JV2080Part:
         # Jupiter-X LFO (per-part, compatible with Jupiter-X architecture)
         try:
             from ..core.oscillator import UltraFastXGLFO
-            self.lfo = UltraFastXGLFO(id=part_number, waveform="sine", rate=5.0,
-                                    sample_rate=sample_rate)
+
+            self.lfo = UltraFastXGLFO(
+                id=part_number, waveform="sine", rate=5.0, sample_rate=sample_rate
+            )
         except ImportError:
             # Fallback if Jupiter-X not available
             self.lfo = None
@@ -338,6 +341,7 @@ class JV2080Part:
         # Jupiter-X Envelope (per-part)
         try:
             from ..jupiter_x.part import JupiterXEnvelope
+
             self.envelope = JupiterXEnvelope(sample_rate=sample_rate)
         except ImportError:
             # Fallback envelope implementation
@@ -350,14 +354,14 @@ class JV2080Part:
         self._initialize_jupiter_x_engines()
 
         # LFO Modulation Routing (Jupiter-X style)
-        self.lfo_to_pitch = 0.0      # LFO -> pitch modulation depth
-        self.lfo_to_filter = 0.0     # LFO -> filter modulation depth
+        self.lfo_to_pitch = 0.0  # LFO -> pitch modulation depth
+        self.lfo_to_filter = 0.0  # LFO -> filter modulation depth
         self.lfo_to_amplitude = 0.0  # LFO -> amplitude modulation depth
-        self.lfo_to_pan = 0.0        # LFO -> pan modulation depth (Jupiter-X)
+        self.lfo_to_pan = 0.0  # LFO -> pan modulation depth (Jupiter-X)
 
         # Advanced Triggering (Jupiter-X style)
-        self.legato_mode = False     # Legato mode for smooth transitions
-        self.trigger_mode = 0        # 0=Single, 1=Multi, 2=Alternate
+        self.legato_mode = False  # Legato mode for smooth transitions
+        self.trigger_mode = 0  # 0=Single, 1=Multi, 2=Alternate
 
         # Current note state for envelope/LFO management
         self.current_note = None
@@ -369,20 +373,26 @@ class JV2080Part:
         try:
             # Import base engines with Jupiter-X plugins (consolidated architecture)
             from ..engine.additive_engine import AdditiveEngine
-            from ..engine.wavetable_engine import WavetableEngine
             from ..engine.fm_engine import FMEngine
             from ..engine.granular_engine import GranularEngine
+            from ..engine.wavetable_engine import WavetableEngine
 
             # Create consolidated engine instances with Jupiter-X plugins
             self._jupiter_x_engines = {
-                0: AdditiveEngine(max_partials=64, sample_rate=self.sample_rate),  # Analog (Additive)
-                1: WavetableEngine(sample_rate=self.sample_rate),                   # Digital (Wavetable)
-                2: FMEngine(num_operators=6, sample_rate=self.sample_rate),        # FM (with plugin)
-                3: GranularEngine(max_clouds=8, sample_rate=self.sample_rate),     # External (Granular)
+                0: AdditiveEngine(
+                    max_partials=64, sample_rate=self.sample_rate
+                ),  # Analog (Additive)
+                1: WavetableEngine(sample_rate=self.sample_rate),  # Digital (Wavetable)
+                2: FMEngine(num_operators=6, sample_rate=self.sample_rate),  # FM (with plugin)
+                3: GranularEngine(
+                    max_clouds=8, sample_rate=self.sample_rate
+                ),  # External (Granular)
             }
 
             # Load Jupiter-X plugins on engines that support them
-            self._jupiter_x_engines[2].load_plugin('jupiter_x.fm_extensions.JupiterXFMPlugin')  # FM plugin
+            self._jupiter_x_engines[2].load_plugin(
+                "jupiter_x.fm_extensions.JupiterXFMPlugin"
+            )  # FM plugin
 
         except ImportError:
             # Fallback if Jupiter-X modules not available
@@ -434,12 +444,12 @@ class JV2080Part:
     def get_parameter(self, param_id: int) -> int:
         """Get parameter value by ID for this part"""
         param_map = {
-            0x00: self.instrument_number & 0x7F,        # LSB
-            0x01: (self.instrument_number >> 7) & 0x7F, # MSB
+            0x00: self.instrument_number & 0x7F,  # LSB
+            0x01: (self.instrument_number >> 7) & 0x7F,  # MSB
             0x02: self.volume,
             0x03: self.pan,
             0x04: self.coarse_tune + 64,  # Convert to 0-127
-            0x05: self.fine_tune + 64,    # Convert to 0-127
+            0x05: self.fine_tune + 64,  # Convert to 0-127
             0x06: self.reverb_send,
             0x07: self.chorus_send,
             0x08: self.delay_send,
@@ -502,34 +512,37 @@ class JV2080Part:
 
     def should_play_note(self, note: int, velocity: int) -> bool:
         """Check if this part should play the given note/velocity"""
-        return (self.active and not self.muted and
-                self.key_range_low <= note <= self.key_range_high and
-                self.velocity_range_low <= velocity <= self.velocity_range_high)
+        return (
+            self.active
+            and not self.muted
+            and self.key_range_low <= note <= self.key_range_high
+            and self.velocity_range_low <= velocity <= self.velocity_range_high
+        )
 
     def get_part_info(self) -> dict[str, Any]:
         """Get comprehensive part information"""
         return {
-            'part_number': self.part_number,
-            'instrument': self.instrument_number,
-            'volume': self.volume,
-            'pan': self.pan,
-            'tune': {'coarse': self.coarse_tune, 'fine': self.fine_tune},
-            'effects_sends': {
-                'reverb': self.reverb_send,
-                'chorus': self.chorus_send,
-                'delay': self.delay_send,
-                'mfx': self.mfx_send
+            "part_number": self.part_number,
+            "instrument": self.instrument_number,
+            "volume": self.volume,
+            "pan": self.pan,
+            "tune": {"coarse": self.coarse_tune, "fine": self.fine_tune},
+            "effects_sends": {
+                "reverb": self.reverb_send,
+                "chorus": self.chorus_send,
+                "delay": self.delay_send,
+                "mfx": self.mfx_send,
             },
-            'insert_effect': self.insert_effect_assign,
-            'key_range': (self.key_range_low, self.key_range_high),
-            'velocity_range': (self.velocity_range_low, self.velocity_range_high),
-            'receive_channel': self.receive_channel,
-            'polyphony_mode': 'MONO' if self.polyphony_mode == 0 else 'POLY',
-            'portamento_time': self.portamento_time,
-            'layers': self.layer_assignments.copy(),
-            'muted': self.muted,
-            'solo': self.solo,
-            'active': self.active
+            "insert_effect": self.insert_effect_assign,
+            "key_range": (self.key_range_low, self.key_range_high),
+            "velocity_range": (self.velocity_range_low, self.velocity_range_high),
+            "receive_channel": self.receive_channel,
+            "polyphony_mode": "MONO" if self.polyphony_mode == 0 else "POLY",
+            "portamento_time": self.portamento_time,
+            "layers": self.layer_assignments.copy(),
+            "muted": self.muted,
+            "solo": self.solo,
+            "active": self.active,
         }
 
 
@@ -555,7 +568,7 @@ class JV2080MultiPartSetup:
         # Global settings
         self.polyphony_mode = 1  # 0=MONO, 1=POLY
         self.portamento_mode = 0  # 0=NORMAL, 1=LEGATO
-        self.portamento_time = 0   # 0-127
+        self.portamento_time = 0  # 0-127
 
         # Thread safety
         self.lock = threading.RLock()
@@ -605,10 +618,10 @@ class JV2080MultiPartSetup:
         """Get voice allocation status"""
         with self.lock:
             return {
-                'total_reserve': self.voice_reserve_total,
-                'max_voices': 128,
-                'part_reserves': self.voice_reserve.copy(),
-                'available_voices': 128 - self.voice_reserve_total
+                "total_reserve": self.voice_reserve_total,
+                "max_voices": 128,
+                "part_reserves": self.voice_reserve.copy(),
+                "available_voices": 128 - self.voice_reserve_total,
             }
 
     def reset_all_parts(self):
@@ -621,12 +634,12 @@ class JV2080MultiPartSetup:
         """Get comprehensive multi-part information"""
         with self.lock:
             return {
-                'total_parts': 16,
-                'voice_allocation': self.get_voice_allocation_status(),
-                'parts': [part.get_part_info() for part in self.parts],
-                'polyphony_mode': 'MONO' if self.polyphony_mode == 0 else 'POLY',
-                'portamento_mode': 'NORMAL' if self.portamento_mode == 0 else 'LEGATO',
-                'portamento_time': self.portamento_time
+                "total_parts": 16,
+                "voice_allocation": self.get_voice_allocation_status(),
+                "parts": [part.get_part_info() for part in self.parts],
+                "polyphony_mode": "MONO" if self.polyphony_mode == 0 else "POLY",
+                "portamento_mode": "NORMAL" if self.portamento_mode == 0 else "LEGATO",
+                "portamento_time": self.portamento_time,
             }
 
 
@@ -646,35 +659,29 @@ class JV2080MFXController:
             1: "SPECTRUM",
             2: "ENHANCER",
             3: "AUTO WAH",
-
             # Distortion Effects
             4: "OVERDRIVE",
             5: "DISTORTION",
             6: "PHASER",
             7: "AUTO WAH",
-
             # Modulation Effects
             8: "CHORUS",
             9: "FLANGER",
             10: "TREMOLO",
             11: "ROTARY",
-
             # Delay/Reverb Effects
             12: "DELAY",
             13: "PANNING DELAY",
             14: "REVERB",
             15: "GATED REVERB",
-
             # Filter Effects
             16: "FILTER",
             17: "STEP FILTER",
             18: "LFO FILTER",
-
             # Pitch Effects
             19: "PITCH SHIFTER",
             20: "CHORUS + REVERB",
             21: "FLANGER + REVERB",
-
             # And many more... (up to 40+)
         }
 
@@ -683,9 +690,9 @@ class JV2080MFXController:
         self.parameters = self._get_default_parameters(0)
 
         # MFX Control
-        self.mfx_level = 100    # 0-127
+        self.mfx_level = 100  # 0-127
         self.mfx_send_return = 0  # 0-127
-        self.mfx_pan = 64       # 0-127
+        self.mfx_pan = 64  # 0-127
         self.mfx_to_reverb = 0  # 0-127
 
     def _get_default_parameters(self, mfx_type: int) -> dict[int, int]:
@@ -722,16 +729,16 @@ class JV2080MFXController:
     def get_mfx_info(self) -> dict[str, Any]:
         """Get comprehensive MFX information"""
         return {
-            'current_type': self.current_type,
-            'type_name': self.get_mfx_type_name(self.current_type),
-            'parameters': self.parameters.copy(),
-            'control': {
-                'level': self.mfx_level,
-                'send_return': self.mfx_send_return,
-                'pan': self.mfx_pan,
-                'to_reverb': self.mfx_to_reverb
+            "current_type": self.current_type,
+            "type_name": self.get_mfx_type_name(self.current_type),
+            "parameters": self.parameters.copy(),
+            "control": {
+                "level": self.mfx_level,
+                "send_return": self.mfx_send_return,
+                "pan": self.mfx_pan,
+                "to_reverb": self.mfx_to_reverb,
             },
-            'available_types': len(self.mfx_types)
+            "available_types": len(self.mfx_types),
         }
 
 
@@ -751,7 +758,7 @@ class JV2080InsertEffects:
             "FLANGER",
             "DISTORTION",
             "DELAY",
-            "REVERB"
+            "REVERB",
         ]
 
         # Each part can have one insert effect
@@ -801,10 +808,10 @@ class JV2080InsertEffects:
     def get_insert_effects_info(self) -> dict[str, Any]:
         """Get comprehensive insert effects information"""
         return {
-            'effect_types': self.insert_types.copy(),
-            'part_assignments': self.part_assignments.copy(),
-            'effect_parameters': self.effect_parameters.copy(),
-            'total_parts': 16
+            "effect_types": self.insert_types.copy(),
+            "part_assignments": self.part_assignments.copy(),
+            "effect_parameters": self.effect_parameters.copy(),
+            "total_parts": 16,
         }
 
 
@@ -818,16 +825,17 @@ class JV2080ComponentManager:
     def __init__(self):
         """Initialize JV-2080 component manager"""
         self.components = {
-            'system_params': JV2080SystemParameters(),
-            'multipart': JV2080MultiPartSetup(),
-            'mfx': JV2080MFXController(),
-            'insert_fx': JV2080InsertEffects(),
+            "system_params": JV2080SystemParameters(),
+            "multipart": JV2080MultiPartSetup(),
+            "mfx": JV2080MFXController(),
+            "insert_fx": JV2080InsertEffects(),
             # Additional components will be added in later phases
         }
 
         # NRPN Controller for comprehensive parameter access (import here to avoid circular import)
         try:
             from .jv2080_nrpn_controller import JV2080NRPNController
+
             self.nrpn_controller = JV2080NRPNController(self)
         except ImportError:
             # If NRPN controller not available, create placeholder
@@ -845,19 +853,19 @@ class JV2080ComponentManager:
         """Reset all components to defaults"""
         with self.lock:
             for component in self.components.values():
-                if hasattr(component, 'reset_to_defaults'):
+                if hasattr(component, "reset_to_defaults"):
                     component.reset_to_defaults()
 
     def get_system_info(self) -> dict[str, Any]:
         """Get comprehensive JV-2080 system information"""
         with self.lock:
             return {
-                'system_params': self.components['system_params'].__dict__,
-                'multipart': self.components['multipart'].get_multipart_info(),
-                'mfx': self.components['mfx'].get_mfx_info(),
-                'insert_effects': self.components['insert_fx'].get_insert_effects_info(),
-                'component_count': len(self.components),
-                'firmware_version': '1.0.0'
+                "system_params": self.components["system_params"].__dict__,
+                "multipart": self.components["multipart"].get_multipart_info(),
+                "mfx": self.components["mfx"].get_mfx_info(),
+                "insert_effects": self.components["insert_fx"].get_insert_effects_info(),
+                "component_count": len(self.components),
+                "firmware_version": "1.0.0",
             }
 
     def process_parameter_change(self, address: bytes, value: int) -> bool:
@@ -895,13 +903,13 @@ class JV2080ComponentManager:
 
     def _process_system_parameter(self, param_id: int, value: int) -> bool:
         """Process system parameter change"""
-        system_params = self.components['system_params']
+        system_params = self.components["system_params"]
         system_params.set_parameter(param_id, value)
         return True
 
     def _process_part_parameter(self, part_num: int, param_id: int, value: int) -> bool:
         """Process part parameter change"""
-        multipart = self.components['multipart']
+        multipart = self.components["multipart"]
         part = multipart.get_part(part_num)
         if part:
             part.set_parameter(param_id, value)
@@ -912,9 +920,9 @@ class JV2080ComponentManager:
         """Process effects parameter change"""
         if effect_group == 0:  # MFX parameters
             if param_id == 0:  # MFX type
-                self.components['mfx'].set_mfx_type(value)
+                self.components["mfx"].set_mfx_type(value)
             else:  # MFX parameters (1-16)
-                self.components['mfx'].set_parameter(param_id - 1, value)
+                self.components["mfx"].set_parameter(param_id - 1, value)
             return True
         elif effect_group == 1:  # Insert effects
             # Insert effect parameters would be handled here
@@ -932,12 +940,12 @@ class JV2080ComponentManager:
 
             # System parameters
             if addr_high == 0x00:
-                return self.components['system_params'].get_parameter(addr_low)
+                return self.components["system_params"].get_parameter(addr_low)
 
             # Part parameters
             elif 0x10 <= addr_high <= 0x2F:
                 part_num = addr_high - 0x10
-                part = self.components['multipart'].get_part(part_num)
+                part = self.components["multipart"].get_part(part_num)
                 if part:
                     return part.get_parameter(addr_low)
 
@@ -945,9 +953,9 @@ class JV2080ComponentManager:
             elif 0x30 <= addr_high <= 0x3F:
                 if addr_high == 0x30:  # MFX
                     if addr_low == 0:
-                        return self.components['mfx'].current_type
+                        return self.components["mfx"].current_type
                     else:
-                        return self.components['mfx'].get_parameter(addr_low - 1)
+                        return self.components["mfx"].get_parameter(addr_low - 1)
 
         return None
 

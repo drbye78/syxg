@@ -19,22 +19,23 @@ Features:
 - XGML v3.0 engine registry integration
 - Performance monitoring and resource management
 """
+
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Any
-import numpy as np
-import threading
-import time
 import importlib
 import importlib.util
 import inspect
 import os
+import threading
+import time
+from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any
+
+from .preset_info import PresetInfo
 
 # Import new region-based architecture
 from .region_descriptor import RegionDescriptor
-from .preset_info import PresetInfo
 
 
 class SynthesisEngine(ABC):
@@ -95,9 +96,7 @@ class SynthesisEngine(ABC):
         pass
 
     @abstractmethod
-    def get_all_region_descriptors(
-        self, bank: int, program: int
-    ) -> list[RegionDescriptor]:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get ALL region descriptors for a preset.
 
@@ -115,9 +114,7 @@ class SynthesisEngine(ABC):
 
     # ========== REGION CREATION (NEW) ==========
 
-    def create_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create a region instance from a descriptor.
 
@@ -141,9 +138,7 @@ class SynthesisEngine(ABC):
         return base_region
 
     @abstractmethod
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create base region without S.Art2 wrapper.
 
@@ -216,9 +211,7 @@ class SynthesisEngine(ABC):
         """
         return "unknown"
 
-    def create_partial(
-        self, partial_params: dict[str, Any], sample_rate: int
-    ) -> SynthesisPartial:
+    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> SynthesisPartial:
         """
         Create a partial instance for this engine.
 
@@ -233,9 +226,7 @@ class SynthesisEngine(ABC):
             SynthesisPartial instance configured for this engine
         """
         # Default implementation - engines should override if they support partials
-        raise NotImplementedError(
-            "create_partial() not implemented. Use create_region()."
-        )
+        raise NotImplementedError("create_partial() not implemented. Use create_region().")
 
     def get_supported_formats(self) -> list[str]:
         """
@@ -417,9 +408,7 @@ class EnginePluginManager:
                     "loaded_at": time.time(),
                 }
 
-                print(
-                    f"✅ Loaded plugin {plugin_name} with {len(engine_classes)} engine(s)"
-                )
+                print(f"✅ Loaded plugin {plugin_name} with {len(engine_classes)} engine(s)")
                 return True
 
             except Exception as e:
@@ -533,9 +522,7 @@ class EnginePluginManager:
                         engine_info = {
                             "name": name,
                             "class": obj,
-                            "description": obj.__doc__.split("\n")[0]
-                            if obj.__doc__
-                            else "",
+                            "description": obj.__doc__.split("\n")[0] if obj.__doc__ else "",
                         }
                         engines.append(engine_info)
 
@@ -545,11 +532,7 @@ class EnginePluginManager:
                 # Can't inspect module, but file exists
                 pass
 
-            return (
-                plugin_info
-                if plugin_info["engines"] or "engine" in content.lower()
-                else None
-            )
+            return plugin_info if plugin_info["engines"] or "engine" in content.lower() else None
 
         except Exception as e:
             print(f"Error analyzing {file_path}: {e}")
@@ -709,9 +692,7 @@ class PerformanceOptimizer:
                 return {"recommendations": []}
 
             # Analyze performance trends
-            recent_metrics = [
-                h["metrics"] for h in history[-10:]
-            ]  # Last 10 measurements
+            recent_metrics = [h["metrics"] for h in history[-10:]]  # Last 10 measurements
 
             recommendations = []
 
@@ -743,9 +724,7 @@ class PerformanceOptimizer:
 
             return {"recommendations": recommendations}
 
-    def apply_optimization(
-        self, engine: SynthesisEngine, recommendation: dict[str, Any]
-    ) -> bool:
+    def apply_optimization(self, engine: SynthesisEngine, recommendation: dict[str, Any]) -> bool:
         """
         Apply an optimization recommendation to an engine.
 
@@ -932,9 +911,7 @@ class SynthesisEngineRegistry:
             recommended_engines = analysis.get("recommended_engines", [])
 
             # Filter by available engines and select best match
-            available_matches = [
-                eng for eng in recommended_engines if eng in self._engines
-            ]
+            available_matches = [eng for eng in recommended_engines if eng in self._engines]
 
             if not available_matches:
                 # Fallback to highest priority engine
@@ -971,9 +948,7 @@ class SynthesisEngineRegistry:
                 # Configure channel assignments
                 channel_assignments = xgml_config.get("channel_engines", {})
                 if channel_assignments:
-                    print(
-                        f"🎹 Configured {len(channel_assignments)} channel engine assignments"
-                    )
+                    print(f"🎹 Configured {len(channel_assignments)} channel engine assignments")
 
                 # Configure individual engines
                 engine_configs = {}
@@ -1025,10 +1000,8 @@ class SynthesisEngineRegistry:
                 engine = engine_data["instance"]
 
                 # Get optimization recommendations
-                recommendations = (
-                    self.performance_optimizer.get_optimization_recommendations(
-                        engine_type
-                    )
+                recommendations = self.performance_optimizer.get_optimization_recommendations(
+                    engine_type
                 )
 
                 # Apply recommendations
@@ -1105,9 +1078,7 @@ class SynthesisEngineRegistry:
     def get_engines_for_format(self, file_format: str) -> list[str]:
         """Get engine types that support a file format, ordered by priority."""
         engine_types = self._format_map.get(file_format.lower(), [])
-        return sorted(
-            engine_types, key=lambda x: self._engines[x]["priority"], reverse=True
-        )
+        return sorted(engine_types, key=lambda x: self._engines[x]["priority"], reverse=True)
 
     def get_registered_engines(self) -> dict[str, dict[str, Any]]:
         """Get comprehensive information about all registered engines."""

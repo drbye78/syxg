@@ -23,13 +23,15 @@ XG Control Specification:
 - CC 94: Variation Send
 - CC 200-209: Effect Unit Activation
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
+import threading
 from collections.abc import Callable
 from enum import IntEnum
-import threading
+from typing import Any
+
+import numpy as np
 
 # Import our coordinator for parameter updates
 try:
@@ -44,19 +46,21 @@ except ImportError:
 
 class XGControlType(IntEnum):
     """XG Control Message Types"""
-    CC_MESSAGE = 0      # MIDI CC (7-bit)
-    NRPN_MESSAGE = 1    # NRPN parameter (MSB/LSB)
-    SYSEX_MESSAGE = 2   # SysEx parameter control
+
+    CC_MESSAGE = 0  # MIDI CC (7-bit)
+    NRPN_MESSAGE = 1  # NRPN parameter (MSB/LSB)
+    SYSEX_MESSAGE = 2  # SysEx parameter control
 
 
 class XGNRPNBanks(IntEnum):
     """XG NRPN Parameter Banks (MSB values)"""
-    SYSTEM_REVERB = 0   # System Reverb Parameters
-    SYSTEM_CHORUS = 1   # System Chorus Parameters
+
+    SYSTEM_REVERB = 0  # System Reverb Parameters
+    SYSTEM_CHORUS = 1  # System Chorus Parameters
     VARIATION_EFFECT = 2  # Variation Effect Parameters
     INSERTION_EFFECT = 3  # Insertion Effect Parameters
-    MASTER_EQ = 4       # Master EQ Parameters
-    CHANNEL_MIXER = 5   # Channel Mixer Parameters
+    MASTER_EQ = 4  # Master EQ Parameters
+    CHANNEL_MIXER = 5  # Channel Mixer Parameters
     RESERVED_6_119 = 63  # End of defined banks
 
 
@@ -65,39 +69,39 @@ class XGNRPNParameters:
 
     # System Reverb (MSB 0)
     REVERB_PARAMS = {
-        0: ('reverb_type', lambda x: int(x)),         # Type 1-24
-        1: ('time', lambda x: x * 8.3),               # 0.1-8.3 seconds
-        2: ('level', lambda x: x),                    # 0.0-1.0
-        3: ('hf_damping', lambda x: x),               # 0.0-1.0
-        4: ('pre_delay', lambda x: x * 0.05),        # 0-50ms
-        5: ('density', lambda x: x),                 # 0.0-1.0
+        0: ("reverb_type", lambda x: int(x)),  # Type 1-24
+        1: ("time", lambda x: x * 8.3),  # 0.1-8.3 seconds
+        2: ("level", lambda x: x),  # 0.0-1.0
+        3: ("hf_damping", lambda x: x),  # 0.0-1.0
+        4: ("pre_delay", lambda x: x * 0.05),  # 0-50ms
+        5: ("density", lambda x: x),  # 0.0-1.0
     }
 
     # System Chorus (MSB 1)
     CHORUS_PARAMS = {
-        0: ('chorus_type', lambda x: int(x)),         # Type 0-5
-        1: ('rate', lambda x: 0.125 + x * 9.875),    # 0.125-10.0 Hz
-        2: ('depth', lambda x: x),                    # 0.0-1.0
-        3: ('feedback', lambda x: (x - 0.5) * 0.5), # -0.25 to +0.25
-        4: ('level', lambda x: x),                    # 0.0-1.0
-        5: ('delay', lambda x: x * 0.012),           # 0-12ms
+        0: ("chorus_type", lambda x: int(x)),  # Type 0-5
+        1: ("rate", lambda x: 0.125 + x * 9.875),  # 0.125-10.0 Hz
+        2: ("depth", lambda x: x),  # 0.0-1.0
+        3: ("feedback", lambda x: (x - 0.5) * 0.5),  # -0.25 to +0.25
+        4: ("level", lambda x: x),  # 0.0-1.0
+        5: ("delay", lambda x: x * 0.012),  # 0-12ms
     }
 
     # Variation Effect (MSB 2)
     VARIATION_PARAMS = {
-        0: ('variation_type', lambda x: int(x)),      # Type 0-83
-        1: ('variation_level', lambda x: x),          # 0.0-1.0
+        0: ("variation_type", lambda x: int(x)),  # Type 0-83
+        1: ("variation_level", lambda x: x),  # 0.0-1.0
         # Additional parameters depend on effect type
     }
 
     # Master EQ (MSB 4)
     MASTER_EQ_PARAMS = {
-        0: ('low_gain', lambda x: (x - 0.5) * 24.0),    # -12 to +12 dB
-        1: ('mid_gain', lambda x: (x - 0.5) * 24.0),    # -12 to +12 dB
-        2: ('high_gain', lambda x: (x - 0.5) * 24.0),   # -12 to +12 dB
-        3: ('low_freq', lambda x: 20 + x * 380.0),       # 20-400 Hz
-        4: ('mid_freq', lambda x: 200 + x * 7800.0),     # 200-8000 Hz
-        5: ('high_freq', lambda x: 2000 + x * 19800.0),  # 2000-22000 Hz
+        0: ("low_gain", lambda x: (x - 0.5) * 24.0),  # -12 to +12 dB
+        1: ("mid_gain", lambda x: (x - 0.5) * 24.0),  # -12 to +12 dB
+        2: ("high_gain", lambda x: (x - 0.5) * 24.0),  # -12 to +12 dB
+        3: ("low_freq", lambda x: 20 + x * 380.0),  # 20-400 Hz
+        4: ("mid_freq", lambda x: 200 + x * 7800.0),  # 200-8000 Hz
+        5: ("high_freq", lambda x: 2000 + x * 19800.0),  # 2000-22000 Hz
     }
 
     # Channel Parameters base offsets
@@ -138,8 +142,8 @@ class XGNRPNController:
         self.effects_coordinator = effects_coordinator
 
         # NRPN state
-        self.current_bank = 0     # MSB (parameter bank)
-        self.current_param = 0    # LSB (parameter number)
+        self.current_bank = 0  # MSB (parameter bank)
+        self.current_param = 0  # LSB (parameter number)
         self.pending_bank = False
         self.pending_param = False
         self.pending_value = False
@@ -233,7 +237,7 @@ class XGNRPNController:
                 param_name, scaler = mapping
                 scaled_value = scaler(normalized_value)
                 success = self.effects_coordinator.set_system_effect_parameter(
-                    'reverb', param_name, scaled_value
+                    "reverb", param_name, scaled_value
                 )
 
         # System Chorus (MSB 1)
@@ -243,7 +247,7 @@ class XGNRPNController:
                 param_name, scaler = mapping
                 scaled_value = scaler(normalized_value)
                 success = self.effects_coordinator.set_system_effect_parameter(
-                    'chorus', param_name, scaled_value
+                    "chorus", param_name, scaled_value
                 )
 
         # Variation Effect (MSB 2)
@@ -253,7 +257,7 @@ class XGNRPNController:
                 success = self.effects_coordinator.set_variation_effect_type(variation_type)
             elif param == 1:  # Variation level
                 success = self.effects_coordinator.set_system_effect_parameter(
-                    'variation', 'level', normalized_value
+                    "variation", "level", normalized_value
                 )
 
         # Master EQ (MSB 4)
@@ -264,33 +268,33 @@ class XGNRPNController:
                 scaled_value = scaler(normalized_value)
 
                 # Update coordinator's EQ parameters using proper method names
-                if hasattr(self.effects_coordinator, 'master_eq'):
+                if hasattr(self.effects_coordinator, "master_eq"):
                     eq_processor = self.effects_coordinator.master_eq
-                    if param_name == 'low_gain':
+                    if param_name == "low_gain":
                         success = True  # Value already scaled correctly
                         eq_processor.set_low_gain(scaled_value)
-                    elif param_name == 'mid_gain':
+                    elif param_name == "mid_gain":
                         success = True
                         eq_processor.set_mid_gain(scaled_value)
-                    elif param_name == 'high_gain':
+                    elif param_name == "high_gain":
                         success = True
                         eq_processor.set_high_gain(scaled_value)
-                    elif param_name == 'mid_freq':
+                    elif param_name == "mid_freq":
                         success = True
                         eq_processor.set_mid_frequency(scaled_value)
-                elif hasattr(self.effects_coordinator, 'set_master_eq_gain'):
+                elif hasattr(self.effects_coordinator, "set_master_eq_gain"):
                     # Alternative interface
-                    if 'gain' in param_name:
-                        band = param_name.replace('_gain', '')
+                    if "gain" in param_name:
+                        band = param_name.replace("_gain", "")
                         success = self.effects_coordinator.set_master_eq_gain(band, scaled_value)
-                    elif param_name == 'mid_freq':
+                    elif param_name == "mid_freq":
                         success = self.effects_coordinator.set_master_eq_frequency(scaled_value)
 
         # Channel-specific parameters (MSB >= 8, might be used for channel control)
         elif bank >= 8:
             # Channel number = bank - 8
             channel = bank - 8
-            if 0 <= channel < 16 and hasattr(self.effects_coordinator, 'mixer_processor'):
+            if 0 <= channel < 16 and hasattr(self.effects_coordinator, "mixer_processor"):
                 success = self._apply_channel_parameter(channel, param, normalized_value)
 
         # Trigger callbacks
@@ -318,11 +322,11 @@ class XGNRPNController:
             pan_value = value * 2.0 - 1.0  # Convert to -1/+1
             success = self.effects_coordinator.set_channel_pan(channel, pan_value)
         elif param == 2:  # Reverb send
-            success = self.effects_coordinator.set_effect_send_level(channel, 'reverb', value)
+            success = self.effects_coordinator.set_effect_send_level(channel, "reverb", value)
         elif param == 3:  # Chorus send
-            success = self.effects_coordinator.set_effect_send_level(channel, 'chorus', value)
+            success = self.effects_coordinator.set_effect_send_level(channel, "chorus", value)
         elif param == 4:  # Variation send
-            success = self.effects_coordinator.set_effect_send_level(channel, 'variation', value)
+            success = self.effects_coordinator.set_effect_send_level(channel, "variation", value)
 
         return success
 
@@ -335,9 +339,12 @@ class XGMIDIController:
     Provides the main interface for MIDI control of XG effects.
     """
 
-    def __init__(self, effects_coordinator: Any | None = None,
-                 eq_processor: Any | None = None,
-                 mixer_processor: Any | None = None):
+    def __init__(
+        self,
+        effects_coordinator: Any | None = None,
+        eq_processor: Any | None = None,
+        mixer_processor: Any | None = None,
+    ):
         """
         Initialize MIDI controller.
 
@@ -354,9 +361,9 @@ class XGMIDIController:
         self.nrpn_controller = XGNRPNController(effects_coordinator)
 
         # Channel-specific effect sends (working variables)
-        self.channel_reverb_sends = np.full(16, 0.4, dtype=np.float32)   # Default 40/127
-        self.channel_chorus_sends = np.full(16, 0.0, dtype=np.float32)   # Default 0/127
-        self.channel_variation_sends = np.full(16, 0.0, dtype=np.float32) # Default 0/127
+        self.channel_reverb_sends = np.full(16, 0.4, dtype=np.float32)  # Default 40/127
+        self.channel_chorus_sends = np.full(16, 0.0, dtype=np.float32)  # Default 0/127
+        self.channel_variation_sends = np.full(16, 0.0, dtype=np.float32)  # Default 0/127
 
         # Effect unit activation (XG CC 200-209)
         self.effect_units_active = np.ones(10, dtype=bool)  # All active by default
@@ -371,25 +378,26 @@ class XGMIDIController:
         """Initialize MIDI CC to XG parameter mappings."""
         cc_map = {
             # XG Standard effect sends
-            91: 'reverb_send',
-            93: 'chorus_send',
-            94: 'variation_send',
+            91: "reverb_send",
+            93: "chorus_send",
+            94: "variation_send",
             # XG Effect unit activation
-            200: 'effect_unit_0',
-            201: 'effect_unit_1',
-            202: 'effect_unit_2',
-            203: 'effect_unit_3',
-            204: 'effect_unit_4',
-            205: 'effect_unit_5',
-            206: 'effect_unit_6',
-            207: 'effect_unit_7',
-            208: 'effect_unit_8',
-            209: 'effect_unit_9',
+            200: "effect_unit_0",
+            201: "effect_unit_1",
+            202: "effect_unit_2",
+            203: "effect_unit_3",
+            204: "effect_unit_4",
+            205: "effect_unit_5",
+            206: "effect_unit_6",
+            207: "effect_unit_7",
+            208: "effect_unit_8",
+            209: "effect_unit_9",
         }
         return cc_map
 
-    def process_midi_message(self, message_type: str, cc_number: int = None,
-                           value: int = None, channel: int = None) -> bool:
+    def process_midi_message(
+        self, message_type: str, cc_number: int = None, value: int = None, channel: int = None
+    ) -> bool:
         """
         Process MIDI message and apply to XG effects.
 
@@ -403,9 +411,9 @@ class XGMIDIController:
             True if parameter was updated
         """
         with self.lock:
-            if message_type == 'cc':
+            if message_type == "cc":
                 return self._process_cc_message(cc_number, value, channel)
-            elif message_type == 'nrpn':
+            elif message_type == "nrpn":
                 return self.nrpn_controller.process_nrpn_message(cc_number, value)
             else:
                 return False
@@ -445,8 +453,12 @@ class XGMIDIController:
                 pan_value = normalized_value * 2.0 - 1.0  # Convert to -1/+1
                 if self.mixer_processor:
                     return self.mixer_processor.set_channel_params(channel, pan=pan_value)
-                elif self.effects_coordinator and hasattr(self.effects_coordinator, 'mixer_processor'):
-                    return self.effects_coordinator.mixer_processor.set_channel_params(channel, pan=pan_value)
+                elif self.effects_coordinator and hasattr(
+                    self.effects_coordinator, "mixer_processor"
+                ):
+                    return self.effects_coordinator.mixer_processor.set_channel_params(
+                        channel, pan=pan_value
+                    )
             return False
 
         return False
@@ -455,13 +467,13 @@ class XGMIDIController:
         """Process channel-specific effect send CC message."""
         if cc_number == 91:  # Reverb send
             self.channel_reverb_sends[channel] = value
-            target = 'reverb_send'
+            target = "reverb_send"
         elif cc_number == 93:  # Chorus send
             self.channel_chorus_sends[channel] = value
-            target = 'chorus_send'
+            target = "chorus_send"
         elif cc_number == 94:  # Variation send
             self.channel_variation_sends[channel] = value
-            target = 'variation_send'
+            target = "variation_send"
         else:
             return False
 
@@ -498,9 +510,9 @@ class XGMIDIController:
         """Get current effect send levels for all channels."""
         with self.lock:
             return {
-                'reverb': self.channel_reverb_sends.copy(),
-                'chorus': self.channel_chorus_sends.copy(),
-                'variation': self.channel_variation_sends.copy(),
+                "reverb": self.channel_reverb_sends.copy(),
+                "chorus": self.channel_chorus_sends.copy(),
+                "variation": self.channel_variation_sends.copy(),
             }
 
     def get_effect_unit_states(self) -> np.ndarray:

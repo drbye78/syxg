@@ -7,11 +7,11 @@ capabilities for the XG synthesizer's sample management system.
 
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
 import struct
 import wave
-import io
+from typing import Any
+
+import numpy as np
 
 
 class SampleFormatHandler:

@@ -10,16 +10,17 @@ Key Features:
 - Block-based processing with zero-allocation design
 - Thread-safe parameter updates
 """
+
 from __future__ import annotations
 
-import numpy as np
 import math
-from typing import Any
-from enum import IntEnum
 import threading
+from typing import Any
+
+import numpy as np
 
 # Import from our type definitions
-from .types import XGReverbType, XGChorusType, XGProcessingContext
+from .types import XGChorusType, XGReverbType
 
 
 class XGSystemReverbProcessor:
@@ -46,13 +47,13 @@ class XGSystemReverbProcessor:
 
         # XG reverb parameters with NRPN defaults
         self.params = {
-            'reverb_type': XGReverbType.HALL_1.value,      # Type 1-24
-            'time': 0.5,          # Reverb time (0.1-8.3 seconds)
-            'level': 0.6,         # Wet/dry mix level (0-1)
-            'pre_delay': 0.02,    # Pre-delay in seconds (0-0.05)
-            'hf_damping': 0.5,    # High frequency damping (0-1)
-            'density': 0.8,       # Reverberation density (0-1)
-            'enabled': True,
+            "reverb_type": XGReverbType.HALL_1.value,  # Type 1-24
+            "time": 0.5,  # Reverb time (0.1-8.3 seconds)
+            "level": 0.6,  # Wet/dry mix level (0-1)
+            "pre_delay": 0.02,  # Pre-delay in seconds (0-0.05)
+            "hf_damping": 0.5,  # High frequency damping (0-1)
+            "density": 0.8,  # Reverberation density (0-1)
+            "enabled": True,
         }
 
         # Convolution state
@@ -87,14 +88,16 @@ class XGSystemReverbProcessor:
             self.params[param] = value
 
             # Check if IR needs to be updated
-            ir_affecting_params = {'reverb_type', 'time', 'hf_damping', 'density', 'pre_delay'}
+            ir_affecting_params = {"reverb_type", "time", "hf_damping", "density", "pre_delay"}
             if param in ir_affecting_params and abs(value - old_value) > 1e-6:
                 self.param_updated = True
                 return True
 
             return False
 
-    def apply_system_effects_to_mix_zero_alloc(self, stereo_mix: np.ndarray, num_samples: int) -> None:
+    def apply_system_effects_to_mix_zero_alloc(
+        self, stereo_mix: np.ndarray, num_samples: int
+    ) -> None:
         """
         Apply system reverb to the final stereo mix (in-place processing).
 
@@ -105,7 +108,7 @@ class XGSystemReverbProcessor:
             stereo_mix: Input/output stereo mix buffer (N, 2)
             num_samples: Number of samples to process
         """
-        if not self.params['enabled'] or self.current_ir is None:
+        if not self.params["enabled"] or self.current_ir is None:
             return
 
         with self.lock:
@@ -114,7 +117,7 @@ class XGSystemReverbProcessor:
                 self._update_impulse_response()
                 self.param_updated = False
 
-            level = self.params['level']
+            level = self.params["level"]
             if level <= 0.001:  # Effectively bypassed
                 return
 
@@ -122,8 +125,8 @@ class XGSystemReverbProcessor:
             self._ensure_convolution_buffers(num_samples)
 
             # Apply pre-delay if configured
-            if self.params['pre_delay'] > 0:
-                pre_delay_samples = int(self.params['pre_delay'] * self.sample_rate)
+            if self.params["pre_delay"] > 0:
+                pre_delay_samples = int(self.params["pre_delay"] * self.sample_rate)
                 self._apply_pre_delay(stereo_mix, num_samples, pre_delay_samples)
 
             # Apply convolution reverb
@@ -144,13 +147,19 @@ class XGSystemReverbProcessor:
 
         # We maintain a circular buffer history for convolution
         required_size = num_samples + len(self.current_ir) - 1
-        if len(self.convolution_buffers) == 0 or self.convolution_buffers[0].shape[0] < required_size:
+        if (
+            len(self.convolution_buffers) == 0
+            or self.convolution_buffers[0].shape[0] < required_size
+        ):
             self.convolution_buffers = [
-                np.zeros(required_size, dtype=np.float32) for _ in range(2)  # Left and right
+                np.zeros(required_size, dtype=np.float32)
+                for _ in range(2)  # Left and right
             ]
             self.buffer_positions = [0, 0]
 
-    def _apply_pre_delay(self, stereo_mix: np.ndarray, num_samples: int, delay_samples: int) -> None:
+    def _apply_pre_delay(
+        self, stereo_mix: np.ndarray, num_samples: int, delay_samples: int
+    ) -> None:
         """Apply pre-delay by swapping samples in the buffer."""
         if delay_samples >= num_samples:
             # If delay is longer than block, delay entire block
@@ -178,8 +187,12 @@ class XGSystemReverbProcessor:
         left_output = np.zeros(num_samples, dtype=np.float32)
 
         # Add current input to convolution buffer
-        self.convolution_buffers[0][self.buffer_positions[0]:self.buffer_positions[0] + num_samples] = left_input
-        self.buffer_positions[0] = (self.buffer_positions[0] + num_samples) % len(self.convolution_buffers[0])
+        self.convolution_buffers[0][
+            self.buffer_positions[0] : self.buffer_positions[0] + num_samples
+        ] = left_input
+        self.buffer_positions[0] = (self.buffer_positions[0] + num_samples) % len(
+            self.convolution_buffers[0]
+        )
 
         # Perform convolution
         for i in range(num_samples):
@@ -196,8 +209,12 @@ class XGSystemReverbProcessor:
         right_input = stereo_mix[:, 1]
         right_output = np.zeros(num_samples, dtype=np.float32)
 
-        self.convolution_buffers[1][self.buffer_positions[1]:self.buffer_positions[1] + num_samples] = right_input
-        self.buffer_positions[1] = (self.buffer_positions[1] + num_samples) % len(self.convolution_buffers[1])
+        self.convolution_buffers[1][
+            self.buffer_positions[1] : self.buffer_positions[1] + num_samples
+        ] = right_input
+        self.buffer_positions[1] = (self.buffer_positions[1] + num_samples) % len(
+            self.convolution_buffers[1]
+        )
 
         for i in range(num_samples):
             pos = self.buffer_positions[1] - num_samples + i
@@ -224,7 +241,7 @@ class XGSystemReverbProcessor:
             for ch in range(2):
                 channel_input = stereo_mix[:, ch]
                 # Apply FFT convolution
-                convolved = fftconvolve(channel_input, self.current_ir, mode='full')
+                convolved = fftconvolve(channel_input, self.current_ir, mode="full")
                 # Take the appropriate segment
                 stereo_mix[:num_samples, ch] = convolved[:num_samples]
 
@@ -236,11 +253,11 @@ class XGSystemReverbProcessor:
         """Generate or retrieve impulse response based on current parameters."""
         # Create cache key from current parameters
         cache_key = (
-            self.params['reverb_type'],
-            round(self.params['time'], 3),
-            round(self.params['hf_damping'], 3),
-            round(self.params['density'], 3),
-            round(self.params['pre_delay'], 3)
+            self.params["reverb_type"],
+            round(self.params["time"], 3),
+            round(self.params["hf_damping"], 3),
+            round(self.params["density"], 3),
+            round(self.params["pre_delay"], 3),
         )
 
         if cache_key in self.ir_cache:
@@ -248,11 +265,11 @@ class XGSystemReverbProcessor:
             return
 
         # Generate new impulse response
-        ir_length = min(int(self.sample_rate * self.params['time'] * 1.5), self.max_ir_length)
+        ir_length = min(int(self.sample_rate * self.params["time"] * 1.5), self.max_ir_length)
         self.current_ir = np.zeros(ir_length, dtype=np.float32)
 
         # XG reverb type determines characteristics - implement all 24 XG types
-        reverb_type = self.params['reverb_type']
+        reverb_type = self.params["reverb_type"]
         if reverb_type == 1:  # Hall 1 (Small Hall)
             self._generate_xg_hall(1.8, 0.4, 0.6)  # time, density, hf_damping
         elif reverb_type == 2:  # Hall 2 (Medium Hall)
@@ -387,7 +404,9 @@ class XGSystemReverbProcessor:
         # Smooth, bright late reverb
         for i in range(int(0.03 * self.sample_rate), len(self.current_ir)):
             decay_factor = math.exp(-(i / self.sample_rate) / (time * 0.95))
-            damping_factor = math.exp(-hf_damping * (i / self.sample_rate) * 0.8)  # Less HF damping for brightness
+            damping_factor = math.exp(
+                -hf_damping * (i / self.sample_rate) * 0.8
+            )  # Less HF damping for brightness
             noise = (np.random.random() - 0.5) * 2.0
 
             # Add metallic character with high-frequency emphasis
@@ -397,9 +416,9 @@ class XGSystemReverbProcessor:
     def _generate_hall_ir(self) -> None:
         """Generate hall-type impulse response."""
         # Characteristics: large, lush, with multiple early reflections
-        time = self.params['time']
-        damping = self.params['hf_damping']
-        density = self.params['density']
+        time = self.params["time"]
+        damping = self.params["hf_damping"]
+        density = self.params["density"]
 
         # Early reflections pattern for hall
         early_positions = [0.02, 0.035, 0.055, 0.08, 0.12, 0.18, 0.25, 0.35]
@@ -423,9 +442,9 @@ class XGSystemReverbProcessor:
     def _generate_room_ir(self) -> None:
         """Generate room-type impulse response."""
         # Characteristics: more intimate than hall, with fewer early reflections
-        time = self.params['time']
-        damping = self.params['hf_damping']
-        density = self.params['density']
+        time = self.params["time"]
+        damping = self.params["hf_damping"]
+        density = self.params["density"]
 
         # Fewer, less prominent early reflections
         early_positions = [0.015, 0.028, 0.045, 0.065, 0.095]
@@ -446,9 +465,9 @@ class XGSystemReverbProcessor:
     def _generate_plate_ir(self) -> None:
         """Generate plate-type impulse response."""
         # Characteristics: bright, metallic, shorter decay than hall
-        time = self.params['time']
-        damping = self.params['hf_damping']
-        density = self.params['density']
+        time = self.params["time"]
+        damping = self.params["hf_damping"]
+        density = self.params["density"]
 
         # Distinctive early reflections for plate
         early_positions = [0.005, 0.012, 0.019, 0.028, 0.042]
@@ -499,43 +518,73 @@ class XGSystemChorusProcessor:
         # XG chorus type definitions with default parameters
         self.chorus_type_presets = {
             0: {  # Chorus 1
-                'rate': 1.0, 'depth': 0.5, 'feedback': 0.3, 'delay': 0.012,
-                'cross_feedback': 0.0, 'lfo_waveform': 0, 'phase_diff': 90.0
+                "rate": 1.0,
+                "depth": 0.5,
+                "feedback": 0.3,
+                "delay": 0.012,
+                "cross_feedback": 0.0,
+                "lfo_waveform": 0,
+                "phase_diff": 90.0,
             },
             1: {  # Chorus 2
-                'rate': 0.8, 'depth': 0.6, 'feedback': 0.4, 'delay': 0.015,
-                'cross_feedback': 0.1, 'lfo_waveform': 0, 'phase_diff': 120.0
+                "rate": 0.8,
+                "depth": 0.6,
+                "feedback": 0.4,
+                "delay": 0.015,
+                "cross_feedback": 0.1,
+                "lfo_waveform": 0,
+                "phase_diff": 120.0,
             },
             2: {  # Celeste 1
-                'rate': 0.5, 'depth': 0.7, 'feedback': 0.2, 'delay': 0.008,
-                'cross_feedback': 0.0, 'lfo_waveform': 1, 'phase_diff': 180.0  # Triangle wave
+                "rate": 0.5,
+                "depth": 0.7,
+                "feedback": 0.2,
+                "delay": 0.008,
+                "cross_feedback": 0.0,
+                "lfo_waveform": 1,
+                "phase_diff": 180.0,  # Triangle wave
             },
             3: {  # Celeste 2
-                'rate': 0.3, 'depth': 0.8, 'feedback': 0.3, 'delay': 0.010,
-                'cross_feedback': 0.2, 'lfo_waveform': 1, 'phase_diff': 150.0
+                "rate": 0.3,
+                "depth": 0.8,
+                "feedback": 0.3,
+                "delay": 0.010,
+                "cross_feedback": 0.2,
+                "lfo_waveform": 1,
+                "phase_diff": 150.0,
             },
             4: {  # Flanger 1
-                'rate': 0.2, 'depth': 0.9, 'feedback': 0.7, 'delay': 0.002,
-                'cross_feedback': 0.0, 'lfo_waveform': 0, 'phase_diff': 0.0
+                "rate": 0.2,
+                "depth": 0.9,
+                "feedback": 0.7,
+                "delay": 0.002,
+                "cross_feedback": 0.0,
+                "lfo_waveform": 0,
+                "phase_diff": 0.0,
             },
             5: {  # Flanger 2
-                'rate': 0.15, 'depth': 1.0, 'feedback': 0.8, 'delay': 0.003,
-                'cross_feedback': 0.3, 'lfo_waveform': 2, 'phase_diff': 45.0  # Square wave
-            }
+                "rate": 0.15,
+                "depth": 1.0,
+                "feedback": 0.8,
+                "delay": 0.003,
+                "cross_feedback": 0.3,
+                "lfo_waveform": 2,
+                "phase_diff": 45.0,  # Square wave
+            },
         }
 
         # XG chorus parameters
         self.params = {
-            'chorus_type': XGChorusType.CHORUS_1.value,  # Type 0-5
-            'rate': 1.0,          # LFO rate in Hz (0.125-10.0)
-            'depth': 0.5,         # Modulation depth (0-1)
-            'feedback': 0.3,      # Feedback amount (-0.5 to +0.5)
-            'level': 0.4,         # Wet/dry mix level (0-1)
-            'delay': 0.012,       # Base delay in seconds
-            'cross_feedback': 0.0, # Cross-feedback between channels (0-1)
-            'lfo_waveform': 0,    # LFO waveform (0=sine, 1=triangle, 2=square, 3=saw)
-            'phase_diff': 90.0,   # Phase difference in degrees
-            'enabled': True,
+            "chorus_type": XGChorusType.CHORUS_1.value,  # Type 0-5
+            "rate": 1.0,  # LFO rate in Hz (0.125-10.0)
+            "depth": 0.5,  # Modulation depth (0-1)
+            "feedback": 0.3,  # Feedback amount (-0.5 to +0.5)
+            "level": 0.4,  # Wet/dry mix level (0-1)
+            "delay": 0.012,  # Base delay in seconds
+            "cross_feedback": 0.0,  # Cross-feedback between channels (0-1)
+            "lfo_waveform": 0,  # LFO waveform (0=sine, 1=triangle, 2=square, 3=saw)
+            "phase_diff": 90.0,  # Phase difference in degrees
+            "enabled": True,
         }
 
         # Apply initial type settings
@@ -587,7 +636,7 @@ class XGSystemChorusProcessor:
                 return False
 
             # Special handling for chorus_type - apply preset
-            if param == 'chorus_type':
+            if param == "chorus_type":
                 chorus_type = int(value)
                 if 0 <= chorus_type <= 5:
                     self._apply_chorus_type_preset(chorus_type)
@@ -609,7 +658,7 @@ class XGSystemChorusProcessor:
         Returns:
             True if type was set successfully
         """
-        return self.set_parameter('chorus_type', chorus_type)
+        return self.set_parameter("chorus_type", chorus_type)
 
     def _generate_lfo_tables(self) -> dict[str, np.ndarray]:
         """Pre-compute LFO waveform tables for better performance."""
@@ -618,27 +667,29 @@ class XGSystemChorusProcessor:
         phases = np.linspace(0, 2 * np.pi, table_size, endpoint=False)
 
         return {
-            'sine': np.sin(phases),
-            'triangle': 2 * np.abs((phases / (2 * np.pi) * 4) % 4 - 2) - 1,
-            'square': np.sign(np.sin(phases)),
-            'saw': 2 * (phases / (2 * np.pi) % 1) - 1
+            "sine": np.sin(phases),
+            "triangle": 2 * np.abs((phases / (2 * np.pi) * 4) % 4 - 2) - 1,
+            "square": np.sign(np.sin(phases)),
+            "saw": 2 * (phases / (2 * np.pi) % 1) - 1,
         }
 
     def _get_lfo_value(self, phase: float, waveform: int) -> float:
         """Get LFO value for given phase and waveform type."""
-        table_size = len(self._lfo_tables['sine'])
+        table_size = len(self._lfo_tables["sine"])
         table_index = int((phase % (2 * np.pi)) / (2 * np.pi) * table_size) % table_size
 
         if waveform == 0:  # Sine
-            return self._lfo_tables['sine'][table_index]
+            return self._lfo_tables["sine"][table_index]
         elif waveform == 1:  # Triangle
-            return self._lfo_tables['triangle'][table_index]
+            return self._lfo_tables["triangle"][table_index]
         elif waveform == 2:  # Square
-            return self._lfo_tables['square'][table_index]
+            return self._lfo_tables["square"][table_index]
         else:  # Sawtooth
-            return self._lfo_tables['saw'][table_index]
+            return self._lfo_tables["saw"][table_index]
 
-    def apply_system_effects_to_mix_zero_alloc(self, stereo_mix: np.ndarray, num_samples: int) -> None:
+    def apply_system_effects_to_mix_zero_alloc(
+        self, stereo_mix: np.ndarray, num_samples: int
+    ) -> None:
         """
         Apply system chorus to the final stereo mix (in-place processing).
 
@@ -646,7 +697,7 @@ class XGSystemChorusProcessor:
             stereo_mix: Input/output stereo mix buffer (N, 2)
             num_samples: Number of samples to process
         """
-        if not self.params['enabled'] or self.params['level'] <= 0.001:
+        if not self.params["enabled"] or self.params["level"] <= 0.001:
             return
 
         with self.lock:
@@ -655,14 +706,14 @@ class XGSystemChorusProcessor:
 
     def _process_chorus_block(self, stereo_mix: np.ndarray, num_samples: int) -> None:
         """Process a block of samples through chorus modulation."""
-        rate = self.params['rate']
-        depth = self.params['depth']
-        feedback = self.params['feedback'] / 127.0 * 0.5  # Scale feedback
-        level = self.params['level']
-        delay = self.params['delay']
-        cross_feedback = self.params['cross_feedback'] / 127.0 * 0.5
-        lfo_waveform = int(self.params['lfo_waveform'])
-        phase_diff_degrees = self.params['phase_diff']
+        rate = self.params["rate"]
+        depth = self.params["depth"]
+        feedback = self.params["feedback"] / 127.0 * 0.5  # Scale feedback
+        level = self.params["level"]
+        delay = self.params["delay"]
+        cross_feedback = self.params["cross_feedback"] / 127.0 * 0.5
+        lfo_waveform = int(self.params["lfo_waveform"])
+        phase_diff_degrees = self.params["phase_diff"]
 
         # Convert to samples
         base_delay_samples = int(delay * self.sample_rate)
@@ -732,10 +783,10 @@ class XGSystemModulationProcessor:
     def __init__(self, sample_rate: int):
         self.sample_rate = sample_rate
         self.params = {
-            'type': 0,           # Effect type
-            'rate': 5.0,         # LFO rate
-            'depth': 0.5,        # Modulation depth
-            'enabled': False,
+            "type": 0,  # Effect type
+            "rate": 5.0,  # LFO rate
+            "depth": 0.5,  # Modulation depth
+            "enabled": False,
         }
 
         # Effect state
@@ -761,15 +812,17 @@ class XGSystemModulationProcessor:
                 return True
             return False
 
-    def apply_system_effects_to_mix_zero_alloc(self, stereo_mix: np.ndarray, num_samples: int) -> None:
+    def apply_system_effects_to_mix_zero_alloc(
+        self, stereo_mix: np.ndarray, num_samples: int
+    ) -> None:
         """Apply system modulation effects to the mix."""
-        if not self.params['enabled']:
+        if not self.params["enabled"]:
             return
 
         with self.lock:
             # Simple tremolo implementation for now
-            rate = self.params['rate']
-            depth = self.params['depth']
+            rate = self.params["rate"]
+            depth = self.params["depth"]
 
             for i in range(num_samples):
                 # Update LFO phase
@@ -793,8 +846,14 @@ class XGSystemEffectsProcessor:
     Provides a unified interface for all system effects processing.
     """
 
-    def __init__(self, sample_rate: int, block_size: int,
-                 dsp_units, max_reverb_delay: int, max_chorus_delay: int):
+    def __init__(
+        self,
+        sample_rate: int,
+        block_size: int,
+        dsp_units,
+        max_reverb_delay: int,
+        max_chorus_delay: int,
+    ):
         """
         Initialize system effects processor.
 
@@ -815,10 +874,10 @@ class XGSystemEffectsProcessor:
 
         # System effects chain configuration
         self.chain_config = {
-            'reverb_enabled': True,
-            'chorus_enabled': True,
-            'modulation_enabled': False,
-            'master_level': 1.0,
+            "reverb_enabled": True,
+            "chorus_enabled": True,
+            "modulation_enabled": False,
+            "master_level": 1.0,
         }
 
         # Thread safety
@@ -837,12 +896,16 @@ class XGSystemEffectsProcessor:
             True if parameter was set successfully
         """
         with self.lock:
-            if effect == 'reverb':
+            if effect == "reverb":
                 return self.reverb_processor.set_parameter(param, value)
-            elif effect == 'chorus':
+            elif effect == "chorus":
                 return self.chorus_processor.set_parameter(param, value)
-            elif effect == 'modulation':
-                return self.modulation_processor.set_parameter(param, value) if hasattr(self.modulation_processor, 'set_parameter') else False
+            elif effect == "modulation":
+                return (
+                    self.modulation_processor.set_parameter(param, value)
+                    if hasattr(self.modulation_processor, "set_parameter")
+                    else False
+                )
             else:
                 return False
 
@@ -858,7 +921,9 @@ class XGSystemEffectsProcessor:
                 if key in self.chain_config:
                     self.chain_config[key] = value
 
-    def apply_system_effects_to_mix_zero_alloc(self, stereo_mix: np.ndarray, num_samples: int) -> None:
+    def apply_system_effects_to_mix_zero_alloc(
+        self, stereo_mix: np.ndarray, num_samples: int
+    ) -> None:
         """
         Apply the complete system effects chain to the stereo mix.
 
@@ -873,20 +938,26 @@ class XGSystemEffectsProcessor:
             num_samples = min(num_samples, stereo_mix.shape[0])
 
             # Apply reverb if enabled
-            if self.chain_config['reverb_enabled']:
-                self.reverb_processor.apply_system_effects_to_mix_zero_alloc(stereo_mix, num_samples)
+            if self.chain_config["reverb_enabled"]:
+                self.reverb_processor.apply_system_effects_to_mix_zero_alloc(
+                    stereo_mix, num_samples
+                )
 
             # Apply chorus if enabled
-            if self.chain_config['chorus_enabled']:
-                self.chorus_processor.apply_system_effects_to_mix_zero_alloc(stereo_mix, num_samples)
+            if self.chain_config["chorus_enabled"]:
+                self.chorus_processor.apply_system_effects_to_mix_zero_alloc(
+                    stereo_mix, num_samples
+                )
 
             # Apply additional modulation if enabled
-            if self.chain_config['modulation_enabled']:
-                self.modulation_processor.apply_system_effects_to_mix_zero_alloc(stereo_mix, num_samples)
+            if self.chain_config["modulation_enabled"]:
+                self.modulation_processor.apply_system_effects_to_mix_zero_alloc(
+                    stereo_mix, num_samples
+                )
 
             # Apply master level
-            if self.chain_config['master_level'] != 1.0:
-                stereo_mix[:num_samples] *= self.chain_config['master_level']
+            if self.chain_config["master_level"] != 1.0:
+                stereo_mix[:num_samples] *= self.chain_config["master_level"]
 
             # Final clipping to prevent overflow
             np.clip(stereo_mix[:num_samples], -1.0, 1.0, out=stereo_mix[:num_samples])
@@ -895,18 +966,18 @@ class XGSystemEffectsProcessor:
         """Get current status of all system effects."""
         with self.lock:
             return {
-                'reverb': {
-                    'enabled': self.chain_config['reverb_enabled'],
-                    'type': self.reverb_processor.params.get('reverb_type', 'unknown'),
-                    'level': self.reverb_processor.params.get('level', 0.0),
+                "reverb": {
+                    "enabled": self.chain_config["reverb_enabled"],
+                    "type": self.reverb_processor.params.get("reverb_type", "unknown"),
+                    "level": self.reverb_processor.params.get("level", 0.0),
                 },
-                'chorus': {
-                    'enabled': self.chain_config['chorus_enabled'],
-                    'type': self.chorus_processor.params.get('chorus_type', 'unknown'),
-                    'level': self.chorus_processor.params.get('level', 0.0),
+                "chorus": {
+                    "enabled": self.chain_config["chorus_enabled"],
+                    "type": self.chorus_processor.params.get("chorus_type", "unknown"),
+                    "level": self.chorus_processor.params.get("level", 0.0),
                 },
-                'modulation': {
-                    'enabled': self.chain_config.get('modulation_enabled', False),
+                "modulation": {
+                    "enabled": self.chain_config.get("modulation_enabled", False),
                 },
-                'master_level': self.chain_config['master_level'],
+                "master_level": self.chain_config["master_level"],
             }

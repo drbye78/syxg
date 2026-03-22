@@ -8,15 +8,14 @@ Comprehensive tests for the ChordDetector class including:
 - Fuzzy matching with extra notes
 - Edge cases and error handling
 """
+
 from __future__ import annotations
 
 import pytest
-from unittest.mock import Mock
-import time
 
 from synth.style.chord_detector import (
-    ChordDetector,
     ChordDetectionConfig,
+    ChordDetector,
     ChordRoot,
     ChordType,
     DetectedChord,
@@ -563,7 +562,7 @@ class TestDetectedChord:
         # intervals for major are [0, 4, 7]
         # so notes should be [36, 40, 43]
         notes = chord.get_notes_for_root(0, octave=3)
-        
+
         assert len(notes) == 3  # Should have 3 notes for triad
         assert notes[0] == 36  # C (root)
         assert notes[1] == 40  # E (major 3rd)

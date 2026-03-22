@@ -3,10 +3,12 @@ XG Synthesizer Drum Manager
 
 Handles drum kit management and XG drum specifications.
 """
+
 from __future__ import annotations
 
 from typing import Any
-from ..core.constants import XG_CONSTANTS, DEFAULT_DRUM_KIT_NOTES, DEFAULT_DRUM_PARAMETERS
+
+from ..core.constants import DEFAULT_DRUM_KIT_NOTES, DEFAULT_DRUM_PARAMETERS, XG_CONSTANTS
 
 
 class DrumManager:
@@ -30,9 +32,7 @@ class DrumManager:
         self.num_channels = num_channels
 
         # Drum parameters for each channel - dict[note] -> dict[param_name] -> value
-        self.drum_parameters: list[dict[int, dict[str, Any]]] = [
-            {} for _ in range(num_channels)
-        ]
+        self.drum_parameters: list[dict[int, dict[str, Any]]] = [{} for _ in range(num_channels)]
 
         # Current drum note for parameter setup (per channel)
         self.current_drum_notes: list[int | None] = [None] * num_channels
@@ -66,7 +66,7 @@ class DrumManager:
             ValueError: If channel or note is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
         if not (0 <= note < 128):
             raise ValueError(f"Note {note} is out of range (0-127)")
 
@@ -91,7 +91,7 @@ class DrumManager:
             ValueError: If channel or note is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
         if not (0 <= note < 128):
             raise ValueError(f"Note {note} is out of range (0-127)")
 
@@ -114,7 +114,7 @@ class DrumManager:
             ValueError: If channel or note is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
         if not (0 <= note < 128):
             raise ValueError(f"Note {note} is out of range (0-127)")
 
@@ -132,7 +132,7 @@ class DrumManager:
             ValueError: If channel or note is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
         if not (0 <= note < 128):
             raise ValueError(f"Note {note} is out of range (0-127)")
 
@@ -152,7 +152,7 @@ class DrumManager:
             ValueError: If channel is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
 
         return self.current_drum_notes[channel]
 
@@ -168,7 +168,7 @@ class DrumManager:
             ValueError: If channel is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
 
         # Clear existing parameters
         self.drum_parameters[channel] = {}
@@ -188,7 +188,7 @@ class DrumManager:
             ValueError: If channel is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
 
         self.drum_parameters[channel] = {}
         self.current_drum_notes[channel] = None
@@ -239,7 +239,7 @@ class DrumManager:
             ValueError: If channel is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
 
         return list(self.drum_parameters[channel].keys())
 
@@ -257,7 +257,7 @@ class DrumManager:
             ValueError: If channel is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
 
         return {note: params.copy() for note, params in self.drum_parameters[channel].items()}
 
@@ -273,17 +273,22 @@ class DrumManager:
             ValueError: If channels are out of range
         """
         if not (0 <= source_channel < self.num_channels):
-            raise ValueError(f"Source channel {source_channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(
+                f"Source channel {source_channel} is out of range (0-{self.num_channels - 1})"
+            )
         if not (0 <= dest_channel < self.num_channels):
-            raise ValueError(f"Destination channel {dest_channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(
+                f"Destination channel {dest_channel} is out of range (0-{self.num_channels - 1})"
+            )
 
         self.drum_parameters[dest_channel] = {
             note: params.copy() for note, params in self.drum_parameters[source_channel].items()
         }
         self.current_drum_notes[dest_channel] = self.current_drum_notes[source_channel]
 
-    def handle_xg_drum_setup_nrpn(self, channel: int, nrpn_msb: int, nrpn_lsb: int,
-                                 data_msb: int, data_lsb: int) -> bool:
+    def handle_xg_drum_setup_nrpn(
+        self, channel: int, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int
+    ) -> bool:
         """
         Handle XG drum setup NRPN messages with complete parameter support.
 
@@ -488,13 +493,21 @@ class DrumManager:
             kit_number: Drum kit number (0-127)
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
 
         # XG Drum Kit Names
         xg_drum_kits = {
-            0: "Standard Kit 1", 1: "Standard Kit 2", 8: "Room Kit", 16: "Power Kit",
-            24: "Electronic Kit", 25: "Analog Kit", 32: "Jazz Kit", 40: "Brush Kit",
-            48: "Orchestra Kit", 56: "SFX Kit 1", 57: "SFX Kit 2"
+            0: "Standard Kit 1",
+            1: "Standard Kit 2",
+            8: "Room Kit",
+            16: "Power Kit",
+            24: "Electronic Kit",
+            25: "Analog Kit",
+            32: "Jazz Kit",
+            40: "Brush Kit",
+            48: "Orchestra Kit",
+            56: "SFX Kit 1",
+            57: "SFX Kit 2",
         }
 
         kit_name = xg_drum_kits.get(kit_number, f"Custom Kit {kit_number}")
@@ -522,10 +535,19 @@ class DrumManager:
 
             # Map parameter to drum parameter name
             param_map = {
-                0: "pitch_coarse", 1: "pitch_fine", 2: "level", 3: "pan",
-                4: "reverb_send", 5: "chorus_send", 6: "variation_send",
-                7: "filter_cutoff", 8: "filter_resonance", 9: "eg_attack",
-                10: "eg_decay1", 11: "eg_decay2", 12: "eg_release"
+                0: "pitch_coarse",
+                1: "pitch_fine",
+                2: "level",
+                3: "pan",
+                4: "reverb_send",
+                5: "chorus_send",
+                6: "variation_send",
+                7: "filter_cutoff",
+                8: "filter_resonance",
+                9: "eg_attack",
+                10: "eg_decay1",
+                11: "eg_decay2",
+                12: "eg_release",
             }
 
             if parameter in param_map:
@@ -555,29 +577,29 @@ class DrumManager:
     def process_bulk_dump(self, address: int, data: list) -> bool:
         """
         Process bulk dump data for drum parameters.
-        
+
         Args:
             address: Starting XG parameter address
             data: List of 7-bit parameter values
-            
+
         Returns:
             True if processed successfully
         """
         try:
             # Process bulk dump data according to XG specification
             # Address format: 0x30 XX YY where XX is note, YY is parameter
-            
+
             # For drum parameters, address is the base address
             base_address = address
-            
+
             # Process each data value
             for i, value in enumerate(data):
                 # Calculate actual address for this parameter
                 param_address = base_address + i
-                
+
                 # Handle the parameter
                 self.handle_xg_drum_parameter(param_address, value)
-                
+
             return True
         except Exception as e:
             print(f"Error processing drum bulk dump: {e}")
@@ -586,10 +608,10 @@ class DrumManager:
     def get_bulk_parameter(self, address: int) -> int:
         """
         Get a drum parameter value by XG address for bulk dump generation.
-        
+
         Args:
             address: XG parameter address
-            
+
         Returns:
             7-bit parameter value
         """
@@ -602,26 +624,40 @@ class DrumManager:
 
                 # Map parameter to drum parameter name
                 param_map = {
-                    0: "pitch_coarse", 1: "pitch_fine", 2: "level", 3: "pan",
-                    4: "reverb_send", 5: "chorus_send", 6: "variation_send",
-                    7: "filter_cutoff", 8: "filter_resonance", 9: "eg_attack",
-                    10: "eg_decay1", 11: "eg_decay2", 12: "eg_release"
+                    0: "pitch_coarse",
+                    1: "pitch_fine",
+                    2: "level",
+                    3: "pan",
+                    4: "reverb_send",
+                    5: "chorus_send",
+                    6: "variation_send",
+                    7: "filter_cutoff",
+                    8: "filter_resonance",
+                    9: "eg_attack",
+                    10: "eg_decay1",
+                    11: "eg_decay2",
+                    12: "eg_release",
                 }
 
                 if parameter in param_map:
                     # Use channel 9 (drum channel) for drum parameters
                     drum_channel = 9
                     param_name = param_map[parameter]
-                    
+
                     # Get current parameter value
                     current_value = self.get_drum_parameter(drum_channel, note, param_name)
-                    
+
                     if current_value is not None:
                         # Convert value back to 7-bit MIDI value based on parameter type
                         if param_name in ["pan"]:
                             # -1.0 to 1.0 -> 0 to 127
                             midi_value = int((current_value + 1.0) * 64)
-                        elif param_name in ["level", "reverb_send", "chorus_send", "variation_send"]:
+                        elif param_name in [
+                            "level",
+                            "reverb_send",
+                            "chorus_send",
+                            "variation_send",
+                        ]:
                             # 0.0 to 1.0 -> 0 to 127
                             midi_value = int(current_value * 127)
                         elif param_name in ["pitch_coarse", "pitch_fine"]:
@@ -636,10 +672,10 @@ class DrumManager:
                         else:  # EG parameters
                             # 0 to 10 seconds -> 0 to 127
                             midi_value = int((current_value / 10.0) * 127)
-                        
+
                         # Ensure value is in valid 7-bit range
                         return max(0, min(127, midi_value))
-            
+
             # Return default value if parameter not found
             return 0
         except Exception as e:
@@ -669,7 +705,7 @@ class DrumManager:
             ValueError: If channel is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
 
         return self.drum_kits.get(channel)
 
@@ -685,6 +721,6 @@ class DrumManager:
             ValueError: If channel is out of range
         """
         if not (0 <= channel < self.num_channels):
-            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels-1})")
+            raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
 
         self.drum_kits[channel] = kit_name

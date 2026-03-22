@@ -303,19 +303,19 @@ PROFESSIONAL STANDARDS:
 
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from collections.abc import Callable
-from enum import IntEnum
 import threading
 import time
+from collections.abc import Callable
+from typing import Any
+
+import numpy as np
 
 # Import our effect processors
-from ..core.buffer_pool import XGBufferPool, XGBufferManager
+from ..core.buffer_pool import XGBufferManager
+from .eq_processor import XGMultiBandEqualizer
+from .insertion_pro import ProductionXGInsertionEffectsProcessor
 from .system_effects import XGSystemEffectsProcessor
 from .variation_effects import XGVariationEffectsProcessor
-from .insertion_pro import ProductionXGInsertionEffectsProcessor
-from .eq_processor import XGMultiBandEqualizer
 
 
 class XGEffectsCoordinator:

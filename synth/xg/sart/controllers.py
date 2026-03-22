@@ -4,15 +4,14 @@ Articulation Controllers for S.Art2 System.
 Contains ArticulationController class that manages articulation state
 and processes NRPN/SYSEX messages. Extracted for better code organization.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Any
 from collections.abc import Callable
-import numpy as np
+from typing import Any
 
-from .mappings import NRPN_ARTICULATION_MAP, MSB_CATEGORIES, get_nrpn_for_articulation
-
+from .mappings import MSB_CATEGORIES, NRPN_ARTICULATION_MAP, get_nrpn_for_articulation
 
 logger = logging.getLogger(__name__)
 
@@ -224,9 +223,7 @@ class ArticulationController:
         """Get current articulation."""
         return self.current_articulation
 
-    def get_articulation_params(
-        self, articulation: str | None = None
-    ) -> dict[str, Any]:
+    def get_articulation_params(self, articulation: str | None = None) -> dict[str, Any]:
         """Get parameters for articulation."""
         art = articulation or self.current_articulation
 

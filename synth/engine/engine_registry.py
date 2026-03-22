@@ -29,6 +29,7 @@ PROFESSIONAL SYNTHESIS ENGINES (Medium Priority):
 - SF2 (8): SoundFont 2.0 - Professional sample playback
 - FM (6): Frequency Modulation - Algorithmic synthesis
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,18 +37,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 from typing import Any
-from .synthesis_engine import SynthesisEngineRegistry
-from .fdsp_engine import FDSPSynthesisEngine
-from .an_engine import ANEngine
-from .sf2_engine import SF2Engine
-from .modern_xg_synthesizer import ModernXGSynthesizer
-from .fm_engine import FMEngine
-from .wavetable_engine import WavetableEngine
+
 from .additive_engine import AdditiveEngine
-from .granular_engine import GranularEngine
-from .physical_engine import PhysicalEngine
+from .an_engine import ANEngine
 from .convolution_reverb_engine import ConvolutionReverbEngine
+from .fdsp_engine import FDSPSynthesisEngine
+from .fm_engine import FMEngine
+from .granular_engine import GranularEngine
+from .modern_xg_synthesizer import ModernXGSynthesizer
+from .physical_engine import PhysicalEngine
+from .sf2_engine import SF2Engine
 from .spectral_engine import SpectralEngine
+from .synthesis_engine import SynthesisEngineRegistry
+from .wavetable_engine import WavetableEngine
 
 
 class XGEngineRegistry:
@@ -128,9 +130,7 @@ class XGEngineRegistry:
         # FDSP Engine (Formant Dynamic Synthesis Processor) - S90/S70 Vocal Synthesis
         try:
             fdsp_engine = FDSPSynthesisEngine(sample_rate=self.sample_rate)
-            self.registry.register_engine(
-                fdsp_engine, "fdsp", self.engine_priorities["fdsp"]
-            )
+            self.registry.register_engine(fdsp_engine, "fdsp", self.engine_priorities["fdsp"])
             logger.info("FDSP Engine registered (Formant Synthesis)")
         except Exception as e:
             logger.warning(f"FDSP Engine registration failed: {e}")
@@ -146,9 +146,7 @@ class XGEngineRegistry:
         # SF2 Engine (SoundFont) - Sample Playback
         try:
             sf2_engine = SF2Engine(sample_rate=self.sample_rate)
-            self.registry.register_engine(
-                sf2_engine, "sf2", self.engine_priorities["sf2"]
-            )
+            self.registry.register_engine(sf2_engine, "sf2", self.engine_priorities["sf2"])
             logger.info("SF2 Engine registered (SoundFont)")
         except Exception as e:
             logger.warning(f"SF2 Engine registration failed: {e}")
@@ -158,9 +156,7 @@ class XGEngineRegistry:
             from ..sfz.sfz_engine import SFZEngine
 
             sfz_engine = SFZEngine(sample_rate=self.sample_rate)
-            self.registry.register_engine(
-                sfz_engine, "sfz", self.engine_priorities.get("sfz", 8)
-            )
+            self.registry.register_engine(sfz_engine, "sfz", self.engine_priorities.get("sfz", 8))
             logger.info("SFZ Engine registered (Modern Sample Format)")
         except Exception as e:
             logger.warning(f"SFZ Engine registration failed: {e}")
@@ -367,9 +363,7 @@ class XGEngineRegistry:
             "xg",  # XG AWM synthesis
         ]
         return [
-            engine
-            for engine in s90_s70_engines
-            if self.registry.get_engine(engine) is not None
+            engine for engine in s90_s70_engines if self.registry.get_engine(engine) is not None
         ]
 
     def get_workstation_engines(self) -> list[str]:
@@ -389,9 +383,7 @@ class XGEngineRegistry:
             "additive",  # Advanced additive synthesis
         ]
         return [
-            engine
-            for engine in workstation_engines
-            if self.registry.get_engine(engine) is not None
+            engine for engine in workstation_engines if self.registry.get_engine(engine) is not None
         ]
 
     def get_experimental_engines(self) -> list[str]:
@@ -424,9 +416,7 @@ class XGEngineRegistry:
             "experimental_engines": len(self.get_experimental_engines()),
             "engine_types": list(registered_engines.keys()),
             "supported_formats": self._get_all_supported_formats(),
-            "priority_distribution": self._get_priority_distribution(
-                registered_engines
-            ),
+            "priority_distribution": self._get_priority_distribution(registered_engines),
         }
 
         return stats
@@ -467,8 +457,7 @@ class XGEngineRegistry:
             "compatible": True,
             "sample_rate_match": engine.sample_rate == self.sample_rate,
             "interface_compliant": hasattr(engine, "generate_samples"),
-            "capabilities_available": len(self.get_engine_capabilities(engine_type))
-            > 0,
+            "capabilities_available": len(self.get_engine_capabilities(engine_type)) > 0,
         }
 
         # Check for any compatibility issues
@@ -528,9 +517,7 @@ class XGEngineRegistry:
 
         return requirements
 
-    def optimize_engine_selection(
-        self, available_resources: dict[str, Any]
-    ) -> dict[str, Any]:
+    def optimize_engine_selection(self, available_resources: dict[str, Any]) -> dict[str, Any]:
         """
         Optimize engine selection based on available system resources.
 

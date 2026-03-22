@@ -4,6 +4,7 @@ Audio Converter Engine
 Core conversion logic for MIDI and XGML to audio conversion.
 Separated from frontend CLI interface for better modularity.
 """
+
 from __future__ import annotations
 
 import threading
@@ -12,8 +13,8 @@ import time
 from synth.audio.writer import AudioWriter
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
 from synth.midi import FileParser, MIDIMessage
-from synth.xgml import XGMLParser, XGMLToMIDITranslator
 from synth.utils.progress import ProgressReporter
+from synth.xgml import XGMLParser, XGMLToMIDITranslator
 
 
 class AudioConverter:
@@ -40,9 +41,9 @@ class AudioConverter:
         Returns:
             Tuple of (midi_messages, duration_seconds) or (None, None) on error
         """
-        file_ext = file_path.lower().split('.')[-1]
+        file_ext = file_path.lower().split(".")[-1]
 
-        if file_ext in ['mid', 'midi']:
+        if file_ext in ["mid", "midi"]:
             # Parse as MIDI file
             try:
                 parser = FileParser()
@@ -50,7 +51,9 @@ class AudioConverter:
 
                 # Calculate duration from message timestamps
                 if all_messages:
-                    duration = max(msg.timestamp for msg in all_messages) + 1.0  # Add 1 second padding
+                    duration = (
+                        max(msg.timestamp for msg in all_messages) + 1.0
+                    )  # Add 1 second padding
                 else:
                     duration = 10.0  # Default duration
 
@@ -59,7 +62,9 @@ class AudioConverter:
                 print(f"Error parsing MIDI file {file_path}: {e}")
                 return None, None
 
-        elif file_ext in ['xgml', 'yaml', 'yml'] or file_path.lower().endswith(('.xgml', '.yaml', '.yml')):
+        elif file_ext in ["xgml", "yaml", "yml"] or file_path.lower().endswith(
+            (".xgml", ".yaml", ".yml")
+        ):
             # Parse as XGML file
             try:
                 # Parse XGML
@@ -97,18 +102,18 @@ class AudioConverter:
 
                 # Calculate duration from sequences
                 duration = 0.0
-                sequences = document.get_section('sequences')
+                sequences = document.get_section("sequences")
                 if sequences:
                     for seq_name, seq_data in sequences.items():
                         # Check for explicit duration or calculate from events
-                        if 'duration' in seq_data:
-                            duration = max(duration, seq_data['duration'])
+                        if "duration" in seq_data:
+                            duration = max(duration, seq_data["duration"])
                         else:
                             # Calculate from last event time
-                            for track in seq_data.get('tracks', []):
-                                for event in track.get('events', []):
-                                    if 'at' in event:
-                                        event_time = event['at'].get('time', 0)
+                            for track in seq_data.get("tracks", []):
+                                for event in track.get("events", []):
+                                    if "at" in event:
+                                        event_time = event["at"].get("time", 0)
                                         if isinstance(event_time, (int, float)):
                                             duration = max(duration, float(event_time))
 
@@ -136,7 +141,7 @@ class AudioConverter:
         silent: bool = False,
         render_limit: float | None = None,
         abort_event: threading.Event | None = None,
-        timeout_seconds: float | None = None
+        timeout_seconds: float | None = None,
     ) -> bool:
         """
         Convert a single audio file (MIDI or XGML) to audio using buffered processing mode.
@@ -165,9 +170,13 @@ class AudioConverter:
             if midi_messages is None or duration is None:
                 return False
 
-            file_type = "XGML" if input_file.lower().endswith(('.xgml', '.yaml', '.yml')) else "MIDI"
+            file_type = (
+                "XGML" if input_file.lower().endswith((".xgml", ".yaml", ".yml")) else "MIDI"
+            )
             if not silent:
-                print(f"{file_type} parsed: {len(midi_messages)} MIDI messages, duration: {duration:.2f} seconds")
+                print(
+                    f"{file_type} parsed: {len(midi_messages)} MIDI messages, duration: {duration:.2f} seconds"
+                )
 
             self.synthesizer.reset()
 
@@ -180,7 +189,7 @@ class AudioConverter:
                         type=msg.type,
                         channel=msg.channel,
                         data=msg.data.copy(),
-                        timestamp=msg.timestamp / tempo
+                        timestamp=msg.timestamp / tempo,
                     )
                     scaled_messages.append(scaled_msg)
                 midi_messages = scaled_messages
@@ -192,7 +201,7 @@ class AudioConverter:
                 # Find first note-on time for MIDI files
                 first_note_time = None
                 for msg in midi_messages:
-                    if msg.type == 'note_on' and msg.timestamp is not None:
+                    if msg.type == "note_on" and msg.timestamp is not None:
                         if first_note_time is None or msg.timestamp < first_note_time:
                             first_note_time = msg.timestamp
                         break
@@ -206,7 +215,11 @@ class AudioConverter:
             self.synthesizer.set_master_volume(volume)
 
             # Initialize progress reporter
-            adjusted_duration = duration / tempo if file_type == "MIDI" and tempo != 1.0 else (duration if not render_limit else min(duration, render_limit))
+            adjusted_duration = (
+                duration / tempo
+                if file_type == "MIDI" and tempo != 1.0
+                else (duration if not render_limit else min(duration, render_limit))
+            )
             progress_reporter = ProgressReporter(silent=silent)
             progress_reporter.start(adjusted_duration)
             abort_at = time.time() + timeout_seconds if timeout_seconds else None

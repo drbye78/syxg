@@ -223,11 +223,11 @@ PROFESSIONAL MUSIC PRODUCTION:
 
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
 import logging
+from typing import Any
 
-from .channel_note import ChannelNote
+import numpy as np
+
 from ..voice.voice_factory import VoiceFactory
 from ..voice.voice_instance import VoiceInstance
 

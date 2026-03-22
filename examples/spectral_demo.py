@@ -6,13 +6,13 @@ Showcase the advanced spectral synthesis capabilities including FFT processing,
 spectral filtering, granular synthesis, and real-time sound design.
 """
 
-import numpy as np
-from pathlib import Path
 import time
 
-# Import the spectral synthesis engine
-from synth.engine.spectral_engine import SpectralEngine, SpectralFilter, GranularEngine
+import numpy as np
 from performance_optimizer import PerformanceMonitor
+
+# Import the spectral synthesis engine
+from synth.engine.spectral_engine import SpectralEngine
 
 
 def create_spectral_demo():
@@ -45,9 +45,11 @@ def demonstrate_fft_processing():
 
     # Create a complex test signal
     freq1, freq2, freq3 = 440, 880, 1320  # A4, A5, E6
-    signal = (0.5 * np.sin(2 * np.pi * freq1 * t) +
-              0.3 * np.sin(2 * np.pi * freq2 * t) +
-              0.2 * np.sin(2 * np.pi * freq3 * t))
+    signal = (
+        0.5 * np.sin(2 * np.pi * freq1 * t)
+        + 0.3 * np.sin(2 * np.pi * freq2 * t)
+        + 0.2 * np.sin(2 * np.pi * freq3 * t)
+    )
 
     # Add some noise
     signal += 0.1 * np.random.randn(len(signal))
@@ -56,6 +58,7 @@ def demonstrate_fft_processing():
 
     # Create spectral synthesizer for analysis
     from synth.engine.spectral_engine import SpectralSynthesizer
+
     spectral_synth = SpectralSynthesizer()
 
     # Analyze the signal
@@ -63,7 +66,7 @@ def demonstrate_fft_processing():
     print(".1f")
     # Apply some spectral processing
     print("🎛️  Applying spectral bandpass filter...")
-    spectral_synth.add_spectral_filter('bandpass', center_freq=880, bandwidth=200, gain=1.0)
+    spectral_synth.add_spectral_filter("bandpass", center_freq=880, bandwidth=200, gain=1.0)
 
     # Process through spectral domain
     processed_signal = spectral_synth.process_spectral_block(signal)
@@ -93,23 +96,23 @@ def demonstrate_granular_synthesis():
         start_time = i * 0.15
         end_time = start_time + 0.3
         mask = (t >= start_time) & (t <= end_time)
-        envelope = np.exp(-((t[mask] - start_time) / 0.1)**2)  # Gaussian envelope
+        envelope = np.exp(-(((t[mask] - start_time) / 0.1) ** 2))  # Gaussian envelope
         source_audio[mask] += 0.3 * envelope * np.sin(2 * np.pi * freq * t[mask])
 
     print("🎵 Loading source audio for granulation...")
 
     # Initialize spectral engine and enable granular mode
     spectral_engine = SpectralEngine()
-    spectral_engine.set_processing_mode('granular')
+    spectral_engine.set_processing_mode("granular")
     spectral_engine.enable_granular(True)
 
     # Configure granular parameters
     spectral_engine.set_granular_parameters(
-        size=0.080,      # 80ms grains
-        density=15.0,    # 15 grains per second
-        pitch=1.0,       # Normal pitch
-        position=0.3,    # Start 30% into source
-        spread=0.2       # Some position randomization
+        size=0.080,  # 80ms grains
+        density=15.0,  # 15 grains per second
+        pitch=1.0,  # Normal pitch
+        position=0.3,  # Start 30% into source
+        spread=0.2,  # Some position randomization
     )
 
     # Load audio for granulation
@@ -135,7 +138,7 @@ def demonstrate_granular_synthesis():
     granular_audio = np.concatenate(audio_blocks)
 
     print("✅ Granular synthesis completed")
-    print(f"   Generated {len(granular_audio)} samples ({len(granular_audio)/44100:.2f} seconds)")
+    print(f"   Generated {len(granular_audio)} samples ({len(granular_audio) / 44100:.2f} seconds)")
 
     return granular_audio
 
@@ -147,20 +150,20 @@ def demonstrate_hybrid_synthesis():
 
     # Create spectral engine in hybrid mode
     spectral_engine = SpectralEngine()
-    spectral_engine.set_processing_mode('hybrid')
+    spectral_engine.set_processing_mode("hybrid")
     spectral_engine.enable_granular(True)
 
     # Configure both spectral and granular parameters
     spectral_engine.set_granular_parameters(
-        size=0.060,      # 60ms grains
-        density=12.0,    # 12 grains per second
-        pitch=0.9,       # Slightly lower pitch
-        position=0.0,    # Start from beginning
-        spread=0.1       # Minimal randomization
+        size=0.060,  # 60ms grains
+        density=12.0,  # 12 grains per second
+        pitch=0.9,  # Slightly lower pitch
+        position=0.0,  # Start from beginning
+        spread=0.1,  # Minimal randomization
     )
 
     # Add spectral filtering
-    spectral_engine.add_spectral_filter('bandpass', center_freq=1000, bandwidth=500, gain=1.2)
+    spectral_engine.add_spectral_filter("bandpass", center_freq=1000, bandwidth=500, gain=1.2)
 
     print("🎛️  Hybrid Mode Configuration:")
     print("   Processing: Spectral + Granular")
@@ -181,7 +184,7 @@ def demonstrate_hybrid_synthesis():
     hybrid_audio = np.concatenate(audio_blocks)
 
     print("✅ Hybrid synthesis completed")
-    print(f"   Generated {len(hybrid_audio)} samples ({len(hybrid_audio)/44100:.2f} seconds)")
+    print(f"   Generated {len(hybrid_audio)} samples ({len(hybrid_audio) / 44100:.2f} seconds)")
     print(f"   Notes: {notes}")
 
     return hybrid_audio
@@ -194,17 +197,22 @@ def demonstrate_spectral_effects():
 
     # Create spectral engine
     spectral_engine = SpectralEngine()
-    spectral_engine.set_processing_mode('spectral')
+    spectral_engine.set_processing_mode("spectral")
 
     print("🎛️  Spectral Effects Configuration:")
 
     # Demonstrate different spectral effects
     effects_demo = [
-        ("Bandpass Filter", lambda: spectral_engine.add_spectral_filter('bandpass', center_freq=1500, bandwidth=300, gain=1.5)),
+        (
+            "Bandpass Filter",
+            lambda: spectral_engine.add_spectral_filter(
+                "bandpass", center_freq=1500, bandwidth=300, gain=1.5
+            ),
+        ),
         ("Freeze Spectrum", lambda: spectral_engine.set_freeze_spectrum(True)),
         ("Add Spectral Noise", lambda: spectral_engine.set_noise_amount(0.3)),
-        ("Lowpass Filter", lambda: spectral_engine.add_spectral_filter('lowpass', cutoff=3000)),
-        ("Highpass Filter", lambda: spectral_engine.add_spectral_filter('highpass', cutoff=200)),
+        ("Lowpass Filter", lambda: spectral_engine.add_spectral_filter("lowpass", cutoff=3000)),
+        ("Highpass Filter", lambda: spectral_engine.add_spectral_filter("highpass", cutoff=200)),
     ]
 
     # Generate base audio

@@ -3,4 +3,5 @@ Tests for Vibexg - Vibe XG Real-Time MIDI Workstation
 
 Run tests with: pytest tests/ -v
 """
+
 from __future__ import annotations

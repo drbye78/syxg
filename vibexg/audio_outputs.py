@@ -5,6 +5,7 @@ This module provides audio output engines including:
 - Real-time audio output via sounddevice
 - File-based audio rendering with proper finalization
 """
+
 from __future__ import annotations
 
 import logging
@@ -84,9 +85,9 @@ class SoundDeviceOutput(AudioOutputEngine):
                 samplerate=self.config.sample_rate,
                 blocksize=self.config.buffer_size,
                 channels=self.config.channels,
-                dtype='float32',
+                dtype="float32",
                 callback=self._audio_callback,
-                device=device
+                device=device,
             )
             self.stream.start()
             logger.info(f"SoundDevice audio output started: {device or 'default'}")
@@ -139,12 +140,11 @@ class FileAudioOutput(AudioOutputEngine):
 
             self.audio_writer = AudioWriter(
                 sample_rate=self.config.sample_rate,
-                chunk_size_ms=self.config.buffer_size / self.config.sample_rate * 1000
+                chunk_size_ms=self.config.buffer_size / self.config.sample_rate * 1000,
             )
             # Create the actual writer
             self.av_writer = self.audio_writer.create_writer(
-                self.config.file_path,
-                self.config.file_format
+                self.config.file_path, self.config.file_format
             )
             self.av_writer.__enter__()
             self.total_samples = 0
@@ -162,7 +162,9 @@ class FileAudioOutput(AudioOutputEngine):
             # Finalize and close file
             try:
                 self.av_writer.__exit__(None, None, None)
-                logger.info(f"Audio file written: {self.config.file_path} ({self.total_samples} samples)")
+                logger.info(
+                    f"Audio file written: {self.config.file_path} ({self.total_samples} samples)"
+                )
             except Exception as e:
                 logger.error(f"Failed to finalize audio file: {e}")
             finally:

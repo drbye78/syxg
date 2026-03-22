@@ -4,9 +4,8 @@ NRPN/SYSEX Mappings for S.Art2 Articulation System.
 Contains all articulation mappings indexed by NRPN MSB/LSB values.
 This module is extracted from articulation_controller.py for better organization.
 """
+
 from __future__ import annotations
-
-
 
 # NRPN MSB categories
 MSB_CATEGORIES = {
@@ -406,10 +405,10 @@ def get_category_for_msb(msb: int) -> str:
 
 
 __all__ = [
-    "NRPN_ARTICULATION_MAP",
-    "MSB_CATEGORIES",
     "ARTICULATION_ALIASES",
+    "MSB_CATEGORIES",
+    "NRPN_ARTICULATION_MAP",
     "get_articulation_from_nrpn",
-    "get_nrpn_for_articulation",
     "get_category_for_msb",
+    "get_nrpn_for_articulation",
 ]

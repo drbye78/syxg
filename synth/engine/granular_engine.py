@@ -4,17 +4,18 @@ Granular Synthesis Engine
 Implements granular synthesis with real-time grain control, cloud manipulation,
 and advanced time-stretching/pitch-shifting capabilities.
 """
+
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
-import math
 import random
+from typing import Any
 
-from .synthesis_engine import SynthesisEngine
+import numpy as np
+
 from ..partial.granular_partial import GranularPartial
+from .plugins.base_plugin import SynthesisFeaturePlugin
 from .plugins.plugin_registry import get_global_plugin_registry
-from .plugins.base_plugin import PluginLoadContext, SynthesisFeaturePlugin
+from .synthesis_engine import SynthesisEngine
 
 
 class Grain:
@@ -30,13 +31,13 @@ class Grain:
 
         # Grain parameters
         self.duration_ms = 50.0  # Grain duration in milliseconds
-        self.position = 0.0      # Position in source (0.0 to 1.0)
-        self.pitch_shift = 1.0   # Pitch shift ratio
-        self.pan = 0.0          # Stereo pan (-1.0 to 1.0)
-        self.amplitude = 1.0    # Grain amplitude
+        self.position = 0.0  # Position in source (0.0 to 1.0)
+        self.pitch_shift = 1.0  # Pitch shift ratio
+        self.pan = 0.0  # Stereo pan (-1.0 to 1.0)
+        self.amplitude = 1.0  # Grain amplitude
 
         # Envelope parameters
-        self.attack_ms = 5.0    # Attack time
+        self.attack_ms = 5.0  # Attack time
         self.release_ms = 15.0  # Release time
 
         # State variables
@@ -45,8 +46,14 @@ class Grain:
         self.total_samples = 0
         self.envelope_value = 0.0
 
-    def trigger(self, position: float, duration_ms: float, pitch_shift: float = 1.0,
-               pan: float = 0.0, amplitude: float = 1.0):
+    def trigger(
+        self,
+        position: float,
+        duration_ms: float,
+        pitch_shift: float = 1.0,
+        pan: float = 0.0,
+        amplitude: float = 1.0,
+    ):
         """
         Trigger grain playback.
 
@@ -136,13 +143,13 @@ class GrainCloud:
         self.max_grains = max_grains
 
         # Cloud parameters
-        self.density = 10.0      # Grains per second
-        self.duration_ms = 100.0 # Grain duration
-        self.position = 0.0      # Cloud position (0.0 to 1.0)
+        self.density = 10.0  # Grains per second
+        self.duration_ms = 100.0  # Grain duration
+        self.position = 0.0  # Cloud position (0.0 to 1.0)
         self.position_spread = 0.1  # Position randomization
-        self.pitch_shift = 1.0   # Base pitch shift
+        self.pitch_shift = 1.0  # Base pitch shift
         self.pitch_spread = 0.0  # Pitch randomization
-        self.pan_spread = 0.5    # Stereo spread
+        self.pan_spread = 0.5  # Stereo spread
 
         # Initialize grains
         self.grains = [Grain(sample_rate) for _ in range(max_grains)]
@@ -159,13 +166,13 @@ class GrainCloud:
         Args:
             params: Parameter dictionary
         """
-        self.density = params.get('density', self.density)
-        self.duration_ms = params.get('duration_ms', self.duration_ms)
-        self.position = params.get('position', self.position)
-        self.position_spread = params.get('position_spread', self.position_spread)
-        self.pitch_shift = params.get('pitch_shift', self.pitch_shift)
-        self.pitch_spread = params.get('pitch_spread', self.pitch_spread)
-        self.pan_spread = params.get('pan_spread', self.pan_spread)
+        self.density = params.get("density", self.density)
+        self.duration_ms = params.get("duration_ms", self.duration_ms)
+        self.position = params.get("position", self.position)
+        self.position_spread = params.get("position_spread", self.position_spread)
+        self.pitch_shift = params.get("pitch_shift", self.pitch_shift)
+        self.pitch_spread = params.get("pitch_spread", self.pitch_spread)
+        self.pan_spread = params.get("pan_spread", self.pan_spread)
 
         # Recalculate grain interval
         self.grain_interval = 1.0 / self.density
@@ -214,10 +221,14 @@ class GrainCloud:
         for grain in self.grains:
             if not grain.is_active():
                 # Randomize parameters
-                position = self.position + random.uniform(-self.position_spread, self.position_spread)
+                position = self.position + random.uniform(
+                    -self.position_spread, self.position_spread
+                )
                 position = max(0.0, min(1.0, position))  # Clamp to valid range
 
-                pitch_shift = self.pitch_shift * (1.0 + random.uniform(-self.pitch_spread, self.pitch_spread))
+                pitch_shift = self.pitch_shift * (
+                    1.0 + random.uniform(-self.pitch_spread, self.pitch_spread)
+                )
                 pan = random.uniform(-self.pan_spread, self.pan_spread)
 
                 # Trigger grain
@@ -226,7 +237,7 @@ class GrainCloud:
                     duration_ms=self.duration_ms,
                     pitch_shift=pitch_shift,
                     pan=pan,
-                    amplitude=1.0
+                    amplitude=1.0,
                 )
 
                 self.active_grains.append(grain)
@@ -235,12 +246,12 @@ class GrainCloud:
     def get_cloud_info(self) -> dict[str, Any]:
         """Get information about the grain cloud."""
         return {
-            'active_grains': len(self.active_grains),
-            'max_grains': self.max_grains,
-            'density': self.density,
-            'duration_ms': self.duration_ms,
-            'position': self.position,
-            'pitch_shift': self.pitch_shift
+            "active_grains": len(self.active_grains),
+            "max_grains": self.max_grains,
+            "density": self.density,
+            "duration_ms": self.duration_ms,
+            "position": self.position,
+            "pitch_shift": self.pitch_shift,
         }
 
 
@@ -273,9 +284,9 @@ class GranularEngine(SynthesisEngine):
 
         # Global parameters
         self.master_volume = 1.0
-        self.freeze = False        # Freeze grain positions
-        self.time_stretch = 1.0   # Time stretching factor
-        self.pitch_shift = 1.0    # Global pitch shift
+        self.freeze = False  # Freeze grain positions
+        self.time_stretch = 1.0  # Time stretching factor
+        self.pitch_shift = 1.0  # Global pitch shift
 
         # Active clouds tracking
         self.active_clouds = set()
@@ -284,10 +295,10 @@ class GranularEngine(SynthesisEngine):
         self._plugin_registry = get_global_plugin_registry()
         self._loaded_plugins: dict[str, SynthesisFeaturePlugin] = {}
         self._plugin_integration_points = {
-            'pre_synthesis': [],      # Called before synthesis
-            'post_synthesis': [],     # Called after synthesis
-            'midi_processing': [],    # MIDI message handlers
-            'parameter_processing': [] # Parameter processing
+            "pre_synthesis": [],  # Called before synthesis
+            "post_synthesis": [],  # Called after synthesis
+            "midi_processing": [],  # MIDI message handlers
+            "parameter_processing": [],  # Parameter processing
         }
 
         # Auto-load Jupiter-X external plugin if available
@@ -296,13 +307,18 @@ class GranularEngine(SynthesisEngine):
     def get_engine_info(self) -> dict[str, Any]:
         """Get granular engine information."""
         return {
-            'name': 'Granular Synthesis Engine',
-            'type': 'granular',
-            'capabilities': ['granular_synthesis', 'time_stretching', 'pitch_shifting', 'grain_clouds'],
-            'formats': ['.wav', '.aif'],  # Uses audio files as source
-            'polyphony': 4,  # Granular is very CPU intensive
-            'parameters': ['grain_density', 'grain_duration', 'position', 'pitch_spread'],
-            'max_clouds': self.max_clouds
+            "name": "Granular Synthesis Engine",
+            "type": "granular",
+            "capabilities": [
+                "granular_synthesis",
+                "time_stretching",
+                "pitch_shifting",
+                "grain_clouds",
+            ],
+            "formats": [".wav", ".aif"],  # Uses audio files as source
+            "polyphony": 4,  # Granular is very CPU intensive
+            "parameters": ["grain_density", "grain_duration", "position", "pitch_spread"],
+            "max_clouds": self.max_clouds,
         }
 
     # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
@@ -310,21 +326,21 @@ class GranularEngine(SynthesisEngine):
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get granular preset information with proper region descriptors.
-        
+
         Args:
             bank: Preset bank number (0-127)
             program: Preset program number (0-127)
-            
+
         Returns:
             PresetInfo with region descriptors for granular synthesis
         """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
-        
+
         # Granular engine uses grain-based synthesis with sample clouds
         # Programs define grain parameters and sample sources
         preset_name = f"Granular {bank}:{program}"
-        
+
         # Create region descriptors for granular synthesis
         # Granular supports polyphonic playback with full keyboard range
         descriptor = RegionDescriptor(
@@ -333,17 +349,17 @@ class GranularEngine(SynthesisEngine):
             key_range=(0, 127),
             velocity_range=(0, 127),
             algorithm_params={
-                'max_clouds': self.max_clouds,
-                'grain_density': 10.0,  # Grains per second
-                'grain_duration': 0.05,  # Seconds per grain
-                'position_random': 0.1,  # Position randomization
-                'pitch_spread': 0.0,  # Pitch spread in semitones
-                'sample_source': None,  # Sample file path (loaded per preset)
-                'loop_mode': 'forward',  # Grain loop mode
-                'envelope_type': 'gaussian'  # Grain envelope shape
-            }
+                "max_clouds": self.max_clouds,
+                "grain_density": 10.0,  # Grains per second
+                "grain_duration": 0.05,  # Seconds per grain
+                "position_random": 0.1,  # Position randomization
+                "pitch_spread": 0.0,  # Pitch spread in semitones
+                "sample_source": None,  # Sample file path (loaded per preset)
+                "loop_mode": "forward",  # Grain loop mode
+                "envelope_type": "gaussian",  # Grain envelope shape
+            },
         )
-        
+
         return PresetInfo(
             bank=bank,
             program=program,
@@ -351,65 +367,63 @@ class GranularEngine(SynthesisEngine):
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
             is_monophonic=False,
-            category='granular_synthesis'
+            category="granular_synthesis",
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get all region descriptors for granular preset.
-        
+
         Args:
             bank: Preset bank number
             program: Preset program number
-            
+
         Returns:
             List of RegionDescriptor objects
         """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
 
-    def create_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create granular region instance from descriptor.
-        
+
         Args:
             descriptor: Region descriptor with granular parameters
             sample_rate: Audio sample rate in Hz
-            
+
         Returns:
             IRegion instance for granular synthesis
         """
         from ..partial.granular_region import GranularRegion
-        
+
         # Create granular region with proper initialization
         region = GranularRegion(descriptor, sample_rate)
-        
+
         # Initialize the region (creates grain clouds, loads sample)
         if not region.initialize():
             raise RuntimeError("Failed to initialize Granular region")
-        
+
         return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for granular region.
-        
+
         Args:
             region: Region to load sample for
-            
+
         Returns:
             True if sample loaded successfully
         """
         # Granular synthesis requires sample data for grain source
-        if hasattr(region, 'load_sample'):
+        if hasattr(region, "load_sample"):
             return region.load_sample()
-        return region._initialized if hasattr(region, '_initialized') else False
+        return region._initialized if hasattr(region, "_initialized") else False
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float], block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Generate granular synthesis audio samples.
 
@@ -438,7 +452,7 @@ class GranularEngine(SynthesisEngine):
                     right_sum += right
 
             # Apply modulation
-            pitch_mod = modulation.get('pitch', 0.0)
+            pitch_mod = modulation.get("pitch", 0.0)
             pitch_ratio = 2.0 ** (pitch_mod / 1200.0)  # Convert cents to ratio
 
             # Apply global parameters
@@ -457,6 +471,7 @@ class GranularEngine(SynthesisEngine):
     def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> GranularPartial:
         """Create granular partial."""
         from ..partial.granular_partial import GranularPartial
+
         return GranularPartial(partial_params, sample_rate)
 
     def create_grain_cloud(self, cloud_params: dict[str, Any]) -> int:
@@ -539,7 +554,7 @@ class GranularEngine(SynthesisEngine):
 
         # Update all clouds
         for cloud in self.clouds:
-            cloud.set_parameters({'time_stretch': self.time_stretch})
+            cloud.set_parameters({"time_stretch": self.time_stretch})
 
     def set_freeze(self, freeze: bool):
         """
@@ -552,42 +567,42 @@ class GranularEngine(SynthesisEngine):
 
         # Update all clouds
         for cloud in self.clouds:
-            cloud.set_parameters({'freeze': self.freeze})
+            cloud.set_parameters({"freeze": self.freeze})
 
     def get_voice_parameters(self, program: int, bank: int = 0) -> dict[str, Any] | None:
         """Get granular voice parameters."""
         # Different granular presets based on program
         presets = {
             0: {  # Basic granular
-                'name': 'Granular Basic',
-                'density': 20.0,
-                'duration_ms': 100.0,
-                'position_spread': 0.2,
-                'pitch_spread': 0.1
+                "name": "Granular Basic",
+                "density": 20.0,
+                "duration_ms": 100.0,
+                "position_spread": 0.2,
+                "pitch_spread": 0.1,
             },
             24: {  # Frozen clouds
-                'name': 'Frozen Clouds',
-                'density': 50.0,
-                'duration_ms': 200.0,
-                'position_spread': 0.05,
-                'pitch_spread': 0.0,
-                'freeze': True
+                "name": "Frozen Clouds",
+                "density": 50.0,
+                "duration_ms": 200.0,
+                "position_spread": 0.05,
+                "pitch_spread": 0.0,
+                "freeze": True,
             },
             40: {  # Time-stretched
-                'name': 'Time Stretch',
-                'density': 15.0,
-                'duration_ms': 150.0,
-                'time_stretch': 2.0,
-                'position_spread': 0.1
+                "name": "Time Stretch",
+                "density": 15.0,
+                "duration_ms": 150.0,
+                "time_stretch": 2.0,
+                "position_spread": 0.1,
             },
             56: {  # Dense cloud
-                'name': 'Dense Cloud',
-                'density': 100.0,
-                'duration_ms': 50.0,
-                'position_spread': 0.8,
-                'pitch_spread': 0.5,
-                'pan_spread': 1.0
-            }
+                "name": "Dense Cloud",
+                "density": 100.0,
+                "duration_ms": 50.0,
+                "position_spread": 0.8,
+                "pitch_spread": 0.5,
+                "pan_spread": 1.0,
+            },
         }
 
         return presets.get(program % 64, presets[0])
@@ -596,25 +611,25 @@ class GranularEngine(SynthesisEngine):
         """Handle note-on event."""
         # Create a new cloud for this note
         cloud_params = {
-            'density': 20.0 + (velocity / 127.0) * 30.0,  # Velocity affects density
-            'duration_ms': 50.0 + (note / 127.0) * 100.0,  # Note affects duration
-            'position': note / 127.0,  # Note affects position
-            'pitch_shift': 2.0 ** ((note - 60) / 12.0),  # Note to pitch
-            'position_spread': 0.2,
-            'pitch_spread': 0.1
+            "density": 20.0 + (velocity / 127.0) * 30.0,  # Velocity affects density
+            "duration_ms": 50.0 + (note / 127.0) * 100.0,  # Note affects duration
+            "position": note / 127.0,  # Note affects position
+            "pitch_shift": 2.0 ** ((note - 60) / 12.0),  # Note to pitch
+            "position_spread": 0.2,
+            "pitch_spread": 0.1,
         }
 
         cloud_idx = self.create_grain_cloud(cloud_params)
         if cloud_idx >= 0:
             # Store note-to-cloud mapping for proper voice management
-            if not hasattr(self, 'note_cloud_map'):
+            if not hasattr(self, "note_cloud_map"):
                 self.note_cloud_map = {}
             self.note_cloud_map[note] = cloud_idx
 
     def note_off(self, note: int):
         """Handle note-off event with proper cloud management."""
         # Professional note-off with note-to-cloud tracking
-        if hasattr(self, 'note_cloud_map') and note in self.note_cloud_map:
+        if hasattr(self, "note_cloud_map") and note in self.note_cloud_map:
             cloud_idx = self.note_cloud_map[note]
             if cloud_idx in self.active_clouds:
                 self.destroy_grain_cloud(cloud_idx)
@@ -635,26 +650,23 @@ class GranularEngine(SynthesisEngine):
 
     def get_supported_formats(self) -> list[str]:
         """Get supported file formats."""
-        return ['.gran', '.grn']
+        return [".gran", ".grn"]
 
     def get_granular_info(self) -> dict[str, Any]:
         """Get comprehensive granular synthesis information."""
         clouds_info = []
         for i, cloud in enumerate(self.clouds):
             if i in self.active_clouds:
-                clouds_info.append({
-                    'index': i,
-                    **cloud.get_cloud_info()
-                })
+                clouds_info.append({"index": i, **cloud.get_cloud_info()})
 
         return {
-            'active_clouds': len(self.active_clouds),
-            'max_clouds': self.max_clouds,
-            'clouds': clouds_info,
-            'master_volume': self.master_volume,
-            'time_stretch': self.time_stretch,
-            'freeze': self.freeze,
-            'source_length': self.source_length
+            "active_clouds": len(self.active_clouds),
+            "max_clouds": self.max_clouds,
+            "clouds": clouds_info,
+            "master_volume": self.master_volume,
+            "time_stretch": self.time_stretch,
+            "freeze": self.freeze,
+            "source_length": self.source_length,
         }
 
     # Plugin System Methods
@@ -663,8 +675,8 @@ class GranularEngine(SynthesisEngine):
         """Automatically load Jupiter-X external plugin if available."""
         try:
             # Check if Jupiter-X external plugin is available
-            available_plugins = self._plugin_registry.get_plugins_for_engine('granular')
-            jupiter_external_plugin = 'jupiter_x.external_extensions.JupiterXExternalPlugin'
+            available_plugins = self._plugin_registry.get_plugins_for_engine("granular")
+            jupiter_external_plugin = "jupiter_x.external_extensions.JupiterXExternalPlugin"
 
             if jupiter_external_plugin in available_plugins:
                 success = self.load_plugin(jupiter_external_plugin)
@@ -694,7 +706,7 @@ class GranularEngine(SynthesisEngine):
                 plugin_name,
                 engine_instance=self,
                 sample_rate=self.sample_rate,
-                block_size=self.block_size
+                block_size=self.block_size,
             )
 
             if success:
@@ -769,12 +781,12 @@ class GranularEngine(SynthesisEngine):
             pass
 
         # Register MIDI processing
-        if hasattr(plugin, 'process_midi_message'):
-            self._plugin_integration_points['midi_processing'].append(plugin)
+        if hasattr(plugin, "process_midi_message"):
+            self._plugin_integration_points["midi_processing"].append(plugin)
 
         # Register parameter processing
-        if hasattr(plugin, 'set_parameter'):
-            self._plugin_integration_points['parameter_processing'].append(plugin)
+        if hasattr(plugin, "set_parameter"):
+            self._plugin_integration_points["parameter_processing"].append(plugin)
 
     def _unregister_plugin_integration_points(self, plugin: SynthesisFeaturePlugin):
         """
@@ -801,7 +813,7 @@ class GranularEngine(SynthesisEngine):
             True if any plugin handled the message
         """
         handled = False
-        for plugin in self._plugin_integration_points['midi_processing']:
+        for plugin in self._plugin_integration_points["midi_processing"]:
             if plugin.process_midi_message(status, data1, data2):
                 handled = True
 
@@ -841,9 +853,7 @@ class GranularEngine(SynthesisEngine):
             return params.get(param_name)
         return None
 
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create Granular base region without S.Art2 wrapper.
 

@@ -291,12 +291,12 @@ INDUSTRY COMPLIANCE:
 - SMPTE TIMING: Broadcast and post-production timing standards
 - IEEE AUDIO STANDARDS: Technical audio processing standards
 """
+
 from __future__ import annotations
 
-from typing import Any
-from pathlib import Path
 import threading
-import numpy as np
+from pathlib import Path
+from typing import Any
 
 
 class SF2SoundFont:
@@ -542,7 +542,7 @@ class SF2SoundFont:
     def _load_preset(self, bank: int, program: int) -> bool:
         """Load preset data on-demand with selective parsing."""
         try:
-            from .sf2_data_model import SF2Preset, SF2Zone
+            from .sf2_data_model import SF2Preset
 
             # Get preset header using selective parsing (only parses the matching header)
             preset_data = self.file_loader.find_preset_by_bank_program(bank, program)
@@ -555,9 +555,7 @@ class SF2SoundFont:
 
             # Load zones for this preset using selective parsing with preset index
             preset_index = preset_data.get("header_index", 0)
-            zones = self._load_preset_zones_selective(
-                preset_data["bag_index"], preset_index
-            )
+            zones = self._load_preset_zones_selective(preset_data["bag_index"], preset_index)
             for zone in zones:
                 preset.add_zone(zone)
 
@@ -595,9 +593,7 @@ class SF2SoundFont:
         zones = []
 
         # Get the next preset's bag index using the preset index (much simpler!)
-        next_header_data = self.file_loader.parse_preset_header_at_index(
-            preset_index + 1
-        )
+        next_header_data = self.file_loader.parse_preset_header_at_index(preset_index + 1)
         if next_header_data:
             next_preset_bag = next_header_data["bag_index"]
         else:
@@ -617,14 +613,10 @@ class SF2SoundFont:
 
         # Get the global generator and modulator ranges for this preset
         gen_start_global = bag_data[0][0]  # First bag's generator index
-        gen_end_global = bag_data[-1][
-            0
-        ]  # Last bag's generator index (will be adjusted per zone)
+        gen_end_global = bag_data[-1][0]  # Last bag's generator index (will be adjusted per zone)
 
         mod_start_global = bag_data[0][1]  # First bag's modulator index
-        mod_end_global = bag_data[-1][
-            1
-        ]  # Last bag's modulator index (will be adjusted per zone)
+        mod_end_global = bag_data[-1][1]  # Last bag's modulator index (will be adjusted per zone)
 
         # Get generator and modulator data for the entire range used by this preset
         gen_data = self.file_loader.get_generator_data_in_range(
@@ -638,9 +630,7 @@ class SF2SoundFont:
             return zones
 
         # Process each zone using the SF2 specification schema
-        for zone_idx in range(
-            len(bag_data) - 1
-        ):  # -1 because we need pairs of consecutive bags
+        for zone_idx in range(len(bag_data) - 1):  # -1 because we need pairs of consecutive bags
             current_bag = bag_data[zone_idx]
             next_bag = bag_data[zone_idx + 1]
 
@@ -668,12 +658,8 @@ class SF2SoundFont:
 
             # Create zone
             zone = SF2Zone("preset")
-            self._populate_zone_generators(
-                zone, gen_data, gen_start_local, gen_end_local
-            )
-            self._populate_zone_modulators(
-                zone, mod_data, mod_start_local, mod_end_local
-            )
+            self._populate_zone_generators(zone, gen_data, gen_start_local, gen_end_local)
+            self._populate_zone_modulators(zone, mod_data, mod_start_local, mod_end_local)
             zone.finalize()
 
             zones.append(zone)
@@ -740,7 +726,9 @@ class SF2SoundFont:
             return {}
 
         # Create zone engine for modulation
-        zone_id = f"preset_{primary_zone.instrument_index}_inst_{instrument_index}_sample_{sample_id}"
+        zone_id = (
+            f"preset_{primary_zone.instrument_index}_inst_{instrument_index}_sample_{sample_id}"
+        )
         zone_engine = self.modulation_engine.create_zone_engine(
             zone_id,
             instrument_zone.generators,
@@ -765,9 +753,7 @@ class SF2SoundFont:
 
         return params
 
-    def _get_or_load_instrument(
-        self, instrument_index: int
-    ) -> SF2Instrument | None:
+    def _get_or_load_instrument(self, instrument_index: int) -> SF2Instrument | None:
         """Get instrument from cache or load on-demand."""
         if instrument_index in self.instruments:
             return self.instruments[instrument_index]
@@ -780,7 +766,7 @@ class SF2SoundFont:
     def _load_instrument(self, instrument_index: int) -> bool:
         """Load instrument data on-demand with selective parsing."""
         try:
-            from .sf2_data_model import SF2Instrument, SF2Zone
+            from .sf2_data_model import SF2Instrument
 
             # Get instrument header using selective parsing
             header = self.file_loader.parse_instrument_header_at_index(instrument_index)
@@ -791,9 +777,7 @@ class SF2SoundFont:
             instrument = SF2Instrument(instrument_index, header["name"])
 
             # Load zones using selective parsing with instrument index
-            zones = self._load_instrument_zones_selective(
-                header["bag_index"], instrument_index
-            )
+            zones = self._load_instrument_zones_selective(header["bag_index"], instrument_index)
             for zone in zones:
                 instrument.add_zone(zone)
 
@@ -831,17 +815,13 @@ class SF2SoundFont:
         zones = []
 
         # Get the next instrument's bag index using the instrument index (much simpler!)
-        next_header_data = self.file_loader.parse_instrument_header_at_index(
-            instrument_index + 1
-        )
+        next_header_data = self.file_loader.parse_instrument_header_at_index(instrument_index + 1)
         if next_header_data:
             next_instrument_bag = next_header_data["bag_index"]
         else:
             # Last instrument - get total bag count
             bag_data = self.file_loader.get_bag_data("instrument")
-            next_instrument_bag = (
-                len(bag_data) if bag_data else instrument_bag_index + 1
-            )
+            next_instrument_bag = len(bag_data) if bag_data else instrument_bag_index + 1
 
         # Get bag data for the specific range (instrument_bag_index to next_instrument_bag)
         bag_data = self.file_loader.get_bag_data_in_range(
@@ -855,14 +835,10 @@ class SF2SoundFont:
 
         # Get the global generator and modulator ranges for this instrument
         gen_start_global = bag_data[0][0]  # First bag's generator index
-        gen_end_global = bag_data[-1][
-            0
-        ]  # Last bag's generator index (will be adjusted per zone)
+        gen_end_global = bag_data[-1][0]  # Last bag's generator index (will be adjusted per zone)
 
         mod_start_global = bag_data[0][1]  # First bag's modulator index
-        mod_end_global = bag_data[-1][
-            1
-        ]  # Last bag's modulator index (will be adjusted per zone)
+        mod_end_global = bag_data[-1][1]  # Last bag's modulator index (will be adjusted per zone)
 
         # Get generator and modulator data for the entire range used by this instrument
         gen_data = self.file_loader.get_generator_data_in_range(
@@ -876,9 +852,7 @@ class SF2SoundFont:
             return zones
 
         # Process each zone using the SF2 specification schema
-        for zone_idx in range(
-            len(bag_data) - 1
-        ):  # -1 because we need pairs of consecutive bags
+        for zone_idx in range(len(bag_data) - 1):  # -1 because we need pairs of consecutive bags
             current_bag = bag_data[zone_idx]
             next_bag = bag_data[zone_idx + 1]
 
@@ -906,12 +880,8 @@ class SF2SoundFont:
 
             # Create zone
             zone = SF2Zone("instrument")
-            self._populate_zone_generators(
-                zone, gen_data, gen_start_local, gen_end_local
-            )
-            self._populate_zone_modulators(
-                zone, mod_data, mod_start_local, mod_end_local
-            )
+            self._populate_zone_generators(zone, gen_data, gen_start_local, gen_end_local)
+            self._populate_zone_modulators(zone, mod_data, mod_start_local, mod_end_local)
             zone.finalize()
 
             zones.append(zone)
@@ -950,9 +920,7 @@ class SF2SoundFont:
             # Get sample data with proper 24-bit handling
             sample_start = header["start"]
             sample_end = header["end"]
-            raw_data = self.file_loader.get_sample_data(
-                sample_start, sample_end, is_24bit
-            )
+            raw_data = self.file_loader.get_sample_data(sample_start, sample_end, is_24bit)
 
             if raw_data:
                 sample.load_data(raw_data)

@@ -10,13 +10,15 @@ Features:
 - Scale-aware chord voicing suggestions
 - Real-time scale detection from note history
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Any
 import threading
 import time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
 import numpy as np
 
 
@@ -45,13 +47,14 @@ class ScaleType(Enum):
 class ScalePattern:
     """
     Scale pattern definition.
-    
+
     Attributes:
         name: Human-readable scale name
         scale_type: ScaleType enum value
         intervals: Semitone intervals from root (e.g., [0, 2, 4, 5, 7, 9, 11] for major)
         chroma_profile: K-S profile weights for key detection (12 values)
     """
+
     name: str
     scale_type: ScaleType
     intervals: list[int]
@@ -162,7 +165,7 @@ SCALE_PATTERNS: dict[ScaleType, ScalePattern] = {
 class DetectedScale:
     """
     Result of scale/key detection.
-    
+
     Attributes:
         root: Root note (0-11, C=0)
         scale_type: Detected scale type
@@ -171,6 +174,7 @@ class DetectedScale:
         fit_score: How well notes fit the detected scale
         notes_in_scale: List of MIDI note numbers in the scale
     """
+
     root: int
     scale_type: ScaleType
     confidence: float = 0.0
@@ -217,11 +221,11 @@ class DetectedScale:
     def get_scale_notes(self, root_midi: int = 60, octaves: int = 2) -> list[int]:
         """
         Get all MIDI note numbers in the scale.
-        
+
         Args:
             root_midi: Base MIDI note number for root
             octaves: Number of octaves to generate
-            
+
         Returns:
             List of MIDI note numbers in the scale
         """
@@ -238,10 +242,10 @@ class DetectedScale:
     def is_diatonic(self, note: int) -> bool:
         """
         Check if a note is in the scale.
-        
+
         Args:
             note: MIDI note number to check
-            
+
         Returns:
             True if note is in scale
         """
@@ -252,10 +256,10 @@ class DetectedScale:
     def get_tension_level(self, note: int) -> str:
         """
         Get tension level of a note relative to the scale.
-        
+
         Args:
             note: MIDI note number
-            
+
         Returns:
             'chord_tone', 'scale_tone', 'tension', or 'avoid'
         """
@@ -284,7 +288,7 @@ class DetectedScale:
 class ScaleDetectionConfig:
     """
     Configuration for scale detection.
-    
+
     Attributes:
         history_size: Number of chords/notes to analyze
         min_confidence: Minimum confidence for detection
@@ -293,6 +297,7 @@ class ScaleDetectionConfig:
         use_note_history: Use individual note history
         key_change_threshold: Confidence drop to trigger key change
     """
+
     history_size: int = 50
     min_confidence: float = 0.6
     update_interval: int = 500
@@ -304,10 +309,10 @@ class ScaleDetectionConfig:
 class ScaleDetector:
     """
     Real-time scale/key detection system.
-    
+
     Uses the Krumhansl-Schmiedler key-finding algorithm to detect
     the musical key from note and chord history.
-    
+
     Features:
     - 15+ scale types supported
     - Real-time chroma analysis
@@ -333,7 +338,7 @@ class ScaleDetector:
     def add_note(self, note: int, velocity: int = 100, timestamp: float | None = None):
         """
         Add a note to the detection history.
-        
+
         Args:
             note: MIDI note number
             velocity: Note velocity (for weighting)
@@ -347,7 +352,7 @@ class ScaleDetector:
 
             # Trim history if too long
             if len(self._note_history) > self.config.history_size * 4:
-                self._note_history = self._note_history[-self.config.history_size * 2:]
+                self._note_history = self._note_history[-self.config.history_size * 2 :]
 
             # Update chroma
             self._update_chroma()
@@ -359,7 +364,7 @@ class ScaleDetector:
     def remove_note(self, note: int):
         """
         Remove a note from the detection history.
-        
+
         Args:
             note: MIDI note number to remove
         """
@@ -369,7 +374,7 @@ class ScaleDetector:
     def add_chord(self, chord: Any):
         """
         Add a detected chord to the history.
-        
+
         Args:
             chord: DetectedChord object
         """
@@ -378,7 +383,7 @@ class ScaleDetector:
 
             # Trim history
             if len(self._chord_history) > self.config.history_size:
-                self._chord_history = self._chord_history[-self.config.history_size // 2:]
+                self._chord_history = self._chord_history[-self.config.history_size // 2 :]
 
             # Update detection
             if self.config.use_chord_history:
@@ -394,7 +399,7 @@ class ScaleDetector:
 
         for note, timestamp in reversed(self._note_history[-100:]):
             age = current_time - timestamp
-            weight = (decay_factor ** age) * 0.5  # Velocity weighting would go here
+            weight = (decay_factor**age) * 0.5  # Velocity weighting would go here
             chroma[note % 12] += weight
 
         # Normalize
@@ -459,12 +464,12 @@ class ScaleDetector:
         chroma = np.zeros(12)
 
         for chord in self._chord_history[-20:]:
-            if hasattr(chord, 'notes'):
+            if hasattr(chord, "notes"):
                 for note in chord.notes:
                     chroma[note % 12] += 1
-            elif hasattr(chord, 'root_midi'):
+            elif hasattr(chord, "root_midi"):
                 # Add chord tones based on type
-                intervals = chord.intervals if hasattr(chord, 'intervals') else [0, 4, 7]
+                intervals = chord.intervals if hasattr(chord, "intervals") else [0, 4, 7]
                 for interval in intervals:
                     chroma[(chord.root_midi + interval) % 12] += 1
 
@@ -478,7 +483,7 @@ class ScaleDetector:
     def _calculate_fit_score(self, root: int, scale_type: ScaleType) -> float:
         """
         Calculate how well recent notes fit the detected scale.
-        
+
         Returns:
             Fit score (0.0-1.0)
         """
@@ -515,11 +520,11 @@ class ScaleDetector:
     def get_suggested_voicing(self, chord_root: int, chord_type: str) -> list[int]:
         """
         Get a scale-appropriate voicing for a chord.
-        
+
         Args:
             chord_root: Root note (0-11)
             chord_type: Chord type string
-            
+
         Returns:
             List of intervals that fit the scale
         """
@@ -547,11 +552,11 @@ class ScaleDetector:
     def is_chord_diatonic(self, chord_root: int, chord_type: str) -> bool:
         """
         Check if a chord is diatonic to the current scale.
-        
+
         Args:
             chord_root: Root note (0-11)
             chord_type: Chord type string
-            
+
         Returns:
             True if chord is diatonic
         """
@@ -567,7 +572,7 @@ class ScaleDetector:
             return False
 
         # Check chord tones
-        from synth.style.chord_detector import ChordType
+
         type_map = {
             "major": [0, 4, 7],
             "minor": [0, 3, 7],
@@ -588,7 +593,7 @@ class ScaleDetector:
     def get_diatonic_chords(self) -> dict[int, str]:
         """
         Get all diatonic chords in the current scale.
-        
+
         Returns:
             Dict mapping scale degree to chord type
         """

@@ -18,15 +18,14 @@ Architecture:
 - Pre-calculated phase transition points for zero-branch execution
 - Contiguous memory layouts optimized for cache efficiency
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
 import threading
 from collections import deque
-import numba as nb
-from numba import jit, float32, int32, boolean
-import math
+
+import numpy as np
+from numba import jit
 
 
 # Integer-based state constants for ultra-fast bitmask operations
@@ -65,7 +64,7 @@ def _numba_process_envelope_block_robust(
     release_decrement: float,
     sustain_level: float,
     velocity_factor: float,
-    block_size: int
+    block_size: int,
 ):
     """
     NUMBA-COMPILED: Ultra-fast envelope block processing with robust cross-block handling.
@@ -183,7 +182,7 @@ def _numba_process_envelope_block_robust(
                 level = 0.0
                 state = 0  # EnvelopeState.IDLE
                 # Early exit optimization - rest of block will be 0.0
-                output_buffer[sample_idx+1:block_size].fill(0.0)
+                output_buffer[sample_idx + 1 : block_size].fill(0.0)
                 break
             else:
                 level = new_level  # Update level for next sample
@@ -206,8 +205,13 @@ class EnvelopePool:
     - Memory pool integration for buffer management
     """
 
-    def __init__(self, max_envelopes: int = 1000, block_size: int = 1024,
-                 memory_pool=None, sample_rate: int = 48000):
+    def __init__(
+        self,
+        max_envelopes: int = 1000,
+        block_size: int = 1024,
+        memory_pool=None,
+        sample_rate: int = 48000,
+    ):
         """
         Initialize ultra-fast envelope pool.
 
@@ -237,12 +241,21 @@ class EnvelopePool:
             envelope = UltraFastADSREnvelope(
                 block_size=self.block_size,
                 memory_pool=self.memory_pool,
-                sample_rate=self.sample_rate
+                sample_rate=self.sample_rate,
             )
             self.pool.append(envelope)
 
-    def acquire_envelope(self, delay=0.0, attack=0.01, hold=0.0, decay=0.3,
-                        sustain=0.7, release=0.5, velocity_sense=1.0, key_scaling=0.0) -> UltraFastADSREnvelope:
+    def acquire_envelope(
+        self,
+        delay=0.0,
+        attack=0.01,
+        hold=0.0,
+        decay=0.3,
+        sustain=0.7,
+        release=0.5,
+        velocity_sense=1.0,
+        key_scaling=0.0,
+    ) -> UltraFastADSREnvelope:
         """
         ULTRA-FAST: Acquire envelope from pool or create new one.
 
@@ -267,17 +280,31 @@ class EnvelopePool:
             # Reset envelope state for reuse
             envelope.reset()
             # Update parameters
-            envelope.update_parameters(delay=delay, attack=attack, hold=hold,
-                                     decay=decay, sustain=sustain, release=release,
-                                     velocity_sense=velocity_sense, key_scaling=key_scaling)
+            envelope.update_parameters(
+                delay=delay,
+                attack=attack,
+                hold=hold,
+                decay=decay,
+                sustain=sustain,
+                release=release,
+                velocity_sense=velocity_sense,
+                key_scaling=key_scaling,
+            )
             return envelope
         except IndexError:
             # Pool empty - create new envelope (fallback path)
             return UltraFastADSREnvelope(
-                delay=delay, attack=attack, hold=hold, decay=decay,
-                sustain=sustain, release=release, velocity_sense=velocity_sense,
-                key_scaling=key_scaling, block_size=self.block_size,
-                memory_pool=self.memory_pool, sample_rate=self.sample_rate
+                delay=delay,
+                attack=attack,
+                hold=hold,
+                decay=decay,
+                sustain=sustain,
+                release=release,
+                velocity_sense=velocity_sense,
+                key_scaling=key_scaling,
+                block_size=self.block_size,
+                memory_pool=self.memory_pool,
+                sample_rate=self.sample_rate,
             )
 
     def release_envelope(self, envelope: UltraFastADSREnvelope) -> None:
@@ -304,10 +331,10 @@ class EnvelopePool:
     def get_pool_stats(self) -> dict[str, int]:
         """Get pool statistics for monitoring."""
         return {
-            'pooled_envelopes': len(self.pool),
-            'max_envelopes': self.max_envelopes,
-            'block_size': self.block_size,
-            'sample_rate': self.sample_rate
+            "pooled_envelopes": len(self.pool),
+            "max_envelopes": self.max_envelopes,
+            "block_size": self.block_size,
+            "sample_rate": self.sample_rate,
         }
 
 
@@ -331,21 +358,66 @@ class UltraFastADSREnvelope:
     """
 
     __slots__ = (
-        'sample_rate', 'block_size', 'delay', 'attack', 'hold', 'decay', 'sustain', 'release',
-        'velocity_sense', 'key_scaling', 'state', 'level', 'release_start',
-        'delay_samples', 'hold_samples', 'attack_increment', 'decay_decrement', 'release_decrement',
-        'delay_counter', 'hold_counter', 'velocity_factor', 'key_factor',
-        'sustain_pedal', 'sostenuto_pedal', 'held_by_sostenuto', 'soft_pedal', 'hold_notes',
-        'memory_pool', 'is_pooled',
+        "sample_rate",
+        "block_size",
+        "delay",
+        "attack",
+        "hold",
+        "decay",
+        "sustain",
+        "release",
+        "velocity_sense",
+        "key_scaling",
+        "state",
+        "level",
+        "release_start",
+        "delay_samples",
+        "hold_samples",
+        "attack_increment",
+        "decay_decrement",
+        "release_decrement",
+        "delay_counter",
+        "hold_counter",
+        "velocity_factor",
+        "key_factor",
+        "sustain_pedal",
+        "sostenuto_pedal",
+        "held_by_sostenuto",
+        "soft_pedal",
+        "hold_notes",
+        "memory_pool",
+        "is_pooled",
         # Dynamic modulation support
-        'base_delay', 'base_attack', 'base_hold', 'base_decay', 'base_sustain', 'base_release',
-        'target_delay', 'target_attack', 'target_hold', 'target_decay', 'target_sustain', 'target_release',
-        'parameter_transition_samples', 'parameter_transition_counter'
+        "base_delay",
+        "base_attack",
+        "base_hold",
+        "base_decay",
+        "base_sustain",
+        "base_release",
+        "target_delay",
+        "target_attack",
+        "target_hold",
+        "target_decay",
+        "target_sustain",
+        "target_release",
+        "parameter_transition_samples",
+        "parameter_transition_counter",
     )
 
-    def __init__(self, delay=0.0, attack=0.01, hold=0.0, decay=0.3, sustain=0.7, release=0.5,
-                 velocity_sense=1.0, key_scaling=0.0, sample_rate=48000, block_size=1024,
-                 memory_pool=None):
+    def __init__(
+        self,
+        delay=0.0,
+        attack=0.01,
+        hold=0.0,
+        decay=0.3,
+        sustain=0.7,
+        release=0.5,
+        velocity_sense=1.0,
+        key_scaling=0.0,
+        sample_rate=48000,
+        block_size=1024,
+        memory_pool=None,
+    ):
         """
         Initialize ultra-fast ADSR envelope.
 
@@ -431,7 +503,9 @@ class UltraFastADSREnvelope:
 
         # Decay - optimized for vectorized processing
         if self.decay > 0:
-            self.decay_decrement = np.float32((1.0 - self.sustain) / (self.decay * self.sample_rate))
+            self.decay_decrement = np.float32(
+                (1.0 - self.sustain) / (self.decay * self.sample_rate)
+            )
         else:
             self.decay_decrement = np.float32(1.0 - self.sustain)  # instant decay
 
@@ -458,8 +532,17 @@ class UltraFastADSREnvelope:
         self.soft_pedal = False
         self.hold_notes = False
 
-    def update_parameters(self, delay=None, attack=None, hold=None, decay=None, sustain=None, release=None,
-                         velocity_sense=None, key_scaling=None):
+    def update_parameters(
+        self,
+        delay=None,
+        attack=None,
+        hold=None,
+        decay=None,
+        sustain=None,
+        release=None,
+        velocity_sense=None,
+        key_scaling=None,
+    ):
         """Update envelope parameters with validation."""
         if delay is not None:
             self.delay = max(0.0, delay)
@@ -568,9 +651,15 @@ class UltraFastADSREnvelope:
         self.release_start = self.level
         self.state = EnvelopeState.RELEASE
 
-    def modulate_parameters(self, attack_mod: float = 0.0, decay_mod: float = 0.0,
-                          sustain_mod: float = 0.0, release_mod: float = 0.0,
-                          delay_mod: float = 0.0, hold_mod: float = 0.0):
+    def modulate_parameters(
+        self,
+        attack_mod: float = 0.0,
+        decay_mod: float = 0.0,
+        sustain_mod: float = 0.0,
+        release_mod: float = 0.0,
+        delay_mod: float = 0.0,
+        hold_mod: float = 0.0,
+    ):
         """
         Apply real-time envelope parameter modulation with smooth transitions.
 
@@ -587,12 +676,12 @@ class UltraFastADSREnvelope:
             hold_mod: Hold time modulation (-1.0 to 1.0, where 1.0 = 2x longer)
         """
         # Set target values based on modulation
-        self.target_attack = max(0.001, self.base_attack * (2.0 ** attack_mod))
-        self.target_decay = max(0.001, self.base_decay * (2.0 ** decay_mod))
+        self.target_attack = max(0.001, self.base_attack * (2.0**attack_mod))
+        self.target_decay = max(0.001, self.base_decay * (2.0**decay_mod))
         self.target_sustain = np.clip(self.base_sustain + sustain_mod, 0.0, 1.0)
-        self.target_release = max(0.001, self.base_release * (2.0 ** release_mod))
-        self.target_delay = max(0.0, self.base_delay * (2.0 ** delay_mod))
-        self.target_hold = max(0.0, self.base_hold * (2.0 ** hold_mod))
+        self.target_release = max(0.001, self.base_release * (2.0**release_mod))
+        self.target_delay = max(0.0, self.base_delay * (2.0**delay_mod))
+        self.target_hold = max(0.0, self.base_hold * (2.0**hold_mod))
 
         # Reset transition counter to start smooth transition
         self.parameter_transition_counter = 0
@@ -638,7 +727,9 @@ class UltraFastADSREnvelope:
 
         self.parameter_transition_counter += 1
 
-    def generate_block(self, output_buffer: np.ndarray, num_samples: int | None = None) -> np.ndarray:
+    def generate_block(
+        self, output_buffer: np.ndarray, num_samples: int | None = None
+    ) -> np.ndarray:
         """
         ULTRA-FAST: Generate envelope block using caller-provided buffer.
 
@@ -656,22 +747,23 @@ class UltraFastADSREnvelope:
         self._update_parameter_transitions()
 
         # Use Numba-compiled robust function for ultra-fast processing
-        (self.state, self.level, self.release_start,
-         self.delay_counter, self.hold_counter) = _numba_process_envelope_block_robust(
-            output_buffer,
-            self.state,
-            self.level,
-            self.release_start,
-            self.delay_counter,
-            self.hold_counter,
-            self.delay_samples,
-            self.hold_samples,
-            float(self.attack_increment),
-            float(self.decay_decrement),
-            float(self.release_decrement),
-            float(self.sustain),
-            float(self.velocity_factor),
-            len(output_buffer) if num_samples is None else num_samples
+        (self.state, self.level, self.release_start, self.delay_counter, self.hold_counter) = (
+            _numba_process_envelope_block_robust(
+                output_buffer,
+                self.state,
+                self.level,
+                self.release_start,
+                self.delay_counter,
+                self.hold_counter,
+                self.delay_samples,
+                self.hold_samples,
+                float(self.attack_increment),
+                float(self.decay_decrement),
+                float(self.release_decrement),
+                float(self.sustain),
+                float(self.velocity_factor),
+                len(output_buffer) if num_samples is None else num_samples,
+            )
         )
 
         return output_buffer

@@ -7,12 +7,13 @@ system, global parameters, and integration with the modern synthesizer.
 
 from __future__ import annotations
 
-from typing import Any
 import threading
+from typing import Any
+
 import numpy as np
 
 from .constants import *
-from .part import JupiterXPart, ENGINE_ANALOG, ENGINE_DIGITAL, ENGINE_FM, ENGINE_EXTERNAL
+from .part import ENGINE_DIGITAL, ENGINE_EXTERNAL, ENGINE_FM, JupiterXPart
 
 
 class JupiterXSystemParameters:
@@ -263,7 +264,7 @@ class JupiterXComponentManager:
         self.parts = [JupiterXPart(i, sample_rate) for i in range(16)]
 
         # Voice allocation (monophonic per part)
-        self.active_parts: dict[int, bool] = {i: False for i in range(16)}
+        self.active_parts: dict[int, bool] = dict.fromkeys(range(16), False)
 
         # Thread safety
         self.lock = threading.RLock()
@@ -574,30 +575,30 @@ class JupiterXComponentManager:
         """Map engine parameter ID to parameter name based on engine type."""
         # Import here to avoid circular imports
         from .constants import (
-            ENGINE_ANALOG,
-            ANALOG_OSC1_WAVEFORM,
+            ANALOG_AMP_ATTACK,
+            ANALOG_AMP_DECAY,
+            ANALOG_AMP_RELEASE,
+            ANALOG_AMP_SUSTAIN,
+            ANALOG_FILTER_ATTACK,
+            ANALOG_FILTER_CUTOFF,
+            ANALOG_FILTER_DECAY,
+            ANALOG_FILTER_ENVELOPE_AMOUNT,
+            ANALOG_FILTER_RELEASE,
+            ANALOG_FILTER_RESONANCE,
+            ANALOG_FILTER_SUSTAIN,
+            ANALOG_FILTER_TYPE,
             ANALOG_OSC1_COARSE_TUNE,
             ANALOG_OSC1_FINE_TUNE,
             ANALOG_OSC1_LEVEL,
             ANALOG_OSC1_SUPERSAW_SPREAD,
-            ANALOG_OSC2_WAVEFORM,
+            ANALOG_OSC1_WAVEFORM,
             ANALOG_OSC2_COARSE_TUNE,
+            ANALOG_OSC2_DETUNE,
             ANALOG_OSC2_FINE_TUNE,
             ANALOG_OSC2_LEVEL,
-            ANALOG_OSC2_DETUNE,
             ANALOG_OSC2_RING_MOD,
-            ANALOG_FILTER_TYPE,
-            ANALOG_FILTER_CUTOFF,
-            ANALOG_FILTER_RESONANCE,
-            ANALOG_FILTER_ENVELOPE_AMOUNT,
-            ANALOG_AMP_ATTACK,
-            ANALOG_AMP_DECAY,
-            ANALOG_AMP_SUSTAIN,
-            ANALOG_AMP_RELEASE,
-            ANALOG_FILTER_ATTACK,
-            ANALOG_FILTER_DECAY,
-            ANALOG_FILTER_SUSTAIN,
-            ANALOG_FILTER_RELEASE,
+            ANALOG_OSC2_WAVEFORM,
+            ENGINE_ANALOG,
         )
 
         if engine_type == ENGINE_ANALOG:
@@ -694,7 +695,7 @@ class JupiterXComponentManager:
         with self.lock:
             for part in self.parts:
                 part.reset()
-            self.active_parts = {i: False for i in range(16)}
+            self.active_parts = dict.fromkeys(range(16), False)
 
     def reset_system_parameters(self):
         """Reset system parameters to defaults."""

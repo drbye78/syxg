@@ -4,14 +4,19 @@ Jupiter-X AN (Analog Physical Modeling) Extensions
 Plugin that adds Yamaha AN synthesis features to the base synthesis system.
 Provides Motif-compatible physical modeling capabilities with advanced controls.
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 import numpy as np
 
 from ..base_plugin import (
-    SynthesisFeaturePlugin, PluginMetadata, PluginLoadContext,
-    PluginType, PluginCompatibility
+    PluginCompatibility,
+    PluginLoadContext,
+    PluginMetadata,
+    PluginType,
+    SynthesisFeaturePlugin,
 )
 
 
@@ -42,48 +47,48 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
                     "type": "enum",
                     "default": "mass_spring",
                     "options": ["mass_spring", "waveguide", "plucked_string"],
-                    "description": "Physical modeling oscillator algorithm"
+                    "description": "Physical modeling oscillator algorithm",
                 },
                 "filter_character": {
                     "type": "enum",
                     "default": "analog",
                     "options": ["analog", "physical", "formant"],
-                    "description": "Filter characteristic model"
+                    "description": "Filter characteristic model",
                 },
                 "envelope_model": {
                     "type": "enum",
                     "default": "physical",
                     "options": ["physical", "analog", "exponential"],
-                    "description": "Envelope decay model"
+                    "description": "Envelope decay model",
                 },
                 "material_type": {
                     "type": "enum",
                     "default": "steel",
                     "options": ["steel", "wood", "glass", "nylon", "carbon"],
-                    "description": "Material properties for physical modeling"
+                    "description": "Material properties for physical modeling",
                 },
                 "excitation_force": {
                     "type": "float",
                     "default": 1.0,
                     "min": 0.1,
                     "max": 5.0,
-                    "description": "Initial excitation force"
+                    "description": "Initial excitation force",
                 },
                 "body_resonance": {
                     "type": "float",
                     "default": 0.0,
                     "min": 0.0,
                     "max": 1.0,
-                    "description": "Body resonance amount"
+                    "description": "Body resonance amount",
                 },
                 "material_damping": {
                     "type": "float",
                     "default": 0.01,
                     "min": 0.001,
                     "max": 0.1,
-                    "description": "Material damping factor"
-                }
-            }
+                    "description": "Material damping factor",
+                },
+            },
         )
         super().__init__(metadata)
 
@@ -102,7 +107,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
             "wood": {"density": 500, "youngs_modulus": 10e9, "damping": 0.02},
             "glass": {"density": 2500, "youngs_modulus": 70e9, "damping": 0.001},
             "nylon": {"density": 1150, "youngs_modulus": 2e9, "damping": 0.03},
-            "carbon": {"density": 1800, "youngs_modulus": 300e9, "damping": 0.002}
+            "carbon": {"density": 1800, "youngs_modulus": 300e9, "damping": 0.002},
         }
 
     def get_metadata(self) -> PluginMetadata:
@@ -162,48 +167,48 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
             self.material_damping = props["damping"]
 
             # Apply to engine parameters
-            if hasattr(self.an_engine, 'set_parameter'):
-                self.an_engine.set_parameter('material_damping', self.material_damping)
+            if hasattr(self.an_engine, "set_parameter"):
+                self.an_engine.set_parameter("material_damping", self.material_damping)
 
     def _configure_physical_modeling(self):
         """Configure physical modeling parameters."""
-        if hasattr(self.an_engine, 'set_parameter'):
-            self.an_engine.set_parameter('oscillator_type', self.oscillator_model)
-            self.an_engine.set_parameter('filter_type', self.filter_character)
-            self.an_engine.set_parameter('envelope_model', self.envelope_model)
+        if hasattr(self.an_engine, "set_parameter"):
+            self.an_engine.set_parameter("oscillator_type", self.oscillator_model)
+            self.an_engine.set_parameter("filter_type", self.filter_character)
+            self.an_engine.set_parameter("envelope_model", self.envelope_model)
 
     def _cleanup_an_resources(self):
         """Clean up AN-specific resources."""
         # Reset to default parameters
-        if hasattr(self.an_engine, 'reset'):
+        if hasattr(self.an_engine, "reset"):
             self.an_engine.reset()
 
     def get_synthesis_features(self) -> dict[str, Any]:
         """Get Jupiter-X AN synthesis features."""
         return {
-            'physical_modeling': {
-                'oscillator_model': self.oscillator_model,
-                'available_models': ['mass_spring', 'waveguide', 'plucked_string'],
-                'current_material': self.material_type,
-                'material_properties': self.material_properties
+            "physical_modeling": {
+                "oscillator_model": self.oscillator_model,
+                "available_models": ["mass_spring", "waveguide", "plucked_string"],
+                "current_material": self.material_type,
+                "material_properties": self.material_properties,
             },
-            'filter_characteristics': {
-                'filter_type': self.filter_character,
-                'body_resonance': self.body_resonance,
-                'material_damping': self.material_damping,
-                'available_types': ['analog', 'physical', 'formant']
+            "filter_characteristics": {
+                "filter_type": self.filter_character,
+                "body_resonance": self.body_resonance,
+                "material_damping": self.material_damping,
+                "available_types": ["analog", "physical", "formant"],
             },
-            'envelope_modeling': {
-                'envelope_type': self.envelope_model,
-                'excitation_force': self.excitation_force,
-                'material_decay': self.material_damping,
-                'available_models': ['physical', 'analog', 'exponential']
+            "envelope_modeling": {
+                "envelope_type": self.envelope_model,
+                "excitation_force": self.excitation_force,
+                "material_decay": self.material_damping,
+                "available_models": ["physical", "analog", "exponential"],
             },
-            'motif_compatibility': {
-                'an_engine_compliance': '100%',
-                'parameter_mapping': 'MIDI controllable',
-                'material_simulation': 'Advanced physical properties'
-            }
+            "motif_compatibility": {
+                "an_engine_compliance": "100%",
+                "parameter_mapping": "MIDI controllable",
+                "material_simulation": "Advanced physical properties",
+            },
         }
 
     def set_parameter(self, name: str, value: Any) -> bool:
@@ -250,7 +255,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
             "material_type": self.material_type,
             "excitation_force": self.excitation_force,
             "body_resonance": self.body_resonance,
-            "material_damping": self.material_damping
+            "material_damping": self.material_damping,
         }
 
     def process_midi_message(self, status: int, data1: int, data2: int) -> bool:
@@ -291,8 +296,9 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
 
         return False
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
-                        block_size: int) -> np.ndarray | None:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray | None:
         """
         Generate additional AN samples with Jupiter-X features.
 
@@ -308,8 +314,9 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
         # In a full implementation, this would return processed samples
         return None
 
-    def create_custom_material(self, name: str, density: float, youngs_modulus: float,
-                              damping: float) -> bool:
+    def create_custom_material(
+        self, name: str, density: float, youngs_modulus: float, damping: float
+    ) -> bool:
         """Create a custom material for physical modeling."""
         if name in self.material_properties:
             return False  # Name already exists
@@ -317,7 +324,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
         self.material_properties[name] = {
             "density": max(100, min(20000, density)),
             "youngs_modulus": max(1e9, min(1000e9, youngs_modulus)),
-            "damping": max(0.0001, min(0.5, damping))
+            "damping": max(0.0001, min(0.5, damping)),
         }
 
         print(f"🎛️ Created custom material: {name}")
@@ -328,7 +335,10 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
         if material_name not in self.material_properties:
             return False
 
-        if not hasattr(self.an_engine, 'active_voices') or voice_id not in self.an_engine.active_voices:
+        if (
+            not hasattr(self.an_engine, "active_voices")
+            or voice_id not in self.an_engine.active_voices
+        ):
             return False
 
         # Apply material properties to the specific voice
@@ -354,64 +364,68 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
     def get_an_x_status(self) -> dict[str, Any]:
         """Get Jupiter-X AN engine status."""
         return {
-            'oscillator_model': self.oscillator_model,
-            'filter_character': self.filter_character,
-            'envelope_model': self.envelope_model,
-            'material_type': self.material_type,
-            'excitation_force': self.excitation_force,
-            'body_resonance': self.body_resonance,
-            'material_damping': self.material_damping,
-            'available_materials': list(self.material_properties.keys()),
-            'physical_modeling_features': self.get_synthesis_features(),
-            'motif_an_compatibility': '100%',
-            'features_active': self.is_active()
+            "oscillator_model": self.oscillator_model,
+            "filter_character": self.filter_character,
+            "envelope_model": self.envelope_model,
+            "material_type": self.material_type,
+            "excitation_force": self.excitation_force,
+            "body_resonance": self.body_resonance,
+            "material_damping": self.material_damping,
+            "available_materials": list(self.material_properties.keys()),
+            "physical_modeling_features": self.get_synthesis_features(),
+            "motif_an_compatibility": "100%",
+            "features_active": self.is_active(),
         }
 
     def get_advanced_an_features(self) -> dict[str, Any]:
         """Get advanced AN physical modeling features."""
         return {
-            'material_simulation': {
-                'current_material': self.material_type,
-                'material_properties': self.material_properties[self.material_type],
-                'custom_materials': [m for m in self.material_properties.keys()
-                                   if m not in ['steel', 'wood', 'glass', 'nylon', 'carbon']]
+            "material_simulation": {
+                "current_material": self.material_type,
+                "material_properties": self.material_properties[self.material_type],
+                "custom_materials": [
+                    m
+                    for m in self.material_properties.keys()
+                    if m not in ["steel", "wood", "glass", "nylon", "carbon"]
+                ],
             },
-            'oscillator_models': {
-                'current': self.oscillator_model,
-                'mass_spring': {
-                    'description': 'Newtonian physics simulation',
-                    'parameters': ['mass', 'spring_constant', 'damping']
+            "oscillator_models": {
+                "current": self.oscillator_model,
+                "mass_spring": {
+                    "description": "Newtonian physics simulation",
+                    "parameters": ["mass", "spring_constant", "damping"],
                 },
-                'waveguide': {
-                    'description': 'Digital waveguide synthesis',
-                    'parameters': ['delay_length', 'reflection_coeff', 'scattering']
+                "waveguide": {
+                    "description": "Digital waveguide synthesis",
+                    "parameters": ["delay_length", "reflection_coeff", "scattering"],
                 },
-                'plucked_string': {
-                    'description': 'Karplus-Strong algorithm',
-                    'parameters': ['string_length', 'pickup_position', 'damping']
-                }
+                "plucked_string": {
+                    "description": "Karplus-Strong algorithm",
+                    "parameters": ["string_length", "pickup_position", "damping"],
+                },
             },
-            'filter_characteristics': {
-                'analog': 'Traditional analog filter response',
-                'physical': 'Body resonance and material characteristics',
-                'formant': 'Vocal formant filtering'
+            "filter_characteristics": {
+                "analog": "Traditional analog filter response",
+                "physical": "Body resonance and material characteristics",
+                "formant": "Vocal formant filtering",
             },
-            'envelope_models': {
-                'physical': 'Energy-based decay with material properties',
-                'analog': 'Traditional ADSR with analog characteristics',
-                'exponential': 'Pure exponential decay curves'
+            "envelope_models": {
+                "physical": "Energy-based decay with material properties",
+                "analog": "Traditional ADSR with analog characteristics",
+                "exponential": "Pure exponential decay curves",
             },
-            'performance_features': {
-                'voice_stealing': 'Intelligent voice allocation',
-                'material_caching': 'Pre-computed material coefficients',
-                'real_time_modulation': 'Live parameter changes'
-            }
+            "performance_features": {
+                "voice_stealing": "Intelligent voice allocation",
+                "material_caching": "Pre-computed material coefficients",
+                "real_time_modulation": "Live parameter changes",
+            },
         }
 
-    def simulate_plucked_string(self, note: int, velocity: int, string_length: float = 1.0,
-                               damping: float = 0.99) -> bool:
+    def simulate_plucked_string(
+        self, note: int, velocity: int, string_length: float = 1.0, damping: float = 0.99
+    ) -> bool:
         """Simulate a plucked string instrument."""
-        if not hasattr(self.an_engine, 'note_on'):
+        if not hasattr(self.an_engine, "note_on"):
             return False
 
         # Configure for plucked string synthesis
@@ -431,10 +445,11 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
         print(f"🎸 Simulated plucked string: note {note}, length {string_length:.2f}")
         return True
 
-    def simulate_percussion_body(self, note: int, velocity: int, material: str = "wood",
-                               body_size: float = 1.0) -> bool:
+    def simulate_percussion_body(
+        self, note: int, velocity: int, material: str = "wood", body_size: float = 1.0
+    ) -> bool:
         """Simulate percussion instrument body resonance."""
-        if not hasattr(self.an_engine, 'note_on'):
+        if not hasattr(self.an_engine, "note_on"):
             return False
 
         # Set material properties
@@ -461,7 +476,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
                     resonance=0.3,
                     filter_type="physical",
                     body_resonance=body_freq,
-                    material_damping=self.material_damping
+                    material_damping=self.material_damping,
                 )
 
         print(f"🥁 Simulated percussion body: note {note}, material {material}")

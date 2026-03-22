@@ -7,16 +7,13 @@ providing comprehensive MIDI parameter control for the synthesizer.
 
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
+from typing import Any
 
-from .constants import *
 from .component_manager import (
     JupiterXComponentManager,
-    JupiterXSystemParameters,
-    JupiterXEffectsParameters,
 )
+from .constants import *
 
 
 class JupiterXSysExController:

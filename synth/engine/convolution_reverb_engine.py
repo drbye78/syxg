@@ -4,13 +4,14 @@ Convolution Reverb Engine
 High-quality algorithmic convolution reverb for professional spatial audio processing.
 Provides realistic room acoustics through impulse response convolution.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from pathlib import Path
 import threading
-import math
+from pathlib import Path
+from typing import Any
+
+import numpy as np
 
 from .synthesis_engine import SynthesisEngine
 
@@ -23,8 +24,13 @@ class ImpulseResponse:
     pre-computed processing parameters for efficient convolution.
     """
 
-    def __init__(self, audio_data: np.ndarray, sample_rate: int = 44100,
-                 name: str = "unnamed", decay_time: float | None = None):
+    def __init__(
+        self,
+        audio_data: np.ndarray,
+        sample_rate: int = 44100,
+        name: str = "unnamed",
+        decay_time: float | None = None,
+    ):
         """
         Initialize impulse response.
 
@@ -62,7 +68,7 @@ class ImpulseResponse:
     def _compute_decay_time(self) -> float:
         """Compute reverberation decay time (RT60) from impulse response."""
         # Find the point where energy drops to -60dB
-        squared_ir = self.audio_data ** 2
+        squared_ir = self.audio_data**2
         total_energy = np.sum(squared_ir)
 
         if total_energy == 0:
@@ -98,13 +104,13 @@ class ImpulseResponse:
     def get_info(self) -> dict[str, Any]:
         """Get comprehensive IR information."""
         return {
-            'name': self.name,
-            'sample_rate': self.sample_rate,
-            'length': self.length,
-            'duration_ms': (self.length / self.sample_rate) * 1000,
-            'decay_time': self.decay_time,
-            'peak_level': self.peak_level,
-            'normalized': self.peak_level <= 1.0
+            "name": self.name,
+            "sample_rate": self.sample_rate,
+            "length": self.length,
+            "duration_ms": (self.length / self.sample_rate) * 1000,
+            "decay_time": self.decay_time,
+            "peak_level": self.peak_level,
+            "normalized": self.peak_level <= 1.0,
         }
 
 
@@ -156,11 +162,11 @@ class ConvolutionProcessor:
         with self.lock:
             # Truncate if too long
             if len(ir_data) > self.max_ir_length:
-                ir_data = ir_data[:self.max_ir_length]
+                ir_data = ir_data[: self.max_ir_length]
 
             # Zero-pad to FFT size
             padded_ir = np.zeros(self.fft_size, dtype=np.float32)
-            padded_ir[:len(ir_data)] = ir_data
+            padded_ir[: len(ir_data)] = ir_data
 
             # Compute frequency domain representation
             self.ir_spectrum = np.fft.rfft(padded_ir)
@@ -183,8 +189,8 @@ class ConvolutionProcessor:
             # Implements efficient frequency-domain convolution with proper windowing
 
             # Zero-pad input for FFT convolution
-            self.input_buffer[:self.block_size] = input_block
-            self.input_buffer[self.block_size:] = 0.0
+            self.input_buffer[: self.block_size] = input_block
+            self.input_buffer[self.block_size :] = 0.0
 
             # Forward FFT with proper windowing
             input_spectrum = np.fft.rfft(self.input_buffer)
@@ -197,12 +203,12 @@ class ConvolutionProcessor:
 
             # Overlap-add with proper windowing
             # Add overlap from previous block
-            result = output_time[:self.block_size] + self.overlap_buffer[:self.block_size]
+            result = output_time[: self.block_size] + self.overlap_buffer[: self.block_size]
 
             # Save overlap for next block
             overlap_size = self.fft_size - self.block_size
             if overlap_size > 0:
-                self.overlap_buffer[:overlap_size] = output_time[self.block_size:self.fft_size]
+                self.overlap_buffer[:overlap_size] = output_time[self.block_size : self.fft_size]
                 self.overlap_buffer[overlap_size:] = 0.0
 
             return result
@@ -224,9 +230,16 @@ class ReverbPreset:
     Provides ready-to-use reverb settings for common acoustic spaces.
     """
 
-    def __init__(self, name: str, ir_data: np.ndarray, sample_rate: int = 44100,
-                 wet_level: float = 0.3, dry_level: float = 0.7,
-                 predelay: float = 0.0, high_freq_damping: float = 0.5):
+    def __init__(
+        self,
+        name: str,
+        ir_data: np.ndarray,
+        sample_rate: int = 44100,
+        wet_level: float = 0.3,
+        dry_level: float = 0.7,
+        predelay: float = 0.0,
+        high_freq_damping: float = 0.5,
+    ):
         """
         Initialize reverb preset.
 
@@ -250,8 +263,9 @@ class ReverbPreset:
         self.predelay_samples = int(predelay * sample_rate)
 
     @classmethod
-    def create_algorithmic_reverb(cls, name: str, room_size: float = 0.5,
-                                decay_time: float = 2.0, sample_rate: int = 44100) -> ReverbPreset:
+    def create_algorithmic_reverb(
+        cls, name: str, room_size: float = 0.5, decay_time: float = 2.0, sample_rate: int = 44100
+    ) -> ReverbPreset:
         """
         Create algorithmic reverb preset using Schroeder's method.
 
@@ -297,12 +311,12 @@ class ReverbPreset:
     def get_info(self) -> dict[str, Any]:
         """Get preset information."""
         return {
-            'name': self.name,
-            'wet_level': self.wet_level,
-            'dry_level': self.dry_level,
-            'predelay': self.predelay,
-            'high_freq_damping': self.high_freq_damping,
-            'ir_info': self.impulse_response.get_info()
+            "name": self.name,
+            "wet_level": self.wet_level,
+            "dry_level": self.dry_level,
+            "predelay": self.predelay,
+            "high_freq_damping": self.high_freq_damping,
+            "ir_info": self.impulse_response.get_info(),
         }
 
 
@@ -314,8 +328,9 @@ class ConvolutionReverbEngine(SynthesisEngine):
     through impulse response processing.
     """
 
-    def __init__(self, sample_rate: int = 44100, block_size: int = 1024,
-                 max_ir_length: int = 65536):
+    def __init__(
+        self, sample_rate: int = 44100, block_size: int = 1024, max_ir_length: int = 65536
+    ):
         """
         Initialize convolution reverb engine.
 
@@ -351,34 +366,34 @@ class ConvolutionReverbEngine(SynthesisEngine):
         presets = {}
 
         # Room presets
-        presets['small_room'] = ReverbPreset.create_algorithmic_reverb(
-            'Small Room', room_size=0.3, decay_time=0.8
+        presets["small_room"] = ReverbPreset.create_algorithmic_reverb(
+            "Small Room", room_size=0.3, decay_time=0.8
         )
-        presets['medium_room'] = ReverbPreset.create_algorithmic_reverb(
-            'Medium Room', room_size=0.5, decay_time=1.5
+        presets["medium_room"] = ReverbPreset.create_algorithmic_reverb(
+            "Medium Room", room_size=0.5, decay_time=1.5
         )
-        presets['large_room'] = ReverbPreset.create_algorithmic_reverb(
-            'Large Room', room_size=0.7, decay_time=2.5
+        presets["large_room"] = ReverbPreset.create_algorithmic_reverb(
+            "Large Room", room_size=0.7, decay_time=2.5
         )
 
         # Hall presets
-        presets['small_hall'] = ReverbPreset.create_algorithmic_reverb(
-            'Small Hall', room_size=0.8, decay_time=3.0
+        presets["small_hall"] = ReverbPreset.create_algorithmic_reverb(
+            "Small Hall", room_size=0.8, decay_time=3.0
         )
-        presets['large_hall'] = ReverbPreset.create_algorithmic_reverb(
-            'Large Hall', room_size=0.9, decay_time=4.0
+        presets["large_hall"] = ReverbPreset.create_algorithmic_reverb(
+            "Large Hall", room_size=0.9, decay_time=4.0
         )
 
         # Chamber presets
-        presets['chamber'] = ReverbPreset.create_algorithmic_reverb(
-            'Chamber', room_size=0.6, decay_time=2.0
+        presets["chamber"] = ReverbPreset.create_algorithmic_reverb(
+            "Chamber", room_size=0.6, decay_time=2.0
         )
 
         return presets
 
     def get_engine_type(self) -> str:
         """Return engine type identifier."""
-        return 'convolution_reverb'
+        return "convolution_reverb"
 
     def load_preset(self, preset_name: str) -> bool:
         """
@@ -440,6 +455,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
         try:
             # Use PyAV for audio loading (assuming it's available)
             from ..audio.sample_manager import PyAVSampleManager
+
             sample_manager = PyAVSampleManager()
             sample = sample_manager.load_sample(file_path)
 
@@ -454,10 +470,13 @@ class ConvolutionReverbEngine(SynthesisEngine):
         except Exception:
             return False
 
-    def set_parameters(self, wet_level: float | None = None,
-                      dry_level: float | None = None,
-                      predelay: float | None = None,
-                      high_freq_damping: float | None = None):
+    def set_parameters(
+        self,
+        wet_level: float | None = None,
+        dry_level: float | None = None,
+        predelay: float | None = None,
+        high_freq_damping: float | None = None,
+    ):
         """
         Set real-time reverb parameters.
 
@@ -477,7 +496,9 @@ class ConvolutionReverbEngine(SynthesisEngine):
             if high_freq_damping is not None:
                 self.high_freq_damping = max(0.0, min(1.0, high_freq_damping))
 
-    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> list[Any]:
+    def get_regions_for_note(
+        self, note: int, velocity: int, program: int = 0, bank: int = 0
+    ) -> list[Any]:
         """
         Convolution reverb is an effect, not a synthesis engine.
         Returns empty list as it doesn't produce notes directly.
@@ -491,8 +512,9 @@ class ConvolutionReverbEngine(SynthesisEngine):
         """
         return None
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
-                        block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Convolution reverb processes existing audio, doesn't generate notes.
         Returns silence for interface compatibility.
@@ -653,7 +675,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
         filtered[0] = audio[0]
 
         for i in range(1, len(audio)):
-            filtered[i] = damping_coeff * filtered[i-1] + (1 - damping_coeff) * audio[i]
+            filtered[i] = damping_coeff * filtered[i - 1] + (1 - damping_coeff) * audio[i]
 
         return filtered
 
@@ -679,7 +701,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
 
         # Apply filter across the block
         for i in range(1, len(audio_block)):
-            filtered[i] = damping_coeff * filtered[i-1] + (1 - damping_coeff) * audio_block[i]
+            filtered[i] = damping_coeff * filtered[i - 1] + (1 - damping_coeff) * audio_block[i]
 
         return filtered
 
@@ -689,7 +711,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
 
     def get_supported_formats(self) -> list[str]:
         """Get supported impulse response formats."""
-        return ['.wav', '.aiff', '.flac', '.ogg']
+        return [".wav", ".aiff", ".flac", ".ogg"]
 
     def get_engine_info(self) -> dict[str, Any]:
         """Get comprehensive engine information."""
@@ -698,26 +720,30 @@ class ConvolutionReverbEngine(SynthesisEngine):
             preset_info = self.current_preset.get_info()
 
         return {
-            'name': 'Convolution Reverb Engine',
-            'type': 'convolution_reverb',
-            'version': '1.0',
-            'capabilities': [
-                'impulse_response_convolution', 'algorithmic_reverb_generation',
-                'real_time_parameter_control', 'builtin_presets', 'custom_ir_loading',
-                'predelay_processing', 'high_freq_damping'
+            "name": "Convolution Reverb Engine",
+            "type": "convolution_reverb",
+            "version": "1.0",
+            "capabilities": [
+                "impulse_response_convolution",
+                "algorithmic_reverb_generation",
+                "real_time_parameter_control",
+                "builtin_presets",
+                "custom_ir_loading",
+                "predelay_processing",
+                "high_freq_damping",
             ],
-            'formats': self.get_supported_formats(),
-            'max_ir_length': self.convolution_processor.max_ir_length,
-            'block_size': self.block_size,
-            'latency_samples': self.convolution_processor.get_latency(),
-            'builtin_presets': list(self.presets.keys()),
-            'current_preset': preset_info,
-            'parameters': {
-                'wet_level': self.wet_level,
-                'dry_level': self.dry_level,
-                'predelay': self.predelay,
-                'high_freq_damping': self.high_freq_damping
-            }
+            "formats": self.get_supported_formats(),
+            "max_ir_length": self.convolution_processor.max_ir_length,
+            "block_size": self.block_size,
+            "latency_samples": self.convolution_processor.get_latency(),
+            "builtin_presets": list(self.presets.keys()),
+            "current_preset": preset_info,
+            "parameters": {
+                "wet_level": self.wet_level,
+                "dry_level": self.dry_level,
+                "predelay": self.predelay,
+                "high_freq_damping": self.high_freq_damping,
+            },
         }
 
     # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
@@ -725,26 +751,26 @@ class ConvolutionReverbEngine(SynthesisEngine):
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get convolution reverb preset information with proper region descriptors.
-        
+
         Args:
             bank: Preset bank number (0-127)
             program: Preset program number (0-127)
-            
+
         Returns:
             PresetInfo with region descriptors for convolution reverb
         """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
-        
+
         # Convolution reverb uses impulse responses for realistic spaces
         # Programs define IR configurations and mixing parameters
         preset_name = f"Convolution Reverb {bank}:{program}"
-        
+
         # Get impulse response name from preset
         ir_name = self.get_impulse_response_name(bank, program)
         if not ir_name:
             ir_name = "default"
-        
+
         # Create region descriptors for convolution reverb
         descriptor = RegionDescriptor(
             region_id=0,
@@ -752,17 +778,17 @@ class ConvolutionReverbEngine(SynthesisEngine):
             key_range=(0, 127),
             velocity_range=(0, 127),
             algorithm_params={
-                'impulse_response': ir_name,
-                'wet_dry_mix': 0.5,  # Wet/dry balance
-                'pre_delay': 0.0,  # Pre-delay in seconds
-                'decay_time': 2.0,  # Decay time in seconds
-                'high_cut': 20000.0,  # High frequency cutoff
-                'low_cut': 20.0,  # Low frequency cutoff
-                'width': 1.0,  # Stereo width
-                'early_reflections': 0.5  # Early reflections level
-            }
+                "impulse_response": ir_name,
+                "wet_dry_mix": 0.5,  # Wet/dry balance
+                "pre_delay": 0.0,  # Pre-delay in seconds
+                "decay_time": 2.0,  # Decay time in seconds
+                "high_cut": 20000.0,  # High frequency cutoff
+                "low_cut": 20.0,  # Low frequency cutoff
+                "width": 1.0,  # Stereo width
+                "early_reflections": 0.5,  # Early reflections level
+            },
         )
-        
+
         return PresetInfo(
             bank=bank,
             program=program,
@@ -770,63 +796,59 @@ class ConvolutionReverbEngine(SynthesisEngine):
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
             is_monophonic=False,
-            category='convolution_reverb'
+            category="convolution_reverb",
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get all region descriptors for convolution reverb preset.
-        
+
         Args:
             bank: Preset bank number
             program: Preset program number
-            
+
         Returns:
             List of RegionDescriptor objects
         """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
 
-    def create_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create convolution reverb region instance from descriptor.
-        
+
         Args:
             descriptor: Region descriptor with reverb parameters
             sample_rate: Audio sample rate in Hz
-            
+
         Returns:
             IRegion instance for convolution reverb
         """
         from ..partial.convolution_reverb_region import ConvolutionReverbRegion
-        
+
         # Create convolution reverb region with proper initialization
         region = ConvolutionReverbRegion(descriptor, sample_rate)
-        
+
         # Initialize the region (loads impulse response, creates convolution engine)
         if not region.initialize():
             raise RuntimeError("Failed to initialize Convolution Reverb region")
-        
+
         return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load impulse response for convolution reverb region.
-        
+
         Args:
             region: Region to load impulse response for
-            
+
         Returns:
             True if impulse response loaded successfully
         """
         # Convolution reverb requires impulse response data
-        if hasattr(region, 'load_impulse_response'):
+        if hasattr(region, "load_impulse_response"):
             return region.load_impulse_response()
-        return region._initialized if hasattr(region, '_initialized') else False
+        return region._initialized if hasattr(region, "_initialized") else False
 
     def get_available_presets(self) -> list[str]:
         """Get list of available built-in presets."""
@@ -850,9 +872,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
         """Clean up engine resources."""
         self.reset()
 
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create Convolution Reverb base region without S.Art2 wrapper.
 

@@ -9,11 +9,11 @@ Provides realistic instrument emulation with proper physical behavior.
 from __future__ import annotations
 
 from typing import Any
-import numpy as np
-import math
 
-from .synthesis_engine import SynthesisEngine
+import numpy as np
+
 from ..partial.physical_partial import PhysicalPartial
+from .synthesis_engine import SynthesisEngine
 
 
 class DigitalWaveguide:

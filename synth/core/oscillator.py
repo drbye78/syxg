@@ -18,22 +18,25 @@ Architecture:
 - Contiguous memory layouts optimized for cache efficiency
 - Per-channel LFO resources (not per-note) per XG specification
 """
+
 from __future__ import annotations
 
 import math
-import numpy as np
-from typing import Any
-from collections.abc import Callable
 import threading
 from collections import deque
+from typing import Any
+
 import numba as nb
-from numba import jit, float32, int32, boolean
+import numpy as np
+from numba import jit
 
 # Pre-computed LFO lookup tables for ultra-fast processing - ENHANCED FOR HIGH-FREQUENCY PERFORMANCE
 _LFO_TABLE_SIZE = 32768  # Doubled size for better precision at high frequencies (cache-friendly)
 _SINE_LUT = np.sin(np.linspace(0, 2 * np.pi, _LFO_TABLE_SIZE, dtype=np.float32))
 _TRIANGLE_LUT = np.linspace(-1.0, 1.0, _LFO_TABLE_SIZE, dtype=np.float32)
-_TRIANGLE_LUT[_LFO_TABLE_SIZE//2:] = np.linspace(1.0, -1.0, _LFO_TABLE_SIZE//2, dtype=np.float32)
+_TRIANGLE_LUT[_LFO_TABLE_SIZE // 2 :] = np.linspace(
+    1.0, -1.0, _LFO_TABLE_SIZE // 2, dtype=np.float32
+)
 
 # PERFORMANCE OPTIMIZATION: Pre-compute additional lookup tables for Jupiter-X waveforms
 _RANDOM_SH_LUT = np.zeros(_LFO_TABLE_SIZE, dtype=np.float32)
@@ -75,8 +78,9 @@ WAVEFORM_SQUARE = 2
 WAVEFORM_SAWTOOTH = 3
 WAVEFORM_SAMPLE_AND_HOLD = 4
 # Jupiter-X specific waveforms
-WAVEFORM_RANDOM_SH = 5      # Random Sample & Hold
-WAVEFORM_TRAPEZOID = 6      # Trapezoid wave
+WAVEFORM_RANDOM_SH = 5  # Random Sample & Hold
+WAVEFORM_TRAPEZOID = 6  # Trapezoid wave
+
 
 @jit(nopython=True, fastmath=True, cache=True, parallel=True)
 def _numba_process_lfo_block_critical_optimized(
@@ -91,15 +95,15 @@ def _numba_process_lfo_block_critical_optimized(
     depth: float,
     pitch_fade_in_samples: int,
     sample_rate: int,
-    block_size: int
+    block_size: int,
 ):
     """
     CRITICAL OPTIMIZED LFO: 4.57x faster than original with pre-computed lookup tables.
-    
+
     This version eliminates branch overhead and uses direct table lookup
     for maximum performance - CRITICAL for real-time performance.
     """
-    
+
     # Handle delay phase efficiently
     if delay_counter < delay_samples:
         delay_remaining = delay_samples - delay_counter
@@ -114,10 +118,10 @@ def _numba_process_lfo_block_critical_optimized(
     else:
         active_start = 0
         active_samples = block_size
-    
+
     if active_samples <= 0:
         return phase, delay_counter
-    
+
     # Process all active samples using pre-allocated temp buffer
     for i in nb.prange(active_samples):
         temp_phase_buffer[i] = phase + i * phase_step
@@ -131,7 +135,7 @@ def _numba_process_lfo_block_critical_optimized(
     # Truncate to get integer indices 0-16383
     phase_scaled = phase_norm * _LFO_TABLE_SIZE
     phase_indices = phase_scaled.astype(np.int32)
-    
+
     # Generate waveform based on type using vectorized operations
     if waveform == WAVEFORM_SINE:
         # Direct lookup from sine table
@@ -171,10 +175,10 @@ def _numba_process_lfo_block_critical_optimized(
     else:
         # Default to sine for invalid waveform
         output_temp = _SINE_LUT[phase_indices] * depth
-    
+
     # Copy results to output buffer
-    output_buffer[active_start:active_start + active_samples] = output_temp
-    
+    output_buffer[active_start : active_start + active_samples] = output_temp
+
     return phase % (2.0 * np.pi), delay_counter + active_samples
 
 
@@ -197,8 +201,13 @@ class OscillatorPool:
     - Memory pool integration for buffer management
     """
 
-    def __init__(self, max_oscillators: int = 1000, block_size: int = 1024,
-                 memory_pool=None, sample_rate: int = 48000):
+    def __init__(
+        self,
+        max_oscillators: int = 1000,
+        block_size: int = 1024,
+        memory_pool=None,
+        sample_rate: int = 48000,
+    ):
         """
         Initialize ultra-fast oscillator pool.
 
@@ -226,14 +235,21 @@ class OscillatorPool:
         num_prealloc = min(300, self.max_oscillators // 4)
         for _ in range(num_prealloc):
             oscillator = UltraFastXGLFO(
-                id=0, block_size=self.block_size,
+                id=0,
+                block_size=self.block_size,
                 memory_pool=self.memory_pool,
-                sample_rate=self.sample_rate
+                sample_rate=self.sample_rate,
             )
             self.pool.append(oscillator)
 
-    def acquire_oscillator(self, id: int = 0, waveform: str = "sine", rate: float = 5.0,
-                          depth: float = 1.0, delay: float = 0.0) -> UltraFastXGLFO:
+    def acquire_oscillator(
+        self,
+        id: int = 0,
+        waveform: str = "sine",
+        rate: float = 5.0,
+        depth: float = 1.0,
+        delay: float = 0.0,
+    ) -> UltraFastXGLFO:
         """
         ULTRA-FAST: Acquire oscillator from pool or create new one.
 
@@ -260,9 +276,14 @@ class OscillatorPool:
         except:
             # Pool empty or error during reuse - create new oscillator (fallback path)
             return UltraFastXGLFO(
-                id=id, waveform=waveform, rate=rate, depth=depth, delay=delay,
-                block_size=self.block_size, memory_pool=self.memory_pool,
-                sample_rate=self.sample_rate
+                id=id,
+                waveform=waveform,
+                rate=rate,
+                depth=depth,
+                delay=delay,
+                block_size=self.block_size,
+                memory_pool=self.memory_pool,
+                sample_rate=self.sample_rate,
             )
 
     def release_oscillator(self, oscillator: UltraFastXGLFO) -> None:
@@ -289,10 +310,10 @@ class OscillatorPool:
     def get_pool_stats(self) -> dict[str, int]:
         """Get pool statistics for monitoring."""
         return {
-            'pooled_oscillators': len(self.pool),
-            'max_oscillators': self.max_oscillators,
-            'block_size': self.block_size,
-            'sample_rate': self.sample_rate
+            "pooled_oscillators": len(self.pool),
+            "max_oscillators": self.max_oscillators,
+            "block_size": self.block_size,
+            "sample_rate": self.sample_rate,
         }
 
 
@@ -308,35 +329,79 @@ class UltraFastXGLFO:
     """
 
     __slots__ = (
-        'id', 'waveform', 'waveform_int', 'rate', 'depth', 'delay', 'sample_rate', 'block_size',
-        'pitch_delay', 'pitch_fade_in', 'pitch_depth', 'tremolo_depth',
-        'mod_wheel', 'breath_controller', 'foot_controller', 'channel_aftertouch',
-        'key_aftertouch', 'brightness', 'harmonic_content', 'phase',
-
-        'delay_counter', 'delay_samples', 'phase_step', 'pitch_fade_in_samples',
-        '_last_output', '_dirty', 'memory_pool', 'is_pooled',
-        'temp_phase_buffer', 'temp_modulated_depth',
-        'pool_buffer1', 'pool_buffer2',
+        "id",
+        "waveform",
+        "waveform_int",
+        "rate",
+        "depth",
+        "delay",
+        "sample_rate",
+        "block_size",
+        "pitch_delay",
+        "pitch_fade_in",
+        "pitch_depth",
+        "tremolo_depth",
+        "mod_wheel",
+        "breath_controller",
+        "foot_controller",
+        "channel_aftertouch",
+        "key_aftertouch",
+        "brightness",
+        "harmonic_content",
+        "phase",
+        "delay_counter",
+        "delay_samples",
+        "phase_step",
+        "pitch_fade_in_samples",
+        "_last_output",
+        "_dirty",
+        "memory_pool",
+        "is_pooled",
+        "temp_phase_buffer",
+        "temp_modulated_depth",
+        "pool_buffer1",
+        "pool_buffer2",
         # Jupiter-X enhanced LFO features
-        'phase_offset', 'fade_in_time', 'fade_in_samples', 'key_sync',
+        "phase_offset",
+        "fade_in_time",
+        "fade_in_samples",
+        "key_sync",
         # XG modulation routing flags
-        'modulates_pitch', 'modulates_filter', 'modulates_amplitude',
-        'modulates_pan', 'modulates_pwm', 'modulates_fm_amount',
-        'pitch_depth_cents', 'filter_depth', 'amplitude_depth',
+        "modulates_pitch",
+        "modulates_filter",
+        "modulates_amplitude",
+        "modulates_pan",
+        "modulates_pwm",
+        "modulates_fm_amount",
+        "pitch_depth_cents",
+        "filter_depth",
+        "amplitude_depth",
         # Dynamic modulation support
-        'base_rate', 'base_depth', 'modulated_rate', 'modulated_depth',
-        'rate_modulation_history', 'depth_modulation_history'
+        "base_rate",
+        "base_depth",
+        "modulated_rate",
+        "modulated_depth",
+        "rate_modulation_history",
+        "depth_modulation_history",
     )
 
     # XG LFO Pitch Modulation Parameters
-    DEFAULT_PITCH_DELAY = 0.0     # seconds
-    DEFAULT_PITCH_FADE_IN = 0.5   # seconds
-    DEFAULT_PITCH_DEPTH = 50      # cents
-    DEFAULT_TREMOLO_DEPTH = 0.3   # amplitude modulation
+    DEFAULT_PITCH_DELAY = 0.0  # seconds
+    DEFAULT_PITCH_FADE_IN = 0.5  # seconds
+    DEFAULT_PITCH_DEPTH = 50  # cents
+    DEFAULT_TREMOLO_DEPTH = 0.3  # amplitude modulation
 
-    def __init__(self, id: int, waveform: str = "sine", rate: float = 5.0,
-                 depth: float = 1.0, delay: float = 0.0, sample_rate: int = 48000,
-                 block_size: int = 1024, memory_pool=None):
+    def __init__(
+        self,
+        id: int,
+        waveform: str = "sine",
+        rate: float = 5.0,
+        depth: float = 1.0,
+        delay: float = 0.0,
+        sample_rate: int = 48000,
+        block_size: int = 1024,
+        memory_pool=None,
+    ):
         """
         Initialize ultra-fast XG-compliant LFO with block-based processing.
 
@@ -366,14 +431,14 @@ class UltraFastXGLFO:
         self.tremolo_depth = self.DEFAULT_TREMOLO_DEPTH
 
         # XG modulation routing flags (default to pitch modulation for LFO1)
-        self.modulates_pitch = (id == 0)  # LFO1 modulates pitch by default
+        self.modulates_pitch = id == 0  # LFO1 modulates pitch by default
         self.modulates_filter = False
         self.modulates_amplitude = False
 
         # Jupiter-X extended modulation destinations
-        self.modulates_pan = False         # Stereo pan modulation
-        self.modulates_pwm = False         # Pulse width modulation (for square waves)
-        self.modulates_fm_amount = False   # FM modulation amount
+        self.modulates_pan = False  # Stereo pan modulation
+        self.modulates_pwm = False  # Pulse width modulation (for square waves)
+        self.modulates_fm_amount = False  # FM modulation amount
 
         # XG modulation depths
         self.pitch_depth_cents = self.DEFAULT_PITCH_DEPTH if id == 0 else 0.0
@@ -405,10 +470,10 @@ class UltraFastXGLFO:
         self.phase_step = self._calculate_phase_step()
 
         # Jupiter-X enhanced LFO features
-        self.phase_offset = 0.0      # Phase offset in degrees (0-360)
-        self.fade_in_time = 0.0      # Fade-in time in seconds (0-5.0)
-        self.fade_in_samples = 0     # Fade-in duration in samples
-        self.key_sync = False        # Key synchronization (reset on note-on)
+        self.phase_offset = 0.0  # Phase offset in degrees (0-360)
+        self.fade_in_time = 0.0  # Fade-in time in seconds (0-5.0)
+        self.fade_in_samples = 0  # Fade-in duration in samples
+        self.key_sync = False  # Key synchronization (reset on note-on)
 
         # XGBufferPool integration
         self.memory_pool = memory_pool
@@ -424,8 +489,8 @@ class UltraFastXGLFO:
             self.pool_buffer1 = self.memory_pool.get_mono_buffer(self.block_size)
             self.pool_buffer2 = self.memory_pool.get_mono_buffer(self.block_size)
             # Use views of the pool buffers, assuming pool buffer >= block_size
-            self.temp_phase_buffer = self.pool_buffer1[:self.block_size]
-            self.temp_modulated_depth = self.pool_buffer2[:self.block_size]
+            self.temp_phase_buffer = self.pool_buffer1[: self.block_size]
+            self.temp_modulated_depth = self.pool_buffer2[: self.block_size]
         else:
             # Fallback to numpy allocation
             self.pool_buffer1 = None
@@ -435,7 +500,15 @@ class UltraFastXGLFO:
 
     def _validate_waveform(self, waveform: str) -> str:
         """Validate and return supported XG/Jupiter-X waveform types."""
-        valid_waveforms = ["sine", "triangle", "square", "sawtooth", "sample_and_hold", "random_sh", "trapezoid"]
+        valid_waveforms = [
+            "sine",
+            "triangle",
+            "square",
+            "sawtooth",
+            "sample_and_hold",
+            "random_sh",
+            "trapezoid",
+        ]
         return waveform if waveform in valid_waveforms else "sine"
 
     def _waveform_to_int(self, waveform: str) -> int:
@@ -447,7 +520,7 @@ class UltraFastXGLFO:
             "sawtooth": WAVEFORM_SAWTOOTH,
             "sample_and_hold": WAVEFORM_SAMPLE_AND_HOLD,
             "random_sh": WAVEFORM_RANDOM_SH,
-            "trapezoid": WAVEFORM_TRAPEZOID
+            "trapezoid": WAVEFORM_TRAPEZOID,
         }
         return waveform_map.get(waveform, WAVEFORM_SINE)
 
@@ -458,10 +531,10 @@ class UltraFastXGLFO:
 
         # XG controller modulation (Sound Controllers can affect LFO rate)
         rate_modulation = (
-            (self.mod_wheel - 0.5) * 0.5 +           # Mod wheel ±50%
-            (self.breath_controller - 0.5) * 0.4 +   # Breath ±40%
-            (self.foot_controller - 0.5) * 0.3 +     # Foot ±30%
-            (self.channel_aftertouch - 0.5) * 0.3    # Aftertouch ±30%
+            (self.mod_wheel - 0.5) * 0.5  # Mod wheel ±50%
+            + (self.breath_controller - 0.5) * 0.4  # Breath ±40%
+            + (self.foot_controller - 0.5) * 0.3  # Foot ±30%
+            + (self.channel_aftertouch - 0.5) * 0.3  # Aftertouch ±30%
         )
 
         # Brightness affects LFO rate (+/- 2 octaves)
@@ -473,7 +546,9 @@ class UltraFastXGLFO:
         # Convert frequency to phase step
         return modulated_rate * 2.0 * math.pi / self.sample_rate
 
-    def set_pitch_modulation(self, delay: float | None = None, fade_in: float | None = None, depth: int | None = None):
+    def set_pitch_modulation(
+        self, delay: float | None = None, fade_in: float | None = None, depth: int | None = None
+    ):
         """Set XG pitch modulation parameters per specification."""
         if delay is not None:
             self.pitch_delay = max(0.0, min(5.0, delay))
@@ -582,8 +657,15 @@ class UltraFastXGLFO:
         """Get tremolo (amplitude) modulation."""
         return self.step() * self.tremolo_depth
 
-    def set_modulation_routing(self, pitch: bool = False, filter: bool = False, amplitude: bool = False,
-                              pan: bool = False, pwm: bool = False, fm_amount: bool = False):
+    def set_modulation_routing(
+        self,
+        pitch: bool = False,
+        filter: bool = False,
+        amplitude: bool = False,
+        pan: bool = False,
+        pwm: bool = False,
+        fm_amount: bool = False,
+    ):
         """
         Set modulation routing for this LFO including Jupiter-X extended destinations.
 
@@ -602,7 +684,9 @@ class UltraFastXGLFO:
         self.modulates_pwm = pwm
         self.modulates_fm_amount = fm_amount
 
-    def set_modulation_depths(self, pitch_cents: float = 0.0, filter_depth: float = 0.0, amplitude_depth: float = 0.0):
+    def set_modulation_depths(
+        self, pitch_cents: float = 0.0, filter_depth: float = 0.0, amplitude_depth: float = 0.0
+    ):
         """Set XG modulation depths for this LFO."""
         self.pitch_depth_cents = pitch_cents
         self.filter_depth = filter_depth
@@ -710,16 +794,21 @@ class UltraFastXGLFO:
             Dictionary with Jupiter-X LFO parameters
         """
         return {
-            'phase_offset_degrees': self.phase_offset,
-            'fade_in_time_seconds': self.fade_in_time,
-            'fade_in_samples': self.fade_in_samples,
-            'key_sync_enabled': self.key_sync,
-            'current_phase_radians': self.phase,
-            'jupiter_x_compatible': True
+            "phase_offset_degrees": self.phase_offset,
+            "fade_in_time_seconds": self.fade_in_time,
+            "fade_in_samples": self.fade_in_samples,
+            "key_sync_enabled": self.key_sync,
+            "current_phase_radians": self.phase,
+            "jupiter_x_compatible": True,
         }
 
-    def set_parameters(self, waveform: str | None = None, rate: float | None = None,
-                      depth: float | None = None, delay: float | None = None):
+    def set_parameters(
+        self,
+        waveform: str | None = None,
+        rate: float | None = None,
+        depth: float | None = None,
+        delay: float | None = None,
+    ):
         """Update LFO parameters dynamically."""
         if waveform is not None:
             self.waveform = self._validate_waveform(waveform)
@@ -735,7 +824,9 @@ class UltraFastXGLFO:
         if any([rate is not None, delay is not None]):
             self.reset()
 
-    def generate_block(self, output_buffer: np.ndarray, num_samples: int | None = None) -> np.ndarray:
+    def generate_block(
+        self, output_buffer: np.ndarray, num_samples: int | None = None
+    ) -> np.ndarray:
         """
         ULTRA-FAST: Generate LFO block using caller-provided buffer with minimal overhead.
 
@@ -751,7 +842,7 @@ class UltraFastXGLFO:
             The same output_buffer filled with LFO levels
         """
         block_size = num_samples if num_samples is not None else len(output_buffer)
-        
+
         # Use Numba-compiled function for ultra-fast processing with all parameters passed directly
         # This minimizes function call overhead and maximizes SIMD utilization
         (self.phase, self.delay_counter) = _numba_process_lfo_block(
@@ -766,7 +857,7 @@ class UltraFastXGLFO:
             self.depth,
             self.pitch_fade_in_samples,
             self.sample_rate,
-            block_size
+            block_size,
         )
 
         # Update last output for compatibility
@@ -774,7 +865,6 @@ class UltraFastXGLFO:
             self._last_output = output_buffer[min(block_size - 1, len(output_buffer) - 1)]
 
         return output_buffer
-
 
     def __del__(self):
         """Cleanup when oscillator is destroyed."""

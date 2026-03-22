@@ -10,13 +10,13 @@ This module provides fundamental DSP components used across multiple XG effects:
 
 All components are optimized for low-latency, real-time processing.
 """
+
 from __future__ import annotations
 
-import numpy as np
 import math
-from collections.abc import Callable
-from scipy.signal import firwin, lfilter
 import threading
+
+import numpy as np
 
 
 class PhaseVocoderEngine:
@@ -97,11 +97,13 @@ class PhaseVocoderEngine:
 
                 # Overlap-add to output accumulator
                 start_pos = self.buffer_pos - self.window_size
-                self.output_accumulator[start_pos:start_pos + self.window_size] += output_frame
+                self.output_accumulator[start_pos : start_pos + self.window_size] += output_frame
 
                 # Shift input buffer for overlap
                 overlap_samples = self.window_size - self.hop_size
-                self.input_buffer[:overlap_samples] = self.input_buffer[self.hop_size:self.window_size]
+                self.input_buffer[:overlap_samples] = self.input_buffer[
+                    self.hop_size : self.window_size
+                ]
                 self.buffer_pos = overlap_samples
 
             # Get output sample
@@ -142,8 +144,9 @@ class PhaseVocoderEngine:
         # Apply synthesis window
         return output_frame * self.synthesis_window
 
-    def _phase_vocoder_process(self, spectrum: np.ndarray, magnitudes: np.ndarray,
-                             phases: np.ndarray) -> np.ndarray:
+    def _phase_vocoder_process(
+        self, spectrum: np.ndarray, magnitudes: np.ndarray, phases: np.ndarray
+    ) -> np.ndarray:
         """
         Core phase vocoder processing algorithm.
 
@@ -163,7 +166,9 @@ class PhaseVocoderEngine:
         phase_differences = np.unwrap(phase_differences)
 
         # Expected phase advance per hop
-        expected_phase_advance = 2 * np.pi * self.hop_size * np.arange(len(phases)) / self.window_size
+        expected_phase_advance = (
+            2 * np.pi * self.hop_size * np.arange(len(phases)) / self.window_size
+        )
 
         # True frequency
         true_freq = expected_phase_advance + phase_differences
@@ -201,8 +206,9 @@ class MultibandFilterBank:
     - Per-band gain control
     """
 
-    def __init__(self, sample_rate: int, num_bands: int = 16,
-                 freq_range: tuple[float, float] = (100, 8000)):
+    def __init__(
+        self, sample_rate: int, num_bands: int = 16, freq_range: tuple[float, float] = (100, 8000)
+    ):
         """
         Initialize multiband filter bank.
 
@@ -256,14 +262,16 @@ class MultibandFilterBank:
 
             # Middle bands: band-pass
             for i in range(1, self.num_bands - 1):
-                bp_output = self._linkwitz_riley_bandpass(input_sample, self.crossover_freqs[i],
-                                                        self.crossover_freqs[i + 1], i)
+                bp_output = self._linkwitz_riley_bandpass(
+                    input_sample, self.crossover_freqs[i], self.crossover_freqs[i + 1], i
+                )
                 band_outputs.append(bp_output * self.band_gains[i])
 
             # Last band: high-pass
             if self.num_bands > 1:
-                hp_output = self._linkwitz_riley_highpass(input_sample, self.crossover_freqs[-2],
-                                                        self.num_bands - 1)
+                hp_output = self._linkwitz_riley_highpass(
+                    input_sample, self.crossover_freqs[-2], self.num_bands - 1
+                )
                 band_outputs.append(hp_output * self.band_gains[-1])
 
             return band_outputs
@@ -271,11 +279,9 @@ class MultibandFilterBank:
     def _linkwitz_riley_lowpass(self, input_sample: float, cutoff: float, band_idx: int) -> float:
         """4th-order Linkwitz-Riley low-pass filter."""
         if band_idx not in self.filter_states[band_idx]:
-            self.filter_states[band_idx]['lp'] = {
-                'x1': 0.0, 'x2': 0.0, 'y1': 0.0, 'y2': 0.0
-            }
+            self.filter_states[band_idx]["lp"] = {"x1": 0.0, "x2": 0.0, "y1": 0.0, "y2": 0.0}
 
-        state = self.filter_states[band_idx]['lp']
+        state = self.filter_states[band_idx]["lp"]
 
         # Pre-warp cutoff frequency
         wc = 2 * np.pi * cutoff / self.sample_rate
@@ -293,24 +299,22 @@ class MultibandFilterBank:
 
         # Bilinear transform for 2nd order
         x0 = input_sample
-        y0 = b0 * x0 + b1 * state['x1'] + b2 * state['x2'] - a1 * state['y1'] - a2 * state['y2']
+        y0 = b0 * x0 + b1 * state["x1"] + b2 * state["x2"] - a1 * state["y1"] - a2 * state["y2"]
 
         # Update state
-        state['x2'] = state['x1']
-        state['x1'] = x0
-        state['y2'] = state['y1']
-        state['y1'] = y0
+        state["x2"] = state["x1"]
+        state["x1"] = x0
+        state["y2"] = state["y1"]
+        state["y1"] = y0
 
         return y0
 
     def _linkwitz_riley_highpass(self, input_sample: float, cutoff: float, band_idx: int) -> float:
         """4th-order Linkwitz-Riley high-pass filter."""
-        if 'hp' not in self.filter_states[band_idx]:
-            self.filter_states[band_idx]['hp'] = {
-                'x1': 0.0, 'x2': 0.0, 'y1': 0.0, 'y2': 0.0
-            }
+        if "hp" not in self.filter_states[band_idx]:
+            self.filter_states[band_idx]["hp"] = {"x1": 0.0, "x2": 0.0, "y1": 0.0, "y2": 0.0}
 
-        state = self.filter_states[band_idx]['hp']
+        state = self.filter_states[band_idx]["hp"]
 
         # Similar to low-pass but with different coefficients
         wc = 2 * np.pi * cutoff / self.sample_rate
@@ -326,17 +330,18 @@ class MultibandFilterBank:
         a2 = (1 - k / q + k * k) / norm
 
         x0 = input_sample
-        y0 = b0 * x0 + b1 * state['x1'] + b2 * state['x2'] - a1 * state['y1'] - a2 * state['y2']
+        y0 = b0 * x0 + b1 * state["x1"] + b2 * state["x2"] - a1 * state["y1"] - a2 * state["y2"]
 
-        state['x2'] = state['x1']
-        state['x1'] = x0
-        state['y2'] = state['y1']
-        state['y1'] = y0
+        state["x2"] = state["x1"]
+        state["x1"] = x0
+        state["y2"] = state["y1"]
+        state["y1"] = y0
 
         return y0
 
-    def _linkwitz_riley_bandpass(self, input_sample: float, low_cutoff: float,
-                               high_cutoff: float, band_idx: int) -> float:
+    def _linkwitz_riley_bandpass(
+        self, input_sample: float, low_cutoff: float, high_cutoff: float, band_idx: int
+    ) -> float:
         """Band-pass filter using low-pass and high-pass combination."""
         # Professional bandpass filter using cascaded Linkwitz-Riley filters
         # Provides steep rolloff and flat passband response
@@ -363,8 +368,13 @@ class AdvancedEnvelopeFollower:
     - Side-chain input support
     """
 
-    def __init__(self, sample_rate: int, attack_time: float = 0.01,
-                 release_time: float = 0.1, mode: str = 'peak'):
+    def __init__(
+        self,
+        sample_rate: int,
+        attack_time: float = 0.01,
+        release_time: float = 0.1,
+        mode: str = "peak",
+    ):
         """
         Initialize envelope follower.
 
@@ -411,16 +421,22 @@ class AdvancedEnvelopeFollower:
             # Use sidechain if provided, otherwise main input
             detect_sample = abs(sidechain_sample if sidechain_sample is not None else input_sample)
 
-            if self.mode == 'peak':
+            if self.mode == "peak":
                 # Peak detection
                 if detect_sample > self.envelope:
-                    self.envelope = self.attack_coeff * (self.envelope - detect_sample) + detect_sample
+                    self.envelope = (
+                        self.attack_coeff * (self.envelope - detect_sample) + detect_sample
+                    )
                 else:
-                    self.envelope = self.release_coeff * (self.envelope - detect_sample) + detect_sample
+                    self.envelope = (
+                        self.release_coeff * (self.envelope - detect_sample) + detect_sample
+                    )
 
-            elif self.mode == 'rms':
+            elif self.mode == "rms":
                 # RMS detection
-                self.rms_accumulator = self.rms_accumulator * 0.99 + detect_sample * detect_sample * 0.01
+                self.rms_accumulator = (
+                    self.rms_accumulator * 0.99 + detect_sample * detect_sample * 0.01
+                )
                 rms_value = math.sqrt(self.rms_accumulator)
 
                 if rms_value > self.envelope:
@@ -525,9 +541,9 @@ class ProfessionalDelayNetwork:
             output = 0.0
 
             # Process each tap
-            for i, (delay_line, delay_samples, level) in enumerate(zip(
-                self.delay_lines, self.tap_delays, self.tap_levels)):
-
+            for i, (delay_line, delay_samples, level) in enumerate(
+                zip(self.delay_lines, self.tap_delays, self.tap_levels)
+            ):
                 # Read from delay line
                 read_pos = (len(delay_line) - delay_samples) % len(delay_line)
                 delayed_sample = delay_line[int(read_pos)]
@@ -541,11 +557,15 @@ class ProfessionalDelayNetwork:
                 # Add feedback from other taps
                 for j, other_delay_line in enumerate(self.delay_lines):
                     if j != i:
-                        other_read_pos = (len(other_delay_line) - self.tap_delays[j]) % len(other_delay_line)
-                        feedback_input += other_delay_line[int(other_read_pos)] * self.feedback_matrix[i, j]
+                        other_read_pos = (len(other_delay_line) - self.tap_delays[j]) % len(
+                            other_delay_line
+                        )
+                        feedback_input += (
+                            other_delay_line[int(other_read_pos)] * self.feedback_matrix[i, j]
+                        )
 
                 # Apply damping and diffusion
-                feedback_input *= (1.0 - self.damping)
+                feedback_input *= 1.0 - self.damping
                 feedback_input += np.random.normal(0, self.diffusion * 0.01)
 
                 # Write to delay line
@@ -580,11 +600,11 @@ class FFTProcessor:
     @staticmethod
     def create_window(window_type: str, length: int) -> np.ndarray:
         """Create analysis/synthesis windows."""
-        if window_type == 'hann':
+        if window_type == "hann":
             return np.hanning(length)
-        elif window_type == 'hamming':
+        elif window_type == "hamming":
             return np.hamming(length)
-        elif window_type == 'blackman':
+        elif window_type == "blackman":
             return np.blackman(length)
         else:
             return np.ones(length)  # Rectangular window

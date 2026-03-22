@@ -4,12 +4,12 @@ Spectral Synthesis Engine
 FFT-based spectral synthesis and processing for advanced sound design.
 Provides real-time spectral analysis, synthesis, and manipulation.
 """
+
 from __future__ import annotations
 
-import numpy as np
 from typing import Any
-from scipy import signal
-import math
+
+import numpy as np
 
 from .synthesis_engine import SynthesisEngine
 
@@ -22,7 +22,7 @@ class FFTProcessor:
     processing for real-time spectral manipulation.
     """
 
-    def __init__(self, fft_size: int = 2048, hop_size: int = 512, window_type: str = 'hann'):
+    def __init__(self, fft_size: int = 2048, hop_size: int = 512, window_type: str = "hann"):
         """
         Initialize FFT processor.
 
@@ -36,11 +36,11 @@ class FFTProcessor:
         self.overlap = fft_size // hop_size
 
         # Create window function
-        if window_type == 'hann':
+        if window_type == "hann":
             self.window = np.hanning(fft_size)
-        elif window_type == 'hamming':
+        elif window_type == "hamming":
             self.window = np.hamming(fft_size)
-        elif window_type == 'blackman':
+        elif window_type == "blackman":
             self.window = np.blackman(fft_size)
         else:
             self.window = np.ones(fft_size)  # Rectangular window
@@ -110,7 +110,7 @@ class FFTProcessor:
             Processed audio block (block_size samples)
         """
         # Initialize overlap buffers if not already done
-        if not hasattr(self, '_overlap_buffer'):
+        if not hasattr(self, "_overlap_buffer"):
             self._overlap_buffer = np.zeros(self.fft_size)
             self._output_accumulator = np.zeros(self.fft_size)
             self._window_sum = np.sum(self.window)
@@ -183,7 +183,7 @@ class FFTProcessor:
 
         # 1. Apply configured spectral filters
         for spectral_filter in self.spectral_filters:
-            if spectral_filter.filter_type != 'passthrough':
+            if spectral_filter.filter_type != "passthrough":
                 processed_spectrum = spectral_filter.process_spectrum(processed_spectrum)
 
         # 2. Spectral freezing
@@ -199,15 +199,17 @@ class FFTProcessor:
         if self.morph_position != 0.0:
             noise_spectrum = self._generate_noise_spectrum()
             morph_factor = max(0.0, min(1.0, self.morph_position))
-            processed_spectrum = (processed_spectrum * (1.0 - morph_factor) +
-                                noise_spectrum * morph_factor)
+            processed_spectrum = (
+                processed_spectrum * (1.0 - morph_factor) + noise_spectrum * morph_factor
+            )
 
         # 4. Spectral noise addition
         if self.noise_amount > 0.0:
             noise_spectrum = self._generate_noise_spectrum()
             noise_factor = max(0.0, min(1.0, self.noise_amount))
-            processed_spectrum = (processed_spectrum * (1.0 - noise_factor) +
-                                noise_spectrum * noise_factor)
+            processed_spectrum = (
+                processed_spectrum * (1.0 - noise_factor) + noise_spectrum * noise_factor
+            )
 
         # 5. Harmonic enhancement
         processed_spectrum = self._apply_harmonic_enhancement(processed_spectrum)
@@ -237,7 +239,9 @@ class FFTProcessor:
         freq_bins = np.fft.fftfreq(self.fft_size, 1.0 / self.sample_rate)
         pos_freq_mask = freq_bins > 0
         if np.any(pos_freq_mask):
-            centroid = np.sum(freq_bins[pos_freq_mask] * magnitudes[pos_freq_mask]) / np.sum(magnitudes[pos_freq_mask])
+            centroid = np.sum(freq_bins[pos_freq_mask] * magnitudes[pos_freq_mask]) / np.sum(
+                magnitudes[pos_freq_mask]
+            )
 
             # Apply frequency-dependent compression
             # Lower frequencies get more compression, higher frequencies get expansion
@@ -245,7 +249,9 @@ class FFTProcessor:
 
             # Create dynamic curve
             dynamic_curve = np.ones_like(magnitudes)
-            dynamic_curve[pos_freq_mask] = 1.0 / (1.0 + magnitudes[pos_freq_mask] * compression_ratio)
+            dynamic_curve[pos_freq_mask] = 1.0 / (
+                1.0 + magnitudes[pos_freq_mask] * compression_ratio
+            )
 
             # Apply dynamics
             spectrum *= dynamic_curve
@@ -277,31 +283,31 @@ class SpectralFilter:
         self.gain = 1.0
 
         # Filter types
-        self.filter_type = 'passthrough'  # passthrough, bandpass, bandreject, notch, etc.
+        self.filter_type = "passthrough"  # passthrough, bandpass, bandreject, notch, etc.
 
     def set_bandpass(self, center_freq: float, bandwidth: float, gain: float = 1.0):
         """Configure bandpass filter."""
-        self.filter_type = 'bandpass'
+        self.filter_type = "bandpass"
         self.center_freq = max(20.0, min(center_freq, self.nyquist - 20.0))
         self.bandwidth = max(10.0, bandwidth)
         self.gain = gain
 
     def set_bandreject(self, center_freq: float, bandwidth: float):
         """Configure bandreject filter."""
-        self.filter_type = 'bandreject'
+        self.filter_type = "bandreject"
         self.center_freq = max(20.0, min(center_freq, self.nyquist - 20.0))
         self.bandwidth = max(10.0, bandwidth)
         self.gain = 0.0
 
     def set_lowpass(self, cutoff: float):
         """Configure lowpass filter."""
-        self.filter_type = 'lowpass'
+        self.filter_type = "lowpass"
         self.high_cutoff = max(20.0, min(cutoff, self.nyquist))
         self.gain = 1.0
 
     def set_highpass(self, cutoff: float):
         """Configure highpass filter."""
-        self.filter_type = 'highpass'
+        self.filter_type = "highpass"
         self.low_cutoff = max(20.0, min(cutoff, self.nyquist))
         self.gain = 1.0
 
@@ -321,32 +327,32 @@ class SpectralFilter:
         # Create filter mask
         mask = np.ones(len(spectrum), dtype=np.complex128)
 
-        if self.filter_type == 'bandpass':
+        if self.filter_type == "bandpass":
             # Bandpass filter
             low_edge = self.center_freq - self.bandwidth / 2.0
             high_edge = self.center_freq + self.bandwidth / 2.0
 
             # Create bandpass mask
-            band_mask = ((freqs >= low_edge) & (freqs <= high_edge))
+            band_mask = (freqs >= low_edge) & (freqs <= high_edge)
             mask[band_mask] *= self.gain
             mask[~band_mask] *= 0.0
 
-        elif self.filter_type == 'bandreject':
+        elif self.filter_type == "bandreject":
             # Bandreject filter
             low_edge = self.center_freq - self.bandwidth / 2.0
             high_edge = self.center_freq + self.bandwidth / 2.0
 
             # Create bandreject mask
-            band_mask = ((freqs >= low_edge) & (freqs <= high_edge))
+            band_mask = (freqs >= low_edge) & (freqs <= high_edge)
             mask[band_mask] *= self.gain
             mask[~band_mask] *= 1.0
 
-        elif self.filter_type == 'lowpass':
+        elif self.filter_type == "lowpass":
             # Lowpass filter
             mask[freqs > self.high_cutoff] *= 0.0
             mask[freqs < -self.high_cutoff] *= 0.0
 
-        elif self.filter_type == 'highpass':
+        elif self.filter_type == "highpass":
             # Highpass filter
             mask[(freqs > -self.low_cutoff) & (freqs < self.low_cutoff)] *= 0.0
 
@@ -393,8 +399,14 @@ class GranularEngine:
             self.source_audio = None
             self.source_length = 0
 
-    def set_grain_parameters(self, size: float = 0.050, density: float = 10.0,
-                           pitch: float = 1.0, position: float = 0.0, spread: float = 0.0):
+    def set_grain_parameters(
+        self,
+        size: float = 0.050,
+        density: float = 10.0,
+        pitch: float = 1.0,
+        position: float = 0.0,
+        spread: float = 0.0,
+    ):
         """Set grain parameters."""
         self.grain_size = max(0.001, min(size, 1.0))  # 1ms to 1s
         self.grain_density = max(0.1, min(density, 1000.0))  # 0.1 to 1000 grains/sec
@@ -438,20 +450,21 @@ class GranularEngine:
             end_sample = min(start_sample + grain_samples, self.source_length)
 
             grain = {
-                'start_time': time,
-                'start_sample': start_sample,
-                'end_sample': end_sample,
-                'pitch': self.grain_pitch,
-                'amplitude': 1.0,
-                'pan': 0.0  # Center panned
+                "start_time": time,
+                "start_sample": start_sample,
+                "end_sample": end_sample,
+                "pitch": self.grain_pitch,
+                "amplitude": 1.0,
+                "pan": 0.0,  # Center panned
             }
 
             grains.append(grain)
 
         return grains
 
-    def process_grains(self, grains: list[dict[str, Any]], block_size: int,
-                      current_time: float) -> np.ndarray:
+    def process_grains(
+        self, grains: list[dict[str, Any]], block_size: int, current_time: float
+    ) -> np.ndarray:
         """
         Process grains for current time block.
 
@@ -473,8 +486,10 @@ class GranularEngine:
         block_end = current_time + block_size / self.sample_rate
 
         for grain in grains:
-            grain_start = grain['start_time']
-            grain_duration = (grain['end_sample'] - grain['start_sample']) / self.sample_rate / grain['pitch']
+            grain_start = grain["start_time"]
+            grain_duration = (
+                (grain["end_sample"] - grain["start_sample"]) / self.sample_rate / grain["pitch"]
+            )
 
             if grain_start < block_end and grain_start + grain_duration > block_start:
                 # Grain is active in this block
@@ -483,13 +498,14 @@ class GranularEngine:
 
         return output
 
-    def _synthesize_grain(self, grain: dict[str, Any], block_size: int,
-                         block_start: float) -> np.ndarray:
+    def _synthesize_grain(
+        self, grain: dict[str, Any], block_size: int, block_start: float
+    ) -> np.ndarray:
         """Synthesize a single grain."""
-        start_sample = grain['start_sample']
-        end_sample = grain['end_sample']
-        pitch = grain['pitch']
-        amplitude = grain['amplitude']
+        start_sample = grain["start_sample"]
+        end_sample = grain["end_sample"]
+        pitch = grain["pitch"]
+        amplitude = grain["amplitude"]
 
         # Get grain audio from source
         grain_length = end_sample - start_sample
@@ -513,8 +529,10 @@ class GranularEngine:
             int_indices = np.clip(int_indices, 0, grain_length - 2)
             frac = np.clip(frac, 0.0, 1.0)
 
-            grain_audio = (self.source_audio[start_sample + int_indices] * (1 - frac) +
-                          self.source_audio[start_sample + int_indices + 1] * frac)
+            grain_audio = (
+                self.source_audio[start_sample + int_indices] * (1 - frac)
+                + self.source_audio[start_sample + int_indices + 1] * frac
+            )
 
         # Apply amplitude envelope (simple triangle window)
         if len(grain_audio) > 0:
@@ -529,7 +547,7 @@ class GranularEngine:
 
         # Return grain (will be zero-padded to block_size if needed)
         result = np.zeros(block_size)
-        result[:len(grain_audio)] = grain_audio
+        result[: len(grain_audio)] = grain_audio
 
         return result
 
@@ -581,13 +599,13 @@ class SpectralSynthesizer:
             Processed audio block (hop_size samples)
         """
         # Ensure we have proper overlap-add buffering
-        if not hasattr(self, 'overlap_buffer'):
+        if not hasattr(self, "overlap_buffer"):
             self.overlap_buffer = np.zeros(self.fft_size)
             self.output_accumulator = np.zeros(self.fft_size)
 
         # Add input to overlap buffer
-        self.overlap_buffer[:self.hop_size] += input_block
-        self.overlap_buffer[:-self.hop_size] = self.overlap_buffer[self.hop_size:]
+        self.overlap_buffer[: self.hop_size] += input_block
+        self.overlap_buffer[: -self.hop_size] = self.overlap_buffer[self.hop_size :]
 
         # Forward FFT
         spectrum = self.forward(self.overlap_buffer)
@@ -602,11 +620,11 @@ class SpectralSynthesizer:
         self.output_accumulator += processed_time
 
         # Extract output block
-        output_block = self.output_accumulator[:self.hop_size].copy()
+        output_block = self.output_accumulator[: self.hop_size].copy()
 
         # Shift output accumulator
-        self.output_accumulator[:-self.hop_size] = self.output_accumulator[self.hop_size:]
-        self.output_accumulator[-self.hop_size:] = 0.0
+        self.output_accumulator[: -self.hop_size] = self.output_accumulator[self.hop_size :]
+        self.output_accumulator[-self.hop_size :] = 0.0
 
         return output_block
 
@@ -625,7 +643,7 @@ class SpectralSynthesizer:
         # Apply configured spectral effects
         # 1. Spectral filtering
         for spectral_filter in self.spectral_filters:
-            if spectral_filter.filter_type != 'passthrough':
+            if spectral_filter.filter_type != "passthrough":
                 processed_spectrum = spectral_filter.process_spectrum(processed_spectrum)
 
         # 2. Spectral freezing
@@ -641,14 +659,17 @@ class SpectralSynthesizer:
             if self.morph_position > 0:
                 # Morph toward noise spectrum
                 noise_spectrum = self._generate_noise_spectrum()
-                processed_spectrum = (processed_spectrum * (1.0 - self.morph_position) +
-                                    noise_spectrum * self.morph_position)
+                processed_spectrum = (
+                    processed_spectrum * (1.0 - self.morph_position)
+                    + noise_spectrum * self.morph_position
+                )
 
         # 4. Spectral noise addition
         if self.noise_amount > 0.0:
             noise_spectrum = self._generate_noise_spectrum()
-            processed_spectrum = (processed_spectrum * (1.0 - self.noise_amount) +
-                                noise_spectrum * self.noise_amount)
+            processed_spectrum = (
+                processed_spectrum * (1.0 - self.noise_amount) + noise_spectrum * self.noise_amount
+            )
 
         # 5. Harmonic enhancement
         processed_spectrum = self._apply_harmonic_enhancement(processed_spectrum)
@@ -672,7 +693,7 @@ class SpectralSynthesizer:
         magnitudes = 1.0 / np.sqrt(np.maximum(np.abs(freq_bins), 20.0))
 
         # Add some randomization
-        magnitudes *= (0.5 + np.random.random(len(magnitudes)) * 0.5)
+        magnitudes *= 0.5 + np.random.random(len(magnitudes)) * 0.5
 
         # Random phases
         phases = np.random.uniform(0, 2 * np.pi, len(magnitudes))
@@ -700,11 +721,11 @@ class SpectralSynthesizer:
         phases = np.angle(enhanced)
 
         # Find fundamental frequency (simple peak detection)
-        mag_spectrum = magnitudes[:len(magnitudes)//2]  # Positive frequencies only
+        mag_spectrum = magnitudes[: len(magnitudes) // 2]  # Positive frequencies only
 
         if len(mag_spectrum) > 10:
             # Find fundamental (strongest low-frequency component)
-            fundamental_idx = np.argmax(mag_spectrum[:len(mag_spectrum)//4])
+            fundamental_idx = np.argmax(mag_spectrum[: len(mag_spectrum) // 4])
 
             if fundamental_idx > 0:
                 # Enhance harmonics
@@ -767,13 +788,13 @@ class SpectralSynthesizer:
         # Find available filter slot
         for spectral_filter in self.spectral_filters:
             # Simple filter configuration
-            if filter_type == 'bandpass':
+            if filter_type == "bandpass":
                 spectral_filter.set_bandpass(**params)
-            elif filter_type == 'bandreject':
+            elif filter_type == "bandreject":
                 spectral_filter.set_bandreject(**params)
-            elif filter_type == 'lowpass':
+            elif filter_type == "lowpass":
                 spectral_filter.set_lowpass(**params)
-            elif filter_type == 'highpass':
+            elif filter_type == "highpass":
                 spectral_filter.set_highpass(**params)
             break
 
@@ -813,11 +834,11 @@ class SpectralEngine(SynthesisEngine):
         self.output_buffer = np.zeros(block_size)
 
         # Processing modes
-        self.processing_mode = 'spectral'  # 'spectral', 'granular', 'hybrid'
+        self.processing_mode = "spectral"  # 'spectral', 'granular', 'hybrid'
 
     def get_engine_type(self) -> str:
         """Return engine type identifier."""
-        return 'spectral'
+        return "spectral"
 
     def set_processing_mode(self, mode: str):
         """
@@ -826,7 +847,7 @@ class SpectralEngine(SynthesisEngine):
         Args:
             mode: 'spectral', 'granular', or 'hybrid'
         """
-        if mode in ['spectral', 'granular', 'hybrid']:
+        if mode in ["spectral", "granular", "hybrid"]:
             self.processing_mode = mode
 
     def enable_granular(self, enable: bool = True):
@@ -853,12 +874,15 @@ class SpectralEngine(SynthesisEngine):
         """Load audio for granular processing."""
         self.spectral_synth.granular_engine.set_source_audio(audio)
 
-    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> list[Any]:
+    def get_regions_for_note(
+        self, note: int, velocity: int, program: int = 0, bank: int = 0
+    ) -> list[Any]:
         """
         Get regions for note (spectral engine creates dynamic regions).
 
         Returns dynamic region that indicates spectral processing should be used.
         """
+
         class SpectralRegion:
             def __init__(self, note, velocity, mode):
                 self.note = note
@@ -870,7 +894,9 @@ class SpectralEngine(SynthesisEngine):
 
         return [SpectralRegion(note, velocity, self.processing_mode)]
 
-    def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> SpectralSynthesizer:
+    def create_partial(
+        self, partial_params: dict[str, Any], sample_rate: int
+    ) -> SpectralSynthesizer:
         """
         Create spectral synthesizer instance.
 
@@ -885,8 +911,9 @@ class SpectralEngine(SynthesisEngine):
         # In a full implementation, this might create separate instances
         return self.spectral_synth
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
-                        block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Generate audio samples using spectral synthesis.
 
@@ -912,13 +939,13 @@ class SpectralEngine(SynthesisEngine):
         base_audio *= velocity_gain
 
         # Apply spectral processing
-        if self.processing_mode in ['spectral', 'hybrid']:
+        if self.processing_mode in ["spectral", "hybrid"]:
             processed_audio = self.spectral_synth.process_spectral_block(base_audio)
         else:
             processed_audio = base_audio
 
         # Add granular component if enabled
-        if self.use_granular and self.processing_mode in ['granular', 'hybrid']:
+        if self.use_granular and self.processing_mode in ["granular", "hybrid"]:
             # Generate grain schedule if needed
             if not self.grain_schedule:
                 self.grain_schedule = self.spectral_synth.granular_engine.generate_grains(
@@ -931,7 +958,7 @@ class SpectralEngine(SynthesisEngine):
             )
 
             # Mix spectral and granular
-            if self.processing_mode == 'hybrid':
+            if self.processing_mode == "hybrid":
                 processed_audio = processed_audio * 0.7 + granular_audio * 0.3
             else:
                 processed_audio = granular_audio
@@ -947,23 +974,24 @@ class SpectralEngine(SynthesisEngine):
 
         return stereo_audio
 
-    def _apply_modulation(self, audio: np.ndarray, modulation: dict[str, float],
-                         block_size: int) -> np.ndarray:
+    def _apply_modulation(
+        self, audio: np.ndarray, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """Apply modulation effects to generated audio."""
         # Filter modulation (affects spectral content)
-        if 'cutoff' in modulation:
+        if "cutoff" in modulation:
             # Simulate filter cutoff by adjusting spectral processing
-            cutoff_norm = modulation['cutoff'] / 20000.0
+            cutoff_norm = modulation["cutoff"] / 20000.0
             # This would adjust spectral filter parameters
             pass
 
         # Amplitude modulation
-        if 'volume' in modulation:
-            audio *= (1.0 + modulation['volume'])
+        if "volume" in modulation:
+            audio *= 1.0 + modulation["volume"]
 
         # Pan modulation
-        if 'pan' in modulation:
-            pan = np.clip(modulation['pan'], -1.0, 1.0)
+        if "pan" in modulation:
+            pan = np.clip(modulation["pan"], -1.0, 1.0)
             left_gain = 1.0 - max(0.0, pan)
             right_gain = 1.0 - max(0.0, -pan)
             audio *= left_gain  # Apply to mono signal before stereo conversion
@@ -976,35 +1004,50 @@ class SpectralEngine(SynthesisEngine):
 
     def get_supported_formats(self) -> list[str]:
         """Get supported file formats for spectral processing."""
-        return ['.wav', '.aiff', '.flac', '.ogg']  # For loading source material
+        return [".wav", ".aiff", ".flac", ".ogg"]  # For loading source material
 
     def get_engine_info(self) -> dict[str, Any]:
         """Get comprehensive engine information."""
         return {
-            'name': 'Spectral Synthesis Engine',
-            'type': 'spectral',
-            'version': '1.0',
-            'capabilities': [
-                'fft_analysis_synthesis', 'spectral_filtering', 'granular_synthesis',
-                'spectral_freezing', 'noise_synthesis', 'real_time_spectral_morphing',
-                'time_stretching', 'pitch_shifting', 'spectral_cross_synthesis'
+            "name": "Spectral Synthesis Engine",
+            "type": "spectral",
+            "version": "1.0",
+            "capabilities": [
+                "fft_analysis_synthesis",
+                "spectral_filtering",
+                "granular_synthesis",
+                "spectral_freezing",
+                "noise_synthesis",
+                "real_time_spectral_morphing",
+                "time_stretching",
+                "pitch_shifting",
+                "spectral_cross_synthesis",
             ],
-            'formats': self.get_supported_formats(),
-            'fft_size': self.spectral_synth.fft_processor.fft_size,
-            'processing_modes': ['spectral', 'granular', 'hybrid'],
-            'current_mode': self.processing_mode,
-            'granular_enabled': self.use_granular,
-            'parameters': [
-                'processing_mode', 'granular_params', 'spectral_filters',
-                'freeze_spectrum', 'noise_amount', 'fft_size'
+            "formats": self.get_supported_formats(),
+            "fft_size": self.spectral_synth.fft_processor.fft_size,
+            "processing_modes": ["spectral", "granular", "hybrid"],
+            "current_mode": self.processing_mode,
+            "granular_enabled": self.use_granular,
+            "parameters": [
+                "processing_mode",
+                "granular_params",
+                "spectral_filters",
+                "freeze_spectrum",
+                "noise_amount",
+                "fft_size",
             ],
-            'modulation_sources': [
-                'velocity', 'key', 'cc1-cc127', 'pitch_bend', 'aftertouch'
+            "modulation_sources": ["velocity", "key", "cc1-cc127", "pitch_bend", "aftertouch"],
+            "modulation_destinations": [
+                "volume",
+                "pan",
+                "cutoff",
+                "resonance",
+                "grain_density",
+                "grain_size",
+                "grain_pitch",
+                "spectral_morph",
+                "noise_amount",
             ],
-            'modulation_destinations': [
-                'volume', 'pan', 'cutoff', 'resonance', 'grain_density',
-                'grain_size', 'grain_pitch', 'spectral_morph', 'noise_amount'
-            ]
         }
 
     # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
@@ -1012,21 +1055,21 @@ class SpectralEngine(SynthesisEngine):
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get spectral synthesis preset information with proper region descriptors.
-        
+
         Args:
             bank: Preset bank number (0-127)
             program: Preset program number (0-127)
-            
+
         Returns:
             PresetInfo with region descriptors for spectral synthesis
         """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
-        
+
         # Spectral engine uses FFT-based synthesis with spectrum manipulation
         # Programs define spectral configurations and morphing settings
         preset_name = f"Spectral {bank}:{program}"
-        
+
         # Create region descriptors for spectral synthesis
         # Spectral supports polyphonic playback with full keyboard range
         descriptor = RegionDescriptor(
@@ -1035,17 +1078,17 @@ class SpectralEngine(SynthesisEngine):
             key_range=(0, 127),
             velocity_range=(0, 127),
             algorithm_params={
-                'fft_size': 2048,  # FFT analysis/synthesis size
-                'hop_size': 512,  # Hop size for overlap-add
-                'spectral_morph': 'freeze',  # Spectral morphing type
-                'grain_size': 0.05,  # Grain size in seconds
-                'grain_pitch': 1.0,  # Grain pitch multiplier
-                'noise_amount': 0.0,  # Added noise component
-                'freeze_mode': False,  # Spectrum freeze mode
-                'smoothing': 0.5  # Spectral smoothing factor
-            }
+                "fft_size": 2048,  # FFT analysis/synthesis size
+                "hop_size": 512,  # Hop size for overlap-add
+                "spectral_morph": "freeze",  # Spectral morphing type
+                "grain_size": 0.05,  # Grain size in seconds
+                "grain_pitch": 1.0,  # Grain pitch multiplier
+                "noise_amount": 0.0,  # Added noise component
+                "freeze_mode": False,  # Spectrum freeze mode
+                "smoothing": 0.5,  # Spectral smoothing factor
+            },
         )
-        
+
         return PresetInfo(
             bank=bank,
             program=program,
@@ -1053,75 +1096,71 @@ class SpectralEngine(SynthesisEngine):
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
             is_monophonic=False,
-            category='spectral_synthesis'
+            category="spectral_synthesis",
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get all region descriptors for spectral preset.
-        
+
         Args:
             bank: Preset bank number
             program: Preset program number
-            
+
         Returns:
             List of RegionDescriptor objects
         """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
 
-    def create_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create spectral region instance from descriptor.
-        
+
         Args:
             descriptor: Region descriptor with spectral parameters
             sample_rate: Audio sample rate in Hz
-            
+
         Returns:
             IRegion instance for spectral synthesis
         """
         from ..partial.spectral_region import SpectralRegion
-        
+
         # Create spectral region with proper initialization
         region = SpectralRegion(descriptor, sample_rate)
-        
+
         # Initialize the region (creates FFT buffers, spectral processors)
         if not region.initialize():
             raise RuntimeError("Failed to initialize Spectral region")
-        
+
         return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for spectral region (used for spectral analysis).
-        
+
         Args:
             region: Region to load sample for
-            
+
         Returns:
             True if sample loaded successfully
         """
         # Spectral synthesis can use samples for analysis
-        if hasattr(region, 'load_sample'):
+        if hasattr(region, "load_sample"):
             return region.load_sample()
-        return region._initialized if hasattr(region, '_initialized') else False
+        return region._initialized if hasattr(region, "_initialized") else False
 
     def get_spectral_info(self) -> dict[str, Any]:
         """Get detailed spectral processing information."""
         return {
-            'fft_size': self.spectral_synth.fft_processor.fft_size,
-            'hop_size': self.spectral_synth.fft_processor.hop_size,
-            'window_type': 'hann',  # Would be configurable
-            'processing_mode': self.processing_mode,
-            'freeze_enabled': self.spectral_synth.freeze_spectrum,
-            'noise_amount': self.spectral_synth.noise_amount,
-            'num_filters': len(self.spectral_synth.spectral_filters),
-            'granular_active': self.use_granular
+            "fft_size": self.spectral_synth.fft_processor.fft_size,
+            "hop_size": self.spectral_synth.fft_processor.hop_size,
+            "window_type": "hann",  # Would be configurable
+            "processing_mode": self.processing_mode,
+            "freeze_enabled": self.spectral_synth.freeze_spectrum,
+            "noise_amount": self.spectral_synth.noise_amount,
+            "num_filters": len(self.spectral_synth.spectral_filters),
+            "granular_active": self.use_granular,
         }
 
     def reset(self) -> None:
@@ -1131,9 +1170,7 @@ class SpectralEngine(SynthesisEngine):
         self.spectral_synth.set_freeze(False)
         self.spectral_synth.noise_amount = 0.0
 
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create Spectral base region without S.Art2 wrapper.
 
@@ -1157,9 +1194,11 @@ class SpectralEngine(SynthesisEngine):
     def __str__(self) -> str:
         """String representation."""
         info = self.get_engine_info()
-        return (f"SpectralEngine(mode={info['current_mode']}, "
-                f"fft_size={info['fft_size']}, "
-                f"granular={info['granular_enabled']})")
+        return (
+            f"SpectralEngine(mode={info['current_mode']}, "
+            f"fft_size={info['fft_size']}, "
+            f"granular={info['granular_enabled']})"
+        )
 
     def __repr__(self) -> str:
         return self.__str__()

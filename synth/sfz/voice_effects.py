@@ -4,11 +4,13 @@ SFZ Voice-Level Effects Processing System
 Provides per-voice effects processing for SFZ instruments with
 professional-quality chorus, reverb, delay, and other effects.
 """
+
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
 import math
+from typing import Any
+
+import numpy as np
 
 
 class SFZChorusProcessor:
@@ -65,19 +67,19 @@ class SFZChorusProcessor:
         Args:
             params: Parameter dictionary
         """
-        if 'depth' in params:
-            self.depth = max(0.0, min(1.0, params['depth']))
-        if 'rate' in params:
-            self.rate = max(0.01, min(10.0, params['rate']))
+        if "depth" in params:
+            self.depth = max(0.0, min(1.0, params["depth"]))
+        if "rate" in params:
+            self.rate = max(0.01, min(10.0, params["rate"]))
             self.lfo_inc = 2.0 * math.pi * self.rate / self.sample_rate
-        if 'delay' in params:
-            self.delay = max(1.0, min(50.0, params['delay']))
-        if 'width' in params:
-            self.width = max(0.0, min(1.0, params['width']))
-        if 'mix' in params:
-            self.mix = max(0.0, min(1.0, params['mix']))
-        if 'feedback' in params:
-            self.feedback = max(0.0, min(0.3, params['feedback']))
+        if "delay" in params:
+            self.delay = max(1.0, min(50.0, params["delay"]))
+        if "width" in params:
+            self.width = max(0.0, min(1.0, params["width"]))
+        if "mix" in params:
+            self.mix = max(0.0, min(1.0, params["mix"]))
+        if "feedback" in params:
+            self.feedback = max(0.0, min(0.3, params["feedback"]))
 
     def process(self, input_signal: np.ndarray) -> np.ndarray:
         """
@@ -215,7 +217,9 @@ class SFZReverbProcessor:
             # Alternate left/right for stereo spread
             if i % 2 == 0:
                 self.comb_filters_left.append(self._create_comb_filter(scaled_delay))
-                self.comb_filters_right.append(self._create_comb_filter(scaled_delay + 23))  # Slight offset
+                self.comb_filters_right.append(
+                    self._create_comb_filter(scaled_delay + 23)
+                )  # Slight offset
             else:
                 self.comb_filters_right.append(self._create_comb_filter(scaled_delay))
                 self.comb_filters_left.append(self._create_comb_filter(scaled_delay + 23))
@@ -234,20 +238,20 @@ class SFZReverbProcessor:
     def _create_comb_filter(self, delay_samples: int) -> dict[str, Any]:
         """Create a comb filter for reverb."""
         return {
-            'buffer': np.zeros(delay_samples),
-            'pos': 0,
-            'delay': delay_samples,
-            'feedback': 0.84,  # Standard freeverb feedback
-            'damp': self.damping
+            "buffer": np.zeros(delay_samples),
+            "pos": 0,
+            "delay": delay_samples,
+            "feedback": 0.84,  # Standard freeverb feedback
+            "damp": self.damping,
         }
 
     def _create_allpass_filter(self, delay_samples: int) -> dict[str, Any]:
         """Create an allpass filter for reverb."""
         return {
-            'buffer': np.zeros(delay_samples),
-            'pos': 0,
-            'delay': delay_samples,
-            'feedback': 0.5  # Allpass feedback
+            "buffer": np.zeros(delay_samples),
+            "pos": 0,
+            "delay": delay_samples,
+            "feedback": 0.5,  # Allpass feedback
         }
 
     def set_parameters(self, params: dict[str, float]) -> None:
@@ -257,26 +261,26 @@ class SFZReverbProcessor:
         Args:
             params: Parameter dictionary
         """
-        if 'room_size' in params:
+        if "room_size" in params:
             old_room_size = self.room_size
-            self.room_size = max(0.0, min(1.0, params['room_size']))
+            self.room_size = max(0.0, min(1.0, params["room_size"]))
             if self.room_size != old_room_size:
                 self._initialize_filters()  # Reinitialize with new room size
 
-        if 'damping' in params:
-            self.damping = max(0.0, min(1.0, params['damping']))
+        if "damping" in params:
+            self.damping = max(0.0, min(1.0, params["damping"]))
             # Update damping on existing filters
             for filt in self.comb_filters_left + self.comb_filters_right:
-                filt['damp'] = self.damping
+                filt["damp"] = self.damping
 
-        if 'wet_level' in params:
-            self.wet_level = max(0.0, min(1.0, params['wet_level']))
-        if 'dry_level' in params:
-            self.dry_level = max(0.0, min(1.0, params['dry_level']))
-        if 'width' in params:
-            self.width = max(0.0, min(1.0, params['width']))
-        if 'pre_delay' in params:
-            self.pre_delay = max(0.0, min(100.0, params['pre_delay']))
+        if "wet_level" in params:
+            self.wet_level = max(0.0, min(1.0, params["wet_level"]))
+        if "dry_level" in params:
+            self.dry_level = max(0.0, min(1.0, params["dry_level"]))
+        if "width" in params:
+            self.width = max(0.0, min(1.0, params["width"]))
+        if "pre_delay" in params:
+            self.pre_delay = max(0.0, min(100.0, params["pre_delay"]))
             self.pre_delay_samples = self._ms_to_samples(self.pre_delay)
 
     def process(self, input_signal: np.ndarray) -> np.ndarray:
@@ -297,12 +301,24 @@ class SFZReverbProcessor:
 
         for i in range(block_size):
             # Apply pre-delay
-            pre_delay_pos = (self.pre_delay_pos - self.pre_delay_samples) % len(self.pre_delay_buffer)
-            pre_delayed_left = self.pre_delay_buffer[pre_delay_pos] if self.pre_delay_samples > 0 else input_signal[i, 0]
-            pre_delayed_right = self.pre_delay_buffer[pre_delay_pos] if self.pre_delay_samples > 0 else input_signal[i, 1]
+            pre_delay_pos = (self.pre_delay_pos - self.pre_delay_samples) % len(
+                self.pre_delay_buffer
+            )
+            pre_delayed_left = (
+                self.pre_delay_buffer[pre_delay_pos]
+                if self.pre_delay_samples > 0
+                else input_signal[i, 0]
+            )
+            pre_delayed_right = (
+                self.pre_delay_buffer[pre_delay_pos]
+                if self.pre_delay_samples > 0
+                else input_signal[i, 1]
+            )
 
             # Store input in pre-delay buffer
-            self.pre_delay_buffer[self.pre_delay_pos] = (input_signal[i, 0] + input_signal[i, 1]) * 0.5
+            self.pre_delay_buffer[self.pre_delay_pos] = (
+                input_signal[i, 0] + input_signal[i, 1]
+            ) * 0.5
             self.pre_delay_pos = (self.pre_delay_pos + 1) % len(self.pre_delay_buffer)
 
             # Process through comb filters
@@ -337,42 +353,42 @@ class SFZReverbProcessor:
 
     def _process_comb_filter(self, filt: dict[str, Any], input_sample: float) -> float:
         """Process sample through comb filter."""
-        buffer = filt['buffer']
-        pos = filt['pos']
-        delay = filt['delay']
+        buffer = filt["buffer"]
+        pos = filt["pos"]
+        delay = filt["delay"]
 
         # Read delayed sample
         delayed = buffer[pos]
 
         # Apply damping
-        damped = delayed * (1.0 - filt['damp'])
+        damped = delayed * (1.0 - filt["damp"])
 
         # Calculate output
-        output = input_sample + damped * filt['feedback']
+        output = input_sample + damped * filt["feedback"]
 
         # Store in buffer
         buffer[pos] = output
 
         # Update position
-        filt['pos'] = (pos + 1) % delay
+        filt["pos"] = (pos + 1) % delay
 
         return output
 
     def _process_allpass_filter(self, filt: dict[str, Any], input_sample: float) -> float:
         """Process sample through allpass filter."""
-        buffer = filt['buffer']
-        pos = filt['pos']
-        delay = filt['delay']
+        buffer = filt["buffer"]
+        pos = filt["pos"]
+        delay = filt["delay"]
 
         # Read delayed sample
         delayed = buffer[pos]
 
         # Calculate output
-        output = input_sample * -filt['feedback'] + delayed
-        buffer[pos] = input_sample + delayed * filt['feedback']
+        output = input_sample * -filt["feedback"] + delayed
+        buffer[pos] = input_sample + delayed * filt["feedback"]
 
         # Update position
-        filt['pos'] = (pos + 1) % delay
+        filt["pos"] = (pos + 1) % delay
 
         return output
 
@@ -380,12 +396,12 @@ class SFZReverbProcessor:
         """Reset reverb processor state."""
         # Clear all filter buffers
         for filt in self.comb_filters_left + self.comb_filters_right:
-            filt['buffer'].fill(0.0)
-            filt['pos'] = 0
+            filt["buffer"].fill(0.0)
+            filt["pos"] = 0
 
         for filt in self.allpass_filters_left + self.allpass_filters_right:
-            filt['buffer'].fill(0.0)
-            filt['pos'] = 0
+            filt["buffer"].fill(0.0)
+            filt["pos"] = 0
 
         # Clear pre-delay buffer
         self.pre_delay_buffer.fill(0.0)
@@ -445,24 +461,24 @@ class SFZDelayProcessor:
         Args:
             params: Parameter dictionary
         """
-        if 'delay_time' in params:
-            self.delay_time = max(1.0, min(2000.0, params['delay_time']))
+        if "delay_time" in params:
+            self.delay_time = max(1.0, min(2000.0, params["delay_time"]))
             self.delay_samples = self._ms_to_samples(self.delay_time)
 
-        if 'feedback' in params:
-            self.feedback = max(0.0, min(0.9, params['feedback']))
+        if "feedback" in params:
+            self.feedback = max(0.0, min(0.9, params["feedback"]))
 
-        if 'wet_level' in params:
-            self.wet_level = max(0.0, min(1.0, params['wet_level']))
+        if "wet_level" in params:
+            self.wet_level = max(0.0, min(1.0, params["wet_level"]))
 
-        if 'dry_level' in params:
-            self.dry_level = max(0.0, min(1.0, params['dry_level']))
+        if "dry_level" in params:
+            self.dry_level = max(0.0, min(1.0, params["dry_level"]))
 
-        if 'ping_pong' in params:
-            self.ping_pong = bool(params['ping_pong'])
+        if "ping_pong" in params:
+            self.ping_pong = bool(params["ping_pong"])
 
-        if 'damping' in params:
-            self.damping = max(0.0, min(0.5, params['damping']))
+        if "damping" in params:
+            self.damping = max(0.0, min(0.5, params["damping"]))
 
     def process(self, input_signal: np.ndarray) -> np.ndarray:
         """
@@ -489,11 +505,15 @@ class SFZDelayProcessor:
             delayed_right = self.delay_buffer_right[read_pos]
 
             # Apply high-frequency damping
-            self.damp_state_left = self.damp_state_left * (1.0 - self.damping) + delayed_left * self.damping
+            self.damp_state_left = (
+                self.damp_state_left * (1.0 - self.damping) + delayed_left * self.damping
+            )
             damped_left = delayed_left - self.damp_state_left
 
             if self.ping_pong:
-                self.damp_state_right = self.damp_state_right * (1.0 - self.damping) + delayed_right * self.damping
+                self.damp_state_right = (
+                    self.damp_state_right * (1.0 - self.damping) + delayed_right * self.damping
+                )
                 damped_right = delayed_right - self.damp_state_right
             else:
                 damped_right = damped_left  # Mono damping for stereo
@@ -573,20 +593,21 @@ class SFZVoiceEffectsProcessor:
         Returns:
             True if effect was found and parameters set
         """
-        if effect_name == 'chorus':
+        if effect_name == "chorus":
             self.chorus.set_parameters(params)
             return True
-        elif effect_name == 'reverb':
+        elif effect_name == "reverb":
             self.reverb.set_parameters(params)
             return True
-        elif effect_name == 'delay':
+        elif effect_name == "delay":
             self.delay.set_parameters(params)
             return True
 
         return False
 
-    def set_routing(self, chorus_send: float = 0.0, reverb_send: float = 0.0,
-                   delay_send: float = 0.0) -> None:
+    def set_routing(
+        self, chorus_send: float = 0.0, reverb_send: float = 0.0, delay_send: float = 0.0
+    ) -> None:
         """
         Set effect routing levels.
 
@@ -610,13 +631,13 @@ class SFZVoiceEffectsProcessor:
         Returns:
             True if effect was found and state changed
         """
-        if effect_name == 'chorus':
+        if effect_name == "chorus":
             self.chorus_enabled = enabled
             return True
-        elif effect_name == 'reverb':
+        elif effect_name == "reverb":
             self.reverb_enabled = enabled
             return True
-        elif effect_name == 'delay':
+        elif effect_name == "delay":
             self.delay_enabled = enabled
             return True
 
@@ -666,27 +687,27 @@ class SFZVoiceEffectsProcessor:
             Dictionary with effect information
         """
         return {
-            'chorus': {
-                'enabled': self.chorus_enabled,
-                'send': self.chorus_send,
-                'depth': self.chorus.depth,
-                'rate': self.chorus.rate,
-                'delay': self.chorus.delay
+            "chorus": {
+                "enabled": self.chorus_enabled,
+                "send": self.chorus_send,
+                "depth": self.chorus.depth,
+                "rate": self.chorus.rate,
+                "delay": self.chorus.delay,
             },
-            'reverb': {
-                'enabled': self.reverb_enabled,
-                'send': self.reverb_send,
-                'room_size': self.reverb.room_size,
-                'damping': self.reverb.damping,
-                'wet_level': self.reverb.wet_level
+            "reverb": {
+                "enabled": self.reverb_enabled,
+                "send": self.reverb_send,
+                "room_size": self.reverb.room_size,
+                "damping": self.reverb.damping,
+                "wet_level": self.reverb.wet_level,
             },
-            'delay': {
-                'enabled': self.delay_enabled,
-                'send': self.delay_send,
-                'delay_time': self.delay.delay_time,
-                'feedback': self.delay.feedback,
-                'ping_pong': self.delay.ping_pong
-            }
+            "delay": {
+                "enabled": self.delay_enabled,
+                "send": self.delay_send,
+                "delay_time": self.delay.delay_time,
+                "feedback": self.delay.feedback,
+                "ping_pong": self.delay.ping_pong,
+            },
         }
 
     def reset_all_effects(self) -> None:
@@ -703,24 +724,26 @@ class SFZVoiceEffectsProcessor:
             Dictionary with memory usage in bytes
         """
         chorus_mem = len(self.chorus.delay_buffer_left) + len(self.chorus.delay_buffer_right)
-        reverb_mem = (sum(len(f['buffer']) for f in self.reverb.comb_filters_left) +
-                     sum(len(f['buffer']) for f in self.reverb.comb_filters_right) +
-                     sum(len(f['buffer']) for f in self.reverb.allpass_filters_left) +
-                     sum(len(f['buffer']) for f in self.reverb.allpass_filters_right) +
-                     len(self.reverb.pre_delay_buffer))
+        reverb_mem = (
+            sum(len(f["buffer"]) for f in self.reverb.comb_filters_left)
+            + sum(len(f["buffer"]) for f in self.reverb.comb_filters_right)
+            + sum(len(f["buffer"]) for f in self.reverb.allpass_filters_left)
+            + sum(len(f["buffer"]) for f in self.reverb.allpass_filters_right)
+            + len(self.reverb.pre_delay_buffer)
+        )
         delay_mem = len(self.delay.delay_buffer_left) + len(self.delay.delay_buffer_right)
 
         return {
-            'chorus': chorus_mem * 8,  # float64
-            'reverb': reverb_mem * 8,  # float64
-            'delay': delay_mem * 8,    # float64
-            'total': (chorus_mem + reverb_mem + delay_mem) * 8
+            "chorus": chorus_mem * 8,  # float64
+            "reverb": reverb_mem * 8,  # float64
+            "delay": delay_mem * 8,  # float64
+            "total": (chorus_mem + reverb_mem + delay_mem) * 8,
         }
 
     def __str__(self) -> str:
         """String representation."""
         info = self.get_effect_info()
-        enabled_effects = [name for name, effect in info.items() if effect['enabled']]
+        enabled_effects = [name for name, effect in info.items() if effect["enabled"]]
         return f"SFZVoiceEffectsProcessor(effects={enabled_effects})"
 
     def __repr__(self) -> str:

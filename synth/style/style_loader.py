@@ -4,24 +4,25 @@ Style Loader - YAML and SFF2-based Style File Parser
 Parses YAML-based style files and SFF2 binary files.
 Provides validation and conversion capabilities.
 """
+
 from __future__ import annotations
 
-import yaml
 from pathlib import Path
 from typing import Any
-from dataclasses import asdict
+
+import yaml
 
 from .style import (
+    CCEvent,
+    ChordTable,
+    NoteEvent,
     Style,
     StyleCategory,
     StyleMetadata,
     StyleSection,
     StyleSectionType,
-    ChordTable,
-    TrackType,
     StyleTrackData,
-    NoteEvent,
-    CCEvent,
+    TrackType,
 )
 
 
@@ -51,6 +52,7 @@ class StyleLoader:
         if self._sff2_parser is None:
             try:
                 from ..parsers.sff2_parser import SFF2Parser
+
                 self._sff2_parser = SFF2Parser()
             except ImportError:
                 self._sff2_parser = None
@@ -59,7 +61,7 @@ class StyleLoader:
     def load_style_file(self, file_path: str | Path) -> Style:
         """
         Load a style from YAML or SFF2 file.
-        
+
         Automatically detects file format based on extension.
 
         Args:
@@ -74,7 +76,7 @@ class StyleLoader:
             raise FileNotFoundError(f"Style file not found: {path}")
 
         # Detect format based on extension
-        if path.suffix.lower() in ['.sty']:
+        if path.suffix.lower() in [".sty"]:
             return self._load_sff2_file(path)
         else:
             return self._load_yaml_file(path)
@@ -99,7 +101,7 @@ class StyleLoader:
     def _load_sff2_file(self, path: Path) -> Style:
         """Load style from SFF2 binary file."""
         parser = self._get_sff2_parser()
-        
+
         if parser is None:
             raise StyleValidationError(
                 "SFF2 parser not available. Install with: pip install sff2-parser"
@@ -130,9 +132,7 @@ class StyleLoader:
         for table_key, table_data in data.get("chord_tables", {}).items():
             try:
                 section_type = StyleSectionType(table_key)
-                chord_tables[section_type] = self._parse_chord_table(
-                    table_data, section_type
-                )
+                chord_tables[section_type] = self._parse_chord_table(table_data, section_type)
             except ValueError:
                 continue
 
@@ -148,9 +148,7 @@ class StyleLoader:
 
         return style
 
-    def _parse_section(
-        self, data: dict[str, Any], section_type: StyleSectionType
-    ) -> StyleSection:
+    def _parse_section(self, data: dict[str, Any], section_type: StyleSectionType) -> StyleSection:
         """Parse a style section"""
         time_sig = data.get("time_signature")
         if time_sig:
@@ -205,9 +203,7 @@ class StyleLoader:
             humanize=data.get("humanize", 0.0),
         )
 
-    def _parse_chord_table(
-        self, data: dict[str, Any], section: StyleSectionType
-    ) -> ChordTable:
+    def _parse_chord_table(self, data: dict[str, Any], section: StyleSectionType) -> ChordTable:
         """Parse chord table"""
         table = ChordTable(section=section)
 
@@ -304,7 +300,7 @@ class StyleLoader:
             section.length_bars = 4
             section.length_ticks = 1920
 
-            from .style import TrackType, StyleTrackData
+            from .style import StyleTrackData, TrackType
 
             for track_type in TrackType:
                 track_data = StyleTrackData()
@@ -352,7 +348,7 @@ class StyleLoader:
             return []
 
         styles = []
-        
+
         # Load YAML styles
         for file_path in path.glob("*.yaml"):
             try:
@@ -383,7 +379,7 @@ class StyleLoader:
                 )
             except Exception:
                 continue
-        
+
         # Load SFF2 styles
         for file_path in path.glob("*.sty"):
             try:
@@ -401,31 +397,32 @@ class StyleLoader:
                 continue
 
         return sorted(styles, key=lambda s: s["name"])
-    
-    def convert_sff2_to_yaml(self, sff2_path: str | Path, 
-                             yaml_path: str | Path | None = None) -> str:
+
+    def convert_sff2_to_yaml(
+        self, sff2_path: str | Path, yaml_path: str | Path | None = None
+    ) -> str:
         """
         Convert SFF2 file to YAML format.
-        
+
         Args:
             sff2_path: Path to input .sty file
             yaml_path: Optional path for output .yaml file.
                       If None, uses same name with .yaml extension.
-        
+
         Returns:
             Path to converted YAML file
         """
         sff2_path = Path(sff2_path)
-        
+
         if yaml_path is None:
-            yaml_path = sff2_path.with_suffix('.yaml')
+            yaml_path = sff2_path.with_suffix(".yaml")
         else:
             yaml_path = Path(yaml_path)
-        
+
         # Load SFF2
         style = self._load_sff2_file(sff2_path)
-        
+
         # Save as YAML
         style.save(yaml_path)
-        
+
         return str(yaml_path)

@@ -8,14 +8,15 @@ S.Art2 is synthesis-method agnostic - it works with ANY IRegion implementation
 (SF2, FM, Additive, Wavetable, Physical, etc.) to provide expressive
 articulation control via NRPN/SYSEX messages.
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 import numpy as np
 
-from ...partial.region import IRegion, RegionState
+from ...partial.region import IRegion
 from .articulation_controller import ArticulationController
-from .nrpn import YamahaNRPNMapper
 
 
 class SArt2Region(IRegion):
@@ -52,15 +53,15 @@ class SArt2Region(IRegion):
     """
 
     __slots__ = [
-        "base_region",
-        "articulation_controller",
-        "_sample_modifier",
         "_articulation_cache",
-        "_param_transition_buffer",
-        "_velocity_articulations",
         "_key_articulations",
-        "_velocity_enabled",
         "_key_enabled",
+        "_param_transition_buffer",
+        "_sample_modifier",
+        "_velocity_articulations",
+        "_velocity_enabled",
+        "articulation_controller",
+        "base_region",
     ]
 
     def __init__(
@@ -180,9 +181,7 @@ class SArt2Region(IRegion):
 
     # ========== VELOCITY-BASED ARTICULATION SWITCHING ==========
 
-    def set_velocity_articulation(
-        self, vel_low: int, vel_high: int, articulation: str
-    ) -> None:
+    def set_velocity_articulation(self, vel_low: int, vel_high: int, articulation: str) -> None:
         """
         Set articulation for velocity range.
 
@@ -219,9 +218,7 @@ class SArt2Region(IRegion):
 
     # ========== KEY-BASED ARTICULATION SWITCHING ==========
 
-    def set_key_articulation(
-        self, key_low: int, key_high: int, articulation: str
-    ) -> None:
+    def set_key_articulation(self, key_low: int, key_high: int, articulation: str) -> None:
         """
         Set articulation for key range.
 
@@ -301,9 +298,7 @@ class SArt2Region(IRegion):
         self.base_region.note_off()
         self._apply_note_off_articulation()
 
-    def generate_samples(
-        self, block_size: int, modulation: dict[str, float]
-    ) -> np.ndarray:
+    def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
         """
         Generate samples with S.Art2 articulation processing.
 
@@ -330,9 +325,7 @@ class SArt2Region(IRegion):
 
         # Step 3: Apply articulation processing if not normal
         if articulation != "normal" and self._sample_modifier:
-            samples = self._sample_modifier.apply_articulation(
-                samples, articulation, params
-            )
+            samples = self._sample_modifier.apply_articulation(samples, articulation, params)
 
         # Step 4: Apply articulation parameters to modulation
         self._apply_articulation_to_modulation(params, modulation)

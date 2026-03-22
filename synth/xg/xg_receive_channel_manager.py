@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 #!/usr/bin/env python3
 """
 XG Receive Channel Manager - XG Channel Mapping and Routing Architecture
@@ -242,9 +243,8 @@ PROFESSIONAL MUSIC PRODUCTION:
 - Performance monitoring and optimization
 """
 
-from typing import Any
 import threading
-import numpy as np
+from typing import Any
 
 
 class XGReceiveChannelManager:
@@ -269,8 +269,8 @@ class XGReceiveChannelManager:
     """
 
     # XG Receive Channel Constants
-    RECEIVE_CHANNEL_OFF = 254    # Part disabled
-    RECEIVE_CHANNEL_ALL = 255    # Part receives from all channels
+    RECEIVE_CHANNEL_OFF = 254  # Part disabled
+    RECEIVE_CHANNEL_ALL = 255  # Part receives from all channels
 
     def __init__(self, num_parts: int = 16):
         """
@@ -328,7 +328,9 @@ class XGReceiveChannelManager:
             if not (0 <= part_id < self.num_parts):
                 return False
 
-            if midi_channel not in (list(range(16)) + [self.RECEIVE_CHANNEL_OFF, self.RECEIVE_CHANNEL_ALL]):
+            if midi_channel not in (
+                list(range(16)) + [self.RECEIVE_CHANNEL_OFF, self.RECEIVE_CHANNEL_ALL]
+            ):
                 return False
 
             # Update mapping
@@ -338,8 +340,10 @@ class XGReceiveChannelManager:
             # Rebuild reverse mappings for consistency
             self._build_reverse_mappings()
 
-            print(f"🎹 XG RECEIVE: Part {part_id} now receives from "
-                  f"{'MIDI CH ' + str(midi_channel) if midi_channel < 16 else 'ALL' if midi_channel == 255 else 'OFF'}")
+            print(
+                f"🎹 XG RECEIVE: Part {part_id} now receives from "
+                f"{'MIDI CH ' + str(midi_channel) if midi_channel < 16 else 'ALL' if midi_channel == 255 else 'OFF'}"
+            )
             return True
 
     def get_receive_channel(self, part_id: int) -> int | None:
@@ -372,8 +376,9 @@ class XGReceiveChannelManager:
                 return self.midi_to_parts[midi_channel].copy()
         return []
 
-    def route_midi_message(self, midi_channel: int, message_type: str,
-                          message_data: dict) -> list[tuple[int, dict]]:
+    def route_midi_message(
+        self, midi_channel: int, message_type: str, message_data: dict
+    ) -> list[tuple[int, dict]]:
         """
         Route a MIDI message to appropriate XG parts based on receive channel mapping.
 
@@ -396,8 +401,8 @@ class XGReceiveChannelManager:
             for part_id in target_parts:
                 # Create routed message with updated channel info
                 routed_data = message_data.copy()
-                routed_data['original_channel'] = midi_channel
-                routed_data['target_part'] = part_id
+                routed_data["original_channel"] = midi_channel
+                routed_data["target_part"] = part_id
 
                 routed_messages.append((part_id, routed_data))
 
@@ -444,34 +449,31 @@ class XGReceiveChannelManager:
         """Get comprehensive status of all receive channel mappings."""
         with self.lock:
             status = {
-                'total_parts': self.num_parts,
-                'mappings': {},
-                'reverse_mappings': {},
-                'conflicts': []
+                "total_parts": self.num_parts,
+                "mappings": {},
+                "reverse_mappings": {},
+                "conflicts": [],
             }
 
             # Part-to-channel mappings
             for part_id in range(self.num_parts):
                 channel = self.receive_channels[part_id]
-                status['mappings'][f'part_{part_id}'] = {
-                    'receive_channel': channel,
-                    'description': self._channel_description(channel)
+                status["mappings"][f"part_{part_id}"] = {
+                    "receive_channel": channel,
+                    "description": self._channel_description(channel),
                 }
 
             # Channel-to-parts reverse mappings
             for midi_ch in range(16):
                 parts = self.midi_to_parts[midi_ch]
                 if parts:
-                    status['reverse_mappings'][f'midi_{midi_ch}'] = parts.copy()
+                    status["reverse_mappings"][f"midi_{midi_ch}"] = parts.copy()
 
             # Detect conflicts (multiple parts receiving from same channel)
             for midi_ch in range(16):
                 parts = self.midi_to_parts[midi_ch]
                 if len(parts) > 1:
-                    status['conflicts'].append({
-                        'midi_channel': midi_ch,
-                        'parts': parts.copy()
-                    })
+                    status["conflicts"].append({"midi_channel": midi_ch, "parts": parts.copy()})
 
             return status
 
@@ -489,17 +491,14 @@ class XGReceiveChannelManager:
     def export_mapping(self) -> dict[str, list[int]]:
         """Export receive channel mapping for serialization."""
         with self.lock:
-            return {
-                'receive_channels': self.receive_channels.copy(),
-                'version': '1.0'
-            }
+            return {"receive_channels": self.receive_channels.copy(), "version": "1.0"}
 
     def import_mapping(self, mapping_data: dict[str, list[int]]) -> bool:
         """Import receive channel mapping from serialized data."""
         try:
             with self.lock:
-                if 'receive_channels' in mapping_data:
-                    channels = mapping_data['receive_channels']
+                if "receive_channels" in mapping_data:
+                    channels = mapping_data["receive_channels"]
                     if len(channels) == self.num_parts:
                         self.receive_channels = channels.copy()
                         self._build_reverse_mappings()

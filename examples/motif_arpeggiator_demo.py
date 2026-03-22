@@ -9,7 +9,7 @@ Copyright (c) 2025
 """
 
 import time
-import threading
+
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
 
 
@@ -48,14 +48,16 @@ def demo_arpeggiator_patterns():
         synth.arpeggiator_engine.set_pattern(0, pattern_id)
 
         # Set some parameters
-        synth.arpeggiator_engine.set_arpeggiator_parameter(0, 'octave_range', 2)
-        synth.arpeggiator_engine.set_arpeggiator_parameter(0, 'gate_time', 0.8)
-        synth.arpeggiator_engine.set_arpeggiator_parameter(0, 'velocity_mode', 0)  # Original velocity
+        synth.arpeggiator_engine.set_arpeggiator_parameter(0, "octave_range", 2)
+        synth.arpeggiator_engine.set_arpeggiator_parameter(0, "gate_time", 0.8)
+        synth.arpeggiator_engine.set_arpeggiator_parameter(
+            0, "velocity_mode", 0
+        )  # Original velocity
 
         # Get pattern info
         status = synth.arpeggiator_engine.get_arpeggiator_status(0)
-        if status and status['current_pattern'] is not None:
-            pattern_name = patterns[status['current_pattern']]['name']
+        if status and status["current_pattern"] is not None:
+            pattern_name = patterns[status["current_pattern"]]["name"]
             print(f"   Pattern: {pattern_name}")
             print(f"   Octaves: {status['octave_range']}")
             print(f"   Gate Time: {status['gate_time']:.1f}")
@@ -136,7 +138,9 @@ def demo_arpeggiator_patterns():
     # Set pattern (MSB 0x18, LSB 0x41-0x42 = Pattern MSB/LSB)
     nrpn_msgs = synth.arpeggiator_nrpn_controller.create_nrpn_message(0x18, 0x41, 0)  # Pattern MSB
     nrpn_messages.extend(nrpn_msgs)
-    nrpn_msgs = synth.arpeggiator_nrpn_controller.create_nrpn_message(0x18, 0x42, 3)  # Pattern LSB (pattern 3)
+    nrpn_msgs = synth.arpeggiator_nrpn_controller.create_nrpn_message(
+        0x18, 0x42, 3
+    )  # Pattern LSB (pattern 3)
     nrpn_messages.extend(nrpn_msgs)
 
     # Set octave range (MSB 0x18, LSB 0x45 = Octave Range)
@@ -189,11 +193,13 @@ def demo_arpeggiator_patterns():
 
     # Configure zones on channel 0
     # Lower zone (C2-C3): Up pattern
-    synth.arpeggiator_engine.set_arpeggiator_zone(0, 0, 36, 60, pattern_id=0,
-                                                octave_range=1, gate_time=0.8)
+    synth.arpeggiator_engine.set_arpeggiator_zone(
+        0, 0, 36, 60, pattern_id=0, octave_range=1, gate_time=0.8
+    )
     # Upper zone (C4-C6): Jazz pattern
-    synth.arpeggiator_engine.set_arpeggiator_zone(0, 1, 60, 96, pattern_id=9,
-                                                octave_range=2, gate_time=0.6)
+    synth.arpeggiator_engine.set_arpeggiator_zone(
+        0, 1, 60, 96, pattern_id=9, octave_range=2, gate_time=0.6
+    )
     # Enable zones
     synth.arpeggiator_engine.enable_arpeggiator_zones(0, True)
 
@@ -201,10 +207,12 @@ def demo_arpeggiator_patterns():
     zones = synth.arpeggiator_engine.get_arpeggiator_zones(0)
     if zones:
         for i, zone in enumerate(zones):
-            if zone['enabled']:
-                pattern_obj = synth.arpeggiator_engine.patterns.get(zone['pattern'])
-                pattern_name = pattern_obj.name if pattern_obj else 'Unknown'
-                print(f"  Zone {i}: Notes {zone['note_range'][0]}-{zone['note_range'][1]}, Pattern: {pattern_name}")
+            if zone["enabled"]:
+                pattern_obj = synth.arpeggiator_engine.patterns.get(zone["pattern"])
+                pattern_name = pattern_obj.name if pattern_obj else "Unknown"
+                print(
+                    f"  Zone {i}: Notes {zone['note_range'][0]}-{zone['note_range'][1]}, Pattern: {pattern_name}"
+                )
 
     print("\n🎵 Playing with zones (lower notes = simple up, higher notes = jazz)...")
 
@@ -237,7 +245,9 @@ def demo_arpeggiator_patterns():
 
     # Save current state (would implement bulk dump)
     status_before = synth.arpeggiator_engine.get_arpeggiator_status(0)
-    print(f"Current pattern: {status_before.get('current_pattern', 'None') if status_before else 'None'}")
+    print(
+        f"Current pattern: {status_before.get('current_pattern', 'None') if status_before else 'None'}"
+    )
     print(f"Enabled: {status_before.get('enabled', False) if status_before else False}")
 
     # Reset all arpeggiators
@@ -246,7 +256,9 @@ def demo_arpeggiator_patterns():
 
     # Verify reset
     status_after = synth.arpeggiator_engine.get_arpeggiator_status(0)
-    print(f"After reset - Pattern: {status_after.get('current_pattern', 'None') if status_after else 'None'}")
+    print(
+        f"After reset - Pattern: {status_after.get('current_pattern', 'None') if status_after else 'None'}"
+    )
     print(f"After reset - Enabled: {status_after.get('enabled', False) if status_after else False}")
 
     # Performance Metrics

@@ -4,23 +4,25 @@ XGML Parser
 Parses XGML (XG Markup Language) YAML documents and provides structured access
 to XG synthesizer parameters and sequences.
 """
+
 from __future__ import annotations
 
-import yaml
-from typing import Any
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from .constants import XGML_VERSION, XGML_SECTIONS
+import yaml
+
+from .constants import XGML_SECTIONS, XGML_VERSION
 
 
 class XGMLDocument:
     """Represents a parsed XGML document."""
 
     def __init__(self, data: dict[str, Any]):
-        self.version = data.get('xg_dsl_version', XGML_VERSION)
-        self.description = data.get('description', '')
-        self.timestamp = data.get('timestamp')
+        self.version = data.get("xg_dsl_version", XGML_VERSION)
+        self.description = data.get("description", "")
+        self.timestamp = data.get("timestamp")
         self.sections = {}
 
         # Parse all sections
@@ -68,7 +70,7 @@ class XGMLParser:
                 self.errors.append(f"File not found: {file_path}")
                 return None
 
-            with open(path, encoding='utf-8') as f:
+            with open(path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
             return self.parse_data(data)
@@ -115,20 +117,26 @@ class XGMLParser:
             return None
 
         # Validate version
-        version = data.get('xg_dsl_version', XGML_VERSION)
+        version = data.get("xg_dsl_version", XGML_VERSION)
         if version not in [XGML_VERSION, "1.0"]:  # Support both v1.0 and v2.0
-            self.warnings.append(f"XGML version {version} may not be fully compatible with parser version {XGML_VERSION}")
+            self.warnings.append(
+                f"XGML version {version} may not be fully compatible with parser version {XGML_VERSION}"
+            )
 
         # Check for required structure (allow documents with just metadata)
-        has_content = any(section in data for section in XGML_SECTIONS if section != 'xg_dsl_version' and section != 'description' and section != 'timestamp')
+        has_content = any(
+            section in data
+            for section in XGML_SECTIONS
+            if section != "xg_dsl_version" and section != "description" and section != "timestamp"
+        )
         if not has_content:
             self.warnings.append("No XGML content sections found in document")
 
         # Validate timestamp if present
-        timestamp = data.get('timestamp')
+        timestamp = data.get("timestamp")
         if timestamp:
             try:
-                datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
             except ValueError:
                 self.warnings.append(f"Invalid timestamp format: {timestamp}")
 

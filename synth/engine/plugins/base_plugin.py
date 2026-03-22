@@ -5,36 +5,40 @@ Abstract base classes and interfaces for the modular engine plugin architecture.
 Provides the foundation for extending synthesis engines with synthesizer-specific
 features without code duplication.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class PluginType(Enum):
     """Types of engine plugins available."""
-    SYNTHESIS_FEATURE = "synthesis_feature"      # Core synthesis enhancements
-    MODULATION_SOURCE = "modulation_source"      # LFO, envelope extensions
+
+    SYNTHESIS_FEATURE = "synthesis_feature"  # Core synthesis enhancements
+    MODULATION_SOURCE = "modulation_source"  # LFO, envelope extensions
     MODULATION_DESTINATION = "modulation_destination"  # Additional modulation targets
-    EFFECTS_PROCESSING = "effects_processing"    # Built-in effects
-    MIDI_PROCESSING = "midi_processing"          # MIDI feature extensions
-    PARAMETER_MAPPING = "parameter_mapping"      # Parameter translation
-    PRESET_MANAGEMENT = "preset_management"      # Preset handling extensions
+    EFFECTS_PROCESSING = "effects_processing"  # Built-in effects
+    MIDI_PROCESSING = "midi_processing"  # MIDI feature extensions
+    PARAMETER_MAPPING = "parameter_mapping"  # Parameter translation
+    PRESET_MANAGEMENT = "preset_management"  # Preset handling extensions
 
 
 class PluginCompatibility(Enum):
     """Plugin compatibility levels."""
-    EXCLUSIVE = "exclusive"      # Only works with specific engine
-    COMPATIBLE = "compatible"    # Works with compatible engines
-    UNIVERSAL = "universal"      # Works with any engine
+
+    EXCLUSIVE = "exclusive"  # Only works with specific engine
+    COMPATIBLE = "compatible"  # Works with compatible engines
+    UNIVERSAL = "universal"  # Works with any engine
 
 
 @dataclass(slots=True)
 class PluginMetadata:
     """Metadata for engine plugins."""
+
     name: str
     version: str
     description: str
@@ -55,8 +59,13 @@ class PluginMetadata:
 class PluginLoadContext:
     """Context provided to plugins during loading."""
 
-    def __init__(self, engine_instance: Any, sample_rate: int, block_size: int,
-                 plugin_registry: PluginRegistry):
+    def __init__(
+        self,
+        engine_instance: Any,
+        sample_rate: int,
+        block_size: int,
+        plugin_registry: PluginRegistry,
+    ):
         self.engine_instance = engine_instance
         self.sample_rate = sample_rate
         self.block_size = block_size
@@ -148,8 +157,9 @@ class BaseEnginePlugin(ABC):
         """
         return audio_block
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
-                        block_size: int) -> Any:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> Any:
         """
         Generate additional audio samples (for synthesis feature plugins).
 
@@ -324,8 +334,9 @@ class MIDIPlugin(BaseEnginePlugin):
 PluginFactory = Callable[[], BaseEnginePlugin]
 
 
-def create_plugin_from_metadata(metadata: PluginMetadata,
-                               plugin_class: type[BaseEnginePlugin]) -> BaseEnginePlugin:
+def create_plugin_from_metadata(
+    metadata: PluginMetadata, plugin_class: type[BaseEnginePlugin]
+) -> BaseEnginePlugin:
     """
     Create a plugin instance from metadata and class.
 

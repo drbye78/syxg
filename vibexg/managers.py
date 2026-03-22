@@ -6,6 +6,7 @@ This module provides:
 - MIDILearnManager: MIDI CC to parameter mapping
 - StyleEngineIntegration: Auto-accompaniment style engine integration
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -25,8 +26,9 @@ logger = logging.getLogger(__name__)
 
 # Style engine imports (optional)
 try:
+    from synth.style import Style, StyleLoader
     from synth.style.style_player import StylePlayer
-    from synth.style import StyleLoader, Style
+
     STYLE_ENGINE_AVAILABLE = True
 except ImportError:
     STYLE_ENGINE_AVAILABLE = False
@@ -100,7 +102,7 @@ class PresetManager:
 
         filepath = self.preset_dir / filename
 
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             pickle.dump(self._preset_to_dict(preset), f)
 
         logger.info(f"Preset saved: {filepath}")
@@ -126,7 +128,7 @@ class PresetManager:
                 return None
 
         try:
-            with open(filepath, 'rb') as f:
+            with open(filepath, "rb") as f:
                 data = pickle.load(f)
 
             preset = self._dict_to_preset(data)
@@ -193,10 +195,10 @@ class PresetManager:
 
         # Convert to dict and make timestamps readable
         data = self._preset_to_dict(preset)
-        data['created_at'] = time.ctime(data['created_at'])
-        data['modified_at'] = time.ctime(data['modified_at'])
+        data["created_at"] = time.ctime(data["created_at"])
+        data["modified_at"] = time.ctime(data["modified_at"])
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
 
         logger.info(f"Preset exported: {filepath}")
@@ -205,35 +207,35 @@ class PresetManager:
     def _preset_to_dict(self, preset: PresetData) -> dict[str, Any]:
         """Convert PresetData to dictionary."""
         return {
-            'name': preset.name,
-            'programs': preset.programs,
-            'volumes': preset.volumes,
-            'pans': preset.pans,
-            'reverb_sends': preset.reverb_sends,
-            'chorus_sends': preset.chorus_sends,
-            'master_volume': preset.master_volume,
-            'tempo': preset.tempo,
-            'effects_config': preset.effects_config,
-            'midi_learn_mappings': preset.midi_learn_mappings,
-            'created_at': preset.created_at,
-            'modified_at': preset.modified_at,
+            "name": preset.name,
+            "programs": preset.programs,
+            "volumes": preset.volumes,
+            "pans": preset.pans,
+            "reverb_sends": preset.reverb_sends,
+            "chorus_sends": preset.chorus_sends,
+            "master_volume": preset.master_volume,
+            "tempo": preset.tempo,
+            "effects_config": preset.effects_config,
+            "midi_learn_mappings": preset.midi_learn_mappings,
+            "created_at": preset.created_at,
+            "modified_at": preset.modified_at,
         }
 
     def _dict_to_preset(self, data: dict[str, Any]) -> PresetData:
         """Convert dictionary to PresetData."""
         return PresetData(
-            name=data.get('name', 'Init'),
-            programs=data.get('programs', {}),
-            volumes=data.get('volumes', {}),
-            pans=data.get('pans', {}),
-            reverb_sends=data.get('reverb_sends', {}),
-            chorus_sends=data.get('chorus_sends', {}),
-            master_volume=data.get('master_volume', 0.8),
-            tempo=data.get('tempo', 120.0),
-            effects_config=data.get('effects_config', {}),
-            midi_learn_mappings=data.get('midi_learn_mappings', []),
-            created_at=data.get('created_at', time.time()),
-            modified_at=data.get('modified_at', time.time()),
+            name=data.get("name", "Init"),
+            programs=data.get("programs", {}),
+            volumes=data.get("volumes", {}),
+            pans=data.get("pans", {}),
+            reverb_sends=data.get("reverb_sends", {}),
+            chorus_sends=data.get("chorus_sends", {}),
+            master_volume=data.get("master_volume", 0.8),
+            tempo=data.get("tempo", 120.0),
+            effects_config=data.get("effects_config", {}),
+            midi_learn_mappings=data.get("midi_learn_mappings", []),
+            created_at=data.get("created_at", time.time()),
+            modified_at=data.get("modified_at", time.time()),
         )
 
 
@@ -259,9 +261,16 @@ class MIDILearnManager:
         self.last_cc_received: int | None = None
         self.last_cc_value: int | None = None
 
-    def add_mapping(self, cc_number: int, target_param: str, channel: int = 0,
-                   min_val: int = 0, max_val: int = 127, curve: str = 'linear',
-                   invert: bool = False):
+    def add_mapping(
+        self,
+        cc_number: int,
+        target_param: str,
+        channel: int = 0,
+        min_val: int = 0,
+        max_val: int = 127,
+        curve: str = "linear",
+        invert: bool = False,
+    ):
         """
         Add a MIDI CC to parameter mapping.
 
@@ -275,13 +284,13 @@ class MIDILearnManager:
             invert: Whether to invert the mapping
         """
         self.mappings[cc_number] = {
-            'cc': cc_number,
-            'target': target_param,
-            'channel': channel,
-            'min': min_val,
-            'max': max_val,
-            'curve': curve,
-            'invert': invert
+            "cc": cc_number,
+            "target": target_param,
+            "channel": channel,
+            "min": min_val,
+            "max": max_val,
+            "curve": curve,
+            "invert": invert,
         }
         logger.info(f"MIDI Learn: CC{cc_number} -> {target_param}")
 
@@ -316,35 +325,37 @@ class MIDILearnManager:
         mapping = self.mappings[cc_number]
 
         # Check channel match
-        if mapping['channel'] != channel and mapping['channel'] != -1:
+        if mapping["channel"] != channel and mapping["channel"] != -1:
             return
 
         # Apply mapping
-        min_val = mapping['min']
-        max_val = mapping['max']
+        min_val = mapping["min"]
+        max_val = mapping["max"]
 
-        if mapping['invert']:
+        if mapping["invert"]:
             value = max_val - (value - min_val) + min_val
 
         # Apply curve
-        if mapping['curve'] == 'linear':
+        if mapping["curve"] == "linear":
             mapped_value = min_val + (value / 127.0) * (max_val - min_val)
-        elif mapping['curve'] == 'exp':
+        elif mapping["curve"] == "exp":
             # Exponential curve for filter cutoff, etc.
             normalized = value / 127.0
-            mapped_value = min_val + (normalized ** 2) * (max_val - min_val)
-        elif mapping['curve'] == 'log':
+            mapped_value = min_val + (normalized**2) * (max_val - min_val)
+        elif mapping["curve"] == "log":
             # Logarithmic curve for attack/decay times
             normalized = value / 127.0
             if normalized > 0:
-                mapped_value = min_val + math.log(normalized * 9 + 1) / math.log(10) * (max_val - min_val)
+                mapped_value = min_val + math.log(normalized * 9 + 1) / math.log(10) * (
+                    max_val - min_val
+                )
             else:
                 mapped_value = min_val
         else:
             mapped_value = value
 
         # Route to synthesizer parameter
-        self._set_parameter(mapping['target'], int(mapped_value), channel)
+        self._set_parameter(mapping["target"], int(mapped_value), channel)
 
     def _set_parameter(self, param: str, value: int, channel: int):
         """
@@ -356,19 +367,19 @@ class MIDILearnManager:
             channel: MIDI channel
         """
         # Parse parameter path (e.g., "filter.cutoff", "amplitude.attack")
-        parts = param.split('.')
+        parts = param.split(".")
 
         if len(parts) == 2:
             section, param_name = parts
 
             # Route to appropriate synthesizer component
-            if section == 'filter':
+            if section == "filter":
                 self._set_filter_param(param_name, value, channel)
-            elif section == 'amplitude':
+            elif section == "amplitude":
                 self._set_amplitude_param(param_name, value, channel)
-            elif section == 'effects':
+            elif section == "effects":
                 self._set_effects_param(param_name, value, channel)
-            elif section == 'master':
+            elif section == "master":
                 self._set_master_param(param_name, value)
 
     def _set_filter_param(self, param_name: str, value: int, channel: int):
@@ -403,10 +414,7 @@ class MIDILearnManager:
         Returns:
             Dictionary containing mappings and learning mode state
         """
-        return {
-            'mappings': list(self.mappings.values()),
-            'learning_mode': self.learning_mode
-        }
+        return {"mappings": list(self.mappings.values()), "learning_mode": self.learning_mode}
 
     def import_mappings(self, data: dict[str, Any]):
         """
@@ -415,8 +423,8 @@ class MIDILearnManager:
         Args:
             data: Dictionary containing mappings and learning mode
         """
-        self.mappings = {m['cc']: m for m in data.get('mappings', [])}
-        self.learning_mode = data.get('learning_mode', False)
+        self.mappings = {m["cc"]: m for m in data.get("mappings", [])}
+        self.learning_mode = data.get("learning_mode", False)
 
 
 class StyleEngineIntegration:
@@ -497,7 +505,7 @@ class StyleEngineIntegration:
         # Search for style file
         for style_path in self.style_paths:
             # Try different extensions
-            for ext in ['.sty', '.sff', '.sf2']:
+            for ext in [".sty", ".sff", ".sf2"]:
                 style_file = style_path / f"{style_name}{ext}"
                 if style_file.exists():
                     try:
@@ -572,4 +580,4 @@ class StyleEngineIntegration:
         Returns:
             Dictionary mapping channels to style names
         """
-        return {ch: "Style" for ch in self.loaded_styles.keys()}
+        return dict.fromkeys(self.loaded_styles.keys(), "Style")

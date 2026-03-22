@@ -10,18 +10,17 @@ Author: Claude (Anthropic)
 Date: January 2026
 """
 
-import numpy as np
-import time
 import threading
+import time
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
+
+import numpy as np
+
+from synth.audio.writer import AudioWriter
 
 # XG Synthesizer imports
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-from synth.audio.writer import AudioWriter
-from synth.midi.file import MIDIFile
-from synth.xgml.parser_v3 import XGMLParserV3
-from synth.xgml.translator_v3 import XGMLTranslatorV3
 
 
 class ProfessionalWorkstation:
@@ -55,8 +54,8 @@ class ProfessionalWorkstation:
             gs_enabled=True,
             mpe_enabled=True,
             device_id=0x10,
-            gs_mode='auto',
-            s90_mode=True
+            gs_mode="auto",
+            s90_mode=True,
         )
 
         # Initialize audio writer
@@ -65,7 +64,7 @@ class ProfessionalWorkstation:
         print("✅ Workstation initialized successfully!")
         print(f"   Sample Rate: {self.synth.sample_rate}Hz")
         print(f"   Max Channels: {self.synth.max_channels}")
-        print(f"   XG/GS/MPE: Enabled")
+        print("   XG/GS/MPE: Enabled")
 
     def load_workstation_config(self, config_path: str):
         """Load complete workstation configuration."""
@@ -112,13 +111,13 @@ class ProfessionalWorkstation:
         self.synth.set_drum_kit(9, 26)  # Standard Kit 1
 
         # Receive Channels
-        self.synth.set_receive_channel(0, 0)   # Piano
-        self.synth.set_receive_channel(1, 1)   # Bass
-        self.synth.set_receive_channel(2, 2)   # Guitar
-        self.synth.set_receive_channel(9, 9)   # Drums
+        self.synth.set_receive_channel(0, 0)  # Piano
+        self.synth.set_receive_channel(1, 1)  # Bass
+        self.synth.set_receive_channel(2, 2)  # Guitar
+        self.synth.set_receive_channel(9, 9)  # Drums
 
         # Musical Temperament
-        self.synth.apply_temperament('equal')
+        self.synth.apply_temperament("equal")
 
         print("   Default production setup created")
 
@@ -184,12 +183,12 @@ class ProfessionalWorkstation:
 
         # Create snapshot with current parameter values
         snapshot = {
-            'timestamp': time.time(),
-            'transport_position': self.transport_position,
-            'tempo': self.tempo,
-            'time_signature': self.time_signature,
-            'synthesizer_info': info,
-            'parameters': self._get_current_parameters()
+            "timestamp": time.time(),
+            "transport_position": self.transport_position,
+            "tempo": self.tempo,
+            "time_signature": self.time_signature,
+            "synthesizer_info": info,
+            "parameters": self._get_current_parameters(),
         }
 
         self.snapshots[name] = snapshot
@@ -215,7 +214,7 @@ class ProfessionalWorkstation:
         """Enable real-time parameter automation."""
         print("🤖 Enabling automation...")
 
-        if hasattr(self.synth, 'enable_config_hot_reloading'):
+        if hasattr(self.synth, "enable_config_hot_reloading"):
             # Enable parameter automation through hot reloading
             self.synth.enable_config_hot_reloading(check_interval=0.1)
 
@@ -226,7 +225,7 @@ class ProfessionalWorkstation:
         """Disable parameter automation."""
         print("🤖 Disabling automation...")
 
-        if hasattr(self.synth, 'disable_config_hot_reloading'):
+        if hasattr(self.synth, "disable_config_hot_reloading"):
             self.synth.disable_config_hot_reloading()
 
         self.automation_enabled = False
@@ -257,23 +256,24 @@ class ProfessionalWorkstation:
             file_size_mb = Path(filename).stat().st_size / (1024 * 1024)
             duration_sec = len(audio_data) / self.synth.sample_rate
 
-            print("✅ Audio recording saved successfully"            print(".1f"            print(".2f")
+            print("✅ Audio recording saved successfully")
+            print(f"Duration: {duration_sec:.1f}s, Size: {file_size_mb:.2f}MB")
 
         except Exception as e:
             print(f"❌ Failed to save audio recording: {e}")
 
-    def get_workstation_status(self) -> Dict[str, Any]:
+    def get_workstation_status(self) -> dict[str, Any]:
         """Get comprehensive workstation status."""
         status = {
-            'running': self.is_running,
-            'recording': self.recording,
-            'transport_position': self.transport_position,
-            'tempo': self.tempo,
-            'time_signature': self.time_signature,
-            'automation_enabled': self.automation_enabled,
-            'current_snapshot': self.current_snapshot,
-            'available_snapshots': list(self.snapshots.keys()),
-            'synthesizer_info': self.synth.get_synthesizer_info() if self.synth else None
+            "running": self.is_running,
+            "recording": self.recording,
+            "transport_position": self.transport_position,
+            "tempo": self.tempo,
+            "time_signature": self.time_signature,
+            "automation_enabled": self.automation_enabled,
+            "current_snapshot": self.current_snapshot,
+            "available_snapshots": list(self.snapshots.keys()),
+            "synthesizer_info": self.synth.get_synthesizer_info() if self.synth else None,
         }
 
         return status
@@ -287,15 +287,15 @@ class ProfessionalWorkstation:
             else:
                 time.sleep(0.1)
 
-    def _get_current_parameters(self) -> Dict[str, Any]:
+    def _get_current_parameters(self) -> dict[str, Any]:
         """Get current workstation parameters for snapshot saving."""
         # This would collect all current parameter values
         # Placeholder implementation
         return {
-            'effects_reverb_level': 0.3,
-            'effects_chorus_depth': 0.5,
-            'master_volume': 0.8,
-            'tempo': self.tempo
+            "effects_reverb_level": 0.3,
+            "effects_chorus_depth": 0.5,
+            "master_volume": 0.8,
+            "tempo": self.tempo,
         }
 
 
@@ -333,7 +333,7 @@ def demonstrate_workstation_features():
             workstation.synth.set_receive_channel(i, i)
 
         # Musical Temperament
-        workstation.synth.apply_temperament('equal')
+        workstation.synth.apply_temperament("equal")
 
         print("✅ Workstation features configured")
 
@@ -361,12 +361,14 @@ def demonstrate_workstation_features():
 
         # Get workstation status
         status = workstation.get_workstation_status()
-        print("
-📊 Final Workstation Status:"        print(f"   Transport Running: {status['running']}")
+        print("\n📊 Final Workstation Status:")
+        print(f"   Transport Running: {status['running']}")
         print(f"   Recording: {status['recording']}")
         print(f"   Automation: {status['automation_enabled']}")
         print(f"   Snapshots: {len(status['available_snapshots'])}")
-        print(f"   Active Voices: {status['synthesizer_info'].get('total_active_voices', 0) if status['synthesizer_info'] else 0}")
+        print(
+            f"   Active Voices: {status['synthesizer_info'].get('total_active_voices', 0) if status['synthesizer_info'] else 0}"
+        )
 
         # Cleanup
         workstation.disable_automation()
@@ -388,6 +390,7 @@ def demonstrate_workstation_features():
     except Exception as e:
         print(f"❌ Error during workstation demonstration: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -533,7 +536,7 @@ sequencing:
 
     # Save template
     template_path = Path("examples/workstation_template.xgml")
-    with open(template_path, 'w') as f:
+    with open(template_path, "w") as f:
         f.write(template_config)
 
     print(f"✅ Workstation template saved to {template_path}")

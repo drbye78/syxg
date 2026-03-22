@@ -4,9 +4,11 @@ Physical Partial Implementation
 Provides physical modeling partial for the voice-based architecture.
 Wraps PhysicalEngine functionality for integration with the Voice system.
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 import numpy as np
 
 from .partial import SynthesisPartial
@@ -31,17 +33,18 @@ class PhysicalPartial(SynthesisPartial):
         super().__init__(params, sample_rate)
 
         # Physical modeling-specific parameters
-        self.model_type = params.get('model_type', 'pluck')
-        self.brightness = params.get('brightness', 1.0)
-        self.damping = params.get('damping', 0.99)
-        self.scattering_coeff = params.get('scattering_coeff', 0.5)
-        self.excitation_type = params.get('excitation_type', 'pluck')
+        self.model_type = params.get("model_type", "pluck")
+        self.brightness = params.get("brightness", 1.0)
+        self.damping = params.get("damping", 0.99)
+        self.scattering_coeff = params.get("scattering_coeff", 0.5)
+        self.excitation_type = params.get("excitation_type", "pluck")
 
         # Create Physical engine instance for this partial
         from ..engine.physical_engine import PhysicalEngine
+
         self.physical_engine = PhysicalEngine(
             max_strings=1,  # Single string/waveguide per partial
-            sample_rate=sample_rate
+            sample_rate=sample_rate,
         )
 
         # Configure physical engine
@@ -65,10 +68,7 @@ class PhysicalPartial(SynthesisPartial):
 
         # Use stored note and velocity for generation
         return self.physical_engine.generate_samples(
-            self.params.get('note', 60),
-            self.params.get('velocity', 100),
-            modulation,
-            block_size
+            self.params.get("note", 60), self.params.get("velocity", 100), modulation, block_size
         )
 
     def note_on(self, velocity: int, note: int) -> None:
@@ -83,9 +83,9 @@ class PhysicalPartial(SynthesisPartial):
 
         # Excite the physical model
         model_params = {
-            'scattering_coeff': self.scattering_coeff,
-            'brightness': self.brightness,
-            'damping': self.damping
+            "scattering_coeff": self.scattering_coeff,
+            "brightness": self.brightness,
+            "damping": self.damping,
         }
 
         self.physical_engine.excite_voice(0, note, velocity, model_params)
@@ -118,18 +118,22 @@ class PhysicalPartial(SynthesisPartial):
     def reset(self) -> None:
         """Reset partial to initial state."""
         super().reset()
-        if hasattr(self, 'physical_engine'):
+        if hasattr(self, "physical_engine"):
             self.physical_engine.reset()
 
     def get_partial_info(self) -> dict[str, Any]:
         """Get physical partial information."""
         info = super().get_partial_info()
-        info.update({
-            'engine_type': 'physical',
-            'model_type': self.model_type,
-            'brightness': self.brightness,
-            'damping': self.damping,
-            'scattering_coeff': self.scattering_coeff,
-            'physical_engine_info': self.physical_engine.get_engine_info() if hasattr(self.physical_engine, 'get_engine_info') else {}
-        })
+        info.update(
+            {
+                "engine_type": "physical",
+                "model_type": self.model_type,
+                "brightness": self.brightness,
+                "damping": self.damping,
+                "scattering_coeff": self.scattering_coeff,
+                "physical_engine_info": self.physical_engine.get_engine_info()
+                if hasattr(self.physical_engine, "get_engine_info")
+                else {},
+            }
+        )
         return info

@@ -12,12 +12,13 @@ XG Specification Compliance:
 
 Copyright (c) 2025
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
 import time
+from collections.abc import Callable
+from typing import Any
 
 
 class XGRealtimeControl:
@@ -69,8 +70,9 @@ class XGRealtimeControl:
         """Set callback for parameter changes (part, parameter, value)."""
         self.parameter_change_callback = callback
 
-    def set_bulk_callbacks(self, dump_callback: Callable[[bytes], None],
-                          request_callback: Callable[[], bytes]):
+    def set_bulk_callbacks(
+        self, dump_callback: Callable[[bytes], None], request_callback: Callable[[], bytes]
+    ):
         """Set callbacks for bulk operations."""
         self.bulk_dump_callback = dump_callback
         self.bulk_dump_request_callback = request_callback
@@ -98,7 +100,9 @@ class XGRealtimeControl:
                 return None
 
             command = data[4]
-            command_data = data[5:-2]  # Exclude F0, manufacturer, device, model, command, checksum, F7
+            command_data = data[
+                5:-2
+            ]  # Exclude F0, manufacturer, device, model, command, checksum, F7
 
             # Route to appropriate handler
             if command == 0x08:  # Parameter Change
@@ -142,28 +146,24 @@ class XGRealtimeControl:
             self.parameter_change_callback(part, parameter_address, value)
 
         return {
-            'type': 'parameter_change',
-            'part': part,
-            'parameter': parameter_address,
-            'value': value,
-            'timestamp': time.time()
+            "type": "parameter_change",
+            "part": part,
+            "parameter": parameter_address,
+            "value": value,
+            "timestamp": time.time(),
         }
 
     def _handle_display_message(self, data: bytes) -> dict[str, Any] | None:
         """Handle display message SYSEX: F0 43 [dev] 4C 10 [message_data] F7"""
         try:
             # Convert to ASCII string (XG display messages are ASCII)
-            message = ''.join(chr(b) for b in data if 32 <= b <= 126)
+            message = "".join(chr(b) for b in data if 32 <= b <= 126)
 
             # Notify display callback
             if self.display_callback:
-                self.display_callback('message', message)
+                self.display_callback("message", message)
 
-            return {
-                'type': 'display_message',
-                'message': message,
-                'timestamp': time.time()
-            }
+            return {"type": "display_message", "message": message, "timestamp": time.time()}
         except:
             return None
 
@@ -182,13 +182,13 @@ class XGRealtimeControl:
 
             # Notify display callback
             if self.display_callback:
-                self.display_callback('led', {'number': led_number, 'state': led_state})
+                self.display_callback("led", {"number": led_number, "state": led_state})
 
             return {
-                'type': 'led_control',
-                'led_number': led_number,
-                'led_state': led_state,
-                'timestamp': time.time()
+                "type": "led_control",
+                "led_number": led_number,
+                "led_state": led_state,
+                "timestamp": time.time(),
             }
 
         return None
@@ -198,11 +198,7 @@ class XGRealtimeControl:
         if self.bulk_dump_callback:
             self.bulk_dump_callback(data)
 
-        return {
-            'type': 'bulk_dump',
-            'data_length': len(data),
-            'timestamp': time.time()
-        }
+        return {"type": "bulk_dump", "data_length": len(data), "timestamp": time.time()}
 
     def _handle_xg_dump(self, data: bytes) -> dict[str, Any] | None:
         """Handle XG dump: F0 43 [dev] 4C 09 [data] F7"""
@@ -210,22 +206,14 @@ class XGRealtimeControl:
         if self.bulk_dump_callback:
             self.bulk_dump_callback(data)
 
-        return {
-            'type': 'xg_dump',
-            'data_length': len(data),
-            'timestamp': time.time()
-        }
+        return {"type": "xg_dump", "data_length": len(data), "timestamp": time.time()}
 
     def _handle_bulk_dump_data(self, data: bytes) -> dict[str, Any] | None:
         """Handle bulk dump data: F0 43 [dev] 4C 0A [data] F7"""
         if self.bulk_dump_callback:
             self.bulk_dump_callback(data)
 
-        return {
-            'type': 'bulk_dump_data',
-            'data_length': len(data),
-            'timestamp': time.time()
-        }
+        return {"type": "bulk_dump_data", "data_length": len(data), "timestamp": time.time()}
 
     def _handle_bulk_dump_request(self, data: bytes) -> dict[str, Any] | None:
         """Handle bulk dump request: F0 43 [dev] 4C 0C [request_data] F7"""
@@ -234,20 +222,18 @@ class XGRealtimeControl:
             if response_data:
                 # Send response (this would typically be handled by MIDI output)
                 return {
-                    'type': 'bulk_dump_request',
-                    'response_data': response_data,
-                    'timestamp': time.time()
+                    "type": "bulk_dump_request",
+                    "response_data": response_data,
+                    "timestamp": time.time(),
                 }
 
-        return {
-            'type': 'bulk_dump_request',
-            'handled': False,
-            'timestamp': time.time()
-        }
+        return {"type": "bulk_dump_request", "handled": False, "timestamp": time.time()}
 
     # Outgoing SYSEX message creation methods
 
-    def create_parameter_change_message(self, part: int, parameter_address: int, value: int) -> bytes:
+    def create_parameter_change_message(
+        self, part: int, parameter_address: int, value: int
+    ) -> bytes:
         """
         Create XG parameter change SYSEX message.
 
@@ -269,8 +255,16 @@ class XGRealtimeControl:
 
         # Build message: F0 43 [dev] 4C 08 [part] [param_msb] [param_lsb] [data_msb] [data_lsb] [checksum] F7
         message = [
-            0xF0, 0x43, self.device_id, 0x4C, 0x08,  # Header
-            part & 0x7F, param_msb, param_lsb, data_msb, data_lsb  # Data
+            0xF0,
+            0x43,
+            self.device_id,
+            0x4C,
+            0x08,  # Header
+            part & 0x7F,
+            param_msb,
+            param_lsb,
+            data_msb,
+            data_lsb,  # Data
         ]
 
         # Calculate checksum
@@ -316,8 +310,13 @@ class XGRealtimeControl:
         """
         # Build message: F0 43 [dev] 4C 11 [led_number] [led_state] [checksum] F7
         message = [
-            0xF0, 0x43, self.device_id, 0x4C, 0x11,  # Header
-            led_number & 0x7F, led_state & 0x7F  # Data
+            0xF0,
+            0x43,
+            self.device_id,
+            0x4C,
+            0x11,  # Header
+            led_number & 0x7F,
+            led_state & 0x7F,  # Data
         ]
 
         # Calculate checksum
@@ -359,8 +358,12 @@ class XGRealtimeControl:
         """
         # Build message: F0 43 [dev] 4C 0C [request_type] [checksum] F7
         message = [
-            0xF0, 0x43, self.device_id, 0x4C, 0x0C,  # Header
-            request_type & 0x7F  # Request type
+            0xF0,
+            0x43,
+            self.device_id,
+            0x4C,
+            0x0C,  # Header
+            request_type & 0x7F,  # Request type
         ]
 
         # Calculate checksum
@@ -397,7 +400,7 @@ class XGRealtimeControl:
 
                 # Notify callback
                 if self.display_callback:
-                    self.display_callback('led', {'number': led_number, 'state': state})
+                    self.display_callback("led", {"number": led_number, "state": state})
 
             return True
         return False
@@ -420,15 +423,15 @@ class XGRealtimeControl:
         """Get realtime control status."""
         with self.lock:
             return {
-                'device_id': self.device_id,
-                'led_states': self.led_states.copy(),
-                'callbacks_configured': {
-                    'display': self.display_callback is not None,
-                    'parameter_change': self.parameter_change_callback is not None,
-                    'bulk_dump': self.bulk_dump_callback is not None,
-                    'bulk_dump_request': self.bulk_dump_request_callback is not None
+                "device_id": self.device_id,
+                "led_states": self.led_states.copy(),
+                "callbacks_configured": {
+                    "display": self.display_callback is not None,
+                    "parameter_change": self.parameter_change_callback is not None,
+                    "bulk_dump": self.bulk_dump_callback is not None,
+                    "bulk_dump_request": self.bulk_dump_request_callback is not None,
                 },
-                'active_leds': sum(1 for state in self.led_states if state > 0)
+                "active_leds": sum(1 for state in self.led_states if state > 0),
             }
 
     def reset_led_states(self):

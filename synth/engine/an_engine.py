@@ -5,14 +5,14 @@ Complete AN synthesis engine with physical modeling algorithms,
 mass-spring systems, waveguide synthesis, and analog-style processing.
 Provides authentic Yamaha Motif AN compatibility with modern performance.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from collections.abc import Callable
 import math
-from ..math.fast_approx import fast_math
-from ..core.buffer_pool import XGBufferPool
+from typing import Any
+
+import numpy as np
+
 from .synthesis_engine import SynthesisEngine
 
 
@@ -49,8 +49,13 @@ class PhysicalModelingOscillator:
         """Set oscillator frequency"""
         self.frequency = max(20.0, min(20000.0, freq))
 
-    def set_parameters(self, mass: float = 1.0, spring: float = 1000.0,
-                      damping: float = 0.01, waveguide_length: int = 100):
+    def set_parameters(
+        self,
+        mass: float = 1.0,
+        spring: float = 1000.0,
+        damping: float = 0.01,
+        waveguide_length: int = 100,
+    ):
         """Set physical modeling parameters"""
         self.mass = max(0.1, mass)
         self.spring_constant = max(1.0, spring)
@@ -66,11 +71,15 @@ class PhysicalModelingOscillator:
     def process_sample(self) -> float:
         """Process one sample of physical modeling"""
         # Mass-spring simulation
-        acceleration = -(self.spring_constant / self.mass) * self.position - self.damping * self.velocity
+        acceleration = (
+            -(self.spring_constant / self.mass) * self.position - self.damping * self.velocity
+        )
         acceleration += self.excitation_force / self.mass
 
         # Integrate using Verlet integration for stability
-        new_position = 2 * self.position - self.position + acceleration * (1.0 / self.sample_rate) ** 2
+        new_position = (
+            2 * self.position - self.position + acceleration * (1.0 / self.sample_rate) ** 2
+        )
         self.velocity = (new_position - self.position) / (1.0 / self.sample_rate)
 
         # Apply damping
@@ -125,9 +134,14 @@ class PhysicalModelingFilter:
         self.body_resonance = 0.0  # Body resonance frequency
         self.material_damping = 0.0  # Material damping
 
-    def set_parameters(self, cutoff: float = 1000.0, resonance: float = 0.1,
-                      filter_type: str = "lowpass", body_resonance: float = 0.0,
-                      material_damping: float = 0.0):
+    def set_parameters(
+        self,
+        cutoff: float = 1000.0,
+        resonance: float = 0.1,
+        filter_type: str = "lowpass",
+        body_resonance: float = 0.0,
+        material_damping: float = 0.0,
+    ):
         """Set filter parameters"""
         self.cutoff = max(20.0, min(20000.0, cutoff))
         self.resonance = max(0.0, min(2.0, resonance))
@@ -213,7 +227,7 @@ class PhysicalModelingEnvelope:
 
         # Physical modeling parameters
         self.material_decay = 0.0001  # Material decay rate
-        self.body_damping = 0.01      # Body damping
+        self.body_damping = 0.01  # Body damping
         self.excitation_energy = 1.0  # Initial excitation energy
 
         self.state = "idle"
@@ -221,9 +235,15 @@ class PhysicalModelingEnvelope:
         self.energy = 0.0
         self.time = 0.0
 
-    def set_parameters(self, attack: float = 0.01, decay: float = 0.3,
-                      sustain: float = 0.7, release: float = 0.5,
-                      material_decay: float = 0.0001, body_damping: float = 0.01):
+    def set_parameters(
+        self,
+        attack: float = 0.01,
+        decay: float = 0.3,
+        sustain: float = 0.7,
+        release: float = 0.5,
+        material_decay: float = 0.0001,
+        body_damping: float = 0.01,
+    ):
         """Set envelope parameters"""
         self.attack_time = max(0.001, attack)
         self.decay_time = max(0.001, decay)
@@ -274,16 +294,18 @@ class PhysicalModelingEnvelope:
             material_loss = math.exp(-self.time * self.material_decay)
 
             target_level = self.sustain_level * self.energy
-            self.current_level = target_level + (self.current_level - target_level) * decay_factor * material_loss
+            self.current_level = (
+                target_level + (self.current_level - target_level) * decay_factor * material_loss
+            )
 
             # Apply body damping
-            self.current_level *= (1.0 - self.body_damping)
+            self.current_level *= 1.0 - self.body_damping
 
         elif self.state == "sustain":
             # Physical sustain with continuous energy loss
             material_loss = math.exp(-self.time * self.material_decay)
             self.current_level = self.sustain_level * self.energy * material_loss
-            self.current_level *= (1.0 - self.body_damping)
+            self.current_level *= 1.0 - self.body_damping
 
         elif self.state == "release":
             # Physical release with rapid energy dissipation
@@ -297,7 +319,7 @@ class PhysicalModelingEnvelope:
             self.current_level *= release_factor * material_loss
 
             # Apply body damping during release
-            self.current_level *= (1.0 - self.body_damping * 2.0)
+            self.current_level *= 1.0 - self.body_damping * 2.0
 
             if self.current_level < 0.001:
                 self.state = "idle"
@@ -346,8 +368,9 @@ class ResonanceBody:
         self.body_states = [0.0] * len(self.resonant_frequencies)
         self.body_velocities = [0.0] * len(self.resonant_frequencies)
 
-    def set_body_characteristics(self, shape: str = "grand_piano", size: float = 1.0,
-                                material: str = "spruce"):
+    def set_body_characteristics(
+        self, shape: str = "grand_piano", size: float = 1.0, material: str = "spruce"
+    ):
         """Set body characteristics for RP-PR modeling"""
         self.body_shape = shape
         self.body_size = max(0.1, min(3.0, size))
@@ -367,7 +390,7 @@ class ResonanceBody:
                 base_freq * 2 * self.body_size,
                 base_freq * 3 * self.body_size,
                 base_freq * 4 * self.body_size,
-                base_freq * 5 * self.body_size
+                base_freq * 5 * self.body_size,
             ]
         elif self.body_shape == "upright_piano":
             # Upright piano: different resonance pattern
@@ -376,7 +399,7 @@ class ResonanceBody:
                 base_freq * 2.1 * self.body_size,
                 base_freq * 3.2 * self.body_size,
                 base_freq * 4.1 * self.body_size,
-                base_freq * 5.3 * self.body_size
+                base_freq * 5.3 * self.body_size,
             ]
         elif self.body_shape == "guitar":
             # Guitar body resonances
@@ -385,7 +408,7 @@ class ResonanceBody:
                 base_freq * 1.2 * self.body_size,
                 base_freq * 2.8 * self.body_size,
                 base_freq * 4.2 * self.body_size,
-                base_freq * 5.8 * self.body_size
+                base_freq * 5.8 * self.body_size,
             ]
         elif self.body_shape == "violin":
             # Violin body resonances
@@ -394,7 +417,7 @@ class ResonanceBody:
                 base_freq * 1.8 * self.body_size,
                 base_freq * 3.1 * self.body_size,
                 base_freq * 4.7 * self.body_size,
-                base_freq * 6.2 * self.body_size
+                base_freq * 6.2 * self.body_size,
             ]
 
         # Update material damping
@@ -431,7 +454,7 @@ class ResonanceBody:
             freq_ratio = string_frequency / self.resonant_frequencies[i]
             if 0.5 <= freq_ratio <= 2.0:  # Only excite nearby resonances
                 resonance_excitation = excitation_energy * body_coupling * self.resonant_gains[i]
-                resonance_excitation *= (1.0 - abs(1.0 - freq_ratio) * 0.5)  # Peak at resonance
+                resonance_excitation *= 1.0 - abs(1.0 - freq_ratio) * 0.5  # Peak at resonance
 
                 # Add to body velocity
                 self.body_velocities[i] += resonance_excitation
@@ -462,13 +485,15 @@ class ResonanceBody:
             r = 1.0 - alpha
             resonator_output = input_sample + 2.0 * r * cos_omega * self.body_states[i]
             if i > 0:  # Avoid index error
-                resonator_output -= r * r * self.body_states[i-1]
+                resonator_output -= r * r * self.body_states[i - 1]
 
             # Update state
             self.body_states[i] = resonator_output
 
             # Add body resonance to output
-            body_contribution = resonator_output * self.resonant_gains[i] * 0.1  # Scale appropriately
+            body_contribution = (
+                resonator_output * self.resonant_gains[i] * 0.1
+            )  # Scale appropriately
             output += body_contribution
 
         return output
@@ -492,16 +517,16 @@ class StringBodyInteraction:
 
         # String-body coupling parameters
         self.bridge_coupling = 0.3  # Energy transfer from string to body
-        self.body_feedback = 0.1    # Body resonance feedback to string
+        self.body_feedback = 0.1  # Body resonance feedback to string
         self.sympathetic_coupling = 0.05  # Sympathetic vibration coupling
 
         # String parameters for interaction
         self.string_frequencies = []  # Active string frequencies
-        self.string_energies = []     # Current string energies
+        self.string_energies = []  # Current string energies
 
         # Bridge characteristics
-        self.bridge_hardness = 0.7   # Bridge material hardness (affects coupling)
-        self.bridge_damping = 0.02   # Bridge energy loss
+        self.bridge_hardness = 0.7  # Bridge material hardness (affects coupling)
+        self.bridge_damping = 0.02  # Bridge energy loss
 
     def set_bridge_parameters(self, hardness: float = 0.7, damping: float = 0.02):
         """Set bridge coupling parameters"""
@@ -517,7 +542,9 @@ class StringBodyInteraction:
         self.string_frequencies.append(string_frequency)
         self.string_energies.append(string_energy)
 
-    def calculate_string_body_coupling(self, string_freq: float, body_resonance_freq: float) -> float:
+    def calculate_string_body_coupling(
+        self, string_freq: float, body_resonance_freq: float
+    ) -> float:
         """Calculate coupling factor between string and body resonance"""
         freq_ratio = string_freq / body_resonance_freq
 
@@ -538,15 +565,18 @@ class StringBodyInteraction:
 
         return coupling * self.bridge_coupling
 
-    def process_string_body_interaction(self, string_output: float, body_output: float,
-                                      string_freq: float) -> tuple[float, float]:
+    def process_string_body_interaction(
+        self, string_output: float, body_output: float, string_freq: float
+    ) -> tuple[float, float]:
         """Process string-body interaction for RP-PR modeling"""
         # Calculate energy transfer from string to body
         string_to_body_energy = string_output * self.bridge_coupling
 
         # Calculate sympathetic vibration (body to string)
         sympathetic_energy = 0.0
-        for i, (other_freq, other_energy) in enumerate(zip(self.string_frequencies, self.string_energies)):
+        for i, (other_freq, other_energy) in enumerate(
+            zip(self.string_frequencies, self.string_energies)
+        ):
             if abs(other_freq - string_freq) > 1.0:  # Only couple with different strings
                 coupling = self.calculate_string_body_coupling(string_freq, other_freq)
                 sympathetic_energy += body_output * coupling * self.sympathetic_coupling
@@ -555,7 +585,9 @@ class StringBodyInteraction:
         bridge_loss = (string_output + body_output) * self.bridge_damping
 
         # Calculate final outputs with interaction
-        final_string_output = string_output - string_to_body_energy + sympathetic_energy - bridge_loss
+        final_string_output = (
+            string_output - string_to_body_energy + sympathetic_energy - bridge_loss
+        )
         final_body_output = body_output + string_to_body_energy - bridge_loss
 
         return final_string_output, final_body_output
@@ -578,47 +610,47 @@ class MaterialProperties:
         # Material property database
         self.material_database = {
             "spruce": {
-                "density": 0.4,      # g/cm³
+                "density": 0.4,  # g/cm³
                 "elasticity": 12.0,  # Young's modulus (GPa)
-                "damping": 0.001,    # Frequency-independent damping
-                "sound_speed": 5000, # m/s
-                "description": "Light wood, used for soundboards"
+                "damping": 0.001,  # Frequency-independent damping
+                "sound_speed": 5000,  # m/s
+                "description": "Light wood, used for soundboards",
             },
             "maple": {
                 "density": 0.6,
                 "elasticity": 11.0,
                 "damping": 0.002,
                 "sound_speed": 4500,
-                "description": "Hard wood, used for back/sides"
+                "description": "Hard wood, used for back/sides",
             },
             "mahogany": {
                 "density": 0.7,
                 "elasticity": 10.0,
                 "damping": 0.003,
                 "sound_speed": 4000,
-                "description": "Dense wood, rich low-end"
+                "description": "Dense wood, rich low-end",
             },
             "steel": {
                 "density": 7.8,
                 "elasticity": 200.0,
                 "damping": 0.0005,
                 "sound_speed": 5100,
-                "description": "Metal strings, bright sustain"
+                "description": "Metal strings, bright sustain",
             },
             "nylon": {
                 "density": 1.15,
                 "elasticity": 3.0,
                 "damping": 0.01,
                 "sound_speed": 1400,
-                "description": "Soft strings, warm tone"
+                "description": "Soft strings, warm tone",
             },
             "ebony": {
                 "density": 1.2,
                 "elasticity": 15.0,
                 "damping": 0.002,
                 "sound_speed": 3000,
-                "description": "Hard wood, used for fingerboards"
-            }
+                "description": "Hard wood, used for fingerboards",
+            },
         }
 
         self.current_material = "spruce"
@@ -636,7 +668,9 @@ class MaterialProperties:
         material = material_name or self.current_material
         return self.material_database.get(material, self.material_database["spruce"]).copy()
 
-    def calculate_resonance_properties(self, frequency: float, material_name: str | None = None) -> dict[str, float]:
+    def calculate_resonance_properties(
+        self, frequency: float, material_name: str | None = None
+    ) -> dict[str, float]:
         """Calculate frequency-dependent resonance properties"""
         props = self.get_material_properties(material_name)
 
@@ -656,7 +690,7 @@ class MaterialProperties:
             "effective_damping": effective_damping,
             "q_factor": q_factor,
             "decay_time": decay_time,
-            "resonant_gain": min(2.0, q_factor / 100.0)  # Limit gain
+            "resonant_gain": min(2.0, q_factor / 100.0),  # Limit gain
         }
 
     def get_available_materials(self) -> list[str]:
@@ -699,7 +733,9 @@ class ANEngine(SynthesisEngine):
         # Initialize components
         self._init_components()
 
-        print("🎹 AN Engine: Yamaha Motif AN with S90/S70 RP-PR physical modeling synthesis initialized")
+        print(
+            "🎹 AN Engine: Yamaha Motif AN with S90/S70 RP-PR physical modeling synthesis initialized"
+        )
 
     def enable_rp_pr(self, enabled: bool = True):
         """Enable S90/S70 RP-PR (Resonance and Physical Modeling) features"""
@@ -715,12 +751,15 @@ class ANEngine(SynthesisEngine):
             self.body_resonance_enabled = False
             self.string_body_coupling_enabled = False
 
-    def set_body_characteristics(self, shape: str = "grand_piano", size: float = 1.0,
-                                material: str = "spruce"):
+    def set_body_characteristics(
+        self, shape: str = "grand_piano", size: float = 1.0, material: str = "spruce"
+    ):
         """Set body characteristics for RP-PR modeling"""
         self.resonance_body.set_body_characteristics(shape, size, material)
         self.material_properties.set_material(material)
-        print(f"🎹 AN Engine: Body characteristics set - Shape: {shape}, Size: {size}, Material: {material}")
+        print(
+            f"🎹 AN Engine: Body characteristics set - Shape: {shape}, Size: {size}, Material: {material}"
+        )
 
     def set_bridge_parameters(self, hardness: float = 0.7, damping: float = 0.02):
         """Set bridge coupling parameters for string-body interaction"""
@@ -759,11 +798,11 @@ class ANEngine(SynthesisEngine):
 
         # Initialize voice components
         voice_data = {
-            'note': note,
-            'velocity': velocity,
-            'frequency': frequency,
-            'voice_id': voice_id,
-            'active': True
+            "note": note,
+            "velocity": velocity,
+            "frequency": frequency,
+            "voice_id": voice_id,
+            "active": True,
         }
 
         # Setup oscillator
@@ -806,7 +845,7 @@ class ANEngine(SynthesisEngine):
             if voice_id < len(self.envelopes):
                 self.envelopes[voice_id].release()
             # Mark for removal when envelope completes
-            self.active_voices[voice_id]['releasing'] = True
+            self.active_voices[voice_id]["releasing"] = True
 
     def process_block(self, block_size: int) -> np.ndarray:
         """Process block of AN synthesis with S90/S70 RP-PR physical modeling"""
@@ -819,13 +858,13 @@ class ANEngine(SynthesisEngine):
         # Process active voices
         voices_to_remove = []
         for voice_id, voice_data in self.active_voices.items():
-            if not voice_data.get('active', False):
+            if not voice_data.get("active", False):
                 continue
 
             osc = self.oscillators[voice_id]
             filt = self.filters[voice_id]
             env = self.envelopes[voice_id]
-            frequency = voice_data.get('frequency', 440.0)
+            frequency = voice_data.get("frequency", 440.0)
 
             # Generate block of samples for this voice
             voice_output = np.zeros(block_size, dtype=np.float32)
@@ -860,9 +899,9 @@ class ANEngine(SynthesisEngine):
             output += voice_output
 
             # Check if voice should be removed
-            if env.state == "idle" and voice_data.get('releasing', False):
+            if env.state == "idle" and voice_data.get("releasing", False):
                 voices_to_remove.append(voice_id)
-                voice_data['active'] = False
+                voice_data["active"] = False
 
         # Clean up finished voices
         for voice_id in voices_to_remove:
@@ -878,8 +917,9 @@ class ANEngine(SynthesisEngine):
 
         return output
 
-    def _apply_rp_pr_modeling(self, string_output: np.ndarray, string_frequency: float,
-                             block_size: int) -> np.ndarray:
+    def _apply_rp_pr_modeling(
+        self, string_output: np.ndarray, string_frequency: float, block_size: int
+    ) -> np.ndarray:
         """Apply S90/S70 RP-PR (Resonance and Physical Modeling)"""
         output = string_output.copy()
 
@@ -897,9 +937,13 @@ class ANEngine(SynthesisEngine):
         if self.string_body_coupling_enabled and self.body_resonance_enabled:
             # Process string-body interaction for this voice
             for i in range(block_size):
-                body_feedback = self.resonance_body.process_body_resonance(0.0)  # Get body resonance
-                string_final, body_final = self.string_body_interaction.process_string_body_interaction(
-                    output[i], body_feedback, string_frequency
+                body_feedback = self.resonance_body.process_body_resonance(
+                    0.0
+                )  # Get body resonance
+                string_final, body_final = (
+                    self.string_body_interaction.process_string_body_interaction(
+                        output[i], body_feedback, string_frequency
+                    )
                 )
                 output[i] = string_final
 
@@ -914,7 +958,7 @@ class ANEngine(SynthesisEngine):
 
         # If no free slots, try to find releasing voice to steal
         for voice_id, voice_data in self.active_voices.items():
-            if voice_data.get('releasing', False):
+            if voice_data.get("releasing", False):
                 return voice_id
 
         return -1  # No free voices
@@ -933,11 +977,11 @@ class ANEngine(SynthesisEngine):
     def get_parameters(self) -> dict[str, Any]:
         """Get current AN parameters"""
         return {
-            'oscillator_type': self.oscillator_type,
-            'filter_type': self.filter_type,
-            'envelope_model': self.envelope_model,
-            'max_voices': self.max_voices,
-            'active_voices': len(self.active_voices)
+            "oscillator_type": self.oscillator_type,
+            "filter_type": self.filter_type,
+            "envelope_model": self.envelope_model,
+            "max_voices": self.max_voices,
+            "active_voices": len(self.active_voices),
         }
 
     def reset(self):
@@ -956,15 +1000,15 @@ class ANEngine(SynthesisEngine):
     def get_engine_info(self) -> dict[str, Any]:
         """Get AN engine information"""
         return {
-            'type': 'AN (Analog Physical Modeling)',
-            'description': 'Yamaha Motif AN physical modeling synthesis',
-            'max_voices': self.max_voices,
-            'active_voices': len(self.active_voices),
-            'oscillator_type': self.oscillator_type,
-            'filter_type': self.filter_type,
-            'envelope_model': self.envelope_model,
-            'sample_rate': self.sample_rate,
-            'block_size': self.block_size
+            "type": "AN (Analog Physical Modeling)",
+            "description": "Yamaha Motif AN physical modeling synthesis",
+            "max_voices": self.max_voices,
+            "active_voices": len(self.active_voices),
+            "oscillator_type": self.oscillator_type,
+            "filter_type": self.filter_type,
+            "envelope_model": self.envelope_model,
+            "sample_rate": self.sample_rate,
+            "block_size": self.block_size,
         }
 
     # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
@@ -972,21 +1016,21 @@ class ANEngine(SynthesisEngine):
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get AN (Analog Modeling) preset information.
-        
+
         Args:
             bank: Preset bank number (0-127)
             program: Preset program number (0-127)
-            
+
         Returns:
             PresetInfo with region descriptors for analog synthesis
         """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
-        
+
         # AN engine uses analog modeling synthesis
         # Programs define oscillator configurations and filter settings
         preset_name = f"AN Analog {bank}:{program}"
-        
+
         # Create region descriptors for analog synthesis
         # AN supports polyphonic playback with full keyboard range
         descriptor = RegionDescriptor(
@@ -995,18 +1039,18 @@ class ANEngine(SynthesisEngine):
             key_range=(0, 127),
             velocity_range=(0, 127),
             algorithm_params={
-                'oscillator_count': 3,  # Standard 3-oscillator analog synth
-                'oscillator_waveforms': ['sawtooth', 'square', 'triangle'],
-                'filter_type': 'ladder_lowpass',
-                'filter_cutoff': 2000.0,  # Hz
-                'filter_resonance': 0.5,
-                'envelope_attack': 0.01,
-                'envelope_decay': 0.3,
-                'envelope_sustain': 0.7,
-                'envelope_release': 0.5
-            }
+                "oscillator_count": 3,  # Standard 3-oscillator analog synth
+                "oscillator_waveforms": ["sawtooth", "square", "triangle"],
+                "filter_type": "ladder_lowpass",
+                "filter_cutoff": 2000.0,  # Hz
+                "filter_resonance": 0.5,
+                "envelope_attack": 0.01,
+                "envelope_decay": 0.3,
+                "envelope_sustain": 0.7,
+                "envelope_release": 0.5,
+            },
         )
-        
+
         return PresetInfo(
             bank=bank,
             program=program,
@@ -1014,56 +1058,52 @@ class ANEngine(SynthesisEngine):
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
             is_monophonic=False,
-            category='analog_modeling'
+            category="analog_modeling",
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get all region descriptors for AN preset.
-        
+
         Args:
             bank: Preset bank number
             program: Preset program number
-            
+
         Returns:
             List of RegionDescriptor objects
         """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
 
-    def create_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create AN region instance from descriptor.
-        
+
         Args:
             descriptor: Region descriptor with analog parameters
             sample_rate: Audio sample rate in Hz
-            
+
         Returns:
             IRegion instance for analog modeling synthesis
         """
         from ..partial.an_region import ANRegion
-        
+
         # Create AN region with proper initialization
         region = ANRegion(descriptor, sample_rate)
-        
+
         # Initialize the region (creates oscillators, filters, envelopes)
         if not region.initialize():
             raise RuntimeError("Failed to initialize AN region")
-        
+
         return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for region (AN is algorithmic, no samples needed).
-        
+
         Args:
             region: Region to load sample for
-            
+
         Returns:
             True (AN doesn't use samples)
         """
@@ -1071,8 +1111,9 @@ class ANEngine(SynthesisEngine):
         # Oscillators and filters are created during region initialization
         return True
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
-                        block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Generate audio samples for AN synthesis.
 
@@ -1117,9 +1158,7 @@ class ANEngine(SynthesisEngine):
         # AN engine supports full MIDI range
         return 0 <= note <= 127
 
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create AN base region without S.Art2 wrapper.
 
@@ -1148,15 +1187,20 @@ class ANEngine(SynthesisEngine):
         # For now, return a simple dict-based partial
         # In a full implementation, this would create a proper Partial object
         return {
-            'engine_type': 'an',
-            'sample_rate': sample_rate,
-            'oscillator_type': partial_params.get('oscillator_type', self.oscillator_type),
-            'filter_type': partial_params.get('filter_type', self.filter_type),
-            'envelope_model': partial_params.get('envelope_model', self.envelope_model),
-            'material_type': partial_params.get('material_type', 'steel'),
-            'parameters': partial_params
+            "engine_type": "an",
+            "sample_rate": sample_rate,
+            "oscillator_type": partial_params.get("oscillator_type", self.oscillator_type),
+            "filter_type": partial_params.get("filter_type", self.filter_type),
+            "envelope_model": partial_params.get("envelope_model", self.envelope_model),
+            "material_type": partial_params.get("material_type", "steel"),
+            "parameters": partial_params,
         }
 
 
 # Export the AN engine
-__all__ = ['ANEngine', 'PhysicalModelingOscillator', 'PhysicalModelingFilter', 'PhysicalModelingEnvelope']
+__all__ = [
+    "ANEngine",
+    "PhysicalModelingEnvelope",
+    "PhysicalModelingFilter",
+    "PhysicalModelingOscillator",
+]

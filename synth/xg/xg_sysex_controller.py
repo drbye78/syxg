@@ -8,12 +8,13 @@ XG SYSEX Format: F0 43 [device] 4C [model] [command] [data...] F7
 
 Copyright (c) 2025
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
 import time
+from collections.abc import Callable
+from typing import Any
 
 
 class XGSystemExclusiveController:
@@ -34,69 +35,66 @@ class XGSystemExclusiveController:
 
     # XG SYSEX Constants
     XG_MANUFACTURER_ID = 0x43  # Yamaha manufacturer ID
-    XG_MODEL_ID = 0x4C         # XG model ID
+    XG_MODEL_ID = 0x4C  # XG model ID
     XG_SYSEX_HEADER = [0xF0, 0x43]  # F0 43
 
     # XG Command Codes
     XG_COMMANDS = {
-        0x00: 'system_parameters',
-        0x02: 'xg_system_on',
-        0x03: 'xg_system_off',
-        0x04: 'xg_reset',
-        0x06: 'xg_dump_request',
-        0x07: 'xg_bulk_dump',
-        0x08: 'parameter_change',
-        0x09: 'xg_dump',
-        0x0A: 'bulk_dump',
-        0x0C: 'bulk_dump_request',
-        0x0E: 'master_tune',
-        0x0F: 'master_transpose',
-        0x10: 'xg_display_message',
-        0x11: 'xg_led_control',
-        0x12: 'xg_special_message',
+        0x00: "system_parameters",
+        0x02: "xg_system_on",
+        0x03: "xg_system_off",
+        0x04: "xg_reset",
+        0x06: "xg_dump_request",
+        0x07: "xg_bulk_dump",
+        0x08: "parameter_change",
+        0x09: "xg_dump",
+        0x0A: "bulk_dump",
+        0x0C: "bulk_dump_request",
+        0x0E: "master_tune",
+        0x0F: "master_transpose",
+        0x10: "xg_display_message",
+        0x11: "xg_led_control",
+        0x12: "xg_special_message",
     }
 
     # XG Parameter Addresses
     XG_PARAMETER_ADDRESSES = {
         # MSB 0: RPN Parameters (handled by RPN controller)
-        0x0000: 'pitch_bend_range',
-        0x0001: 'fine_tuning',
-        0x0002: 'coarse_tuning',
-        0x0003: 'tuning_program_select',
-        0x0004: 'tuning_bank_select',
-        0x0005: 'modulation_depth_range',
-
+        0x0000: "pitch_bend_range",
+        0x0001: "fine_tuning",
+        0x0002: "coarse_tuning",
+        0x0003: "tuning_program_select",
+        0x0004: "tuning_bank_select",
+        0x0005: "modulation_depth_range",
         # MSB 1-2: System Effects
-        0x0100: 'reverb_type',
-        0x0101: 'reverb_time',
-        0x0102: 'reverb_hf_damping',
-        0x0103: 'reverb_balance',
-        0x0104: 'reverb_level',
-        0x0200: 'chorus_type',
-        0x0201: 'chorus_lfo_freq',
-        0x0202: 'chorus_depth',
-        0x0203: 'chorus_feedback',
-        0x0204: 'chorus_send_level',
-
+        0x0100: "reverb_type",
+        0x0101: "reverb_time",
+        0x0102: "reverb_hf_damping",
+        0x0103: "reverb_balance",
+        0x0104: "reverb_level",
+        0x0200: "chorus_type",
+        0x0201: "chorus_lfo_freq",
+        0x0202: "chorus_depth",
+        0x0203: "chorus_feedback",
+        0x0204: "chorus_send_level",
         # MSB 42-45: Multi-Part Setup
-        0x2A00: 'voice_reserve_part_0',
-        0x2A01: 'voice_reserve_part_1',
+        0x2A00: "voice_reserve_part_0",
+        0x2A01: "voice_reserve_part_1",
         # ... up to part 15
-        0x2B00: 'part_mode_part_0',
-        0x2B01: 'part_mode_part_1',
+        0x2B00: "part_mode_part_0",
+        0x2B01: "part_mode_part_1",
         # ... part modes
-        0x2C00: 'part_level_part_0',
-        0x2C01: 'part_level_part_1',
+        0x2C00: "part_level_part_0",
+        0x2C01: "part_level_part_1",
         # ... part levels
-        0x2D00: 'part_pan_part_0',
-        0x2D01: 'part_pan_part_1',
+        0x2D00: "part_pan_part_0",
+        0x2D01: "part_pan_part_1",
         # ... part pans
-
         # MSB 48-63: Drum Setup (selected examples)
-        0x3000: 'drum_kit_select',
-        0x3010: 'drum_note_pitch_offset',
-        0x3020: 'drum_note_level_offset',
-        0x3030: 'drum_note_decay_offset',
+        0x3000: "drum_kit_select",
+        0x3010: "drum_note_pitch_offset",
+        0x3020: "drum_note_level_offset",
+        0x3030: "drum_note_decay_offset",
     }
 
     def __init__(self, device_id: int = 0x10, model_id: int = 0x4C):
@@ -150,29 +148,31 @@ class XGSystemExclusiveController:
     def _initialize_default_parameters(self):
         """Initialize XG parameters to default values."""
         # System effect defaults
-        self.parameters.update({
-            'reverb_type': 0x01,      # Hall 1
-            'reverb_time': 0.5,       # 0.3-30.0 seconds
-            'reverb_hf_damping': 0.5, # 0.0-1.0
-            'reverb_balance': 0.5,    # 0.0-1.0
-            'reverb_level': 0.4,      # 0.0-1.0
-            'chorus_type': 0x41,      # Chorus 1
-            'chorus_lfo_freq': 0.4,   # Hz
-            'chorus_depth': 0.6,      # 0.0-1.0
-            'chorus_feedback': 0.3,   # -1.0 to 1.0
-            'chorus_send_level': 0.3, # 0.0-1.0
-        })
+        self.parameters.update(
+            {
+                "reverb_type": 0x01,  # Hall 1
+                "reverb_time": 0.5,  # 0.3-30.0 seconds
+                "reverb_hf_damping": 0.5,  # 0.0-1.0
+                "reverb_balance": 0.5,  # 0.0-1.0
+                "reverb_level": 0.4,  # 0.0-1.0
+                "chorus_type": 0x41,  # Chorus 1
+                "chorus_lfo_freq": 0.4,  # Hz
+                "chorus_depth": 0.6,  # 0.0-1.0
+                "chorus_feedback": 0.3,  # -1.0 to 1.0
+                "chorus_send_level": 0.3,  # 0.0-1.0
+            }
+        )
 
         # Multi-part defaults
         for part in range(16):
-            self.parameters[f'voice_reserve_part_{part}'] = 8  # 8 voices default
-            self.parameters[f'part_mode_part_{part}'] = 1      # Multi mode
-            self.parameters[f'part_level_part_{part}'] = 1.0   # Full level
-            self.parameters[f'part_pan_part_{part}'] = 0.0     # Center
+            self.parameters[f"voice_reserve_part_{part}"] = 8  # 8 voices default
+            self.parameters[f"part_mode_part_{part}"] = 1  # Multi mode
+            self.parameters[f"part_level_part_{part}"] = 1.0  # Full level
+            self.parameters[f"part_pan_part_{part}"] = 0.0  # Center
 
         # Master settings
-        self.parameters['master_tune'] = 0.0      # ±100 cents
-        self.parameters['master_transpose'] = 0   # ±24 semitones
+        self.parameters["master_tune"] = 0.0  # ±100 cents
+        self.parameters["master_transpose"] = 0  # ±24 semitones
 
     def process_midi_data(self, data: bytes) -> list[dict[str, Any]]:
         """
@@ -222,10 +222,11 @@ class XGSystemExclusiveController:
                 return None
 
             # Check XG manufacturer and model IDs
-            if (len(message_data) >= 4 and
-                message_data[1] == self.XG_MANUFACTURER_ID and
-                message_data[3] == self.XG_MODEL_ID):
-
+            if (
+                len(message_data) >= 4
+                and message_data[1] == self.XG_MANUFACTURER_ID
+                and message_data[3] == self.XG_MODEL_ID
+            ):
                 device_id = message_data[2]
 
                 # Device ID filtering (0x7F = all devices, or match our device)
@@ -241,7 +242,9 @@ class XGSystemExclusiveController:
                     calculated_checksum = self._calculate_checksum(message_data[1:-2])
                     received_checksum = message_data[-2]
                     if calculated_checksum != received_checksum:
-                        print(f"⚠️ XG SYSEX: Checksum error (calculated: {calculated_checksum:02X}, received: {received_checksum:02X})")
+                        print(
+                            f"⚠️ XG SYSEX: Checksum error (calculated: {calculated_checksum:02X}, received: {received_checksum:02X})"
+                        )
                         return None
 
                 # Process command
@@ -264,16 +267,16 @@ class XGSystemExclusiveController:
         Returns:
             Processed command result
         """
-        command_name = self.XG_COMMANDS.get(command, f'unknown_{command:02X}')
+        command_name = self.XG_COMMANDS.get(command, f"unknown_{command:02X}")
 
         # Route to appropriate handler
         if command in self.command_handlers:
             try:
                 result = self.command_handlers[command](data)
                 if result:
-                    result['command'] = command_name
-                    result['raw_command'] = command
-                    result['timestamp'] = time.time()
+                    result["command"] = command_name
+                    result["raw_command"] = command
+                    result["timestamp"] = time.time()
                     return result
             except Exception as e:
                 print(f"❌ XG SYSEX: Error in {command_name} handler: {e}")
@@ -313,7 +316,9 @@ class XGSystemExclusiveController:
         value = data[2] if len(data) > 2 else 0
 
         parameter_address = (address_msb << 8) | address_lsb
-        parameter_name = self.XG_PARAMETER_ADDRESSES.get(parameter_address, f'unknown_{parameter_address:04X}')
+        parameter_name = self.XG_PARAMETER_ADDRESSES.get(
+            parameter_address, f"unknown_{parameter_address:04X}"
+        )
 
         # Update parameter
         self.parameters[parameter_name] = value
@@ -323,27 +328,27 @@ class XGSystemExclusiveController:
             self.parameter_change_callback(parameter_name, value)
 
         return {
-            'type': 'system_parameter_change',
-            'parameter': parameter_name,
-            'address': parameter_address,
-            'value': value
+            "type": "system_parameter_change",
+            "parameter": parameter_name,
+            "address": parameter_address,
+            "value": value,
         }
 
     def _handle_xg_system_on(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG System ON command."""
         if self.system_command_callback:
-            self.system_command_callback('xg_on')
+            self.system_command_callback("xg_on")
 
         print("🎹 XG SYSEX: XG System ON")
-        return {'type': 'system_command', 'command': 'xg_on'}
+        return {"type": "system_command", "command": "xg_on"}
 
     def _handle_xg_system_off(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG System OFF command."""
         if self.system_command_callback:
-            self.system_command_callback('xg_off')
+            self.system_command_callback("xg_off")
 
         print("🎹 XG SYSEX: XG System OFF")
-        return {'type': 'system_command', 'command': 'xg_off'}
+        return {"type": "system_command", "command": "xg_off"}
 
     def _handle_xg_reset(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG Reset command."""
@@ -351,10 +356,10 @@ class XGSystemExclusiveController:
         self._initialize_default_parameters()
 
         if self.system_command_callback:
-            self.system_command_callback('xg_reset')
+            self.system_command_callback("xg_reset")
 
         print("🎹 XG SYSEX: XG Reset - All parameters reset to defaults")
-        return {'type': 'system_command', 'command': 'xg_reset'}
+        return {"type": "system_command", "command": "xg_reset"}
 
     def _handle_parameter_change(self, data: list[int]) -> dict[str, Any] | None:
         """
@@ -375,10 +380,12 @@ class XGSystemExclusiveController:
         value = (data_msb << 7) | data_lsb
 
         parameter_address = (param_msb << 8) | param_lsb
-        parameter_name = self.XG_PARAMETER_ADDRESSES.get(parameter_address, f'unknown_{parameter_address:04X}')
+        parameter_name = self.XG_PARAMETER_ADDRESSES.get(
+            parameter_address, f"unknown_{parameter_address:04X}"
+        )
 
         # Update parameter for specific part
-        part_param_name = f'{parameter_name}_part_{part}'
+        part_param_name = f"{parameter_name}_part_{part}"
         self.parameters[part_param_name] = value
 
         # Notify callback
@@ -386,11 +393,11 @@ class XGSystemExclusiveController:
             self.parameter_change_callback(part_param_name, value)
 
         return {
-            'type': 'parameter_change',
-            'part': part,
-            'parameter': parameter_name,
-            'address': parameter_address,
-            'value': value
+            "type": "parameter_change",
+            "part": part,
+            "parameter": parameter_name,
+            "address": parameter_address,
+            "value": value,
         }
 
     def _handle_master_tune(self, data: list[int]) -> dict[str, Any] | None:
@@ -403,16 +410,12 @@ class XGSystemExclusiveController:
         # Convert to actual cent value (-8192 to +8191 range)
         cents = tune_value - 8192 if tune_value > 8191 else tune_value
 
-        self.parameters['master_tune'] = cents / 100.0  # Convert to semitones
+        self.parameters["master_tune"] = cents / 100.0  # Convert to semitones
 
         if self.parameter_change_callback:
-            self.parameter_change_callback('master_tune', self.parameters['master_tune'])
+            self.parameter_change_callback("master_tune", self.parameters["master_tune"])
 
-        return {
-            'type': 'master_tune',
-            'value': self.parameters['master_tune'],
-            'unit': 'semitones'
-        }
+        return {"type": "master_tune", "value": self.parameters["master_tune"], "unit": "semitones"}
 
     def _handle_master_transpose(self, data: list[int]) -> dict[str, Any] | None:
         """Handle master transpose command."""
@@ -425,30 +428,23 @@ class XGSystemExclusiveController:
             transpose_value -= 256  # Signed byte
 
         transpose_value = max(-24, min(24, transpose_value))
-        self.parameters['master_transpose'] = transpose_value
+        self.parameters["master_transpose"] = transpose_value
 
         if self.parameter_change_callback:
-            self.parameter_change_callback('master_transpose', transpose_value)
+            self.parameter_change_callback("master_transpose", transpose_value)
 
-        return {
-            'type': 'master_transpose',
-            'value': transpose_value,
-            'unit': 'semitones'
-        }
+        return {"type": "master_transpose", "value": transpose_value, "unit": "semitones"}
 
     def _handle_display_message(self, data: list[int]) -> dict[str, Any] | None:
         """Handle display message command."""
         # Convert data to ASCII string
         try:
-            message = ''.join(chr(b) for b in data if 32 <= b <= 126)  # Printable ASCII
+            message = "".join(chr(b) for b in data if 32 <= b <= 126)  # Printable ASCII
 
             if self.display_callback:
-                self.display_callback('message', message)
+                self.display_callback("message", message)
 
-            return {
-                'type': 'display_message',
-                'message': message
-            }
+            return {"type": "display_message", "message": message}
         except:
             return None
 
@@ -461,13 +457,9 @@ class XGSystemExclusiveController:
         led_state = data[1]  # 0=off, 1=on, 2=blink
 
         if self.display_callback:
-            self.display_callback('led', {'number': led_number, 'state': led_state})
+            self.display_callback("led", {"number": led_number, "state": led_state})
 
-        return {
-            'type': 'led_control',
-            'led_number': led_number,
-            'led_state': led_state
-        }
+        return {"type": "led_control", "led_number": led_number, "led_state": led_state}
 
     def _handle_xg_dump_request(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG dump request - returns all XG parameters."""
@@ -475,16 +467,16 @@ class XGSystemExclusiveController:
         dump_data = self._generate_xg_parameter_dump()
 
         return {
-            'type': 'dump_request',
-            'status': 'completed',
-            'data': dump_data,
-            'data_length': len(dump_data)
+            "type": "dump_request",
+            "status": "completed",
+            "data": dump_data,
+            "data_length": len(dump_data),
         }
 
     def _handle_xg_bulk_dump(self, data: list[int]) -> dict[str, Any] | None:
         """Handle XG bulk dump - processes XG parameter data."""
         if len(data) < 2:
-            return {'type': 'bulk_dump', 'status': 'error', 'error': 'insufficient_data'}
+            return {"type": "bulk_dump", "status": "error", "error": "insufficient_data"}
 
         # XG bulk dump format: [address_msb] [address_lsb] [data...]
         address_msb = data[0]
@@ -494,10 +486,10 @@ class XGSystemExclusiveController:
         success = self._process_xg_bulk_dump_data(address_msb, address_lsb, parameter_data)
 
         return {
-            'type': 'bulk_dump',
-            'status': 'completed' if success else 'error',
-            'address': (address_msb << 8) | address_lsb,
-            'data_length': len(parameter_data)
+            "type": "bulk_dump",
+            "status": "completed" if success else "error",
+            "address": (address_msb << 8) | address_lsb,
+            "data_length": len(parameter_data),
         }
 
     def _handle_xg_dump(self, data: list[int]) -> dict[str, Any] | None:
@@ -508,7 +500,7 @@ class XGSystemExclusiveController:
     def _handle_bulk_dump(self, data: list[int]) -> dict[str, Any] | None:
         """Handle general bulk dump - processes parameter data."""
         if len(data) < 1:
-            return {'type': 'bulk_dump', 'status': 'error', 'error': 'no_data'}
+            return {"type": "bulk_dump", "status": "error", "error": "no_data"}
 
         # Determine dump type from first byte
         dump_type = data[0]
@@ -521,19 +513,19 @@ class XGSystemExclusiveController:
         elif dump_type == 0x02:  # Multi-part parameters
             success = self._process_multipart_bulk_dump(dump_data)
         else:
-            return {'type': 'bulk_dump', 'status': 'error', 'error': 'unknown_dump_type'}
+            return {"type": "bulk_dump", "status": "error", "error": "unknown_dump_type"}
 
         return {
-            'type': 'bulk_dump',
-            'dump_type': dump_type,
-            'status': 'completed' if success else 'error',
-            'data_length': len(dump_data)
+            "type": "bulk_dump",
+            "dump_type": dump_type,
+            "status": "completed" if success else "error",
+            "data_length": len(dump_data),
         }
 
     def _handle_bulk_dump_request(self, data: list[int]) -> dict[str, Any] | None:
         """Handle bulk dump request - returns requested parameter data."""
         if len(data) < 1:
-            return {'type': 'bulk_dump_request', 'status': 'error', 'error': 'no_request_type'}
+            return {"type": "bulk_dump_request", "status": "error", "error": "no_request_type"}
 
         request_type = data[0]
 
@@ -546,19 +538,19 @@ class XGSystemExclusiveController:
         elif request_type == 0x7F:  # All parameters (XG dump)
             dump_data = self._generate_xg_parameter_dump()
         else:
-            return {'type': 'bulk_dump_request', 'status': 'error', 'error': 'unknown_request_type'}
+            return {"type": "bulk_dump_request", "status": "error", "error": "unknown_request_type"}
 
         return {
-            'type': 'bulk_dump_request',
-            'request_type': request_type,
-            'status': 'completed',
-            'data': dump_data,
-            'data_length': len(dump_data)
+            "type": "bulk_dump_request",
+            "request_type": request_type,
+            "status": "completed",
+            "data": dump_data,
+            "data_length": len(dump_data),
         }
 
     def _handle_special_message(self, data: list[int]) -> dict[str, Any] | None:
         """Handle special message."""
-        return {'type': 'special_message', 'data': data}
+        return {"type": "special_message", "data": data}
 
     # Public interface methods
 
@@ -660,15 +652,15 @@ class XGSystemExclusiveController:
             Status dictionary
         """
         return {
-            'device_id': self.device_id,
-            'model_id': self.model_id,
-            'active_parameters': len(self.parameters),
-            'supported_commands': len(self.XG_COMMANDS),
-            'callbacks_configured': {
-                'parameter_change': self.parameter_change_callback is not None,
-                'system_command': self.system_command_callback is not None,
-                'display': self.display_callback is not None
-            }
+            "device_id": self.device_id,
+            "model_id": self.model_id,
+            "active_parameters": len(self.parameters),
+            "supported_commands": len(self.XG_COMMANDS),
+            "callbacks_configured": {
+                "parameter_change": self.parameter_change_callback is not None,
+                "system_command": self.system_command_callback is not None,
+                "display": self.display_callback is not None,
+            },
         }
 
     # Bulk Dump Data Processing and Generation Methods
@@ -693,14 +685,17 @@ class XGSystemExclusiveController:
         for part in range(16):
             for base_address in [0x2A00, 0x2B00, 0x2C00, 0x2D00]:  # Voice reserve, mode, level, pan
                 address = base_address + part
-                param_name = f'{self.XG_PARAMETER_ADDRESSES.get(base_address, "unknown")}_part_{part}'
+                param_name = (
+                    f"{self.XG_PARAMETER_ADDRESSES.get(base_address, 'unknown')}_part_{part}"
+                )
                 value = self.parameters.get(param_name, 0)
                 dump_data.extend([address >> 8, address & 0xFF, value & 0x7F])
 
         return dump_data
 
-    def _process_xg_bulk_dump_data(self, address_msb: int, address_lsb: int,
-                                  parameter_data: list[int]) -> bool:
+    def _process_xg_bulk_dump_data(
+        self, address_msb: int, address_lsb: int, parameter_data: list[int]
+    ) -> bool:
         """
         Process XG bulk dump parameter data.
 
@@ -729,7 +724,9 @@ class XGSystemExclusiveController:
                 for i, value in enumerate(parameter_data):
                     part = (base_address + i) & 0x0F  # Extract part number
                     base_param = base_address & 0xFF00
-                    param_name = f'{self.XG_PARAMETER_ADDRESSES.get(base_param, "unknown")}_part_{part}'
+                    param_name = (
+                        f"{self.XG_PARAMETER_ADDRESSES.get(base_param, 'unknown')}_part_{part}"
+                    )
                     self.parameters[param_name] = value
                     if self.parameter_change_callback:
                         self.parameter_change_callback(param_name, value)
@@ -750,10 +747,18 @@ class XGSystemExclusiveController:
         dump_data = [0x00]  # System parameters type
 
         # Add system effect parameters
-        for param_name in ['reverb_type', 'reverb_time', 'reverb_hf_damping',
-                          'reverb_balance', 'reverb_level', 'chorus_type',
-                          'chorus_lfo_freq', 'chorus_depth', 'chorus_feedback',
-                          'chorus_send_level']:
+        for param_name in [
+            "reverb_type",
+            "reverb_time",
+            "reverb_hf_damping",
+            "reverb_balance",
+            "reverb_level",
+            "chorus_type",
+            "chorus_lfo_freq",
+            "chorus_depth",
+            "chorus_feedback",
+            "chorus_send_level",
+        ]:
             value = self.parameters.get(param_name, 0)
             dump_data.append(value & 0x7F)
 
@@ -770,8 +775,16 @@ class XGSystemExclusiveController:
 
         # Add all effect-related parameters
         effect_params = [
-            'reverb_type', 'reverb_time', 'reverb_hf_damping', 'reverb_balance', 'reverb_level',
-            'chorus_type', 'chorus_lfo_freq', 'chorus_depth', 'chorus_feedback', 'chorus_send_level'
+            "reverb_type",
+            "reverb_time",
+            "reverb_hf_damping",
+            "reverb_balance",
+            "reverb_level",
+            "chorus_type",
+            "chorus_lfo_freq",
+            "chorus_depth",
+            "chorus_feedback",
+            "chorus_send_level",
         ]
 
         for param_name in effect_params:
@@ -792,19 +805,19 @@ class XGSystemExclusiveController:
         # Add parameters for all 16 parts (voice reserve, mode, level, pan)
         for part in range(16):
             # Voice reserve (MSB 42)
-            reserve = self.parameters.get(f'voice_reserve_part_{part}', 8)
+            reserve = self.parameters.get(f"voice_reserve_part_{part}", 8)
             dump_data.append(reserve & 0x7F)
 
             # Part mode (MSB 43)
-            mode = self.parameters.get(f'part_mode_part_{part}', 1)
+            mode = self.parameters.get(f"part_mode_part_{part}", 1)
             dump_data.append(mode & 0x7F)
 
             # Part level (MSB 44)
-            level = int(self.parameters.get(f'part_level_part_{part}', 1.0) * 127)
+            level = int(self.parameters.get(f"part_level_part_{part}", 1.0) * 127)
             dump_data.append(level & 0x7F)
 
             # Part pan (MSB 45)
-            pan = int((self.parameters.get(f'part_pan_part_{part}', 0.0) + 1.0) * 63.5)
+            pan = int((self.parameters.get(f"part_pan_part_{part}", 0.0) + 1.0) * 63.5)
             dump_data.append(pan & 0x7F)
 
         return dump_data
@@ -820,10 +833,18 @@ class XGSystemExclusiveController:
             True if processed successfully
         """
         try:
-            expected_params = ['reverb_type', 'reverb_time', 'reverb_hf_damping',
-                              'reverb_balance', 'reverb_level', 'chorus_type',
-                              'chorus_lfo_freq', 'chorus_depth', 'chorus_feedback',
-                              'chorus_send_level']
+            expected_params = [
+                "reverb_type",
+                "reverb_time",
+                "reverb_hf_damping",
+                "reverb_balance",
+                "reverb_level",
+                "chorus_type",
+                "chorus_lfo_freq",
+                "chorus_depth",
+                "chorus_feedback",
+                "chorus_send_level",
+            ]
 
             if len(dump_data) < len(expected_params):
                 return False
@@ -871,26 +892,30 @@ class XGSystemExclusiveController:
                 base_idx = part * 4
 
                 # Voice reserve
-                self.parameters[f'voice_reserve_part_{part}'] = dump_data[base_idx]
+                self.parameters[f"voice_reserve_part_{part}"] = dump_data[base_idx]
                 if self.parameter_change_callback:
-                    self.parameter_change_callback(f'voice_reserve_part_{part}', dump_data[base_idx])
+                    self.parameter_change_callback(
+                        f"voice_reserve_part_{part}", dump_data[base_idx]
+                    )
 
                 # Part mode
-                self.parameters[f'part_mode_part_{part}'] = dump_data[base_idx + 1]
+                self.parameters[f"part_mode_part_{part}"] = dump_data[base_idx + 1]
                 if self.parameter_change_callback:
-                    self.parameter_change_callback(f'part_mode_part_{part}', dump_data[base_idx + 1])
+                    self.parameter_change_callback(
+                        f"part_mode_part_{part}", dump_data[base_idx + 1]
+                    )
 
                 # Part level (convert from 0-127 to 0.0-1.0)
                 level_norm = dump_data[base_idx + 2] / 127.0
-                self.parameters[f'part_level_part_{part}'] = level_norm
+                self.parameters[f"part_level_part_{part}"] = level_norm
                 if self.parameter_change_callback:
-                    self.parameter_change_callback(f'part_level_part_{part}', level_norm)
+                    self.parameter_change_callback(f"part_level_part_{part}", level_norm)
 
                 # Part pan (convert from 0-127 to -1.0 to +1.0)
                 pan_norm = (dump_data[base_idx + 3] - 64) / 64.0
-                self.parameters[f'part_pan_part_{part}'] = pan_norm
+                self.parameters[f"part_pan_part_{part}"] = pan_norm
                 if self.parameter_change_callback:
-                    self.parameter_change_callback(f'part_pan_part_{part}', pan_norm)
+                    self.parameter_change_callback(f"part_pan_part_{part}", pan_norm)
 
             return True
 
@@ -919,7 +944,7 @@ class XGSystemExclusiveController:
         elif dump_type == 0x02:  # Multi-part parameters
             dump_data = self._generate_multipart_bulk_dump()
         else:
-            return b''  # Invalid dump type
+            return b""  # Invalid dump type
 
         # Create SYSEX message with command 0x07 (XG Bulk Dump)
         return self.create_sysex_message(0x07, dump_data)

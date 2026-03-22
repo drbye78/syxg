@@ -8,14 +8,15 @@ region instances at note-on time based on note/velocity matching.
 
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
 import logging
+from typing import Any
+
+import numpy as np
 
 from ..engine.preset_info import PresetInfo
 from ..engine.region_descriptor import RegionDescriptor
 from ..engine.synthesis_engine import SynthesisEngine
-from ..partial.region import IRegion, RegionState
+from ..partial.region import IRegion
 
 logger = logging.getLogger(__name__)
 
@@ -39,18 +40,18 @@ class Voice:
     """
 
     __slots__ = [
-        "preset_info",
-        "engine",
-        "channel",
-        "sample_rate",
         "_active_instances",
-        "_region_cache",
-        "_round_robin_state",
+        "_articulation",
+        "_chorus_send",
         "_master_level",
         "_master_pan",
+        "_region_cache",
         "_reverb_send",
-        "_chorus_send",
-        "_articulation",
+        "_round_robin_state",
+        "channel",
+        "engine",
+        "preset_info",
+        "sample_rate",
     ]
 
     def __init__(
@@ -441,7 +442,7 @@ def _create_silent_region(descriptor: RegionDescriptor, sample_rate: int) -> IRe
 
     Returns a region that generates silence when region creation fails.
     """
-    from ..partial.region import IRegion, RegionState
+    from ..partial.region import IRegion
 
     class SilentRegion(IRegion):
         def _load_sample_data(self) -> np.ndarray | None:

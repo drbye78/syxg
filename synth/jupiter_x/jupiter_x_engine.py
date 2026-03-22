@@ -252,18 +252,19 @@ ARCHITECTURAL PRINCIPLES:
 - DEPENDENCY INVERSION: Abstract hardware interfaces for flexible implementation
 - COMPOSITION OVER INHERITANCE: Modular hardware integration assembly
 """
+
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
 import threading
+from typing import Any
 
-from ..engine.synthesis_engine import SynthesisEngine
-from ..engine.region_descriptor import RegionDescriptor
+import numpy as np
+
 from ..engine.preset_info import PresetInfo
+from ..engine.region_descriptor import RegionDescriptor
+from ..engine.synthesis_engine import SynthesisEngine
 from ..partial.region import IRegion
 from .synthesizer import JupiterXSynthesizer
-from ..core.buffer_pool import XGBufferPool
 
 
 class JupiterXEngineIntegration(SynthesisEngine):
@@ -275,7 +276,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
     Jupiter-X to be used alongside other synthesis engines.
     """
 
-    def __init__(self, sample_rate: int = 44100, block_size: int = 1024, buffer_oool = None):
+    def __init__(self, sample_rate: int = 44100, block_size: int = 1024, buffer_oool=None):
         """
         Initialize Jupiter-X engine integration.
 
@@ -398,9 +399,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
             chorus_send=0.0,
         )
 
-    def get_all_region_descriptors(
-        self, bank: int, program: int
-    ) -> list[RegionDescriptor]:
+    def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get ALL region descriptors for a Jupiter-X preset.
 
@@ -418,9 +417,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
             return preset_info.region_descriptors
         return []
 
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create Jupiter-X base region without S.Art2 wrapper.
 
@@ -474,9 +471,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
                 self.active = False
                 self.jupiter_x_engine.note_off(self.note)
 
-            def generate_samples(
-                self, block_size: int, modulation: dict = None
-            ) -> np.ndarray:
+            def generate_samples(self, block_size: int, modulation: dict = None) -> np.ndarray:
                 """Generate samples."""
                 if not self.active:
                     return np.zeros((block_size, 2), dtype=np.float32)
@@ -589,9 +584,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
         with self.lock:
             # Map common parameter names to Jupiter-X parameters
             param_mapping = {
-                "volume": lambda v: self.jupiter_x_synth.set_parameter(
-                    "master_volume", v
-                ),
+                "volume": lambda v: self.jupiter_x_synth.set_parameter("master_volume", v),
                 "pan": lambda v: self.jupiter_x_synth.set_parameter("master_pan", v),
                 "cutoff": lambda v: self.jupiter_x_synth.set_engine_parameter(
                     0, "analog", "filter_cutoff", v
@@ -643,9 +636,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
         with self.lock:
             self.jupiter_x_synth.process_midi_message(0xD0, pressure, 0)
 
-    def load_program(
-        self, program_number: int, bank_msb: int = 0, bank_lsb: int = 0
-    ) -> bool:
+    def load_program(self, program_number: int, bank_msb: int = 0, bank_lsb: int = 0) -> bool:
         """
         Load program/preset.
 
@@ -662,9 +653,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
             preset_name = f"program_{program_number}"
             return self.jupiter_x_synth.load_preset(preset_name)
 
-    def save_program(
-        self, program_number: int, bank_msb: int = 0, bank_lsb: int = 0
-    ) -> bool:
+    def save_program(self, program_number: int, bank_msb: int = 0, bank_lsb: int = 0) -> bool:
         """Save current state as program/preset."""
         with self.lock:
             preset_name = f"program_{program_number}"
@@ -707,14 +696,10 @@ class JupiterXEngineIntegration(SynthesisEngine):
         with self.lock:
             return self.jupiter_x_synth.get_part_engine(part_num)
 
-    def set_jupiter_x_parameter(
-        self, part_num: int, engine: str, param: str, value: Any
-    ) -> bool:
+    def set_jupiter_x_parameter(self, part_num: int, engine: str, param: str, value: Any) -> bool:
         """Set Jupiter-X specific parameter."""
         with self.lock:
-            return self.jupiter_x_synth.set_engine_parameter(
-                part_num, engine, param, value
-            )
+            return self.jupiter_x_synth.set_engine_parameter(part_num, engine, param, value)
 
     def get_jupiter_x_parameter(self, part_num: int, engine: str, param: str) -> Any:
         """Get Jupiter-X specific parameter."""

@@ -5,16 +5,17 @@ Provides complete MPE (MIDI Polyphonic Expression) support for Jupiter-X,
 enabling per-note control of timbre, pitch bend, pressure, and other
 parameters with hardware-accurate behavior and real-time performance.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from enum import Enum
 import threading
+from enum import Enum
+from typing import Any
 
 
 class MPEZone(Enum):
     """MPE zone definitions."""
+
     LOWER = "lower"
     UPPER = "upper"
 
@@ -43,7 +44,7 @@ class MPEChannel:
         # Channel-wide parameters
         self.pitch_bend_range = 48  # semitones (MPE default)
         self.timbre_cc = 74  # Brightness CC
-        self.pressure_curve = 'linear'  # 'linear', 'exponential'
+        self.pressure_curve = "linear"  # 'linear', 'exponential'
 
         # Zone configuration
         self.zone_master_channel = 1 if zone == MPEZone.LOWER else 16
@@ -58,13 +59,13 @@ class MPEChannel:
             initial_timbre: Initial timbre value
         """
         self.active_notes[note] = {
-            'velocity': velocity,
-            'timbre': initial_timbre,
-            'pressure': 0.0,
-            'pitch_bend': 0.0,
-            'slide': 0.0,
-            'start_time': self._get_current_time(),
-            'last_update': self._get_current_time()
+            "velocity": velocity,
+            "timbre": initial_timbre,
+            "pressure": 0.0,
+            "pitch_bend": 0.0,
+            "slide": 0.0,
+            "start_time": self._get_current_time(),
+            "last_update": self._get_current_time(),
         }
 
     def note_off(self, note: int):
@@ -86,8 +87,8 @@ class MPEChannel:
             value: Timbre value (0-127)
         """
         if note in self.active_notes:
-            self.active_notes[note]['timbre'] = value / 127.0
-            self.active_notes[note]['last_update'] = self._get_current_time()
+            self.active_notes[note]["timbre"] = value / 127.0
+            self.active_notes[note]["last_update"] = self._get_current_time()
 
     def update_pressure(self, note: int, value: float):
         """
@@ -99,15 +100,15 @@ class MPEChannel:
         """
         if note in self.active_notes:
             # Apply pressure curve
-            if self.pressure_curve == 'linear':
+            if self.pressure_curve == "linear":
                 pressure = value / 127.0
-            elif self.pressure_curve == 'exponential':
+            elif self.pressure_curve == "exponential":
                 pressure = (value / 127.0) ** 2.0
             else:
                 pressure = value / 127.0
 
-            self.active_notes[note]['pressure'] = pressure
-            self.active_notes[note]['last_update'] = self._get_current_time()
+            self.active_notes[note]["pressure"] = pressure
+            self.active_notes[note]["last_update"] = self._get_current_time()
 
     def update_pitch_bend(self, note: int, value: float):
         """
@@ -120,8 +121,8 @@ class MPEChannel:
         if note in self.active_notes:
             # Convert to semitones based on pitch bend range
             bend_semitones = (value / 8192.0) * (self.pitch_bend_range / 2.0)
-            self.active_notes[note]['pitch_bend'] = bend_semitones
-            self.active_notes[note]['last_update'] = self._get_current_time()
+            self.active_notes[note]["pitch_bend"] = bend_semitones
+            self.active_notes[note]["last_update"] = self._get_current_time()
 
     def update_slide(self, note: int, value: float):
         """
@@ -132,8 +133,8 @@ class MPEChannel:
             value: Slide value (0-127)
         """
         if note in self.active_notes:
-            self.active_notes[note]['slide'] = value / 127.0
-            self.active_notes[note]['last_update'] = self._get_current_time()
+            self.active_notes[note]["slide"] = value / 127.0
+            self.active_notes[note]["last_update"] = self._get_current_time()
 
     def get_note_expression(self, note: int) -> dict[str, Any] | None:
         """
@@ -163,6 +164,7 @@ class MPEChannel:
     def _get_current_time(self) -> float:
         """Get current timestamp."""
         import time
+
         return time.time()
 
 
@@ -184,7 +186,7 @@ class JupiterXMPEManager:
 
         # Global MPE settings
         self.global_pitch_bend_range = 2  # Traditional pitch bend range
-        self.mpe_profile = 'standard'  # 'standard', 'extended'
+        self.mpe_profile = "standard"  # 'standard', 'extended'
 
         # Threading
         self.lock = threading.RLock()
@@ -193,27 +195,29 @@ class JupiterXMPEManager:
         """Initialize MPE zones."""
         # Lower zone (channels 2-9, master channel 1)
         self.zones[MPEZone.LOWER] = {
-            'master_channel': 1,
-            'member_channels': list(range(2, 10)),  # Channels 2-9
-            'pitch_bend_range': 48,  # semitones
-            'timbre_cc': 74,  # Brightness
-            'enabled': False
+            "master_channel": 1,
+            "member_channels": list(range(2, 10)),  # Channels 2-9
+            "pitch_bend_range": 48,  # semitones
+            "timbre_cc": 74,  # Brightness
+            "enabled": False,
         }
 
         # Upper zone (channels 10-15, master channel 16)
         self.zones[MPEZone.UPPER] = {
-            'master_channel': 16,
-            'member_channels': list(range(10, 16)),  # Channels 10-15
-            'pitch_bend_range': 48,  # semitones
-            'timbre_cc': 74,  # Brightness
-            'enabled': False
+            "master_channel": 16,
+            "member_channels": list(range(10, 16)),  # Channels 10-15
+            "pitch_bend_range": 48,  # semitones
+            "timbre_cc": 74,  # Brightness
+            "enabled": False,
         }
 
         # Create channel objects
         for zone in self.zones.values():
-            zone['channels'] = {}
-            for ch_num in zone['member_channels']:
-                zone['channels'][ch_num] = MPEChannel(ch_num, MPEZone.LOWER if zone['master_channel'] == 1 else MPEZone.UPPER)
+            zone["channels"] = {}
+            for ch_num in zone["member_channels"]:
+                zone["channels"][ch_num] = MPEChannel(
+                    ch_num, MPEZone.LOWER if zone["master_channel"] == 1 else MPEZone.UPPER
+                )
 
     def enable_mpe(self, enabled: bool = True):
         """
@@ -228,8 +232,8 @@ class JupiterXMPEManager:
             if not enabled:
                 # Clear all zones when disabling
                 for zone in self.zones.values():
-                    zone['enabled'] = False
-                    for channel in zone['channels'].values():
+                    zone["enabled"] = False
+                    for channel in zone["channels"].values():
                         channel.clear_channel()
 
     def enable_zone(self, zone: MPEZone, enabled: bool = True, pitch_bend_range: int = 48):
@@ -243,20 +247,26 @@ class JupiterXMPEManager:
         """
         with self.lock:
             if zone in self.zones:
-                self.zones[zone]['enabled'] = enabled
-                self.zones[zone]['pitch_bend_range'] = pitch_bend_range
+                self.zones[zone]["enabled"] = enabled
+                self.zones[zone]["pitch_bend_range"] = pitch_bend_range
 
                 # Update pitch bend range for all channels in zone
-                for channel in self.zones[zone]['channels'].values():
+                for channel in self.zones[zone]["channels"].values():
                     channel.pitch_bend_range = pitch_bend_range
 
                 if not enabled:
                     # Clear channels when disabling zone
-                    for channel in self.zones[zone]['channels'].values():
+                    for channel in self.zones[zone]["channels"].values():
                         channel.clear_channel()
 
-    def configure_zone(self, zone: MPEZone, master_channel: int, member_channels: list[int],
-                      pitch_bend_range: int = 48, timbre_cc: int = 74):
+    def configure_zone(
+        self,
+        zone: MPEZone,
+        master_channel: int,
+        member_channels: list[int],
+        pitch_bend_range: int = 48,
+        timbre_cc: int = 74,
+    ):
         """
         Configure MPE zone parameters.
 
@@ -270,20 +280,22 @@ class JupiterXMPEManager:
         with self.lock:
             if zone in self.zones:
                 zone_config = self.zones[zone]
-                zone_config['master_channel'] = master_channel
-                zone_config['member_channels'] = member_channels.copy()
-                zone_config['pitch_bend_range'] = pitch_bend_range
-                zone_config['timbre_cc'] = timbre_cc
+                zone_config["master_channel"] = master_channel
+                zone_config["member_channels"] = member_channels.copy()
+                zone_config["pitch_bend_range"] = pitch_bend_range
+                zone_config["timbre_cc"] = timbre_cc
 
                 # Recreate channels with new configuration
-                zone_config['channels'] = {}
+                zone_config["channels"] = {}
                 zone_enum = MPEZone.LOWER if master_channel == 1 else MPEZone.UPPER
                 for ch_num in member_channels:
-                    zone_config['channels'][ch_num] = MPEChannel(ch_num, zone_enum)
-                    zone_config['channels'][ch_num].pitch_bend_range = pitch_bend_range
-                    zone_config['channels'][ch_num].timbre_cc = timbre_cc
+                    zone_config["channels"][ch_num] = MPEChannel(ch_num, zone_enum)
+                    zone_config["channels"][ch_num].pitch_bend_range = pitch_bend_range
+                    zone_config["channels"][ch_num].timbre_cc = timbre_cc
 
-    def process_midi_message(self, message_type: str, channel: int, data1: int, data2: int = 0) -> list[dict[str, Any]]:
+    def process_midi_message(
+        self, message_type: str, channel: int, data1: int, data2: int = 0
+    ) -> list[dict[str, Any]]:
         """
         Process MIDI message for MPE.
 
@@ -308,27 +320,28 @@ class JupiterXMPEManager:
             if not zone or not mpe_channel:
                 return events
 
-            if message_type == 'note_on':
+            if message_type == "note_on":
                 mpe_channel.note_on(data1, data2)
-                events.append({
-                    'type': 'mpe_note_on',
-                    'zone': zone.value,
-                    'channel': channel,
-                    'note': data1,
-                    'velocity': data2,
-                    'timbre': mpe_channel.get_note_expression(data1)['timbre'] if data1 in mpe_channel.active_notes else 0.0
-                })
+                events.append(
+                    {
+                        "type": "mpe_note_on",
+                        "zone": zone.value,
+                        "channel": channel,
+                        "note": data1,
+                        "velocity": data2,
+                        "timbre": mpe_channel.get_note_expression(data1)["timbre"]
+                        if data1 in mpe_channel.active_notes
+                        else 0.0,
+                    }
+                )
 
-            elif message_type == 'note_off':
+            elif message_type == "note_off":
                 mpe_channel.note_off(data1)
-                events.append({
-                    'type': 'mpe_note_off',
-                    'zone': zone.value,
-                    'channel': channel,
-                    'note': data1
-                })
+                events.append(
+                    {"type": "mpe_note_off", "zone": zone.value, "channel": channel, "note": data1}
+                )
 
-            elif message_type == 'cc':
+            elif message_type == "cc":
                 cc_number = data1
                 cc_value = data2
 
@@ -340,15 +353,17 @@ class JupiterXMPEManager:
                     last_note = self._get_last_note_on_channel(channel)
                     if last_note is not None:
                         mpe_channel.update_timbre(last_note, cc_value)
-                        events.append({
-                            'type': 'mpe_timbre',
-                            'zone': zone.value,
-                            'channel': channel,
-                            'note': last_note,
-                            'timbre': cc_value / 127.0
-                        })
+                        events.append(
+                            {
+                                "type": "mpe_timbre",
+                                "zone": zone.value,
+                                "channel": channel,
+                                "note": last_note,
+                                "timbre": cc_value / 127.0,
+                            }
+                        )
 
-            elif message_type == 'pitch_bend':
+            elif message_type == "pitch_bend":
                 # Pitch bend on member channels is per-note
                 bend_value = (data2 << 7) | data1  # Combine 14-bit value
                 bend_signed = bend_value - 8192  # Convert to signed
@@ -356,26 +371,30 @@ class JupiterXMPEManager:
                 last_note = self._get_last_note_on_channel(channel)
                 if last_note is not None:
                     mpe_channel.update_pitch_bend(last_note, bend_signed)
-                    events.append({
-                        'type': 'mpe_pitch_bend',
-                        'zone': zone.value,
-                        'channel': channel,
-                        'note': last_note,
-                        'bend': bend_signed
-                    })
+                    events.append(
+                        {
+                            "type": "mpe_pitch_bend",
+                            "zone": zone.value,
+                            "channel": channel,
+                            "note": last_note,
+                            "bend": bend_signed,
+                        }
+                    )
 
-            elif message_type == 'aftertouch':
+            elif message_type == "aftertouch":
                 # Aftertouch (pressure) on member channels is per-note
                 last_note = self._get_last_note_on_channel(channel)
                 if last_note is not None:
                     mpe_channel.update_pressure(last_note, data1)
-                    events.append({
-                        'type': 'mpe_pressure',
-                        'zone': zone.value,
-                        'channel': channel,
-                        'note': last_note,
-                        'pressure': data1 / 127.0
-                    })
+                    events.append(
+                        {
+                            "type": "mpe_pressure",
+                            "zone": zone.value,
+                            "channel": channel,
+                            "note": last_note,
+                            "pressure": data1 / 127.0,
+                        }
+                    )
 
             return events
 
@@ -390,9 +409,9 @@ class JupiterXMPEManager:
             Tuple of (zone, mpe_channel) or (None, None)
         """
         for zone_enum, zone_config in self.zones.items():
-            if zone_enum in zone_config['channels'] and channel in zone_config['channels']:
-                if zone_config['enabled']:
-                    return zone_enum, zone_config['channels'][channel]
+            if zone_enum in zone_config["channels"] and channel in zone_config["channels"]:
+                if zone_config["enabled"]:
+                    return zone_enum, zone_config["channels"][channel]
 
         return None, None
 
@@ -409,9 +428,9 @@ class JupiterXMPEManager:
         zone, mpe_channel = self._get_channel_for_message(channel)
         if mpe_channel and mpe_channel.active_notes:
             # Return most recently played note
-            notes_by_time = sorted(mpe_channel.active_notes.items(),
-                                 key=lambda x: x[1]['start_time'],
-                                 reverse=True)
+            notes_by_time = sorted(
+                mpe_channel.active_notes.items(), key=lambda x: x[1]["start_time"], reverse=True
+            )
             return notes_by_time[0][0]
 
         return None
@@ -463,8 +482,10 @@ class JupiterXMPEManager:
             if zone in self.zones:
                 zone_config = self.zones[zone].copy()
                 # Count active notes across all channels in zone
-                total_active_notes = sum(len(ch.get_all_active_notes()) for ch in zone_config['channels'].values())
-                zone_config['active_notes'] = total_active_notes
+                total_active_notes = sum(
+                    len(ch.get_all_active_notes()) for ch in zone_config["channels"].values()
+                )
+                zone_config["active_notes"] = total_active_notes
                 return zone_config
             return None
 
@@ -477,14 +498,14 @@ class JupiterXMPEManager:
         """
         with self.lock:
             status = {
-                'enabled': self.enabled,
-                'profile': self.mpe_profile,
-                'global_pitch_bend_range': self.global_pitch_bend_range,
-                'zones': {}
+                "enabled": self.enabled,
+                "profile": self.mpe_profile,
+                "global_pitch_bend_range": self.global_pitch_bend_range,
+                "zones": {},
             }
 
             for zone_enum, zone_config in self.zones.items():
-                status['zones'][zone_enum.value] = self.get_zone_status(zone_enum)
+                status["zones"][zone_enum.value] = self.get_zone_status(zone_enum)
 
             return status
 
@@ -492,12 +513,12 @@ class JupiterXMPEManager:
         """Reset MPE to default state."""
         with self.lock:
             self.enabled = False
-            self.mpe_profile = 'standard'
+            self.mpe_profile = "standard"
             self.global_pitch_bend_range = 2
 
             for zone_config in self.zones.values():
-                zone_config['enabled'] = False
-                for channel in zone_config['channels'].values():
+                zone_config["enabled"] = False
+                for channel in zone_config["channels"].values():
                     channel.clear_channel()
 
     def set_mpe_profile(self, profile: str):
@@ -508,20 +529,20 @@ class JupiterXMPEManager:
             profile: Profile name ('standard', 'extended')
         """
         with self.lock:
-            if profile in ['standard', 'extended']:
+            if profile in ["standard", "extended"]:
                 self.mpe_profile = profile
 
-                if profile == 'extended':
+                if profile == "extended":
                     # Extended profile uses wider ranges
                     for zone_config in self.zones.values():
-                        zone_config['pitch_bend_range'] = 96  # Wider pitch bend
-                        for channel in zone_config['channels'].values():
+                        zone_config["pitch_bend_range"] = 96  # Wider pitch bend
+                        for channel in zone_config["channels"].values():
                             channel.pitch_bend_range = 96
                 else:
                     # Standard profile
                     for zone_config in self.zones.values():
-                        zone_config['pitch_bend_range'] = 48
-                        for channel in zone_config['channels'].values():
+                        zone_config["pitch_bend_range"] = 48
+                        for channel in zone_config["channels"].values():
                             channel.pitch_bend_range = 48
 
     def export_mpe_configuration(self) -> dict[str, Any]:
@@ -533,17 +554,17 @@ class JupiterXMPEManager:
         """
         with self.lock:
             config = {
-                'enabled': self.enabled,
-                'profile': self.mpe_profile,
-                'global_pitch_bend_range': self.global_pitch_bend_range,
-                'zones': {}
+                "enabled": self.enabled,
+                "profile": self.mpe_profile,
+                "global_pitch_bend_range": self.global_pitch_bend_range,
+                "zones": {},
             }
 
             for zone_enum, zone_config in self.zones.items():
                 zone_data = zone_config.copy()
                 # Remove channel objects from export
-                zone_data.pop('channels', None)
-                config['zones'][zone_enum.value] = zone_data
+                zone_data.pop("channels", None)
+                config["zones"][zone_enum.value] = zone_data
 
             return config
 
@@ -555,21 +576,21 @@ class JupiterXMPEManager:
             config: MPE configuration data
         """
         with self.lock:
-            self.enabled = config.get('enabled', False)
-            self.mpe_profile = config.get('profile', 'standard')
-            self.global_pitch_bend_range = config.get('global_pitch_bend_range', 2)
+            self.enabled = config.get("enabled", False)
+            self.mpe_profile = config.get("profile", "standard")
+            self.global_pitch_bend_range = config.get("global_pitch_bend_range", 2)
 
-            zones_config = config.get('zones', {})
+            zones_config = config.get("zones", {})
             for zone_name, zone_data in zones_config.items():
                 try:
                     zone_enum = MPEZone(zone_name)
                     self.configure_zone(
                         zone_enum,
-                        zone_data.get('master_channel', 1 if zone_name == 'lower' else 16),
-                        zone_data.get('member_channels', []),
-                        zone_data.get('pitch_bend_range', 48),
-                        zone_data.get('timbre_cc', 74)
+                        zone_data.get("master_channel", 1 if zone_name == "lower" else 16),
+                        zone_data.get("member_channels", []),
+                        zone_data.get("pitch_bend_range", 48),
+                        zone_data.get("timbre_cc", 74),
                     )
-                    self.enable_zone(zone_enum, zone_data.get('enabled', False))
+                    self.enable_zone(zone_enum, zone_data.get("enabled", False))
                 except ValueError:
                     continue  # Skip invalid zones

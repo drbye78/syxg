@@ -4,6 +4,7 @@ Vibexg CLI - Command Line Interface
 This module provides the command-line interface for the vibexg
 workstation, including argument parsing and the main entry point.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -14,10 +15,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from synth.midi import get_input_names, get_output_names, RTMIDI_AVAILABLE
+from synth.midi import RTMIDI_AVAILABLE, get_input_names, get_output_names
 
+from .types import DEFAULT_BUFFER_SIZE, DEFAULT_SAMPLE_RATE
 from .workstation import XGWorkstation
-from .types import DEFAULT_SAMPLE_RATE, DEFAULT_BUFFER_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -51,69 +52,64 @@ Examples:
 
   # Load configuration from file
   python vibexg.py --config workstation.yaml
-        """
+        """,
     )
 
     parser.add_argument(
-        "--config", "-c",
+        "--config",
+        "-c",
         type=str,
         default="config.yaml",
-        help="Configuration file path (default: config.yaml)"
+        help="Configuration file path (default: config.yaml)",
     )
 
     parser.add_argument(
-        "--midi-input", "-i",
+        "--midi-input",
+        "-i",
         action="append",
         dest="midi_inputs",
         metavar="TYPE[:NAME]",
-        help="MIDI input interface (keyboard, mido_port:NAME, virtual_port, network_midi, file:PATH, stdin)"
+        help="MIDI input interface (keyboard, mido_port:NAME, virtual_port, network_midi, file:PATH, stdin)",
     )
 
     parser.add_argument(
-        "--audio-output", "-o",
+        "--audio-output",
+        "-o",
         type=str,
         default="sounddevice",
         metavar="TYPE[:PATH]",
-        help="Audio output (sounddevice[:DEVICE], file:PATH.wav, none)"
+        help="Audio output (sounddevice[:DEVICE], file:PATH.wav, none)",
     )
 
     parser.add_argument(
-        "--sample-rate", "-sr",
+        "--sample-rate",
+        "-sr",
         type=int,
         default=DEFAULT_SAMPLE_RATE,
-        help=f"Audio sample rate (default: {DEFAULT_SAMPLE_RATE})"
+        help=f"Audio sample rate (default: {DEFAULT_SAMPLE_RATE})",
     )
 
     parser.add_argument(
-        "--buffer-size", "-bs",
+        "--buffer-size",
+        "-bs",
         type=int,
         default=DEFAULT_BUFFER_SIZE,
-        help=f"Audio buffer size (default: {DEFAULT_BUFFER_SIZE})"
+        help=f"Audio buffer size (default: {DEFAULT_BUFFER_SIZE})",
     )
 
-    parser.add_argument(
-        "--no-tui",
-        action="store_true",
-        help="Disable TUI (text user interface)"
-    )
+    parser.add_argument("--no-tui", action="store_true", help="Disable TUI (text user interface)")
 
     parser.add_argument(
         "--demo",
         type=str,
         choices=["scale", "chords", "arpeggio"],
-        help="Run demo pattern (scale, chords, arpeggio)"
+        help="Run demo pattern (scale, chords, arpeggio)",
     )
 
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Verbose output"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     parser.add_argument(
-        "--list-ports",
-        action="store_true",
-        help="List available MIDI ports and exit"
+        "--list-ports", action="store_true", help="List available MIDI ports and exit"
     )
 
     return parser.parse_args()
@@ -129,28 +125,28 @@ def parse_input_spec(spec: str) -> dict[str, Any]:
     Returns:
         Dictionary with type and options
     """
-    if ':' in spec:
-        parts = spec.split(':', 1)
+    if ":" in spec:
+        parts = spec.split(":", 1)
         input_type = parts[0]
-        options = {'name': parts[1]} if len(parts) > 1 else {}
+        options = {"name": parts[1]} if len(parts) > 1 else {}
 
-        if input_type == 'file':
-            options['file_path'] = parts[1]
-        elif input_type == 'mido_port':
-            options['port_name'] = parts[1]
-        elif input_type == 'network_midi':
+        if input_type == "file":
+            options["file_path"] = parts[1]
+        elif input_type == "mido_port":
+            options["port_name"] = parts[1]
+        elif input_type == "network_midi":
             # Parse host and port
-            for param in parts[1].split(','):
-                if '=' in param:
-                    key, value = param.split('=', 1)
-                    if key == 'host':
-                        options['host'] = value
-                    elif key == 'port':
-                        options['port'] = int(value)
+            for param in parts[1].split(","):
+                if "=" in param:
+                    key, value = param.split("=", 1)
+                    if key == "host":
+                        options["host"] = value
+                    elif key == "port":
+                        options["port"] = int(value)
 
-        return {'type': input_type, 'options': options}
+        return {"type": input_type, "options": options}
     else:
-        return {'type': spec}
+        return {"type": spec}
 
 
 def parse_output_spec(spec: str) -> dict[str, Any]:
@@ -163,23 +159,23 @@ def parse_output_spec(spec: str) -> dict[str, Any]:
     Returns:
         Dictionary with output configuration
     """
-    if ':' in spec:
-        parts = spec.split(':', 1)
+    if ":" in spec:
+        parts = spec.split(":", 1)
         output_type = parts[0]
         path = parts[1]
 
-        if output_type == 'file':
+        if output_type == "file":
             return {
-                'type': 'file',
-                'file_path': path,
-                'file_format': Path(path).suffix[1:] or 'wav'
+                "type": "file",
+                "file_path": path,
+                "file_format": Path(path).suffix[1:] or "wav",
             }
-        elif output_type == 'sounddevice':
-            return {'type': 'sounddevice', 'device_name': path}
+        elif output_type == "sounddevice":
+            return {"type": "sounddevice", "device_name": path}
     else:
-        return {'type': spec}
+        return {"type": spec}
 
-    return {'type': 'sounddevice'}
+    return {"type": "sounddevice"}
 
 
 def list_midi_ports():
@@ -219,17 +215,17 @@ def main():
 
     # Build configuration
     config = {
-        'sample_rate': args.sample_rate,
-        'buffer_size': args.buffer_size,
-        'config_file': args.config,
-        'midi_inputs': [],
-        'audio_output': parse_output_spec(args.audio_output)
+        "sample_rate": args.sample_rate,
+        "buffer_size": args.buffer_size,
+        "config_file": args.config,
+        "midi_inputs": [],
+        "audio_output": parse_output_spec(args.audio_output),
     }
 
     # Parse MIDI inputs
     if args.midi_inputs:
         for spec in args.midi_inputs:
-            config['midi_inputs'].append(parse_input_spec(spec))
+            config["midi_inputs"].append(parse_input_spec(spec))
 
     # Create and run workstation
     try:
@@ -256,7 +252,7 @@ def main():
 
         # Run workstation
         if args.no_tui:
-            config['enable_tui'] = False
+            config["enable_tui"] = False
             workstation.run()
         else:
             workstation.run()
@@ -267,5 +263,6 @@ def main():
         logger.error(f"Workstation error: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 1

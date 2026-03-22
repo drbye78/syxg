@@ -7,14 +7,15 @@ filters, and modulation according to the SFZ v2 specification.
 
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
 import math
+from typing import Any
 
-from ..partial.region import Region
-from ..audio.sample_manager import SFZSample, PyAVSampleManager
-from ..modulation.advanced_matrix import AdvancedModulationMatrix
+import numpy as np
+
+from ..audio.sample_manager import PyAVSampleManager
 from ..core.oscillator import UltraFastXGLFO
+from ..modulation.advanced_matrix import AdvancedModulationMatrix
+from ..partial.region import Region
 
 
 class SFZEnvelope:

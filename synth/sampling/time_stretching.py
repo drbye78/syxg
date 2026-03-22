@@ -5,11 +5,13 @@ Provides sophisticated time stretching algorithms for sample manipulation,
 including phase vocoder, granular synthesis, and hybrid approaches for
 professional audio processing in the XG synthesizer.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
 import threading
+from typing import Any
+
+import numpy as np
 
 
 class TimeStretchingEngine:
@@ -42,9 +44,7 @@ class TimeStretchingEngine:
 
         # Buffer management
         self.input_buffer = np.zeros(max_block_size, dtype=np.float32)
-        self.output_buffer = np.zeros(
-            max_block_size * 2, dtype=np.float32
-        )  # Allow for expansion
+        self.output_buffer = np.zeros(max_block_size * 2, dtype=np.float32)  # Allow for expansion
 
         # Phase vocoder state
         self.phase_accumulator = np.zeros(max_block_size // 2, dtype=np.float32)
@@ -225,17 +225,13 @@ class TimeStretchingEngine:
             )
 
             # Calculate true phase with stretch factor
-            true_phases = (
-                phase_accum + (phase_diff + expected_phase_increments) * stretch_factor
-            )
+            true_phases = phase_accum + (phase_diff + expected_phase_increments) * stretch_factor
             phase_accum = true_phases
 
             # Apply pitch shifting if needed
             if self.pitch_ratio != 1.0:
                 # Modify magnitudes for pitch shift
-                pitch_shift_bins = int(
-                    np.round(np.log2(self.pitch_ratio) * fft_size / 2)
-                )
+                pitch_shift_bins = int(np.round(np.log2(self.pitch_ratio) * fft_size / 2))
                 shifted_mags = np.roll(magnitudes, pitch_shift_bins)
                 # Fade edges to prevent artifacts
                 fade_len = min(abs(pitch_shift_bins), fft_size // 4)
@@ -256,9 +252,7 @@ class TimeStretchingEngine:
             # Overlap-add at stretched positions
             output_pos = frame_idx * synthesis_hop
             if output_pos + fft_size <= len(output_audio):
-                output_audio[output_pos : output_pos + fft_size] += (
-                    stretched_frame * window
-                )
+                output_audio[output_pos : output_pos + fft_size] += stretched_frame * window
 
         # Trim and normalize
         output_audio = output_audio[:output_length]

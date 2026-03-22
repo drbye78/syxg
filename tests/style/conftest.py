@@ -3,27 +3,24 @@ Pytest fixtures for style engine tests.
 
 Provides shared fixtures for unit, integration, and acceptance tests.
 """
+
 from __future__ import annotations
 
-import pytest
-from unittest.mock import Mock, MagicMock
-from pathlib import Path
-import tempfile
-import yaml
+from unittest.mock import Mock
 
+import pytest
+
+from synth.style.auto_accompaniment import AutoAccompaniment, AutoAccompanimentConfig
+from synth.style.chord_detector import ChordDetectionConfig, ChordDetector
 from synth.style.style import (
     Style,
     StyleMetadata,
     StyleSection,
     StyleSectionType,
-    TrackType,
     StyleTrackData,
-    NoteEvent,
-    ChordTable,
+    TrackType,
 )
 from synth.style.style_loader import StyleLoader
-from synth.style.chord_detector import ChordDetector, ChordDetectionConfig
-from synth.style.auto_accompaniment import AutoAccompaniment, AutoAccompanimentConfig
 
 
 @pytest.fixture
@@ -34,30 +31,31 @@ def mock_synthesizer():
     synth.note_off = Mock()
     synth.program_change = Mock()
     synth.control_change = Mock()
-    synth.channels = [Mock(program=0, bank_msb=0, bank_lsb=0, volume=100, pan=64) 
-                      for _ in range(16)]
+    synth.channels = [
+        Mock(program=0, bank_msb=0, bank_lsb=0, volume=100, pan=64) for _ in range(16)
+    ]
     return synth
 
 
 @pytest.fixture
 def sample_style():
     """Create a minimal valid style for testing."""
-    metadata = StyleMetadata(
-        name="Test Style",
-        tempo=120,
-        category="pop"
-    )
-    
+    metadata = StyleMetadata(name="Test Style", tempo=120, category="pop")
+
     style = Style(metadata=metadata)
-    
+
     # Ensure all main sections exist
-    for section_type in [StyleSectionType.MAIN_A, StyleSectionType.MAIN_B,
-                          StyleSectionType.MAIN_C, StyleSectionType.MAIN_D]:
+    for section_type in [
+        StyleSectionType.MAIN_A,
+        StyleSectionType.MAIN_B,
+        StyleSectionType.MAIN_C,
+        StyleSectionType.MAIN_D,
+    ]:
         section = StyleSection(section_type=section_type, length_bars=4)
         for track_type in TrackType:
             section.tracks[track_type] = StyleTrackData()
         style.sections[section_type] = section
-    
+
     return style
 
 
@@ -205,7 +203,7 @@ def auto_accompaniment(sample_style, mock_synthesizer, accompaniment_config):
         style=sample_style,
         synthesizer=mock_synthesizer,
         config=accompaniment_config,
-        sample_rate=44100
+        sample_rate=44100,
     )
 
 

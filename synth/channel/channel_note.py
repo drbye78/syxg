@@ -4,24 +4,20 @@ XG channel note implementation.
 Provides classes for managing active notes on MIDI channels,
 including partial synthesis and modulation routing.
 """
+
 from __future__ import annotations
 
+# Import XGPartialGenerator dynamically to avoid circular imports
+import importlib
 import math
 import threading
-from collections import OrderedDict, deque
-from typing import Any
-from collections.abc import Callable
+from collections import deque
 
 import numpy as np
 
 # SF2 integration removed - will be replaced with new architecture
 # from synth.sf2.core.wavetable_manager import WavetableManager
-
-from ..core.oscillator import XGLFO  # For note-level LFOs
-from ..core.envelope import ADSREnvelope  # For note-level envelopes
 from ..modulation.matrix import ModulationMatrix
-# Import XGPartialGenerator dynamically to avoid circular imports
-import importlib
 
 
 class PartialGeneratorPool:
@@ -107,7 +103,7 @@ class PartialGeneratorPool:
             self._stats["created"] += 1
 
             # Dynamic import to avoid circular import
-            partial_generator_module = importlib.import_module('synth.partial.partial_generator')
+            partial_generator_module = importlib.import_module("synth.partial.partial_generator")
             XGPartialGenerator = partial_generator_module.XGPartialGenerator
 
             return XGPartialGenerator(
@@ -287,12 +283,10 @@ class ChannelNote:
         if is_drum:
             params = wavetable.get_drum_parameters(note, program, bank)
         else:
-            params = wavetable.get_program_parameters(
-                program, bank, note, velocity
-            )
-            
+            params = wavetable.get_program_parameters(program, bank, note, velocity)
+
         return params
-        
+
     def _setup_partials(self):
         """Setup partial structures for this note using optimized pooling"""
         partials_params = self.params.get("partials", [])
@@ -320,8 +314,8 @@ class ChannelNote:
             # Merge channel-level tuning parameters with partial parameters
             merged_partial_params = {
                 **partial_params,
-                'coarse_tune': self.coarse_tune,
-                'fine_tune': self.fine_tune,
+                "coarse_tune": self.coarse_tune,
+                "fine_tune": self.fine_tune,
             }
 
             # Acquire partial generator from pool with merged parameters
@@ -403,14 +397,10 @@ class ChannelNote:
         )
 
         # Velocity -> Amp
-        self.mod_matrix.set_route(
-            5, "velocity", "amp", amount=0.5, velocity_sensitivity=0.5
-        )
+        self.mod_matrix.set_route(5, "velocity", "amp", amount=0.5, velocity_sensitivity=0.5)
 
         # Note Number -> Pitch
-        self.mod_matrix.set_route(
-            6, "note_number", "pitch", amount=1.0, key_scaling=1.0
-        )
+        self.mod_matrix.set_route(6, "note_number", "pitch", amount=1.0, key_scaling=1.0)
 
         # Vibrato -> Pitch
         self.mod_matrix.set_route(
@@ -554,9 +544,7 @@ class ChannelNote:
 
         # Set XG modulation routing for note-level LFO2 (filter modulation)
         note_lfo2.set_modulation_routing(pitch=False, filter=True, amplitude=False)
-        note_lfo2.set_modulation_depths(
-            pitch_cents=0.0, filter_depth=0.2, amplitude_depth=0.0
-        )
+        note_lfo2.set_modulation_depths(pitch_cents=0.0, filter_depth=0.2, amplitude_depth=0.0)
 
         self.note_lfos.append(note_lfo2)
 
@@ -575,9 +563,7 @@ class ChannelNote:
 
         # Set XG modulation routing for note-level LFO3 (amplitude modulation)
         note_lfo3.set_modulation_routing(pitch=False, filter=False, amplitude=True)
-        note_lfo3.set_modulation_depths(
-            pitch_cents=0.0, filter_depth=0.0, amplitude_depth=0.3
-        )
+        note_lfo3.set_modulation_depths(pitch_cents=0.0, filter_depth=0.0, amplitude_depth=0.3)
 
         self.note_lfos.append(note_lfo3)
 
@@ -641,24 +627,12 @@ class ChannelNote:
         sources["mod_wheel"] = mod_wheel / 127.0
         sources["breath_controller"] = breath_controller / 127.0
         sources["foot_controller"] = foot_controller / 127.0
-        sources["lfo1"] = (
-            self.channel_lfos[0].step() if len(self.channel_lfos) > 0 else 0.0
-        )
-        sources["lfo2"] = (
-            self.channel_lfos[1].step() if len(self.channel_lfos) > 1 else 0.0
-        )
-        sources["lfo3"] = (
-            self.channel_lfos[2].step() if len(self.channel_lfos) > 2 else 0.0
-        )
-        sources["note_lfo1"] = (
-            self.note_lfos[0].step() if len(self.note_lfos) > 0 else 0.0
-        )
-        sources["note_lfo2"] = (
-            self.note_lfos[1].step() if len(self.note_lfos) > 1 else 0.0
-        )
-        sources["note_lfo3"] = (
-            self.note_lfos[2].step() if len(self.note_lfos) > 2 else 0.0
-        )
+        sources["lfo1"] = self.channel_lfos[0].step() if len(self.channel_lfos) > 0 else 0.0
+        sources["lfo2"] = self.channel_lfos[1].step() if len(self.channel_lfos) > 1 else 0.0
+        sources["lfo3"] = self.channel_lfos[2].step() if len(self.channel_lfos) > 2 else 0.0
+        sources["note_lfo1"] = self.note_lfos[0].step() if len(self.note_lfos) > 0 else 0.0
+        sources["note_lfo2"] = self.note_lfos[1].step() if len(self.note_lfos) > 1 else 0.0
+        sources["note_lfo3"] = self.note_lfos[2].step() if len(self.note_lfos) > 2 else 0.0
         sources["amp_env"] = 0.0  # Will be set from envelope processing
         sources["filter_env"] = 0.0
         sources["pitch_env"] = 0.0
@@ -672,17 +646,29 @@ class ChannelNote:
         modulation_values = self.mod_matrix.process(sources, self.velocity, self.note)
 
         # Separate modulation by type for different consumers
-        synthesis_modulation = {k: v for k, v in modulation_values.items()
-                              if k in ['pitch', 'filter_cutoff', 'amp', 'pan']}
+        synthesis_modulation = {
+            k: v
+            for k, v in modulation_values.items()
+            if k in ["pitch", "filter_cutoff", "amp", "pan"]
+        }
 
-        lfo_modulation = {k: v for k, v in modulation_values.items()
-                         if k.startswith('lfo') and ('_rate' in k or '_depth' in k)}
+        lfo_modulation = {
+            k: v
+            for k, v in modulation_values.items()
+            if k.startswith("lfo") and ("_rate" in k or "_depth" in k)
+        }
 
-        envelope_modulation = {k: v for k, v in modulation_values.items()
-                              if any(x in k for x in ['attack', 'decay', 'sustain', 'release', 'hold'])}
+        envelope_modulation = {
+            k: v
+            for k, v in modulation_values.items()
+            if any(x in k for x in ["attack", "decay", "sustain", "release", "hold"])
+        }
 
-        advanced_modulation = {k: v for k, v in modulation_values.items()
-                              if k in ['velocity_crossfade', 'note_crossfade', 'stereo_width', 'tremolo_rate']}
+        advanced_modulation = {
+            k: v
+            for k, v in modulation_values.items()
+            if k in ["velocity_crossfade", "note_crossfade", "stereo_width", "tremolo_rate"]
+        }
 
         # Apply modulation to global pitch and additional modulation matrix values
         pitch_mod = global_pitch_mod + modulation_pitch
@@ -721,8 +707,7 @@ class ChannelNote:
 
             # Apply comprehensive modulation to partial
             partial.apply_modulation(
-                synthesis_modulation, lfo_modulation,
-                envelope_modulation, advanced_modulation
+                synthesis_modulation, lfo_modulation, envelope_modulation, advanced_modulation
             )
 
             # Generate partial samples with time-varying LFO modulation
@@ -751,9 +736,7 @@ class ChannelNote:
         # Normalize by active partials
         if active_partials > 0:
             # Apply CORRECTED volume scaling to fix inaudible output
-            volume_scale = self._calculate_correct_volume_scale(
-                volume, expression, active_partials
-            )
+            volume_scale = self._calculate_correct_volume_scale(volume, expression, active_partials)
             left_buffer[:block_size] *= volume_scale
             right_buffer[:block_size] *= volume_scale
 
@@ -804,7 +787,9 @@ class ChannelNote:
         max_allowed = 3.0  # +9.5dB maximum
         return np.clip(combined_volume, 0.0, max_allowed)
 
-    def _apply_note_phaser(self, left_buffer: np.ndarray, right_buffer: np.ndarray, block_size: int):
+    def _apply_note_phaser(
+        self, left_buffer: np.ndarray, right_buffer: np.ndarray, block_size: int
+    ):
         """
         Apply note-level phaser effect.
 
@@ -816,15 +801,15 @@ class ChannelNote:
             right_buffer: Right channel audio buffer (modified in-place)
             block_size: Number of samples to process
         """
-        if not hasattr(self, '_phaser_state'):
+        if not hasattr(self, "_phaser_state"):
             # Initialize phaser state on first use
             self._phaser_state = {
-                'phase': 0.0,
-                'lfo_phase': 0.0,
-                'delay1': 0.0,
-                'delay2': 0.0,
-                'delay3': 0.0,
-                'delay4': 0.0,
+                "phase": 0.0,
+                "lfo_phase": 0.0,
+                "delay1": 0.0,
+                "delay2": 0.0,
+                "delay3": 0.0,
+                "delay4": 0.0,
             }
 
         state = self._phaser_state
@@ -836,10 +821,10 @@ class ChannelNote:
         # Simple all-pass filter phaser
         for i in range(block_size):
             # Generate LFO for phaser sweep
-            lfo = math.sin(state['lfo_phase']) * depth
-            state['lfo_phase'] += lfo_rate * 2.0 * math.pi / self.sample_rate
-            if state['lfo_phase'] > 2.0 * math.pi:
-                state['lfo_phase'] -= 2.0 * math.pi
+            lfo = math.sin(state["lfo_phase"]) * depth
+            state["lfo_phase"] += lfo_rate * 2.0 * math.pi / self.sample_rate
+            if state["lfo_phase"] > 2.0 * math.pi:
+                state["lfo_phase"] -= 2.0 * math.pi
 
             # Calculate all-pass filter coefficient (frequency sweep)
             # Map LFO to frequency range (200-2000 Hz)
@@ -853,20 +838,20 @@ class ChannelNote:
 
             # Apply 4-stage all-pass filter chain for left channel
             # Stage 1
-            output1_left = state['delay1'] + coeff * input_left
-            state['delay1'] = input_left - coeff * output1_left
+            output1_left = state["delay1"] + coeff * input_left
+            state["delay1"] = input_left - coeff * output1_left
 
             # Stage 2
-            output2_left = state['delay2'] + coeff * output1_left
-            state['delay2'] = output1_left - coeff * output2_left
+            output2_left = state["delay2"] + coeff * output1_left
+            state["delay2"] = output1_left - coeff * output2_left
 
             # Stage 3
-            output3_left = state['delay3'] + coeff * output2_left
-            state['delay3'] = output2_left - coeff * output3_left
+            output3_left = state["delay3"] + coeff * output2_left
+            state["delay3"] = output2_left - coeff * output3_left
 
             # Stage 4
-            output4_left = state['delay4'] + coeff * output3_left
-            state['delay4'] = output3_left - coeff * output4_left
+            output4_left = state["delay4"] + coeff * output3_left
+            state["delay4"] = output3_left - coeff * output4_left
 
             # Mix original with phased signal
             mix = self.phaser_depth
@@ -874,20 +859,20 @@ class ChannelNote:
 
             # Apply same processing to right channel (slightly different for stereo)
             # Stage 1
-            output1_right = state['delay1'] + coeff * input_right
-            state['delay1'] = input_right - coeff * output1_right
+            output1_right = state["delay1"] + coeff * input_right
+            state["delay1"] = input_right - coeff * output1_right
 
             # Stage 2
-            output2_right = state['delay2'] + coeff * output1_right
-            state['delay2'] = output1_right - coeff * output2_right
+            output2_right = state["delay2"] + coeff * output1_right
+            state["delay2"] = output1_right - coeff * output2_right
 
             # Stage 3
-            output3_right = state['delay3'] + coeff * output2_right
-            state['delay3'] = output2_right - coeff * output3_right
+            output3_right = state["delay3"] + coeff * output2_right
+            state["delay3"] = output2_right - coeff * output3_right
 
             # Stage 4
-            output4_right = state['delay4'] + coeff * output3_right
-            state['delay4'] = output3_right - coeff * output4_right
+            output4_right = state["delay4"] + coeff * output3_right
+            state["delay4"] = output3_right - coeff * output4_right
 
             # Mix original with phased signal
             right_buffer[i] = input_right * (1.0 - mix) + output4_right * mix

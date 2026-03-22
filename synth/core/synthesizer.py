@@ -36,23 +36,26 @@ Memory Management:
 - Component-local buffer allocation to prevent contention
 - Automatic cleanup on component destruction
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any, TYPE_CHECKING
 import threading
 import time
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
 
 if TYPE_CHECKING:
     from typing import Self
 
-from ..engine.engine_registry import XGEngineRegistry, get_global_engine_registry
 from ..effects.effects_coordinator import XGEffectsCoordinator
-from ..midi import RealtimeParser, MIDIMessage
-from ..voice.voice_manager import VoiceManager
-from ..xg.xg_system import XGSystem
+from ..engine.engine_registry import XGEngineRegistry
 from ..engine.parameter_router import ParameterRouter
+from ..midi import MIDIMessage, RealtimeParser
 from ..sampling.sample_manager import SampleManager
+from ..voice.voice_manager import VoiceManager
+from ..xg.xg_synthesizer_system import XGSynthesizerSystem
+from ..xg.xg_system import XGSystem
 
 # Import available engines
 try:
@@ -69,6 +72,11 @@ try:
     from ..engine.sf2_engine import SF2Engine
 except ImportError:
     SF2Engine = None
+
+try:
+    from ..engine.sf2_engine_controller import SF2PartModeIntegrator
+except ImportError:
+    SF2PartModeIntegrator = None
 
 try:
     from ..engine.modern_xg_synthesizer import ModernXGSynthesizer
@@ -89,25 +97,31 @@ try:
     from ..engine.additive_engine import AdditiveEngine
 except ImportError:
     AdditiveEngine = None
-from ..s90_s70 import (
-    S90S70HardwareSpecs,
-    S90S70PresetCompatibility,
-    S90S70ControlSurfaceMapping,
-    S90S70PerformanceFeatures,
-)
-from ..sequencer.pattern_sequencer import PatternSequencer
-from ..sequencer.groove_quantizer import GrooveQuantizer
 from ..core.buffer_pool import XGBufferPool
 from ..core.config import SynthConfig
+from ..s90_s70 import (
+    S90S70ControlSurfaceMapping,
+    S90S70HardwareSpecs,
+    S90S70PerformanceFeatures,
+    S90S70PresetCompatibility,
+)
+from ..sequencer.groove_quantizer import GrooveQuantizer
+from ..sequencer.pattern_sequencer import PatternSequencer
 
 # Style Engine imports
 try:
-    from ..style.style_player import StylePlayer
-    from ..style import StyleLoader, Style, StyleSectionType, RegistrationMemory
-    from ..style import StyleDynamics, DynamicsParameter
-    from ..style.midi_learn import MIDILearn, LearnTargetType
+    from ..style import (
+        DynamicsParameter,
+        RegistrationMemory,
+        Style,
+        StyleDynamics,
+        StyleLoader,
+        StyleSectionType,
+    )
     from ..style.integrations import StyleIntegrations
+    from ..style.midi_learn import LearnTargetType, MIDILearn
     from ..style.scale import ScaleDetector
+    from ..style.style_player import StylePlayer
 except ImportError:
     StylePlayer = None
     StyleLoader = None
@@ -251,6 +265,11 @@ class Synthesizer:
         # XG system
         self.xg_system = XGSystem()
 
+        # XG/GS/GM Synthesizer System (production-grade)
+        self.xg_synthesizer = XGSynthesizerSystem(
+            sample_rate=self.sample_rate, device_id=0x10, max_polyphony=128
+        )
+
         # Sequencing
         self.pattern_sequencer = PatternSequencer()
         self.groove_quantizer = GrooveQuantizer()
@@ -261,7 +280,7 @@ class Synthesizer:
         self._chord_detection_channel = 0  # Channel for chord detection
         self._chord_detection_low_note = 36  # Low note for chord detection
         self._chord_detection_high_note = 60  # High note for chord detection
-        
+
         # Style Engine Integrations
         self.style_integrations: Any | None = None
 
@@ -345,6 +364,13 @@ class Synthesizer:
                 sf2_engine = SF2Engine(sample_rate=self.sample_rate)
                 self.engine_registry.register_engine(sf2_engine, "sf2", priority=8)
                 self.engines["sf2"] = sf2_engine
+
+                # Connect SF2 part mode integrator for XG/GS drum support
+                if SF2PartModeIntegrator is not None:
+                    part_mode_integrator = SF2PartModeIntegrator(sf2_engine, self.xg_synthesizer)
+                    sf2_engine.set_part_mode_integrator(part_mode_integrator)
+                    self._sf2_part_mode_integrator = part_mode_integrator
+
                 engines_registered += 1
             except Exception as e:
                 print(f"Failed to register SF2 engine: {e}")
@@ -437,6 +463,12 @@ class Synthesizer:
         # Initialize XG parameters
         self.xg_system.initialize()
 
+        # Connect production-grade XG/GS/GM synthesizer system
+        self.xg_synthesizer.engine_registry = self.engine_registry
+        self.xg_synthesizer.effects_coordinator = self.effects_coordinator
+        self.xg_synthesizer.voice_manager = self.voice_manager
+        self.xg_synthesizer.synthesizer = self
+
         print("XG system initialized")
 
     def _initialize_s90_s70_compatibility(self):
@@ -486,9 +518,7 @@ class Synthesizer:
         ]
 
         for ctrl_id, param, min_val, max_val, curve, name in assignments:
-            self.control_surface.assign_control(
-                ctrl_id, param, min_val, max_val, curve, name
-            )
+            self.control_surface.assign_control(ctrl_id, param, min_val, max_val, curve, name)
 
     def start(self):
         """Start the synthesizer."""
@@ -560,15 +590,11 @@ class Synthesizer:
         """Handle a single MIDI message."""
 
         if message.is_note_on():
-            self.note_on(
-                message.channel or 0, message.note or 60, message.velocity or 64
-            )
+            self.note_on(message.channel or 0, message.note or 60, message.velocity or 64)
         elif message.is_note_off():
             self.note_off(message.channel or 0, message.note or 60)
         elif message.is_control_change():
-            self.control_change(
-                message.channel or 0, message.controller or 0, message.value or 0
-            )
+            self.control_change(message.channel or 0, message.controller or 0, message.value or 0)
         elif message.is_pitch_bend():
             self.pitch_bend(message.channel or 0, message.bend_value or 0)
         elif message.is_program_change():
@@ -608,15 +634,11 @@ class Synthesizer:
 
         # Generate audio block
         try:
-            audio_block = engine.generate_samples(
-                note, velocity, modulation, self.buffer_size
-            )
+            audio_block = engine.generate_samples(note, velocity, modulation, self.buffer_size)
 
             # Apply per-voice effects if any
             if voice_info.get("effects"):
-                audio_block = self._apply_voice_effects(
-                    audio_block, voice_info["effects"]
-                )
+                audio_block = self._apply_voice_effects(audio_block, voice_info["effects"])
 
             return audio_block
 
@@ -628,9 +650,7 @@ class Synthesizer:
         """Apply global effects processing."""
         self.effects_coordinator.process_block(self.output_buffer)
 
-    def _apply_voice_effects(
-        self, audio: np.ndarray, effects: list[dict[str, Any]]
-    ) -> np.ndarray:
+    def _apply_voice_effects(self, audio: np.ndarray, effects: list[dict[str, Any]]) -> np.ndarray:
         """Apply per-voice effects."""
         processed = audio.copy()
 
@@ -640,9 +660,7 @@ class Synthesizer:
 
             # Apply effect processing (simplified)
             if effect_type in self.effects_coordinator.effects:
-                processed = self.effects_coordinator.apply_effect(
-                    processed, effect_type, params
-                )
+                processed = self.effects_coordinator.apply_effect(processed, effect_type, params)
 
         return processed
 
@@ -684,9 +702,7 @@ class Synthesizer:
                 channel = voice_info.get("channel", 0)
                 if channel not in channel_buffers:
                     # Allocate channel buffer if needed
-                    channel_buffers[channel] = np.zeros(
-                        (num_samples, 2), dtype=np.float32
-                    )
+                    channel_buffers[channel] = np.zeros((num_samples, 2), dtype=np.float32)
 
                 # Generate voice audio
                 voice_audio = self._generate_voice_audio(voice_info)
@@ -711,12 +727,8 @@ class Synthesizer:
 
     def _update_performance_stats(self):
         """Update performance statistics."""
-        self.performance_stats.update(
-            self.performance_monitor.get_realtime_performance_data()
-        )
-        self.performance_stats["voices_active"] = len(
-            self.voice_manager.get_active_voices()
-        )
+        self.performance_stats.update(self.performance_monitor.get_realtime_performance_data())
+        self.performance_stats["voices_active"] = len(self.voice_manager.get_active_voices())
 
     def note_on(self, channel: int, note: int, velocity: int):
         """Handle note on event."""
@@ -724,11 +736,7 @@ class Synthesizer:
             # Route to style engine for chord detection if enabled
             if self.style_engine_enabled and self.style_player:
                 if channel == self._chord_detection_channel:
-                    if (
-                        self._chord_detection_low_note
-                        <= note
-                        <= self._chord_detection_high_note
-                    ):
+                    if self._chord_detection_low_note <= note <= self._chord_detection_high_note:
                         # This is in the chord detection zone - route to style
                         self.style_player.process_midi_note_on(channel, note, velocity)
 
@@ -767,11 +775,7 @@ class Synthesizer:
             # Route to style engine for chord detection if enabled
             if self.style_engine_enabled and self.style_player:
                 if channel == self._chord_detection_channel:
-                    if (
-                        self._chord_detection_low_note
-                        <= note
-                        <= self._chord_detection_high_note
-                    ):
+                    if self._chord_detection_low_note <= note <= self._chord_detection_high_note:
                         self.style_player.process_midi_note_off(channel, note)
 
                         # Also trigger normal voice off if style not playing
@@ -790,9 +794,7 @@ class Synthesizer:
         """Handle control change event."""
         with self.lock:
             # Check if it's a control surface assignment
-            param_update = self.control_surface.process_control_message(
-                controller, value
-            )
+            param_update = self.control_surface.process_control_message(controller, value)
 
             if param_update:
                 # Route parameter to appropriate destination
@@ -810,9 +812,7 @@ class Synthesizer:
         with self.lock:
             # Convert to pitch bend value (-1.0 to 1.0)
             bend_value = (value - 8192) / 8192.0
-            self.parameter_router.route_parameter(
-                "pitch_bend", bend_value, channel=channel
-            )
+            self.parameter_router.route_parameter("pitch_bend", bend_value, channel=channel)
 
     def program_change(self, channel: int, program: int):
         """Handle program change event."""
@@ -840,9 +840,7 @@ class Synthesizer:
                 "effects_available": len(self.effects_coordinator.effects),
                 "hardware_profile": self.hardware_specs.current_profile.model_name,
                 "polyphony_limit": self.hardware_specs.current_profile.polyphony,
-                "sample_memory_mb": self.sample_manager.get_memory_usage()[
-                    "max_memory_mb"
-                ],
+                "sample_memory_mb": self.sample_manager.get_memory_usage()["max_memory_mb"],
                 "compatibility_level": "98%",
             }
 
@@ -888,7 +886,7 @@ class Synthesizer:
 
             # Connect XG system to style player
             self.xg_system.set_style_player(self.style_player)
-            
+
             # Initialize style engine integrations
             self._initialize_style_integrations()
 
@@ -897,11 +895,11 @@ class Synthesizer:
         except Exception as e:
             print(f"Style Engine: Initialization failed - {e}")
             return False
-    
+
     def _initialize_style_integrations(self):
         """
         Initialize style engine integrations with other synth subsystems.
-        
+
         Integrations:
         1. Effects Coordinator ↔ Style Dynamics
         2. Voice Manager ↔ OTS Presets
@@ -911,21 +909,21 @@ class Synthesizer:
         """
         if StyleIntegrations is None:
             return
-        
+
         try:
             self.style_integrations = StyleIntegrations(
                 effects_coordinator=self.effects_coordinator,
                 voice_manager=self.voice_manager,
-                modulation_matrix=getattr(self, 'modulation_matrix', None),
-                pattern_sequencer=getattr(self, 'pattern_sequencer', None),
-                mpe_manager=getattr(self, 'mpe_manager', None),
+                modulation_matrix=getattr(self, "modulation_matrix", None),
+                pattern_sequencer=getattr(self, "pattern_sequencer", None),
+                mpe_manager=getattr(self, "mpe_manager", None),
                 style_player=self.style_player,
-                style_dynamics=getattr(self.style_player, '_dynamics', None),
-                ots=getattr(self.style_player, '_ots', None),
-                midi_learn=getattr(self, 'midi_learn', None),
-                scale_detector=getattr(self, 'scale_detector', None),
+                style_dynamics=getattr(self.style_player, "_dynamics", None),
+                ots=getattr(self.style_player, "_ots", None),
+                midi_learn=getattr(self, "midi_learn", None),
+                scale_detector=getattr(self, "scale_detector", None),
             )
-            
+
             # Enable all integrations
             self.style_integrations.enable_all()
             print("Style Engine: Integrations initialized")
@@ -1125,11 +1123,11 @@ class Synthesizer:
     def set_chord_detection_range(self, low_note: int = 36, high_note: int = 60) -> Self:
         """
         Set the note range for chord detection.
-        
+
         Args:
             low_note: Lowest note for chord detection (default: 36)
             high_note: Highest note for chord detection (default: 60)
-        
+
         Returns:
             Self for method chaining
         """
@@ -1140,10 +1138,10 @@ class Synthesizer:
     def set_chord_detection_channel(self, channel: int) -> Self:
         """
         Set the MIDI channel for chord detection.
-        
+
         Args:
             channel: MIDI channel (0-15)
-        
+
         Returns:
             Self for method chaining
         """
@@ -1181,18 +1179,14 @@ class Synthesizer:
         self.midi_learn.register_callback(
             LearnTargetType.STYLE_START_STOP, self._midi_learn_style_toggle
         )
-        self.midi_learn.register_callback(
-            LearnTargetType.STYLE_TEMPO, self._midi_learn_style_tempo
-        )
+        self.midi_learn.register_callback(LearnTargetType.STYLE_TEMPO, self._midi_learn_style_tempo)
         self.midi_learn.register_callback(
             LearnTargetType.STYLE_DYNAMICS, self._midi_learn_style_dynamics
         )
         self.midi_learn.register_callback(
             LearnTargetType.STYLE_SECTION, self._midi_learn_style_section
         )
-        self.midi_learn.register_callback(
-            LearnTargetType.STYLE_FILL, self._midi_learn_style_fill
-        )
+        self.midi_learn.register_callback(LearnTargetType.STYLE_FILL, self._midi_learn_style_fill)
         self.midi_learn.register_callback(
             LearnTargetType.STYLE_OCTAVE, self._midi_learn_style_octave
         )
@@ -1247,13 +1241,9 @@ class Synthesizer:
         """Handle intensity change from MIDI learn."""
         if self.style_player and self.style_player.dynamics:
             intensity = int(value * 127)
-            self.style_player.dynamics.set_parameter(
-                DynamicsParameter.INTENSITY, intensity
-            )
+            self.style_player.dynamics.set_parameter(DynamicsParameter.INTENSITY, intensity)
 
-    def process_midi_learn(
-        self, cc_number: int, channel: int, value: int
-    ) -> dict[str, Any] | None:
+    def process_midi_learn(self, cc_number: int, channel: int, value: int) -> dict[str, Any] | None:
         """
         Process incoming MIDI CC for MIDI Learn.
 
@@ -1325,9 +1315,7 @@ class Synthesizer:
 
     # ===== Registration Memory Methods =====
 
-    def initialize_registration_memory(
-        self, num_banks: int = 8, slots_per_bank: int = 16
-    ) -> bool:
+    def initialize_registration_memory(self, num_banks: int = 8, slots_per_bank: int = 16) -> bool:
         """
         Initialize registration memory.
 

@@ -4,19 +4,21 @@ Jupiter-X Main Synthesizer Class
 Complete Jupiter-X synthesizer implementation integrating all components
 into a unified, production-ready synthesizer interface.
 """
+
 from __future__ import annotations
 
-from typing import Any
 import threading
+from typing import Any
+
 import numpy as np
 
-from .constants import *
-from .component_manager import JupiterXComponentManager
-from .arpeggiator import JupiterXArpeggiatorEngine
-from .mpe_manager import JupiterXMPEManager
-from .unified_parameter_system import JupiterXUnifiedParameterSystem
-from .performance_optimizer import JupiterXPerformanceOptimizer
 from ..effects.effects_coordinator import XGEffectsCoordinator
+from .arpeggiator import JupiterXArpeggiatorEngine
+from .component_manager import JupiterXComponentManager
+from .constants import *
+from .mpe_manager import JupiterXMPEManager
+from .performance_optimizer import JupiterXPerformanceOptimizer
+from .unified_parameter_system import JupiterXUnifiedParameterSystem
 
 
 class JupiterXSynthesizer:
@@ -28,7 +30,7 @@ class JupiterXSynthesizer:
     parameter system into a unified interface.
     """
 
-    def __init__(self, sample_rate: int = 44100, buffer_size: int = 1024, buffer_oool = None):
+    def __init__(self, sample_rate: int = 44100, buffer_size: int = 1024, buffer_oool=None):
         """
         Initialize Jupiter-X synthesizer.
 
@@ -89,7 +91,11 @@ class JupiterXSynthesizer:
 
         # Effects coordinator
         self.effects_coordinator = XGEffectsCoordinator(
-            self.sample_rate, self.buffer_size, max_channels=16, synthesizer=self, buffer_pool=self.buffer_pool
+            self.sample_rate,
+            self.buffer_size,
+            max_channels=16,
+            synthesizer=self,
+            buffer_pool=self.buffer_pool,
         )
 
         # Set component references
@@ -97,7 +103,7 @@ class JupiterXSynthesizer:
             component_manager=self.component_manager,
             arpeggiator=self.arpeggiator,
             mpe_manager=self.mpe_manager,
-            effects_coordinator=self.effects_coordinator
+            effects_coordinator=self.effects_coordinator,
         )
 
         # Initialize Jupiter-X specific settings
@@ -170,13 +176,15 @@ class JupiterXSynthesizer:
                 if self.component_manager:
                     # Map engine type string to constant and set in component manager
                     engine_map = {
-                        'analog': ENGINE_ANALOG,
-                        'digital': ENGINE_DIGITAL,
-                        'fm': ENGINE_FM,
-                        'external': ENGINE_EXTERNAL
+                        "analog": ENGINE_ANALOG,
+                        "digital": ENGINE_DIGITAL,
+                        "fm": ENGINE_FM,
+                        "external": ENGINE_EXTERNAL,
                     }
                     if engine_type in engine_map:
-                        self.component_manager.set_part_engine_type(part_num, engine_map[engine_type])
+                        self.component_manager.set_part_engine_type(
+                            part_num, engine_map[engine_type]
+                        )
                         return True
                 else:
                     # Fallback: set engine type directly on part
@@ -188,7 +196,7 @@ class JupiterXSynthesizer:
         """Get synthesis engine for a part."""
         if 0 <= part_num < len(self.parts):
             return self.parts[part_num].get_engine_type()
-        return 'analog'
+        return "analog"
 
     def set_part_parameter(self, part_num: int, param: str, value: Any) -> bool:
         """Set part parameter."""
@@ -285,7 +293,7 @@ class JupiterXSynthesizer:
                 arpeggiator = self.arpeggiator.get_arpeggiator(part_num)
                 if arpeggiator:
                     return arpeggiator.get_status()
-        return {'enabled': False, 'pattern': None}
+        return {"enabled": False, "pattern": None}
 
     def get_arpeggiator_patterns(self) -> list[dict[str, Any]]:
         """Get available arpeggiator patterns."""
@@ -389,11 +397,13 @@ class JupiterXSynthesizer:
         """Process MIDI CC message."""
         with self.lock:
             # Try parameter system first
-            if self.parameter_system and self.parameter_system.process_midi_cc(channel, cc_number, value):
+            if self.parameter_system and self.parameter_system.process_midi_cc(
+                channel, cc_number, value
+            ):
                 return True
 
             # Try component manager
-            if self.component_manager and hasattr(self.component_manager, 'process_midi_cc'):
+            if self.component_manager and hasattr(self.component_manager, "process_midi_cc"):
                 return self.component_manager.process_midi_cc(channel, cc_number, value)
 
             return False
@@ -406,7 +416,7 @@ class JupiterXSynthesizer:
                 return True
 
             # Try component manager
-            if self.component_manager and hasattr(self.component_manager, 'process_nrpn'):
+            if self.component_manager and hasattr(self.component_manager, "process_nrpn"):
                 return self.component_manager.process_nrpn(msb, lsb, value)
 
             return False
@@ -419,7 +429,7 @@ class JupiterXSynthesizer:
                 return True
 
             # Try component manager
-            if self.component_manager and hasattr(self.component_manager, 'process_midi_message'):
+            if self.component_manager and hasattr(self.component_manager, "process_midi_message"):
                 return self.component_manager.process_midi_message(status, data1, data2)
 
             return False
@@ -430,26 +440,28 @@ class JupiterXSynthesizer:
         """Map MIDI CC to parameter."""
         with self.lock:
             if self.parameter_system:
-                return self.parameter_system.add_midi_mapping(parameter, 'cc', 0, cc_number)
+                return self.parameter_system.add_midi_mapping(parameter, "cc", 0, cc_number)
         return False
 
     def map_nrpn(self, msb: int, lsb: int, parameter: str) -> bool:
         """Map NRPN to parameter."""
         with self.lock:
             if self.parameter_system:
-                return self.parameter_system.add_midi_mapping(parameter, 'nrpn', 0, (msb << 7) | lsb)
+                return self.parameter_system.add_midi_mapping(
+                    parameter, "nrpn", 0, (msb << 7) | lsb
+                )
         return False
 
     # ===== PRESETS =====
 
-    def save_preset(self, name: str, bank: str = 'default') -> bool:
+    def save_preset(self, name: str, bank: str = "default") -> bool:
         """Save current state as preset."""
         with self.lock:
             if self.parameter_system:
                 return self.parameter_system.save_preset(name, bank)
         return False
 
-    def load_preset(self, name: str, bank: str = 'default') -> bool:
+    def load_preset(self, name: str, bank: str = "default") -> bool:
         """Load preset."""
         with self.lock:
             if self.parameter_system:
@@ -461,7 +473,7 @@ class JupiterXSynthesizer:
         with self.lock:
             if self.parameter_system:
                 return self.parameter_system.get_preset_banks()
-        return {'default': []}
+        return {"default": []}
 
     # ===== PARAMETER MANAGEMENT =====
 
@@ -489,7 +501,7 @@ class JupiterXSynthesizer:
                 self.mpe_manager.process_midi_message(0x90 | channel, note, velocity)
             else:
                 # Process through component manager
-                if self.component_manager and hasattr(self.component_manager, 'note_on'):
+                if self.component_manager and hasattr(self.component_manager, "note_on"):
                     self.component_manager.note_on(note, velocity, channel)
 
     def note_off(self, note: int, channel: int = 0):
@@ -500,7 +512,7 @@ class JupiterXSynthesizer:
                 self.mpe_manager.process_midi_message(0x80 | channel, note, 0)
             else:
                 # Process through component manager
-                if self.component_manager and hasattr(self.component_manager, 'note_off'):
+                if self.component_manager and hasattr(self.component_manager, "note_off"):
                     self.component_manager.note_off(note, channel)
                     pass
 
@@ -539,8 +551,9 @@ class JupiterXSynthesizer:
                 return self.performance_optimizer.optimize_for_realtime()
         return {}
 
-    def set_performance_targets(self, max_cpu: float = None, max_memory: float = None,
-                              max_latency: float = None):
+    def set_performance_targets(
+        self, max_cpu: float = None, max_memory: float = None, max_latency: float = None
+    ):
         """Set performance targets."""
         with self.lock:
             if self.performance_optimizer:
@@ -557,13 +570,15 @@ class JupiterXSynthesizer:
                     # Generate a block of audio
                     if 0 <= part_num < len(self.parts):
                         self.parts[part_num].generate_samples(self.buffer_size)
-                
+
                 return self.performance_optimizer.profiling_tools.benchmark_operation(
                     f"engine_{part_num}_benchmark", benchmark_func, duration_blocks
                 )
         return {}
 
-    def load_sample_for_engine(self, part_num: int, sample_data: np.ndarray, sample_rate: int) -> bool:
+    def load_sample_for_engine(
+        self, part_num: int, sample_data: np.ndarray, sample_rate: int
+    ) -> bool:
         """Load sample data for external engine."""
         with self.lock:
             if 0 <= part_num < len(self.parts):
@@ -584,7 +599,7 @@ class JupiterXSynthesizer:
         with self.lock:
             if self.mpe_manager and self.mpe_manager.mpe_enabled:
                 note_data = self.mpe_manager.get_note_mpe_data(channel, note)
-                return note_data is not None and note_data.get('active', False)
+                return note_data is not None and note_data.get("active", False)
         return False
 
     # ===== STATE MANAGEMENT =====
@@ -622,17 +637,17 @@ class JupiterXSynthesizer:
     def get_system_info(self) -> dict[str, Any]:
         """Get system information."""
         return {
-            'jupiter_x_enabled': self.jupiter_x_enabled,
-            'sample_rate': self.sample_rate,
-            'buffer_size': self.buffer_size,
-            'components': {
-                'component_manager': self.component_manager is not None,
-                'arpeggiator': self.arpeggiator is not None,
-                'mpe_manager': self.mpe_manager is not None,
-                'parameter_system': self.parameter_system is not None,
-                'performance_optimizer': self.performance_optimizer is not None,
-                'effects_coordinator': self.effects_coordinator is not None,
-            }
+            "jupiter_x_enabled": self.jupiter_x_enabled,
+            "sample_rate": self.sample_rate,
+            "buffer_size": self.buffer_size,
+            "components": {
+                "component_manager": self.component_manager is not None,
+                "arpeggiator": self.arpeggiator is not None,
+                "mpe_manager": self.mpe_manager is not None,
+                "parameter_system": self.parameter_system is not None,
+                "performance_optimizer": self.performance_optimizer is not None,
+                "effects_coordinator": self.effects_coordinator is not None,
+            },
         }
 
     def __str__(self) -> str:

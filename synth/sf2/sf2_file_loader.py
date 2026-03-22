@@ -4,13 +4,13 @@ SF2 File Loader with Binary Chunk Storage
 Handles SF2 file loading, RIFF chunk parsing, and on-demand binary data access.
 Optimized for large soundfonts with 100% SF2 specification compliance.
 """
+
 from __future__ import annotations
 
 import struct
 import threading
-from typing import Any
 from pathlib import Path
-import os
+from typing import Any
 
 
 class SF2BinaryChunk:
@@ -133,9 +133,7 @@ class SF2ChunkIndex:
         """
         self.chunks[chunk_id] = chunk
 
-    def add_list_subchunk(
-        self, list_type: str, subchunk_id: str, chunk: SF2BinaryChunk
-    ) -> None:
+    def add_list_subchunk(self, list_type: str, subchunk_id: str, chunk: SF2BinaryChunk) -> None:
         """
         Add subchunk to LIST chunk.
 
@@ -148,9 +146,7 @@ class SF2ChunkIndex:
             self.list_chunks[list_type] = {}
         self.list_chunks[list_type][subchunk_id] = chunk
 
-    def get_chunk(
-        self, chunk_id: str, list_type: str | None = None
-    ) -> SF2BinaryChunk | None:
+    def get_chunk(self, chunk_id: str, list_type: str | None = None) -> SF2BinaryChunk | None:
         """
         Get chunk by ID.
 
@@ -165,9 +161,7 @@ class SF2ChunkIndex:
             return self.list_chunks.get(list_type, {}).get(chunk_id)
         return self.chunks.get(chunk_id)
 
-    def get_all_chunks(
-        self, list_type: str | None = None
-    ) -> dict[str, SF2BinaryChunk]:
+    def get_all_chunks(self, list_type: str | None = None) -> dict[str, SF2BinaryChunk]:
         """
         Get all chunks of a type.
 
@@ -222,9 +216,7 @@ class SF2FileLoader:
         self._is_loaded = False
 
         # Sample data chunk locations (for lazy loading)
-        self.sample_data_chunks: dict[
-            str, tuple[int, int]
-        ] = {}  # chunk_id -> (offset, size)
+        self.sample_data_chunks: dict[str, tuple[int, int]] = {}  # chunk_id -> (offset, size)
 
         # Metadata
         self.version: tuple[int, int] = (0, 0)
@@ -325,15 +317,11 @@ class SF2FileLoader:
                 if should_load_data:
                     # Load metadata LIST chunks (INFO, pdta)
                     list_chunk_data = self._read_chunk_data(actual_chunk_size)
-                    list_chunk = SF2BinaryChunk(
-                        f"LIST_{list_type}", list_chunk_data, file_pos
-                    )
+                    list_chunk = SF2BinaryChunk(f"LIST_{list_type}", list_chunk_data, file_pos)
                     self.chunk_index.add_chunk(f"LIST_{list_type}", list_chunk)
 
                     # Parse subchunks
-                    self._parse_list_subchunks(
-                        list_type, list_chunk_data, file_pos + 12
-                    )
+                    self._parse_list_subchunks(list_type, list_chunk_data, file_pos + 12)
                 else:
                     # For sdta (sample data), parse nested chunks to find smpl/sm24
                     if list_type == "sdta":
@@ -348,9 +336,7 @@ class SF2FileLoader:
                             nested_header = self._file_handle.read(8)
                             if len(nested_header) < 8:
                                 break
-                            nested_id, nested_size = struct.unpack(
-                                "<4sI", nested_header
-                            )
+                            nested_id, nested_size = struct.unpack("<4sI", nested_header)
                             nested_id_str = nested_id.decode("ascii", errors="ignore")
 
                             if nested_id_str in ["smpl", "sm24"]:
@@ -434,9 +420,7 @@ class SF2FileLoader:
 
         return chunk_id in metadata_chunks or chunk_id in metadata_lists
 
-    def _parse_list_subchunks(
-        self, list_type: str, list_data: bytes, base_offset: int
-    ) -> None:
+    def _parse_list_subchunks(self, list_type: str, list_data: bytes, base_offset: int) -> None:
         """
         Parse subchunks within a LIST chunk.
 
@@ -468,9 +452,7 @@ class SF2FileLoader:
             subchunk_data = list_data[data_pos : data_pos + subchunk_size]
 
             # Create subchunk
-            subchunk = SF2BinaryChunk(
-                subchunk_id_str, subchunk_data, base_offset + data_pos
-            )
+            subchunk = SF2BinaryChunk(subchunk_id_str, subchunk_data, base_offset + data_pos)
             self.chunk_index.add_list_subchunk(list_type, subchunk_id_str, subchunk)
 
             data_pos += subchunk_size
@@ -522,9 +504,7 @@ class SF2FileLoader:
                 )
                 setattr(self, field_name, string_value)
 
-    def get_chunk(
-        self, chunk_id: str, list_type: str | None = None
-    ) -> SF2BinaryChunk | None:
+    def get_chunk(self, chunk_id: str, list_type: str | None = None) -> SF2BinaryChunk | None:
         """
         Get binary chunk by ID.
 
@@ -561,9 +541,7 @@ class SF2FileLoader:
 
             # Parse preset header
             header_data = data[i : i + 38]
-            preset_name = (
-                header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
-            )
+            preset_name = header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
             preset_num, bank_num, bag_ndx = struct.unpack("<HHH", header_data[20:26])
 
             # Skip library, genre, morphology for now
@@ -579,9 +557,7 @@ class SF2FileLoader:
 
         return presets
 
-    def find_preset_by_bank_program(
-        self, bank: int, program: int
-    ) -> dict[str, Any] | None:
+    def find_preset_by_bank_program(self, bank: int, program: int) -> dict[str, Any] | None:
         """
         Find a specific preset by bank and program number with selective parsing.
 
@@ -615,9 +591,7 @@ class SF2FileLoader:
             if preset_num == program and bank_num == bank:
                 # Found match - parse the full header
                 full_header = data[offset : offset + 38]
-                preset_name = (
-                    full_header[:20].decode("ascii", errors="ignore").rstrip("\x00")
-                )
+                preset_name = full_header[:20].decode("ascii", errors="ignore").rstrip("\x00")
                 bag_ndx = struct.unpack("<H", full_header[24:26])[0]
 
                 return {
@@ -747,9 +721,7 @@ class SF2FileLoader:
 
             # Parse sample header
             header_data = data[i : i + 46]
-            sample_name = (
-                header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
-            )
+            sample_name = header_data[:20].decode("ascii", errors="ignore").rstrip("\x00")
 
             (
                 start,
@@ -855,9 +827,7 @@ class SF2FileLoader:
                 # 16-bit samples
                 return self._read_16bit_sample_data_from_file(sample_start, sample_end)
 
-    def _read_16bit_sample_data_from_file(
-        self, sample_start: int, sample_end: int
-    ) -> bytes | None:
+    def _read_16bit_sample_data_from_file(self, sample_start: int, sample_end: int) -> bytes | None:
         """
         Read 16-bit sample data directly from file.
 
@@ -893,9 +863,7 @@ class SF2FileLoader:
         self._file_handle.seek(sample_data_start)
         return self._file_handle.read(data_size)
 
-    def _read_24bit_sample_data_from_file(
-        self, sample_start: int, sample_end: int
-    ) -> bytes | None:
+    def _read_24bit_sample_data_from_file(self, sample_start: int, sample_end: int) -> bytes | None:
         """
         Read and combine 24-bit sample data from both smpl and sm24 chunks directly from file.
 
@@ -910,10 +878,7 @@ class SF2FileLoader:
         Returns:
             Combined 24-bit sample data as bytes
         """
-        if (
-            "smpl" not in self.sample_data_chunks
-            or "sm24" not in self.sample_data_chunks
-        ):
+        if "smpl" not in self.sample_data_chunks or "sm24" not in self.sample_data_chunks:
             return None
 
         smpl_offset, smpl_size = self.sample_data_chunks["smpl"]
@@ -929,9 +894,7 @@ class SF2FileLoader:
 
         try:
             # Read smpl data (16-bit samples - LSB)
-            smpl_data_start = (
-                smpl_offset + 8 + (sample_start * 2)
-            )  # Skip header + offset to sample
+            smpl_data_start = smpl_offset + 8 + (sample_start * 2)  # Skip header + offset to sample
             smpl_data_size = num_samples * 2
 
             self._file_handle.seek(smpl_data_start)
@@ -941,9 +904,7 @@ class SF2FileLoader:
                 return None
 
             # Read sm24 data (MSB of 24-bit samples)
-            sm24_data_start = (
-                sm24_offset + 8 + sample_start
-            )  # Skip header + offset to sample
+            sm24_data_start = sm24_offset + 8 + sample_start  # Skip header + offset to sample
             sm24_data_size = num_samples
 
             self._file_handle.seek(sm24_data_start)
@@ -981,9 +942,7 @@ class SF2FileLoader:
 
                 # Convert to 3-byte signed representation
                 try:
-                    combined_bytes = sample_24bit.to_bytes(
-                        3, byteorder="little", signed=True
-                    )
+                    combined_bytes = sample_24bit.to_bytes(3, byteorder="little", signed=True)
                     combined_data[i * 3 : (i + 1) * 3] = combined_bytes
                 except OverflowError:
                     # Handle overflow by clamping to valid 24-bit range
@@ -991,9 +950,7 @@ class SF2FileLoader:
                         sample_24bit = 0x7FFFFF
                     elif sample_24bit < -0x800000:
                         sample_24bit = -0x800000
-                    combined_bytes = sample_24bit.to_bytes(
-                        3, byteorder="little", signed=True
-                    )
+                    combined_bytes = sample_24bit.to_bytes(3, byteorder="little", signed=True)
                     combined_data[i * 3 : (i + 1) * 3] = combined_bytes
 
             return bytes(combined_data)
@@ -1064,14 +1021,10 @@ class SF2FileLoader:
                 sample_24bit = (sm24_value << 16) | (smpl_word & 0xFFFF)
 
                 # Convert back to 3 bytes (24-bit)
-                combined_bytes = sample_24bit.to_bytes(
-                    3, byteorder="little", signed=True
-                )
+                combined_bytes = sample_24bit.to_bytes(3, byteorder="little", signed=True)
                 combined_data[i * 3 : (i + 1) * 3] = combined_bytes
 
-            return bytes(
-                combined_data[: len(combined_data) // 3 * 3]
-            )  # Ensure complete samples
+            return bytes(combined_data[: len(combined_data) // 3 * 3])  # Ensure complete samples
 
         except Exception as e:
             print(f"Error combining 24-bit sample data: {e}")
@@ -1224,8 +1177,8 @@ class SF2FileLoader:
                 break
 
             mod_data = data[offset : offset + 10]
-            src_oper, dest_oper, mod_amount, amt_src_oper, mod_trans_oper = (
-                struct.unpack("<HHhHH", mod_data)
+            src_oper, dest_oper, mod_amount, amt_src_oper, mod_trans_oper = struct.unpack(
+                "<HHhHH", mod_data
             )
 
             modulators.append(
@@ -1292,8 +1245,8 @@ class SF2FileLoader:
                 break
 
             mod_data = data[i : i + 10]
-            src_oper, dest_oper, mod_amount, amt_src_oper, mod_trans_oper = (
-                struct.unpack("<HHhHH", mod_data)
+            src_oper, dest_oper, mod_amount, amt_src_oper, mod_trans_oper = struct.unpack(
+                "<HHhHH", mod_data
             )
 
             modulators.append(
@@ -1350,9 +1303,7 @@ class SF2FileLoader:
         total_chunks = len(self.chunk_index.chunks)
         list_chunk_groups = len(self.chunk_index.list_chunks)
 
-        total_memory = sum(
-            len(chunk.data) for chunk in self.chunk_index.chunks.values()
-        )
+        total_memory = sum(len(chunk.data) for chunk in self.chunk_index.chunks.values())
         for list_chunks in self.chunk_index.list_chunks.values():
             total_memory += sum(len(chunk.data) for chunk in list_chunks.values())
 

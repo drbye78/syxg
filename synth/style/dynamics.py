@@ -4,13 +4,14 @@ Style Dynamics Control
 Implements the Style Dynamics Control feature that adjusts
 the intensity/energy of accompaniment playback.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
-from collections.abc import Callable
-from enum import Enum
 import threading
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 
 class DynamicsParameter(Enum):
@@ -49,9 +50,7 @@ class DynamicsCurve:
         elif self.curve == "logarithmic":
             if normalized == 0:
                 return self.min_value
-            return self.min_value + (self.max_value - self.min_value) * (
-                normalized**0.5
-            )
+            return self.min_value + (self.max_value - self.min_value) * (normalized**0.5)
 
         elif self.curve == "s_curve":
             return self.min_value + (self.max_value - self.min_value) * (
@@ -92,9 +91,7 @@ class StyleDynamics:
             DynamicsParameter.VELOCITY: DynamicsCurve(
                 DynamicsParameter.VELOCITY, 0.5, 1.0, "linear"
             ),
-            DynamicsParameter.VOLUME: DynamicsCurve(
-                DynamicsParameter.VOLUME, 0.3, 1.0, "linear"
-            ),
+            DynamicsParameter.VOLUME: DynamicsCurve(DynamicsParameter.VOLUME, 0.3, 1.0, "linear"),
             DynamicsParameter.FILTER_CUTOFF: DynamicsCurve(
                 DynamicsParameter.FILTER_CUTOFF, 0.5, 1.0, "exponential"
             ),
@@ -107,9 +104,7 @@ class StyleDynamics:
             DynamicsParameter.CHORUS_MIX: DynamicsCurve(
                 DynamicsParameter.CHORUS_MIX, 0.2, 0.8, "linear"
             ),
-            DynamicsParameter.TEMPO: DynamicsCurve(
-                DynamicsParameter.TEMPO, 0.8, 1.2, "linear"
-            ),
+            DynamicsParameter.TEMPO: DynamicsCurve(DynamicsParameter.TEMPO, 0.8, 1.2, "linear"),
         }
 
     @property
@@ -177,20 +172,15 @@ class StyleDynamics:
         """Get all parameter values affected by dynamics"""
         with self._lock:
             return {
-                param: curve.apply(self._dynamics_value)
-                for param, curve in self._curves.items()
+                param: curve.apply(self._dynamics_value) for param, curve in self._curves.items()
             }
 
-    def add_callback(
-        self, callback: Callable[[int, dict[DynamicsParameter, float]], None]
-    ):
+    def add_callback(self, callback: Callable[[int, dict[DynamicsParameter, float]], None]):
         """Add callback for dynamics changes"""
         if callback not in self._callbacks:
             self._callbacks.append(callback)
 
-    def remove_callback(
-        self, callback: Callable[[int, dict[DynamicsParameter, float]], None]
-    ):
+    def remove_callback(self, callback: Callable[[int, dict[DynamicsParameter, float]], None]):
         """Remove callback"""
         if callback in self._callbacks:
             self._callbacks.remove(callback)

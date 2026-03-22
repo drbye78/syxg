@@ -5,20 +5,25 @@ Provides advanced quantization and groove processing capabilities
 for the built-in sequencer, including swing, shuffle, and custom
 groove templates.
 """
+
 from __future__ import annotations
 
-import numpy as np
 from typing import Any
-import math
 
-from .sequencer_types import QuantizeMode, GrooveTemplate, NoteEvent
+import numpy as np
+
+from .sequencer_types import GrooveTemplate, NoteEvent, QuantizeMode
 
 
 class GrooveTemplateData:
     """Container for groove template data"""
 
-    def __init__(self, name: str, timing_offsets: list[float],
-                 velocity_multipliers: list[float] | None = None):
+    def __init__(
+        self,
+        name: str,
+        timing_offsets: list[float],
+        velocity_multipliers: list[float] | None = None,
+    ):
         """
         Initialize groove template.
 
@@ -64,8 +69,8 @@ class GrooveQuantizer:
         # Current settings
         self.current_template = GrooveTemplate.STRAIGHT
         self.quantize_strength = 1.0  # 0.0 to 1.0
-        self.humanize_amount = 0.0    # 0.0 to 1.0
-        self.swing_amount = 0.0       # 0.0 to 1.0
+        self.humanize_amount = 0.0  # 0.0 to 1.0
+        self.swing_amount = 0.0  # 0.0 to 1.0
 
     def _init_builtin_templates(self):
         """Initialize built-in groove templates"""
@@ -209,8 +214,9 @@ class GrooveQuantizer:
         """Set swing amount (0.0 = straight, 1.0 = full swing)"""
         self.swing_amount = max(0.0, min(1.0, amount))
 
-    def quantize_notes(self, notes: list[NoteEvent], mode: QuantizeMode = None,
-                      template: GrooveTemplate = None) -> list[NoteEvent]:
+    def quantize_notes(
+        self, notes: list[NoteEvent], mode: QuantizeMode = None, template: GrooveTemplate = None
+    ) -> list[NoteEvent]:
         """
         Quantize a list of notes with groove processing.
 
@@ -240,7 +246,7 @@ class GrooveQuantizer:
                 note_number=note.note_number,
                 velocity=note.velocity,
                 channel=note.channel,
-                track_id=note.track_id
+                track_id=note.track_id,
             )
 
             # Apply quantization
@@ -256,7 +262,9 @@ class GrooveQuantizer:
                 final_time = quantized_time + groove_offset * groove_influence
 
                 # Apply quantization strength
-                quantized_note.time = note.time * (1.0 - self.quantize_strength) + final_time * self.quantize_strength
+                quantized_note.time = (
+                    note.time * (1.0 - self.quantize_strength) + final_time * self.quantize_strength
+                )
 
             # Apply groove template velocity adjustment
             if groove_template != GrooveTemplate.STRAIGHT:
@@ -334,7 +342,7 @@ class GrooveQuantizer:
             note_number=note.note_number,
             velocity=humanized_velocity,
             channel=note.channel,
-            track_id=note.track_id
+            track_id=note.track_id,
         )
 
     def _apply_swing(self, time: float, quantize_mode: QuantizeMode) -> float:
@@ -363,8 +371,12 @@ class GrooveQuantizer:
 
         return time
 
-    def create_custom_template(self, name: str, timing_offsets: list[float],
-                             velocity_multipliers: list[float] | None = None) -> GrooveTemplate:
+    def create_custom_template(
+        self,
+        name: str,
+        timing_offsets: list[float],
+        velocity_multipliers: list[float] | None = None,
+    ) -> GrooveTemplate:
         """
         Create a custom groove template.
 
@@ -396,9 +408,9 @@ class GrooveQuantizer:
         if template in self.templates:
             data = self.templates[template]
             return {
-                'name': data.name,
-                'timing_offsets': data.timing_offsets.tolist(),
-                'velocity_multipliers': data.velocity_multipliers.tolist()
+                "name": data.name,
+                "timing_offsets": data.timing_offsets.tolist(),
+                "velocity_multipliers": data.velocity_multipliers.tolist(),
             }
         return None
 
@@ -409,7 +421,7 @@ class GrooveQuantizer:
         Returns groove analysis including swing amount, timing regularity, etc.
         """
         if len(notes) < 4:
-            return {'error': 'Need at least 4 notes for groove analysis'}
+            return {"error": "Need at least 4 notes for groove analysis"}
 
         # Extract timing information
         times = [note.time for note in notes]
@@ -418,10 +430,10 @@ class GrooveQuantizer:
         # Calculate timing intervals
         intervals = []
         for i in range(1, len(times)):
-            intervals.append(times[i] - times[i-1])
+            intervals.append(times[i] - times[i - 1])
 
         if not intervals:
-            return {'error': 'No timing intervals found'}
+            return {"error": "No timing intervals found"}
 
         # Calculate swing amount (simplified)
         swing_amount = 0.0
@@ -447,11 +459,11 @@ class GrooveQuantizer:
         dynamics = velocity_std / velocity_mean if velocity_mean > 0 else 0.0
 
         return {
-            'swing_amount': avg_swing,
-            'timing_regularity': regularity,
-            'velocity_dynamics': dynamics,
-            'note_count': len(notes),
-            'estimated_tempo': 60.0 / mean_interval if mean_interval > 0 else 120.0
+            "swing_amount": avg_swing,
+            "timing_regularity": regularity,
+            "velocity_dynamics": dynamics,
+            "note_count": len(notes),
+            "estimated_tempo": 60.0 / mean_interval if mean_interval > 0 else 120.0,
         }
 
     def reset(self):

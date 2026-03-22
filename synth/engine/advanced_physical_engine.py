@@ -4,13 +4,14 @@ Advanced Physical Modeling Engine
 Sophisticated physical modeling synthesis engine providing realistic
 acoustic instrument simulation through waveguide and modal synthesis.
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
-from collections.abc import Callable
-import threading
 import math
+import threading
+from typing import Any
+
+import numpy as np
 
 from .synthesis_engine import SynthesisEngine
 
@@ -127,7 +128,9 @@ class WaveguideString:
         output *= self.damping
 
         # Add excitation if available
-        if self.excitation_signal is not None and self.excitation_index < len(self.excitation_signal):
+        if self.excitation_signal is not None and self.excitation_index < len(
+            self.excitation_signal
+        ):
             excitation_sample = self.excitation_signal[self.excitation_index]
             self.excitation_index += 1
 
@@ -143,7 +146,9 @@ class WaveguideString:
 
         # Calculate input to delay line
         # Simple Karplus-Strong: average of current output and previous input
-        delay_input = output * 0.5 + self.delay_line[(self.write_pos - 1) % self.length_samples] * 0.5
+        delay_input = (
+            output * 0.5 + self.delay_line[(self.write_pos - 1) % self.length_samples] * 0.5
+        )
 
         # Apply frequency-dependent damping (dispersion)
         # Higher frequencies damp faster
@@ -157,7 +162,9 @@ class WaveguideString:
         self.write_pos = (self.write_pos + 1) % self.length_samples
 
         # Check if excitation is complete
-        if self.excitation_signal is not None and self.excitation_index >= len(self.excitation_signal):
+        if self.excitation_signal is not None and self.excitation_index >= len(
+            self.excitation_signal
+        ):
             # Check if string has decayed enough to stop
             energy = np.sum(np.abs(self.delay_line)) / len(self.delay_line)
             if energy < 1e-6:  # Very low energy threshold
@@ -172,14 +179,14 @@ class WaveguideString:
     def get_string_info(self) -> dict[str, Any]:
         """Get comprehensive string information."""
         return {
-            'frequency': self.frequency,
-            'length_samples': self.length_samples,
-            'tension': self.tension,
-            'damping': self.damping,
-            'pluck_position': self.pluck_position,
-            'active': self.active,
-            'bridge_reflection': self.bridge_reflection,
-            'nut_reflection': self.nut_reflection
+            "frequency": self.frequency,
+            "length_samples": self.length_samples,
+            "tension": self.tension,
+            "damping": self.damping,
+            "pluck_position": self.pluck_position,
+            "active": self.active,
+            "bridge_reflection": self.bridge_reflection,
+            "nut_reflection": self.nut_reflection,
         }
 
 
@@ -216,21 +223,22 @@ class ModalResonator:
         """Initialize default modal frequencies and parameters."""
         # Typical bell/tubular bell modes
         default_modes = [
-            {'frequency': 440.0, 'amplitude': 1.0, 'decay': 0.9995, 'phase': 0.0},
-            {'frequency': 880.0, 'amplitude': 0.8, 'decay': 0.9990, 'phase': 0.1},
-            {'frequency': 1320.0, 'amplitude': 0.6, 'decay': 0.9985, 'phase': 0.2},
-            {'frequency': 1760.0, 'amplitude': 0.4, 'decay': 0.9980, 'phase': 0.3},
-            {'frequency': 2200.0, 'amplitude': 0.3, 'decay': 0.9975, 'phase': 0.4},
-            {'frequency': 2640.0, 'amplitude': 0.2, 'decay': 0.9970, 'phase': 0.5},
-            {'frequency': 3080.0, 'amplitude': 0.15, 'decay': 0.9965, 'phase': 0.6},
-            {'frequency': 3520.0, 'amplitude': 0.1, 'decay': 0.9960, 'phase': 0.7},
+            {"frequency": 440.0, "amplitude": 1.0, "decay": 0.9995, "phase": 0.0},
+            {"frequency": 880.0, "amplitude": 0.8, "decay": 0.9990, "phase": 0.1},
+            {"frequency": 1320.0, "amplitude": 0.6, "decay": 0.9985, "phase": 0.2},
+            {"frequency": 1760.0, "amplitude": 0.4, "decay": 0.9980, "phase": 0.3},
+            {"frequency": 2200.0, "amplitude": 0.3, "decay": 0.9975, "phase": 0.4},
+            {"frequency": 2640.0, "amplitude": 0.2, "decay": 0.9970, "phase": 0.5},
+            {"frequency": 3080.0, "amplitude": 0.15, "decay": 0.9965, "phase": 0.6},
+            {"frequency": 3520.0, "amplitude": 0.1, "decay": 0.9960, "phase": 0.7},
         ]
 
         for mode in default_modes:
             self.add_mode(**mode)
 
-    def add_mode(self, frequency: float, amplitude: float = 1.0,
-                 decay: float = 0.999, phase: float = 0.0):
+    def add_mode(
+        self, frequency: float, amplitude: float = 1.0, decay: float = 0.999, phase: float = 0.0
+    ):
         """
         Add a resonant mode.
 
@@ -248,15 +256,15 @@ class ModalResonator:
 
         # Initialize mode state
         mode = {
-            'frequency': frequency,
-            'amplitude': amplitude,
-            'decay': decay,
-            'phase': phase,
-            'omega': omega,
-            'y1': math.sin(phase * 2.0 * math.pi) * amplitude,  # Previous sample
-            'y2': math.sin((phase - 0.01) * 2.0 * math.pi) * amplitude,  # Sample before that
-            'cos_omega': math.cos(omega),
-            'sin_omega': math.sin(omega)
+            "frequency": frequency,
+            "amplitude": amplitude,
+            "decay": decay,
+            "phase": phase,
+            "omega": omega,
+            "y1": math.sin(phase * 2.0 * math.pi) * amplitude,  # Previous sample
+            "y2": math.sin((phase - 0.01) * 2.0 * math.pi) * amplitude,  # Sample before that
+            "cos_omega": math.cos(omega),
+            "sin_omega": math.sin(omega),
         }
 
         self.modes.append(mode)
@@ -274,8 +282,8 @@ class ModalResonator:
         """
         for mode in self.modes:
             # Reset mode state with excitation
-            mode['y1'] = excitation_level * mode['amplitude']
-            mode['y2'] = 0.0
+            mode["y1"] = excitation_level * mode["amplitude"]
+            mode["y2"] = 0.0
 
         self.active = True
 
@@ -283,7 +291,7 @@ class ModalResonator:
         """Set global decay factor for all modes."""
         self.decay_factor = max(0.9, min(decay, 1.0))
         for mode in self.modes:
-            mode['decay'] = self.decay_factor
+            mode["decay"] = self.decay_factor
 
     def process_sample(self) -> float:
         """
@@ -306,14 +314,14 @@ class ModalResonator:
             excitation = 0.0
 
             # Calculate new sample
-            y0 = 2.0 * mode['cos_omega'] * mode['y1'] - mode['y2'] + excitation * mode['amplitude']
+            y0 = 2.0 * mode["cos_omega"] * mode["y1"] - mode["y2"] + excitation * mode["amplitude"]
 
             # Apply decay
-            y0 *= mode['decay']
+            y0 *= mode["decay"]
 
             # Update state
-            mode['y2'] = mode['y1']
-            mode['y1'] = y0
+            mode["y2"] = mode["y1"]
+            mode["y1"] = y0
 
             output += y0
 
@@ -333,11 +341,18 @@ class ModalResonator:
     def get_resonator_info(self) -> dict[str, Any]:
         """Get comprehensive resonator information."""
         return {
-            'active': self.active,
-            'num_modes': len(self.modes),
-            'decay_factor': self.decay_factor,
-            'modes': [{'frequency': m['frequency'], 'amplitude': m['amplitude'],
-                      'decay': m['decay'], 'phase': m['phase']} for m in self.modes]
+            "active": self.active,
+            "num_modes": len(self.modes),
+            "decay_factor": self.decay_factor,
+            "modes": [
+                {
+                    "frequency": m["frequency"],
+                    "amplitude": m["amplitude"],
+                    "decay": m["decay"],
+                    "phase": m["phase"],
+                }
+                for m in self.modes
+            ],
         }
 
 
@@ -349,8 +364,13 @@ class AdvancedPhysicalEngine(SynthesisEngine):
     acoustic instrument simulation through waveguide and modal techniques.
     """
 
-    def __init__(self, sample_rate: int = 44100, block_size: int = 1024,
-                 max_strings: int = 6, max_resonators: int = 4):
+    def __init__(
+        self,
+        sample_rate: int = 44100,
+        block_size: int = 1024,
+        max_strings: int = 6,
+        max_resonators: int = 4,
+    ):
         """
         Initialize advanced physical modeling engine.
 
@@ -374,7 +394,7 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         self.instrument_configs = self._create_instrument_configs()
 
         # Current instrument
-        self.current_instrument = 'guitar'
+        self.current_instrument = "guitar"
 
         # Thread safety
         self.lock = threading.RLock()
@@ -387,65 +407,69 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         configs = {}
 
         # Guitar configuration
-        configs['guitar'] = {
-            'strings': [
-                {'frequency': 82.41, 'pluck_pos': 0.8},   # Low E
-                {'frequency': 110.00, 'pluck_pos': 0.8},  # A
-                {'frequency': 146.83, 'pluck_pos': 0.8},  # D
-                {'frequency': 196.00, 'pluck_pos': 0.8},  # G
-                {'frequency': 246.94, 'pluck_pos': 0.8},  # B
-                {'frequency': 329.63, 'pluck_pos': 0.8},  # High E
+        configs["guitar"] = {
+            "strings": [
+                {"frequency": 82.41, "pluck_pos": 0.8},  # Low E
+                {"frequency": 110.00, "pluck_pos": 0.8},  # A
+                {"frequency": 146.83, "pluck_pos": 0.8},  # D
+                {"frequency": 196.00, "pluck_pos": 0.8},  # G
+                {"frequency": 246.94, "pluck_pos": 0.8},  # B
+                {"frequency": 329.63, "pluck_pos": 0.8},  # High E
             ],
-            'resonators': [],  # No resonators for guitar
-            'excitation_type': 'pluck'
+            "resonators": [],  # No resonators for guitar
+            "excitation_type": "pluck",
         }
 
         # Piano configuration
-        configs['piano'] = {
-            'strings': [
-                {'frequency': 27.5, 'pluck_pos': 0.1},    # A0
-                {'frequency': 29.14, 'pluck_pos': 0.1},   # B0
-                {'frequency': 30.87, 'pluck_pos': 0.1},   # C1
-                {'frequency': 32.70, 'pluck_pos': 0.1},   # C#1
-                {'frequency': 34.65, 'pluck_pos': 0.1},   # D1
-                {'frequency': 36.71, 'pluck_pos': 0.1},   # D#1
+        configs["piano"] = {
+            "strings": [
+                {"frequency": 27.5, "pluck_pos": 0.1},  # A0
+                {"frequency": 29.14, "pluck_pos": 0.1},  # B0
+                {"frequency": 30.87, "pluck_pos": 0.1},  # C1
+                {"frequency": 32.70, "pluck_pos": 0.1},  # C#1
+                {"frequency": 34.65, "pluck_pos": 0.1},  # D1
+                {"frequency": 36.71, "pluck_pos": 0.1},  # D#1
             ],
-            'resonators': [],  # Simplified piano model
-            'excitation_type': 'strike'
+            "resonators": [],  # Simplified piano model
+            "excitation_type": "strike",
         }
 
         # Bell configuration
-        configs['bell'] = {
-            'strings': [],  # No strings for bell
-            'resonators': [
-                {'modes': [
-                    {'freq': 440.0, 'amp': 1.0, 'decay': 0.9995},
-                    {'freq': 880.0, 'amp': 0.8, 'decay': 0.9990},
-                    {'freq': 1320.0, 'amp': 0.6, 'decay': 0.9985},
-                    {'freq': 1760.0, 'amp': 0.4, 'decay': 0.9980},
-                    {'freq': 2200.0, 'amp': 0.3, 'decay': 0.9975},
-                    {'freq': 2640.0, 'amp': 0.2, 'decay': 0.9970},
-                    {'freq': 3080.0, 'amp': 0.15, 'decay': 0.9965},
-                    {'freq': 3520.0, 'amp': 0.1, 'decay': 0.9960},
-                ]}
+        configs["bell"] = {
+            "strings": [],  # No strings for bell
+            "resonators": [
+                {
+                    "modes": [
+                        {"freq": 440.0, "amp": 1.0, "decay": 0.9995},
+                        {"freq": 880.0, "amp": 0.8, "decay": 0.9990},
+                        {"freq": 1320.0, "amp": 0.6, "decay": 0.9985},
+                        {"freq": 1760.0, "amp": 0.4, "decay": 0.9980},
+                        {"freq": 2200.0, "amp": 0.3, "decay": 0.9975},
+                        {"freq": 2640.0, "amp": 0.2, "decay": 0.9970},
+                        {"freq": 3080.0, "amp": 0.15, "decay": 0.9965},
+                        {"freq": 3520.0, "amp": 0.1, "decay": 0.9960},
+                    ]
+                }
             ],
-            'excitation_type': 'strike'
+            "excitation_type": "strike",
         }
 
         # Drum configuration
-        configs['drum'] = {
-            'strings': [],  # Membrane modeled as resonators
-            'resonators': [
-                {'modes': [
-                    {'freq': 100.0, 'amp': 1.0, 'decay': 0.995},
-                    {'freq': 200.0, 'amp': 0.7, 'decay': 0.990},
-                    {'freq': 300.0, 'amp': 0.5, 'decay': 0.985},
-                    {'freq': 400.0, 'amp': 0.3, 'decay': 0.980},
-                    {'freq': 500.0, 'amp': 0.2, 'decay': 0.975},
-                    {'freq': 600.0, 'amp': 0.1, 'decay': 0.970},
-                ]}
+        configs["drum"] = {
+            "strings": [],  # Membrane modeled as resonators
+            "resonators": [
+                {
+                    "modes": [
+                        {"freq": 100.0, "amp": 1.0, "decay": 0.995},
+                        {"freq": 200.0, "amp": 0.7, "decay": 0.990},
+                        {"freq": 300.0, "amp": 0.5, "decay": 0.985},
+                        {"freq": 400.0, "amp": 0.3, "decay": 0.980},
+                        {"freq": 500.0, "amp": 0.2, "decay": 0.975},
+                        {"freq": 600.0, "amp": 0.1, "decay": 0.970},
+                    ]
+                }
             ],
-            'excitation_type': 'strike'
+            "excitation_type": "strike",
         }
 
         return configs
@@ -482,33 +506,33 @@ class AdvancedPhysicalEngine(SynthesisEngine):
             config = self.instrument_configs[instrument_name]
 
             # Configure strings
-            for i, string_config in enumerate(config.get('strings', [])):
+            for i, string_config in enumerate(config.get("strings", [])):
                 if i < len(self.strings):
                     string = self.strings[i]
-                    string.set_frequency(string_config['frequency'])
-                    string.set_pluck_position(string_config['pluck_pos'])
+                    string.set_frequency(string_config["frequency"])
+                    string.set_pluck_position(string_config["pluck_pos"])
                     string.active = True
 
             # Deactivate unused strings
-            for i in range(len(config.get('strings', [])), len(self.strings)):
+            for i in range(len(config.get("strings", [])), len(self.strings)):
                 self.strings[i].active = False
 
             # Configure resonators
-            for i, resonator_config in enumerate(config.get('resonators', [])):
+            for i, resonator_config in enumerate(config.get("resonators", [])):
                 if i < len(self.resonators):
                     resonator = self.resonators[i]
                     resonator.clear_modes()
 
                     # Add modes
-                    for mode_config in resonator_config.get('modes', []):
+                    for mode_config in resonator_config.get("modes", []):
                         resonator.add_mode(
-                            frequency=mode_config['freq'],
-                            amplitude=mode_config['amp'],
-                            decay=mode_config['decay']
+                            frequency=mode_config["freq"],
+                            amplitude=mode_config["amp"],
+                            decay=mode_config["decay"],
                         )
 
             # Deactivate unused resonators
-            for i in range(len(config.get('resonators', [])), len(self.resonators)):
+            for i in range(len(config.get("resonators", [])), len(self.resonators)):
                 # Clear modes to deactivate
                 self.resonators[i].clear_modes()
 
@@ -517,7 +541,7 @@ class AdvancedPhysicalEngine(SynthesisEngine):
 
     def get_engine_type(self) -> str:
         """Return engine type identifier."""
-        return 'advanced_physical'
+        return "advanced_physical"
 
     def note_on(self, note: int, velocity: int, channel: int = 0):
         """
@@ -537,14 +561,14 @@ class AdvancedPhysicalEngine(SynthesisEngine):
             # Route to appropriate component based on instrument type
             config = self.instrument_configs.get(self.current_instrument, {})
 
-            if config.get('strings'):  # String instrument
+            if config.get("strings"):  # String instrument
                 string_index = min(channel, len(self.strings) - 1)
                 if string_index < len(self.strings):
                     string = self.strings[string_index]
                     string.set_frequency(frequency)
                     string.excite_string(excitation)
 
-            elif config.get('resonators'):  # Percussive instrument
+            elif config.get("resonators"):  # Percussive instrument
                 resonator_index = min(channel, len(self.resonators) - 1)
                 if resonator_index < len(self.resonators):
                     resonator = self.resonators[resonator_index]
@@ -571,12 +595,15 @@ class AdvancedPhysicalEngine(SynthesisEngine):
 
         return excitation.astype(np.float32)
 
-    def get_regions_for_note(self, note: int, velocity: int, program: int = 0, bank: int = 0) -> list[Any]:
+    def get_regions_for_note(
+        self, note: int, velocity: int, program: int = 0, bank: int = 0
+    ) -> list[Any]:
         """
         Physical modeling creates dynamic regions based on note.
 
         Returns dynamic region that indicates physical modeling should be used.
         """
+
         class PhysicalRegion:
             def __init__(self, note, velocity, instrument):
                 self.note = note
@@ -592,8 +619,9 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         """Physical modeling doesn't create traditional partials."""
         return None
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float],
-                        block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Generate audio samples using physical modeling.
 
@@ -630,25 +658,26 @@ class AdvancedPhysicalEngine(SynthesisEngine):
 
             return stereo_output
 
-    def _apply_modulation(self, audio: np.ndarray, modulation: dict[str, float],
-                         block_size: int) -> np.ndarray:
+    def _apply_modulation(
+        self, audio: np.ndarray, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """Apply modulation effects to generated audio."""
         # Filter modulation (affects string stiffness/tension)
-        if 'cutoff' in modulation:
+        if "cutoff" in modulation:
             # Simulate filter by adjusting damping
-            cutoff_norm = modulation['cutoff'] / 20000.0
+            cutoff_norm = modulation["cutoff"] / 20000.0
             for string in self.strings:
                 if string.is_active():
                     # Higher cutoff = brighter sound (less damping)
                     string.damping = 0.9 + (cutoff_norm * 0.09)
 
         # Amplitude modulation
-        if 'volume' in modulation:
-            audio *= (1.0 + modulation['volume'])
+        if "volume" in modulation:
+            audio *= 1.0 + modulation["volume"]
 
         # Pan modulation
-        if 'pan' in modulation:
-            pan = np.clip(modulation['pan'], -1.0, 1.0)
+        if "pan" in modulation:
+            pan = np.clip(modulation["pan"], -1.0, 1.0)
             left_gain = 1.0 - max(0.0, pan)
             right_gain = 1.0 - max(0.0, -pan)
             audio *= left_gain  # Apply to mono signal before stereo conversion
@@ -666,22 +695,27 @@ class AdvancedPhysicalEngine(SynthesisEngine):
     def get_engine_info(self) -> dict[str, Any]:
         """Get comprehensive engine information."""
         return {
-            'name': 'Advanced Physical Modeling Engine',
-            'type': 'advanced_physical',
-            'version': '1.0',
-            'capabilities': [
-                'waveguide_synthesis', 'modal_synthesis', 'karplus_strong_algorithm',
-                'string_modeling', 'percussive_modeling', 'realistic_decay',
-                'frequency_dependent_damping', 'multi_string_support'
+            "name": "Advanced Physical Modeling Engine",
+            "type": "advanced_physical",
+            "version": "1.0",
+            "capabilities": [
+                "waveguide_synthesis",
+                "modal_synthesis",
+                "karplus_strong_algorithm",
+                "string_modeling",
+                "percussive_modeling",
+                "realistic_decay",
+                "frequency_dependent_damping",
+                "multi_string_support",
             ],
-            'current_instrument': self.current_instrument,
-            'available_instruments': list(self.instrument_configs.keys()),
-            'max_strings': self.max_strings,
-            'max_resonators': self.max_resonators,
-            'active_strings': sum(1 for s in self.strings if s.is_active()),
-            'active_resonators': sum(1 for r in self.resonators if r.is_active()),
-            'sample_rate': self.sample_rate,
-            'block_size': self.block_size
+            "current_instrument": self.current_instrument,
+            "available_instruments": list(self.instrument_configs.keys()),
+            "max_strings": self.max_strings,
+            "max_resonators": self.max_resonators,
+            "active_strings": sum(1 for s in self.strings if s.is_active()),
+            "active_resonators": sum(1 for r in self.resonators if r.is_active()),
+            "sample_rate": self.sample_rate,
+            "block_size": self.block_size,
         }
 
     # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
@@ -689,21 +723,21 @@ class AdvancedPhysicalEngine(SynthesisEngine):
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get advanced physical modeling preset information with proper region descriptors.
-        
+
         Args:
             bank: Preset bank number (0-127)
             program: Preset program number (0-127)
-            
+
         Returns:
             PresetInfo with region descriptors for advanced physical modeling
         """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
-        
+
         # Advanced physical engine uses enhanced waveguide/modal synthesis
         # Programs define complex physical parameters with extended control
         preset_name = f"Advanced Physical {bank}:{program}"
-        
+
         # Create region descriptors for advanced physical modeling
         descriptor = RegionDescriptor(
             region_id=0,
@@ -711,18 +745,18 @@ class AdvancedPhysicalEngine(SynthesisEngine):
             key_range=(0, 127),
             velocity_range=(0, 127),
             algorithm_params={
-                'model_type': 'advanced_waveguide',
-                'material': 'composite',
-                'damping': 0.3,
-                'brightness': 0.5,
-                'release': 0.5,
-                'nonlinearities': 0.0,  # Nonlinear behavior
-                'coupling': 0.5,  # Element coupling
-                'radiation': 0.7,  # Sound radiation
-                'body_modes': 10  # Number of body modes
-            }
+                "model_type": "advanced_waveguide",
+                "material": "composite",
+                "damping": 0.3,
+                "brightness": 0.5,
+                "release": 0.5,
+                "nonlinearities": 0.0,  # Nonlinear behavior
+                "coupling": 0.5,  # Element coupling
+                "radiation": 0.7,  # Sound radiation
+                "body_modes": 10,  # Number of body modes
+            },
         )
-        
+
         return PresetInfo(
             bank=bank,
             program=program,
@@ -730,62 +764,58 @@ class AdvancedPhysicalEngine(SynthesisEngine):
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
             is_monophonic=False,
-            category='advanced_physical_modeling'
+            category="advanced_physical_modeling",
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get all region descriptors for advanced physical preset.
-        
+
         Args:
             bank: Preset bank number
             program: Preset program number
-            
+
         Returns:
             List of RegionDescriptor objects
         """
         preset_info = self.get_preset_info(bank, program)
         return preset_info.region_descriptors if preset_info else []
 
-    def create_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create advanced physical modeling region instance from descriptor.
-        
+
         Args:
             descriptor: Region descriptor with advanced physical parameters
             sample_rate: Audio sample rate in Hz
-            
+
         Returns:
             IRegion instance for advanced physical modeling
         """
         from ..partial.advanced_physical_region import AdvancedPhysicalRegion
-        
+
         # Create advanced physical region with proper initialization
         region = AdvancedPhysicalRegion(descriptor, sample_rate)
-        
+
         # Initialize the region (creates advanced waveguides, modal resonators)
         if not region.initialize():
             raise RuntimeError("Failed to initialize Advanced Physical region")
-        
+
         return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for advanced physical region (algorithmic, no samples needed).
-        
+
         Args:
             region: Region to load sample for
-            
+
         Returns:
             True (Advanced Physical doesn't use samples)
         """
         # Advanced physical modeling is algorithmic - no sample loading required
         # Waveguides and modal resonators are created during region initialization
-        return region._initialized if hasattr(region, '_initialized') else False
+        return region._initialized if hasattr(region, "_initialized") else False
 
     def get_available_instruments(self) -> list[str]:
         """Get list of available instrument configurations."""
@@ -796,19 +826,20 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         config = self.instrument_configs.get(instrument_name)
         if config:
             return {
-                'name': instrument_name,
-                'strings': len(config.get('strings', [])),
-                'resonators': len(config.get('resonators', [])),
-                'excitation_type': config.get('excitation_type', 'unknown')
+                "name": instrument_name,
+                "strings": len(config.get("strings", [])),
+                "resonators": len(config.get("resonators", [])),
+                "excitation_type": config.get("excitation_type", "unknown"),
             }
         return None
 
     def get_physical_modeling_status(self) -> dict[str, Any]:
         """Get detailed status of physical modeling components."""
         return {
-            'strings': [s.get_string_info() for s in self.strings],
-            'resonators': [r.get_resonator_info() for r in self.resonators],
-            'total_active': sum(s.is_active() for s in self.strings) + sum(r.is_active() for r in self.resonators)
+            "strings": [s.get_string_info() for s in self.strings],
+            "resonators": [r.get_resonator_info() for r in self.resonators],
+            "total_active": sum(s.is_active() for s in self.strings)
+            + sum(r.is_active() for r in self.resonators),
         }
 
     def reset(self) -> None:
@@ -819,9 +850,7 @@ class AdvancedPhysicalEngine(SynthesisEngine):
             for resonator in self.resonators:
                 resonator.active = False
 
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create Advanced Physical base region without S.Art2 wrapper.
 
@@ -843,9 +872,11 @@ class AdvancedPhysicalEngine(SynthesisEngine):
     def __str__(self) -> str:
         """String representation."""
         info = self.get_engine_info()
-        return (f"AdvancedPhysicalEngine(instrument={info['current_instrument']}, "
-                f"strings={info['active_strings']}/{info['max_strings']}, "
-                f"resonators={info['active_resonators']}/{info['max_resonators']})")
+        return (
+            f"AdvancedPhysicalEngine(instrument={info['current_instrument']}, "
+            f"strings={info['active_strings']}/{info['max_strings']}, "
+            f"resonators={info['active_resonators']}/{info['max_resonators']})"
+        )
 
     def __repr__(self) -> str:
         return self.__str__()

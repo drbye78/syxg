@@ -4,13 +4,13 @@ Style Data Model - Core Style Classes
 Defines the complete style data structure based on Yamaha SFF format,
 extended with additional capabilities.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
 from pathlib import Path
-import json
+from typing import Any
 
 
 class StyleCategory(Enum):
@@ -204,12 +204,8 @@ class StyleMetadata:
             category=StyleCategory[data.get("category", "POP")],
             subcategory=data.get("subcategory", ""),
             tempo=data.get("tempo", 120),
-            time_signature_numerator=int(
-                data.get("time_signature", "4/4").split("/")[0]
-            ),
-            time_signature_denominator=int(
-                data.get("time_signature", "4/4").split("/")[1]
-            ),
+            time_signature_numerator=int(data.get("time_signature", "4/4").split("/")[0]),
+            time_signature_denominator=int(data.get("time_signature", "4/4").split("/")[1]),
             volume=data.get("volume", 1.0),
             fade_in_time=data.get("fade_in_time", 0.0),
             fade_out_time=data.get("fade_out_time", 0.0),
@@ -382,18 +378,14 @@ class StyleSection:
             "fade_out_time": self.fade_out_time,
             "count_in_bars": self.count_in_bars,
             "auto_fill": self.auto_fill,
-            "variation_link": self.variation_link.value
-            if self.variation_link
-            else None,
+            "variation_link": self.variation_link.value if self.variation_link else None,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> StyleSection:
         section_type = StyleSectionType(data.get("section_type", "main_a"))
         time_sig = (
-            data.get("time_signature", "4/4").split("/")
-            if data.get("time_signature")
-            else None
+            data.get("time_signature", "4/4").split("/") if data.get("time_signature") else None
         )
 
         tracks = {}
@@ -424,19 +416,14 @@ class ChordTable:
     """Chord-to-note mapping table for a style section"""
 
     section: StyleSectionType = StyleSectionType.MAIN_A
-    chord_type_mappings: dict[str, dict[TrackType, list[int]]] = field(
-        default_factory=dict
-    )
+    chord_type_mappings: dict[str, dict[TrackType, list[int]]] = field(default_factory=dict)
 
     def get_notes_for_chord(
         self, chord_root: int, chord_type: str, track_type: TrackType
     ) -> list[int]:
         """Get note offsets for a specific chord"""
         key = f"{chord_root}_{chord_type}"
-        if (
-            key in self.chord_type_mappings
-            and track_type in self.chord_type_mappings[key]
-        ):
+        if key in self.chord_type_mappings and track_type in self.chord_type_mappings[key]:
             return self.chord_type_mappings[key][track_type]
         return []
 
@@ -453,9 +440,7 @@ class ChordTable:
     def from_dict(cls, data: dict[str, Any]) -> ChordTable:
         mappings = {}
         for key, track_mappings in data.get("mappings", {}).items():
-            mappings[key] = {
-                TrackType(tt): notes for tt, notes in track_mappings.items()
-            }
+            mappings[key] = {TrackType(tt): notes for tt, notes in track_mappings.items()}
         return cls(
             section=StyleSectionType(data.get("section", "main_a")),
             chord_type_mappings=mappings,
@@ -522,24 +507,14 @@ class Style:
         return self.sections.get(section_type, StyleSection(section_type=section_type))
 
     def get_main_sections(self) -> list[StyleSection]:
-        return [
-            self.sections[st]
-            for st in StyleSectionType
-            if st.is_main and st in self.sections
-        ]
+        return [self.sections[st] for st in StyleSectionType if st.is_main and st in self.sections]
 
     def get_intro_sections(self) -> list[StyleSection]:
-        return [
-            self.sections[st]
-            for st in StyleSectionType
-            if st.is_intro and st in self.sections
-        ]
+        return [self.sections[st] for st in StyleSectionType if st.is_intro and st in self.sections]
 
     def get_ending_sections(self) -> list[StyleSection]:
         return [
-            self.sections[st]
-            for st in StyleSectionType
-            if st.is_ending and st in self.sections
+            self.sections[st] for st in StyleSectionType if st.is_ending and st in self.sections
         ]
 
     def get_fill_for_main(self, main_section: StyleSectionType) -> list[StyleSection]:
@@ -570,9 +545,7 @@ class Style:
             "style_format_version": "1.0",
             "metadata": self.metadata.to_dict(),
             "sections": {k.value: v.to_dict() for k, v in self.sections.items()},
-            "chord_tables": {
-                k.value: v.to_dict() for k, v in self.chord_tables.items()
-            },
+            "chord_tables": {k.value: v.to_dict() for k, v in self.chord_tables.items()},
             "parameters": self.parameters,
             "default_section": self.default_section.value,
             "fade_master": self.fade_master,

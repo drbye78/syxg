@@ -4,12 +4,11 @@ MPE (Microtonal Expression) Manager
 Comprehensive MPE implementation for expressive microtonal control,
 providing per-note parameter modulation and advanced MIDI expression.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
-import math
+from typing import Any
 
 
 class MPENote:
@@ -36,11 +35,11 @@ class MPENote:
         self.active = True
 
         # MPE parameters
-        self.pitch_bend = 0.0          # Pitch bend in semitones (-48 to +48)
-        self.timbre = 0.0              # Timbre control (0.0-1.0)
-        self.pressure = 0.0            # Aftertouch pressure (0.0-1.0)
-        self.slide = 0.0               # Slide position (0.0-1.0)
-        self.lift = 0.0                # Lift position (0.0-1.0)
+        self.pitch_bend = 0.0  # Pitch bend in semitones (-48 to +48)
+        self.timbre = 0.0  # Timbre control (0.0-1.0)
+        self.pressure = 0.0  # Aftertouch pressure (0.0-1.0)
+        self.slide = 0.0  # Slide position (0.0-1.0)
+        self.lift = 0.0  # Lift position (0.0-1.0)
 
         # Derived values
         self.frequency = 440.0 * (2.0 ** ((note_number - 69) / 12.0))
@@ -121,18 +120,18 @@ class MPENote:
     def get_mpe_info(self) -> dict[str, Any]:
         """Get comprehensive MPE information for this note."""
         return {
-            'note_number': self.note_number,
-            'channel': self.channel,
-            'velocity': self.velocity,
-            'active': self.active,
-            'pitch_bend': self.pitch_bend,
-            'timbre': self.timbre,
-            'pressure': self.pressure,
-            'slide': self.slide,
-            'lift': self.lift,
-            'frequency': self.frequency,
-            'adjusted_frequency': self.adjusted_frequency,
-            'voice_id': self.voice_id
+            "note_number": self.note_number,
+            "channel": self.channel,
+            "velocity": self.velocity,
+            "active": self.active,
+            "pitch_bend": self.pitch_bend,
+            "timbre": self.timbre,
+            "pressure": self.pressure,
+            "slide": self.slide,
+            "lift": self.lift,
+            "frequency": self.frequency,
+            "adjusted_frequency": self.adjusted_frequency,
+            "voice_id": self.voice_id,
         }
 
 
@@ -157,7 +156,7 @@ class MPEChannel:
 
         # Channel configuration
         self.pitch_bend_range = 48  # ±48 semitones
-        self.timbre_cc = 74         # CC74 for timbre
+        self.timbre_cc = 74  # CC74 for timbre
         self.pressure_active = True
 
         # Active notes on this channel
@@ -197,14 +196,14 @@ class MPEChannel:
     def get_channel_info(self) -> dict[str, Any]:
         """Get channel configuration and status."""
         return {
-            'master_channel': self.master_channel,
-            'member_channels': self.member_channels.copy(),
-            'all_channels': self.all_channels.copy(),
-            'pitch_bend_range': self.pitch_bend_range,
-            'timbre_cc': self.timbre_cc,
-            'pressure_active': self.pressure_active,
-            'enabled': self.enabled,
-            'active_notes_count': len(self.active_notes)
+            "master_channel": self.master_channel,
+            "member_channels": self.member_channels.copy(),
+            "all_channels": self.all_channels.copy(),
+            "pitch_bend_range": self.pitch_bend_range,
+            "timbre_cc": self.timbre_cc,
+            "pressure_active": self.pressure_active,
+            "enabled": self.enabled,
+            "active_notes_count": len(self.active_notes),
         }
 
 
@@ -250,14 +249,14 @@ class MPEZone:
     def get_zone_info(self) -> dict[str, Any]:
         """Get zone configuration."""
         return {
-            'zone_id': self.zone_id,
-            'lower_channel': self.lower_channel,
-            'upper_channel': self.upper_channel,
-            'enabled': self.enabled,
-            'pitch_bend_range': self.pitch_bend_range,
-            'master_channel': self.master_channel,
-            'member_channels': self.member_channels.copy(),
-            'channel_info': self.mpe_channel.get_channel_info()
+            "zone_id": self.zone_id,
+            "lower_channel": self.lower_channel,
+            "upper_channel": self.upper_channel,
+            "enabled": self.enabled,
+            "pitch_bend_range": self.pitch_bend_range,
+            "master_channel": self.master_channel,
+            "member_channels": self.member_channels.copy(),
+            "channel_info": self.mpe_channel.get_channel_info(),
         }
 
 
@@ -501,8 +500,9 @@ class MPEManager:
                 return zone.mpe_channel.get_active_notes()
             return []
 
-    def configure_zone(self, zone_id: int, lower_channel: int, upper_channel: int,
-                      pitch_bend_range: int = 48):
+    def configure_zone(
+        self, zone_id: int, lower_channel: int, upper_channel: int, pitch_bend_range: int = 48
+    ):
         """
         Configure MPE zone.
 
@@ -542,11 +542,11 @@ class MPEManager:
         """Get comprehensive MPE system information."""
         with self.lock:
             return {
-                'enabled': self.mpe_enabled,
-                'global_pitch_bend_range': self.global_pitch_bend_range,
-                'zones': [zone.get_zone_info() for zone in self.zones],
-                'active_notes_count': len(self.active_notes),
-                'active_notes': [note.get_mpe_info() for note in self.active_notes.values()]
+                "enabled": self.mpe_enabled,
+                "global_pitch_bend_range": self.global_pitch_bend_range,
+                "zones": [zone.get_zone_info() for zone in self.zones],
+                "active_notes_count": len(self.active_notes),
+                "active_notes": [note.get_mpe_info() for note in self.active_notes.values()],
             }
 
     def get_zone_info(self, zone_id: int) -> dict[str, Any] | None:
@@ -567,7 +567,7 @@ class MPEManager:
     def __str__(self) -> str:
         """String representation."""
         info = self.get_mpe_info()
-        status = "Enabled" if info['enabled'] else "Disabled"
+        status = "Enabled" if info["enabled"] else "Disabled"
         return f"MPEManager({status}, zones={len(info['zones'])}, active_notes={info['active_notes_count']})"
 
     def __repr__(self) -> str:

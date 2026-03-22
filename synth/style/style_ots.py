@@ -4,11 +4,12 @@ One Touch Settings (OTS) System
 Provides quick voice preset functionality that links to styles.
 Each style has multiple OTS presets that can be instantly recalled.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 from enum import Enum
+from typing import Any
 
 
 class OTSSection(Enum):
@@ -160,9 +161,7 @@ class OTSPreset:
             "chorus_parameter": self.chorus_parameter,
             "variation_type": self.variation_type,
             "variation_parameter": self.variation_parameter,
-            "linked_section": self.linked_section.value
-            if self.linked_section
-            else None,
+            "linked_section": self.linked_section.value if self.linked_section else None,
             "dual_voice_enabled": self.dual_voice_enabled,
             "dual_voice_part": self.dual_voice_part,
             "dual_voice_octave": self.dual_voice_octave,
@@ -472,9 +471,7 @@ class OneTouchSettings:
         }
 
     @classmethod
-    def from_dict(
-        cls, data: dict[str, Any], synthesizer: Any = None
-    ) -> OneTouchSettings:
+    def from_dict(cls, data: dict[str, Any], synthesizer: Any = None) -> OneTouchSettings:
         presets = [OTSPreset.from_dict(p) for p in data.get("presets", [])]
         ots = cls(
             presets=presets,

@@ -4,28 +4,32 @@ Plugin Registry System
 Manages discovery, loading, and lifecycle of engine plugins.
 Provides dependency resolution, compatibility checking, and plugin management.
 """
+
 from __future__ import annotations
 
 import importlib
 import inspect
-import pkgutil
-from typing import Any
-from pathlib import Path
 import traceback
+from pathlib import Path
+from typing import Any
 
 from .base_plugin import (
-    BaseEnginePlugin, PluginMetadata, PluginLoadContext,
-    PluginType, PluginCompatibility, PluginFactory
+    BaseEnginePlugin,
+    PluginCompatibility,
+    PluginLoadContext,
+    PluginType,
 )
 
 
 class PluginLoadError(Exception):
     """Exception raised when plugin loading fails."""
+
     pass
 
 
 class PluginDependencyError(Exception):
     """Exception raised when plugin dependencies cannot be satisfied."""
+
     pass
 
 
@@ -70,7 +74,7 @@ class PluginRegistry:
             self._plugin_classes[name] = plugin_class
 
             # Extract dependencies from class metadata if available
-            if hasattr(plugin_class, 'get_plugin_metadata'):
+            if hasattr(plugin_class, "get_plugin_metadata"):
                 try:
                     # Use class method to get metadata
                     metadata = plugin_class.get_plugin_metadata()
@@ -84,7 +88,7 @@ class PluginRegistry:
                 except Exception as e:
                     print(f"Warning: Could not extract metadata from plugin '{name}': {e}")
                     self._plugin_dependencies[name] = set()
-            elif hasattr(plugin_class, 'get_metadata'):
+            elif hasattr(plugin_class, "get_metadata"):
                 try:
                     # Fallback: Create temporary instance to get metadata
                     temp_instance = plugin_class()
@@ -106,8 +110,13 @@ class PluginRegistry:
             print(f"Failed to register plugin class '{name}': {e}")
             return False
 
-    def load_plugin(self, name: str, engine_instance: Any = None,
-                   sample_rate: int = 44100, block_size: int = 1024) -> bool:
+    def load_plugin(
+        self,
+        name: str,
+        engine_instance: Any = None,
+        sample_rate: int = 44100,
+        block_size: int = 1024,
+    ) -> bool:
         """
         Load a plugin by name.
 
@@ -141,7 +150,7 @@ class PluginRegistry:
                 engine_instance=engine_instance,
                 sample_rate=sample_rate,
                 block_size=block_size,
-                plugin_registry=self
+                plugin_registry=self,
             )
 
             # Load the plugin
@@ -277,11 +286,18 @@ class PluginRegistry:
 
                 # Look for plugin classes
                 for name, obj in inspect.getmembers(module):
-                    if (inspect.isclass(obj) and
-                        issubclass(obj, BaseEnginePlugin) and
-                        obj != BaseEnginePlugin and
-                        obj.__name__ not in ['SynthesisFeaturePlugin', 'ModulationPlugin', 'EffectsPlugin', 'MIDIPlugin']):
-
+                    if (
+                        inspect.isclass(obj)
+                        and issubclass(obj, BaseEnginePlugin)
+                        and obj != BaseEnginePlugin
+                        and obj.__name__
+                        not in [
+                            "SynthesisFeaturePlugin",
+                            "ModulationPlugin",
+                            "EffectsPlugin",
+                            "MIDIPlugin",
+                        ]
+                    ):
                         # Skip abstract base classes
                         try:
                             # Try to create a temporary instance to check if it's concrete
@@ -316,7 +332,9 @@ class PluginRegistry:
         for dep in dependencies:
             # Check if dependency is registered
             if dep not in self._plugin_classes:
-                raise PluginDependencyError(f"Dependency '{dep}' not found for plugin '{plugin_name}'")
+                raise PluginDependencyError(
+                    f"Dependency '{dep}' not found for plugin '{plugin_name}'"
+                )
 
             # Load dependency if not already loaded
             if dep not in self._loaded_plugins:
@@ -336,38 +354,38 @@ class PluginRegistry:
         if plugin:
             metadata = plugin.get_metadata()
             return {
-                'name': metadata.name,
-                'version': metadata.version,
-                'description': metadata.description,
-                'type': metadata.plugin_type.value,
-                'compatibility': metadata.compatibility.value,
-                'target_engines': metadata.target_engines,
-                'dependencies': list(metadata.dependencies),
-                'loaded': True,
-                'enabled': plugin.is_enabled,
-                'active': plugin.is_active(),
+                "name": metadata.name,
+                "version": metadata.version,
+                "description": metadata.description,
+                "type": metadata.plugin_type.value,
+                "compatibility": metadata.compatibility.value,
+                "target_engines": metadata.target_engines,
+                "dependencies": list(metadata.dependencies),
+                "loaded": True,
+                "enabled": plugin.is_enabled,
+                "active": plugin.is_active(),
             }
 
         plugin_class = self._plugin_classes.get(name)
         if plugin_class:
             try:
                 # Try class method first, then fallback to instance method
-                if hasattr(plugin_class, 'get_plugin_metadata'):
+                if hasattr(plugin_class, "get_plugin_metadata"):
                     metadata = plugin_class.get_plugin_metadata()
                 else:
                     temp_instance = plugin_class()
                     metadata = temp_instance.get_metadata()
                 return {
-                    'name': metadata.name,
-                    'version': metadata.version,
-                    'description': metadata.description,
-                    'type': metadata.plugin_type.value,
-                    'compatibility': metadata.compatibility.value,
-                    'target_engines': metadata.target_engines,
-                    'dependencies': list(metadata.dependencies),
-                    'loaded': False,
-                    'enabled': False,
-                    'active': False,
+                    "name": metadata.name,
+                    "version": metadata.version,
+                    "description": metadata.description,
+                    "type": metadata.plugin_type.value,
+                    "compatibility": metadata.compatibility.value,
+                    "target_engines": metadata.target_engines,
+                    "dependencies": list(metadata.dependencies),
+                    "loaded": False,
+                    "enabled": False,
+                    "active": False,
                 }
             except Exception:
                 pass
@@ -389,7 +407,7 @@ class PluginRegistry:
         for name, plugin_class in self._plugin_classes.items():
             try:
                 # Try class method first, then fallback to instance method
-                if hasattr(plugin_class, 'get_plugin_metadata'):
+                if hasattr(plugin_class, "get_plugin_metadata"):
                     metadata = plugin_class.get_plugin_metadata()
                 else:
                     temp_instance = plugin_class()
@@ -416,21 +434,24 @@ class PluginRegistry:
         for name, plugin_class in self._plugin_classes.items():
             try:
                 # Try class method first, then fallback to instance method
-                if hasattr(plugin_class, 'get_plugin_metadata'):
+                if hasattr(plugin_class, "get_plugin_metadata"):
                     metadata = plugin_class.get_plugin_metadata()
                 else:
                     temp_instance = plugin_class()
                     metadata = temp_instance.get_metadata()
-                if (engine_type in metadata.target_engines or
-                    metadata.compatibility == PluginCompatibility.UNIVERSAL):
+                if (
+                    engine_type in metadata.target_engines
+                    or metadata.compatibility == PluginCompatibility.UNIVERSAL
+                ):
                     compatible_plugins.append(name)
             except Exception:
                 continue
 
         return compatible_plugins
 
-    def validate_plugin_compatibility(self, plugin_name: str, engine_type: str,
-                                    engine_version: str = "1.0.0") -> bool:
+    def validate_plugin_compatibility(
+        self, plugin_name: str, engine_type: str, engine_version: str = "1.0.0"
+    ) -> bool:
         """
         Validate plugin compatibility with an engine.
 
@@ -493,12 +514,14 @@ class PluginRegistry:
 # Global plugin registry instance
 _global_registry = None
 
+
 def get_global_plugin_registry() -> PluginRegistry:
     """Get the global plugin registry instance."""
     global _global_registry
     if _global_registry is None:
         _global_registry = PluginRegistry()
     return _global_registry
+
 
 def reset_global_plugin_registry() -> None:
     """Reset the global plugin registry."""

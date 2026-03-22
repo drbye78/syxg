@@ -12,15 +12,17 @@ Key Features:
 - Solo/mute functionality
 - Zero-allocation processing for realtime performance
 """
+
 from __future__ import annotations
 
-import numpy as np
-from typing import Any
 import threading
+from typing import Any
+
+import numpy as np
 
 # Import our types and utilities
 try:
-    from .types import XGChannelMixerParams, XG_CHANNEL_MIXER_DEFAULT
+    from .types import XG_CHANNEL_MIXER_DEFAULT, XGChannelMixerParams
 except ImportError:
     # Fallback for development
     from synth.effects.processing import *
@@ -49,10 +51,16 @@ class XGChannelMixer:
         # Thread safety
         self.lock = threading.RLock()
 
-    def set_channel_params(self, volume: float = None, pan: float = None,
-                          reverb_send: float = None, chorus_send: float = None,
-                          variation_send: float = None, mute: bool = None,
-                          solo: bool = None) -> bool:
+    def set_channel_params(
+        self,
+        volume: float = None,
+        pan: float = None,
+        reverb_send: float = None,
+        chorus_send: float = None,
+        variation_send: float = None,
+        mute: bool = None,
+        solo: bool = None,
+    ) -> bool:
         """
         Set channel mixing parameters.
 
@@ -113,13 +121,16 @@ class XGChannelMixer:
 
             return changed
 
-    def apply_channel_mixing_to_buffers(self, input_audio: np.ndarray,
-                                       main_mix_left: np.ndarray,
-                                       main_mix_right: np.ndarray,
-                                       num_samples: int,
-                                       reverb_send_buffers: list[np.ndarray] | None = None,
-                                       chorus_send_buffers: list[np.ndarray] | None = None,
-                                       variation_send_buffers: list[np.ndarray] | None = None) -> None:
+    def apply_channel_mixing_to_buffers(
+        self,
+        input_audio: np.ndarray,
+        main_mix_left: np.ndarray,
+        main_mix_right: np.ndarray,
+        num_samples: int,
+        reverb_send_buffers: list[np.ndarray] | None = None,
+        chorus_send_buffers: list[np.ndarray] | None = None,
+        variation_send_buffers: list[np.ndarray] | None = None,
+    ) -> None:
         """
         Apply channel mixing with panning and effect sends to separate buffers.
 
@@ -213,7 +224,7 @@ class XGMasterMixer:
         self.stereo_width = 1.0  # 0=mono, 1=normal stereo, >1=enhanced stereo
         self.limiter_enabled = True
         self.limiter_threshold = -0.1  # dBFS threshold
-        self.limiter_release = 0.1     # Release time in seconds
+        self.limiter_release = 0.1  # Release time in seconds
 
         # Internal state
         self.release_samples = int(self.limiter_release * sample_rate)
@@ -222,8 +233,9 @@ class XGMasterMixer:
         # Thread safety
         self.lock = threading.RLock()
 
-    def set_master_params(self, volume: float = None, stereo_width: float = None,
-                         limiter_enabled: bool = None) -> bool:
+    def set_master_params(
+        self, volume: float = None, stereo_width: float = None, limiter_enabled: bool = None
+    ) -> bool:
         """
         Set master mixing parameters.
 
@@ -381,9 +393,13 @@ class XGChannelMixerProcessor:
                 return success
             return False
 
-    def mix_channels_to_stereo_zero_alloc(self, channel_inputs: list[np.ndarray],
-                                         stereo_output: np.ndarray, num_samples: int,
-                                         effect_send_outputs: dict[str, list[np.ndarray]] | None = None) -> None:
+    def mix_channels_to_stereo_zero_alloc(
+        self,
+        channel_inputs: list[np.ndarray],
+        stereo_output: np.ndarray,
+        num_samples: int,
+        effect_send_outputs: dict[str, list[np.ndarray]] | None = None,
+    ) -> None:
         """
         Mix multiple channel inputs to stereo output with XG-compliant processing.
 
@@ -404,9 +420,9 @@ class XGChannelMixerProcessor:
             variation_sends = []
 
             if effect_send_outputs:
-                reverb_sends = effect_send_outputs.get('reverb', [])
-                chorus_sends = effect_send_outputs.get('chorus', [])
-                variation_sends = effect_send_outputs.get('variation', [])
+                reverb_sends = effect_send_outputs.get("reverb", [])
+                chorus_sends = effect_send_outputs.get("chorus", [])
+                variation_sends = effect_send_outputs.get("variation", [])
 
                 # Clear send buffers
                 for buf in reverb_sends + chorus_sends + variation_sends:
@@ -430,8 +446,13 @@ class XGChannelMixerProcessor:
 
                 # Mix channel into main output and effect sends
                 self.channel_mixers[ch_idx].apply_channel_mixing_to_buffers(
-                    input_audio, main_left, main_right, num_samples,
-                    reverb_sends, chorus_sends, variation_sends
+                    input_audio,
+                    main_left,
+                    main_right,
+                    num_samples,
+                    reverb_sends,
+                    chorus_sends,
+                    variation_sends,
                 )
 
             # Apply master processing
@@ -453,10 +474,10 @@ class XGChannelMixerProcessor:
         """Get master mixer status."""
         with self.lock:
             return {
-                'master_volume': self.master_mixer.master_volume,
-                'stereo_width': self.master_mixer.stereo_width,
-                'limiter_enabled': self.master_mixer.limiter_enabled,
-                'solo_channels': list(self.solo_channels),
+                "master_volume": self.master_mixer.master_volume,
+                "stereo_width": self.master_mixer.stereo_width,
+                "limiter_enabled": self.master_mixer.limiter_enabled,
+                "solo_channels": list(self.solo_channels),
             }
 
     def reset_all_channels(self) -> None:
@@ -474,12 +495,18 @@ class XGChannelMixerProcessor:
         """
         if len(self.solo_channels) == 0:
             # No solos enabled - mix all active channels that aren't muted
-            return [i for i in range(min(num_inputs, self.max_channels))
-                   if not self.channel_mixers[i].params.mute]
+            return [
+                i
+                for i in range(min(num_inputs, self.max_channels))
+                if not self.channel_mixers[i].params.mute
+            ]
         else:
             # Solos enabled - only mix solo channels that aren't muted
-            return [i for i in self.solo_channels
-                   if i < num_inputs and not self.channel_mixers[i].params.mute]
+            return [
+                i
+                for i in self.solo_channels
+                if i < num_inputs and not self.channel_mixers[i].params.mute
+            ]
 
     def _update_solo_state(self, channel: int) -> None:
         """Update internal solo state tracking."""

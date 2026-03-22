@@ -237,8 +237,8 @@ INDUSTRY COMPLIANCE:
 
 from __future__ import annotations
 
-from typing import Any, Self
 import time
+from typing import Any, Self
 
 
 class MIDIMessage:
@@ -257,7 +257,7 @@ class MIDIMessage:
         data (dict[str, Any]): Type-specific message data
     """
 
-    __slots__ = ("timestamp", "type", "channel", "data", "_xg_metadata")
+    __slots__ = ("_xg_metadata", "channel", "data", "timestamp", "type")
 
     def __init__(
         self,

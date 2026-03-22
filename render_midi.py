@@ -9,26 +9,25 @@ XGML provides a high-level YAML interface for XG synthesizer control with human-
 parameter names and semantic abstractions instead of numerical MIDI values.
 """
 
+import argparse
+import glob
 import os
 import sys
-import argparse
-import yaml
-import glob
-from typing import List, Optional, Tuple, Union
-from pathlib import Path
 import threading
 import time
+from pathlib import Path
 
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from synth.audio.writer import AudioWriter
 from synth.audio.converter import AudioConverter
+from synth.audio.writer import AudioWriter
+from synth.core.config_manager import ConfigManager
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+
 # Lazy import for OptimizedXGSynthesizer to avoid dependency issues
 # from synth.engine.optimized_xg_synthesizer import OptimizedXGSynthesizer
 from synth.utils.keyboard import KeyboardListener
-from synth.core.config_manager import ConfigManager, get_config_manager
 
 
 def parse_arguments():
@@ -50,47 +49,95 @@ Examples:
    render_midi.py --volume 0.8 *.mid *.xgml    # Convert multiple files
    render_midi.py --recursive *.mid output/    # Recurse subdirectories
    render_midi.py --keyboard-abort input.xgml  # XGML with abort control
-        """
+        """,
     )
 
-    parser.add_argument("input_files", nargs="+", help="Input MIDI/XGML file(s) or patterns to convert (supports wildcards)")
-    parser.add_argument("output", nargs="?", default=None, help="Output file or directory (optional)")
-    parser.add_argument("-c", "--config", help="Path to YAML configuration file", default="config.yaml")
-    parser.add_argument("--sf2", action="append", dest="sf2_files", 
-                       help="SoundFont (.sf2) file paths (can be specified multiple times). "
-                            "For advanced options (priority, blacklist, remap), use config.yaml")
-    parser.add_argument("--sample-rate", type=int, dest="sample_rate", help="Audio sample rate in Hz")
-    parser.add_argument("--chunk-size-ms", type=float, dest="chunk_size_ms", help="Audio processing chunk size in milliseconds")
+    parser.add_argument(
+        "input_files",
+        nargs="+",
+        help="Input MIDI/XGML file(s) or patterns to convert (supports wildcards)",
+    )
+    parser.add_argument(
+        "output", nargs="?", default=None, help="Output file or directory (optional)"
+    )
+    parser.add_argument(
+        "-c", "--config", help="Path to YAML configuration file", default="config.yaml"
+    )
+    parser.add_argument(
+        "--sf2",
+        action="append",
+        dest="sf2_files",
+        help="SoundFont (.sf2) file paths (can be specified multiple times). "
+        "For advanced options (priority, blacklist, remap), use config.yaml",
+    )
+    parser.add_argument(
+        "--sample-rate", type=int, dest="sample_rate", help="Audio sample rate in Hz"
+    )
+    parser.add_argument(
+        "--chunk-size-ms",
+        type=float,
+        dest="chunk_size_ms",
+        help="Audio processing chunk size in milliseconds",
+    )
     parser.add_argument("--polyphony", type=int, dest="max_polyphony", help="Maximum polyphony")
-    parser.add_argument("--volume", type=float, dest="master_volume", help="Master volume (0.0 to 1.0)")
-    parser.add_argument("--tempo", type=float, default=1.0, help="Tempo ratio (default: 1.0 = original tempo)")
-    parser.add_argument("--silent", action="store_true", help="Suppress console output during conversion")
-    parser.add_argument("--keyboard-abort", action="store_true", help="Enable keyboard abort with SPACE key")
-    parser.add_argument("--recursive", "-r", action="store_true", help="Recurse into subdirectories")
-    parser.add_argument("--format", choices=list(AudioWriter.SUPPORTED_FORMATS.keys()), default="mp3", help="Output audio format")
-    parser.add_argument("--render-log-level", type=int, choices=[0, 1, 2], default=0,
-                       help="Audio rendering logging level: 0=no logging, 1=log combined channel audio before effects, 2=log each channel renderer output")
-    parser.add_argument("--architecture", choices=["legacy", "voice"], default="legacy",
-                       help="Synthesizer architecture: legacy=existing XG implementation, voice=new Voice-based architecture")
-    parser.add_argument("--synth", choices=["modern", "optimized"], default="modern",
-                       help="XG synthesizer engine: modern=ModernXGSynthesizer, optimized=OptimizedXGSynthesizer")
+    parser.add_argument(
+        "--volume", type=float, dest="master_volume", help="Master volume (0.0 to 1.0)"
+    )
+    parser.add_argument(
+        "--tempo", type=float, default=1.0, help="Tempo ratio (default: 1.0 = original tempo)"
+    )
+    parser.add_argument(
+        "--silent", action="store_true", help="Suppress console output during conversion"
+    )
+    parser.add_argument(
+        "--keyboard-abort", action="store_true", help="Enable keyboard abort with SPACE key"
+    )
+    parser.add_argument(
+        "--recursive", "-r", action="store_true", help="Recurse into subdirectories"
+    )
+    parser.add_argument(
+        "--format",
+        choices=list(AudioWriter.SUPPORTED_FORMATS.keys()),
+        default="mp3",
+        help="Output audio format",
+    )
+    parser.add_argument(
+        "--render-log-level",
+        type=int,
+        choices=[0, 1, 2],
+        default=0,
+        help="Audio rendering logging level: 0=no logging, 1=log combined channel audio before effects, 2=log each channel renderer output",
+    )
+    parser.add_argument(
+        "--architecture",
+        choices=["legacy", "voice"],
+        default="legacy",
+        help="Synthesizer architecture: legacy=existing XG implementation, voice=new Voice-based architecture",
+    )
+    parser.add_argument(
+        "--synth",
+        choices=["modern", "optimized"],
+        default="modern",
+        help="XG synthesizer engine: modern=ModernXGSynthesizer, optimized=OptimizedXGSynthesizer",
+    )
 
     return parser.parse_args()
 
-def expand_file_patterns(patterns: List[str], recursive: bool = False) -> List[str]:
+
+def expand_file_patterns(patterns: list[str], recursive: bool = False) -> list[str]:
     """Expand file patterns and optionally recurse into subdirectories for MIDI and XGML files."""
     audio_files = []
 
     for pattern in patterns:
         # Handle both file paths and glob patterns
-        if '*' in pattern or '?' in pattern:
+        if "*" in pattern or "?" in pattern:
             # It's a glob pattern
             if recursive:
                 # Use ** for recursive globbing
                 pattern_path = Path(pattern)
-                if '**' in pattern or pattern_path.parent != Path('.'):
+                if "**" in pattern or pattern_path.parent != Path("."):
                     # Complex pattern, use glob with **
-                    if '**' not in pattern:
+                    if "**" not in pattern:
                         # Convert simple pattern to recursive
                         pattern_parts = Path(pattern).parts
                         if len(pattern_parts) > 1:
@@ -113,19 +160,21 @@ def expand_file_patterns(patterns: List[str], recursive: bool = False) -> List[s
 
             # Filter for supported audio files (MIDI and XGML)
             for file_path in matched_files:
-                if file_path.lower().endswith(('.mid', '.midi', '.xgml', '.yaml', '.yml')):
+                if file_path.lower().endswith((".mid", ".midi", ".xgml", ".yaml", ".yml")):
                     audio_files.append(file_path)
         else:
             # Direct file path
             if Path(pattern).exists():
-                ext = pattern.lower().split('.')[-1] if '.' in pattern else ''
-                if ext in ['mid', 'midi', 'xgml', 'yaml', 'yml'] or pattern.lower().endswith(('.mid', '.midi', '.xgml', '.yaml', '.yml')):
+                ext = pattern.lower().split(".")[-1] if "." in pattern else ""
+                if ext in ["mid", "midi", "xgml", "yaml", "yml"] or pattern.lower().endswith(
+                    (".mid", ".midi", ".xgml", ".yaml", ".yml")
+                ):
                     audio_files.append(pattern)
             elif recursive and Path(pattern).is_dir():
                 # Directory with recursive flag - find all supported files in subdirs
                 for root, dirs, files in os.walk(pattern):
                     for file in files:
-                        if file.lower().endswith(('.mid', '.midi', '.xgml', '.yaml', '.yml')):
+                        if file.lower().endswith((".mid", ".midi", ".xgml", ".yaml", ".yml")):
                             audio_files.append(os.path.join(root, file))
 
     # Remove duplicates while preserving order
@@ -139,7 +188,9 @@ def expand_file_patterns(patterns: List[str], recursive: bool = False) -> List[s
     return unique_files
 
 
-def get_output_path(input_file: str, output: Optional[str], format: str, multiple_files: bool = False) -> str:
+def get_output_path(
+    input_file: str, output: str | None, format: str, multiple_files: bool = False
+) -> str:
     """Determine the output file path based on input and output specifications."""
     input_path = Path(input_file)
 
@@ -168,8 +219,6 @@ def get_output_path(input_file: str, output: Optional[str], format: str, multipl
             return str(output_path.with_suffix(f".{format}"))
 
 
-
-
 def main():
     """Main conversion function."""
 
@@ -179,50 +228,46 @@ def main():
     # Load unified configuration using ConfigManager
     config_manager = ConfigManager(args.config)
     config_manager.load()
-    
+
     # Get configuration values from ConfigManager
     sample_rate = args.sample_rate or config_manager.get_sample_rate()
-    chunk_size_ms = args.chunk_size_ms or (config_manager.get_block_size() / config_manager.get_sample_rate() * 1000)
+    chunk_size_ms = args.chunk_size_ms or (
+        config_manager.get_block_size() / config_manager.get_sample_rate() * 1000
+    )
     max_polyphony = args.max_polyphony or config_manager.get_polyphony()
     master_volume = args.master_volume or config_manager.get_volume()
-    
+
     # Process SoundFont configurations
     # Priority: command line --sf2 > config.yaml soundfonts > config.yaml sf2_path
     soundfont_configs = []
-    
+
     # Add from config.yaml soundfonts (highest priority from config)
     config_soundfonts = config_manager.get_soundfonts()
     for sf_config in config_soundfonts:
-        sf_path = sf_config.get('path')
+        sf_path = sf_config.get("path")
         if sf_path:
             soundfont_configs.append(sf_config)
-    
+
     # Add simple --sf2 paths with default priority (these override config if specified)
     if args.sf2_files:
         for sf2_path in args.sf2_files:
             # Check if this path is already added from config
-            if not any(c.get('path') == sf2_path for c in soundfont_configs):
-                soundfont_configs.append({
-                    'path': sf2_path,
-                    'priority': 0,
-                    'blacklist': [],
-                    'remap': {}
-                })
-    
+            if not any(c.get("path") == sf2_path for c in soundfont_configs):
+                soundfont_configs.append(
+                    {"path": sf2_path, "priority": 0, "blacklist": [], "remap": {}}
+                )
+
     # Fallback to legacy sf2_path if no soundfonts configured
     if not soundfont_configs:
         legacy_path = config_manager.get_sf2_path()
         if legacy_path:
-            soundfont_configs.append({
-                'path': legacy_path,
-                'priority': 0,
-                'blacklist': [],
-                'remap': {}
-            })
-    
+            soundfont_configs.append(
+                {"path": legacy_path, "priority": 0, "blacklist": [], "remap": {}}
+            )
+
     # Extract just the paths for synthesizers that need them
-    sf2_files = [c['path'] for c in soundfont_configs if c.get('path')]
-    
+    sf2_files = [c["path"] for c in soundfont_configs if c.get("path")]
+
     architecture = args.architecture
     synth_choice = args.synth
 
@@ -260,10 +305,10 @@ def main():
             block_size=block_size,
             sf2_files=sf2_files if sf2_files else None,
             render_log_level=render_log_level,
-            architecture=architecture
+            architecture=architecture,
         )
         if not silent:
-            print(f"Using OptimizedXGSynthesizer engine")
+            print("Using OptimizedXGSynthesizer engine")
     else:  # modern
         synthesizer = ModernXGSynthesizer(
             sample_rate=sample_rate,
@@ -271,29 +316,31 @@ def main():
             xg_enabled=True,
             gs_enabled=True,
             mpe_enabled=True,
-            device_id=0x10
+            device_id=0x10,
         )
-        
+
         # Load SoundFonts with their configurations (including blacklist/remap from config)
         for sf_config in soundfont_configs:
-            sf_path = sf_config.get('path')
+            sf_path = sf_config.get("path")
             if sf_path and os.path.exists(sf_path):
-                priority = sf_config.get('priority', 0)
+                priority = sf_config.get("priority", 0)
                 success = synthesizer.load_soundfont(sf_path, priority=priority)
                 if success:
                     # Apply blacklisting if specified in config
-                    for bank, prog in sf_config.get('blacklist', []):
+                    for bank, prog in sf_config.get("blacklist", []):
                         synthesizer.blacklist_program(bank, prog)
-                    
+
                     # Apply remapping if specified in config
-                    for (from_bank, from_prog), (to_bank, to_prog) in sf_config.get('remap', {}).items():
+                    for (from_bank, from_prog), (to_bank, to_prog) in sf_config.get(
+                        "remap", {}
+                    ).items():
                         synthesizer.remap_program(from_bank, from_prog, to_bank, to_prog)
-        
+
         # Apply full configuration from config.yaml
         synthesizer.configure_from_config(config_manager)
-        
+
         if not silent:
-            print(f"Using ModernXGSynthesizer engine (refactored modular architecture)")
+            print("Using ModernXGSynthesizer engine (refactored modular architecture)")
 
     # Initialize audio writer
     audio_writer = AudioWriter(sample_rate, chunk_size_ms)
@@ -320,7 +367,7 @@ def main():
         keyboard_listener = KeyboardListener()
 
         def on_key_press(key: str):
-            if key.upper() == ' ':
+            if key.upper() == " ":
                 print("\nSPACE pressed - Aborting conversion...")
                 abort_event.set()
 
@@ -349,7 +396,7 @@ def main():
                 silent=silent,
                 abort_event=abort_event,
                 render_limit=50.0,
-                timeout_seconds=150.0
+                timeout_seconds=150.0,
             ):
                 success_count += 1
             else:
@@ -360,9 +407,13 @@ def main():
         # Print summary
         if not silent:
             if abort_event and abort_event.is_set():
-                print(f"\nConversion aborted or timed out. {success_count}/{len(input_files)} files converted successfully.")
+                print(
+                    f"\nConversion aborted or timed out. {success_count}/{len(input_files)} files converted successfully."
+                )
             else:
-                print(f"\nConversion complete. {success_count}/{len(input_files)} files converted successfully.")
+                print(
+                    f"\nConversion complete. {success_count}/{len(input_files)} files converted successfully."
+                )
 
         return success_count == len(input_files)
 
@@ -370,6 +421,7 @@ def main():
         # Clean up keyboard listener
         if keyboard_listener:
             keyboard_listener.stop()
+
 
 if __name__ == "__main__":
     try:

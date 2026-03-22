@@ -4,26 +4,29 @@ Sequencer Data Types and Constants
 Core data structures for the built-in sequencer including notes,
 patterns, songs, and configuration types.
 """
+
 from __future__ import annotations
 
-from typing import Any
+import time
 from dataclasses import dataclass
 from enum import Enum
-import time
+from typing import Any
 
 
 class QuantizeMode(Enum):
     """Quantization modes for rhythm correction"""
+
     OFF = 0
-    Q_8TH = 1      # 1/8 notes
-    Q_16TH = 2     # 1/16 notes
-    Q_32ND = 3     # 1/32 notes
+    Q_8TH = 1  # 1/8 notes
+    Q_16TH = 2  # 1/16 notes
+    Q_32ND = 3  # 1/32 notes
     Q_TRIPLET = 4  # Triplet quantization
-    Q_SWING = 5    # Swing quantization
+    Q_SWING = 5  # Swing quantization
 
 
 class GrooveTemplate(Enum):
     """Pre-defined groove templates"""
+
     STRAIGHT = 0
     SWING_8TH = 1
     SWING_16TH = 2
@@ -35,6 +38,7 @@ class GrooveTemplate(Enum):
 
 class RecordingMode(Enum):
     """Recording modes for the sequencer"""
+
     REAL_TIME = 0
     STEP_INPUT = 1
     OVERDUB = 2
@@ -44,12 +48,13 @@ class RecordingMode(Enum):
 @dataclass(slots=True)
 class NoteEvent:
     """Represents a MIDI note event in the sequencer"""
-    time: float          # Time in beats (quarter notes)
-    duration: float      # Duration in beats
-    note_number: int     # MIDI note number (0-127)
-    velocity: int        # Note velocity (0-127)
-    channel: int = 0     # MIDI channel (0-15)
-    track_id: int = 0    # Track identifier
+
+    time: float  # Time in beats (quarter notes)
+    duration: float  # Duration in beats
+    note_number: int  # MIDI note number (0-127)
+    velocity: int  # Note velocity (0-127)
+    channel: int = 0  # MIDI channel (0-15)
+    track_id: int = 0  # Track identifier
 
     def to_midi_bytes(self) -> tuple[bytes, bytes]:
         """Convert to MIDI message bytes"""
@@ -67,11 +72,12 @@ class NoteEvent:
 @dataclass(slots=True)
 class ControlEvent:
     """Represents a MIDI control change event"""
-    time: float          # Time in beats
-    controller: int      # Controller number (0-127)
-    value: int          # Controller value (0-127)
-    channel: int = 0     # MIDI channel (0-15)
-    track_id: int = 0    # Track identifier
+
+    time: float  # Time in beats
+    controller: int  # Controller number (0-127)
+    value: int  # Controller value (0-127)
+    channel: int = 0  # MIDI channel (0-15)
+    track_id: int = 0  # Track identifier
 
     def to_midi_bytes(self) -> bytes:
         """Convert to MIDI message bytes"""
@@ -82,10 +88,11 @@ class ControlEvent:
 @dataclass(slots=True)
 class Pattern:
     """A sequencer pattern containing note and control events"""
+
     id: int
     name: str
-    length: int          # Length in beats (usually 1-16)
-    resolution: int = 96 # PPQ (pulses per quarter note)
+    length: int  # Length in beats (usually 1-16)
+    resolution: int = 96  # PPQ (pulses per quarter note)
 
     # Event storage
     notes: list[NoteEvent] = None
@@ -141,8 +148,7 @@ class Pattern:
 
     def get_notes_in_range(self, start_time: float, end_time: float) -> list[NoteEvent]:
         """Get all notes within a time range"""
-        return [note for note in self.notes
-                if note.time >= start_time and note.time < end_time]
+        return [note for note in self.notes if note.time >= start_time and note.time < end_time]
 
     def get_total_duration(self) -> float:
         """Get total duration of the pattern in beats"""
@@ -193,76 +199,76 @@ class Pattern:
     def to_dict(self) -> dict[str, Any]:
         """Convert pattern to dictionary for serialization"""
         return {
-            'id': self.id,
-            'name': self.name,
-            'length': self.length,
-            'resolution': self.resolution,
-            'tempo': self.tempo,
-            'time_signature': list(self.time_signature),
-            'swing_amount': self.swing_amount,
-            'quantize_mode': self.quantize_mode.value,
-            'notes': [
+            "id": self.id,
+            "name": self.name,
+            "length": self.length,
+            "resolution": self.resolution,
+            "tempo": self.tempo,
+            "time_signature": list(self.time_signature),
+            "swing_amount": self.swing_amount,
+            "quantize_mode": self.quantize_mode.value,
+            "notes": [
                 {
-                    'time': note.time,
-                    'duration': note.duration,
-                    'note_number': note.note_number,
-                    'velocity': note.velocity,
-                    'channel': note.channel,
-                    'track_id': note.track_id
+                    "time": note.time,
+                    "duration": note.duration,
+                    "note_number": note.note_number,
+                    "velocity": note.velocity,
+                    "channel": note.channel,
+                    "track_id": note.track_id,
                 }
                 for note in self.notes
             ],
-            'controls': [
+            "controls": [
                 {
-                    'time': ctrl.time,
-                    'controller': ctrl.controller,
-                    'value': ctrl.value,
-                    'channel': ctrl.channel,
-                    'track_id': ctrl.track_id
+                    "time": ctrl.time,
+                    "controller": ctrl.controller,
+                    "value": ctrl.value,
+                    "channel": ctrl.channel,
+                    "track_id": ctrl.track_id,
                 }
                 for ctrl in self.controls
             ],
-            'created_time': self.created_time,
-            'modified_time': self.modified_time
+            "created_time": self.created_time,
+            "modified_time": self.modified_time,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Pattern:
         """Create pattern from dictionary"""
         pattern = cls(
-            id=data['id'],
-            name=data['name'],
-            length=data['length'],
-            resolution=data.get('resolution', 96),
-            tempo=data.get('tempo', 120.0),
-            time_signature=tuple(data.get('time_signature', [4, 4])),
-            swing_amount=data.get('swing_amount', 0.0)
+            id=data["id"],
+            name=data["name"],
+            length=data["length"],
+            resolution=data.get("resolution", 96),
+            tempo=data.get("tempo", 120.0),
+            time_signature=tuple(data.get("time_signature", [4, 4])),
+            swing_amount=data.get("swing_amount", 0.0),
         )
 
-        pattern.quantize_mode = QuantizeMode(data.get('quantize_mode', 0))
-        pattern.created_time = data.get('created_time', time.time())
-        pattern.modified_time = data.get('modified_time', time.time())
+        pattern.quantize_mode = QuantizeMode(data.get("quantize_mode", 0))
+        pattern.created_time = data.get("created_time", time.time())
+        pattern.modified_time = data.get("modified_time", time.time())
 
         # Load notes
-        for note_data in data.get('notes', []):
+        for note_data in data.get("notes", []):
             note = NoteEvent(
-                time=note_data['time'],
-                duration=note_data['duration'],
-                note_number=note_data['note_number'],
-                velocity=note_data['velocity'],
-                channel=note_data.get('channel', 0),
-                track_id=note_data.get('track_id', 0)
+                time=note_data["time"],
+                duration=note_data["duration"],
+                note_number=note_data["note_number"],
+                velocity=note_data["velocity"],
+                channel=note_data.get("channel", 0),
+                track_id=note_data.get("track_id", 0),
             )
             pattern.notes.append(note)
 
         # Load controls
-        for ctrl_data in data.get('controls', []):
+        for ctrl_data in data.get("controls", []):
             ctrl = ControlEvent(
-                time=ctrl_data['time'],
-                controller=ctrl_data['controller'],
-                value=ctrl_data['value'],
-                channel=ctrl_data.get('channel', 0),
-                track_id=ctrl_data.get('track_id', 0)
+                time=ctrl_data["time"],
+                controller=ctrl_data["controller"],
+                value=ctrl_data["value"],
+                channel=ctrl_data.get("channel", 0),
+                track_id=ctrl_data.get("track_id", 0),
             )
             pattern.controls.append(ctrl)
 
@@ -272,14 +278,15 @@ class Pattern:
 @dataclass(slots=True)
 class Track:
     """A track within a song containing pattern references and settings"""
+
     id: int
     name: str
-    channel: int = 0      # MIDI channel for this track
-    pattern_id: int = 0   # Current pattern assigned to this track
+    channel: int = 0  # MIDI channel for this track
+    pattern_id: int = 0  # Current pattern assigned to this track
     muted: bool = False
     solo: bool = False
-    volume: int = 100     # Track volume (0-127)
-    pan: int = 64         # Track pan (0-127, 64=center)
+    volume: int = 100  # Track volume (0-127)
+    pan: int = 64  # Track pan (0-127, 64=center)
 
     # Pattern sequence for this track (pattern_id, start_time, length_multiplier)
     sequence: list[tuple[int, float, float]] = None
@@ -288,8 +295,9 @@ class Track:
         if self.sequence is None:
             self.sequence = []
 
-    def add_pattern_instance(self, pattern_id: int, start_time: float,
-                           length_multiplier: float = 1.0):
+    def add_pattern_instance(
+        self, pattern_id: int, start_time: float, length_multiplier: float = 1.0
+    ):
         """Add a pattern instance to this track"""
         self.sequence.append((pattern_id, start_time, length_multiplier))
 
@@ -315,6 +323,7 @@ class Track:
 @dataclass(slots=True)
 class Song:
     """A song containing multiple tracks and arrangement data"""
+
     id: int
     name: str
     tempo: float = 120.0
@@ -370,58 +379,58 @@ class Song:
     def to_dict(self) -> dict[str, Any]:
         """Convert song to dictionary for serialization"""
         return {
-            'id': self.id,
-            'name': self.name,
-            'tempo': self.tempo,
-            'time_signature': list(self.time_signature),
-            'length': self.length,
-            'tracks': [
+            "id": self.id,
+            "name": self.name,
+            "tempo": self.tempo,
+            "time_signature": list(self.time_signature),
+            "length": self.length,
+            "tracks": [
                 {
-                    'id': track.id,
-                    'name': track.name,
-                    'channel': track.channel,
-                    'pattern_id': track.pattern_id,
-                    'muted': track.muted,
-                    'solo': track.solo,
-                    'volume': track.volume,
-                    'pan': track.pan,
-                    'sequence': list(track.sequence)
+                    "id": track.id,
+                    "name": track.name,
+                    "channel": track.channel,
+                    "pattern_id": track.pattern_id,
+                    "muted": track.muted,
+                    "solo": track.solo,
+                    "volume": track.volume,
+                    "pan": track.pan,
+                    "sequence": list(track.sequence),
                 }
                 for track in self.tracks
             ],
-            'created_time': self.created_time,
-            'modified_time': self.modified_time
+            "created_time": self.created_time,
+            "modified_time": self.modified_time,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Song:
         """Create song from dictionary"""
         song = cls(
-            id=data['id'],
-            name=data['name'],
-            tempo=data.get('tempo', 120.0),
-            time_signature=tuple(data.get('time_signature', [4, 4])),
-            length=data.get('length', 16)
+            id=data["id"],
+            name=data["name"],
+            tempo=data.get("tempo", 120.0),
+            time_signature=tuple(data.get("time_signature", [4, 4])),
+            length=data.get("length", 16),
         )
 
-        song.created_time = data.get('created_time', time.time())
-        song.modified_time = data.get('modified_time', time.time())
+        song.created_time = data.get("created_time", time.time())
+        song.modified_time = data.get("modified_time", time.time())
 
         # Load tracks
-        for track_data in data.get('tracks', []):
+        for track_data in data.get("tracks", []):
             track = Track(
-                id=track_data['id'],
-                name=track_data['name'],
-                channel=track_data.get('channel', 0),
-                pattern_id=track_data.get('pattern_id', 0),
-                muted=track_data.get('muted', False),
-                solo=track_data.get('solo', False),
-                volume=track_data.get('volume', 100),
-                pan=track_data.get('pan', 64)
+                id=track_data["id"],
+                name=track_data["name"],
+                channel=track_data.get("channel", 0),
+                pattern_id=track_data.get("pattern_id", 0),
+                muted=track_data.get("muted", False),
+                solo=track_data.get("solo", False),
+                volume=track_data.get("volume", 100),
+                pan=track_data.get("pan", 64),
             )
 
             # Load sequence
-            track.sequence = [tuple(seq) for seq in track_data.get('sequence', [])]
+            track.sequence = [tuple(seq) for seq in track_data.get("sequence", [])]
 
             song.tracks.append(track)
 

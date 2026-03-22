@@ -4,10 +4,10 @@ SF2 SoundFont Specification Constants
 Complete SF2 specification constants for 100% compliance.
 Includes all generators, modulators, sample types, and controller mappings.
 """
+
 from __future__ import annotations
 
 from typing import Any
-
 
 # SF2 Generator Types (SF2.01 Specification Section 8.1)
 SF2_GENERATORS: dict[int, dict[str, Any]] = {

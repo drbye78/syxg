@@ -7,10 +7,11 @@ with real-time control, bipolar modulation, and advanced curve shaping.
 
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
-import numpy as np
 import math
+from collections.abc import Callable
+from typing import Any
+
+import numpy as np
 
 
 class ModulationRoute:

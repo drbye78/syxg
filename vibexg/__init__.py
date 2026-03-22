@@ -16,138 +16,129 @@ A professional real-time MIDI workstation emulator with complete implementation 
 Author: Roger
 License: MIT
 """
+
 from __future__ import annotations
 
-__version__ = '1.0.0'
-__author__ = 'Roger'
+__version__ = "1.0.0"
+__author__ = "Roger"
 
 __all__ = [
     # Version
-    '__version__',
-    '__author__',
-
+    "__version__",
+    "__author__",
     # Core
-    'XGWorkstation',
-
+    "XGWorkstation",
     # Types
-    'WorkstationState',
-    'PresetData',
-    'MIDIInputConfig',
-    'AudioOutputConfig',
-    'InputInterfaceType',
-    'AudioOutputType',
-    'DEFAULT_SAMPLE_RATE',
-    'DEFAULT_BUFFER_SIZE',
-    'DEFAULT_BLOCK_SIZE',
-    'MIDI_CHANNELS',
-    'AUDIO_FORMATS',
-
+    "WorkstationState",
+    "PresetData",
+    "MIDIInputConfig",
+    "AudioOutputConfig",
+    "InputInterfaceType",
+    "AudioOutputType",
+    "DEFAULT_SAMPLE_RATE",
+    "DEFAULT_BUFFER_SIZE",
+    "DEFAULT_BLOCK_SIZE",
+    "MIDI_CHANNELS",
+    "AUDIO_FORMATS",
     # Managers
-    'PresetManager',
-    'MIDILearnManager',
-    'StyleEngineIntegration',
-
+    "PresetManager",
+    "MIDILearnManager",
+    "StyleEngineIntegration",
     # MIDI Inputs
-    'MIDIInputInterface',
-    'MidoPortInput',
-    'VirtualPortInput',
-    'NetworkMIDIInput',
-    'KeyboardInput',
-    'FileMIDIInput',
-    'StdinMIDIInput',
-
+    "MIDIInputInterface",
+    "MidoPortInput",
+    "VirtualPortInput",
+    "NetworkMIDIInput",
+    "KeyboardInput",
+    "FileMIDIInput",
+    "StdinMIDIInput",
     # Audio Outputs
-    'AudioOutputEngine',
-    'SoundDeviceOutput',
-    'FileAudioOutput',
-
+    "AudioOutputEngine",
+    "SoundDeviceOutput",
+    "FileAudioOutput",
     # TUI
-    'TUIControlSurface',
-
+    "TUIControlSurface",
     # Demo
-    'DemoMode',
-
+    "DemoMode",
     # CLI
-    'parse_arguments',
-    'parse_input_spec',
-    'parse_output_spec',
-    'list_midi_ports',
-    'main',
-
+    "parse_arguments",
+    "parse_input_spec",
+    "parse_output_spec",
+    "list_midi_ports",
+    "main",
     # Utils
-    'midimessage_to_bytes',
-    'bytes_to_midimessage',
-
+    "midimessage_to_bytes",
+    "bytes_to_midimessage",
     # Backends
-    'NetworkMIDIHandler',
+    "NetworkMIDIHandler",
 ]
 
 # Import version
 from . import types
 
-# Import types
-from .types import (
-    WorkstationState,
-    PresetData,
-    MIDIInputConfig,
-    AudioOutputConfig,
-    InputInterfaceType,
-    AudioOutputType,
-    DEFAULT_SAMPLE_RATE,
-    DEFAULT_BUFFER_SIZE,
-    DEFAULT_BLOCK_SIZE,
-    MIDI_CHANNELS,
-    AUDIO_FORMATS,
+# Import audio outputs
+from .audio_outputs import (
+    AudioOutputEngine,
+    FileAudioOutput,
+    SoundDeviceOutput,
 )
 
-# Import core
-from .workstation import XGWorkstation
+# Import backends
+from .backends import NetworkMIDIHandler
+
+# Import CLI
+from .cli import (
+    list_midi_ports,
+    main,
+    parse_arguments,
+    parse_input_spec,
+    parse_output_spec,
+)
+
+# Import Demo
+from .demo import DemoMode
 
 # Import managers
 from .managers import (
-    PresetManager,
     MIDILearnManager,
+    PresetManager,
     StyleEngineIntegration,
 )
 
 # Import MIDI inputs
 from .midi_inputs import (
+    FileMIDIInput,
+    KeyboardInput,
     MIDIInputInterface,
     MidoPortInput,
-    VirtualPortInput,
     NetworkMIDIInput,
-    KeyboardInput,
-    FileMIDIInput,
     StdinMIDIInput,
-)
-
-# Import audio outputs
-from .audio_outputs import (
-    AudioOutputEngine,
-    SoundDeviceOutput,
-    FileAudioOutput,
+    VirtualPortInput,
 )
 
 # Import TUI
 from .tui import TUIControlSurface
 
-# Import Demo
-from .demo import DemoMode
-
-# Import CLI
-from .cli import (
-    parse_arguments,
-    parse_input_spec,
-    parse_output_spec,
-    list_midi_ports,
-    main,
+# Import types
+from .types import (
+    AUDIO_FORMATS,
+    DEFAULT_BLOCK_SIZE,
+    DEFAULT_BUFFER_SIZE,
+    DEFAULT_SAMPLE_RATE,
+    MIDI_CHANNELS,
+    AudioOutputConfig,
+    AudioOutputType,
+    InputInterfaceType,
+    MIDIInputConfig,
+    PresetData,
+    WorkstationState,
 )
 
 # Import utils
 from .utils import (
-    midimessage_to_bytes,
     bytes_to_midimessage,
+    midimessage_to_bytes,
 )
 
-# Import backends
-from .backends import NetworkMIDIHandler
+# Import core
+from .workstation import XGWorkstation

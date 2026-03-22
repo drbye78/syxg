@@ -21,23 +21,22 @@ XG Effect Coverage Validation:
 - EQ Effects: 10 preset curves
 - Total: 118 XG effect implementations
 """
+
 from __future__ import annotations
 
-import numpy as np
-import time
 import threading
-from typing import Any
-from collections.abc import Callable
+import time
 from dataclasses import dataclass
 from enum import IntEnum
+from typing import Any
+
+import numpy as np
 
 # Import our XG effects ecosystem
 try:
-    from .effects_registry import XGEffectRegistry, XGEffectFactory, XGEffectCategory
-    from .types import (
-        XGReverbType, XGChorusType, XGVariationType, XGInsertionType, XGEQType
-    )
+    from .effects_registry import XGEffectCategory, XGEffectFactory, XGEffectRegistry
     from .performance_monitor import XGPerformanceMonitor
+    from .types import XGChorusType, XGEQType, XGInsertionType, XGReverbType, XGVariationType
 except ImportError:
     # Fallback for development
     pass
@@ -45,6 +44,7 @@ except ImportError:
 
 class XGValidationResult(IntEnum):
     """XG Effect Validation Results"""
+
     PASS = 0
     WARNING = 1
     FAIL = 2
@@ -55,6 +55,7 @@ class XGValidationResult(IntEnum):
 @dataclass(slots=True)
 class XGValidationTest:
     """Individual XG Effect Validation Test"""
+
     effect_type: int
     category: XGEffectCategory
     test_name: str
@@ -93,18 +94,18 @@ class XGValidationSuite:
         # Test results
         self.test_results: dict[tuple[XGEffectCategory, int], XGValidationTest] = {}
         self.suite_stats = {
-            'total_tests': 0,
-            'passed_tests': 0,
-            'warning_tests': 0,
-            'failed_tests': 0,
-            'not_implemented': 0,
-            'performance_fails': 0,
-            'execution_time_ms': 0.0,
+            "total_tests": 0,
+            "passed_tests": 0,
+            "warning_tests": 0,
+            "failed_tests": 0,
+            "not_implemented": 0,
+            "performance_fails": 0,
+            "execution_time_ms": 0.0,
         }
 
         # Performance targets
         self.max_processing_time_ms = 50.0  # Max time per block
-        self.max_memory_mb = 10.0           # Max memory per effect
+        self.max_memory_mb = 10.0  # Max memory per effect
         self.target_compliance_percent = 95.0
 
         # Thread safety
@@ -126,7 +127,7 @@ class XGValidationSuite:
 
             # Reset statistics
             for key in self.suite_stats:
-                self.suite_stats[key] = 0.0 if key.endswith('_ms') else 0
+                self.suite_stats[key] = 0.0 if key.endswith("_ms") else 0
 
             if verbose:
                 print("XG Effects Validation Suite")
@@ -140,7 +141,7 @@ class XGValidationSuite:
             self._validate_eq_effects(verbose)
 
             # Calculate final statistics
-            self.suite_stats['execution_time_ms'] = (time.time() - start_time) * 1000.0
+            self.suite_stats["execution_time_ms"] = (time.time() - start_time) * 1000.0
             self._calculate_final_statistics()
 
             return self.generate_validation_report()
@@ -152,11 +153,9 @@ class XGValidationSuite:
 
         system_tests = [
             # XG Reverb Types (1-24)
-            *[(XGEffectCategory.SYSTEM, i, f"System Reverb Type {i}")
-              for i in range(1, 25)],
+            *[(XGEffectCategory.SYSTEM, i, f"System Reverb Type {i}") for i in range(1, 25)],
             # XG Chorus Types (0-5, offset for chorus)
-            *[(XGEffectCategory.SYSTEM, 0x100 + i, f"System Chorus Type {i}")
-              for i in range(6)],
+            *[(XGEffectCategory.SYSTEM, 0x100 + i, f"System Chorus Type {i}") for i in range(6)],
         ]
 
         for category, effect_type, test_name in system_tests:
@@ -173,25 +172,46 @@ class XGValidationSuite:
             # Delay Effects (0-19)
             *[(XGEffectCategory.VARIATION, i, f"Variation Delay {i}") for i in range(20)],
             # Chorus Effects (20-52)
-            *[(XGEffectCategory.VARIATION, i, f"Variation Chorus {i-20}") for i in range(20, 53)],
+            *[(XGEffectCategory.VARIATION, i, f"Variation Chorus {i - 20}") for i in range(20, 53)],
             # Modulation Effects (53-73)
-            *[(XGEffectCategory.VARIATION, i, f"Variation Modulation {i-53}") for i in range(53, 74)],
+            *[
+                (XGEffectCategory.VARIATION, i, f"Variation Modulation {i - 53}")
+                for i in range(53, 74)
+            ],
             # Distortion Effects (74-83)
-            *[(XGEffectCategory.VARIATION, i, f"Variation Distortion {i-74}") for i in range(74, 84)],
+            *[
+                (XGEffectCategory.VARIATION, i, f"Variation Distortion {i - 74}")
+                for i in range(74, 84)
+            ],
             # Dynamics Effects (84-88)
-            *[(XGEffectCategory.VARIATION, i, f"Variation Dynamics {i-84}") for i in range(84, 89)],
+            *[
+                (XGEffectCategory.VARIATION, i, f"Variation Dynamics {i - 84}")
+                for i in range(84, 89)
+            ],
             # Enhancer Effects (89-92)
-            *[(XGEffectCategory.VARIATION, i, f"Variation Enhancer {i-89}") for i in range(89, 93)],
+            *[
+                (XGEffectCategory.VARIATION, i, f"Variation Enhancer {i - 89}")
+                for i in range(89, 93)
+            ],
             # Vocoder Effects (93-96)
-            *[(XGEffectCategory.VARIATION, i, f"Variation Vocoder {i-93}") for i in range(93, 97)],
+            *[
+                (XGEffectCategory.VARIATION, i, f"Variation Vocoder {i - 93}")
+                for i in range(93, 97)
+            ],
             # Pitch Effects (97-102)
-            *[(XGEffectCategory.VARIATION, i, f"Variation Pitch {i-97}") for i in range(97, 103)],
+            *[(XGEffectCategory.VARIATION, i, f"Variation Pitch {i - 97}") for i in range(97, 103)],
             # Early Reflection (103-110)
-            *[(XGEffectCategory.VARIATION, i, f"Variation ER {i-103}") for i in range(103, 111)],
+            *[(XGEffectCategory.VARIATION, i, f"Variation ER {i - 103}") for i in range(103, 111)],
             # Gate Reverb (111-113)
-            *[(XGEffectCategory.VARIATION, i, f"Variation Gate Reverb {i-111}") for i in range(111, 114)],
+            *[
+                (XGEffectCategory.VARIATION, i, f"Variation Gate Reverb {i - 111}")
+                for i in range(111, 114)
+            ],
             # Special Effects (114-116)
-            *[(XGEffectCategory.VARIATION, i, f"Variation Special {i-114}") for i in range(114, 117)],
+            *[
+                (XGEffectCategory.VARIATION, i, f"Variation Special {i - 114}")
+                for i in range(114, 117)
+            ],
         ]
 
         for category, effect_type, test_name in variation_tests:
@@ -207,8 +227,7 @@ class XGValidationSuite:
             print("\nTesting Insertion Effects...")
 
         insertion_tests = [
-            (XGEffectCategory.INSERTION, i, f"Insertion Effect {i}")
-            for i in range(18)
+            (XGEffectCategory.INSERTION, i, f"Insertion Effect {i}") for i in range(18)
         ]
 
         for category, effect_type, test_name in insertion_tests:
@@ -220,17 +239,15 @@ class XGValidationSuite:
         if verbose:
             print("\nTesting EQ Effects...")
 
-        eq_tests = [
-            (XGEffectCategory.EQUALIZER, i, f"EQ Curve {i}")
-            for i in range(10)
-        ]
+        eq_tests = [(XGEffectCategory.EQUALIZER, i, f"EQ Curve {i}") for i in range(10)]
 
         for category, effect_type, test_name in eq_tests:
             result = self._validate_effect(category, effect_type, test_name, verbose)
             self.test_results[(category, effect_type)] = result
 
-    def _validate_effect(self, category: XGEffectCategory, effect_type: int,
-                        test_name: str, verbose: bool) -> XGValidationTest:
+    def _validate_effect(
+        self, category: XGEffectCategory, effect_type: int, test_name: str, verbose: bool
+    ) -> XGValidationTest:
         """
         Validate a single XG effect.
 
@@ -248,7 +265,7 @@ class XGValidationSuite:
             category=category,
             test_name=test_name,
             description=f"Validate XG {category.name} effect type {effect_type}",
-            result=XGValidationResult.NOT_IMPLEMENTED
+            result=XGValidationResult.NOT_IMPLEMENTED,
         )
 
         start_time = time.perf_counter()
@@ -300,10 +317,10 @@ class XGValidationSuite:
 
         except Exception as e:
             test.result = XGValidationResult.FAIL
-            test.error_message = f"Exception: {str(e)}"
+            test.error_message = f"Exception: {e!s}"
 
             if verbose:
-                print(f"  ✗ {test_name}: FAIL - {str(e)}")
+                print(f"  ✗ {test_name}: FAIL - {e!s}")
 
         finally:
             test.execution_time_ms = (time.perf_counter() - start_time) * 1000.0
@@ -330,7 +347,9 @@ class XGValidationSuite:
         except Exception:
             return None
 
-    def _validate_effect_parameters(self, instance: Any, category: XGEffectCategory, effect_type: int) -> float:
+    def _validate_effect_parameters(
+        self, instance: Any, category: XGEffectCategory, effect_type: int
+    ) -> float:
         """
         Validate effect parameters.
 
@@ -344,26 +363,30 @@ class XGValidationSuite:
             total_tests = 0
 
             # Test basic parameter operations
-            if hasattr(instance, 'set_parameter'):
+            if hasattr(instance, "set_parameter"):
                 total_tests += 1
-                if instance.set_parameter('level', 0.5):
+                if instance.set_parameter("level", 0.5):
                     tests_passed += 1
 
                 total_tests += 1
-                if instance.set_parameter('enabled', True):
+                if instance.set_parameter("enabled", True):
                     tests_passed += 1
 
             # Type-specific parameter tests
             if category == XGEffectCategory.VARIATION:
                 # Variation effects should have type parameter
                 total_tests += 1
-                if hasattr(instance, 'set_variation_type') and instance.set_variation_type(effect_type % 84):
+                if hasattr(instance, "set_variation_type") and instance.set_variation_type(
+                    effect_type % 84
+                ):
                     tests_passed += 1
 
             elif category == XGEffectCategory.INSERTION:
                 # Insertion effects should support slot configuration
                 total_tests += 1
-                if hasattr(instance, 'set_insertion_effect_type') and instance.set_insertion_effect_type(0, effect_type % 18):
+                if hasattr(
+                    instance, "set_insertion_effect_type"
+                ) and instance.set_insertion_effect_type(0, effect_type % 18):
                     tests_passed += 1
 
             return tests_passed / max(total_tests, 1)
@@ -371,7 +394,9 @@ class XGValidationSuite:
         except Exception:
             return 0.0
 
-    def _validate_effect_processing(self, instance: Any, category: XGEffectCategory, effect_type: int) -> float:
+    def _validate_effect_processing(
+        self, instance: Any, category: XGEffectCategory, effect_type: int
+    ) -> float:
         """
         Validate effect audio processing.
 
@@ -385,19 +410,19 @@ class XGValidationSuite:
             test_input[0, 1] = 1.0  # Right channel impulse
 
             # Test processing method
-            if hasattr(instance, 'apply_effect_zero_alloc'):
+            if hasattr(instance, "apply_effect_zero_alloc"):
                 output = test_input.copy()
                 success = instance.apply_effect_zero_alloc(output, self.block_size)
                 if success and np.any(output != test_input):  # Effect modified audio
                     return 1.0
 
-            elif hasattr(instance, 'apply_system_effects_to_mix_zero_alloc'):
+            elif hasattr(instance, "apply_system_effects_to_mix_zero_alloc"):
                 output = test_input.copy()
                 instance.apply_system_effects_to_mix_zero_alloc(output, self.block_size)
                 if np.any(output != test_input):
                     return 1.0
 
-            elif hasattr(instance, 'apply_channel_eq_zero_alloc'):
+            elif hasattr(instance, "apply_channel_eq_zero_alloc"):
                 output = test_input.copy()
                 instance.apply_channel_eq_zero_alloc(output, self.block_size)
                 if np.any(output != test_input):
@@ -408,7 +433,9 @@ class XGValidationSuite:
         except Exception:
             return 0.0
 
-    def _validate_effect_performance(self, instance: Any, category: XGEffectCategory, effect_type: int) -> float:
+    def _validate_effect_performance(
+        self, instance: Any, category: XGEffectCategory, effect_type: int
+    ) -> float:
         """
         Validate effect performance requirements.
 
@@ -424,11 +451,11 @@ class XGValidationSuite:
 
             for _ in range(iterations):
                 output = test_input.copy()
-                if hasattr(instance, 'apply_effect_zero_alloc'):
+                if hasattr(instance, "apply_effect_zero_alloc"):
                     instance.apply_effect_zero_alloc(output, self.block_size)
-                elif hasattr(instance, 'apply_system_effects_to_mix_zero_alloc'):
+                elif hasattr(instance, "apply_system_effects_to_mix_zero_alloc"):
                     instance.apply_system_effects_to_mix_zero_alloc(output, self.block_size)
-                elif hasattr(instance, 'apply_channel_eq_zero_alloc'):
+                elif hasattr(instance, "apply_channel_eq_zero_alloc"):
                     instance.apply_channel_eq_zero_alloc(output, self.block_size)
 
             total_time_ms = (time.perf_counter() - start_time) * 1000.0
@@ -450,18 +477,18 @@ class XGValidationSuite:
     def _calculate_final_statistics(self) -> None:
         """Calculate final suite statistics."""
         for test in self.test_results.values():
-            self.suite_stats['total_tests'] += 1
+            self.suite_stats["total_tests"] += 1
 
             if test.result == XGValidationResult.PASS:
-                self.suite_stats['passed_tests'] += 1
+                self.suite_stats["passed_tests"] += 1
             elif test.result == XGValidationResult.WARNING:
-                self.suite_stats['warning_tests'] += 1
+                self.suite_stats["warning_tests"] += 1
             elif test.result == XGValidationResult.FAIL:
-                self.suite_stats['failed_tests'] += 1
+                self.suite_stats["failed_tests"] += 1
             elif test.result == XGValidationResult.NOT_IMPLEMENTED:
-                self.suite_stats['not_implemented'] += 1
+                self.suite_stats["not_implemented"] += 1
             elif test.result == XGValidationResult.PERFORMANCE_FAIL:
-                self.suite_stats['performance_fails'] += 1
+                self.suite_stats["performance_fails"] += 1
 
     def generate_validation_report(self) -> dict[str, Any]:
         """
@@ -472,38 +499,38 @@ class XGValidationSuite:
         """
         with self.lock:
             compliance_percent = (
-                self.suite_stats['passed_tests'] / max(self.suite_stats['total_tests'], 1)
+                self.suite_stats["passed_tests"] / max(self.suite_stats["total_tests"], 1)
             ) * 100.0
 
             return {
-                'suite_info': {
-                    'total_effects_tested': self.suite_stats['total_tests'],
-                    'sample_rate': self.sample_rate,
-                    'block_size': self.block_size,
-                    'execution_time_ms': self.suite_stats['execution_time_ms'],
-                    'xg_compliance_percent': compliance_percent,
-                    'target_compliance_percent': self.target_compliance_percent,
-                    'compliance_achieved': compliance_percent >= self.target_compliance_percent,
+                "suite_info": {
+                    "total_effects_tested": self.suite_stats["total_tests"],
+                    "sample_rate": self.sample_rate,
+                    "block_size": self.block_size,
+                    "execution_time_ms": self.suite_stats["execution_time_ms"],
+                    "xg_compliance_percent": compliance_percent,
+                    "target_compliance_percent": self.target_compliance_percent,
+                    "compliance_achieved": compliance_percent >= self.target_compliance_percent,
                 },
-                'results_summary': {
-                    'passed': self.suite_stats['passed_tests'],
-                    'warnings': self.suite_stats['warning_tests'],
-                    'failed': self.suite_stats['failed_tests'],
-                    'not_implemented': self.suite_stats['not_implemented'],
-                    'performance_fails': self.suite_stats['performance_fails'],
+                "results_summary": {
+                    "passed": self.suite_stats["passed_tests"],
+                    "warnings": self.suite_stats["warning_tests"],
+                    "failed": self.suite_stats["failed_tests"],
+                    "not_implemented": self.suite_stats["not_implemented"],
+                    "performance_fails": self.suite_stats["performance_fails"],
                 },
-                'category_breakdown': self._generate_category_breakdown(),
-                'detailed_results': {
+                "category_breakdown": self._generate_category_breakdown(),
+                "detailed_results": {
                     f"{test.category.name}_{test.effect_type}": {
-                        'result': test.result.name,
-                        'execution_time_ms': test.execution_time_ms,
-                        'performance_score': test.performance_score,
-                        'error_message': test.error_message,
-                        'memory_usage_mb': test.memory_usage_mb,
+                        "result": test.result.name,
+                        "execution_time_ms": test.execution_time_ms,
+                        "performance_score": test.performance_score,
+                        "error_message": test.error_message,
+                        "memory_usage_mb": test.memory_usage_mb,
                     }
                     for test in self.test_results.values()
                 },
-                'recommendations': self._generate_recommendations(compliance_percent),
+                "recommendations": self._generate_recommendations(compliance_percent),
             }
 
     def _generate_category_breakdown(self) -> dict[str, dict[str, int]]:
@@ -512,19 +539,25 @@ class XGValidationSuite:
 
         for category in XGEffectCategory:
             cat_name = category.name.lower()
-            breakdown[cat_name] = {'total': 0, 'passed': 0, 'failed': 0, 'warnings': 0, 'not_implemented': 0}
+            breakdown[cat_name] = {
+                "total": 0,
+                "passed": 0,
+                "failed": 0,
+                "warnings": 0,
+                "not_implemented": 0,
+            }
 
             for test in self.test_results.values():
                 if test.category == category:
-                    breakdown[cat_name]['total'] += 1
+                    breakdown[cat_name]["total"] += 1
                     if test.result == XGValidationResult.PASS:
-                        breakdown[cat_name]['passed'] += 1
+                        breakdown[cat_name]["passed"] += 1
                     elif test.result == XGValidationResult.FAIL:
-                        breakdown[cat_name]['failed'] += 1
+                        breakdown[cat_name]["failed"] += 1
                     elif test.result == XGValidationResult.WARNING:
-                        breakdown[cat_name]['warnings'] += 1
+                        breakdown[cat_name]["warnings"] += 1
                     elif test.result == XGValidationResult.NOT_IMPLEMENTED:
-                        breakdown[cat_name]['not_implemented'] += 1
+                        breakdown[cat_name]["not_implemented"] += 1
 
         return breakdown
 
@@ -533,19 +566,29 @@ class XGValidationSuite:
         recommendations = []
 
         if compliance_percent < 50.0:
-            recommendations.append("Critical: Less than 50% of effects implemented. Focus on core effect types first.")
+            recommendations.append(
+                "Critical: Less than 50% of effects implemented. Focus on core effect types first."
+            )
 
-        if self.suite_stats['performance_fails'] > 0:
-            recommendations.append(f"Performance: {self.suite_stats['performance_fails']} effects exceed processing time limits.")
+        if self.suite_stats["performance_fails"] > 0:
+            recommendations.append(
+                f"Performance: {self.suite_stats['performance_fails']} effects exceed processing time limits."
+            )
 
-        if self.suite_stats['not_implemented'] > 10:
-            recommendations.append(f"Implementation: {self.suite_stats['not_implemented']} effects not yet implemented.")
+        if self.suite_stats["not_implemented"] > 10:
+            recommendations.append(
+                f"Implementation: {self.suite_stats['not_implemented']} effects not yet implemented."
+            )
 
-        if self.suite_stats['failed_tests'] > 0:
-            recommendations.append(f"Quality: {self.suite_stats['failed_tests']} effects have functional issues.")
+        if self.suite_stats["failed_tests"] > 0:
+            recommendations.append(
+                f"Quality: {self.suite_stats['failed_tests']} effects have functional issues."
+            )
 
         if len(recommendations) == 0 and compliance_percent >= self.target_compliance_percent:
-            recommendations.append("Excellent! XG effects implementation meets or exceeds compliance targets.")
+            recommendations.append(
+                "Excellent! XG effects implementation meets or exceeds compliance targets."
+            )
 
         return recommendations
 
@@ -561,10 +604,10 @@ class XGComplianceCertifier:
     def __init__(self):
         """Initialize XG compliance certifier."""
         self.certification_levels = {
-            'XG_BASIC': {'min_compliance': 60.0, 'name': 'XG Basic Certified'},
-            'XG_STANDARD': {'min_compliance': 85.0, 'name': 'XG Standard Certified'},
-            'XG_PROFESSIONAL': {'min_compliance': 95.0, 'name': 'XG Professional Certified'},
-            'XG_REFERENCE': {'min_compliance': 99.0, 'name': 'XG Reference Implementation'},
+            "XG_BASIC": {"min_compliance": 60.0, "name": "XG Basic Certified"},
+            "XG_STANDARD": {"min_compliance": 85.0, "name": "XG Standard Certified"},
+            "XG_PROFESSIONAL": {"min_compliance": 95.0, "name": "XG Professional Certified"},
+            "XG_REFERENCE": {"min_compliance": 99.0, "name": "XG Reference Implementation"},
         }
 
     def certify_implementation(self, validation_report: dict[str, Any]) -> dict[str, Any]:
@@ -577,34 +620,35 @@ class XGComplianceCertifier:
         Returns:
             Certification results
         """
-        compliance = validation_report['suite_info']['xg_compliance_percent']
+        compliance = validation_report["suite_info"]["xg_compliance_percent"]
 
         cert_level = None
         cert_name = "Not Certified"
         cert_description = "Implementation does not meet XG certification standards."
 
         for level, info in self.certification_levels.items():
-            if compliance >= info['min_compliance']:
+            if compliance >= info["min_compliance"]:
                 cert_level = level
-                cert_name = info['name']
+                cert_name = info["name"]
                 cert_description = f"Achieves {compliance:.1f}% XG effect type compliance."
                 break
 
         return {
-            'certification_level': cert_level,
-            'certification_name': cert_name,
-            'compliance_percentage': compliance,
-            'description': cert_description,
-            'certified_effects': validation_report['results_summary']['passed'],
-            'total_effects': validation_report['suite_info']['total_effects_tested'],
-            'certification_date': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'meets_minimum_standard': compliance >= 60.0,
+            "certification_level": cert_level,
+            "certification_name": cert_name,
+            "compliance_percentage": compliance,
+            "description": cert_description,
+            "certified_effects": validation_report["results_summary"]["passed"],
+            "total_effects": validation_report["suite_info"]["total_effects_tested"],
+            "certification_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "meets_minimum_standard": compliance >= 60.0,
         }
 
 
 # Global validation functions
-def validate_xg_effects_implementation(sample_rate: int = 44100,
-                                     block_size: int = 1024) -> dict[str, Any]:
+def validate_xg_effects_implementation(
+    sample_rate: int = 44100, block_size: int = 1024
+) -> dict[str, Any]:
     """
     Validate complete XG effects implementation.
 
@@ -620,7 +664,7 @@ def validate_xg_effects_implementation(sample_rate: int = 44100,
 
     # Add certification
     certifier = XGComplianceCertifier()
-    report['certification'] = certifier.certify_implementation(report)
+    report["certification"] = certifier.certify_implementation(report)
 
     return report
 
@@ -632,13 +676,13 @@ def print_validation_summary(report: dict[str, Any]) -> None:
     Args:
         report: Validation report
     """
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("XG EFFECTS VALIDATION SUMMARY")
-    print("="*50)
+    print("=" * 50)
 
-    info = report['suite_info']
-    results = report['results_summary']
-    cert = report['certification']
+    info = report["suite_info"]
+    results = report["results_summary"]
+    cert = report["certification"]
 
     print(f"Effects Tested: {info['total_effects_tested']}")
     print(".2f")
@@ -655,9 +699,9 @@ def print_validation_summary(report: dict[str, Any]) -> None:
     print(f"\nCertification: {cert['certification_name']}")
     print(f"Description: {cert['description']}")
 
-    if report['recommendations']:
+    if report["recommendations"]:
         print("Recommendations:")
-        for rec in report['recommendations']:
+        for rec in report["recommendations"]:
             print(f"  • {rec}")
 
-    print("="*50)
+    print("=" * 50)

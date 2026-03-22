@@ -4,11 +4,11 @@ SF2 Zone Cache with Range Tree Optimization
 Provides O(log n) lookups for zone matching based on key/velocity ranges.
 Optimized for real-time synthesis with thousands of zones.
 """
+
 from __future__ import annotations
 
 from typing import Any
-import math
-from collections import defaultdict
+
 from .sf2_data_model import SF2Zone
 
 
@@ -19,9 +19,7 @@ class RangeNode:
     Stores key and velocity ranges for fast zone matching.
     """
 
-    def __init__(
-        self, zone: SF2Zone, key_min: int, key_max: int, vel_min: int, vel_max: int
-    ):
+    def __init__(self, zone: SF2Zone, key_min: int, key_max: int, vel_min: int, vel_max: int):
         """
         Initialize range node.
 
@@ -54,10 +52,7 @@ class RangeNode:
         Returns:
             True if ranges overlap
         """
-        return (
-            self.key_min <= key <= self.key_max
-            and self.vel_min <= velocity <= self.vel_max
-        )
+        return self.key_min <= key <= self.key_max and self.vel_min <= velocity <= self.vel_max
 
 
 class AVLRangeTree:
@@ -323,12 +318,8 @@ class SF2ZoneCacheManager:
 
     def __init__(self):
         """Initialize zone cache manager."""
-        self.preset_caches: dict[
-            int, HierarchicalZoneCache
-        ] = {}  # bank_program -> cache
-        self.instrument_caches: dict[
-            int, HierarchicalZoneCache
-        ] = {}  # instrument_index -> cache
+        self.preset_caches: dict[int, HierarchicalZoneCache] = {}  # bank_program -> cache
+        self.instrument_caches: dict[int, HierarchicalZoneCache] = {}  # instrument_index -> cache
         self.global_preset_cache: HierarchicalZoneCache | None = None
         self.global_instrument_cache: HierarchicalZoneCache | None = None
 
@@ -378,9 +369,7 @@ class SF2ZoneCacheManager:
         self.global_instrument_cache = HierarchicalZoneCache()
         self.global_instrument_cache.add_zones(zones)
 
-    def get_preset_zones(
-        self, bank: int, program: int, key: int, velocity: int
-    ) -> list[SF2Zone]:
+    def get_preset_zones(self, bank: int, program: int, key: int, velocity: int) -> list[SF2Zone]:
         """
         Get zones for a preset that match the given key/velocity.
 
@@ -402,15 +391,11 @@ class SF2ZoneCacheManager:
         # Add specific preset zones
         cache_key = (bank << 8) | program
         if cache_key in self.preset_caches:
-            zones.extend(
-                self.preset_caches[cache_key].get_matching_zones(key, velocity)
-            )
+            zones.extend(self.preset_caches[cache_key].get_matching_zones(key, velocity))
 
         return zones
 
-    def get_instrument_zones(
-        self, instrument_index: int, key: int, velocity: int
-    ) -> list[SF2Zone]:
+    def get_instrument_zones(self, instrument_index: int, key: int, velocity: int) -> list[SF2Zone]:
         """
         Get zones for an instrument that match the given key/velocity.
 
@@ -430,11 +415,7 @@ class SF2ZoneCacheManager:
 
         # Add specific instrument zones
         if instrument_index in self.instrument_caches:
-            zones.extend(
-                self.instrument_caches[instrument_index].get_matching_zones(
-                    key, velocity
-                )
-            )
+            zones.extend(self.instrument_caches[instrument_index].get_matching_zones(key, velocity))
 
         return zones
 
@@ -500,9 +481,7 @@ class SF2ZoneCacheManager:
         )
 
         global_preset_zones = (
-            self.global_preset_cache.range_tree._node_count
-            if self.global_preset_cache
-            else 0
+            self.global_preset_cache.range_tree._node_count if self.global_preset_cache else 0
         )
         global_instrument_zones = (
             self.global_instrument_cache.range_tree._node_count

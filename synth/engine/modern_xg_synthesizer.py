@@ -308,23 +308,15 @@ RESEARCH FEATURES:
 
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
-import numpy as np
-import threading
-import time
-import math
-from pathlib import Path
 import os
-import hashlib
-import weakref
+import threading
+from pathlib import Path
+from typing import Any
 
-# XGML v3.0 support (lazy loaded to avoid dependency issues)
-# from ..xgml.parser_v3 import XGMLParserV3, XGMLConfigV3
-# from ..xgml.translator_v3 import XGMLTranslatorV3
+import numpy as np
 
-# Workstation Manager
-from .workstation_manager import WorkstationManager
+from .components.gs_components import GSMIDIProcessor, GSStateManager
+from .components.parameter_systems import ParameterPrioritySystem, PerformanceMonitor
 
 # Component Systems
 from .components.xg_components import (
@@ -332,18 +324,21 @@ from .components.xg_components import (
     XGMIDIProcessor,
     XGStateManager,
 )
-from .components.gs_components import GSMIDIProcessor, GSStateManager
-from .components.parameter_systems import ParameterPrioritySystem, PerformanceMonitor
+from .processors.audio_processor import AudioProcessor
 
 # Processor Systems
 from .processors.midi_processor import MIDIMessageProcessor
-from .processors.audio_processor import AudioProcessor
+from .systems.arpeggiator_system import ArpeggiatorSystem
+from .systems.config_system import XGMLConfigSystem
+from .systems.effects_system import EffectsSystem
 
 # Feature Systems
 from .systems.mpe_system import MPESystem
-from .systems.arpeggiator_system import ArpeggiatorSystem
-from .systems.effects_system import EffectsSystem
-from .systems.config_system import XGMLConfigSystem
+
+# XGML v3.0 support (lazy loaded to avoid dependency issues)
+# from ..xgml.parser_v3 import XGMLParserV3, XGMLConfigV3
+# from ..xgml.translator_v3 import XGMLTranslatorV3
+# Workstation Manager
 
 
 class ModernXGSynthesizer:
@@ -458,7 +453,7 @@ class ModernXGSynthesizer:
         print("🎹 ENHANCED MODERN XG/GS/MPE SYNTHESIZER: Initialization complete!")
         if hasattr(self, "arpeggiator_system") and self.arpeggiator_system:
             arp_status = self.arpeggiator_system.get_arpeggiator_status()
-            print(f"   Arpeggiator: System initialized with multi-arpeggiator support")
+            print("   Arpeggiator: System initialized with multi-arpeggiator support")
         if self.mpe_enabled and hasattr(self, "mpe_system") and self.mpe_system:
             mpe_info = self.mpe_system.get_mpe_info()
             if mpe_info.get("enabled", False):
@@ -705,7 +700,9 @@ class ModernXGSynthesizer:
 
             # Create Jupiter-X engine instance
             jupiter_x_engine = JupiterXEngineIntegration(
-                sample_rate=self.sample_rate, block_size=self.block_size, buffer_oool=self.buffer_pool
+                sample_rate=self.sample_rate,
+                block_size=self.block_size,
+                buffer_oool=self.buffer_pool,
             )
 
             # Register Jupiter-X engine with the engine registry (high priority)
@@ -775,12 +772,11 @@ class ModernXGSynthesizer:
         S.Art2 provides universal articulation control across ALL synthesis engines
         via NRPN/SYSEX messages. It wraps all regions with an articulation layer.
         """
-        from ..xg.sart import YamahaNRPNMapper, ArticulationController
-        from ..xg.sart.sart2_region import SArt2RegionFactory
+        from ..xg.sart import ArticulationController, YamahaNRPNMapper
         from ..xg.sart.articulation_preset import (
-            ArticulationPresetManager,
             create_builtin_presets,
         )
+        from ..xg.sart.sart2_region import SArt2RegionFactory
 
         # NRPN mapper for articulation control (275+ articulations)
         self.nrpn_mapper = YamahaNRPNMapper()
@@ -801,7 +797,7 @@ class ModernXGSynthesizer:
                 engine.sart2_enabled = True
                 engine.sart2_factory = self.sart2_factory
 
-        print(f"   S.Art2: Articulation system initialized (275+ articulations)")
+        print("   S.Art2: Articulation system initialized (275+ articulations)")
         print(
             f"   S.Art2: Articulation presets loaded ({self.articulation_preset_manager.get_preset_count()} presets)"
         )

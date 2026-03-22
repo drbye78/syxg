@@ -4,11 +4,12 @@ Groove Quantization System
 Provides groove templates and quantization for natural-sounding
 rhythmic variations in style playback.
 """
+
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 from enum import Enum
-import random
 
 
 class GrooveType(Enum):
@@ -50,13 +51,9 @@ class GrooveTemplate:
 
     def __post_init__(self):
         if len(self.timing_offsets) < 16:
-            self.timing_offsets = self.timing_offsets + [0] * (
-                16 - len(self.timing_offsets)
-            )
+            self.timing_offsets = self.timing_offsets + [0] * (16 - len(self.timing_offsets))
         if len(self.velocity_offsets) < 16:
-            self.velocity_offsets = self.velocity_offsets + [0] * (
-                16 - len(self.velocity_offsets)
-            )
+            self.velocity_offsets = self.velocity_offsets + [0] * (16 - len(self.velocity_offsets))
 
     def get_timing_offset(self, position_16th: int) -> int:
         """Get timing offset for a 16th note position (0-15)"""
@@ -199,9 +196,7 @@ class GrooveQuantizer:
         """Set groove intensity (0.0 to 1.0)"""
         self.intensity = max(0.0, min(1.0, intensity))
 
-    def apply_timing_offset(
-        self, tick_position: int, measure_position_16th: int
-    ) -> int:
+    def apply_timing_offset(self, tick_position: int, measure_position_16th: int) -> int:
         """
         Apply groove timing offset to a tick position.
 

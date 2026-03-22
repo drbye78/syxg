@@ -4,17 +4,11 @@ Arpeggiator System - Yamaha Motif Compatible Arpeggiation
 Complete arpeggiator system with multi-arpeggiator support, pattern sequencing,
 and SYSEX/NRPN control for professional workstation-style arpeggiation.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
-import time
-import math
-from pathlib import Path
-import os
-import hashlib
-import weakref
+from typing import Any
 
 
 class ArpeggiatorSystem:
@@ -49,14 +43,16 @@ class ArpeggiatorSystem:
         """Initialize Yamaha Motif Arpeggiator system"""
         # Import arpeggiator components
         from ...xg.xg_arpeggiator_engine import YamahaArpeggiatorEngine
-        from ...xg.xg_arpeggiator_sysex_controller import YamahaArpeggiatorSysexController
         from ...xg.xg_arpeggiator_nrpn_controller import YamahaArpeggiatorNRPNController
+        from ...xg.xg_arpeggiator_sysex_controller import YamahaArpeggiatorSysexController
 
         # Create arpeggiator engine
         self.arpeggiator_engine = YamahaArpeggiatorEngine()
 
         # Create SYSEX controller
-        self.arpeggiator_sysex_controller = YamahaArpeggiatorSysexController(self.arpeggiator_engine)
+        self.arpeggiator_sysex_controller = YamahaArpeggiatorSysexController(
+            self.arpeggiator_engine
+        )
 
         # Create NRPN controller
         self.arpeggiator_nrpn_controller = YamahaArpeggiatorNRPNController(self.arpeggiator_engine)
@@ -181,14 +177,14 @@ class ArpeggiatorSystem:
             Dictionary with arpeggiator system information
         """
         status = {
-            'engine_active': self.arpeggiator_engine is not None,
-            'manager_active': self.arpeggiator_manager is not None,
-            'sysex_controller_active': self.arpeggiator_sysex_controller is not None,
-            'nrpn_controller_active': self.arpeggiator_nrpn_controller is not None,
+            "engine_active": self.arpeggiator_engine is not None,
+            "manager_active": self.arpeggiator_manager is not None,
+            "sysex_controller_active": self.arpeggiator_sysex_controller is not None,
+            "nrpn_controller_active": self.arpeggiator_nrpn_controller is not None,
         }
 
         if self.arpeggiator_manager:
-            status['manager_status'] = self.arpeggiator_manager.get_manager_status()
+            status["manager_status"] = self.arpeggiator_manager.get_manager_status()
 
         return status
 
@@ -232,13 +228,13 @@ class ArpeggiatorSystem:
             arpeggiator = self.arpeggiator_engine.get_arpeggiator(channel)
             if arpeggiator:
                 return {
-                    'enabled': arpeggiator.enabled,
-                    'current_pattern': arpeggiator.current_pattern,
-                    'tempo': arpeggiator.tempo,
-                    'gate_time': arpeggiator.gate_time,
-                    'velocity': arpeggiator.velocity,
-                    'octave_range': arpeggiator.octave_range,
-                    'swing': arpeggiator.swing,
+                    "enabled": arpeggiator.enabled,
+                    "current_pattern": arpeggiator.current_pattern,
+                    "tempo": arpeggiator.tempo,
+                    "gate_time": arpeggiator.gate_time,
+                    "velocity": arpeggiator.velocity,
+                    "octave_range": arpeggiator.octave_range,
+                    "swing": arpeggiator.swing,
                 }
         return None
 
@@ -297,5 +293,9 @@ class ArpeggiatorSystem:
         """
         if self.arpeggiator_engine:
             arpeggiator = self.arpeggiator_engine.get_arpeggiator(channel)
-            return arpeggiator is not None and arpeggiator.enabled and arpeggiator.current_pattern is not None
+            return (
+                arpeggiator is not None
+                and arpeggiator.enabled
+                and arpeggiator.current_pattern is not None
+            )
         return False

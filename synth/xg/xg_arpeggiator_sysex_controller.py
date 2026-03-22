@@ -9,9 +9,8 @@ Copyright (c) 2025
 
 from __future__ import annotations
 
-from typing import Any
-from collections.abc import Callable
 import threading
+from typing import Any
 
 
 class YamahaArpeggiatorSysexController:

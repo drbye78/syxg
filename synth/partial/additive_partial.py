@@ -4,9 +4,11 @@ Additive Partial Implementation
 Provides additive synthesis partial for the voice-based architecture.
 Wraps AdditiveEngine functionality for integration with the Voice system.
 """
+
 from __future__ import annotations
 
 from typing import Any
+
 import numpy as np
 
 from .partial import SynthesisPartial
@@ -31,17 +33,17 @@ class AdditivePartial(SynthesisPartial):
         super().__init__(params, sample_rate)
 
         # Additive-specific parameters
-        self.spectrum_type = params.get('spectrum_type', 'sawtooth')
-        self.num_partials = params.get('num_partials', 32)
-        self.brightness = params.get('brightness', 1.0)
-        self.spread = params.get('spread', 0.0)
-        self.harmonic_params = params.get('harmonic_params', {})
+        self.spectrum_type = params.get("spectrum_type", "sawtooth")
+        self.num_partials = params.get("num_partials", 32)
+        self.brightness = params.get("brightness", 1.0)
+        self.spread = params.get("spread", 0.0)
+        self.harmonic_params = params.get("harmonic_params", {})
 
         # Create Additive engine instance for this partial
         from ..engine.additive_engine import AdditiveEngine
+
         self.additive_engine = AdditiveEngine(
-            max_partials=self.num_partials,
-            sample_rate=sample_rate
+            max_partials=self.num_partials, sample_rate=sample_rate
         )
 
         # Configure additive engine
@@ -70,10 +72,7 @@ class AdditivePartial(SynthesisPartial):
 
         # Use stored note and velocity for generation
         return self.additive_engine.generate_samples(
-            self.params.get('note', 60),
-            self.params.get('velocity', 100),
-            modulation,
-            block_size
+            self.params.get("note", 60), self.params.get("velocity", 100), modulation, block_size
         )
 
     def note_on(self, velocity: int, note: int) -> None:
@@ -90,7 +89,7 @@ class AdditivePartial(SynthesisPartial):
     def note_off(self) -> None:
         """Handle note-off event."""
         super().note_off()
-        self.additive_engine.note_off(self.params.get('note', 60))
+        self.additive_engine.note_off(self.params.get("note", 60))
 
     def is_active(self) -> bool:
         """
@@ -115,18 +114,22 @@ class AdditivePartial(SynthesisPartial):
     def reset(self) -> None:
         """Reset partial to initial state."""
         super().reset()
-        if hasattr(self, 'additive_engine'):
+        if hasattr(self, "additive_engine"):
             self.additive_engine.reset()
 
     def get_partial_info(self) -> dict[str, Any]:
         """Get additive partial information."""
         info = super().get_partial_info()
-        info.update({
-            'engine_type': 'additive',
-            'spectrum_type': self.spectrum_type,
-            'num_partials': self.num_partials,
-            'brightness': self.brightness,
-            'spread': self.spread,
-            'additive_engine_info': self.additive_engine.get_engine_info() if hasattr(self.additive_engine, 'get_engine_info') else {}
-        })
+        info.update(
+            {
+                "engine_type": "additive",
+                "spectrum_type": self.spectrum_type,
+                "num_partials": self.num_partials,
+                "brightness": self.brightness,
+                "spread": self.spread,
+                "additive_engine_info": self.additive_engine.get_engine_info()
+                if hasattr(self.additive_engine, "get_engine_info")
+                else {},
+            }
+        )
         return info

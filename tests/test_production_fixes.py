@@ -7,11 +7,11 @@ throughout the synth package.
 
 from __future__ import annotations
 
-import pytest
-import numpy as np
 import tempfile
 from pathlib import Path
-import time
+
+import numpy as np
+import pytest
 
 
 class TestVoiceAllocation:
@@ -112,8 +112,9 @@ class TestSampleMetadataExtraction:
 
     def test_metadata_extraction_from_file(self):
         """Test that metadata is extracted from audio files."""
-        from synth.sampling.sample_manager import SampleManager
         import wave
+
+        from synth.sampling.sample_manager import SampleManager
 
         # Create a temporary WAV file
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:

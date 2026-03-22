@@ -3,7 +3,9 @@ Sample Editor - Basic Sample Editing Capabilities
 
 Provides basic sample editing functionality for the XG synthesizer.
 """
+
 from __future__ import annotations
+
 
 class SampleEditor:
     """
@@ -27,9 +29,9 @@ class SampleEditor:
             Success status
         """
         self.current_sample = {
-            'data': sample_data,
-            'sample_rate': sample_rate,
-            'original_length': len(sample_data)
+            "data": sample_data,
+            "sample_rate": sample_rate,
+            "original_length": len(sample_data),
         }
         return True
 
@@ -45,7 +47,7 @@ class SampleEditor:
             Trimmed sample data
         """
         if self.current_sample:
-            data = self.current_sample['data']
+            data = self.current_sample["data"]
             return data[start_sample:end_sample]
         return None
 
@@ -60,11 +62,11 @@ class SampleEditor:
             Normalized sample data
         """
         if self.current_sample:
-            data = self.current_sample['data']
+            data = self.current_sample["data"]
             max_val = abs(data).max()
             if max_val > 0:
                 return data * (target_level / max_val)
-        return self.current_sample['data'] if self.current_sample else None
+        return self.current_sample["data"] if self.current_sample else None
 
     def reverse_sample(self):
         """
@@ -74,15 +76,16 @@ class SampleEditor:
             Reversed sample data
         """
         if self.current_sample:
-            return self.current_sample['data'][::-1]
+            return self.current_sample["data"][::-1]
         return None
 
     def get_sample_info(self):
         """Get information about current sample."""
         if self.current_sample:
             return {
-                'length_samples': len(self.current_sample['data']),
-                'sample_rate': self.current_sample['sample_rate'],
-                'duration_seconds': len(self.current_sample['data']) / self.current_sample['sample_rate']
+                "length_samples": len(self.current_sample["data"]),
+                "sample_rate": self.current_sample["sample_rate"],
+                "duration_seconds": len(self.current_sample["data"])
+                / self.current_sample["sample_rate"],
             }
         return None

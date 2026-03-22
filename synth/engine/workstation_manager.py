@@ -13,29 +13,29 @@ Features:
 - XGML v3.0 workstation_features configuration
 - Real-time parameter control and automation
 """
+
 from __future__ import annotations
 
-from typing import Any
 import threading
-import time
-from pathlib import Path
+from typing import Any
 
-# XG Workstation Components
-from ..xg.xg_arpeggiator_manager import MotifArpeggiatorManager
-from ..xg.xg_effects_enhancement import XGSystemEffectsEnhancement
-from ..xg.xg_motif_effects import MotifEffectsProcessor
-from ..xg.xg_multi_part_setup import XGMultiPartSetup
-from ..xg.xg_drum_setup_parameters import XGDrumSetupParameters
-from ..xg.xg_micro_tuning import XGMicroTuning
-from ..xg.xg_compatibility_modes import XGCompatibilityModes
+from ..jupiter_x.jupiter_x_arpeggiator import JupiterXArpeggiator
 
 # Jupiter-X Integration
 from ..jupiter_x.jupiter_x_engine import JupiterXEngineIntegration
 from ..jupiter_x.jupiter_x_vcm_effects import JupiterXVCMEffects
-from ..jupiter_x.jupiter_x_arpeggiator import JupiterXArpeggiator
 
 # MPE Integration
 from ..mpe.mpe_manager import MPEManager
+
+# XG Workstation Components
+from ..xg.xg_arpeggiator_manager import MotifArpeggiatorManager
+from ..xg.xg_compatibility_modes import XGCompatibilityModes
+from ..xg.xg_drum_setup_parameters import XGDrumSetupParameters
+from ..xg.xg_effects_enhancement import XGSystemEffectsEnhancement
+from ..xg.xg_micro_tuning import XGMicroTuning
+from ..xg.xg_motif_effects import MotifEffectsProcessor
+from ..xg.xg_multi_part_setup import XGMultiPartSetup
 
 
 class WorkstationManager:
@@ -66,11 +66,11 @@ class WorkstationManager:
 
         # Performance monitoring
         self.performance_stats = {
-            'arpeggiator_patterns': 0,
-            'active_arpeggiators': 0,
-            'effects_processors': 0,
-            'mpe_zones': 0,
-            'workstation_features': set()
+            "arpeggiator_patterns": 0,
+            "active_arpeggiators": 0,
+            "effects_processors": 0,
+            "mpe_zones": 0,
+            "workstation_features": set(),
         }
 
         print("🎹 WORKSTATION MANAGER: Advanced workstation integration initialized")
@@ -101,8 +101,7 @@ class WorkstationManager:
 
         # Jupiter-X Integration
         self.jupiter_x_engine = JupiterXEngineIntegration(
-            sample_rate=self.sample_rate,
-            block_size=1024
+            sample_rate=self.sample_rate, block_size=1024
         )
         self.jupiter_x_vcm_effects = JupiterXVCMEffects()
         self.jupiter_x_arpeggiator = JupiterXArpeggiator()
@@ -125,24 +124,24 @@ class WorkstationManager:
                 self.xgml_config = xgml_config
 
                 # Motif Integration
-                if 'motif_integration' in xgml_config:
-                    self._configure_motif_integration(xgml_config['motif_integration'])
+                if "motif_integration" in xgml_config:
+                    self._configure_motif_integration(xgml_config["motif_integration"])
 
                 # S90/S70 AWM Stereo
-                if 's90_awm_stereo' in xgml_config:
-                    self._configure_s90_awm_stereo(xgml_config['s90_awm_stereo'])
+                if "s90_awm_stereo" in xgml_config:
+                    self._configure_s90_awm_stereo(xgml_config["s90_awm_stereo"])
 
                 # Jupiter-X Integration
-                if 'jupiter_x_integration' in xgml_config:
-                    self._configure_jupiter_x_integration(xgml_config['jupiter_x_integration'])
+                if "jupiter_x_integration" in xgml_config:
+                    self._configure_jupiter_x_integration(xgml_config["jupiter_x_integration"])
 
                 # Multi-timbral Setup
-                if 'multi_timbral' in xgml_config:
-                    self._configure_multi_timbral(xgml_config['multi_timbral'])
+                if "multi_timbral" in xgml_config:
+                    self._configure_multi_timbral(xgml_config["multi_timbral"])
 
                 # XG Effects
-                if 'xg_effects' in xgml_config:
-                    self._configure_xg_effects(xgml_config['xg_effects'])
+                if "xg_effects" in xgml_config:
+                    self._configure_xg_effects(xgml_config["xg_effects"])
 
                 # Update performance stats
                 self._update_performance_stats()
@@ -156,144 +155,144 @@ class WorkstationManager:
 
     def _configure_motif_integration(self, motif_config: dict[str, Any]):
         """Configure Motif integration features."""
-        if not motif_config.get('enabled', False):
+        if not motif_config.get("enabled", False):
             return
 
         print("🎹 Configuring Motif integration...")
 
         # Arpeggiator system
-        if 'arpeggiator_system' in motif_config:
-            arp_config = motif_config['arpeggiator_system']
+        if "arpeggiator_system" in motif_config:
+            arp_config = motif_config["arpeggiator_system"]
 
             # Global settings
-            if 'global_settings' in arp_config:
-                global_settings = arp_config['global_settings']
-                if 'tempo' in global_settings:
+            if "global_settings" in arp_config:
+                global_settings = arp_config["global_settings"]
+                if "tempo" in global_settings:
                     # Apply tempo to arpeggiator system
                     pass
 
             # Individual arpeggiators
-            if 'arpeggiators' in arp_config:
-                arpeggiators = arp_config['arpeggiators']
+            if "arpeggiators" in arp_config:
+                arpeggiators = arp_config["arpeggiators"]
                 print(f"🎹 Configured {len(arpeggiators)} Motif arpeggiators")
 
         # Effects integration
-        if 'effects_integration' in motif_config:
-            effects_config = motif_config['effects_integration']
+        if "effects_integration" in motif_config:
+            effects_config = motif_config["effects_integration"]
             print("🎹 Motif effects integration enabled")
 
-        self.performance_stats['workstation_features'].add('motif_integration')
+        self.performance_stats["workstation_features"].add("motif_integration")
 
     def _configure_s90_awm_stereo(self, awm_config: dict[str, Any]):
         """Configure S90/S70 AWM Stereo features."""
-        if not awm_config.get('enabled', False):
+        if not awm_config.get("enabled", False):
             return
 
         print("🎹 Configuring S90/S70 AWM Stereo...")
 
         # Global mixing
-        if 'global_mixing' in awm_config:
-            mixing_config = awm_config['global_mixing']
-            if 'stereo_width' in mixing_config:
+        if "global_mixing" in awm_config:
+            mixing_config = awm_config["global_mixing"]
+            if "stereo_width" in mixing_config:
                 print("🎹 S90/S70 stereo width control enabled")
 
         # Velocity layers
-        if 'velocity_layers' in awm_config:
-            velocity_config = awm_config['velocity_layers']
-            print(f"🎹 Configured velocity layers for S90/S70 compatibility")
+        if "velocity_layers" in awm_config:
+            velocity_config = awm_config["velocity_layers"]
+            print("🎹 Configured velocity layers for S90/S70 compatibility")
 
         # Advanced interpolation
-        if 'advanced_interpolation' in awm_config:
-            interp_config = awm_config['advanced_interpolation']
-            if interp_config.get('enabled', False):
+        if "advanced_interpolation" in awm_config:
+            interp_config = awm_config["advanced_interpolation"]
+            if interp_config.get("enabled", False):
                 print("🎹 S90/S70 advanced interpolation enabled")
 
-        self.performance_stats['workstation_features'].add('s90_awm_stereo')
+        self.performance_stats["workstation_features"].add("s90_awm_stereo")
 
     def _configure_jupiter_x_integration(self, jupiter_config: dict[str, Any]):
         """Configure Jupiter-X integration."""
-        if not jupiter_config.get('enabled', False):
+        if not jupiter_config.get("enabled", False):
             return
 
         print("🎹 Configuring Jupiter-X integration...")
 
         # VCM Effects
-        if 'vcm_effects' in jupiter_config:
-            vcm_config = jupiter_config['vcm_effects']
+        if "vcm_effects" in jupiter_config:
+            vcm_config = jupiter_config["vcm_effects"]
             print("🎹 Jupiter-X VCM effects configured")
 
         # Performance features
-        if 'performance_features' in jupiter_config:
-            perf_config = jupiter_config['performance_features']
+        if "performance_features" in jupiter_config:
+            perf_config = jupiter_config["performance_features"]
             print("🎹 Jupiter-X performance features enabled")
 
         # Arpeggiator integration
-        if 'arpeggiator' in jupiter_config:
-            arp_config = jupiter_config['arpeggiator']
+        if "arpeggiator" in jupiter_config:
+            arp_config = jupiter_config["arpeggiator"]
             print("🎹 Jupiter-X arpeggiator integrated")
 
-        self.performance_stats['workstation_features'].add('jupiter_x_integration')
+        self.performance_stats["workstation_features"].add("jupiter_x_integration")
 
     def _configure_multi_timbral(self, multi_config: dict[str, Any]):
         """Configure multi-timbral setup."""
         print("🎹 Configuring multi-timbral setup...")
 
-        channels = multi_config.get('channels', 16)
-        voice_reserve = multi_config.get('voice_reserve', {})
+        channels = multi_config.get("channels", 16)
+        voice_reserve = multi_config.get("voice_reserve", {})
 
         # Apply voice reserve settings
         total_reserved = sum(voice_reserve.values())
         print(f"🎹 Multi-timbral: {channels} channels, {total_reserved} voices reserved")
 
-        self.performance_stats['workstation_features'].add('multi_timbral')
+        self.performance_stats["workstation_features"].add("multi_timbral")
 
     def _configure_xg_effects(self, xg_config: dict[str, Any]):
         """Configure XG effects processing."""
         print("🎹 Configuring XG effects system...")
 
         # System effects
-        if 'system_effects' in xg_config:
-            sys_effects = xg_config['system_effects']
-            if 'reverb' in sys_effects:
+        if "system_effects" in xg_config:
+            sys_effects = xg_config["system_effects"]
+            if "reverb" in sys_effects:
                 print("🎹 XG system reverb configured")
-            if 'chorus' in sys_effects:
+            if "chorus" in sys_effects:
                 print("🎹 XG system chorus configured")
 
         # Variation effects
-        if 'variation_effects' in xg_config:
-            var_effects = xg_config['variation_effects']
+        if "variation_effects" in xg_config:
+            var_effects = xg_config["variation_effects"]
             print(f"🎹 XG variation effects: {len(var_effects)} processors")
 
         # Insertion effects
-        if 'insertion_effects' in xg_config:
-            ins_effects = xg_config['insertion_effects']
+        if "insertion_effects" in xg_config:
+            ins_effects = xg_config["insertion_effects"]
             print(f"🎹 XG insertion effects: {len(ins_effects)} processors")
 
-        self.performance_stats['workstation_features'].add('xg_effects')
+        self.performance_stats["workstation_features"].add("xg_effects")
 
     def _update_performance_stats(self):
         """Update performance statistics."""
         # Arpeggiator patterns
         arp_status = self.motif_arpeggiator.get_manager_status()
-        total_patterns = sum(arp_status['arpeggiators'][arp_id]['patterns']
-                           for arp_id in arp_status['arpeggiators']) // len(arp_status['arpeggiators'])
-        self.performance_stats['arpeggiator_patterns'] = total_patterns
+        total_patterns = sum(
+            arp_status["arpeggiators"][arp_id]["patterns"] for arp_id in arp_status["arpeggiators"]
+        ) // len(arp_status["arpeggiators"])
+        self.performance_stats["arpeggiator_patterns"] = total_patterns
 
         # Active arpeggiators
-        active_arps = sum(1 for arp in arp_status['arpeggiators'].values()
-                         if arp['active'])
-        self.performance_stats['active_arpeggiators'] = active_arps
+        active_arps = sum(1 for arp in arp_status["arpeggiators"].values() if arp["active"])
+        self.performance_stats["active_arpeggiators"] = active_arps
 
         # Effects processors
         effects_count = 0
-        if hasattr(self.xg_effects, 'get_active_processors'):
+        if hasattr(self.xg_effects, "get_active_processors"):
             effects_count += len(self.xg_effects.get_active_processors())
-        if hasattr(self.motif_effects, 'get_active_effects'):
+        if hasattr(self.motif_effects, "get_active_effects"):
             effects_count += len(self.motif_effects.get_active_effects())
-        self.performance_stats['effects_processors'] = effects_count
+        self.performance_stats["effects_processors"] = effects_count
 
         # MPE zones
-        self.performance_stats['mpe_zones'] = len(self.mpe_manager.zones)
+        self.performance_stats["mpe_zones"] = len(self.mpe_manager.zones)
 
     def get_workstation_status(self) -> dict[str, Any]:
         """
@@ -304,42 +303,58 @@ class WorkstationManager:
         """
         with self.lock:
             status = {
-                'enabled_features': list(self.performance_stats['workstation_features']),
-                'arpeggiator': {
-                    'patterns': self.performance_stats['arpeggiator_patterns'],
-                    'active': self.performance_stats['active_arpeggiators'],
-                    'manager_status': self.motif_arpeggiator.get_manager_status()
+                "enabled_features": list(self.performance_stats["workstation_features"]),
+                "arpeggiator": {
+                    "patterns": self.performance_stats["arpeggiator_patterns"],
+                    "active": self.performance_stats["active_arpeggiators"],
+                    "manager_status": self.motif_arpeggiator.get_manager_status(),
                 },
-                'effects': {
-                    'processors': self.performance_stats['effects_processors'],
-                    'xg_effects': self.xg_effects.get_effect_capabilities() if hasattr(self.xg_effects, 'get_effect_capabilities') else {},
-                    'motif_effects': self.motif_effects.get_effect_status() if hasattr(self.motif_effects, 'get_effect_status') else {}
+                "effects": {
+                    "processors": self.performance_stats["effects_processors"],
+                    "xg_effects": self.xg_effects.get_effect_capabilities()
+                    if hasattr(self.xg_effects, "get_effect_capabilities")
+                    else {},
+                    "motif_effects": self.motif_effects.get_effect_status()
+                    if hasattr(self.motif_effects, "get_effect_status")
+                    else {},
                 },
-                'mpe': {
-                    'zones': self.performance_stats['mpe_zones'],
-                    'active_notes': len(self.mpe_manager.active_notes),
-                    'global_pitch_bend_range': self.mpe_manager.global_pitch_bend_range
+                "mpe": {
+                    "zones": self.performance_stats["mpe_zones"],
+                    "active_notes": len(self.mpe_manager.active_notes),
+                    "global_pitch_bend_range": self.mpe_manager.global_pitch_bend_range,
                 },
-                'multi_timbral': {
-                    'channels': self.max_channels,
-                    'setup_status': self.multi_part_setup.get_setup_status() if hasattr(self.multi_part_setup, 'get_setup_status') else {}
+                "multi_timbral": {
+                    "channels": self.max_channels,
+                    "setup_status": self.multi_part_setup.get_setup_status()
+                    if hasattr(self.multi_part_setup, "get_setup_status")
+                    else {},
                 },
-                'jupiter_x': {
-                    'integrated': hasattr(self, 'jupiter_x_engine'),
-                    'vcm_effects': self.jupiter_x_vcm_effects.get_status() if hasattr(self.jupiter_x_vcm_effects, 'get_status') else {},
-                    'arpeggiator': self.jupiter_x_arpeggiator.get_status() if hasattr(self.jupiter_x_arpeggiator, 'get_status') else {}
+                "jupiter_x": {
+                    "integrated": hasattr(self, "jupiter_x_engine"),
+                    "vcm_effects": self.jupiter_x_vcm_effects.get_status()
+                    if hasattr(self.jupiter_x_vcm_effects, "get_status")
+                    else {},
+                    "arpeggiator": self.jupiter_x_arpeggiator.get_status()
+                    if hasattr(self.jupiter_x_arpeggiator, "get_status")
+                    else {},
                 },
-                'xg_system': {
-                    'compatibility_mode': self.compatibility_modes.get_current_mode(),
-                    'micro_tuning': self.micro_tuning.get_tuning_status() if hasattr(self.micro_tuning, 'get_tuning_status') else {},
-                    'drum_setup': self.drum_setup.get_drum_setup_status() if hasattr(self.drum_setup, 'get_drum_setup_status') else {}
+                "xg_system": {
+                    "compatibility_mode": self.compatibility_modes.get_current_mode(),
+                    "micro_tuning": self.micro_tuning.get_tuning_status()
+                    if hasattr(self.micro_tuning, "get_tuning_status")
+                    else {},
+                    "drum_setup": self.drum_setup.get_drum_setup_status()
+                    if hasattr(self.drum_setup, "get_drum_setup_status")
+                    else {},
                 },
-                'xgml_configured': bool(self.xgml_config)
+                "xgml_configured": bool(self.xgml_config),
             }
 
             return status
 
-    def process_arpeggiator_note(self, channel: int, note: int, velocity: int) -> list[tuple[int, int, int]]:
+    def process_arpeggiator_note(
+        self, channel: int, note: int, velocity: int
+    ) -> list[tuple[int, int, int]]:
         """
         Process note through arpeggiator system.
 
@@ -376,15 +391,15 @@ class WorkstationManager:
             Processed audio buffer
         """
         # Apply XG effects
-        if hasattr(self.xg_effects, 'process_audio'):
+        if hasattr(self.xg_effects, "process_audio"):
             audio_buffer = self.xg_effects.process_audio(audio_buffer, channel)
 
         # Apply Motif effects
-        if hasattr(self.motif_effects, 'process_audio'):
+        if hasattr(self.motif_effects, "process_audio"):
             audio_buffer = self.motif_effects.process_audio(audio_buffer, channel)
 
         # Apply Jupiter-X VCM effects
-        if hasattr(self.jupiter_x_vcm_effects, 'process_audio'):
+        if hasattr(self.jupiter_x_vcm_effects, "process_audio"):
             audio_buffer = self.jupiter_x_vcm_effects.process_audio(audio_buffer, channel)
 
         return audio_buffer
@@ -397,8 +412,10 @@ class WorkstationManager:
             Dictionary of arpeggiator presets by category
         """
         presets = {
-            'motif': self.motif_arpeggiator.get_available_patterns(),
-            'jupiter_x': self.jupiter_x_arpeggiator.get_available_patterns() if hasattr(self.jupiter_x_arpeggiator, 'get_available_patterns') else {}
+            "motif": self.motif_arpeggiator.get_available_patterns(),
+            "jupiter_x": self.jupiter_x_arpeggiator.get_available_patterns()
+            if hasattr(self.jupiter_x_arpeggiator, "get_available_patterns")
+            else {},
         }
 
         return presets
@@ -428,9 +445,15 @@ class WorkstationManager:
             Dictionary of effect presets by type
         """
         presets = {
-            'xg_system': self.xg_effects.get_available_presets() if hasattr(self.xg_effects, 'get_available_presets') else {},
-            'motif': self.motif_effects.get_available_presets() if hasattr(self.motif_effects, 'get_available_presets') else {},
-            'jupiter_x_vcm': self.jupiter_x_vcm_effects.get_available_presets() if hasattr(self.jupiter_x_vcm_effects, 'get_available_presets') else {}
+            "xg_system": self.xg_effects.get_available_presets()
+            if hasattr(self.xg_effects, "get_available_presets")
+            else {},
+            "motif": self.motif_effects.get_available_presets()
+            if hasattr(self.motif_effects, "get_available_presets")
+            else {},
+            "jupiter_x_vcm": self.jupiter_x_vcm_effects.get_available_presets()
+            if hasattr(self.jupiter_x_vcm_effects, "get_available_presets")
+            else {},
         }
 
         return presets
@@ -448,11 +471,11 @@ class WorkstationManager:
             True if preset loaded successfully
         """
         try:
-            if effect_type == 'xg_system':
+            if effect_type == "xg_system":
                 return self.xg_effects.load_preset(preset_name, channel)
-            elif effect_type == 'motif':
+            elif effect_type == "motif":
                 return self.motif_effects.load_preset(preset_name, channel)
-            elif effect_type == 'jupiter_x_vcm':
+            elif effect_type == "jupiter_x_vcm":
                 return self.jupiter_x_vcm_effects.load_preset(preset_name, channel)
             else:
                 return False
@@ -555,52 +578,27 @@ class WorkstationManager:
             "motif_integration": {
                 "enabled": True,
                 "arpeggiator_system": {
-                    "global_settings": {
-                        "tempo": 128,
-                        "swing": 0
-                    },
+                    "global_settings": {"tempo": 128, "swing": 0},
                     "arpeggiators": [
                         {"id": 0, "pattern": "UPPER", "enabled": True},
                         {"id": 1, "pattern": "LOWER", "enabled": False},
                         {"id": 2, "pattern": "PEDAL", "enabled": False},
-                        {"id": 3, "pattern": "PHRASE", "enabled": False}
-                    ]
+                        {"id": 3, "pattern": "PHRASE", "enabled": False},
+                    ],
                 },
-                "effects_integration": {
-                    "enabled": True,
-                    "routing": "parallel"
-                }
+                "effects_integration": {"enabled": True, "routing": "parallel"},
             },
             "s90_awm_stereo": {
                 "enabled": True,
-                "global_mixing": {
-                    "stereo_width": 1.0,
-                    "master_volume": 100
-                },
-                "velocity_layers": {
-                    "enabled": True,
-                    "crossfade_range": 10
-                },
-                "advanced_interpolation": {
-                    "enabled": True,
-                    "quality": "sinc",
-                    "oversampling": 2
-                }
+                "global_mixing": {"stereo_width": 1.0, "master_volume": 100},
+                "velocity_layers": {"enabled": True, "crossfade_range": 10},
+                "advanced_interpolation": {"enabled": True, "quality": "sinc", "oversampling": 2},
             },
             "jupiter_x_integration": {
                 "enabled": True,
-                "vcm_effects": {
-                    "enabled": True,
-                    "modeling_filters": True
-                },
-                "performance_features": {
-                    "enabled": True,
-                    "analog_character": 0.7
-                },
-                "arpeggiator": {
-                    "enabled": True,
-                    "sync_to_host": True
-                }
+                "vcm_effects": {"enabled": True, "modeling_filters": True},
+                "performance_features": {"enabled": True, "analog_character": 0.7},
+                "arpeggiator": {"enabled": True, "sync_to_host": True},
             },
             "multi_timbral": {
                 "channels": 16,
@@ -608,37 +606,25 @@ class WorkstationManager:
                     "channel_0": 32,  # Piano
                     "channel_9": 16,  # Drums
                     "channel_1": 24,  # Bass
-                    "channel_2": 20   # Strings
-                }
+                    "channel_2": 20,  # Strings
+                },
             },
             "xg_effects": {
                 "system_effects": {
                     "reverb": {
                         "type": "HALL_1",
-                        "parameters": {
-                            "level": 0.4,
-                            "time": 2.0,
-                            "feedback": 0.3
-                        }
+                        "parameters": {"level": 0.4, "time": 2.0, "feedback": 0.3},
                     },
                     "chorus": {
                         "type": "CHORUS_1",
-                        "parameters": {
-                            "level": 0.3,
-                            "rate": 0.5,
-                            "depth": 0.5
-                        }
-                    }
+                        "parameters": {"level": 0.3, "rate": 0.5, "depth": 0.5},
+                    },
                 },
                 "variation_effects": [
                     {
                         "slot": 0,
                         "type": "DELAY_LCR",
-                        "parameters": {
-                            "delay_time": 300,
-                            "feedback": 0.3,
-                            "level": 0.4
-                        }
+                        "parameters": {"delay_time": 300, "feedback": 0.3, "level": 0.4},
                     }
                 ],
                 "insertion_effects": [
@@ -648,15 +634,12 @@ class WorkstationManager:
                             {
                                 "slot": 0,
                                 "type": "DISTORTION",
-                                "parameters": {
-                                    "drive": 0.6,
-                                    "level": 0.5
-                                }
+                                "parameters": {"drive": 0.6, "level": 0.5},
                             }
-                        ]
+                        ],
                     }
-                ]
-            }
+                ],
+            },
         }
 
         return template
@@ -703,15 +686,15 @@ class WorkstationManager:
             self.motif_arpeggiator.cleanup()
 
             # Clean up effects
-            if hasattr(self.xg_effects, 'cleanup'):
+            if hasattr(self.xg_effects, "cleanup"):
                 self.xg_effects.cleanup()
-            if hasattr(self.motif_effects, 'cleanup'):
+            if hasattr(self.motif_effects, "cleanup"):
                 self.motif_effects.cleanup()
-            if hasattr(self.jupiter_x_vcm_effects, 'cleanup'):
+            if hasattr(self.jupiter_x_vcm_effects, "cleanup"):
                 self.jupiter_x_vcm_effects.cleanup()
 
             # Clean up MPE
-            if hasattr(self.mpe_manager, 'cleanup'):
+            if hasattr(self.mpe_manager, "cleanup"):
                 self.mpe_manager.cleanup()
 
             print("🎹 Workstation resources cleaned up")
@@ -745,7 +728,9 @@ def get_workstation_manager(sample_rate: int = 44100, max_channels: int = 32) ->
         return _workstation_manager_instance
 
 
-def create_workstation_manager(sample_rate: int = 44100, max_channels: int = 32) -> WorkstationManager:
+def create_workstation_manager(
+    sample_rate: int = 44100, max_channels: int = 32
+) -> WorkstationManager:
     """
     Create new workstation manager instance.
 

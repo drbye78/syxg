@@ -3,9 +3,9 @@ Test suite for SF2 modulation engine.
 
 Tests SF2GeneratorProcessor, SF2ModulationEngine, and SF2ZoneEngine.
 """
+
 from __future__ import annotations
 
-import pytest
 from synth.sf2 import sf2_modulation_engine
 from synth.sf2.sf2_constants import SF2_GENERATORS
 
@@ -226,9 +226,7 @@ class TestSF2ZoneEngine:
             12: 500,  # volEnvSustain at max
         }
 
-        zone_engine = sf2_modulation_engine.SF2ZoneEngine(
-            "test", instrument_gens, [], {}, []
-        )
+        zone_engine = sf2_modulation_engine.SF2ZoneEngine("test", instrument_gens, [], {}, [])
 
         # Higher velocity should result in higher effective sustain
         params_low = zone_engine.get_modulated_parameters(60, 30)

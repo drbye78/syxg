@@ -19,26 +19,27 @@ XG Drum Parameter Map (NRPN MSB 40-41):
 
 Copyright (c) 2025
 """
+
 from __future__ import annotations
 
-from typing import NamedTuple, Any
-import numpy as np
 import threading
+from typing import Any, NamedTuple
 
 
 class XGDrumNoteParameters(NamedTuple):
     """XG Drum Note Parameter Structure"""
-    level: int = 100          # 0-127 - Note level/volume
-    pan: int = 64            # 0-127 - Pan position (64=center)
-    assign: int = 1          # 0=note-off, 1=poly, 2=mono
-    coarse_tune: int = 64    # 0-127 - Coarse tune (64=0 semitones)
-    fine_tune: int = 64      # 0-127 - Fine tune (64=0 cents)
+
+    level: int = 100  # 0-127 - Note level/volume
+    pan: int = 64  # 0-127 - Pan position (64=center)
+    assign: int = 1  # 0=note-off, 1=poly, 2=mono
+    coarse_tune: int = 64  # 0-127 - Coarse tune (64=0 semitones)
+    fine_tune: int = 64  # 0-127 - Fine tune (64=0 cents)
     filter_cutoff: int = 64  # 0-127 - Filter cutoff
     filter_resonance: int = 64  # 0-127 - Filter resonance
-    attack_time: int = 64    # 0-127 - Envelope attack time
-    decay_time: int = 64     # 0-127 - Envelope decay time
-    reverb_send: int = 0     # 0-127 - Reverb send level
-    chorus_send: int = 0     # 0-127 - Chorus send level
+    attack_time: int = 64  # 0-127 - Envelope attack time
+    decay_time: int = 64  # 0-127 - Envelope decay time
+    reverb_send: int = 0  # 0-127 - Reverb send level
+    chorus_send: int = 0  # 0-127 - Chorus send level
 
 
 class XGDrumKitParameters:
@@ -59,77 +60,77 @@ class XGDrumKitParameters:
     PARAM_FILTER_RESONANCE = 6
     PARAM_ATTACK_TIME = 7
     PARAM_DECAY_TIME = 8
-    PARAM_REVERB_SEND = 9    # NRPN MSB 41
-    PARAM_CHORUS_SEND = 10   # NRPN MSB 41
+    PARAM_REVERB_SEND = 9  # NRPN MSB 41
+    PARAM_CHORUS_SEND = 10  # NRPN MSB 41
 
     # XG Drum Parameter Definitions with proper ranges and defaults
     DRUM_PARAM_DEFS = {
         PARAM_LEVEL: {
-            'name': 'Level',
-            'range': (0, 127),
-            'default': 100,
-            'description': 'Note level/volume (0=silent, 127=full)'
+            "name": "Level",
+            "range": (0, 127),
+            "default": 100,
+            "description": "Note level/volume (0=silent, 127=full)",
         },
         PARAM_PAN: {
-            'name': 'Pan',
-            'range': (0, 127),
-            'default': 64,
-            'description': 'Pan position (0=hard left, 64=center, 127=hard right)'
+            "name": "Pan",
+            "range": (0, 127),
+            "default": 64,
+            "description": "Pan position (0=hard left, 64=center, 127=hard right)",
         },
         PARAM_ASSIGN: {
-            'name': 'Assign',
-            'range': (0, 2),
-            'default': 1,
-            'description': 'Voice assignment (0=note-off, 1=poly, 2=mono)'
+            "name": "Assign",
+            "range": (0, 2),
+            "default": 1,
+            "description": "Voice assignment (0=note-off, 1=poly, 2=mono)",
         },
         PARAM_COARSE_TUNE: {
-            'name': 'Coarse Tune',
-            'range': (0, 127),
-            'default': 64,
-            'description': 'Coarse tuning in semitones (±24 semitones from 64)'
+            "name": "Coarse Tune",
+            "range": (0, 127),
+            "default": 64,
+            "description": "Coarse tuning in semitones (±24 semitones from 64)",
         },
         PARAM_FINE_TUNE: {
-            'name': 'Fine Tune',
-            'range': (0, 127),
-            'default': 64,
-            'description': 'Fine tuning in cents (±50 cents from 64)'
+            "name": "Fine Tune",
+            "range": (0, 127),
+            "default": 64,
+            "description": "Fine tuning in cents (±50 cents from 64)",
         },
         PARAM_FILTER_CUTOFF: {
-            'name': 'Filter Cutoff',
-            'range': (0, 127),
-            'default': 64,
-            'description': 'Filter cutoff frequency'
+            "name": "Filter Cutoff",
+            "range": (0, 127),
+            "default": 64,
+            "description": "Filter cutoff frequency",
         },
         PARAM_FILTER_RESONANCE: {
-            'name': 'Filter Resonance',
-            'range': (0, 127),
-            'default': 64,
-            'description': 'Filter resonance amount'
+            "name": "Filter Resonance",
+            "range": (0, 127),
+            "default": 64,
+            "description": "Filter resonance amount",
         },
         PARAM_ATTACK_TIME: {
-            'name': 'Attack Time',
-            'range': (0, 127),
-            'default': 64,
-            'description': 'Envelope attack time'
+            "name": "Attack Time",
+            "range": (0, 127),
+            "default": 64,
+            "description": "Envelope attack time",
         },
         PARAM_DECAY_TIME: {
-            'name': 'Decay Time',
-            'range': (0, 127),
-            'default': 64,
-            'description': 'Envelope decay time'
+            "name": "Decay Time",
+            "range": (0, 127),
+            "default": 64,
+            "description": "Envelope decay time",
         },
         PARAM_REVERB_SEND: {
-            'name': 'Reverb Send',
-            'range': (0, 127),
-            'default': 0,
-            'description': 'Reverb send level'
+            "name": "Reverb Send",
+            "range": (0, 127),
+            "default": 0,
+            "description": "Reverb send level",
         },
         PARAM_CHORUS_SEND: {
-            'name': 'Chorus Send',
-            'range': (0, 127),
-            'default': 0,
-            'description': 'Chorus send level'
-        }
+            "name": "Chorus Send",
+            "range": (0, 127),
+            "default": 0,
+            "description": "Chorus send level",
+        },
     }
 
     def __init__(self, max_drums: int = 128):
@@ -159,8 +160,9 @@ class XGDrumKitParameters:
         for drum_note in range(self.max_drums):
             self.drum_parameters[drum_note] = XGDrumNoteParameters()
 
-    def handle_xg_drum_nrpn(self, nrpn_msb: int, nrpn_lsb: int,
-                           data_msb: int, data_lsb: int) -> bool:
+    def handle_xg_drum_nrpn(
+        self, nrpn_msb: int, nrpn_lsb: int, data_msb: int, data_lsb: int
+    ) -> bool:
         """
         Handle XG Drum Kit NRPN parameters (MSB 40-41)
 
@@ -217,7 +219,7 @@ class XGDrumKitParameters:
 
         # Validate and clamp the value
         param_def = self.DRUM_PARAM_DEFS[param_type]
-        min_val, max_val = param_def['range']
+        min_val, max_val = param_def["range"]
         clamped_value = max(min_val, min(max_val, value))
 
         # Create new parameter tuple with updated value
@@ -360,13 +362,13 @@ class XGDrumKitParameters:
         """
         with self.lock:
             return {
-                'kit_number': kit_number,
-                'max_drums': self.max_drums,
-                'drum_parameters': {
+                "kit_number": kit_number,
+                "max_drums": self.max_drums,
+                "drum_parameters": {
                     drum_note: params._asdict()
                     for drum_note, params in self.drum_parameters.items()
                     if params != XGDrumNoteParameters()  # Only export non-default values
-                }
+                },
             }
 
     def import_drum_kit_state(self, state: dict[str, Any]) -> bool:
@@ -381,8 +383,8 @@ class XGDrumKitParameters:
         """
         try:
             with self.lock:
-                self.max_drums = state.get('max_drums', 128)
-                drum_params_data = state.get('drum_parameters', {})
+                self.max_drums = state.get("max_drums", 128)
+                drum_params_data = state.get("drum_parameters", {})
 
                 # Reset to defaults first
                 self._initialize_default_parameters()
@@ -536,33 +538,33 @@ class XGDrumKitParameters:
 
         # Apply level scaling
         level_scale = params.level / 127.0
-        if hasattr(partial_generator, 'level'):
+        if hasattr(partial_generator, "level"):
             partial_generator.level *= level_scale
 
         # Apply pan position
-        if hasattr(partial_generator, '_pan'):
+        if hasattr(partial_generator, "_pan"):
             pan_pos = (params.pan - 64) / 63.0  # -1.0 to 1.0
             partial_generator._pan = pan_pos
 
         # Apply tuning
-        if hasattr(partial_generator, '_calculate_base_frequency'):
+        if hasattr(partial_generator, "_calculate_base_frequency"):
             tuning_ratio = self.get_drum_tuning_ratio(drum_note)
-            if hasattr(partial_generator, 'coarse_tune'):
+            if hasattr(partial_generator, "coarse_tune"):
                 # Adjust coarse tune based on param
                 coarse_offset = (params.coarse_tune - 64) / 12.0  # semitones
                 partial_generator.coarse_tune += coarse_offset
 
         # Apply filter parameters
-        if hasattr(partial_generator, 'filter_cutoff'):
+        if hasattr(partial_generator, "filter_cutoff"):
             cutoff_ratio, resonance_ratio = self.get_drum_filter_params(drum_note)
             partial_generator.filter_cutoff *= cutoff_ratio
 
-        if hasattr(partial_generator, 'filter_resonance'):
+        if hasattr(partial_generator, "filter_resonance"):
             _, resonance_ratio = self.get_drum_filter_params(drum_note)
             partial_generator.filter_resonance *= resonance_ratio
 
         # Apply envelope parameters
-        if hasattr(partial_generator, 'amp_attack_time'):
+        if hasattr(partial_generator, "amp_attack_time"):
             attack_ratio, decay_ratio = self.get_drum_envelope_params(drum_note)
             partial_generator.amp_attack_time *= attack_ratio
             partial_generator.amp_decay_time *= decay_ratio

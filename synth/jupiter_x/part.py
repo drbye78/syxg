@@ -8,16 +8,16 @@ comprehensive parameter control.
 
 from __future__ import annotations
 
-from typing import Any
 import threading
-import numpy as np
+from typing import Any
 
-from .constants import *
+import numpy as np
 
 # Jupiter-X engines are now consolidated into base engines with plugins
 # from .analog_engine import JupiterXAnalogEngine  # REMOVED - use AdditiveEngine + JupiterXAnalogPlugin
-from ..core.oscillator import UltraFastXGLFO, OscillatorPool
+from ..core.oscillator import UltraFastXGLFO
 from ..engine.additive_engine import AdditiveEngine
+from .constants import *
 
 
 class JupiterXEnvelope:

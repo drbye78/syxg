@@ -285,10 +285,12 @@ ARCHITECTURAL PRINCIPLES:
 - DEPENDENCY INVERSION: Abstract interfaces for flexible implementation
 - COMPOSITION OVER INHERITANCE: Modular synthesis component assembly
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any
+
 import numpy as np
 
 
@@ -381,10 +383,10 @@ class SynthesisPartial(ABC):
             Dictionary with partial metadata
         """
         return {
-            'type': self.__class__.__name__,
-            'active': self.active,
-            'sample_rate': self.sample_rate,
-            'params': self.params.copy()
+            "type": self.__class__.__name__,
+            "active": self.active,
+            "sample_rate": self.sample_rate,
+            "params": self.params.copy(),
         }
 
     def update_parameter(self, param_name: str, value: Any) -> None:

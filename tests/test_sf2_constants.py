@@ -4,10 +4,9 @@ Test suite for SF2 constants and conversion functions.
 Tests SF2_GENERATORS, SF2_MODULATOR_SOURCES, SF2_MODULATOR_DESTINATIONS,
 and all conversion functions for specification compliance.
 """
+
 from __future__ import annotations
 
-import pytest
-import math
 from synth.sf2 import sf2_constants
 
 
@@ -25,9 +24,7 @@ class TestSF2Generators:
             assert "name" in gen_info, f"Generator {gen_id} missing 'name'"
             assert "default" in gen_info, f"Generator {gen_id} missing 'default'"
             assert "range" in gen_info, f"Generator {gen_id} missing 'range'"
-            assert len(gen_info["range"]) == 2, (
-                f"Generator {gen_id} range must be tuple"
-            )
+            assert len(gen_info["range"]) == 2, f"Generator {gen_id} range must be tuple"
 
     def test_sampleid_at_index_50(self):
         """Test sampleID generator is at correct index 50."""

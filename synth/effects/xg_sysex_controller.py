@@ -17,8 +17,6 @@ Copyright (c) 2025 XG Synthesis Core
 
 from __future__ import annotations
 
-import struct
-from typing import Any
 from enum import IntEnum
 
 

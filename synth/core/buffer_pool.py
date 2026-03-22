@@ -173,27 +173,30 @@ RECOVERY STRATEGIES:
 - Memory pressure relief mechanisms
 - Diagnostic information collection
 """
+
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
-import threading
-import math
 import gc
+import threading
 from collections import defaultdict
 from contextlib import contextmanager
+from typing import Any
 
-from .validation import ValidationResult, ValidationError, audio_validator
+import numpy as np
+
 from .config import audio_config
+from .validation import ValidationError, ValidationResult
 
 
 class BufferPoolExhaustedError(Exception):
     """Raised when buffer pool cannot satisfy allocation request."""
+
     pass
 
 
 class BufferPoolCorruptionError(Exception):
     """Raised when buffer pool detects memory corruption."""
+
     pass
 
 
@@ -217,15 +220,15 @@ class BufferStatistics:
     def get_stats(self) -> dict[str, Any]:
         """Get comprehensive statistics."""
         return {
-            'total_allocated_mb': self.total_allocated / (1024 * 1024),
-            'total_used_mb': self.total_used / (1024 * 1024),
-            'peak_usage_mb': self.peak_usage / (1024 * 1024),
-            'allocation_count': self.allocation_count,
-            'deallocation_count': self.deallocation_count,
-            'cache_hit_rate': self.cache_hits / max(1, self.cache_hits + self.cache_misses),
-            'contention_count': self.contention_count,
-            'efficiency': self.total_used / max(1, self.total_allocated),
-            'cache_misses': self.cache_misses
+            "total_allocated_mb": self.total_allocated / (1024 * 1024),
+            "total_used_mb": self.total_used / (1024 * 1024),
+            "peak_usage_mb": self.peak_usage / (1024 * 1024),
+            "allocation_count": self.allocation_count,
+            "deallocation_count": self.deallocation_count,
+            "cache_hit_rate": self.cache_hits / max(1, self.cache_hits + self.cache_misses),
+            "contention_count": self.contention_count,
+            "efficiency": self.total_used / max(1, self.total_allocated),
+            "cache_misses": self.cache_misses,
         }
 
 
@@ -242,10 +245,15 @@ class XGBufferPool:
 
     # Memory pool size limits
     MAX_POOL_SIZE_MB = 256  # Maximum total pool size
-    MIN_POOL_SIZE_MB = 16   # Minimum pool size for startup
+    MIN_POOL_SIZE_MB = 16  # Minimum pool size for startup
 
-    def __init__(self, sample_rate: int = 44100, max_block_size: int = 8192,
-                 max_channels: int = 16, memory_budget_mb: float | None = None):
+    def __init__(
+        self,
+        sample_rate: int = 44100,
+        max_block_size: int = 8192,
+        max_channels: int = 16,
+        memory_budget_mb: float | None = None,
+    ):
         """
         Initialize XG Buffer Pool.
 
@@ -259,7 +267,9 @@ class XGBufferPool:
         self.sample_rate = sample_rate
         self.max_block_size = max_block_size
         self.max_channels = max_channels
-        self.memory_budget_mb = memory_budget_mb if memory_budget_mb is not None else self.MAX_POOL_SIZE_MB
+        self.memory_budget_mb = (
+            memory_budget_mb if memory_budget_mb is not None else self.MAX_POOL_SIZE_MB
+        )
         self.memory_budget_bytes = int(self.memory_budget_mb * 1024 * 1024)
         self.total_memory_used = 0  # Track total memory used by allocated buffers
 
@@ -273,7 +283,9 @@ class XGBufferPool:
         self._multi_channel_pools: dict[tuple[int, int], list[np.ndarray]] = defaultdict(list)
 
         # Active buffer tracking (for leak detection)
-        self._active_buffers: dict[int, tuple[np.ndarray, str, int]] = {}  # id -> (buffer, stack_trace, thread_id)
+        self._active_buffers: dict[
+            int, tuple[np.ndarray, str, int]
+        ] = {}  # id -> (buffer, stack_trace, thread_id)
         self._buffer_id_counter = 0
 
         # Memory pressure monitoring
@@ -293,7 +305,7 @@ class XGBufferPool:
         # Pre-allocate common buffer sizes
         common_sizes = [256, 512, 1024, 2048, 4096, max_buffer_size]
 
-        print(f"🎛️  Initializing XG Buffer Pool...")
+        print("🎛️  Initializing XG Buffer Pool...")
         print(f"   Max buffer size: {max_buffer_size} samples")
         print(f"   Max channels: {max_channels}")
 
@@ -321,7 +333,9 @@ class XGBufferPool:
                 # For commonly used sizes, allocate enough for all channels plus overhead
                 base_allocation = max(16, min(64, max_buffer_size // size * 4))
                 # Ensure we have enough for max_channels usage
-                channel_overhead = max(0, max_channels - base_allocation + 10)  # +10 for temp buffers
+                channel_overhead = max(
+                    0, max_channels - base_allocation + 10
+                )  # +10 for temp buffers
                 num_buffers = base_allocation + channel_overhead
             else:
                 # For larger sizes, allocate more buffers for fallback usage
@@ -333,10 +347,12 @@ class XGBufferPool:
                 total_allocated += buffer.nbytes
 
         # Allocate multi-channel buffers (less common)
-        multi_channel_configs = [(size, channels)
-                                for size in [1024, 2048]
-                                for channels in [4, 6, 8]
-                                if channels <= max_channels]
+        multi_channel_configs = [
+            (size, channels)
+            for size in [1024, 2048]
+            for channels in [4, 6, 8]
+            if channels <= max_channels
+        ]
 
         for size, channels in multi_channel_configs:
             num_buffers = max(1, min(4, max_buffer_size // size))
@@ -352,8 +368,10 @@ class XGBufferPool:
 
         # Check if initial allocation exceeds budget
         if total_allocated > self.memory_budget_bytes:
-            print(f"⚠️  Initial pool allocation ({total_mb:.1f} MB) exceeds memory budget ({self.memory_budget_mb:.1f} MB)")
-            print(f"   This may limit dynamic allocation capabilities")
+            print(
+                f"⚠️  Initial pool allocation ({total_mb:.1f} MB) exceeds memory budget ({self.memory_budget_mb:.1f} MB)"
+            )
+            print("   This may limit dynamic allocation capabilities")
 
         self.stats.total_allocated = total_allocated
         self.total_memory_used = total_allocated
@@ -368,11 +386,13 @@ class XGBufferPool:
         buffer = np.zeros(total_samples + self.SIMD_ALIGNMENT, dtype=np.float32)
 
         # Find aligned offset
-        offset = (self.SIMD_ALIGNMENT - (buffer.ctypes.data % self.SIMD_ALIGNMENT)) % self.SIMD_ALIGNMENT
+        offset = (
+            self.SIMD_ALIGNMENT - (buffer.ctypes.data % self.SIMD_ALIGNMENT)
+        ) % self.SIMD_ALIGNMENT
         aligned_buffer = np.frombuffer(
-            buffer.data[offset:offset + total_samples * bytes_per_sample],
+            buffer.data[offset : offset + total_samples * bytes_per_sample],
             dtype=np.float32,
-            count=total_samples
+            count=total_samples,
         ).reshape(size, channels)
 
         return aligned_buffer
@@ -422,14 +442,17 @@ class XGBufferPool:
             BufferPoolExhaustedError: If no suitable buffer available
         """
         key = (size, channels)
-        return self._get_buffer_from_pool(self._multi_channel_pools, key, channels, f"multi_{channels}ch")
+        return self._get_buffer_from_pool(
+            self._multi_channel_pools, key, channels, f"multi_{channels}ch"
+        )
 
-    def _get_buffer_from_pool(self, pool: dict[Any, list[np.ndarray]],
-                            key: Any, channels: int, pool_name: str) -> np.ndarray:
+    def _get_buffer_from_pool(
+        self, pool: dict[Any, list[np.ndarray]], key: Any, channels: int, pool_name: str
+    ) -> np.ndarray:
         """Get buffer from specific pool."""
         with self.lock:
             # First try exact match
-            if key in pool and pool[key]:
+            if pool.get(key):
                 buffer = pool[key].pop(0)
                 self._track_buffer_usage(buffer, pool_name)
                 self.stats.cache_hits += 1
@@ -438,7 +461,9 @@ class XGBufferPool:
             # Try to find a larger buffer that can accommodate the request
             # Only do fallback for mono/stereo pools (int keys), not multi-channel pools (tuple keys)
             if isinstance(key, int):
-                available_sizes = sorted([k for k in pool.keys() if isinstance(k, int) and k >= key])
+                available_sizes = sorted(
+                    [k for k in pool.keys() if isinstance(k, int) and k >= key]
+                )
                 for size in available_sizes:
                     if pool[size]:
                         buffer = pool[size].pop(0)
@@ -476,8 +501,10 @@ class XGBufferPool:
                 size, ch = key
                 buffer_size = size * ch * 4
                 if self.total_memory_used + buffer_size <= self.memory_budget_bytes:
-                    print(f"🔄 Dynamic allocation for {pool_name} size {key}, "
-                          f"within budget ({self.total_memory_used + buffer_size}/{self.memory_budget_bytes} bytes)")
+                    print(
+                        f"🔄 Dynamic allocation for {pool_name} size {key}, "
+                        f"within budget ({self.total_memory_used + buffer_size}/{self.memory_budget_bytes} bytes)"
+                    )
                     buffer = self._allocate_aligned_buffer(size, ch)
                     self.total_memory_used += buffer.nbytes
                     pool[key].append(buffer)
@@ -499,6 +526,7 @@ class XGBufferPool:
 
         # Get stack trace for debugging (simplified)
         import inspect
+
         frame = inspect.currentframe()
         caller = frame.f_back.f_back
         location = f"{caller.f_code.co_filename}:{caller.f_lineno}"
@@ -582,35 +610,40 @@ class XGBufferPool:
             # Check for buffer leaks
             active_count = len(self._active_buffers)
             if active_count > 100:  # Arbitrary threshold
-                result.add_warning(ValidationError(
-                    f"High number of active buffers: {active_count}",
-                    "HIGH_ACTIVE_BUFFER_COUNT",
-                    {"active_buffers": active_count},
-                    "warning"
-                ))
+                result.add_warning(
+                    ValidationError(
+                        f"High number of active buffers: {active_count}",
+                        "HIGH_ACTIVE_BUFFER_COUNT",
+                        {"active_buffers": active_count},
+                        "warning",
+                    )
+                )
 
             # Check pool utilization
-            total_available = sum(len(buffers) for buffers in self._mono_pools.values()) + \
-                             sum(len(buffers) for buffers in self._stereo_pools.values()) + \
-                             sum(len(buffers) for buffers in self._multi_channel_pools.values())
+            total_available = (
+                sum(len(buffers) for buffers in self._mono_pools.values())
+                + sum(len(buffers) for buffers in self._stereo_pools.values())
+                + sum(len(buffers) for buffers in self._multi_channel_pools.values())
+            )
 
             if total_available < 10:  # Low buffer count
-                result.add_warning(ValidationError(
-                    f"Low buffer availability: {total_available} buffers remaining",
-                    "LOW_BUFFER_AVAILABILITY",
-                    {"available_buffers": total_available},
-                    "warning"
-                ))
+                result.add_warning(
+                    ValidationError(
+                        f"Low buffer availability: {total_available} buffers remaining",
+                        "LOW_BUFFER_AVAILABILITY",
+                        {"available_buffers": total_available},
+                        "warning",
+                    )
+                )
 
             # Check memory usage
             memory_usage = self.stats.total_used / max(1, self.stats.total_allocated)
             if memory_usage > 0.9:  # Over 90% usage
-                result.add_warning(ValidationError(
-                    ".1%",
-                    "HIGH_MEMORY_USAGE",
-                    {"usage_percent": memory_usage * 100},
-                    "warning"
-                ))
+                result.add_warning(
+                    ValidationError(
+                        ".1%", "HIGH_MEMORY_USAGE", {"usage_percent": memory_usage * 100}, "warning"
+                    )
+                )
 
         return result
 
@@ -620,17 +653,27 @@ class XGBufferPool:
             stats = self.stats.get_stats()
 
             # Add pool-specific information
-            stats.update({
-                'mono_pools': {size: len(buffers) for size, buffers in self._mono_pools.items()},
-                'stereo_pools': {size: len(buffers) for size, buffers in self._stereo_pools.items()},
-                'multi_channel_pools': {f"{size}x{ch}": len(buffers)
-                                      for (size, ch), buffers in self._multi_channel_pools.items()},
-                'active_buffers': len(self._active_buffers),
-                'total_pools': len(self._mono_pools) + len(self._stereo_pools) + len(self._multi_channel_pools),
-                'memory_budget_mb': self.memory_budget_mb,
-                'total_memory_used_mb': self.total_memory_used / (1024 * 1024),
-                'memory_utilization': self.total_memory_used / max(1, self.memory_budget_bytes)
-            })
+            stats.update(
+                {
+                    "mono_pools": {
+                        size: len(buffers) for size, buffers in self._mono_pools.items()
+                    },
+                    "stereo_pools": {
+                        size: len(buffers) for size, buffers in self._stereo_pools.items()
+                    },
+                    "multi_channel_pools": {
+                        f"{size}x{ch}": len(buffers)
+                        for (size, ch), buffers in self._multi_channel_pools.items()
+                    },
+                    "active_buffers": len(self._active_buffers),
+                    "total_pools": len(self._mono_pools)
+                    + len(self._stereo_pools)
+                    + len(self._multi_channel_pools),
+                    "memory_budget_mb": self.memory_budget_mb,
+                    "total_memory_used_mb": self.total_memory_used / (1024 * 1024),
+                    "memory_utilization": self.total_memory_used / max(1, self.memory_budget_bytes),
+                }
+            )
 
             return stats
 
@@ -669,9 +712,7 @@ class XGBufferPool:
     def __str__(self) -> str:
         """String representation."""
         stats = self.get_pool_statistics()
-        return (".1f"
-                f"active={stats['active_buffers']}, "
-                f"pools={stats['total_pools']}")
+        return f".1factive={stats['active_buffers']}, pools={stats['total_pools']}"
 
     def __repr__(self) -> str:
         return self.__str__()

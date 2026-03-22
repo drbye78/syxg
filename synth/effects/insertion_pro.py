@@ -25,17 +25,20 @@ Effects implemented:
 
 All implementations use proper DSP algorithms from variation effects.
 """
+
 from __future__ import annotations
 
-import numpy as np
 import math
-from typing import Any
 import threading
+from typing import Any
+
+import numpy as np
+
+from .distortion_pro import DynamicEQEnhancer, ProfessionalCompressor, TubeSaturationProcessor
 
 # Reuse components from variation effects
-from .dsp_core import AdvancedEnvelopeFollower, FFTProcessor
-from .distortion_pro import TubeSaturationProcessor, ProfessionalCompressor, DynamicEQEnhancer
-from .pitch_effects import ProductionPitchEffectsProcessor, PhaseVocoderPitchShifter
+from .dsp_core import AdvancedEnvelopeFollower
+from .pitch_effects import ProductionPitchEffectsProcessor
 from .spatial_enhanced import EnhancedEarlyReflections
 
 
@@ -55,9 +58,13 @@ class ProductionPhaserProcessor:
 
         # All-pass filter chain (6 stages typical for phaser)
         self.allpass_stages = 6
-        self.allpass_delays = [int(0.001 * self.sample_rate * (i + 1)) for i in range(self.allpass_stages)]
-        self.allpass_states = [{'delay_line': np.zeros(int(0.01 * self.sample_rate)),
-                               'write_pos': 0} for _ in range(self.allpass_stages)]
+        self.allpass_delays = [
+            int(0.001 * self.sample_rate * (i + 1)) for i in range(self.allpass_stages)
+        ]
+        self.allpass_states = [
+            {"delay_line": np.zeros(int(0.01 * self.sample_rate)), "write_pos": 0}
+            for _ in range(self.allpass_stages)
+        ]
 
         # LFO for modulation
         self.lfo_phase = 0.0
@@ -89,8 +96,8 @@ class ProductionPhaserProcessor:
 
             for stage in range(self.allpass_stages):
                 stage_state = self.allpass_stages[stage]
-                delay_line = stage_state['delay_line']
-                write_pos = stage_state['write_pos']
+                delay_line = stage_state["delay_line"]
+                write_pos = stage_state["write_pos"]
 
                 # Modulated delay time
                 base_delay = self.allpass_delays[stage]
@@ -110,7 +117,7 @@ class ProductionPhaserProcessor:
 
                 # Write to delay line
                 delay_line[write_pos] = allpass_output
-                stage_state['write_pos'] = (write_pos + 1) % len(delay_line)
+                stage_state["write_pos"] = (write_pos + 1) % len(delay_line)
 
                 output = allpass_output
 
@@ -144,7 +151,7 @@ class ProductionFlangerProcessor:
         # Flanger parameters
         self.feedback = 0.5
         self.min_delay = int(0.0001 * self.sample_rate)  # 0.1ms
-        self.max_delay = int(0.01 * self.sample_rate)    # 10ms
+        self.max_delay = int(0.01 * self.sample_rate)  # 10ms
 
         self.lock = threading.RLock()
 
@@ -204,7 +211,7 @@ class ProfessionalRotarySpeaker:
         # Horn and rotor characteristics
         self.horn_radius = 0.3  # meters
         self.rotor_radius = 0.2  # meters
-        self.distance = 0.5      # meters (speaker to mic)
+        self.distance = 0.5  # meters (speaker to mic)
 
         # Speed control
         self.target_speed = 1.0  # 0-1 (slow-fast)
@@ -236,9 +243,13 @@ class ProfessionalRotarySpeaker:
             self.target_speed = speed
             if abs(self.current_speed - self.target_speed) > 0.01:
                 if self.current_speed < self.target_speed:
-                    self.current_speed = min(self.target_speed, self.current_speed + self.acceleration)
+                    self.current_speed = min(
+                        self.target_speed, self.current_speed + self.acceleration
+                    )
                 else:
-                    self.current_speed = max(self.target_speed, self.current_speed - self.acceleration)
+                    self.current_speed = max(
+                        self.target_speed, self.current_speed - self.acceleration
+                    )
 
             # Calculate rotational speeds (different for horn and rotor)
             horn_speed = self.current_speed * 0.4  # Horn rotates slower
@@ -353,11 +364,13 @@ class ProductionEnvelopeFilter:
             self._update_biquad_coefficients(filter_freq, self.q)
 
             # Process through biquad filter
-            output = (self.b0 * input_sample +
-                     self.b1 * self.x1 +
-                     self.b2 * self.x2 -
-                     self.a1 * self.y1 -
-                     self.a2 * self.y2)
+            output = (
+                self.b0 * input_sample
+                + self.b1 * self.x1
+                + self.b2 * self.x2
+                - self.a1 * self.y1
+                - self.a2 * self.y2
+            )
 
             # Update filter state
             self.x2 = self.x1
@@ -379,99 +392,99 @@ class ProductionXGInsertionEffectsProcessor:
     # XG Insertion Effect Parameter Definitions
     XG_INSERTION_PARAMS = {
         0: {  # Distortion
-            'drive': {'range': (0, 127), 'default': 64, 'name': 'Drive'},
-            'tone': {'range': (0, 127), 'default': 64, 'name': 'Tone'},
-            'level': {'range': (0, 127), 'default': 100, 'name': 'Level'}
+            "drive": {"range": (0, 127), "default": 64, "name": "Drive"},
+            "tone": {"range": (0, 127), "default": 64, "name": "Tone"},
+            "level": {"range": (0, 127), "default": 100, "name": "Level"},
         },
         1: {  # Overdrive
-            'drive': {'range': (0, 127), 'default': 80, 'name': 'Drive'},
-            'tone': {'range': (0, 127), 'default': 50, 'name': 'Tone'},
-            'level': {'range': (0, 127), 'default': 90, 'name': 'Level'}
+            "drive": {"range": (0, 127), "default": 80, "name": "Drive"},
+            "tone": {"range": (0, 127), "default": 50, "name": "Tone"},
+            "level": {"range": (0, 127), "default": 90, "name": "Level"},
         },
         2: {  # Compressor
-            'threshold': {'range': (-60, 0), 'default': -20, 'name': 'Threshold'},
-            'ratio': {'range': (1, 20), 'default': 4, 'name': 'Ratio'},
-            'attack': {'range': (0, 100), 'default': 5, 'name': 'Attack'},
-            'release': {'range': (10, 500), 'default': 100, 'name': 'Release'}
+            "threshold": {"range": (-60, 0), "default": -20, "name": "Threshold"},
+            "ratio": {"range": (1, 20), "default": 4, "name": "Ratio"},
+            "attack": {"range": (0, 100), "default": 5, "name": "Attack"},
+            "release": {"range": (10, 500), "default": 100, "name": "Release"},
         },
         3: {  # Noise Gate
-            'threshold': {'range': (-80, 0), 'default': -40, 'name': 'Threshold'},
-            'ratio': {'range': (0.1, 1), 'default': 0.3, 'name': 'Ratio'},
-            'attack': {'range': (0, 50), 'default': 1, 'name': 'Attack'},
-            'release': {'range': (10, 200), 'default': 50, 'name': 'Release'}
+            "threshold": {"range": (-80, 0), "default": -40, "name": "Threshold"},
+            "ratio": {"range": (0.1, 1), "default": 0.3, "name": "Ratio"},
+            "attack": {"range": (0, 50), "default": 1, "name": "Attack"},
+            "release": {"range": (10, 200), "default": 50, "name": "Release"},
         },
         4: {  # Envelope Filter
-            'sensitivity': {'range': (0, 127), 'default': 64, 'name': 'Sensitivity'},
-            'resonance': {'range': (0.1, 10), 'default': 2.0, 'name': 'Resonance'},
-            'frequency': {'range': (200, 5000), 'default': 1000, 'name': 'Frequency'}
+            "sensitivity": {"range": (0, 127), "default": 64, "name": "Sensitivity"},
+            "resonance": {"range": (0.1, 10), "default": 2.0, "name": "Resonance"},
+            "frequency": {"range": (200, 5000), "default": 1000, "name": "Frequency"},
         },
         5: {  # Vocoder
-            'bandwidth': {'range': (0.1, 2.0), 'default': 0.5, 'name': 'Bandwidth'},
-            'sensitivity': {'range': (0, 127), 'default': 80, 'name': 'Sensitivity'},
-            'dry_wet': {'range': (0, 127), 'default': 64, 'name': 'Dry/Wet'}
+            "bandwidth": {"range": (0.1, 2.0), "default": 0.5, "name": "Bandwidth"},
+            "sensitivity": {"range": (0, 127), "default": 80, "name": "Sensitivity"},
+            "dry_wet": {"range": (0, 127), "default": 64, "name": "Dry/Wet"},
         },
         6: {  # Amp Simulator
-            'drive': {'range': (0, 127), 'default': 100, 'name': 'Drive'},
-            'tone': {'range': (0, 127), 'default': 30, 'name': 'Tone'},
-            'level': {'range': (0, 127), 'default': 85, 'name': 'Level'}
+            "drive": {"range": (0, 127), "default": 100, "name": "Drive"},
+            "tone": {"range": (0, 127), "default": 30, "name": "Tone"},
+            "level": {"range": (0, 127), "default": 85, "name": "Level"},
         },
         7: {  # Rotary Speaker
-            'speed': {'range': (0, 127), 'default': 64, 'name': 'Speed'},
-            'depth': {'range': (0, 127), 'default': 100, 'name': 'Depth'},
-            'crossover': {'range': (200, 2000), 'default': 800, 'name': 'Crossover'}
+            "speed": {"range": (0, 127), "default": 64, "name": "Speed"},
+            "depth": {"range": (0, 127), "default": 100, "name": "Depth"},
+            "crossover": {"range": (200, 2000), "default": 800, "name": "Crossover"},
         },
         8: {  # Leslie
-            'speed': {'range': (0, 127), 'default': 50, 'name': 'Speed'},
-            'depth': {'range': (0, 127), 'default': 90, 'name': 'Depth'},
-            'reverb': {'range': (0, 127), 'default': 30, 'name': 'Reverb'}
+            "speed": {"range": (0, 127), "default": 50, "name": "Speed"},
+            "depth": {"range": (0, 127), "default": 90, "name": "Depth"},
+            "reverb": {"range": (0, 127), "default": 30, "name": "Reverb"},
         },
         9: {  # Enhancer
-            'enhance': {'range': (0, 127), 'default': 64, 'name': 'Enhance'},
-            'frequency': {'range': (1000, 10000), 'default': 5000, 'name': 'Frequency'},
-            'width': {'range': (0.1, 2.0), 'default': 1.0, 'name': 'Width'}
+            "enhance": {"range": (0, 127), "default": 64, "name": "Enhance"},
+            "frequency": {"range": (1000, 10000), "default": 5000, "name": "Frequency"},
+            "width": {"range": (0.1, 2.0), "default": 1.0, "name": "Width"},
         },
         10: {  # Auto Wah
-            'rate': {'range': (0.1, 10), 'default': 2.0, 'name': 'Rate'},
-            'depth': {'range': (0, 127), 'default': 80, 'name': 'Depth'},
-            'resonance': {'range': (0.5, 10), 'default': 3.0, 'name': 'Resonance'}
+            "rate": {"range": (0.1, 10), "default": 2.0, "name": "Rate"},
+            "depth": {"range": (0, 127), "default": 80, "name": "Depth"},
+            "resonance": {"range": (0.5, 10), "default": 3.0, "name": "Resonance"},
         },
         11: {  # Talk Wah
-            'sensitivity': {'range': (0, 127), 'default': 90, 'name': 'Sensitivity'},
-            'resonance': {'range': (0.5, 10), 'default': 4.0, 'name': 'Resonance'},
-            'decay': {'range': (0.01, 1.0), 'default': 0.1, 'name': 'Decay'}
+            "sensitivity": {"range": (0, 127), "default": 90, "name": "Sensitivity"},
+            "resonance": {"range": (0.5, 10), "default": 4.0, "name": "Resonance"},
+            "decay": {"range": (0.01, 1.0), "default": 0.1, "name": "Decay"},
         },
         12: {  # Harmonizer
-            'interval': {'range': (-24, 24), 'default': 7, 'name': 'Interval'},
-            'mix': {'range': (0, 127), 'default': 60, 'name': 'Mix'},
-            'detune': {'range': (-50, 50), 'default': 0, 'name': 'Detune'}
+            "interval": {"range": (-24, 24), "default": 7, "name": "Interval"},
+            "mix": {"range": (0, 127), "default": 60, "name": "Mix"},
+            "detune": {"range": (-50, 50), "default": 0, "name": "Detune"},
         },
         13: {  # Octave
-            'octave': {'range': (-3, 3), 'default': -1, 'name': 'Octave'},
-            'mix': {'range': (0, 127), 'default': 60, 'name': 'Mix'},
-            'dry_wet': {'range': (0, 127), 'default': 80, 'name': 'Dry/Wet'}
+            "octave": {"range": (-3, 3), "default": -1, "name": "Octave"},
+            "mix": {"range": (0, 127), "default": 60, "name": "Mix"},
+            "dry_wet": {"range": (0, 127), "default": 80, "name": "Dry/Wet"},
         },
         14: {  # Detune
-            'detune': {'range': (-100, 100), 'default': 10, 'name': 'Detune'},
-            'mix': {'range': (0, 127), 'default': 50, 'name': 'Mix'},
-            'delay': {'range': (0, 50), 'default': 5, 'name': 'Delay'}
+            "detune": {"range": (-100, 100), "default": 10, "name": "Detune"},
+            "mix": {"range": (0, 127), "default": 50, "name": "Mix"},
+            "delay": {"range": (0, 50), "default": 5, "name": "Delay"},
         },
         15: {  # Phaser
-            'rate': {'range': (0.1, 10), 'default': 1.0, 'name': 'Rate'},
-            'depth': {'range': (0, 127), 'default': 64, 'name': 'Depth'},
-            'feedback': {'range': (-0.9, 0.9), 'default': 0.3, 'name': 'Feedback'},
-            'stages': {'range': (2, 12), 'default': 6, 'name': 'Stages'}
+            "rate": {"range": (0.1, 10), "default": 1.0, "name": "Rate"},
+            "depth": {"range": (0, 127), "default": 64, "name": "Depth"},
+            "feedback": {"range": (-0.9, 0.9), "default": 0.3, "name": "Feedback"},
+            "stages": {"range": (2, 12), "default": 6, "name": "Stages"},
         },
         16: {  # Flanger
-            'rate': {'range': (0.05, 5.0), 'default': 0.5, 'name': 'Rate'},
-            'depth': {'range': (0, 127), 'default': 90, 'name': 'Depth'},
-            'feedback': {'range': (-0.9, 0.9), 'default': 0.5, 'name': 'Feedback'},
-            'delay': {'range': (0.1, 10), 'default': 2.0, 'name': 'Delay'}
+            "rate": {"range": (0.05, 5.0), "default": 0.5, "name": "Rate"},
+            "depth": {"range": (0, 127), "default": 90, "name": "Depth"},
+            "feedback": {"range": (-0.9, 0.9), "default": 0.5, "name": "Feedback"},
+            "delay": {"range": (0.1, 10), "default": 2.0, "name": "Delay"},
         },
         17: {  # Wah Wah
-            'sensitivity': {'range': (0, 127), 'default': 115, 'name': 'Sensitivity'},
-            'resonance': {'range': (0.5, 10), 'default': 5.0, 'name': 'Resonance'},
-            'frequency': {'range': (200, 2000), 'default': 500, 'name': 'Frequency'}
-        }
+            "sensitivity": {"range": (0, 127), "default": 115, "name": "Sensitivity"},
+            "resonance": {"range": (0.5, 10), "default": 5.0, "name": "Resonance"},
+            "frequency": {"range": (200, 2000), "default": 500, "name": "Frequency"},
+        },
     }
 
     def __init__(self, sample_rate: int, max_delay_samples: int = 8192):
@@ -499,7 +512,9 @@ class ProductionXGInsertionEffectsProcessor:
 
         # XG parameter storage per slot
         self.slot_parameters: list[dict[str, float]] = [
-            {}, {}, {}  # One dict per slot
+            {},
+            {},
+            {},  # One dict per slot
         ]
 
         # Initialize default parameters for each slot
@@ -514,8 +529,7 @@ class ProductionXGInsertionEffectsProcessor:
         if effect_type in self.XG_INSERTION_PARAMS:
             params = self.XG_INSERTION_PARAMS[effect_type]
             self.slot_parameters[slot] = {
-                param_name: param_def['default']
-                for param_name, param_def in params.items()
+                param_name: param_def["default"] for param_name, param_def in params.items()
             }
         else:
             self.slot_parameters[slot] = {}
@@ -539,7 +553,7 @@ class ProductionXGInsertionEffectsProcessor:
                 return False
 
             # Validate range
-            min_val, max_val = param_info['range']
+            min_val, max_val = param_info["range"]
             clamped_value = max(min_val, min(max_val, value))
 
             self.slot_parameters[slot][param_name] = clamped_value
@@ -574,11 +588,14 @@ class ProductionXGInsertionEffectsProcessor:
         # For simplicity, we'll handle this in the process method
         return True
 
-    def apply_insertion_effect_to_channel_zero_alloc(self, target_buffer: np.ndarray,
-                                                   channel_array: np.ndarray,
-                                                   insertion_params: dict[str, Any],
-                                                   num_samples: int,
-                                                   channel_idx: int) -> None:
+    def apply_insertion_effect_to_channel_zero_alloc(
+        self,
+        target_buffer: np.ndarray,
+        channel_array: np.ndarray,
+        insertion_params: dict[str, Any],
+        num_samples: int,
+        channel_idx: int,
+    ) -> None:
         """Apply complete insertion effects chain to a channel buffer."""
         with self.lock:
             # Copy input to target buffer first
@@ -605,12 +622,15 @@ class ProductionXGInsertionEffectsProcessor:
 
             # Convert back to mono if input was mono
             if channel_array.ndim == 1:
-                mono_output = (target_buffer[:num_samples, 0] + target_buffer[:num_samples, 1]) * 0.5
+                mono_output = (
+                    target_buffer[:num_samples, 0] + target_buffer[:num_samples, 1]
+                ) * 0.5
                 target_buffer[:num_samples, 0] = mono_output
                 target_buffer[:num_samples, 1] = mono_output
 
-    def _apply_single_effect_to_samples(self, samples: np.ndarray, num_samples: int,
-                                      effect_type: int, params: dict[str, float]) -> None:
+    def _apply_single_effect_to_samples(
+        self, samples: np.ndarray, num_samples: int, effect_type: int, params: dict[str, float]
+    ) -> None:
         """Apply a single insertion effect to mono samples using XG parameters."""
 
         # Get XG parameters for this effect slot (find which slot this is for)
@@ -628,7 +648,8 @@ class ProductionXGInsertionEffectsProcessor:
 
             for i in range(num_samples):
                 samples[i] = self.tube_saturation.process_sample(
-                    samples[i], drive * 3.0, tone, level)
+                    samples[i], drive * 3.0, tone, level
+                )
 
         elif effect_type == 1:  # Overdrive
             drive = slot_params.get("drive", 80) / 127.0
@@ -637,7 +658,8 @@ class ProductionXGInsertionEffectsProcessor:
 
             for i in range(num_samples):
                 samples[i] = self.tube_saturation.process_sample(
-                    samples[i], drive * 2.5, tone, level)
+                    samples[i], drive * 2.5, tone, level
+                )
 
         elif effect_type == 2:  # Compressor
             threshold = slot_params.get("threshold", -20.0)
@@ -655,7 +677,7 @@ class ProductionXGInsertionEffectsProcessor:
             attack = slot_params.get("attack", 1.0) / 1000.0
             release = slot_params.get("release", 50.0) / 1000.0
 
-            self.compressor.set_parameters(threshold, 1.0/ratio, attack, release)
+            self.compressor.set_parameters(threshold, 1.0 / ratio, attack, release)
             for i in range(num_samples):
                 samples[i] = self.compressor.process_sample(samples[i])
 
@@ -689,7 +711,8 @@ class ProductionXGInsertionEffectsProcessor:
 
             for i in range(num_samples):
                 samples[i] = self.tube_saturation.process_sample(
-                    samples[i], drive * 4.0, tone, level)
+                    samples[i], drive * 4.0, tone, level
+                )
 
         elif effect_type == 7:  # Rotary Speaker
             speed = slot_params.get("speed", 64) / 127.0
@@ -715,7 +738,7 @@ class ProductionXGInsertionEffectsProcessor:
                 temp_samples[i] = self.rotary.process_sample(samples[i], rotary_params)
 
             # Add reverb
-            self.early_reflections.configure_room('studio_light', reverb_amount)
+            self.early_reflections.configure_room("studio_light", reverb_amount)
             for i in range(num_samples):
                 temp_samples[i] += self.early_reflections.process_sample(temp_samples[i])
 
@@ -759,11 +782,12 @@ class ProductionXGInsertionEffectsProcessor:
             # Use pitch processor for harmonizer
             harmonizer_params = {
                 "parameter1": interval,  # Interval in semitones
-                "parameter2": mix,       # Mix level
-                "parameter3": detune     # Fine detune
+                "parameter2": mix,  # Mix level
+                "parameter3": detune,  # Fine detune
             }
-            self.pitch_processor.process_effect(64, np.column_stack((samples, samples)),
-                                              num_samples, harmonizer_params)
+            self.pitch_processor.process_effect(
+                64, np.column_stack((samples, samples)), num_samples, harmonizer_params
+            )
             # Extract mono result
             samples[:] = np.column_stack((samples, samples))[:, 0]
 
@@ -776,10 +800,11 @@ class ProductionXGInsertionEffectsProcessor:
             octave_params = {
                 "parameter1": octave * 12,  # Convert octaves to semitones
                 "parameter2": mix,
-                "parameter3": dry_wet
+                "parameter3": dry_wet,
             }
-            self.pitch_processor.process_effect(60, np.column_stack((samples, samples)),
-                                              num_samples, octave_params)
+            self.pitch_processor.process_effect(
+                60, np.column_stack((samples, samples)), num_samples, octave_params
+            )
             samples[:] = np.column_stack((samples, samples))[:, 0]
 
         elif effect_type == 14:  # Detune
@@ -788,13 +813,10 @@ class ProductionXGInsertionEffectsProcessor:
             delay = slot_params.get("delay", 5)
 
             # Use pitch processor for detune
-            detune_params = {
-                "parameter1": detune,
-                "parameter2": mix,
-                "parameter3": delay
-            }
-            self.pitch_processor.process_effect(65, np.column_stack((samples, samples)),
-                                              num_samples, detune_params)
+            detune_params = {"parameter1": detune, "parameter2": mix, "parameter3": delay}
+            self.pitch_processor.process_effect(
+                65, np.column_stack((samples, samples)), num_samples, detune_params
+            )
             samples[:] = np.column_stack((samples, samples))[:, 0]
 
         elif effect_type == 15:  # Phaser
@@ -805,9 +827,13 @@ class ProductionXGInsertionEffectsProcessor:
 
             # Update phaser stages
             self.phaser.allpass_stages = stages
-            self.phaser.allpass_delays = [int(0.001 * self.sample_rate * (i + 1)) for i in range(stages)]
-            self.phaser.allpass_states = [{'delay_line': np.zeros(int(0.01 * self.sample_rate)),
-                                         'write_pos': 0} for _ in range(stages)]
+            self.phaser.allpass_delays = [
+                int(0.001 * self.sample_rate * (i + 1)) for i in range(stages)
+            ]
+            self.phaser.allpass_states = [
+                {"delay_line": np.zeros(int(0.01 * self.sample_rate)), "write_pos": 0}
+                for _ in range(stages)
+            ]
 
             phaser_params = {"rate": rate, "depth": depth, "feedback": feedback}
             for i in range(num_samples):

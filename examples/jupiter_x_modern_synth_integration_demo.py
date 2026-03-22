@@ -16,19 +16,18 @@ Usage:
     python examples/jupiter_x_modern_synth_integration_demo.py
 """
 
-import numpy as np
 import time
-import threading
-from typing import Dict, List, Any
+
+import numpy as np
 
 # Import the integrated synthesizer
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-from synth.jupiter_x import JupiterXSynthesizer, create_jupiter_x_engine
+
 # Note: binary_parser was removed in refactoring, using new unified MIDI system
 # from synth.midi import RealtimeParser
 
 
-def create_demo_midi_sequence() -> List[bytes]:
+def create_demo_midi_sequence() -> list[bytes]:
     """Create a demo MIDI sequence showcasing Jupiter-X features."""
     midi_events = []
 
@@ -37,7 +36,9 @@ def create_demo_midi_sequence() -> List[bytes]:
 
     # Jupiter-X Part 0: Analog bass with arpeggiator
     # Enable arpeggiator on channel 0
-    midi_events.append(create_midi_sysex(current_time, 0xF0, [0x43, 0x10, 0x4C, 0x08, 0x00, 0x00, 0xF7]))  # Part 0 receives channel 0
+    midi_events.append(
+        create_midi_sysex(current_time, 0xF0, [0x43, 0x10, 0x4C, 0x08, 0x00, 0x00, 0xF7])
+    )  # Part 0 receives channel 0
 
     # Note sequence for bass arpeggio
     bass_notes = [36, 39, 43, 46]  # C2, Eb2, G2, Bb2 (Cm7)
@@ -51,7 +52,9 @@ def create_demo_midi_sequence() -> List[bytes]:
 
     # Jupiter-X Part 1: Digital pad on channel 1
     current_time = 2.0  # Start at 2 seconds
-    midi_events.append(create_midi_sysex(current_time, 0xF0, [0x43, 0x10, 0x4C, 0x08, 0x01, 0x01, 0xF7]))  # Part 1 receives channel 1
+    midi_events.append(
+        create_midi_sysex(current_time, 0xF0, [0x43, 0x10, 0x4C, 0x08, 0x01, 0x01, 0xF7])
+    )  # Part 1 receives channel 1
 
     # Pad chord progression
     pad_chords = [
@@ -71,7 +74,9 @@ def create_demo_midi_sequence() -> List[bytes]:
 
     # Jupiter-X Part 2: FM lead on channel 2
     current_time = 6.0
-    midi_events.append(create_midi_sysex(current_time, 0xF0, [0x43, 0x10, 0x4C, 0x08, 0x02, 0x02, 0xF7]))  # Part 2 receives channel 2
+    midi_events.append(
+        create_midi_sysex(current_time, 0xF0, [0x43, 0x10, 0x4C, 0x08, 0x02, 0x02, 0xF7])
+    )  # Part 2 receives channel 2
 
     # Lead melody
     lead_melody = [72, 74, 76, 77, 79, 81, 83, 84, 83, 81, 79, 77, 76, 74, 72]
@@ -84,14 +89,18 @@ def create_demo_midi_sequence() -> List[bytes]:
 
     # Jupiter-X Part 3: External/samples on channel 3
     current_time = 8.0
-    midi_events.append(create_midi_sysex(current_time, 0xF0, [0x43, 0x10, 0x4C, 0x08, 0x03, 0x03, 0xF7]))  # Part 3 receives channel 3
+    midi_events.append(
+        create_midi_sysex(current_time, 0xF0, [0x43, 0x10, 0x4C, 0x08, 0x03, 0x03, 0xF7])
+    )  # Part 3 receives channel 3
 
     # Percussion hits
     percussion_notes = [36, 38, 42, 46, 36, 38]  # Kick, Snare, Hi-hat variations
     for note in percussion_notes:
-        midi_events.append(create_midi_message(current_time, 0x99, 3, note, 120))  # Note on channel 9 (percussion)
+        midi_events.append(
+            create_midi_message(current_time, 0x99, 3, note, 120)
+        )  # Note on channel 9 (percussion)
         current_time += 0.25
-        midi_events.append(create_midi_message(current_time, 0x89, 3, note, 0))   # Note off
+        midi_events.append(create_midi_message(current_time, 0x89, 3, note, 0))  # Note off
 
     return midi_events
 
@@ -103,7 +112,7 @@ def create_midi_message(time: float, status: int, channel: int, data1: int, data
     return bytes([status | channel, data1, data2])
 
 
-def create_midi_sysex(time: float, start_byte: int, data: List[int]) -> bytes:
+def create_midi_sysex(time: float, start_byte: int, data: list[int]) -> bytes:
     """Create a MIDI SysEx message."""
     return bytes([start_byte] + data)
 
@@ -114,38 +123,40 @@ def configure_jupiter_x_synth(synth: ModernXGSynthesizer):
     print("🎛️  Configuring Jupiter-X synthesizer...")
 
     # Enable Jupiter-X features
-    if hasattr(synth, 'jupiter_x_engine'):
+    if hasattr(synth, "jupiter_x_engine"):
         jupiter_x = synth.jupiter_x_engine
 
         # Configure Part 0: Analog Bass with Arpeggiator
-        jupiter_x.set_engine_type(0, 'analog')
-        jupiter_x.set_jupiter_x_parameter(0, 'analog', 'osc1_waveform', 1)  # Sawtooth
-        jupiter_x.set_jupiter_x_parameter(0, 'analog', 'filter_cutoff', 0.3)
+        jupiter_x.set_engine_type(0, "analog")
+        jupiter_x.set_jupiter_x_parameter(0, "analog", "osc1_waveform", 1)  # Sawtooth
+        jupiter_x.set_jupiter_x_parameter(0, "analog", "filter_cutoff", 0.3)
         jupiter_x.enable_arpeggiator(0, True)
         jupiter_x.set_arpeggiator_pattern(0, 0)  # Up pattern
 
         # Configure Part 1: Digital Pad
-        jupiter_x.set_engine_type(1, 'digital')
-        jupiter_x.set_jupiter_x_parameter(1, 'digital', 'morph_amount', 0.7)
-        jupiter_x.set_jupiter_x_parameter(1, 'digital', 'filter_cutoff', 0.8)
+        jupiter_x.set_engine_type(1, "digital")
+        jupiter_x.set_jupiter_x_parameter(1, "digital", "morph_amount", 0.7)
+        jupiter_x.set_jupiter_x_parameter(1, "digital", "filter_cutoff", 0.8)
 
         # Configure Part 2: FM Lead
-        jupiter_x.set_engine_type(2, 'fm')
-        jupiter_x.set_jupiter_x_parameter(2, 'fm', 'algorithm', 5)
-        jupiter_x.set_jupiter_x_parameter(2, 'fm', 'feedback', 0.3)
+        jupiter_x.set_engine_type(2, "fm")
+        jupiter_x.set_jupiter_x_parameter(2, "fm", "algorithm", 5)
+        jupiter_x.set_jupiter_x_parameter(2, "fm", "feedback", 0.3)
 
         # Configure Part 3: External Samples (Percussion)
-        jupiter_x.set_engine_type(3, 'external')
+        jupiter_x.set_engine_type(3, "external")
         # Load a sample (placeholder - would load actual WAV file)
         sample_data = np.random.uniform(-1, 1, 44100)  # 1 second noise
         jupiter_x.load_sample_for_engine(3, sample_data, 44100)
 
-        print("✅ Jupiter-X parts configured: Analog Bass, Digital Pad, FM Lead, External Percussion")
+        print(
+            "✅ Jupiter-X parts configured: Analog Bass, Digital Pad, FM Lead, External Percussion"
+        )
 
     # Configure XG effects for Jupiter-X enhancement
-    synth.set_xg_reverb_type(4)    # Hall reverb
-    synth.set_xg_chorus_type(2)    # Chorus
-    synth.set_xg_variation_type(8) # Delay
+    synth.set_xg_reverb_type(4)  # Hall reverb
+    synth.set_xg_chorus_type(2)  # Chorus
+    synth.set_xg_variation_type(8)  # Delay
 
     # Set drum kit for percussion channel
     synth.set_drum_kit(9, 0)  # Standard kit
@@ -224,13 +235,13 @@ def demonstrate_mpe_integration(synth: ModernXGSynthesizer):
     print("\n🎹 Demonstrating MPE integration...")
 
     # Enable MPE
-    if hasattr(synth, 'set_mpe_enabled'):
+    if hasattr(synth, "set_mpe_enabled"):
         synth.set_mpe_enabled(True)
         print("✅ MPE enabled")
 
     # Configure MPE zones (if available)
     mpe_info = synth.get_mpe_info()
-    if mpe_info.get('enabled'):
+    if mpe_info.get("enabled"):
         print(f"  - MPE Zones: {mpe_info.get('mpe_zones', 0)}")
         print(f"  - Active Notes: {mpe_info.get('mpe_active_notes', 0)}")
         print(f"  - Pitch Bend Range: {mpe_info.get('mpe_pitch_bend_range', 0)} semitones")
@@ -238,7 +249,7 @@ def demonstrate_mpe_integration(synth: ModernXGSynthesizer):
         print("  - MPE not available")
 
     # Demonstrate Jupiter-X MPE support
-    if hasattr(synth, 'jupiter_x_engine'):
+    if hasattr(synth, "jupiter_x_engine"):
         jupiter_x = synth.jupiter_x_engine
         jupiter_x.enable_mpe(True)
         print("✅ Jupiter-X MPE enabled")
@@ -250,7 +261,7 @@ def demonstrate_arpeggiator_integration(synth: ModernXGSynthesizer):
     print("\n🎵 Demonstrating arpeggiator integration...")
 
     # Configure Jupiter-X arpeggiator
-    if hasattr(synth, 'jupiter_x_engine'):
+    if hasattr(synth, "jupiter_x_engine"):
         jupiter_x = synth.jupiter_x_engine
 
         # Enable arpeggiator on part 0
@@ -272,14 +283,14 @@ def demonstrate_effects_integration(synth: ModernXGSynthesizer):
     print("\n🎛️  Demonstrating effects integration...")
 
     # Configure XG effects
-    synth.set_xg_reverb_type(4)    # Hall reverb
-    synth.set_xg_chorus_type(2)    # Chorus
-    synth.set_xg_variation_type(8) # Stereo delay
+    synth.set_xg_reverb_type(4)  # Hall reverb
+    synth.set_xg_chorus_type(2)  # Chorus
+    synth.set_xg_variation_type(8)  # Stereo delay
 
     print("✅ XG effects configured: Hall Reverb, Chorus, Stereo Delay")
 
     # Jupiter-X effects enhancements
-    if hasattr(synth, 'jupiter_x_engine'):
+    if hasattr(synth, "jupiter_x_engine"):
         jupiter_x = synth.jupiter_x_engine
         jupiter_x.enable_jupiter_x_effects()
         print("✅ Jupiter-X effects enhancements enabled")
@@ -299,7 +310,7 @@ def main():
         xg_enabled=True,
         gs_enabled=True,
         mpe_enabled=True,
-        device_id=0x10
+        device_id=0x10,
     )
 
     # Configure Jupiter-X synthesizer
@@ -322,8 +333,8 @@ def main():
 
     # Get final synthesizer status
     synth_info = synth.get_synthesizer_info()
-    print("
-📊 Final Synthesizer Status:"    print(f"  - Sample Rate: {synth_info.get('sample_rate', 'N/A')} Hz")
+    print("\n📊 Final Synthesizer Status:")
+    print(f"  - Sample Rate: {synth_info.get('sample_rate', 'N/A')} Hz")
     print(f"  - Active Channels: {synth_info.get('active_channels', 'N/A')}")
     print(f"  - Active Voices: {synth_info.get('total_active_voices', 'N/A')}")
     print(f"  - Available Engines: {len(synth_info.get('engines', {}))}")
@@ -331,16 +342,20 @@ def main():
     print(f"  - MPE Zones: {synth_info.get('mpe_zones', 'N/A')}")
 
     # Jupiter-X specific status
-    if hasattr(synth, 'jupiter_x_engine'):
+    if hasattr(synth, "jupiter_x_engine"):
         jx_status = synth.jupiter_x_engine.get_jupiter_x_status()
-        print(f"  - Jupiter-X Parts: {jx_status.get('components', {}).get('component_manager', 'N/A')}")
+        print(
+            f"  - Jupiter-X Parts: {jx_status.get('components', {}).get('component_manager', 'N/A')}"
+        )
 
     # Clean up
-    print("
-🧹 Cleaning up..."    synth.cleanup()
+    print("\n🧹 Cleaning up...")
+    synth.cleanup()
 
     print(f"\n✅ Demo completed successfully in {performance_duration:.2f} seconds!")
-    print("\n🎹 Jupiter-X synthesizer is now fully integrated with the modern synthesizer framework!")
+    print(
+        "\n🎹 Jupiter-X synthesizer is now fully integrated with the modern synthesizer framework!"
+    )
     print("   - Multi-engine synthesis with Jupiter-X, SF2, FM, and more")
     print("   - XG/GS/MPE parameter control through Jupiter-X")
     print("   - Arpeggiator integration across all engines")

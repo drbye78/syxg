@@ -3,19 +3,19 @@ Tests for vibexg.types module
 
 Tests data classes, enums, and constants.
 """
+
 from __future__ import annotations
 
-import pytest
 from vibexg.types import (
-    InputInterfaceType,
-    AudioOutputType,
-    MIDIInputConfig,
+    DEFAULT_BUFFER_SIZE,
+    DEFAULT_SAMPLE_RATE,
+    MIDI_CHANNELS,
     AudioOutputConfig,
+    AudioOutputType,
+    InputInterfaceType,
+    MIDIInputConfig,
     PresetData,
     WorkstationState,
-    DEFAULT_SAMPLE_RATE,
-    DEFAULT_BUFFER_SIZE,
-    MIDI_CHANNELS,
 )
 
 

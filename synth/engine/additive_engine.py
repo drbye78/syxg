@@ -4,16 +4,18 @@ Additive Synthesis Engine
 Implements additive synthesis with up to 128 partials supporting real-time
 harmonic control, morphing, and bandwidth optimization for high partial counts.
 """
+
 from __future__ import annotations
 
-from typing import Any
-import numpy as np
 import math
+from typing import Any
 
-from .synthesis_engine import SynthesisEngine
+import numpy as np
+
 from ..partial.additive_partial import AdditivePartial
+from .plugins.base_plugin import SynthesisFeaturePlugin
 from .plugins.plugin_registry import get_global_plugin_registry
-from .plugins.base_plugin import PluginLoadContext, SynthesisFeaturePlugin
+from .synthesis_engine import SynthesisEngine
 
 
 class AdditivePartialOscillator:
@@ -30,16 +32,16 @@ class AdditivePartialOscillator:
 
         # Frequency and amplitude parameters
         self.frequency_ratio = 1.0  # Ratio to fundamental frequency
-        self.amplitude = 0.0        # Linear amplitude (0.0 to 1.0)
-        self.phase = 0.0           # Current phase (0 to 2π)
-        self.phase_offset = 0.0    # Phase offset in radians
+        self.amplitude = 0.0  # Linear amplitude (0.0 to 1.0)
+        self.phase = 0.0  # Current phase (0 to 2π)
+        self.phase_offset = 0.0  # Phase offset in radians
 
         # Envelope parameters (simplified ADSR)
         self.attack_time = 0.01
         self.decay_time = 0.3
         self.sustain_level = 0.7
         self.release_time = 0.5
-        self.envelope_phase = 'idle'
+        self.envelope_phase = "idle"
 
         # Envelope state
         self.envelope_value = 0.0
@@ -52,59 +54,59 @@ class AdditivePartialOscillator:
 
     def set_parameters(self, params: dict[str, Any]):
         """Set partial parameters."""
-        self.frequency_ratio = params.get('frequency_ratio', 1.0)
-        self.amplitude = params.get('amplitude', 0.0)
-        self.phase_offset = params.get('phase_offset', 0.0)
+        self.frequency_ratio = params.get("frequency_ratio", 1.0)
+        self.amplitude = params.get("amplitude", 0.0)
+        self.phase_offset = params.get("phase_offset", 0.0)
 
         # Envelope parameters
-        self.attack_time = params.get('attack_time', 0.01)
-        self.decay_time = params.get('decay_time', 0.3)
-        self.sustain_level = params.get('sustain_level', 0.7)
-        self.release_time = params.get('release_time', 0.5)
+        self.attack_time = params.get("attack_time", 0.01)
+        self.decay_time = params.get("decay_time", 0.3)
+        self.sustain_level = params.get("sustain_level", 0.7)
+        self.release_time = params.get("release_time", 0.5)
 
     def note_on(self, velocity: int = 127):
         """Start partial envelope."""
-        self.envelope_phase = 'attack'
+        self.envelope_phase = "attack"
         self.envelope_time = 0.0
         self.phase = self.phase_offset  # Reset phase to offset
 
     def note_off(self):
         """Start partial release."""
-        self.envelope_phase = 'release'
+        self.envelope_phase = "release"
         self.envelope_time = 0.0
 
     def update_envelope(self, dt: float):
         """Update envelope state."""
         self.envelope_time += dt
 
-        if self.envelope_phase == 'attack':
+        if self.envelope_phase == "attack":
             if self.envelope_time >= self.attack_time:
                 self.envelope_value = 1.0
-                self.envelope_phase = 'decay'
+                self.envelope_phase = "decay"
                 self.envelope_time = 0.0
             else:
                 self.envelope_value = self.envelope_time / self.attack_time
 
-        elif self.envelope_phase == 'decay':
+        elif self.envelope_phase == "decay":
             if self.envelope_time >= self.decay_time:
                 self.envelope_value = self.sustain_level
-                self.envelope_phase = 'sustain'
+                self.envelope_phase = "sustain"
             else:
                 decay_progress = self.envelope_time / self.decay_time
                 self.envelope_value = 1.0 - decay_progress * (1.0 - self.sustain_level)
 
-        elif self.envelope_phase == 'sustain':
+        elif self.envelope_phase == "sustain":
             self.envelope_value = self.sustain_level
 
-        elif self.envelope_phase == 'release':
+        elif self.envelope_phase == "release":
             if self.envelope_time >= self.release_time:
                 self.envelope_value = 0.0
-                self.envelope_phase = 'idle'
+                self.envelope_phase = "idle"
             else:
                 release_progress = self.envelope_time / self.release_time
                 self.envelope_value = self.sustain_level * (1.0 - release_progress)
 
-        elif self.envelope_phase == 'idle':
+        elif self.envelope_phase == "idle":
             self.envelope_value = 0.0
 
     def generate_sample(self, base_frequency: float) -> float:
@@ -140,12 +142,12 @@ class AdditivePartialOscillator:
 
     def is_active(self) -> bool:
         """Check if partial is still active."""
-        return self.envelope_phase != 'idle'
+        return self.envelope_phase != "idle"
 
     def reset(self):
         """Reset partial state."""
         self.phase = self.phase_offset
-        self.envelope_phase = 'idle'
+        self.envelope_phase = "idle"
         self.envelope_value = 0.0
         self.envelope_time = 0.0
 
@@ -161,14 +163,13 @@ class HarmonicSpectrum:
     def __init__(self, name: str = "custom"):
         """Initialize harmonic spectrum."""
         self.name = name
-        self.harmonics: dict[int, dict[str, float]] = {}  # harmonic_number -> {'amplitude': float, 'phase': float}
+        self.harmonics: dict[
+            int, dict[str, float]
+        ] = {}  # harmonic_number -> {'amplitude': float, 'phase': float}
 
     def set_harmonic(self, harmonic_number: int, amplitude: float, phase: float = 0.0):
         """Set parameters for a specific harmonic."""
-        self.harmonics[harmonic_number] = {
-            'amplitude': amplitude,
-            'phase': phase
-        }
+        self.harmonics[harmonic_number] = {"amplitude": amplitude, "phase": phase}
 
     def get_harmonic(self, harmonic_number: int) -> dict[str, float] | None:
         """Get parameters for a specific harmonic."""
@@ -227,12 +228,17 @@ class HarmonicSpectrum:
         all_harmonics = set(self.harmonics.keys()) | set(target_spectrum.harmonics.keys())
 
         for harmonic in all_harmonics:
-            source_harm = self.harmonics.get(harmonic, {'amplitude': 0.0, 'phase': 0.0})
-            target_harm = target_spectrum.harmonics.get(harmonic, {'amplitude': 0.0, 'phase': 0.0})
+            source_harm = self.harmonics.get(harmonic, {"amplitude": 0.0, "phase": 0.0})
+            target_harm = target_spectrum.harmonics.get(harmonic, {"amplitude": 0.0, "phase": 0.0})
 
             # Linear interpolation
-            amplitude = source_harm['amplitude'] * (1.0 - morph_factor) + target_harm['amplitude'] * morph_factor
-            phase = source_harm['phase'] * (1.0 - morph_factor) + target_harm['phase'] * morph_factor
+            amplitude = (
+                source_harm["amplitude"] * (1.0 - morph_factor)
+                + target_harm["amplitude"] * morph_factor
+            )
+            phase = (
+                source_harm["phase"] * (1.0 - morph_factor) + target_harm["phase"] * morph_factor
+            )
 
             morphed.set_harmonic(harmonic, amplitude, phase)
 
@@ -275,11 +281,11 @@ class AdditiveEngine(SynthesisEngine):
         # Global parameters
         self.master_volume = 1.0
         self.brightness = 1.0  # Spectral brightness control
-        self.spread = 0.0      # Stereo spread control
+        self.spread = 0.0  # Stereo spread control
 
         # Bandwidth optimization
         self.bandwidth_limit = 20000.0  # Hz
-        self.partial_decay = 1.0         # How quickly higher partials decay
+        self.partial_decay = 1.0  # How quickly higher partials decay
 
         # Initialize with sawtooth spectrum
         self.current_spectrum.create_sawtooth(min(32, self.max_partials))
@@ -294,10 +300,10 @@ class AdditiveEngine(SynthesisEngine):
         self._plugin_registry = get_global_plugin_registry()
         self._loaded_plugins: dict[str, SynthesisFeaturePlugin] = {}
         self._plugin_integration_points = {
-            'pre_synthesis': [],      # Called before synthesis
-            'post_synthesis': [],     # Called after synthesis
-            'midi_processing': [],    # MIDI message handlers
-            'parameter_processing': [] # Parameter processing
+            "pre_synthesis": [],  # Called before synthesis
+            "post_synthesis": [],  # Called after synthesis
+            "midi_processing": [],  # MIDI message handlers
+            "parameter_processing": [],  # Parameter processing
         }
 
         # Auto-load Jupiter-X analog plugin if available
@@ -306,13 +312,24 @@ class AdditiveEngine(SynthesisEngine):
     def get_engine_info(self) -> dict[str, Any]:
         """Get additive engine information."""
         return {
-            'name': 'Additive Synthesis Engine',
-            'type': 'additive',
-            'capabilities': ['additive_synthesis', 'harmonic_control', 'spectral_morphing', 'bandwidth_optimization'],
-            'formats': ['.add', '.harm'],  # Custom additive patch formats
-            'polyphony': 8,  # Additive synthesis is very CPU intensive
-            'parameters': ['spectrum_type', 'brightness', 'spread', 'morph_factor', 'bandwidth_limit'],
-            'max_partials': self.max_partials
+            "name": "Additive Synthesis Engine",
+            "type": "additive",
+            "capabilities": [
+                "additive_synthesis",
+                "harmonic_control",
+                "spectral_morphing",
+                "bandwidth_optimization",
+            ],
+            "formats": [".add", ".harm"],  # Custom additive patch formats
+            "polyphony": 8,  # Additive synthesis is very CPU intensive
+            "parameters": [
+                "spectrum_type",
+                "brightness",
+                "spread",
+                "morph_factor",
+                "bandwidth_limit",
+            ],
+            "max_partials": self.max_partials,
         }
 
     # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
@@ -320,21 +337,21 @@ class AdditiveEngine(SynthesisEngine):
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get additive synthesis preset information with proper region descriptors.
-        
+
         Args:
             bank: Preset bank number (0-127)
             program: Preset program number (0-127)
-            
+
         Returns:
             PresetInfo with region descriptors for additive synthesis
         """
         from .preset_info import PresetInfo
         from .region_descriptor import RegionDescriptor
-        
+
         # Additive engine uses harmonic synthesis with partials
         # Programs define harmonic spectra and partial configurations
         preset_name = f"Additive {bank}:{program}"
-        
+
         # Create region descriptors for additive synthesis
         # Additive supports polyphonic playback with full keyboard range
         descriptor = RegionDescriptor(
@@ -343,16 +360,16 @@ class AdditiveEngine(SynthesisEngine):
             key_range=(0, 127),
             velocity_range=(0, 127),
             algorithm_params={
-                'spectrum_type': 'harmonic',
-                'max_partials': self.max_partials,
-                'brightness': self.brightness,
-                'even_odd_ratio': 0.5,  # Ratio of even to odd harmonics
-                'random_detune': 0.01,  # Random detuning for richness
-                'partial_envelope': 'exponential',  # Partial amplitude envelope
-                'noise_component': 0.0  # Added noise component
-            }
+                "spectrum_type": "harmonic",
+                "max_partials": self.max_partials,
+                "brightness": self.brightness,
+                "even_odd_ratio": 0.5,  # Ratio of even to odd harmonics
+                "random_detune": 0.01,  # Random detuning for richness
+                "partial_envelope": "exponential",  # Partial amplitude envelope
+                "noise_component": 0.0,  # Added noise component
+            },
         )
-        
+
         return PresetInfo(
             bank=bank,
             program=program,
@@ -360,17 +377,17 @@ class AdditiveEngine(SynthesisEngine):
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
             is_monophonic=False,
-            category='additive_synthesis'
+            category="additive_synthesis",
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
         """
         Get all region descriptors for additive preset.
-        
+
         Args:
             bank: Preset bank number
             program: Preset program number
-            
+
         Returns:
             List of RegionDescriptor objects
         """
@@ -379,47 +396,45 @@ class AdditiveEngine(SynthesisEngine):
             return preset_info.region_descriptors
         return []
 
-    def create_region(
-        self,
-        descriptor: RegionDescriptor,
-        sample_rate: int
-    ) -> IRegion:
+    def create_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create additive region instance from descriptor.
-        
+
         Args:
             descriptor: Region descriptor with additive parameters
             sample_rate: Audio sample rate in Hz
-            
+
         Returns:
             IRegion instance for additive synthesis
         """
         from ..partial.additive_region import AdditiveRegion
-        
+
         # Create additive region with proper initialization
         region = AdditiveRegion(descriptor, sample_rate)
-        
+
         # Initialize the region (creates partials, envelopes)
         if not region.initialize():
             raise RuntimeError("Failed to initialize Additive region")
-        
+
         return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
         """
         Load sample data for additive region (algorithmic, no samples needed).
-        
+
         Args:
             region: Region to load sample for
-            
+
         Returns:
             True (Additive doesn't use samples)
         """
         # Additive synthesis is algorithmic - no sample loading required
         # Partials and envelopes are created during region initialization
-        return region._initialized if hasattr(region, '_initialized') else False
+        return region._initialized if hasattr(region, "_initialized") else False
 
-    def generate_samples(self, note: int, velocity: int, modulation: dict[str, float], block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, note: int, velocity: int, modulation: dict[str, float], block_size: int
+    ) -> np.ndarray:
         """
         Generate additive synthesis audio samples.
 
@@ -440,7 +455,7 @@ class AdditiveEngine(SynthesisEngine):
         base_freq = 440.0 * (2.0 ** ((note - 69) / 12.0))
 
         # Apply pitch bend
-        pitch_bend_semitones = modulation.get('pitch', 0.0) / 100.0  # Convert cents to semitones
+        pitch_bend_semitones = modulation.get("pitch", 0.0) / 100.0  # Convert cents to semitones
         bend_ratio = 2.0 ** (pitch_bend_semitones / 12.0)
         base_freq *= bend_ratio
 
@@ -499,6 +514,7 @@ class AdditiveEngine(SynthesisEngine):
     def create_partial(self, partial_params: dict[str, Any], sample_rate: int) -> AdditivePartial:
         """Create additive partial."""
         from ..partial.additive_partial import AdditivePartial
+
         return AdditivePartial(partial_params, sample_rate)
 
     def set_spectrum_type(self, spectrum_type: str, num_harmonics: int = 32):
@@ -511,13 +527,13 @@ class AdditiveEngine(SynthesisEngine):
         """
         num_harmonics = min(num_harmonics, self.max_partials)
 
-        if spectrum_type == 'sawtooth':
+        if spectrum_type == "sawtooth":
             self.current_spectrum.create_sawtooth(num_harmonics)
-        elif spectrum_type == 'square':
+        elif spectrum_type == "square":
             self.current_spectrum.create_square(num_harmonics)
-        elif spectrum_type == 'triangle':
+        elif spectrum_type == "triangle":
             self.current_spectrum.create_triangle(num_harmonics)
-        elif spectrum_type == 'pulse':
+        elif spectrum_type == "pulse":
             self.current_spectrum.create_pulse(0.5, num_harmonics)
         else:
             # Custom spectrum - keep current
@@ -581,13 +597,13 @@ class AdditiveEngine(SynthesisEngine):
         if 0 <= partial_idx < self.max_partials:
             partial = self.partials[partial_idx]
             return {
-                'frequency_ratio': partial.frequency_ratio,
-                'amplitude': partial.amplitude,
-                'phase_offset': partial.phase_offset,
-                'attack_time': partial.attack_time,
-                'decay_time': partial.decay_time,
-                'sustain_level': partial.sustain_level,
-                'release_time': partial.release_time
+                "frequency_ratio": partial.frequency_ratio,
+                "amplitude": partial.amplitude,
+                "phase_offset": partial.phase_offset,
+                "attack_time": partial.attack_time,
+                "decay_time": partial.decay_time,
+                "sustain_level": partial.sustain_level,
+                "release_time": partial.release_time,
             }
         return {}
 
@@ -596,8 +612,8 @@ class AdditiveEngine(SynthesisEngine):
         for harmonic_num, harmonic_data in self.current_spectrum.harmonics.items():
             if harmonic_num <= self.max_partials:
                 partial_idx = harmonic_num - 1  # 0-based indexing
-                amplitude = harmonic_data['amplitude']
-                phase = harmonic_data['phase']
+                amplitude = harmonic_data["amplitude"]
+                phase = harmonic_data["phase"]
 
                 # Apply bandwidth limiting and brightness
                 if harmonic_num * 100.0 > self.bandwidth_limit:  # Rough estimate
@@ -612,11 +628,13 @@ class AdditiveEngine(SynthesisEngine):
                 decay_factor = 1.0 / (1.0 + (harmonic_num - 1) * self.partial_decay * 0.01)
                 amplitude *= decay_factor
 
-                self.partials[partial_idx].set_parameters({
-                    'frequency_ratio': float(harmonic_num),
-                    'amplitude': amplitude,
-                    'phase_offset': phase
-                })
+                self.partials[partial_idx].set_parameters(
+                    {
+                        "frequency_ratio": float(harmonic_num),
+                        "amplitude": amplitude,
+                        "phase_offset": phase,
+                    }
+                )
 
     def apply_brightness_to_partials(self):
         """Reapply brightness to current spectrum."""
@@ -629,17 +647,21 @@ class AdditiveEngine(SynthesisEngine):
             self.morph_factor = min(1.0, self.morph_time / self.morph_duration)
 
             # Create morphed spectrum
-            morphed_spectrum = self.current_spectrum.morph_to(self.target_spectrum, self.morph_factor)
+            morphed_spectrum = self.current_spectrum.morph_to(
+                self.target_spectrum, self.morph_factor
+            )
 
             # Apply morphed spectrum
             for harmonic_num, harmonic_data in morphed_spectrum.harmonics.items():
                 if harmonic_num <= self.max_partials:
                     partial_idx = harmonic_num - 1
-                    self.partials[partial_idx].set_parameters({
-                        'frequency_ratio': float(harmonic_num),
-                        'amplitude': harmonic_data['amplitude'],
-                        'phase_offset': harmonic_data['phase']
-                    })
+                    self.partials[partial_idx].set_parameters(
+                        {
+                            "frequency_ratio": float(harmonic_num),
+                            "amplitude": harmonic_data["amplitude"],
+                            "phase_offset": harmonic_data["phase"],
+                        }
+                    )
 
     def note_on(self, note: int, velocity: int):
         """Handle note-on event."""
@@ -674,7 +696,7 @@ class AdditiveEngine(SynthesisEngine):
 
     def get_supported_formats(self) -> list[str]:
         """Get supported file formats."""
-        return ['.add', '.harm']
+        return [".add", ".harm"]
 
     def load_preset(self, preset_data: dict[str, Any]):
         """
@@ -684,15 +706,15 @@ class AdditiveEngine(SynthesisEngine):
             preset_data: Preset parameters dictionary
         """
         # Set spectrum type
-        spectrum_type = preset_data.get('spectrum_type', 'sawtooth')
-        num_harmonics = preset_data.get('num_harmonics', 32)
+        spectrum_type = preset_data.get("spectrum_type", "sawtooth")
+        num_harmonics = preset_data.get("num_harmonics", 32)
         self.set_spectrum_type(spectrum_type, num_harmonics)
 
         # Set global parameters
-        self.master_volume = preset_data.get('master_volume', 1.0)
-        self.brightness = preset_data.get('brightness', 1.0)
-        self.spread = preset_data.get('spread', 0.0)
-        self.bandwidth_limit = preset_data.get('bandwidth_limit', 20000.0)
+        self.master_volume = preset_data.get("master_volume", 1.0)
+        self.brightness = preset_data.get("brightness", 1.0)
+        self.spread = preset_data.get("spread", 0.0)
+        self.bandwidth_limit = preset_data.get("bandwidth_limit", 20000.0)
 
         # Apply settings
         self.apply_brightness_to_partials()
@@ -705,24 +727,24 @@ class AdditiveEngine(SynthesisEngine):
             Preset parameters dictionary
         """
         return {
-            'spectrum_type': 'custom',  # Could be improved to detect type
-            'num_harmonics': len(self.current_spectrum.harmonics),
-            'master_volume': self.master_volume,
-            'brightness': self.brightness,
-            'spread': self.spread,
-            'bandwidth_limit': self.bandwidth_limit,
-            'harmonics': self.current_spectrum.harmonics.copy()
+            "spectrum_type": "custom",  # Could be improved to detect type
+            "num_harmonics": len(self.current_spectrum.harmonics),
+            "master_volume": self.master_volume,
+            "brightness": self.brightness,
+            "spread": self.spread,
+            "bandwidth_limit": self.bandwidth_limit,
+            "harmonics": self.current_spectrum.harmonics.copy(),
         }
 
     def get_spectrum_info(self) -> dict[str, Any]:
         """Get current spectrum information."""
         return {
-            'name': self.current_spectrum.name,
-            'num_harmonics': len(self.current_spectrum.harmonics),
-            'morph_factor': self.morph_factor,
-            'brightness': self.brightness,
-            'spread': self.spread,
-            'bandwidth_limit': self.bandwidth_limit
+            "name": self.current_spectrum.name,
+            "num_harmonics": len(self.current_spectrum.harmonics),
+            "morph_factor": self.morph_factor,
+            "brightness": self.brightness,
+            "spread": self.spread,
+            "bandwidth_limit": self.bandwidth_limit,
         }
 
     # Plugin System Methods
@@ -731,8 +753,8 @@ class AdditiveEngine(SynthesisEngine):
         """Automatically load Jupiter-X analog plugin if available."""
         try:
             # Check if Jupiter-X analog plugin is available
-            available_plugins = self._plugin_registry.get_plugins_for_engine('analog')
-            jupiter_analog_plugin = 'jupiter_x.analog_extensions.JupiterXAnalogPlugin'
+            available_plugins = self._plugin_registry.get_plugins_for_engine("analog")
+            jupiter_analog_plugin = "jupiter_x.analog_extensions.JupiterXAnalogPlugin"
 
             if jupiter_analog_plugin in available_plugins:
                 success = self.load_plugin(jupiter_analog_plugin)
@@ -762,7 +784,7 @@ class AdditiveEngine(SynthesisEngine):
                 plugin_name,
                 engine_instance=self,
                 sample_rate=self.sample_rate,
-                block_size=self.block_size
+                block_size=self.block_size,
             )
 
             if success:
@@ -837,12 +859,12 @@ class AdditiveEngine(SynthesisEngine):
             pass
 
         # Register MIDI processing
-        if hasattr(plugin, 'process_midi_message'):
-            self._plugin_integration_points['midi_processing'].append(plugin)
+        if hasattr(plugin, "process_midi_message"):
+            self._plugin_integration_points["midi_processing"].append(plugin)
 
         # Register parameter processing
-        if hasattr(plugin, 'set_parameter'):
-            self._plugin_integration_points['parameter_processing'].append(plugin)
+        if hasattr(plugin, "set_parameter"):
+            self._plugin_integration_points["parameter_processing"].append(plugin)
 
     def _unregister_plugin_integration_points(self, plugin: SynthesisFeaturePlugin):
         """
@@ -869,7 +891,7 @@ class AdditiveEngine(SynthesisEngine):
             True if any plugin handled the message
         """
         handled = False
-        for plugin in self._plugin_integration_points['midi_processing']:
+        for plugin in self._plugin_integration_points["midi_processing"]:
             if plugin.process_midi_message(status, data1, data2):
                 handled = True
 
@@ -909,9 +931,7 @@ class AdditiveEngine(SynthesisEngine):
             return params.get(param_name)
         return None
 
-    def _create_base_region(
-        self, descriptor: RegionDescriptor, sample_rate: int
-    ) -> IRegion:
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
         """
         Create Additive base region without S.Art2 wrapper.
 

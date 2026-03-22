@@ -4,14 +4,16 @@ XG Multi-Band Equalizer Implementation
 Conforms to MIDI XG specification for system equalizer effects.
 Provides 5-band parametric EQ with XG-compliant parameter ranges and control.
 """
+
 from __future__ import annotations
 
-import numpy as np
 from typing import Any
-import math
+
+import numpy as np
 
 try:
     from scipy import signal
+
     SCIPY_AVAILABLE = True
 except ImportError:
     SCIPY_AVAILABLE = False
@@ -44,45 +46,45 @@ class XGMultiBandEqualizer:
             "low_mid_gain": 0.0,
             "mid_gain": 0.0,
             "high_mid_gain": 0.0,
-            "high_gain": 0.0
+            "high_gain": 0.0,
         },
         1: {  # Jazz
             "low_gain": 4.0,
             "low_mid_gain": 3.0,
             "mid_gain": -2.0,
             "high_mid_gain": 4.0,
-            "high_gain": 4.0
+            "high_gain": 4.0,
         },
         2: {  # Pops
             "low_gain": 5.0,
             "low_mid_gain": -2.0,
             "mid_gain": 2.0,
             "high_mid_gain": 5.0,
-            "high_gain": 3.0
+            "high_gain": 3.0,
         },
         3: {  # Rock
             "low_gain": 5.0,
             "low_mid_gain": 3.0,
             "mid_gain": -2.0,
             "high_mid_gain": -2.0,
-            "high_gain": 4.0
+            "high_gain": 4.0,
         },
         4: {  # Concert
             "low_gain": 4.0,
             "low_mid_gain": 2.0,
             "mid_gain": 0.0,
             "high_mid_gain": 2.0,
-            "high_gain": 4.0
-        }
+            "high_gain": 4.0,
+        },
     }
 
     # Fixed frequency bands (XG specification)
     BAND_FREQUENCIES = {
-        "low": 100.0,        # Low shelving
-        "low_mid": 300.0,    # Low-mid parametric
-        "mid": 1000.0,       # Mid parametric (variable 100-5220 Hz)
+        "low": 100.0,  # Low shelving
+        "low_mid": 300.0,  # Low-mid parametric
+        "mid": 1000.0,  # Mid parametric (variable 100-5220 Hz)
         "high_mid": 3000.0,  # High-mid parametric
-        "high": 8000.0       # High shelving
+        "high": 8000.0,  # High shelving
     }
 
     def __init__(self, sample_rate: int = 44100):
@@ -99,13 +101,13 @@ class XGMultiBandEqualizer:
 
         # XG EQ Parameters
         self.eq_type = 0  # 0-4 (Flat, Jazz, Pops, Rock, Concert)
-        self.low_gain_db = 0.0      # -12 to +12 dB
+        self.low_gain_db = 0.0  # -12 to +12 dB
         self.low_mid_gain_db = 0.0  # Fixed gain for low-mid band
-        self.mid_gain_db = 0.0      # -12 to +12 dB
-        self.high_mid_gain_db = 0.0 # Fixed gain for high-mid band
-        self.high_gain_db = 0.0     # -12 to +12 dB
-        self.mid_freq_hz = 1000.0   # 100-5220 Hz
-        self.q_factor = 1.0         # 0.5-5.5
+        self.mid_gain_db = 0.0  # -12 to +12 dB
+        self.high_mid_gain_db = 0.0  # Fixed gain for high-mid band
+        self.high_gain_db = 0.0  # -12 to +12 dB
+        self.mid_freq_hz = 1000.0  # 100-5220 Hz
+        self.q_factor = 1.0  # 0.5-5.5
 
         # Internal filter coefficients (pre-computed for performance)
         self._filter_coeffs = {}
@@ -119,11 +121,21 @@ class XGMultiBandEqualizer:
     def _initialize_filters(self):
         """Initialize biquad filter coefficients for each EQ band"""
         self._filter_coeffs = {
-            "low": self._create_shelving_coefficients("low", self.BAND_FREQUENCIES["low"], self.low_gain_db),
-            "low_mid": self._create_parametric_coefficients(self.BAND_FREQUENCIES["low_mid"], self.low_mid_gain_db, self.q_factor),
-            "mid": self._create_parametric_coefficients(self.mid_freq_hz, self.mid_gain_db, self.q_factor),
-            "high_mid": self._create_parametric_coefficients(self.BAND_FREQUENCIES["high_mid"], self.high_mid_gain_db, self.q_factor),
-            "high": self._create_shelving_coefficients("high", self.BAND_FREQUENCIES["high"], self.high_gain_db)
+            "low": self._create_shelving_coefficients(
+                "low", self.BAND_FREQUENCIES["low"], self.low_gain_db
+            ),
+            "low_mid": self._create_parametric_coefficients(
+                self.BAND_FREQUENCIES["low_mid"], self.low_mid_gain_db, self.q_factor
+            ),
+            "mid": self._create_parametric_coefficients(
+                self.mid_freq_hz, self.mid_gain_db, self.q_factor
+            ),
+            "high_mid": self._create_parametric_coefficients(
+                self.BAND_FREQUENCIES["high_mid"], self.high_mid_gain_db, self.q_factor
+            ),
+            "high": self._create_shelving_coefficients(
+                "high", self.BAND_FREQUENCIES["high"], self.high_gain_db
+            ),
         }
 
         # Initialize filter states for each band [left_x1, left_x2, left_y1, left_y2, right_x1, right_x2, right_y1, right_y2]
@@ -197,7 +209,7 @@ class XGMultiBandEqualizer:
         b2 *= sign_a
 
         # Normalize by a0
-        return np.array([b0/a0, b1/a0, b2/a0, a1/a0, a2/a0], dtype=np.float64)
+        return np.array([b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0], dtype=np.float64)
 
     def _create_parametric_coefficients(self, freq: float, gain_db: float, q: float) -> np.ndarray:
         """
@@ -337,11 +349,21 @@ class XGMultiBandEqualizer:
 
     def _update_filter_coefficients(self):
         """Update all filter coefficients based on current parameters"""
-        self._filter_coeffs["low"] = self._create_shelving_coefficients("low", self.BAND_FREQUENCIES["low"], self.low_gain_db)
-        self._filter_coeffs["low_mid"] = self._create_parametric_coefficients(self.BAND_FREQUENCIES["low_mid"], self.low_mid_gain_db, self.q_factor)
-        self._filter_coeffs["mid"] = self._create_parametric_coefficients(self.mid_freq_hz, self.mid_gain_db, self.q_factor)
-        self._filter_coeffs["high_mid"] = self._create_parametric_coefficients(self.BAND_FREQUENCIES["high_mid"], self.high_mid_gain_db, self.q_factor)
-        self._filter_coeffs["high"] = self._create_shelving_coefficients("high", self.BAND_FREQUENCIES["high"], self.high_gain_db)
+        self._filter_coeffs["low"] = self._create_shelving_coefficients(
+            "low", self.BAND_FREQUENCIES["low"], self.low_gain_db
+        )
+        self._filter_coeffs["low_mid"] = self._create_parametric_coefficients(
+            self.BAND_FREQUENCIES["low_mid"], self.low_mid_gain_db, self.q_factor
+        )
+        self._filter_coeffs["mid"] = self._create_parametric_coefficients(
+            self.mid_freq_hz, self.mid_gain_db, self.q_factor
+        )
+        self._filter_coeffs["high_mid"] = self._create_parametric_coefficients(
+            self.BAND_FREQUENCIES["high_mid"], self.high_mid_gain_db, self.q_factor
+        )
+        self._filter_coeffs["high"] = self._create_shelving_coefficients(
+            "high", self.BAND_FREQUENCIES["high"], self.high_gain_db
+        )
 
     def process_buffer(self, buffer: np.ndarray) -> np.ndarray:
         """
@@ -402,7 +424,9 @@ class XGMultiBandEqualizer:
 
         return output
 
-    def _apply_biquad_filter_vectorized(self, stereo_buffer: np.ndarray, band_name: str) -> np.ndarray:
+    def _apply_biquad_filter_vectorized(
+        self, stereo_buffer: np.ndarray, band_name: str
+    ) -> np.ndarray:
         """
         HIGHLY OPTIMIZED: Apply biquad filter to stereo buffer using true vectorized operations
 
@@ -432,24 +456,40 @@ class XGMultiBandEqualizer:
             from scipy import signal
 
             # Process left channel with preserved filter state
-            left_initial_conditions = signal.lfiltic([b0, b1, b2], [1.0, a1, a2],
-                                                    [state[2], state[3]],  # y values [y(n-1), y(n-2)]
-                                                    [state[0], state[1]])  # x values [x(n-1), x(n-2)]
-            left_out, left_final_state = signal.lfilter([b0, b1, b2], [1.0, a1, a2],
-                                                       left_in, zi=left_initial_conditions)
+            left_initial_conditions = signal.lfiltic(
+                [b0, b1, b2],
+                [1.0, a1, a2],
+                [state[2], state[3]],  # y values [y(n-1), y(n-2)]
+                [state[0], state[1]],
+            )  # x values [x(n-1), x(n-2)]
+            left_out, left_final_state = signal.lfilter(
+                [b0, b1, b2], [1.0, a1, a2], left_in, zi=left_initial_conditions
+            )
 
             # Process right channel with preserved filter state
-            right_initial_conditions = signal.lfiltic([b0, b1, b2], [1.0, a1, a2],
-                                                     [state[6], state[7]],  # y values [y(n-1), y(n-2)]
-                                                     [state[4], state[5]])  # x values [x(n-1), x(n-2)]
-            right_out, right_final_state = signal.lfilter([b0, b1, b2], [1.0, a1, a2],
-                                                         right_in, zi=right_initial_conditions)
+            right_initial_conditions = signal.lfiltic(
+                [b0, b1, b2],
+                [1.0, a1, a2],
+                [state[6], state[7]],  # y values [y(n-1), y(n-2)]
+                [state[4], state[5]],
+            )  # x values [x(n-1), x(n-2)]
+            right_out, right_final_state = signal.lfilter(
+                [b0, b1, b2], [1.0, a1, a2], right_in, zi=right_initial_conditions
+            )
 
             # Update the state with final values from the filter
-            state[0:4] = [left_in[-1], left_in[-2] if len(left_in) > 1 else left_in[-1],
-                         left_final_state[0], left_final_state[1]]  # x1, x2, y1, y2 for left
-            state[4:8] = [right_in[-1], right_in[-2] if len(right_in) > 1 else right_in[-1],
-                         right_final_state[0], right_final_state[1]]  # x1, x2, y1, y2 for right
+            state[0:4] = [
+                left_in[-1],
+                left_in[-2] if len(left_in) > 1 else left_in[-1],
+                left_final_state[0],
+                left_final_state[1],
+            ]  # x1, x2, y1, y2 for left
+            state[4:8] = [
+                right_in[-1],
+                right_in[-2] if len(right_in) > 1 else right_in[-1],
+                right_final_state[0],
+                right_final_state[1],
+            ]  # x1, x2, y1, y2 for right
         else:
             # Pure NumPy implementation as fallback - not ideal but functional
             # Process left channel
@@ -528,7 +568,7 @@ class XGMultiBandEqualizer:
             "high_mid_gain_db": self.high_mid_gain_db,
             "high_gain_db": self.high_gain_db,
             "mid_freq_hz": self.mid_freq_hz,
-            "q_factor": self.q_factor
+            "q_factor": self.q_factor,
         }
 
     def set_parameters(self, params: dict[str, Any]):

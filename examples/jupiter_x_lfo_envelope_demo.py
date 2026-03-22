@@ -15,10 +15,12 @@ implemented for the Jupiter-X synthesizer, including:
 Run with: python examples/jupiter_x_lfo_envelope_demo.py
 """
 
-import numpy as np
 import time
-from synth.jupiter_x import JupiterXComponentManager, JupiterXMIDIController
+
+import numpy as np
+
 from synth.core.oscillator import UltraFastXGLFO
+from synth.jupiter_x import JupiterXComponentManager, JupiterXMIDIController
 
 
 def demo_jupiter_x_lfo_waveforms():
@@ -32,7 +34,7 @@ def demo_jupiter_x_lfo_waveforms():
         ("triangle", "Linear rise/fall modulation"),
         ("square", "Abrupt on/off modulation"),
         ("random_sh", "Jupiter-X Random Sample & Hold"),
-        ("trapezoid", "Jupiter-X Trapezoid wave")
+        ("trapezoid", "Jupiter-X Trapezoid wave"),
     ]
 
     lfos = []
@@ -52,8 +54,7 @@ def demo_jupiter_x_lfo_waveforms():
         max_val = np.max(buffer)
 
         print(f"{name:12}: {desc}")
-        print(".3f"
-              f"              Range: [{min_val:.2f}, {max_val:.2f}]")
+        print(f".3f              Range: [{min_val:.2f}, {max_val:.2f}]")
         print()
 
 
@@ -79,8 +80,7 @@ def demo_audio_rate_lfo():
         processing_time = end_time - start_time
         latency_ms = processing_time * 1000
 
-        print("6.1f"
-              f"              Latency: {latency_ms:.2f}ms")
+        print(f"6.1f              Latency: {latency_ms:.2f}ms")
         print()
 
 
@@ -96,7 +96,7 @@ def demo_per_engine_lfo():
     engines_config = [
         (0, "Analog", "sine", 5.0, ["pitch"]),
         (2, "FM", "triangle", 12.0, ["amplitude", "pan"]),
-        (1, "Digital", "random_sh", 8.0, ["filter"])
+        (1, "Digital", "random_sh", 8.0, ["filter"]),
     ]
 
     for engine_type, engine_name, waveform, rate, destinations in engines_config:
@@ -112,7 +112,7 @@ def demo_per_engine_lfo():
         lfo.set_parameters(waveform=waveform, rate=rate, depth=0.6)
 
         # Set modulation routing
-        routing_kwargs = {dest: True for dest in destinations}
+        routing_kwargs = dict.fromkeys(destinations, True)
         lfo.set_modulation_routing(**routing_kwargs)
 
         # Configure Jupiter-X features
@@ -149,10 +149,10 @@ def demo_advanced_envelopes():
 
     # Enable velocity sensitivity
     envelope.set_velocity_sensitivity(
-        attack_sens=0.5,    # 50% velocity influence on attack
-        decay_sens=0.3,     # 30% on decay
-        sustain_sens=0.8,   # 80% on sustain
-        release_sens=0.2    # 20% on release
+        attack_sens=0.5,  # 50% velocity influence on attack
+        decay_sens=0.3,  # 30% on decay
+        sustain_sens=0.8,  # 80% on sustain
+        release_sens=0.2,  # 20% on release
     )
 
     # Test different triggering modes
@@ -248,7 +248,7 @@ def demo_complete_workflow():
     print("Processing MIDI sequence...")
 
     # Note on
-    result = synth.process_midi_message(0, 'note_on', note=60, velocity=100)
+    result = synth.process_midi_message(0, "note_on", note=60, velocity=100)
     print(f"Note On (C4, vel=100): {'Success' if result else 'Failed'}")
 
     # Generate audio blocks
@@ -263,7 +263,7 @@ def demo_complete_workflow():
             print(".3f")
 
     # Note off
-    synth.process_midi_message(0, 'note_off', note=60, velocity=0)
+    synth.process_midi_message(0, "note_off", note=60, velocity=0)
     print("Note Off: Processed")
 
     # Generate release tail
@@ -306,6 +306,7 @@ def main():
     except Exception as e:
         print(f"❌ Demo failed with error: {e}")
         import traceback
+
         traceback.print_exc()
 
 

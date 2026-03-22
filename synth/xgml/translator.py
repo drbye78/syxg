@@ -6,34 +6,20 @@ Converts XGML documents to MIDI message sequences that can be fed to the XG synt
 
 from __future__ import annotations
 
-from typing import Any
-import math
-from collections import defaultdict
+from synth.midi import MIDIMessage
 
 from .constants import (
-    PROGRAM_NAMES,
-    CONTROLLER_NAMES,
-    PAN_POSITIONS,
-    SYSTEM_EFFECT_TYPES,
-    VARIATION_EFFECT_TYPES,
-    INSERTION_EFFECT_TYPES,
-    FILTER_TYPES,
-    LFO_WAVEFORMS,
     CONTROLLER_ASSIGNMENTS,
-    SYNTHESIS_ENGINES,
-    GS_REVERB_TYPES,
-    GS_CHORUS_TYPES,
-    GS_DELAY_TYPES,
-    MPE_CONTROLLERS,
-    ADVANCED_EFFECT_TYPES,
+    CONTROLLER_NAMES,
     EQ_TYPES,
+    FILTER_TYPES,
+    GS_CHORUS_TYPES,
+    GS_REVERB_TYPES,
+    LFO_WAVEFORMS,
+    PAN_POSITIONS,
+    PROGRAM_NAMES,
     TEMPERAMENTS,
-    MODULATION_SOURCES,
-    MODULATION_DESTINATIONS,
-    AUTOMATION_CURVE_TYPES,
-    ENVELOPE_STAGES,
 )
-from synth.midi import MIDIMessage
 
 
 class XGMLToMIDITranslator:
