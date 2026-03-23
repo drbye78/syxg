@@ -277,7 +277,7 @@ class MIDIMessage:
             timestamp: Message timestamp (auto-generated if None)
             **kwargs: Additional data fields (merged into data dict)
         """
-        self.timestamp = timestamp or time.time()
+        self.timestamp = time.time() if timestamp is None else timestamp
         self.type = type
         self.channel = channel
         self.data = data or {}
