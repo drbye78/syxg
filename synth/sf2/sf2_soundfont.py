@@ -429,8 +429,8 @@ class SF2SoundFont:
             if not preset:
                 return None
 
-            # Get matching zones
-            matching_zones = preset.get_matching_zones(note, velocity)
+            # Get matching zones from cache manager
+            matching_zones = self.zone_cache_manager.get_preset_zones(bank, program, note, velocity)
             if not matching_zones:
                 return None
 
@@ -708,8 +708,10 @@ class SF2SoundFont:
         if not instrument:
             return {}
 
-        # Get instrument zones
-        instrument_zones = instrument.get_matching_zones(note, velocity)
+        # Get instrument zones from cache manager
+        instrument_zones = self.zone_cache_manager.get_instrument_zones(
+            instrument_index, note, velocity
+        )
         if not instrument_zones:
             return {}
 
