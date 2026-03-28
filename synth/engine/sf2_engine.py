@@ -625,7 +625,8 @@ class SF2Engine(SynthesisEngine):
         """
         from ..partial.sf2_region import SF2Region
 
-        return SF2Region(descriptor, sample_rate, self.soundfont_manager, synth=self.synth)
+        region = SF2Region(descriptor, sample_rate, self.soundfont_manager, synth=self.synth)
+        return region
 
     def load_sample_for_region(self, region: IRegion) -> bool:
         """

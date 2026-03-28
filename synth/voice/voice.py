@@ -165,7 +165,7 @@ class Voice:
 
     def _get_or_create_region(self, descriptor: RegionDescriptor) -> IRegion:
         """
-        Get region from cache or create new instance.
+        Get or create region for descriptor.
 
         Args:
             descriptor: Region descriptor

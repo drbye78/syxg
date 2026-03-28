@@ -280,7 +280,7 @@ class SF2Partial(SynthesisPartial):
         self._pan_position: float = 0.0
 
         # Envelope state (managed by envelope processor)
-        self._mod_env_state: dict = {"stage": "idle", "level": 0.0, "stage_time": 0.0}
+        self._mod_env_state: dict | None = None
         self._amp_env_state: dict = {"stage": "idle", "level": 0.0, "stage_time": 0.0}
 
         # LFO phase tracking (managed by LFO processors)
@@ -424,11 +424,9 @@ class SF2Partial(SynthesisPartial):
                 f"SF2Partial.generate_samples() failed: {e}",
                 exc_info=True,
                 extra={
-                    "partial_id": self.region.sample_id
-                    if hasattr(self.region, "sample_id")
-                    else None,
-                    "note": self.current_note,
-                    "velocity": self.current_velocity,
+                    "partial_id": self.params.get("sample_id"),
+                    "note": self.params.get("note"),
+                    "velocity": self.params.get("velocity"),
                     "block_size": block_size,
                 },
             )
@@ -1488,7 +1486,7 @@ class SF2Partial(SynthesisPartial):
         self._ensure_buffers_allocated(block_size)
 
         # Initialize modulation envelope if needed
-        if not hasattr(self, "_mod_env_state"):
+        if self._mod_env_state is None:
             self._init_modulation_envelope_state()
 
         # Generate modulation envelope samples
@@ -1757,24 +1755,29 @@ class SF2Partial(SynthesisPartial):
         # This is a simplified implementation until proper filter interface is available
         if self.filter and hasattr(self.filter, "process_block"):
             try:
-                # Process the audio through the filter
-                # Note: This assumes filter.process_block can handle stereo interleaved data
-                audio_to_process = self.audio_buffer[: block_size * 2]
-                filtered_audio = self.filter.process_block(audio_to_process)
-                if filtered_audio is not None and len(filtered_audio) == len(audio_to_process):
-                    self.audio_buffer[: block_size * 2] = filtered_audio
+                # Split stereo buffer into left and right channels
+                left_input = self.audio_buffer[: block_size * 2 : 2]
+                right_input = self.audio_buffer[1 : block_size * 2 : 2]
+
+                # Process through filter with separate left/right inputs
+                filtered_left, filtered_right = self.filter.process_block(
+                    left_input, right_input
+                )
+
+                if filtered_left is not None and filtered_right is not None:
+                    # Write filtered audio back to interleaved stereo buffer
+                    self.audio_buffer[: block_size * 2 : 2] = filtered_left
+                    self.audio_buffer[1 : block_size * 2 : 2] = filtered_right
             except Exception as e:
                 # If filter processing fails, continue without filtering
                 import logging
 
                 logger = logging.getLogger(__name__)
                 logger.warning(
-                    f"SF2Partial._apply_filter_modulation() filter processing failed: {e}",
+                    f"SF2Partial._apply_filter_realtime() filter processing failed: {e}",
                     exc_info=True,
                     extra={
-                        "partial_id": self.region.sample_id
-                        if hasattr(self.region, "sample_id")
-                        else None,
+                        "partial_id": self.params.get("sample_id"),
                         "filter_type": type(self.filter).__name__,
                     },
                 )

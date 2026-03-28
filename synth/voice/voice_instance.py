@@ -153,12 +153,9 @@ class VoiceInstance:
         pass
 
     def add_region(self, region: IRegion) -> None:
-        """
-        Add a region to this voice instance.
-
-        Args:
-            region: Region object (implements IRegion interface)
-        """
+        """Add a region to this voice instance."""
+        if region not in self.active_regions:
+            self.active_regions.append(region)
         self.regions.append(region)
 
     def note_on(self, velocity: int) -> None:
@@ -170,13 +167,16 @@ class VoiceInstance:
         """
         self.velocity = velocity
 
+        self.active_regions.clear()
         for region in self.regions:
             try:
-                region.note_on(velocity, self.note)
+                # Skip regions without sample_id (global zones)
+                if region.descriptor.sample_id is None:
+                    continue
+                if region.note_on(velocity, self.note):
+                    self.active_regions.append(region)
             except Exception as e:
                 logger.error(f"VoiceInstance region note_on failed: {e}")
-
-        self.active_regions = self.regions.copy()
 
     def note_off(self, velocity: int = 64) -> None:
         """
@@ -282,7 +282,8 @@ class VoiceInstance:
         active_count = 0
 
         for region in self.active_regions:
-            if region.is_active():
+            is_region_active = region.is_active()
+            if is_region_active:
                 try:
                     # Generate samples from region
                     samples = region.generate_samples(block_size, self.modulation_state)
@@ -342,7 +343,8 @@ class VoiceInstance:
 
         # Crossfade gain from region
         if hasattr(region, "calculate_crossfade_gain"):
-            gain *= region.calculate_crossfade_gain(self.note, self.velocity)
+            crossfade_gain = region.calculate_crossfade_gain(self.note, self.velocity)
+            gain *= crossfade_gain
 
         return gain
 

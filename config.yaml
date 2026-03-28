@@ -90,7 +90,7 @@ parts:
     program: 0
     bank_msb: 0
     bank_lsb: 0
-    volume: 100
+    volume: 127
     pan: 64
     expression: 127
     reverb_send: 40

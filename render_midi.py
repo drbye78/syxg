@@ -395,7 +395,7 @@ def main():
                 volume=master_volume,
                 silent=silent,
                 abort_event=abort_event,
-                render_limit=50.0,
+                render_limit=None,  # Remove the 5 second limit
                 timeout_seconds=150.0,
             ):
                 success_count += 1

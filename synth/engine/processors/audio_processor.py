@@ -186,7 +186,15 @@ class AudioProcessor:
             if self.synthesizer.xg_enabled and active_voices > 0:
                 self._apply_xg_effects(block_size)
 
-            return self.synthesizer.output_buffer
+        # Apply master volume
+        if hasattr(self.synthesizer, "master_volume") and self.synthesizer.master_volume != 1.0:
+            np.multiply(
+                self.synthesizer.output_buffer[:block_size],
+                self.synthesizer.master_volume,
+                out=self.synthesizer.output_buffer[:block_size],
+            )
+
+        return self.synthesizer.output_buffer
 
     def _generate_audio_block_buffered(self, block_size: int) -> np.ndarray:
         """
@@ -270,6 +278,13 @@ class AudioProcessor:
                             # Truncate
                             channel_audio = channel_audio[:segment_length]
 
+                    # Copy channel audio to channel buffer for effects processing
+                    # This is required by the XG effects coordinator
+                    if i < len(self.synthesizer.channel_buffers):
+                        self.synthesizer.channel_buffers[i][
+                            block_offset : block_offset + segment_length
+                        ] = channel_audio
+
                     # Mix to output (SIMD addition)
                     np.add(
                         self.synthesizer.output_buffer[
@@ -298,6 +313,14 @@ class AudioProcessor:
         # Apply XG effects if enabled and there are active voices
         if self.synthesizer.xg_enabled and active_voices > 0:
             self._apply_xg_effects(block_size)
+
+        # Apply master volume
+        if hasattr(self.synthesizer, "master_volume") and self.synthesizer.master_volume != 1.0:
+            np.multiply(
+                self.synthesizer.output_buffer[:block_size],
+                self.synthesizer.master_volume,
+                out=self.synthesizer.output_buffer[:block_size],
+            )
 
         return self.synthesizer.output_buffer
 
@@ -363,6 +386,14 @@ class AudioProcessor:
         # Apply XG effects if enabled
         if self.synthesizer.xg_enabled and active_voices > 0:
             self._apply_xg_effects(block_size)
+
+        # Apply master volume
+        if hasattr(self.synthesizer, "master_volume") and self.synthesizer.master_volume != 1.0:
+            np.multiply(
+                self.synthesizer.output_buffer[:block_size],
+                self.synthesizer.master_volume,
+                out=self.synthesizer.output_buffer[:block_size],
+            )
 
         return self.synthesizer.output_buffer
 

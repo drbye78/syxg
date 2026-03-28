@@ -7,14 +7,18 @@ Separated from frontend CLI interface for better modularity.
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
+import numpy as np
 
 from synth.audio.writer import AudioWriter
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
 from synth.midi import FileParser, MIDIMessage
 from synth.utils.progress import ProgressReporter
 from synth.xgml import XGMLParser, XGMLToMIDITranslator
+
+print(f"DEBUG: converter.py imports complete", file=sys.stderr)
 
 
 class AudioConverter:
@@ -160,12 +164,19 @@ class AudioConverter:
         Returns:
             True if conversion successful, False otherwise
         """
+        import sys
+
         try:
             if not silent:
                 print(f"Converting {input_file} -> {output_file}")
 
             # Parse input file (MIDI or XGML)
+            print(f"DEBUG: Parsing audio file {input_file}", file=sys.stderr)
             midi_messages, duration = self.parse_audio_file(input_file)
+            print(
+                f"DEBUG: Parsed {len(midi_messages) if midi_messages else 0} messages, duration={duration}",
+                file=sys.stderr,
+            )
 
             if midi_messages is None or duration is None:
                 return False

@@ -933,13 +933,13 @@ class SF2SoundFont:
                         sample.name, sample.data, sample.sample_rate
                     )
 
-            # Cache sample
-            self.samples[sample_id] = sample
-
-            return True
+                # Cache sample
+                self.samples[sample_id] = sample
+                return True
+            else:
+                return False
 
         except Exception as e:
-            print(f"Error loading sample {sample_id}: {e}")
             return False
 
     def get_sample_data(self, sample_id: int) -> Any | None:
@@ -953,7 +953,13 @@ class SF2SoundFont:
             Processed sample data or None
         """
         sample = self._get_or_load_sample(sample_id)
-        return sample.data if sample and sample.data_loaded else None
+        if sample:
+            if sample.data_loaded:
+                return sample.data
+            else:
+                return None
+        else:
+            return None
 
     def get_available_programs(self) -> list[tuple[int, int, str]]:
         """

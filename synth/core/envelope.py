@@ -110,8 +110,6 @@ def _numba_process_envelope_block_robust(
             else:
                 # Delay complete, transition to attack
                 state = 2  # EnvelopeState.ATTACK
-                # Continue processing this sample with new state
-                continue
 
         if state == 2:  # EnvelopeState.ATTACK
             # Calculate attack increment from current level

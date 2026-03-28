@@ -42,8 +42,8 @@ from synth.core.panner import PannerPool
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from ..core.constants import DEFAULT_CONFIG
-from ..midi.parser import MIDIMessage
-from ..sf2.manager import SF2Manager
+from ..midi.message import MIDIMessage
+from ..sf2.sf2_soundfont_manager import SF2SoundFontManager
 from ..xg.drum_manager import DrumManager
 from ..xg.xg_receive_channel_manager import XGReceiveChannelManager
 from ..xg.xg_rpn_controller import XGRPNController
@@ -66,7 +66,7 @@ from ..audio.writer import AudioWriter
 # XG Effects System Integration - Production-Ready Effects Coordinator
 from ..effects import (
     XGEffectsCoordinator,  # Main coordinator (production-ready)
-    )
+)
 from ..effects.xg_nrpn_controller import XGNRPNController
 from ..effects.xg_sysex_controller import XGSYSEXController
 
@@ -152,7 +152,9 @@ class OptimizedXGSynthesizer:
         self.drum_manager = DrumManager()
 
         # SF2 file management
-        self.sf2_manager = SF2Manager(param_cache=param_cache, drum_manager=self.drum_manager)
+        self.sf2_manager = SF2SoundFontManager(
+            param_cache=param_cache, drum_manager=self.drum_manager
+        )
         if sf2_files:
             self.sf2_manager.set_sf2_files(sf2_files)
 

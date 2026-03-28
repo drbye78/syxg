@@ -422,9 +422,20 @@ class Channel:
         self.bank_lsb = bank_lsb
         self.bank = (bank_msb << 7) | bank_lsb
 
+        # Special handling for channel 9 (drums) in XG/GS
+        # Channel 9 is the rhythm channel, and program changes select drum kits
+        # In SoundFonts, drum kits are typically in Bank 128
+        # If channel is 9 and bank is 0 (default), use Bank 128 for drum kits
+        if self.channel_number == 9 and self.bank == 0:
+            # Map to Bank 128 (drum bank) with same program number
+            # This assumes drum kits are in Bank 128, Program 0-127
+            drum_bank = 128
+        else:
+            drum_bank = self.bank
+
         # Create new voice using factory
         self.current_voice = self.voice_factory.create_voice(
-            bank=self.bank,
+            bank=drum_bank,
             program=program,
             channel=self.channel_number,
             sample_rate=self.sample_rate,
@@ -617,6 +628,9 @@ class Channel:
                 # Fallback: try legacy single voice
                 self.current_voice.note_on(transposed_note, velocity)
                 return True
+            print(
+                f"DEBUG: No regions for note {transposed_note} on channel {self.channel_number}. current_voice={self.current_voice}"
+            )
             return False
 
         # Trigger note-on for the voice instance
@@ -1276,7 +1290,8 @@ class Channel:
         voices_to_remove = []
 
         for voice_id, voice_instance in list(self.active_voices.items()):
-            if voice_instance.is_active():
+            is_active = voice_instance.is_active()
+            if is_active:
                 # Get samples from this voice instance
                 voice_audio = voice_instance.generate_samples(block_size)
 

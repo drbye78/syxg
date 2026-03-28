@@ -308,12 +308,16 @@ RESEARCH FEATURES:
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 from .components.gs_components import GSMIDIProcessor, GSStateManager
 from .components.parameter_systems import ParameterPrioritySystem, PerformanceMonitor
@@ -415,6 +419,9 @@ class ModernXGSynthesizer:
 
         # Performance monitoring
         self.performance_monitor = PerformanceMonitor()
+
+        # Master volume (0.0 to 1.0)
+        self.master_volume = 1.0
 
         print("🎹 ENHANCED MODERN XG/GS SYNTHESIZER: Initializing...")
         print(f"   Sample Rate: {sample_rate}Hz, Channels: {max_channels}")

@@ -114,6 +114,29 @@ class AvWriter:
         # Encode and write the frame
         for packet in self.stream.encode(frame):
             self.container.mux(packet)
+            return
+
+        # Create audio frame with float format
+        rawdata = audio.reshape((1, -1))
+        frame = av.AudioFrame.from_ndarray(rawdata, format="flt", layout="stereo")
+        frame.sample_rate = self.sample_rate
+        frame.time_base = Fraction(1, self.sample_rate)
+
+        # Encode and write the frame
+        packets_written = 0
+        for packet in self.stream.encode(frame):
+            self.container.mux(packet)
+            packets_written += 1
+
+        # Print debug info every 100 writes
+        if not hasattr(self, "_write_count"):
+            self._write_count = 0
+        self._write_count += 1
+        if self._write_count % 100 == 0:
+            print(
+                f"DEBUG: AudioWriter wrote {self._write_count} blocks, packets_written={packets_written}",
+                file=sys.stderr,
+            )
 
     def _get_codec(self, format_name: str) -> str:
         """Get the appropriate codec for a given format"""

@@ -672,22 +672,26 @@ class VectorizedChannelRenderer:
     def cleanup(self):
         """Complete cleanup of all resources."""
         # Clean up active notes
-        for note, channel_note in list(self.active_notes.items()):
-            if hasattr(channel_note, "cleanup"):
-                channel_note.cleanup()  # type: ignore
-            del self.active_notes[note]
+        if hasattr(self, "active_notes"):
+            for note, channel_note in list(self.active_notes.items()):
+                if hasattr(channel_note, "cleanup"):
+                    channel_note.cleanup()  # type: ignore
+                del self.active_notes[note]
 
         # Return LFOs to pool
-        for lfo in self.lfos:
-            if hasattr(self.synth, "lfo_pool"):
-                self.synth.lfo_pool.release_oscillator(lfo)
+        if hasattr(self, "lfos"):
+            for lfo in self.lfos:
+                if hasattr(self.synth, "lfo_pool"):
+                    self.synth.lfo_pool.release_oscillator(lfo)
 
         # Clean up buffers
         self.cleanup_buffers()
 
         # Clear references
-        self.lfos.clear()
-        self.active_notes.clear()
+        if hasattr(self, "lfos"):
+            self.lfos.clear()
+        if hasattr(self, "active_notes"):
+            self.active_notes.clear()
 
     def __del__(self):
         """Cleanup when VectorizedChannelRenderer is destroyed."""
