@@ -709,7 +709,7 @@ class ModernXGSynthesizer:
             jupiter_x_engine = JupiterXEngineIntegration(
                 sample_rate=self.sample_rate,
                 block_size=self.block_size,
-                buffer_oool=self.buffer_pool,
+                buffer_pool=self.buffer_pool,
             )
 
             # Register Jupiter-X engine with the engine registry (high priority)
@@ -1241,7 +1241,7 @@ class ModernXGSynthesizer:
                 elif hasattr(ch, "active_notes"):
                     total_voices += len(ch.active_notes)
                 # Default to 0 if no method available
-            except:
+            except Exception:
                 pass
 
         info = {
@@ -1747,7 +1747,7 @@ class ModernXGSynthesizer:
             for engine_name, priority in engine_priorities.items():
                 try:
                     self.engine_registry.set_priority(engine_name, priority)
-                except:
+                except Exception:
                     pass  # Engine might not exist
 
         # Apply per-part configuration

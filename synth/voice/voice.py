@@ -263,12 +263,12 @@ class Voice:
             modulation: Current modulation values
 
         Returns:
-            Stereo audio buffer (block_size * 2,) as float32
+            Stereo audio buffer (block_size, 2) as float32
         """
         if not self._active_instances:
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
-        output = np.zeros(block_size * 2, dtype=np.float32)
+        output = np.zeros((block_size, 2), dtype=np.float32)
 
         for region in self._active_instances:
             if region.is_active():
@@ -458,6 +458,6 @@ def _create_silent_region(descriptor: RegionDescriptor, sample_rate: int) -> IRe
             pass
 
         def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
     return SilentRegion(descriptor, sample_rate)

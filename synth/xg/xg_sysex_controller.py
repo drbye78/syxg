@@ -445,7 +445,7 @@ class XGSystemExclusiveController:
                 self.display_callback("message", message)
 
             return {"type": "display_message", "message": message}
-        except:
+        except Exception:
             return None
 
     def _handle_led_control(self, data: list[int]) -> dict[str, Any] | None:

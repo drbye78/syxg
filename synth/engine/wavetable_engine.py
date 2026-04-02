@@ -526,10 +526,10 @@ class WavetablePartial(SynthesisPartial):
             modulation: Current modulation values
 
         Returns:
-            Stereo audio buffer (block_size * 2,)
+            Stereo audio buffer (block_size, 2)
         """
         if not self.active:
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
         # Apply modulation
         freq_mod = modulation.get("pitch", 0.0) / 1200.0  # Convert cents to ratio
@@ -541,10 +541,10 @@ class WavetablePartial(SynthesisPartial):
         # Generate mono samples
         mono_samples = self.oscillator.generate_samples(block_size)
 
-        # Convert to stereo (duplicate mono channel)
-        stereo_samples = np.zeros(block_size * 2, dtype=np.float32)
-        stereo_samples[0::2] = mono_samples  # Left channel
-        stereo_samples[1::2] = mono_samples  # Right channel
+        # Convert to stereo (2D interleaved format)
+        stereo_samples = np.zeros((block_size, 2), dtype=np.float32)
+        stereo_samples[:, 0] = mono_samples  # Left channel
+        stereo_samples[:, 1] = mono_samples  # Right channel
 
         return stereo_samples
 
@@ -911,37 +911,6 @@ class WavetableEngine(SynthesisEngine):
             Configured WavetablePartial
         """
         return WavetablePartial(partial_params, sample_rate, self.wavetable_bank)
-
-    def create_region(self, region_params: dict[str, Any], sample_rate: int) -> Region | None:
-        """
-        Create a wavetable region instance.
-
-        Args:
-            region_params: Parameters for the region
-            sample_rate: Audio sample rate
-
-        Returns:
-            WavetableRegion instance configured for this engine, or None if unsupported
-        """
-        try:
-            # Load wavetable from file if specified
-            sample_path = region_params.get("sample", region_params.get("sample_path"))
-            if sample_path:
-                # Try to load wavetable from the sample file
-                wt_name = str(sample_path)
-                if self.wavetable_bank.load_wavetable_from_file(
-                    sample_path, wt_name, self.sample_manager
-                ):
-                    region_params["wavetable_name"] = wt_name
-                else:
-                    # Fall back to default wavetable
-                    region_params["wavetable_name"] = self.current_wavetable
-
-            return WavetableRegion(region_params, self.wavetable_bank)
-
-        except Exception as e:
-            print(f"Failed to create wavetable region: {e}")
-            return None
 
     def generate_samples(
         self, note: int, velocity: int, modulation: dict[str, float], block_size: int

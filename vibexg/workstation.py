@@ -279,13 +279,14 @@ class XGWorkstation:
         # Update state for note messages
         match message.type:
             case "note_on":
-                self.state.voices_active += 1
-
+                if message.data.get("velocity", 64) == 0:
+                    self.state.voices_active = max(0, self.state.voices_active - 1)
+                else:
+                    self.state.voices_active += 1
             case "note_off":
                 self.state.voices_active = max(0, self.state.voices_active - 1)
-
             case _:
-                pass  # No voice count change for other message types
+                pass
 
     def _record_event(self, message: MIDIMessage):
         """
@@ -362,30 +363,32 @@ class XGWorkstation:
 
     def _playback_thread(self):
         """Playback recorded MIDI events."""
-        if not self.recorded_events:
+        try:
+            if not self.recorded_events:
+                return
+
+            start_time = time.time()
+            for event in self.recorded_events:
+                if not self.state.playing:
+                    break
+
+                try:
+                    wait_time = event["timestamp"] - (time.time() - start_time)
+                    if wait_time > 0:
+                        time.sleep(wait_time)
+
+                    msg = MIDIMessage(
+                        type=event["type"],
+                        channel=event["channel"],
+                        data=event["data"],
+                        timestamp=time.time(),
+                    )
+                    self._handle_midi_message(msg)
+                except (KeyError, TypeError) as e:
+                    logger.error(f"Playback event error: {e}")
+                    continue
+        finally:
             self.state.playing = False
-            return
-
-        start_time = time.time()
-        for event in self.recorded_events:
-            if not self.state.playing:
-                break
-
-            # Wait until event time
-            wait_time = event["timestamp"] - (time.time() - start_time)
-            if wait_time > 0:
-                time.sleep(wait_time)
-
-            # Create and send MIDI message
-            msg = MIDIMessage(
-                type=event["type"],
-                channel=event["channel"],
-                data=event["data"],
-                timestamp=time.time(),
-            )
-            self._handle_midi_message(msg)
-
-        self.state.playing = False
 
     def toggle_metronome(self):
         """Toggle metronome."""
@@ -397,7 +400,23 @@ class XGWorkstation:
         """Metronome click track."""
         beat_interval = 60.0 / self.state.tempo
         while self.state.metronome and self.state.running:
-            # Send MIDI sync or audio click
+            try:
+                click_msg = MIDIMessage(
+                    type="note_on",
+                    channel=9,
+                    data={"note": 37, "velocity": 80},
+                    timestamp=time.time(),
+                )
+                self._handle_midi_message(click_msg)
+                off_msg = MIDIMessage(
+                    type="note_off",
+                    channel=9,
+                    data={"note": 37, "velocity": 0},
+                    timestamp=time.time(),
+                )
+                self._handle_midi_message(off_msg)
+            except Exception as e:
+                logger.error(f"Metronome click error: {e}")
             time.sleep(beat_interval)
 
     def change_tempo(self, delta: float):

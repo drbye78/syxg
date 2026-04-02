@@ -278,7 +278,7 @@ class FilterPool:
             # Only return if pool isn't full (maintain reasonable size)
             if len(self.pool) < self.max_filters:
                 self.pool.append(filter_obj)
-        except:
+        except Exception:
             # Error during reset - just discard
             pass
 

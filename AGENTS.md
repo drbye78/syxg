@@ -2,14 +2,27 @@
 
 ## Project Overview
 
-**XG Synthesizer** is a professional-grade MIDI synthesizer and real-time workstation implemented in Python. It provides complete Yamaha XG (eXtended General MIDI) specification compliance, multiple synthesis engines, real-time audio processing, and a comprehensive workstation interface (Vibexg).
+**XG Synthesizer** is a professional-grade MIDI synthesizer and real-time workstation implemented in Python. It provides complete Yamaha XG specification compliance, multiple synthesis engines, real-time audio processing, and a comprehensive workstation interface (Vibexg).
 
 ## Key Characteristics
 
-- **Language**: Python 3.11+
-- **License**: MIT
-- **Status**: Beta (actively developed)
-- **Repository**: https://github.com/drbye78/syxg
+| Attribute | Value |
+|-----------|-------|
+| Language | Python 3.11+ |
+| License | MIT |
+| Status | Beta (actively developed) |
+| Repository | https://github.com/drbye78/syxg |
+
+## Two-Entrypoint Architecture
+
+This project has two top-level synthesizer classes with distinct purposes:
+
+| Class | File | Purpose |
+|-------|------|---------|
+| `ModernXGSynthesizer` | `synth/engine/modern_xg_synthesizer.py` | **MIDI rendering engine** — offline/batch processing of MIDI sequences to audio. Used by `render_notes.py`, CLI tools, and any non-real-time workflow. |
+| `Synthesizer` | `synth/core/synthesizer.py` | **Virtual hardware workstation** — real-time appliance emulating physical workstations (Motif, Fathom, JV-2080). Includes style engine, registration memory, MIDI learn, chord detection, hardware control surface mapping. Used by `vibexg` TUI. |
+
+They are NOT duplicates. They share underlying engines and effects but have different initialization paths, threading models, and APIs.
 
 ## Core Design Principles
 
@@ -24,34 +37,20 @@
 ```
 syxg/
 ├── synth/                    # Core synthesizer library
-│   ├── core/                # Fundamental components
-│   │   ├── buffer_pool.py   # Zero-allocation buffer management
-│   │   ├── config.py        # Configuration system
-│   │   ├── envelope.py      # AHDSR envelope generators
-│   │   ├── filter.py        # Resonant filters (Numba-optimized)
-│   │   ├── oscillator.py    # LFO and waveform generation
-│   │   └── panner.py        # Stereo panning
-│   ├── engine/              # Synthesis engines
-│   │   ├── modern_xg_synthesizer.py  # Main synthesizer class
-│   │   ├── sf2_engine.py    # SoundFont 2.0 playback
-│   │   ├── fm_engine.py     # FM synthesis
-│   │   ├── sfz_engine.py    # SFZ sample playback
-│   │   └── plugins/         # Engine plugins
-│   ├── channel/             # MIDI channel processing
-│   ├── voice/               # Voice management and allocation
+│   ├── core/                # Fundamental components (buffer_pool, envelope, filter, oscillator, panner)
+│   ├── engine/              # Synthesis engines (modern_xg_synthesizer, sf2_engine, fm_engine, etc.)
+│   ├── channel/             # MIDI channel processing (channel.py)
+│   ├── voice/               # Voice management (voice.py, voice_manager.py, voice_factory.py)
 │   ├── effects/             # Effects processing (62+ types)
 │   ├── modulation/          # Modulation matrix and LFOs
 │   ├── xg/                  # XG/GS specification implementation
-│   └── midi/                # MIDI message parsing
+│   ├── midi/                # MIDI message parsing
+│   ├── partial/             # Region-based partials (sf2_region.py, etc.)
+│   └── sf2/                 # SF2 soundfont management
 ├── vibexg/                   # Real-time workstation interface
-│   ├── cli.py               # Command-line interface
-│   ├── tui.py               # Text-based user interface
-│   ├── workstation.py       # Main workstation orchestrator
-│   └── midi_inputs.py       # MIDI input sources
+├── vst3_plugin/              # VST3 plugin (JUCE + pybind11 bridge)
 ├── tests/                    # Test suite
-├── docs/                     # Documentation
-├── examples/                 # Usage examples
-└── vst3_plugin/             # VST3/AAX plugin (C++/JUCE)
+└── docs/                     # Documentation
 ```
 
 ## Architecture
@@ -79,10 +78,13 @@ MIDI Input → MIDI Processor → Voice Manager → Synthesis Engines → Effect
 | Class | Location | Purpose |
 |-------|----------|---------|
 | `ModernXGSynthesizer` | `synth/engine/modern_xg_synthesizer.py` | Main synthesizer orchestrator |
-| `XGBufferPool` | `synth/core/buffer_pool.py` | Zero-allocation buffer management |
-| `AudioProcessor` | `synth/engine/processors/audio_processor.py` | Audio block generation |
+| `SF2Engine` | `synth/engine/sf2_engine.py` | SoundFont 2 playback |
+| `Channel` | `synth/channel/channel.py` | MIDI channel processing |
+| `Voice` | `synth/voice/voice.py` | Voice instance |
 | `VoiceManager` | `synth/voice/voice_manager.py` | Polyphony and voice allocation |
-| `VectorizedChannelRenderer` | `synth/channel/vectorized_channel_renderer.py` | Channel audio processing |
+| `VoiceFactory` | `synth/voice/voice_factory.py` | Voice creation from engines |
+| `SF2Region` | `synth/partial/sf2_region.py` | SF2 region with full CC support |
+| `XGBufferPool` | `synth/core/buffer_pool.py` | Zero-allocation buffer management |
 | `XGWorkstation` | `vibexg/workstation.py` | Real-time workstation |
 
 ## Development Guidelines
@@ -93,47 +95,39 @@ MIDI Input → MIDI Processor → Voice Manager → Synthesis Engines → Effect
 - **Linter**: Flake8 + Ruff
 - **Type Checking**: MyPy (strict mode)
 - **Python Version**: 3.11+ required
+- **No comments** unless explicitly requested
 
 ### Running Tests
 
 ```bash
-# Run all tests
+# All tests
 pytest tests/ -v
 
-# Run with coverage
+# With coverage
 pytest tests/ --cov=synth --cov-report=html
 
-# Run specific test file
+# Specific file
 pytest tests/test_voice_manager.py -v
 
-# Run fast tests only (skip slow)
+# Fast tests only
 pytest tests/ -m "not slow"
 ```
 
 ### Linting
 
 ```bash
-# Format code
 black synth/ vibexg/
-
-# Lint code
-flake8 synth/ vibexg/
 ruff check synth/ vibexg/
-
-# Type check
 mypy synth/ vibexg/
 ```
 
 ### Building
 
 ```bash
-# Install in development mode
-pip install -e ".[dev,audio,workstation]"
+pip install -e ".[dev,audio,workstation]"  # Dev mode
+pip install -e ".[full]"                   # All features
 
-# Install with all features
-pip install -e ".[full]"
-
-# Build VST3 plugin
+# VST3 plugin
 cd vst3_plugin && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
@@ -143,74 +137,57 @@ cmake --build . --config Release
 
 ### Adding a New Synthesis Engine
 
-1. Create engine class in `synth/engine/`
-2. Implement `SynthesisEngine` interface
-3. Register in `ModernXGSynthesizer._register_engines()`
-4. Add tests in `tests/test_*_engine.py`
-
-### Adding a New Effect
-
-1. Create effect class in `synth/effects/types.py`
-2. Implement effect processing logic
-3. Register in effects coordinator
-4. Add to XGML configuration support
+1. Create engine class in `synth/engine/` implementing `SynthesisEngine`
+2. Register in `ModernXGSynthesizer._register_engines()`
+3. Add tests in `tests/`
 
 ### Modifying Audio Processing
 
-1. All audio functions should use Numba JIT when possible
-2. Use `@jit(nopython=True, fastmath=True, cache=True)` decorator
-3. Process blocks, not individual samples
-4. Maintain zero-allocation in audio thread
-5. Use interleaved stereo format `(block_size, 2)`
+1. Use Numba JIT: `@jit(nopython=True, fastmath=True, cache=True)`
+2. Process blocks, not individual samples
+3. Maintain zero-allocation in audio thread
+4. Use interleaved stereo format `(block_size, 2)`
 
 ### Working with Buffers
 
 ```python
-# Get buffer from pool (zero-allocation)
+# Get buffer from pool
 buffer = synthesizer.buffer_pool.get_stereo_buffer(block_size)
 
-# Process audio
+# Process audio (in-place)
 np.add(output_buffer, channel_audio, out=output_buffer)
 
-# Return buffer to pool
-synthesizer.buffer_pool.return_buffer(buffer)
+# Return to pool
+synthesizer.buffer_pool.return_stereo_buffer(buffer)
 
-# Or use context manager
+# Or context manager
 with buffer_pool.temporary_buffer(1024, 2) as buffer:
     process_audio(buffer)
-# Buffer automatically returned
 ```
 
 ## Configuration
-
-### XGML Configuration
-
-The synthesizer uses XGML v3.0 (YAML-based) for configuration:
-
-```yaml
-xg_dsl_version: "3.0"
-description: "Configuration description"
-
-# Channel setup
-basic_messages:
-  channels:
-    channel_1:
-      program_change: "acoustic_grand_piano"
-      volume: 100
-
-# Effects configuration
-effects_configuration:
-  system_effects:
-    reverb:
-      type: hall
-      time: 2.5
-```
 
 ### Environment Variables
 
 - `XG_SYNTH_DEBUG`: Enable debug logging
 - `XG_SYNTH_SAMPLE_RATE`: Override sample rate (default: 44100)
 - `XG_SYNTH_BUFFER_SIZE`: Override buffer size (default: 1024)
+
+### XGML (YAML-based config)
+
+```yaml
+xg_dsl_version: "3.0"
+basic_messages:
+  channels:
+    channel_1:
+      program_change: "acoustic_grand_piano"
+      volume: 100
+effects_configuration:
+  system_effects:
+    reverb:
+      type: hall
+      time: 2.5
+```
 
 ## Performance Considerations
 
@@ -223,98 +200,95 @@ effects_configuration:
 
 ### SIMD Optimization
 
-- Buffers are 32-byte aligned for AVX-256
+- Buffers 32-byte aligned for AVX-256
 - Use NumPy vectorized operations (automatically SIMD)
-- Numba functions use `fastmath=True` for SIMD
+- Numba functions use `fastmath=True`
 - Process blocks, not samples
-
-### Memory Management
-
-- Buffer pool pre-allocates common sizes
-- Dynamic allocation within budget (default 256MB)
-- Emergency cleanup under memory pressure
-- Leak detection in debug mode
 
 ## Dependencies
 
-### Core
-
-- `numpy>=1.21.0`: Array operations and audio buffers
-- `scipy>=1.7.0`: Signal processing
-- `numba>=0.56.0`: JIT compilation for performance
-- `av>=9.0.0`: Audio file I/O (PyAV/FFmpeg)
-- `PyYAML>=6.0`: XGML configuration parsing
-
-### Workstation (Vibexg)
-
-- `rtmidi>=2.0.0`: MIDI port access
-- `sounddevice>=0.4.0`: Real-time audio output
-- `rich>=13.0.0`: Text-based user interface
-
-### Development
-
-- `pytest>=6.0`: Testing framework
-- `black>=21.0.0`: Code formatting
-- `flake8>=3.8.0`: Linting
-- `mypy>=0.812`: Type checking
+| Package | Purpose |
+|---------|---------|
+| numpy | Array operations, audio buffers |
+| scipy | Signal processing |
+| numba | JIT compilation |
+| av | Audio file I/O (PyAV/FFmpeg) |
+| PyYAML | XGML configuration |
+| rtmidi | MIDI port access |
+| sounddevice | Real-time audio output |
+| rich | TUI |
+| pytest/black/flake8/mypy | Development |
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Audio glitches**: Check buffer underruns, increase buffer size
-2. **High CPU**: Verify Numba compilation, check voice count
-3. **Memory leaks**: Use buffer pool statistics, check for unreleased buffers
-4. **MIDI timing**: Ensure sample-accurate processing is enabled
+| Issue | Solution |
+|-------|----------|
+| Audio glitches | Increase buffer size |
+| High CPU | Verify Numba compilation, check voice count |
+| Memory leaks | Use buffer pool statistics |
+| MIDI timing issues | Enable sample-accurate processing |
 
 ### Debug Mode
 
 ```bash
-# Enable debug logging
 XG_SYNTH_DEBUG=1 python -m vibexg
 
-# Check buffer pool statistics
+# Check pool stats
 synth.buffer_pool.get_pool_statistics()
-
-# Validate pool integrity
-synth.buffer_pool.validate_pool_integrity()
 ```
 
-## Additional Resources
-
-- **README.md**: Project overview and quick start
-- **docs/**: Comprehensive documentation
-- **examples/**: Usage examples and tutorials
-- **tests/**: Test suite with examples
-- **CONTRIBUTING.md**: Contribution guidelines
-
-## Debugging Reference Files
-
-For debugging and testing purposes, the following reference files are available:
+## Reference Files
 
 | File | Location | Purpose |
 |------|----------|---------|
-| `test.mid` | `tests/test.mid` | Reference MIDI file for testing playback and rendering |
-| `ref.sf2` | `tests/ref.sf2` | Reference SoundFont for testing SF2 engine and audio output |
-
-### Using Reference Files
+| `test.mid` | `tests/test.mid` | Reference MIDI |
+| `ref.sf2` | `tests/ref.sf2` | Reference SoundFont |
 
 ```bash
-# Test MIDI playback with reference SoundFont
-render-midi tests/test.mid output.wav --soundfont tests/ref.sf2
-
-# Debug MIDI parsing
-python -c "
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-synth = ModernXGSynthesizer()
-synth.load_soundfont('tests/ref.sf2')
-# Process MIDI from tests/test.mid
-"
+# Test playback
+render_midi tests/test.mid output.wav --sf2 tests/ref.sf2
 ```
 
-These files are useful for:
-- Verifying audio output quality
-- Testing MIDI parsing and timing
-- Debugging synthesis engine issues
-- Validating effects processing
-- Benchmarking performance
+## Development Guidelines
+
+### Code Rules
+
+1. **No duplicate method definitions** — Python allows redefining methods; the second definition silently shadows the first. Always search for existing methods before adding.
+2. **No bare `except:` clauses** — Always use `except Exception:` to avoid swallowing `KeyboardInterrupt` and `SystemExit`.
+3. **No `print()` in production code** — Use the `logging` module with appropriate levels (`logger.info`, `logger.warning`, `logger.error`).
+4. **No memory allocation in audio paths** — Use pre-allocated buffers from the buffer pool. Never call `np.zeros()`, `np.empty()`, or list/dict creation in `generate_samples` hot paths.
+5. **Validate buffer shapes at API boundaries** — When mixing audio from regions/voices/channels, always verify shapes match before `+=` operations.
+6. **No debug prints left in code** — Remove all `print(f"DEBUG: ...")` statements before committing.
+
+### Threading Rules
+
+1. **Audio thread must be real-time safe** — No GIL acquisition, no memory allocation, no file I/O, no Python API calls.
+2. **VST3 plugin uses deferred processing** — The `PythonProcessingThread` handles all Python calls off the audio thread. `processBlock` only copies data to/from lock-free queues.
+3. **Use proper memory ordering** — Lock-free data structures require `memory_order_acquire`/`memory_order_release` semantics.
+
+### VST3 Plugin Architecture
+
+The VST3 plugin bridges JUCE (C++) with the Python synthesizer via pybind11:
+
+| Component | Purpose |
+|-----------|---------|
+| `PluginProcessor` | JUCE AudioProcessor — handles audio I/O, MIDI routing, parameter management |
+| `PythonIntegration` | pybind11 bridge — creates Python interpreter, manages `ModernXGSynthesizer` instance |
+| `PythonProcessingThread` | Background thread — runs Python audio generation off the audio thread |
+| `XGParameterManager` | Parameter mapping — maps VST3 parameters to Python synthesizer methods |
+| `LockFreeRingBuffer` | Thread-safe audio queue — SPSC ring buffer with proper memory ordering |
+
+**Critical paths:**
+- `processBlock` (audio thread) → copies MIDI/audio to queues → returns immediately
+- `PythonProcessingThread::run()` (background) → reads queues → calls Python → writes results
+- `parameterChanged` → forwards to `PythonIntegration.setParameter()` → calls Python synthesizer
+
+### Testing Requirements
+
+All integration paths between components must have tests. Key areas:
+- Voice allocation → engine → region pipeline
+- Buffer shape compatibility across all audio generation paths
+- MIDI message byte construction (all message types)
+- State save/restore completeness
+- Thread safety of shared data structures
+```

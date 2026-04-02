@@ -168,7 +168,9 @@ class PresetManager:
             return True
         return False
 
-    def export_preset_json(self, preset: PresetData | None = None, filename: str = None) -> Path:
+    def export_preset_json(
+        self, preset: PresetData | None = None, filename: str | None = None
+    ) -> Path:
         """
         Export preset as JSON for human readability.
 
@@ -580,4 +582,4 @@ class StyleEngineIntegration:
         Returns:
             Dictionary mapping channels to style names
         """
-        return dict.fromkeys(self.loaded_styles.keys(), "Style")
+        return {ch: style.name for ch, style in self.loaded_styles.items()}

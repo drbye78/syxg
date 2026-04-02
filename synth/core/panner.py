@@ -188,7 +188,7 @@ class PannerPool:
             # Only return if pool isn't full (maintain reasonable size)
             if len(self.pool) < self.max_panners:
                 self.pool.append(panner)
-        except:
+        except Exception:
             # Error during reset - just discard
             pass
 

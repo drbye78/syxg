@@ -45,6 +45,9 @@ class SF2Region(IRegion):
         # Core state
         "_active",
         "_sample_data",
+        # Mip-map cache
+        "_cached_mip_level",
+        "_cached_mip_data",
         "_sample_position",
         "_phase_step",
         "_base_phase_step",
@@ -207,6 +210,11 @@ class SF2Region(IRegion):
 
         # SF2-specific state (lazy loaded)
         self._sample_data: np.ndarray | None = None
+
+        # Mip-map cache (stereo interleaved format)
+        self._cached_mip_level: int = -1
+        self._cached_mip_data: np.ndarray | None = None
+
         self._loop_start: int = 0
         self._loop_end: int = 0
         self._loop_mode: int = 0
@@ -376,6 +384,36 @@ class SF2Region(IRegion):
         # Previous note for portamento
         self._last_note: int | None = None
 
+    def initialize(self) -> bool:
+        """
+        Initialize SF2 region resources.
+
+        SF2Region handles audio generation directly without a partial.
+
+        Returns:
+            True if initialization succeeded
+        """
+        if self._initialized:
+            return True
+
+        try:
+            if self.descriptor.sample_id is not None or self.descriptor.sample_path:
+                self._sample_data = self._load_sample_data()
+                if self._sample_data is None and self.descriptor.is_sample_based():
+                    return False
+
+            self._init_envelopes()
+            self._init_filters()
+            self._allocate_buffers()
+
+            self._initialized = True
+            self.state = RegionState.INITIALIZED
+            return True
+
+        except Exception as e:
+            logger.error(f"SF2Region initialization failed: {e}")
+            return False
+
     def _load_sample_data(self) -> np.ndarray | None:
         """
         Load sample data from SF2SoundFontManager with mip-map support.
@@ -515,38 +553,9 @@ class SF2Region(IRegion):
 
     def _create_partial(self) -> Any | None:
         """
-        Create SF2 partial with full SF2 generator support.
-
-        Returns:
-            SF2Partial instance or None if sample not loaded
+        SF2Region handles sample playback directly, no partial needed.
         """
-        if self._sample_data is None:
-            return None
-
-        # Require synth instance for partial creation
-        if self.synth is None:
-            logger.error("SF2Region requires synth instance for partial creation")
-            return None
-
-        try:
-            # Build partial parameters from SF2 generators
-            partial_params = self._build_partial_params_from_generators()
-
-            # Import SF2Partial
-            from ..partial.sf2_partial import SF2Partial
-
-            # Create partial with correct signature (params, synth)
-            partial = SF2Partial(partial_params, self.synth)
-
-            # Set sample data directly
-            if hasattr(partial, "sample_data"):
-                partial.sample_data = self._sample_data
-
-            return partial
-
-        except Exception as e:
-            logger.error(f"Failed to create SF2 partial: {e}")
-            return None
+        return None
 
     def _build_partial_params_from_generators(self) -> dict[str, Any]:
         """
@@ -821,36 +830,14 @@ class SF2Region(IRegion):
         vcf_key_track = self._get_generator_value(31, 0)  # -1200 to +1200 cents
         self._filter_key_track = vcf_key_track / 100.0  # Convert to semitones
 
-    def _init_filters(self) -> None:
-        """Initialize filters from SF2 generator parameters."""
-        from ..core.filter import UltraFastResonantFilter
-
-        cutoff = self._cents_to_frequency(self._get_generator_value(29, 13500))
-        resonance = self._get_generator_value(30, 0) / 10.0
-
-        # Get filter type (gen 36) - default to lowpass
-        self._filter_type = self._get_generator_value(36, 0)
-        filter_type_str = "lowpass"
-        if self._filter_type == 1:
-            filter_type_str = "highpass"
-        elif self._filter_type == 2:
-            filter_type_str = "bandpass"
-        elif self._filter_type == 3:
-            filter_type_str = "notch"
-        elif self._filter_type == 4:
-            filter_type_str = "peaking"
-
-        filter_obj = UltraFastResonantFilter(
-            cutoff=cutoff,
-            resonance=resonance,
-            filter_type=filter_type_str,
-            sample_rate=self.sample_rate,
-        )
-        self._filters["filter"] = filter_obj
-
-        # Initialize VCF key tracking (gen 31)
-        vcf_key_track = self._get_generator_value(31, 0)
-        self._filter_key_track = vcf_key_track / 100.0
+    def _allocate_buffers_for_block(self, block_size: int) -> None:
+        """Allocate buffers for specific block size (zero-allocation)."""
+        if self._mod_lfo_buffer is None or len(self._mod_lfo_buffer) < block_size:
+            self._mod_lfo_buffer = np.zeros(block_size, dtype=np.float32)
+        if self._vib_lfo_buffer is None or len(self._vib_lfo_buffer) < block_size:
+            self._vib_lfo_buffer = np.zeros(block_size, dtype=np.float32)
+        if self._mod_env_buffer is None or len(self._mod_env_buffer) < block_size:
+            self._mod_env_buffer = np.zeros(block_size, dtype=np.float32)
 
     def _allocate_buffers(self) -> None:
         """Allocate processing buffers (zero-allocation)."""
@@ -867,23 +854,6 @@ class SF2Region(IRegion):
             self._vib_lfo_buffer = np.zeros(self._current_block_size, dtype=np.float32)
         if self._mod_env_buffer is None or len(self._mod_env_buffer) < self._current_block_size:
             self._mod_env_buffer = np.zeros(self._current_block_size, dtype=np.float32)
-
-    def _allocate_buffers_for_block(self, block_size: int) -> None:
-        """Allocate buffers for specific block size (zero-allocation)."""
-        if self._mod_lfo_buffer is None or len(self._mod_lfo_buffer) < block_size:
-            self._mod_lfo_buffer = np.zeros(block_size, dtype=np.float32)
-        if self._vib_lfo_buffer is None or len(self._vib_lfo_buffer) < block_size:
-            self._vib_lfo_buffer = np.zeros(block_size, dtype=np.float32)
-        if self._mod_env_buffer is None or len(self._mod_env_buffer) < block_size:
-            self._mod_env_buffer = np.zeros(block_size, dtype=np.float32)
-
-    def _allocate_buffers(self) -> None:
-        """Allocate processing buffers."""
-        super()._allocate_buffers()
-
-        # Reset playback state
-        self._sample_position = 0.0
-        self._calculate_phase_step()
 
     def _calculate_phase_step(self) -> None:
         """Calculate phase step for sample playback."""
@@ -1375,14 +1345,14 @@ class SF2Region(IRegion):
             # Update filter
             filter_obj.set_parameters(cutoff=modulated_cutoff, resonance=base_resonance)
 
-            # Process
-            left = output[0 : block_size * 2 : 2].copy()
-            right = output[1 : block_size * 2 : 2].copy()
+            # Process (2D interleaved format)
+            left = output[:, 0].copy()
+            right = output[:, 1].copy()
 
             filtered_left, filtered_right = filter_obj.process_block(left, right)
 
-            output[0 : block_size * 2 : 2] = filtered_left
-            output[1 : block_size * 2 : 2] = filtered_right
+            output[:, 0] = filtered_left
+            output[:, 1] = filtered_right
 
         except Exception:
             pass  # Skip filter on error
@@ -1392,17 +1362,17 @@ class SF2Region(IRegion):
         # Apply tremolo (mod LFO → volume)
         if self._mod_lfo_to_volume != 0.0 and self._mod_lfo_buffer is not None:
             tremolo = 1.0 + self._mod_lfo_buffer[:block_size] * self._mod_lfo_to_volume * 0.5
-            output[: block_size * 2] *= np.repeat(tremolo, 2)
+            output[:, :] *= tremolo[:, np.newaxis]
 
         # Apply tremolo depth from CC92
         if self._tremolo_depth > 0.0 and self._mod_lfo_buffer is not None:
             tremolo = 1.0 - self._tremolo_depth * (1.0 - self._mod_lfo_buffer[:block_size])
-            output[: block_size * 2] *= np.repeat(tremolo, 2)
+            output[:, :] *= tremolo[:, np.newaxis]
 
         # Apply mod env to volume
         if self._mod_env_to_volume != 0.0 and self._mod_env_buffer is not None:
             env_mod = 1.0 + self._mod_env_buffer[:block_size] * self._mod_env_to_volume * 0.5
-            output[: block_size * 2] *= np.repeat(env_mod, 2)
+            output[:, :] *= env_mod[:, np.newaxis]
 
         # Apply balance (CC8)
         if self._balance != 0.0:
@@ -1413,8 +1383,8 @@ class SF2Region(IRegion):
             else:
                 left_gain = 1.0
                 right_gain = 1.0 - balance
-            output[0 : block_size * 2 : 2] *= left_gain
-            output[1 : block_size * 2 : 2] *= right_gain
+            output[:, 0] *= left_gain
+            output[:, 1] *= right_gain
 
         # Calculate total pan modulation
         total_pan = self._pan_position
@@ -1435,8 +1405,8 @@ class SF2Region(IRegion):
                 left_gain = 1.0 - total_pan
                 right_gain = 1.0
 
-            output[0 : block_size * 2 : 2] *= left_gain
-            output[1 : block_size * 2 : 2] *= right_gain
+            output[:, 0] *= left_gain
+            output[:, 1] *= right_gain
 
     def get_modulation_outputs(self) -> dict[str, float]:
         """Provide SF2 modulation sources to global modulation matrix."""
@@ -1498,11 +1468,11 @@ class SF2Region(IRegion):
             modulation: Current modulation values from modulation matrix
 
         Returns:
-            Stereo audio buffer (block_size * 2,) as float32
+            Stereo audio buffer (block_size, 2) as float32
         """
         # Handle inactive state
         if not self._active:
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
         # Initialize if needed
         if self._sample_data is None:
@@ -1511,12 +1481,12 @@ class SF2Region(IRegion):
                 self._sample_data = loaded_data
             else:
                 self._active = False
-                return np.zeros(block_size * 2, dtype=np.float32)
+                return np.zeros((block_size, 2), dtype=np.float32)
 
         if not self._initialized:
             if not self.initialize():
                 self._active = False
-                return np.zeros(block_size * 2, dtype=np.float32)
+                return np.zeros((block_size, 2), dtype=np.float32)
 
         # Update block size if changed
         if block_size != self._current_block_size:
@@ -1527,10 +1497,12 @@ class SF2Region(IRegion):
             if self._vib_lfo:
                 self._vib_lfo.set_block_size(block_size)
 
-        # Allocate output buffer
+        # Allocate output buffer (2D interleaved)
+        if self._output_buffer is None or self._output_buffer.shape[0] != block_size:
+            self._output_buffer = np.zeros((block_size, 2), dtype=np.float32)
+        if self._work_buffer is None or self._work_buffer.shape[0] != block_size:
+            self._work_buffer = np.zeros(block_size, dtype=np.float32)
         output = self._output_buffer
-        if output is None or len(output) < block_size * 2:
-            output = np.zeros(block_size * 2, dtype=np.float32)
 
         # 1. Apply global modulation from modulation matrix
         self._apply_global_modulation(modulation)
@@ -1554,11 +1526,11 @@ class SF2Region(IRegion):
                 env_buffer = self._work_buffer
                 if env_buffer is not None:
                     env.generate_block(env_buffer[:block_size], block_size)
-                    output[: block_size * 2] *= np.repeat(env_buffer[:block_size], 2)
+                    output[:, :] *= env_buffer[:block_size, np.newaxis]
 
         # 6b. Apply soft pedal
         if self._soft_pedal:
-            output[: block_size * 2] *= 0.6
+            output[:, :] *= 0.6
 
         # 7. Apply filter with modulation
         self._apply_filter_with_modulation(output, block_size)
@@ -1568,7 +1540,7 @@ class SF2Region(IRegion):
 
         # 9. Apply final volume modulation
         if self._volume_mod != 1.0:
-            output[: block_size * 2] *= self._volume_mod
+            output[:, :] *= self._volume_mod
 
         # Check if voice is done
         if "amp_env" in self._envelopes:
@@ -1588,7 +1560,16 @@ class SF2Region(IRegion):
                 1.0, self._portamento_glide_phase + glide_increment * block_size
             )
 
-        return output[: block_size * 2].copy()
+        if output.shape[0] != block_size:
+            output = (
+                output[:block_size]
+                if output.shape[0] > block_size
+                else np.vstack(
+                    [output, np.zeros((block_size - output.shape[0], 2), dtype=np.float32)]
+                )
+            )
+
+        return output
 
     def _generate_samples_with_mipmap(self, output: np.ndarray, block_size: int) -> None:
         """
@@ -1608,81 +1589,47 @@ class SF2Region(IRegion):
         """
         Generate samples with mip-map anti-aliasing and per-sample pitch modulation.
 
-        This is the core sample generation method that applies:
-        - Per-sample pitch modulation from LFOs
-        - Per-sample pitch modulation from modulation envelope
-        - Per-sample pitch modulation from modulation matrix
+        Uses cached interleaved stereo data for efficiency.
 
         Args:
             output: Output buffer (stereo interleaved)
             block_size: Number of stereo frames
             sample_delta_time: Time per sample in seconds
         """
-        sample_data = self._sample_data
-        base_sample_length = len(sample_data)
-
-        if base_sample_length == 0:
+        if self._sample_data is None or len(self._sample_data) == 0:
             return
 
-        # Check if sample data is stereo (2D array) or mono (1D array)
-        is_stereo_data = len(sample_data.shape) > 1 and sample_data.shape[1] == 2
-
-        # Select appropriate mip-map level based on base pitch ratio
         mip_level = self._select_mip_map_level()
+        mip_data = self._get_mip_map_data(mip_level)
 
-        # Get mip-mapped sample data
-        sample_data_left, sample_data_right = self._get_mip_map_data(mip_level, is_stereo_data)
-
-        if sample_data_left is None or len(sample_data_left) == 0:
+        if mip_data is None or len(mip_data) == 0:
             return
 
-        # Mip-mapped samples are decimated by 2^mip_level
         decimation_factor = 2**mip_level
-        mip_sample_length = len(sample_data_left)
+        mip_sample_length = len(mip_data)
 
-        # Scale position to mip space
         pos = self._sample_position / decimation_factor
-
-        # Scale loop points to mip space
         loop_start_mip = self._loop_start / decimation_factor
         loop_end_mip = self._loop_end / decimation_factor
-
-        # Calculate base phase step in mip space (without modulation)
         base_phase_step_mip = self._base_phase_step / decimation_factor
-
-        # Crossfade parameters
         crossfade_len = self._loop_crossfade_samples / decimation_factor
 
         for i in range(block_size):
-            # Calculate pitch modulation for THIS specific sample
             pitch_mod = self._calculate_sample_pitch_modulation(i)
-
-            # Apply pitch modulation to phase step
             phase_step = base_phase_step_mip * (2.0 ** (pitch_mod / 12.0))
 
-            # Linear interpolation
             pos_int = int(pos)
             frac = pos - pos_int
 
             if pos_int < mip_sample_length - 1:
-                s1_l = sample_data_left[pos_int]
-                s2_l = sample_data_left[min(pos_int + 1, mip_sample_length - 1)]
-                sample_left = s1_l + frac * (s2_l - s1_l)
-
-                s1_r = sample_data_right[pos_int] if sample_data_right is not None else s1_l
-                s2_r = (
-                    sample_data_right[min(pos_int + 1, mip_sample_length - 1)]
-                    if sample_data_right is not None
-                    else s2_l
-                )
-                sample_right = s1_r + frac * (s2_r - s1_r)
+                s1 = mip_data[pos_int]
+                s2 = mip_data[min(pos_int + 1, mip_sample_length - 1)]
+                sample_left = s1[0] + frac * (s2[0] - s1[0])
+                sample_right = s1[1] + frac * (s2[1] - s1[1])
             else:
-                sample_left = sample_data_left[-1] if mip_sample_length > 0 else 0.0
-                sample_right = (
-                    sample_data_right[-1]
-                    if sample_data_right is not None and mip_sample_length > 0
-                    else sample_left
-                )
+                last = mip_data[-1] if mip_sample_length > 0 else (0.0, 0.0)
+                sample_left = last[0]
+                sample_right = last[1]
 
             # Handle loop crossfade
             if crossfade_len > 0 and loop_end_mip > loop_start_mip:
@@ -1716,9 +1663,8 @@ class SF2Region(IRegion):
                     self._active = False
                     break
 
-            # Write to stereo output
-            output[i * 2] = sample_left
-            output[i * 2 + 1] = sample_right
+            output[i, 0] = sample_left
+            output[i, 1] = sample_right
 
         # Store position back in base sample space
         self._sample_position = pos * decimation_factor
@@ -1745,50 +1691,38 @@ class SF2Region(IRegion):
         # Cap at reasonable level (typically 4-5 levels max)
         return min(mip_level, 4)
 
-    def _get_mip_map_data(self, mip_level: int, is_stereo: bool) -> tuple:
+    def _get_mip_map_data(self, mip_level: int) -> np.ndarray | None:
         """
         Get sample data for the specified mip-map level.
 
+        Uses caching to avoid repeated lookups when mip_level hasn't changed.
+        All data is stereo interleaved (samples, 2).
+
         Args:
             mip_level: Mip-map level to retrieve
-            is_stereo: Whether the base sample is stereo
 
         Returns:
-            Tuple of (left_channel_data, right_channel_data)
+            Stereo interleaved sample data (samples, 2) or None
         """
+        if self._sample_data is None:
+            return None
+
         if mip_level == 0:
-            # Return base sample data
-            if is_stereo:
-                return self._sample_data[:, 0], self._sample_data[:, 1]
-            return self._sample_data, None
+            return self._sample_data
 
-        # Try to get mip-map data from soundfont manager
-        if (
-            self.soundfont_manager
-            and hasattr(self.soundfont_manager, "get_mip_map_sample_data")
-            and self.descriptor.sample_id is not None
-        ):
-            try:
-                mip_data = self.soundfont_manager.get_mip_map_sample_data(
-                    self.descriptor.sample_id, mip_level
-                )
-                if mip_data is not None:
-                    if is_stereo and len(mip_data.shape) > 1:
-                        return mip_data[:, 0], mip_data[:, 1]
-                    return mip_data, None
-            except Exception as e:
-                logger.debug(f"Mip-map level {mip_level} not available: {e}")
+        if mip_level == self._cached_mip_level and self._cached_mip_data is not None:
+            return self._cached_mip_data
 
-        # Fallback: decimate the base sample for the requested mip level
-        if self._sample_data is not None:
-            decimation_factor = 2**mip_level
-            decimated = self._sample_data[::decimation_factor]
+        mip_data = self.soundfont_manager.get_mip_map_sample_data(
+            self.descriptor.sample_id, mip_level
+        )
 
-            if is_stereo and len(decimated.shape) > 1:
-                return decimated[:, 0], decimated[:, 1]
-            return decimated, None
+        if mip_data is not None:
+            self._cached_mip_level = mip_level
+            self._cached_mip_data = mip_data
+            return mip_data
 
-        return None, None
+        return None
 
     def _handle_sf2_looping(self, position: float, sample_length: int) -> float:
         """

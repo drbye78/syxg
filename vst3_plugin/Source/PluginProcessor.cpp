@@ -23,15 +23,25 @@ XGWorkstationVST3AudioProcessor::XGWorkstationVST3AudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
+       apvts(*this, nullptr, "Parameters", parameterManager.createParameterLayout())
 #endif
 {
-    // Initialize parameter manager
     parameterManager.initializeParameters(*this);
+    apvts.addParameterListener("master_volume", this);
+    apvts.addParameterListener("reverb_type", this);
+    apvts.addParameterListener("chorus_type", this);
+    apvts.addParameterListener("variation_type", this);
+    apvts.addParameterListener("pattern_tempo", this);
 
-    // Reserve audio buffer space
     leftInputBuffer.reserve(8192);
     rightInputBuffer.reserve(8192);
+}
+
+void XGWorkstationVST3AudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
+{
+    parameterManager.parameterChanged(
+        static_cast<int>(XGParameterID::Master_Volume), newValue);
 }
 
 XGWorkstationVST3AudioProcessor::~XGWorkstationVST3AudioProcessor()
@@ -74,7 +84,7 @@ bool XGWorkstationVST3AudioProcessor::isMidiEffect() const
 
 double XGWorkstationVST3AudioProcessor::getTailLengthSeconds() const
 {
-    return 0.0;
+    return 5.0;
 }
 
 int XGWorkstationVST3AudioProcessor::getNumPrograms()
@@ -177,10 +187,11 @@ void XGWorkstationVST3AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
         processMidiMessage(message);
     }
 
-    // If XG workstation is not ready, pass through audio or generate silence
-    if (!xgWorkstationReady)
+    // If bypassed or XG workstation is not ready, output silence
+    if (isBypassed || !xgWorkstationReady)
     {
-        // PERFORMANCE: Still track processing time for inactive state
+        for (auto i = 0; i < totalNumOutputChannels; ++i)
+            buffer.clear(i, 0, numSamples);
         auto processingEndTime = juce::Time::getHighResolutionTicks();
         double processingTimeMs = juce::Time::highResolutionTicksToSeconds(processingEndTime - processingStartTime) * 1000.0;
         updatePerformanceMetrics(processingTimeMs, numSamples);
@@ -217,12 +228,10 @@ void XGWorkstationVST3AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
     }
 
     // Pre-allocate output buffers (reuse to avoid per-block allocations)
-    static std::vector<float> leftOutput;
-    static std::vector<float> rightOutput;
-    if (leftOutput.size() != static_cast<size_t>(numSamples))
+    if (leftOutputBuffer.size() != static_cast<size_t>(numSamples))
     {
-        leftOutput.resize(numSamples);
-        rightOutput.resize(numSamples);
+        leftOutputBuffer.resize(numSamples);
+        rightOutputBuffer.resize(numSamples);
     }
 
     // Process through XG synthesizer with timeout protection
@@ -232,37 +241,35 @@ void XGWorkstationVST3AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
     auto processStartTime = std::chrono::high_resolution_clock::now();
     
     if (pythonIntegration.processAudioBlock(leftInputBuffer, rightInputBuffer,
-                                           leftOutput, rightOutput))
+                                           leftOutputBuffer, rightOutputBuffer))
     {
-        // Check if processing took too long (超过可用时间的80%表示可能阻塞)
+        // Check if processing took too long (over 80% of available time indicates potential blocking)
         auto processEndTime = std::chrono::high_resolution_clock::now();
         double processTimeMs = std::chrono::duration<double, std::milli>(processEndTime - processStartTime).count();
         double availableTimeMs = (numSamples / currentSampleRate) * 1000.0;
         
-        if (processTimeMs < availableTimeMs * 0.8) // Only use if under 80% of available time
+        if (processTimeMs < availableTimeMs * 0.8)
         {
             processingSuccess = true;
         }
         else
         {
-            // Processing took too long, increment underrun counter
             performanceMetrics.bufferUnderruns++;
         }
     }
     
     if (processingSuccess)
     {
-        // Copy results back to JUCE buffer with optimized operations
         if (totalNumOutputChannels >= 1)
         {
             auto* leftOut = buffer.getWritePointer(0);
-            std::memcpy(leftOut, leftOutput.data(), numSamples * sizeof(float));
+            std::memcpy(leftOut, leftOutputBuffer.data(), numSamples * sizeof(float));
         }
 
         if (totalNumOutputChannels >= 2)
         {
             auto* rightOut = buffer.getWritePointer(1);
-            std::memcpy(rightOut, rightOutput.data(), numSamples * sizeof(float));
+            std::memcpy(rightOut, rightOutputBuffer.data(), numSamples * sizeof(float));
         }
     }
     else
@@ -292,28 +299,7 @@ juce::AudioProcessorEditor* XGWorkstationVST3AudioProcessor::createEditor()
 //==============================================================================
 void XGWorkstationVST3AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    juce::ValueTree state("XGWorkstationState");
-    
-    state.setProperty("masterVolume", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Master_Volume)), nullptr);
-    state.setProperty("masterPan", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Master_Pan)), nullptr);
-    
-    state.setProperty("reverbEnable", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Reverb_Enable)), nullptr);
-    state.setProperty("reverbTime", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Reverb_Time)), nullptr);
-    state.setProperty("reverbLevel", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Reverb_Level)), nullptr);
-    
-    state.setProperty("chorusEnable", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Chorus_Enable)), nullptr);
-    state.setProperty("chorusRate", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Chorus_Rate)), nullptr);
-    state.setProperty("chorusDepth", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Chorus_Depth)), nullptr);
-    state.setProperty("chorusLevel", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Chorus_Level)), nullptr);
-    
-    state.setProperty("patternTempo", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Pattern_Tempo)), nullptr);
-    state.setProperty("patternSwing", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Pattern_Swing)), nullptr);
-    state.setProperty("patternLength", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Pattern_Length)), nullptr);
-    
-    state.setProperty("variationEnable", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Variation_Enable)), nullptr);
-    state.setProperty("variationType", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Variation_Type)), nullptr);
-    state.setProperty("variationLevel", parameterManager.getParameterValue(static_cast<int>(XGParameterID::Variation_Level)), nullptr);
-    
+    auto state = apvts.copyState();
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     if (xml != nullptr)
     {
@@ -327,49 +313,14 @@ void XGWorkstationVST3AudioProcessor::setStateInformation (const void* data, int
 {
     if (data == nullptr || sizeInBytes == 0)
         return;
-    
+
     std::unique_ptr<juce::XmlElement> xml(juce::XmlDocument::parse(juce::String::createStringFromData(data, sizeInBytes)));
     if (xml == nullptr)
         return;
-    
+
     juce::ValueTree state = juce::ValueTree::fromXml(*xml);
-    if (!state.isValid() || state.getType() != juce::Identifier("XGWorkstationState"))
-        return;
-    
-    if (state.hasProperty("masterVolume"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Master_Volume), static_cast<float>(state.getProperty("masterVolume")));
-    if (state.hasProperty("masterPan"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Master_Pan), static_cast<float>(state.getProperty("masterPan")));
-    
-    if (state.hasProperty("reverbEnable"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Reverb_Enable), static_cast<float>(state.getProperty("reverbEnable")));
-    if (state.hasProperty("reverbTime"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Reverb_Time), static_cast<float>(state.getProperty("reverbTime")));
-    if (state.hasProperty("reverbLevel"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Reverb_Level), static_cast<float>(state.getProperty("reverbLevel")));
-    
-    if (state.hasProperty("chorusEnable"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Chorus_Enable), static_cast<float>(state.getProperty("chorusEnable")));
-    if (state.hasProperty("chorusRate"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Chorus_Rate), static_cast<float>(state.getProperty("chorusRate")));
-    if (state.hasProperty("chorusDepth"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Chorus_Depth), static_cast<float>(state.getProperty("chorusDepth")));
-    if (state.hasProperty("chorusLevel"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Chorus_Level), static_cast<float>(state.getProperty("chorusLevel")));
-    
-    if (state.hasProperty("patternTempo"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Pattern_Tempo), static_cast<float>(state.getProperty("patternTempo")));
-    if (state.hasProperty("patternSwing"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Pattern_Swing), static_cast<float>(state.getProperty("patternSwing")));
-    if (state.hasProperty("patternLength"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Pattern_Length), static_cast<float>(state.getProperty("patternLength")));
-    
-    if (state.hasProperty("variationEnable"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Variation_Enable), static_cast<float>(state.getProperty("variationEnable")));
-    if (state.hasProperty("variationType"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Variation_Type), static_cast<float>(state.getProperty("variationType")));
-    if (state.hasProperty("variationLevel"))
-        parameterManager.setParameterValue(static_cast<int>(XGParameterID::Variation_Level), static_cast<float>(state.getProperty("variationLevel")));
+    if (state.isValid())
+        apvts.replaceState(state);
 }
 
 //==============================================================================
@@ -381,9 +332,11 @@ void XGWorkstationVST3AudioProcessor::initializeXGWorkstation()
 
     DBG("Initializing XG Workstation...");
 
-    // Initialize Python integration
     if (pythonIntegration.initialize(currentSampleRate, currentBlockSize))
     {
+        processingThread = std::make_unique<PythonProcessingThread>(pythonIntegration);
+        processingThread->startThread(juce::Thread::Priority::high);
+        parameterManager.setPythonIntegration(&pythonIntegration);
         xgWorkstationReady = true;
         DBG("XG Workstation initialized successfully");
     }
@@ -399,6 +352,14 @@ void XGWorkstationVST3AudioProcessor::shutdownXGWorkstation()
         return;
 
     DBG("Shutting down XG Workstation...");
+
+    if (processingThread)
+    {
+        processingThread->shutdown();
+        processingThread->stopThread(5000);
+        processingThread.reset();
+    }
+
     pythonIntegration.shutdown();
     xgWorkstationReady = false;
 }
@@ -476,29 +437,6 @@ double XGWorkstationVST3AudioProcessor::getCurrentCpuUsage()
     }
     
     return 0.0;
-}
-
-void XGWorkstationVST3AudioProcessor::optimizeBufferSizes(int newBlockSize)
-{
-    // PERFORMANCE: Optimize buffer sizes based on actual usage patterns
-    if (newBlockSize != currentBlockSize)
-    {
-        currentBlockSize = newBlockSize;
-
-        // Resize buffers with some headroom for performance
-        size_t optimalSize = static_cast<size_t>(newBlockSize * 1.5); // 50% headroom
-
-        leftInputBuffer.reserve(optimalSize);
-        rightInputBuffer.reserve(optimalSize);
-
-        // Notify Python integration of buffer size change for optimization
-        if (xgWorkstationReady)
-        {
-            pythonIntegration.initialize(currentSampleRate, newBlockSize);
-        }
-
-        DBG("Optimized buffer sizes for block size: " + juce::String(newBlockSize));
-    }
 }
 
 //==============================================================================

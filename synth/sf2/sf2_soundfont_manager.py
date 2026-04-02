@@ -12,6 +12,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 
 class SF2SoundFontManager:
     """
@@ -374,6 +376,38 @@ class SF2SoundFontManager:
                         sample_data = self.loaded_files[filepath].get_sample_data(sample_id)
                         if sample_data is not None:
                             return sample_data
+
+        return None
+
+    def get_mip_map_sample_data(self, sample_id: int, mip_level: int) -> np.ndarray | None:
+        """
+        Get mip-mapped sample data for the specified level.
+
+        Args:
+            sample_id: Sample ID
+            mip_level: Mip-map level (0 = original, higher = more downsampled)
+
+        Returns:
+            Mip-mapped sample data or None if not found
+        """
+        with self._lock:
+            for filepath in self.file_order:
+                if filepath not in self.loaded_files:
+                    continue
+
+                soundfont = self.loaded_files[filepath]
+
+                sample_info = soundfont.get_sample_info(sample_id)
+                if sample_info is None:
+                    continue
+
+                sample_name = sample_info.get("name")
+                if not sample_name:
+                    continue
+
+                if sample_name in self.sample_processor.mip_maps:
+                    mip_map = self.sample_processor.mip_maps[sample_name]
+                    return mip_map.get_level(mip_level)
 
         return None
 

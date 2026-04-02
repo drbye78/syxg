@@ -9,6 +9,7 @@
 */
 
 #include "XGParameterManager.h"
+#include "PythonIntegration.h"
 
 //==============================================================================
 XGParameterManager::XGParameterManager()
@@ -36,6 +37,116 @@ void XGParameterManager::initializeParameters(juce::AudioProcessor& audioProcess
 
 void XGParameterManager::syncWithPython()
 {
+    if (!pythonIntegration)
+        return;
+
+    for (auto& [index, value] : parameterValues)
+    {
+        auto it = parameterInfos.find(index);
+        if (it != parameterInfos.end())
+        {
+            pythonIntegration->setParameter(it->second.name, value);
+        }
+    }
+}
+
+void XGParameterManager::syncParameter(int parameterIndex)
+{
+    if (!pythonIntegration)
+        return;
+
+    auto it = parameterInfos.find(parameterIndex);
+    if (it != parameterInfos.end())
+    {
+        auto valueIt = parameterValues.find(parameterIndex);
+        if (valueIt != parameterValues.end())
+        {
+            pythonIntegration->setParameter(it->second.name, valueIt->second);
+        }
+    }
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout XGParameterManager::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    auto addFloat = [&](const juce::String& id, const juce::String& name,
+                        float min, float max, float def, const juce::String& label = {}) {
+        layout.add(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(id, 1), name,
+            juce::NormalisableRange<float>(min, max, 0.01f),
+            def, label));
+    };
+
+    auto addBool = [&](const juce::String& id, const juce::String& name, float def = 0.0f) {
+        layout.add(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID(id, 1), name, def));
+    };
+
+    auto addChoice = [&](const juce::String& id, const juce::String& name,
+                         const juce::StringArray& choices, int def = 0) {
+        layout.add(std::make_unique<juce::AudioParameterChoice>(
+            juce::ParameterID(id, 1), name, choices, def));
+    };
+
+    // Master
+    addFloat("master_volume", "Master Volume", 0.0f, 1.0f, 0.8f);
+    addFloat("master_pan", "Master Pan", 0.0f, 1.0f, 0.5f);
+    addFloat("master_tune", "Master Tune", -100.0f, 100.0f, 0.0f, "cents");
+    addFloat("master_transpose", "Master Transpose", -24.0f, 24.0f, 0.0f, "semitones");
+
+    // Transport
+    addBool("transport_play", "Play");
+    addBool("transport_stop", "Stop");
+    addBool("transport_record", "Record");
+    addBool("transport_pause", "Pause");
+
+    // Pattern
+    addFloat("pattern_tempo", "Tempo", 20.0f, 300.0f, 120.0f, "BPM");
+    addFloat("pattern_swing", "Swing", 0.0f, 100.0f, 0.0f, "%");
+    addFloat("pattern_length", "Length", 1.0f, 16.0f, 4.0f, "bars");
+    addFloat("pattern_quantize", "Quantize", 0.0f, 100.0f, 0.0f, "%");
+    addChoice("pattern_select", "Pattern",
+              {"Init", "Rock 1", "Rock 2", "Ballad", "Jazz", "Latin", "Pop", "Funk"}, 0);
+
+    // Reverb
+    addBool("reverb_enable", "Reverb Enable", 1.0f);
+    addChoice("reverb_type", "Reverb Type",
+              {"Hall 1", "Hall 2", "Room 1", "Room 2", "Stage", "Plate", "Delay", "Pan Delay"}, 0);
+    addFloat("reverb_time", "Reverb Time", 0.1f, 20.0f, 2.5f, "s");
+    addFloat("reverb_level", "Reverb Level", 0.0f, 127.0f, 64.0f);
+    addFloat("reverb_pre_delay", "Reverb Pre-Delay", 0.0f, 127.0f, 0.0f, "ms");
+    addFloat("reverb_hf_damp", "Reverb HF Damp", 0.0f, 127.0f, 127.0f);
+
+    // Chorus
+    addBool("chorus_enable", "Chorus Enable", 1.0f);
+    addChoice("chorus_type", "Chorus Type",
+              {"Chorus 1", "Chorus 2", "Chorus 3", "Chorus 4", "Celeste 1", "Celeste 2", "Flanger", "Phaser"}, 0);
+    addFloat("chorus_rate", "Chorus Rate", 0.0f, 127.0f, 32.0f, "Hz");
+    addFloat("chorus_depth", "Chorus Depth", 0.0f, 127.0f, 64.0f);
+    addFloat("chorus_level", "Chorus Level", 0.0f, 127.0f, 64.0f);
+    addFloat("chorus_feedback", "Chorus Feedback", 0.0f, 127.0f, 0.0f);
+    addFloat("chorus_delay", "Chorus Delay", 0.0f, 127.0f, 20.0f, "ms");
+
+    // Variation
+    addBool("variation_enable", "Variation Enable");
+    addFloat("variation_type", "Variation Type", 0.0f, 127.0f, 0.0f);
+    addFloat("variation_level", "Variation Level", 0.0f, 127.0f, 0.0f);
+    addFloat("variation_param1", "Variation Param 1", 0.0f, 127.0f, 64.0f);
+    addFloat("variation_param2", "Variation Param 2", 0.0f, 127.0f, 64.0f);
+
+    // 16 Parts
+    for (int i = 0; i < 16; ++i)
+    {
+        addFloat("part_volume_" + juce::String(i), "Part " + juce::String(i + 1) + " Volume", 0.0f, 127.0f, 100.0f);
+        addFloat("part_pan_" + juce::String(i), "Part " + juce::String(i + 1) + " Pan", 0.0f, 127.0f, 64.0f);
+        addFloat("part_program_" + juce::String(i), "Part " + juce::String(i + 1) + " Program", 0.0f, 127.0f, 0.0f);
+        addFloat("part_reverb_" + juce::String(i), "Part " + juce::String(i + 1) + " Reverb Send", 0.0f, 127.0f, 40.0f);
+        addFloat("part_chorus_" + juce::String(i), "Part " + juce::String(i + 1) + " Chorus Send", 0.0f, 127.0f, 0.0f);
+        addFloat("part_variation_" + juce::String(i), "Part " + juce::String(i + 1) + " Variation Send", 0.0f, 127.0f, 0.0f);
+    }
+
+    return layout;
 }
 
 //==============================================================================
@@ -55,6 +166,15 @@ void XGParameterManager::parameterChanged(int parameterIndex, float newValue)
             break;
         default:
             break;
+    }
+
+    if (pythonIntegration)
+    {
+        auto it = parameterInfos.find(parameterIndex);
+        if (it != parameterInfos.end())
+        {
+            pythonIntegration->setParameter(it->second.name, newValue);
+        }
     }
 }
 
@@ -310,8 +430,4 @@ float XGParameterManager::denormalizeParameterValue(int index, float normalized)
 void XGParameterManager::setPythonIntegration(PythonIntegration* integration)
 {
     pythonIntegration = integration;
-}
-
-void XGParameterManager::syncParameter(int parameterIndex)
-{
 }

@@ -8,19 +8,19 @@ This document provides comprehensive documentation for the XG (eXtended General 
 
 ### Core Components
 
-1. **VectorizedChannelRenderer**: Main channel renderer with 16 MIDI channels
-2. **ChannelNote**: Represents active notes with up to 8 partials each
-3. **XGPartialGenerator**: Individual partial generators with exclusive note/velocity ranges
-4. **XGLFO**: Channel-level LFO sources (3 per channel)
-5. **VectorizedModulationMatrix**: 16-route modulation routing system
-6. **VectorizedADSREnvelope**: High-performance envelope generation
+1. **ModernXGSynthesizer**: Main synthesizer orchestrator with XG/GS/MPE support
+2. **SF2Engine**: SoundFont 2 wavetable synthesis engine
+3. **Channel**: MIDI channel with voice allocation
+4. **Voice**: Voice management with polyphony control
+5. **SF2Region**: Individual region for sample playback with full SF2 generator support
 
 ### Key Features
 
-- **8 Partials per Note**: Extended from XG standard of 4
-- **SF2 SoundFont Integration**: Full support with loop handling
-- **Real-time Performance**: Vectorized NumPy operations
+- **Multi-Engine Synthesis**: SF2, FM, Wavetable, Physical, Granular, Additive, Spectral engines
+- **SF2 SoundFont Integration**: Full support with mip-mapping, loop handling
+- **Real-time Performance**: Zero-allocation buffer pools, Numba JIT compilation
 - **Sample-accurate Processing**: Block-based MIDI message timing
+- **XG/GS/MPE Support**: Complete specification compliance
 
 ## XG Parameter Mappings
 
@@ -267,13 +267,18 @@ matrix.set_route(8, "tremolo_depth", "amp", amount=0.3, polarity=1.0)
 
 ### Basic Setup
 ```python
-from synth.core.optimized_xg_synthesizer import OptimizedXGSynthesizer
+from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
 
 # Create synthesizer
-synth = OptimizedXGSynthesizer(sample_rate=44100, block_size=512)
+synth = ModernXGSynthesizer(
+    sample_rate=44100,
+    max_channels=16,
+    xg_enabled=True,
+    gs_enabled=True
+)
 
 # Load SF2 files
-synth.set_sf2_files(["path/to/soundfont.sf2"])
+synth.load_soundfont("path/to/soundfont.sf2")
 
 # Send MIDI messages
 synth.send_midi_message(0x90, 60, 100)  # Note On: C4, velocity 100

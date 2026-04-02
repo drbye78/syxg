@@ -325,7 +325,7 @@ class SynthesisPartial(ABC):
             modulation: Current modulation values
 
         Returns:
-            Numpy array of shape (block_size * 2,) containing stereo audio samples
+            Numpy array of shape (block_size, 2) containing stereo audio samples
         """
         pass
 

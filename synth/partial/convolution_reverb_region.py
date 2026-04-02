@@ -301,13 +301,13 @@ class ConvolutionReverbRegion(IRegion):
             modulation: Current modulation values
 
         Returns:
-            Stereo audio buffer (block_size * 2,) as float32
+            Stereo audio buffer (block_size, 2) as float32
         """
         # Convolution reverb is typically used as an effect send
         # For region use, we generate processed noise/signal
 
         if not self._partial:
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
         try:
             # Apply modulation
@@ -320,7 +320,7 @@ class ConvolutionReverbRegion(IRegion):
 
         except Exception as e:
             logger.error(f"Convolution reverb sample generation failed: {e}")
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
     def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """

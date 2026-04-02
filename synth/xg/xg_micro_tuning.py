@@ -226,7 +226,7 @@ class XGTemperamentSystem:
         """Get current temperament name."""
         return self.current_temperament
 
-    def get_temperament_tuning(self, temperament_name: str = None) -> list[float]:
+    def get_temperament_tuning(self, temperament_name: str | None = None) -> list[float]:
         """
         Get tuning offsets for a temperament.
 

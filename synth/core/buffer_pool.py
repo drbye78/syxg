@@ -524,14 +524,7 @@ class XGBufferPool:
         buffer_id = id(buffer)
         thread_id = threading.get_ident()
 
-        # Get stack trace for debugging (simplified)
-        import inspect
-
-        frame = inspect.currentframe()
-        caller = frame.f_back.f_back
-        location = f"{caller.f_code.co_filename}:{caller.f_lineno}"
-
-        self._active_buffers[buffer_id] = (buffer, location, thread_id)
+        self._active_buffers[buffer_id] = (buffer, context, thread_id)
 
     def return_buffer(self, buffer: np.ndarray):
         """
@@ -712,7 +705,7 @@ class XGBufferPool:
     def __str__(self) -> str:
         """String representation."""
         stats = self.get_pool_statistics()
-        return f".1factive={stats['active_buffers']}, pools={stats['total_pools']}"
+        return f"XGBufferPool(mem={stats['total_memory_mb']:.1f}MB, active={stats['active_buffers']}, pools={stats['total_pools']})"
 
     def __repr__(self) -> str:
         return self.__str__()

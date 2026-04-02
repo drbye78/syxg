@@ -276,7 +276,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
     Jupiter-X to be used alongside other synthesis engines.
     """
 
-    def __init__(self, sample_rate: int = 44100, block_size: int = 1024, buffer_oool=None):
+    def __init__(self, sample_rate: int = 44100, block_size: int = 1024, buffer_pool=None):
         """
         Initialize Jupiter-X engine integration.
 
@@ -288,7 +288,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
 
         # Initialize Jupiter-X synthesizer backend
         self.jupiter_x_synth = JupiterXSynthesizer(
-            sample_rate=sample_rate, buffer_size=block_size, buffer_oool=buffer_oool
+            sample_rate=sample_rate, buffer_size=block_size, buffer_pool=buffer_pool
         )
 
         # Enable Jupiter-X mode
@@ -471,7 +471,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
                 self.active = False
                 self.jupiter_x_engine.note_off(self.note)
 
-            def generate_samples(self, block_size: int, modulation: dict = None) -> np.ndarray:
+            def generate_samples(self, block_size: int, modulation: dict | None = None) -> np.ndarray:
                 """Generate samples."""
                 if not self.active:
                     return np.zeros((block_size, 2), dtype=np.float32)

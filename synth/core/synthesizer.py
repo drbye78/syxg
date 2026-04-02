@@ -39,11 +39,14 @@ Memory Management:
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from typing import Self
@@ -346,7 +349,7 @@ class Synthesizer:
                 self.engines["fdsp"] = fdsp_engine
                 engines_registered += 1
             except Exception as e:
-                print(f"Failed to register FDSP engine: {e}")
+                logger.error(f"Failed to register FDSP engine: {e}")
 
         # AN Engine (S90/S70 analog modeling)
         if ANEngine is not None:
@@ -356,7 +359,7 @@ class Synthesizer:
                 self.engines["an"] = an_engine
                 engines_registered += 1
             except Exception as e:
-                print(f"Failed to register AN engine: {e}")
+                logger.error(f"Failed to register AN engine: {e}")
 
         # SF2 Engine (SoundFont playback)
         if SF2Engine is not None:
@@ -373,7 +376,7 @@ class Synthesizer:
 
                 engines_registered += 1
             except Exception as e:
-                print(f"Failed to register SF2 engine: {e}")
+                logger.error(f"Failed to register SF2 engine: {e}")
 
         # Modern XG Synthesizer (AWM)
         if ModernXGSynthesizer is not None:
@@ -383,7 +386,7 @@ class Synthesizer:
                 self.engines["xg"] = xg_engine
                 engines_registered += 1
             except Exception as e:
-                print(f"Failed to register XG engine: {e}")
+                logger.error(f"Failed to register XG engine: {e}")
 
         # FM Engine
         if FMEngine is not None:
@@ -393,7 +396,7 @@ class Synthesizer:
                 self.engines["fm"] = fm_engine
                 engines_registered += 1
             except Exception as e:
-                print(f"Failed to register FM engine: {e}")
+                logger.error(f"Failed to register FM engine: {e}")
 
         # Wavetable Engine
         if WavetableEngine is not None:
@@ -403,7 +406,7 @@ class Synthesizer:
                 self.engines["wavetable"] = wt_engine
                 engines_registered += 1
             except Exception as e:
-                print(f"Failed to register Wavetable engine: {e}")
+                logger.error(f"Failed to register Wavetable engine: {e}")
 
         # Additive Engine
         if AdditiveEngine is not None:
@@ -413,9 +416,9 @@ class Synthesizer:
                 self.engines["additive"] = add_engine
                 engines_registered += 1
             except Exception as e:
-                print(f"Failed to register Additive engine: {e}")
+                logger.error(f"Failed to register Additive engine: {e}")
 
-        print(f"Registered {engines_registered} synthesis engines")
+        logger.info(f"Registered {engines_registered} synthesis engines")
 
     def _initialize_effects(self):
         """Initialize the effects processing system."""
@@ -432,7 +435,7 @@ class Synthesizer:
         for effect_name, effect_func in vcm_effects.items():
             self.effects_coordinator.register_effect(effect_name, effect_func)
 
-        print("Initialized effects system with VCM processing")
+        logger.info("Initialized effects system with VCM processing")
 
     def _setup_parameter_routing(self):
         """Setup parameter routing between components."""
@@ -449,7 +452,7 @@ class Synthesizer:
         # Connect performance monitor to parameter router for adaptive parameters
         self.parameter_router.register_monitor("performance", self.performance_monitor)
 
-        print("Parameter routing system initialized")
+        logger.info("Parameter routing system initialized")
 
     def _initialize_xg_system(self):
         """Initialize the XG system."""
@@ -469,7 +472,7 @@ class Synthesizer:
         self.xg_synthesizer.voice_manager = self.voice_manager
         self.xg_synthesizer.synthesizer = self
 
-        print("XG system initialized")
+        logger.info("XG system initialized")
 
     def _initialize_s90_s70_compatibility(self):
         """Initialize S90/S70 compatibility features."""
@@ -483,7 +486,7 @@ class Synthesizer:
         # Setup control surface assignments
         self._setup_control_assignments()
 
-        print("S90/S70 compatibility layer initialized")
+        logger.info("S90/S70 compatibility layer initialized")
 
     def _initialize_audio_output(self):
         """Initialize real-time audio output via sounddevice."""
@@ -492,7 +495,7 @@ class Synthesizer:
 
             def audio_callback(outdata, frames, time_info, status):
                 if status:
-                    print(f"Audio callback status: {status}")
+                    logger.warning(f"Audio callback status: {status}")
                 # Use render_block for the audio thread
                 self.render_block(outdata)
 
@@ -501,9 +504,9 @@ class Synthesizer:
                 buffer_size=self.buffer_size,
                 callback=audio_callback,
             )
-            print("Real-time audio output initialized")
+            logger.info("Real-time audio output initialized")
         except ImportError:
-            print("Warning: sounddevice not available for real-time audio output")
+            logger.warning("sounddevice not available for real-time audio output")
             self.audio_output = None
 
     def _setup_control_assignments(self):
@@ -536,7 +539,7 @@ class Synthesizer:
             )
             self.audio_thread.start()
 
-            print("Synthesizer started")
+            logger.info("Synthesizer started")
 
     def stop(self):
         """Stop the synthesizer."""
@@ -553,7 +556,7 @@ class Synthesizer:
             # Shutdown performance monitoring
             self.performance_monitor.shutdown_performance_monitoring()
 
-            print("Synthesizer stopped")
+            logger.info("Synthesizer stopped")
 
     def _audio_processing_thread(self):
         """Main audio processing thread."""
@@ -575,7 +578,7 @@ class Synthesizer:
                 time.sleep(0.001)
 
         except Exception as e:
-            print(f"Audio processing error: {e}")
+            logger.error(f"Audio processing error: {e}")
             self.running = False
 
     def _process_midi_events(self):
@@ -618,49 +621,41 @@ class Synthesizer:
         # Apply master processing
         self._apply_master_processing()
 
-    def _generate_voice_audio(self, voice_info: dict[str, Any]) -> np.ndarray | None:
+    def _generate_voice_audio(self, voice_info) -> np.ndarray | None:
         """Generate audio for a single voice."""
-
-        engine_type = voice_info.get("engine_type", "xg")
+        engine_type = voice_info.engine_type
         engine = self.engines.get(engine_type)
 
         if engine is None:
             return None
 
-        # Get voice parameters
-        note = voice_info.get("note", 60)
-        velocity = voice_info.get("velocity", 64)
-        modulation = voice_info.get("modulation", {})
+        note = voice_info.note
+        velocity = voice_info.velocity
+        modulation = voice_info.modulation_data or {}
 
-        # Generate audio block
         try:
             audio_block = engine.generate_samples(note, velocity, modulation, self.buffer_size)
 
-            # Apply per-voice effects if any
-            if voice_info.get("effects"):
-                audio_block = self._apply_voice_effects(audio_block, voice_info["effects"])
+            if voice_info.effects_chain:
+                audio_block = self._apply_voice_effects(audio_block, voice_info.effects_chain)
 
             return audio_block
 
         except Exception as e:
-            print(f"Voice generation error: {e}")
+            logger.error(f"Voice generation error: {e}")
             return None
 
     def _apply_effects(self):
         """Apply global effects processing."""
         self.effects_coordinator.process_block(self.output_buffer)
 
-    def _apply_voice_effects(self, audio: np.ndarray, effects: list[dict[str, Any]]) -> np.ndarray:
+    def _apply_voice_effects(self, audio: np.ndarray, effects_chain: list[str]) -> np.ndarray:
         """Apply per-voice effects."""
         processed = audio.copy()
 
-        for effect in effects:
-            effect_type = effect.get("type")
-            params = effect.get("parameters", {})
-
-            # Apply effect processing (simplified)
+        for effect_type in effects_chain:
             if effect_type in self.effects_coordinator.effects:
-                processed = self.effects_coordinator.apply_effect(processed, effect_type, params)
+                processed = self.effects_coordinator.apply_effect(processed, effect_type, {})
 
         return processed
 
@@ -699,15 +694,12 @@ class Synthesizer:
             channel_buffers = {}
 
             for voice_info in active_voices:
-                channel = voice_info.get("channel", 0)
+                channel = voice_info.channel
                 if channel not in channel_buffers:
-                    # Allocate channel buffer if needed
                     channel_buffers[channel] = np.zeros((num_samples, 2), dtype=np.float32)
 
-                # Generate voice audio
                 voice_audio = self._generate_voice_audio(voice_info)
                 if voice_audio is not None:
-                    # Mix into channel buffer
                     channel_buffers[channel] += voice_audio[:num_samples]
 
             # Step 3-5: Process through effects coordinator
@@ -753,14 +745,9 @@ class Synthesizer:
 
     def _trigger_voice(self, channel: int, note: int, velocity: int):
         """Internal method to trigger a voice."""
-        # Determine which engine to use based on XG program
         engine_type = self.xg_system.get_engine_for_channel(channel)
 
-        # Allocate voice
-        voice_id = self.voice_manager.allocate_voice(channel, note, velocity)
-
-        if voice_id is not None:
-            pass  # Voice allocated successfully
+        self.voice_manager.allocate_voice(channel, note, velocity, engine_type)
 
     def _trigger_voice_off(self, channel: int, note: int):
         """Internal method to handle note off."""
@@ -786,9 +773,6 @@ class Synthesizer:
                         return
 
             self._trigger_voice_off(channel, note)
-
-    def _trigger_voice_off(self, channel: int, note: int):
-        """Internal method to handle note off."""
 
     def control_change(self, channel: int, controller: int, value: int):
         """Handle control change event."""
@@ -872,7 +856,7 @@ class Synthesizer:
             True if initialization successful
         """
         if StylePlayer is None:
-            print("Style Engine: StylePlayer not available")
+            logger.warning("Style Engine: StylePlayer not available")
             return False
 
         try:
@@ -890,10 +874,10 @@ class Synthesizer:
             # Initialize style engine integrations
             self._initialize_style_integrations()
 
-            print("Style Engine: Initialized successfully")
+            logger.info("Style Engine: Initialized successfully")
             return True
         except Exception as e:
-            print(f"Style Engine: Initialization failed - {e}")
+            logger.error(f"Style Engine: Initialization failed - {e}")
             return False
 
     def _initialize_style_integrations(self):
@@ -926,9 +910,9 @@ class Synthesizer:
 
             # Enable all integrations
             self.style_integrations.enable_all()
-            print("Style Engine: Integrations initialized")
+            logger.info("Style Engine: Integrations initialized")
         except Exception as e:
-            print(f"Style Engine: Integration initialization failed - {e}")
+            logger.error(f"Style Engine: Integration initialization failed - {e}")
 
     def load_style_file(self, file_path: str) -> bool:
         """
@@ -951,10 +935,10 @@ class Synthesizer:
             loader = StyleLoader()
             style = loader.load_style_file(file_path)
             self.style_player.load_style(style)
-            print(f"Style Engine: Loaded style '{style.name}'")
+            logger.info(f"Style Engine: Loaded style '{style.name}'")
             return True
         except Exception as e:
-            print(f"Style Engine: Failed to load style - {e}")
+            logger.error(f"Style Engine: Failed to load style - {e}")
             return False
 
     def load_style(self, style: Style) -> bool:
@@ -974,10 +958,10 @@ class Synthesizer:
         if self.style_player:
             try:
                 self.style_player.load_style(style)
-                print(f"Style Engine: Loaded style '{style.name}'")
+                logger.info(f"Style Engine: Loaded style '{style.name}'")
                 return True
             except Exception as e:
-                print(f"Style Engine: Failed to load style - {e}")
+                logger.error(f"Style Engine: Failed to load style - {e}")
         return False
 
     def start_style(self, section: str | None = None) -> bool:
@@ -1003,7 +987,7 @@ class Synthesizer:
                 self.style_player.start()
             return True
         except Exception as e:
-            print(f"Style Engine: Failed to start - {e}")
+            logger.error(f"Style Engine: Failed to start - {e}")
             return False
 
     def stop_style(self) -> bool:
@@ -1020,7 +1004,7 @@ class Synthesizer:
             self.style_player.stop()
             return True
         except Exception as e:
-            print(f"Style Engine: Failed to stop - {e}")
+            logger.error(f"Style Engine: Failed to stop - {e}")
             return False
 
     def set_style_section(self, section: str) -> bool:
@@ -1043,7 +1027,7 @@ class Synthesizer:
             self.style_player.set_section(section_type)
             return True
         except Exception as e:
-            print(f"Style Engine: Failed to set section - {e}")
+            logger.error(f"Style Engine: Failed to set section - {e}")
             return False
 
     def trigger_style_fill(self) -> bool:
@@ -1060,7 +1044,7 @@ class Synthesizer:
             self.style_player.trigger_fill()
             return True
         except Exception as e:
-            print(f"Style Engine: Failed to trigger fill - {e}")
+            logger.error(f"Style Engine: Failed to trigger fill - {e}")
             return False
 
     def next_style_section(self) -> bool:
@@ -1077,7 +1061,7 @@ class Synthesizer:
             self.style_player.next_section()
             return True
         except Exception as e:
-            print(f"Style Engine: Failed to advance section - {e}")
+            logger.error(f"Style Engine: Failed to advance section - {e}")
             return False
 
     def set_style_tempo(self, tempo: int) -> bool:
@@ -1097,7 +1081,7 @@ class Synthesizer:
             self.style_player.tempo = max(20, min(300, tempo))
             return True
         except Exception as e:
-            print(f"Style Engine: Failed to set tempo - {e}")
+            logger.error(f"Style Engine: Failed to set tempo - {e}")
             return False
 
     def set_style_dynamics(self, value: int) -> bool:
@@ -1117,7 +1101,7 @@ class Synthesizer:
             self.style_player.set_dynamics(max(0, min(127, value)))
             return True
         except Exception as e:
-            print(f"Style Engine: Failed to set dynamics - {e}")
+            logger.error(f"Style Engine: Failed to set dynamics - {e}")
             return False
 
     def set_chord_detection_range(self, low_note: int = 36, high_note: int = 60) -> Self:
@@ -1327,17 +1311,17 @@ class Synthesizer:
             True if initialization successful
         """
         if RegistrationMemory is None:
-            print("Registration Memory: Not available")
+            logger.warning("Registration Memory: Not available")
             return False
 
         try:
             self.registration_memory = RegistrationMemory(num_banks, slots_per_bank)
             self.registration_memory.set_synthesizer(self)
             self._registration_enabled = True
-            print("Registration Memory: Initialized")
+            logger.info("Registration Memory: Initialized")
             return True
         except Exception as e:
-            print(f"Registration Memory: Initialization failed - {e}")
+            logger.error(f"Registration Memory: Initialization failed - {e}")
             return False
 
     def recall_registration(self, bank: int = 0, slot: int = 0) -> bool:
@@ -1439,7 +1423,7 @@ class Synthesizer:
             # Reset performance monitoring
             self.performance_monitor.reset_performance_stats()
 
-            print("Synthesizer reset to default state")
+            logger.info("Synthesizer reset to default state")
 
     def __del__(self):
         """Cleanup on destruction."""

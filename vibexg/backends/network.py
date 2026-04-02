@@ -6,11 +6,14 @@ This module provides network MIDI (RTP-MIDI / AppleMIDI) connection handling.
 
 from __future__ import annotations
 
+import logging
 import socket
 import threading
 from collections.abc import Callable
 
 from synth.midi import MIDIMessage
+
+logger = logging.getLogger(__name__)
 
 
 class NetworkMIDIHandler:

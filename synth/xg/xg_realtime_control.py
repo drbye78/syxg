@@ -164,7 +164,7 @@ class XGRealtimeControl:
                 self.display_callback("message", message)
 
             return {"type": "display_message", "message": message, "timestamp": time.time()}
-        except:
+        except Exception:
             return None
 
     def _handle_led_control(self, data: bytes) -> dict[str, Any] | None:

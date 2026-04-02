@@ -2,19 +2,28 @@
 
 ## Overview
 
-This plan documents the implementation of full MIDI controller support in SF2Region, following the removal of the legacy VectorizedChannelRenderer/XGPartialGenerator path.
+This plan documents the implementation of full MIDI controller support in SF2Region.
+
+## Implementation Status: COMPLETED
+
+The following MIDI controllers are now fully implemented in SF2Region:
+- CC1 (Mod Wheel), CC2 (Breath), CC4 (Foot)
+- CC5/65 (Portamento), CC8 (Balance), CC10 (Pan), CC11 (Expression)
+- CC64-69 (Pedals: Sustain, Sostenuto, Soft, Legato, Hold2)
+- CC70 (Sound Controller 1)
+- CC71 (Harmonic Content - fixed), CC72 (Brightness - fixed)
+- CC73-79 (Envelope/Vibrato XG parameters)
+- CC80-83 (GP Buttons)
+- CC92 (Tremolo Depth)
 
 ## Current State
 
-SF2Region currently handles:
-- CC1 (Mod Wheel) - partially
-- CC10 (Pan) - yes
-- CC71/72 - but **swapped** (bug)
+SF2Region now handles:
+- All standard MIDI CCs for sample synthesis
+- XG-specific envelope and vibrato controllers
+- Proper CC71/CC72 mapping per XG spec
 
-SF2Region has slots for:
-- `_breath_mod`, `_foot_mod`, `_expression_mod` - but these are read from the modulation dict, not from direct CC handling
-
-## Missing Controllers to Implement
+## Original Implementation Plan
 
 | CC | Name | Current Status | Implementation Priority |
 |----|------|----------------|------------------------|

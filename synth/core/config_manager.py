@@ -294,10 +294,6 @@ class ConfigManager:
         """Get GS enabled status"""
         return self.get_midi_config().get("gs_enabled", True)
 
-    def get_mpe_enabled(self) -> bool:
-        """Get MPE enabled status"""
-        return self.get_midi_config().get("mpe_enabled", True)
-
     def get_device_id(self) -> int:
         """Get MIDI device ID"""
         return self.get_midi_config().get("device_id", 16)

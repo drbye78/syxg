@@ -250,7 +250,7 @@ class CPUOptimizer:
                 if current_nice > -10:
                     os.nice(-10)
                     results["optimizations_applied"].append("process_priority_adjusted")
-        except:
+        except Exception:
             pass
 
         # Analyze thread pool
@@ -268,7 +268,7 @@ class CPUOptimizer:
                 os.sched_setaffinity(0, cpu_cores)
                 self.cpu_affinity = cpu_cores
                 return True
-        except:
+        except Exception:
             pass
         return False
 
@@ -288,7 +288,7 @@ class CPUOptimizer:
                     os.sched_setscheduler(0, os.SCHED_OTHER, os.sched_param(0))
                     self.realtime_priority = False
                     return True
-        except:
+        except Exception:
             pass
         return False
 

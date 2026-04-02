@@ -23,12 +23,9 @@ __version__ = "1.0.0"
 __author__ = "Roger"
 
 __all__ = [
-    # Version
     "__version__",
     "__author__",
-    # Core
     "XGWorkstation",
-    # Types
     "WorkstationState",
     "PresetData",
     "MIDIInputConfig",
@@ -40,11 +37,9 @@ __all__ = [
     "DEFAULT_BLOCK_SIZE",
     "MIDI_CHANNELS",
     "AUDIO_FORMATS",
-    # Managers
     "PresetManager",
     "MIDILearnManager",
     "StyleEngineIntegration",
-    # MIDI Inputs
     "MIDIInputInterface",
     "MidoPortInput",
     "VirtualPortInput",
@@ -52,93 +47,62 @@ __all__ = [
     "KeyboardInput",
     "FileMIDIInput",
     "StdinMIDIInput",
-    # Audio Outputs
     "AudioOutputEngine",
     "SoundDeviceOutput",
     "FileAudioOutput",
-    # TUI
     "TUIControlSurface",
-    # Demo
     "DemoMode",
-    # CLI
     "parse_arguments",
     "parse_input_spec",
     "parse_output_spec",
     "list_midi_ports",
     "main",
-    # Utils
     "midimessage_to_bytes",
     "bytes_to_midimessage",
-    # Backends
     "NetworkMIDIHandler",
 ]
 
-# Import version
-from . import types
+_import_map = {
+    "XGWorkstation": ".workstation",
+    "WorkstationState": ".types",
+    "PresetData": ".types",
+    "MIDIInputConfig": ".types",
+    "AudioOutputConfig": ".types",
+    "InputInterfaceType": ".types",
+    "AudioOutputType": ".types",
+    "DEFAULT_SAMPLE_RATE": ".types",
+    "DEFAULT_BUFFER_SIZE": ".types",
+    "DEFAULT_BLOCK_SIZE": ".types",
+    "MIDI_CHANNELS": ".types",
+    "AUDIO_FORMATS": ".types",
+    "PresetManager": ".managers",
+    "MIDILearnManager": ".managers",
+    "StyleEngineIntegration": ".managers",
+    "MIDIInputInterface": ".midi_inputs",
+    "MidoPortInput": ".midi_inputs",
+    "VirtualPortInput": ".midi_inputs",
+    "NetworkMIDIInput": ".midi_inputs",
+    "KeyboardInput": ".midi_inputs",
+    "FileMIDIInput": ".midi_inputs",
+    "StdinMIDIInput": ".midi_inputs",
+    "AudioOutputEngine": ".audio_outputs",
+    "SoundDeviceOutput": ".audio_outputs",
+    "FileAudioOutput": ".audio_outputs",
+    "TUIControlSurface": ".tui",
+    "DemoMode": ".demo",
+    "parse_arguments": ".cli",
+    "parse_input_spec": ".cli",
+    "parse_output_spec": ".cli",
+    "list_midi_ports": ".cli",
+    "main": ".cli",
+    "midimessage_to_bytes": ".utils",
+    "bytes_to_midimessage": ".utils",
+    "NetworkMIDIHandler": ".backends",
+}
 
-# Import audio outputs
-from .audio_outputs import (
-    AudioOutputEngine,
-    FileAudioOutput,
-    SoundDeviceOutput,
-)
 
-# Import backends
-from .backends import NetworkMIDIHandler
-
-# Import CLI
-from .cli import (
-    list_midi_ports,
-    main,
-    parse_arguments,
-    parse_input_spec,
-    parse_output_spec,
-)
-
-# Import Demo
-from .demo import DemoMode
-
-# Import managers
-from .managers import (
-    MIDILearnManager,
-    PresetManager,
-    StyleEngineIntegration,
-)
-
-# Import MIDI inputs
-from .midi_inputs import (
-    FileMIDIInput,
-    KeyboardInput,
-    MIDIInputInterface,
-    MidoPortInput,
-    NetworkMIDIInput,
-    StdinMIDIInput,
-    VirtualPortInput,
-)
-
-# Import TUI
-from .tui import TUIControlSurface
-
-# Import types
-from .types import (
-    AUDIO_FORMATS,
-    DEFAULT_BLOCK_SIZE,
-    DEFAULT_BUFFER_SIZE,
-    DEFAULT_SAMPLE_RATE,
-    MIDI_CHANNELS,
-    AudioOutputConfig,
-    AudioOutputType,
-    InputInterfaceType,
-    MIDIInputConfig,
-    PresetData,
-    WorkstationState,
-)
-
-# Import utils
-from .utils import (
-    bytes_to_midimessage,
-    midimessage_to_bytes,
-)
-
-# Import core
-from .workstation import XGWorkstation
+def __getattr__(name: str):
+    if name in _import_map:
+        module = __import__(_import_map[name], globals(), locals(), [name], 1)
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

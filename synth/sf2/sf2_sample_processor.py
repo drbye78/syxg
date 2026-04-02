@@ -98,37 +98,51 @@ class SampleMipMap:
         current_data = self.levels[0].data
         downsample_factor = 2**level
 
-        if len(current_data) < downsample_factor * 4:
-            # Don't downsample if too small for proper filtering
-            return
+        is_stereo = len(current_data.shape) > 1 and current_data.shape[1] == 2
 
-        # Apply anti-aliasing low-pass filter before downsampling
-        # Use a simple but effective FIR filter
-        filtered_data = self._apply_anti_aliasing_filter(current_data, downsample_factor)
+        if is_stereo:
+            frames = current_data.shape[0]
+            if frames < downsample_factor * 4:
+                return
 
-        # Downsample with proper filtering
-        new_length = len(filtered_data) // downsample_factor
-        downsampled = np.zeros(new_length, dtype=current_data.dtype)
+            filtered_left = self._apply_anti_aliasing_filter(current_data[:, 0], downsample_factor)
+            filtered_right = self._apply_anti_aliasing_filter(current_data[:, 1], downsample_factor)
 
-        # Use linear interpolation for better quality downsampling
-        for i in range(new_length):
-            # Calculate positions in original filtered data
-            start_pos = i * downsample_factor
-            end_pos = min(start_pos + downsample_factor, len(filtered_data))
+            new_frames = frames // downsample_factor
+            downsampled = np.zeros((new_frames, 2), dtype=current_data.dtype)
 
-            if end_pos - start_pos >= 2:
-                # Linear interpolation between samples
-                pos = start_pos
+            for i in range(new_frames):
+                pos = i * downsample_factor
                 frac = pos - int(pos)
-                sample1 = filtered_data[int(pos)] if int(pos) < len(filtered_data) else 0.0
-                sample2 = filtered_data[min(int(pos) + 1, len(filtered_data) - 1)]
-                downsampled[i] = sample1 * (1.0 - frac) + sample2 * frac
-            else:
-                # Direct sampling for exact positions
-                downsampled[i] = filtered_data[min(int(start_pos), len(filtered_data) - 1)]
+                pos_i = int(pos)
+
+                s1_l = filtered_left[pos_i] if pos_i < len(filtered_left) else 0.0
+                s2_l = filtered_left[min(pos_i + 1, len(filtered_left) - 1)]
+                downsampled[i, 0] = s1_l + frac * (s2_l - s1_l)
+
+                s1_r = filtered_right[pos_i] if pos_i < len(filtered_right) else 0.0
+                s2_r = filtered_right[min(pos_i + 1, len(filtered_right) - 1)]
+                downsampled[i, 1] = s1_r + frac * (s2_r - s1_r)
+        else:
+            if len(current_data) < downsample_factor * 4:
+                return
+
+            filtered_data = self._apply_anti_aliasing_filter(current_data, downsample_factor)
+
+            new_length = len(filtered_data) // downsample_factor
+            downsampled = np.zeros(new_length, dtype=current_data.dtype)
+
+            for i in range(new_length):
+                start_pos = i * downsample_factor
+                frac = start_pos - int(start_pos)
+                pos_i = int(start_pos)
+
+                s1 = filtered_data[pos_i] if pos_i < len(filtered_data) else 0.0
+                s2 = filtered_data[min(pos_i + 1, len(filtered_data) - 1)]
+                downsampled[i] = s1 + frac * (s2 - s1)
 
         effective_sample_rate = self.original_sample_rate / downsample_factor
-        pitch_ratio = 1.0 / downsample_factor  # Lower pitch ratio for downsampled data
+        pitch_ratio = 1.0 / downsample_factor
 
         mip_level = MipMapLevel(level, downsampled, effective_sample_rate, pitch_ratio)
         self.levels[level] = mip_level

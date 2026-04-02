@@ -130,7 +130,6 @@ class FileAudioOutput(AudioOutputEngine):
         self.audio_writer: AudioWriter | None = None
         self.av_writer = None
         self.total_samples = 0
-        self.samples_buffer: list[np.ndarray] = []
 
     def _start_output(self):
         try:
@@ -148,18 +147,12 @@ class FileAudioOutput(AudioOutputEngine):
             )
             self.av_writer.__enter__()
             self.total_samples = 0
-            self.samples_buffer = []
             logger.info(f"File audio output started: {self.config.file_path}")
         except Exception as e:
             logger.error(f"Failed to start file audio output: {e}")
 
     def _stop_output(self):
         if self.av_writer:
-            # Write all buffered samples
-            for samples in self.samples_buffer:
-                self.av_writer.write(samples)
-
-            # Finalize and close file
             try:
                 self.av_writer.__exit__(None, None, None)
                 logger.info(
@@ -169,7 +162,6 @@ class FileAudioOutput(AudioOutputEngine):
                 logger.error(f"Failed to finalize audio file: {e}")
             finally:
                 self.av_writer = None
-                self.samples_buffer = []
 
     def render_block(self, audio_data: np.ndarray):
         """
@@ -179,6 +171,5 @@ class FileAudioOutput(AudioOutputEngine):
             audio_data: Numpy array of audio samples to write
         """
         if self.av_writer is not None:
-            # Buffer the data for final write
-            self.samples_buffer.append(audio_data.copy())
+            self.av_writer.write(audio_data)
             self.total_samples += len(audio_data)

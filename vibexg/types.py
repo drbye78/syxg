@@ -111,5 +111,4 @@ class WorkstationState:
     voices_active: int = 0
     cpu_usage: float = 0.0
     midi_activity: dict[int, int] = field(default_factory=lambda: dict.fromkeys(range(16), 0))
-    recorded_events: list[dict[str, Any]] = field(default_factory=list)
     loaded_styles: dict[int, str] = field(default_factory=dict)  # channel -> style name

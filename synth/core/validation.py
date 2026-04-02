@@ -209,7 +209,7 @@ class ValidationError(Exception):
     def __init__(
         self,
         message: str,
-        error_code: str = None,
+        error_code: str | None = None,
         context: dict[str, Any] = None,
         severity: str = "error",
     ):
@@ -309,7 +309,7 @@ class AudioValidator:
         self.lock = threading.RLock()
 
     def validate_buffer(
-        self, buffer: np.ndarray, expected_channels: int = None, expected_dtype: np.dtype = None
+        self, buffer: np.ndarray, expected_channels: int | None = None, expected_dtype: np.dtype | None = None
     ) -> ValidationResult:
         """
         Comprehensive audio buffer validation.

@@ -305,22 +305,11 @@ class ModulationMatrix:
 
     def _init_default_curves(self):
         """Initialize default modulation curves for advanced shaping."""
-        import numpy as np
-
-        # Linear curve (default)
         self.curve_tables["linear"] = np.linspace(0.0, 1.0, 128)
-
-        # Exponential curve for natural-sounding modulation
         self.curve_tables["exponential"] = np.power(np.linspace(0.0, 1.0, 128), 2.0)
-
-        # Logarithmic curve for perceptual scaling
         self.curve_tables["logarithmic"] = np.log10(1.0 + 9.0 * np.linspace(0.0, 1.0, 128))
-
-        # S-curve for smooth transitions
         s = np.linspace(0.0, 1.0, 128)
         self.curve_tables["s_curve"] = 3.0 * s**2 - 2.0 * s**3
-
-        # Random/sample & hold curve
         self.curve_tables["random"] = np.random.random(128)
 
     def set_route(

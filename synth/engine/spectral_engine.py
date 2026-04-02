@@ -679,30 +679,6 @@ class SpectralSynthesizer:
 
         return processed_spectrum
 
-    def _generate_noise_spectrum(self) -> np.ndarray:
-        """
-        Generate spectrally-shaped noise spectrum.
-
-        Returns:
-            Complex noise spectrum
-        """
-        # Create frequency-dependent noise spectrum
-        freq_bins = np.fft.fftfreq(self.fft_size, 1.0 / 22050.0)  # Assume 44.1kHz / 2
-
-        # Pink noise characteristics (1/f spectrum)
-        magnitudes = 1.0 / np.sqrt(np.maximum(np.abs(freq_bins), 20.0))
-
-        # Add some randomization
-        magnitudes *= 0.5 + np.random.random(len(magnitudes)) * 0.5
-
-        # Random phases
-        phases = np.random.uniform(0, 2 * np.pi, len(magnitudes))
-
-        # Create complex spectrum
-        complex_spectrum = magnitudes * np.exp(1j * phases)
-
-        return complex_spectrum
-
     def _apply_harmonic_enhancement(self, spectrum: np.ndarray) -> np.ndarray:
         """
         Apply harmonic enhancement to spectrum.

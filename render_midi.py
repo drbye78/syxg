@@ -24,9 +24,6 @@ from synth.audio.converter import AudioConverter
 from synth.audio.writer import AudioWriter
 from synth.core.config_manager import ConfigManager
 from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-
-# Lazy import for OptimizedXGSynthesizer to avoid dependency issues
-# from synth.engine.optimized_xg_synthesizer import OptimizedXGSynthesizer
 from synth.utils.keyboard import KeyboardListener
 
 
@@ -109,16 +106,10 @@ Examples:
         help="Audio rendering logging level: 0=no logging, 1=log combined channel audio before effects, 2=log each channel renderer output",
     )
     parser.add_argument(
-        "--architecture",
-        choices=["legacy", "voice"],
-        default="legacy",
-        help="Synthesizer architecture: legacy=existing XG implementation, voice=new Voice-based architecture",
-    )
-    parser.add_argument(
         "--synth",
         choices=["modern", "optimized"],
         default="modern",
-        help="XG synthesizer engine: modern=ModernXGSynthesizer, optimized=OptimizedXGSynthesizer",
+        help="XG synthesizer engine: modern=ModernXGSynthesizer, optimized=LEGACY (moved to legacy/)",
     )
 
     return parser.parse_args()
@@ -297,18 +288,19 @@ def main():
     synth_start = time.time()
 
     if synth_choice == "optimized":
-        # Calculate block size for OptimizedXGSynthesizer
-        block_size = int(sample_rate * chunk_size_ms / 1000)
-        synthesizer = OptimizedXGSynthesizer(
+        print(
+            "Warning: OptimizedXGSynthesizer has been moved to legacy package. Using ModernXGSynthesizer instead."
+        )
+        synthesizer = ModernXGSynthesizer(
             sample_rate=sample_rate,
-            max_polyphony=max_polyphony,
-            block_size=block_size,
-            sf2_files=sf2_files if sf2_files else None,
-            render_log_level=render_log_level,
-            architecture=architecture,
+            max_channels=max_polyphony,
+            xg_enabled=True,
+            gs_enabled=True,
+            mpe_enabled=True,
+            device_id=0x10,
         )
         if not silent:
-            print("Using OptimizedXGSynthesizer engine")
+            print("Using ModernXGSynthesizer (legacy OptimizedXGSynthesizer not available)")
     else:  # modern
         synthesizer = ModernXGSynthesizer(
             sample_rate=sample_rate,

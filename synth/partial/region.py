@@ -183,8 +183,8 @@ class IRegion(ABC):
 
     def _allocate_buffers(self) -> None:
         """Allocate processing buffers."""
-        # Allocate stereo output buffer
-        self._output_buffer = np.zeros(self.block_size * 2, dtype=np.float32)
+        # Allocate stereo output buffer (2D interleaved: block_size x 2)
+        self._output_buffer = np.zeros((self.block_size, 2), dtype=np.float32)
         self._work_buffer = np.zeros(self.block_size, dtype=np.float32)
 
     # ========== PLAYBACK ==========
@@ -243,7 +243,7 @@ class IRegion(ABC):
             modulation: Current modulation values
 
         Returns:
-            Stereo audio buffer (block_size * 2,) as float32
+            Stereo audio buffer (block_size, 2) as float32
         """
         pass
 

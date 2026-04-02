@@ -323,10 +323,10 @@ class PhysicalRegion(IRegion):
             modulation: Current modulation values
 
         Returns:
-            Stereo audio buffer (block_size * 2,) as float32
+            Stereo audio buffer (block_size, 2) as float32
         """
         if not self._partial:
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
         try:
             # Generate samples from partial
@@ -347,7 +347,7 @@ class PhysicalRegion(IRegion):
 
         except Exception as e:
             logger.error(f"Physical sample generation failed: {e}")
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
     def is_active(self) -> bool:
         """Check if physical region is still producing sound."""

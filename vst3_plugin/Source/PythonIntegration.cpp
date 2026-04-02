@@ -148,23 +148,26 @@ bool PythonIntegration::sendMidiMessage(int status, int data1, int data2, double
     {
         GilLock gil;
 
-        // Convert MIDI parameters to bytes
         std::vector<uint8_t> midiBytes;
         midiBytes.push_back(static_cast<uint8_t>(status));
 
-        if ((status & 0xF0) != 0xC0 && (status & 0xF0) != 0xD0) // Not program change or aftertouch
+        int msgType = status & 0xF0;
+        if (msgType == 0x80 || msgType == 0x90 || msgType == 0xA0 || msgType == 0xB0)
         {
             midiBytes.push_back(static_cast<uint8_t>(data1));
-            if ((status & 0xF0) != 0x80 && (status & 0xF0) != 0x90 && (status & 0xF0) != 0xA0 && (status & 0xF0) != 0xB0 && (status & 0xF0) != 0xE0)
-            {
-                midiBytes.push_back(static_cast<uint8_t>(data2));
-            }
+            midiBytes.push_back(static_cast<uint8_t>(data2));
+        }
+        else if (msgType == 0xC0 || msgType == 0xD0)
+        {
+            midiBytes.push_back(static_cast<uint8_t>(data1));
+        }
+        else if (msgType == 0xE0)
+        {
+            midiBytes.push_back(static_cast<uint8_t>(data1 & 0x7F));
+            midiBytes.push_back(static_cast<uint8_t>((data2 >> 7) & 0x7F));
         }
 
-        // Create Python bytes object
         py::bytes midiData(reinterpret_cast<const char*>(midiBytes.data()), midiBytes.size());
-
-        // Send MIDI message to synthesizer
         xgSynthesizer.attr("process_midi_message")(midiData);
 
         return true;
@@ -334,24 +337,35 @@ bool PythonIntegration::setupPythonPath()
     {
         GilLock gil;
 
-        // Get current executable path
-        auto exePath = std::filesystem::current_path();
-        auto projectRoot = exePath.parent_path(); // Go up from vst3_plugin directory
+        auto exePath = juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+        auto pluginDir = exePath.getParentDirectory();
 
-        // Add synth directory to Python path
-        auto synthPath = projectRoot / "synth";
-        if (std::filesystem::exists(synthPath))
+        juce::Array<juce::File> searchPaths;
+        searchPaths.add(pluginDir);
+        searchPaths.add(pluginDir.getParentDirectory());
+        searchPaths.add(pluginDir.getParentDirectory().getParentDirectory());
+
+        juce::File synthDir;
+        for (auto& basePath : searchPaths)
         {
-            py::module::import("sys").attr("path").attr("append")(synthPath.string());
-            DBG("Added synth path to Python path: " + juce::String(synthPath.string()));
-        }
-        else
-        {
-            DBG("Synth path not found: " + juce::String(synthPath.string()));
-            return false;
+            auto candidate = basePath.getChildFile("synth");
+            if (candidate.isDirectory())
+            {
+                synthDir = candidate;
+                break;
+            }
         }
 
-        return true;
+        if (synthDir.isDirectory())
+        {
+            auto projectRoot = synthDir.getParentDirectory();
+            py::module::import("sys").attr("path").attr("insert")(0, projectRoot.getFullPathName().toStdString());
+            DBG("Added project root to Python path: " + projectRoot.getFullPathName());
+            return true;
+        }
+
+        DBG("Synth directory not found in any search path");
+        return false;
     }
     catch (const std::exception& e)
     {
@@ -438,4 +452,57 @@ bool PythonIntegration::testIntegration()
         DBG("Integration test error: " + juce::String(e.what()));
         return false;
     }
+}
+
+bool PythonIntegration::setPartParameter(int part, const juce::String& parameterName, float value)
+{
+    if (!isReady())
+        return false;
+
+    try
+    {
+        GilLock gil;
+        xgSynthesizer.attr("set_channel_parameter")(part, parameterName.toStdString(), value);
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        DBG("Part parameter error: " + juce::String(e.what()));
+        return false;
+    }
+}
+
+juce::String PythonIntegration::getSynthesizerInfo() const
+{
+    if (!isReady())
+        return "Not initialized";
+
+    try
+    {
+        GilLock gil;
+        auto info = xgSynthesizer.attr("get_synthesizer_info")();
+        return juce::String(py::str(info));
+    }
+    catch (const std::exception& e)
+    {
+        return "Error: " + juce::String(e.what());
+    }
+}
+
+juce::String PythonIntegration::getLastError() const
+{
+    std::lock_guard<std::mutex> lock(errorMutex);
+    return lastError;
+}
+
+void PythonIntegration::clearLastError()
+{
+    std::lock_guard<std::mutex> lock(errorMutex);
+    lastError = juce::String();
+}
+
+void PythonIntegration::setLastError(const juce::String& error)
+{
+    std::lock_guard<std::mutex> lock(errorMutex);
+    lastError = error;
 }

@@ -70,7 +70,7 @@ class ParameterPrioritySystem:
             if protocol in ["xg", "gs", "auto"]:
                 self.active_protocol = protocol
 
-    def update_parameter(self, param_key: str, value: Any, source: str, channel: int = None):
+    def update_parameter(self, param_key: str, value: Any, source: str, channel: int | None = None):
         """Update parameter from specific source (gs or xg)"""
         with self.lock:
             if source not in ["gs", "xg"]:
@@ -85,7 +85,7 @@ class ParameterPrioritySystem:
             self.parameter_sources[full_key][source] = value
             self.parameter_sources[full_key]["timestamp"] = time.time()
 
-    def get_active_value(self, param_key: str, channel: int = None) -> Any | None:
+    def get_active_value(self, param_key: str, channel: int | None = None) -> Any | None:
         """Get parameter value based on active protocol"""
         with self.lock:
             full_key = f"{param_key}_ch{channel}" if channel is not None else param_key

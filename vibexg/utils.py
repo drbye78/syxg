@@ -99,5 +99,6 @@ def bytes_to_midimessage(data: bytes, timestamp: float | None = None) -> list[MI
     """
     from synth.midi import RealtimeParser
 
-    parser: RealtimeParser = RealtimeParser()
-    return parser.parse_bytes(data)
+    if not hasattr(bytes_to_midimessage, "_parser"):
+        bytes_to_midimessage._parser = RealtimeParser()
+    return bytes_to_midimessage._parser.parse_bytes(data)

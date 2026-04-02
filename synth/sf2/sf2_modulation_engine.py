@@ -237,25 +237,6 @@ class SF2ModulationEngine:
         self.pitch_bend = 0.0
         self.current_channel_pressure = 0.0
 
-    def get_modulation_for_generator(
-        self, generator: int, note: int = 60, velocity: int = 100
-    ) -> float:
-        """
-        Get modulation value for a specific generator.
-
-        Args:
-            generator: SF2 generator number
-            note: MIDI note number
-            velocity: MIDI velocity
-
-        Returns:
-            Modulation value (0.0 if no modulation for this generator)
-        """
-        # SF2GeneratorProcessor only stores generator values, not modulators
-        # Return 0.0 as there's no modulation for this generator type
-        # Modulation is handled by SF2ModulationEngine
-        return 0.0
-
     def update_controller(self, controller: int, value: float, smooth: bool = False) -> None:
         """Update a controller value."""
         self.controller_values[controller] = value
@@ -754,35 +735,6 @@ class SF2RealtimeControllerManager:
             "pitch_bend_range": self.current_pitch_bend_range,
             "pitch_bend_value": self.pitch_bend,
         }
-
-    def create_zone_engine(
-        self,
-        zone_id: str,
-        instrument_generators: dict[int, int],
-        instrument_modulators: list[dict],
-        preset_generators: dict[int, int],
-        preset_modulators: list[dict],
-    ) -> SF2ZoneEngine:
-        """
-        Create a per-zone modulation engine.
-
-        Args:
-            zone_id: Unique zone identifier
-            instrument_generators: Generator values from instrument zone
-            instrument_modulators: Modulator list from instrument zone
-            preset_generators: Generator values from preset zone
-            preset_modulators: Modulator list from preset zone
-
-        Returns:
-            SF2ZoneEngine instance
-        """
-        return SF2ZoneEngine(
-            zone_id,
-            instrument_generators,
-            instrument_modulators,
-            preset_generators,
-            preset_modulators,
-        )
 
     def create_zone_engine(
         self,

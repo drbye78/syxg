@@ -273,7 +273,7 @@ class OscillatorPool:
             # Update parameters (id is already set during construction)
             oscillator.set_parameters(waveform=waveform, rate=rate, depth=depth, delay=delay)
             return oscillator
-        except:
+        except Exception:
             # Pool empty or error during reuse - create new oscillator (fallback path)
             return UltraFastXGLFO(
                 id=id,
@@ -303,7 +303,7 @@ class OscillatorPool:
             # Only return if pool isn't full (maintain reasonable size)
             if len(self.pool) < self.max_oscillators:
                 self.pool.append(oscillator)
-        except:
+        except Exception:
             # Error during reset - just discard
             pass
 

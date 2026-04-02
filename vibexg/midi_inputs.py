@@ -164,10 +164,20 @@ class VirtualPortInput(MIDIInputInterface):
 
         try:
             port_name = self.config.port_name or "XG-Workstation-Virtual"
-            self.port = open_output(port_name, virtual=True)
+            self.port = open_input(port_name, virtual=True)
+            self.port.set_callback(self._virtual_port_callback)
             logger.info(f"Virtual MIDI port created: {port_name}")
         except Exception as e:
             logger.error(f"Failed to create virtual MIDI port: {e}")
+
+    def _virtual_port_callback(self, event, data=None):
+        """Handle incoming MIDI messages on virtual port."""
+        if self.message_callback and hasattr(event, "data"):
+            try:
+                msg = MIDIMessage.from_bytes(bytes(event.data))
+                self.message_callback(msg)
+            except Exception as e:
+                logger.error(f"Virtual port MIDI parse error: {e}")
 
     def _stop_interface(self):
         if hasattr(self, "port") and self.port:
@@ -305,19 +315,26 @@ class FileMIDIInput(MIDIInputInterface):
             return
 
         try:
-            # Use FileParser from synth.midi
             parser = FileParser()
             messages = parser.parse_file(self.file_path)
 
+            if not messages:
+                return
+
             while self.running:
+                start_time = time.time()
+                prev_timestamp = messages[0].timestamp
+
                 for midimsg in messages:
                     if not self.running:
                         return
 
-                    # Apply tempo adjustment
-                    adjusted_timestamp = time.time() + (midimsg.timestamp / self.tempo_multiplier)
-                    midimsg.timestamp = adjusted_timestamp
+                    delta = (midimsg.timestamp - prev_timestamp) / self.tempo_multiplier
+                    if delta > 0:
+                        time.sleep(delta)
+
                     self._send_message(midimsg)
+                    prev_timestamp = midimsg.timestamp
 
                 if not self.loop:
                     break

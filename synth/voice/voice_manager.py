@@ -235,6 +235,7 @@ class VoiceManager:
         """
         self.max_voices = max_voices
         self.active_voices: dict[int, VoiceInfo] = {}
+        self._voice_index: dict[tuple[int, int], int] = {}  # (channel, note) -> voice_id
         self.free_voice_ids: set[int] = set(range(max_voices))
         self.next_voice_id = max_voices
 
@@ -333,6 +334,7 @@ class VoiceManager:
         )
 
         self.active_voices[voice_id] = voice_info
+        self._voice_index[(channel, note)] = voice_id
         self.allocation_stats["total_allocations"] += 1
         self.allocation_stats["peak_concurrent_voices"] = max(
             self.allocation_stats["peak_concurrent_voices"], len(self.active_voices)
@@ -363,6 +365,8 @@ class VoiceManager:
         )
 
         self.active_voices[voice_id] = new_voice_info
+        self._voice_index[(channel, note)] = voice_id
+        self._voice_index.pop((old_voice_info.channel, old_voice_info.note), None)
         self.allocation_stats["voice_stealing_events"] += 1
 
         # Notify callback
@@ -483,6 +487,7 @@ class VoiceManager:
                 )
 
                 # Free the voice
+                self._voice_index.pop((voice_info.channel, voice_info.note), None)
                 del self.active_voices[voice_id]
                 self.free_voice_ids.add(voice_id)
 
@@ -505,9 +510,9 @@ class VoiceManager:
             Voice ID or None if not found
         """
         with self.lock:
-            for voice_id, voice_info in self.active_voices.items():
-                if voice_info.channel == channel and voice_info.note == note:
-                    return voice_id
+            voice_id = self._voice_index.get((channel, note))
+            if voice_id is not None and voice_id in self.active_voices:
+                return voice_id
             return None
 
     def get_active_voices(self) -> list[VoiceInfo]:

@@ -40,10 +40,12 @@ class VoiceInstance:
 
     __slots__ = [
         "_pending_removal",
+        "_output_buffer",
         "active_regions",
         "aftertouch",
         "articulation",
         "articulation_parameters",
+        "buffer_pool",
         "channel",
         "filter_cutoff_offset",
         "master_volume",
@@ -71,6 +73,7 @@ class VoiceInstance:
         sample_rate: int,
         articulation: str = "normal",
         voice_id: int | None = None,
+        buffer_pool: Any | None = None,
     ):
         """
         Initialize VoiceInstance for a specific note.
@@ -82,12 +85,16 @@ class VoiceInstance:
             sample_rate: Audio sample rate in Hz
             articulation: Initial articulation (default: 'normal')
             voice_id: Unique voice identifier (optional, auto-generated if None)
+            buffer_pool: Optional buffer pool for zero-allocation
         """
         self.voice_id = voice_id if voice_id is not None else id(self)
         self.note = note
         self.velocity = velocity
         self.channel = channel
         self.sample_rate = sample_rate
+        self.buffer_pool = buffer_pool
+
+        self._output_buffer: np.ndarray | None = None
 
         # Register this instance
         _voice_instances[self.voice_id] = self
@@ -276,32 +283,40 @@ class VoiceInstance:
             Stereo audio buffer (block_size, 2) as float32
         """
         if not self.active_regions:
-            return np.zeros((block_size, 2), dtype=np.float32)
+            if self._output_buffer is None or self._output_buffer.shape[0] != block_size:
+                if self.buffer_pool:
+                    self._output_buffer = self.buffer_pool.get_stereo_buffer(block_size)
+                else:
+                    self._output_buffer = np.zeros((block_size, 2), dtype=np.float32)
+            self._output_buffer.fill(0.0)
+            return self._output_buffer
 
-        output = np.zeros((block_size, 2), dtype=np.float32)
+        if self._output_buffer is None or self._output_buffer.shape[0] != block_size:
+            if self.buffer_pool:
+                self._output_buffer = self.buffer_pool.get_stereo_buffer(block_size)
+            else:
+                self._output_buffer = np.zeros((block_size, 2), dtype=np.float32)
+
+        output = self._output_buffer
+        output.fill(0.0)
         active_count = 0
 
         for region in self.active_regions:
             is_region_active = region.is_active()
             if is_region_active:
                 try:
-                    # Generate samples from region
                     samples = region.generate_samples(block_size, self.modulation_state)
 
-                    # Handle different sample shapes
-                    if len(samples.shape) == 1:
-                        # Flat interleaved stereo - reshape
-                        if samples.shape[0] == block_size * 2:
-                            samples = samples.reshape(block_size, 2)
-                        else:
-                            samples = np.zeros((block_size, 2), dtype=np.float32)
-
-                    # Apply region gain (crossfades, velocity scaling)
                     gain = self._calculate_region_gain(region)
                     if gain != 1.0:
                         samples *= gain
 
-                    output += samples
+                    if samples.shape[0] == output.shape[0]:
+                        output += samples
+                    elif samples.shape[0] < output.shape[0]:
+                        output[: samples.shape[0]] += samples
+                    else:
+                        output += samples[: output.shape[0]]
                     active_count += 1
 
                 except Exception as e:

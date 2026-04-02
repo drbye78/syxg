@@ -462,33 +462,28 @@ class SF2Sample:
             return False
 
     def _convert_16bit_sample(self, data: bytes) -> np.ndarray:
-        """Convert 16-bit sample data to float32."""
+        """Convert 16-bit sample data to float32 stereo interleaved."""
         samples = np.frombuffer(data, dtype=np.int16)
         if self.is_stereo:
-            # Interleaved stereo: reshape to (frames, 2)
-            stereo_data = samples.reshape(-1, 2).astype(np.float32) / 32768.0
-            return stereo_data
-        else:
-            return samples.astype(np.float32) / 32768.0
+            return samples.reshape(-1, 2).astype(np.float32) / 32768.0
+        mono = samples.astype(np.float32) / 32768.0
+        return np.column_stack([mono, mono])
 
     def _convert_24bit_sample(self, data: bytes) -> np.ndarray:
-        """Convert 24-bit sample data to float32."""
+        """Convert 24-bit sample data to float32 stereo interleaved."""
         samples = []
 
         if self.is_stereo:
-            # Stereo 24-bit: 6 bytes per frame (3 bytes per channel)
             for i in range(0, len(data), 6):
                 if i + 6 > len(data):
                     break
 
-                # Left channel
                 left_bytes = data[i : i + 3]
                 left_int = int.from_bytes(left_bytes, byteorder="little", signed=True)
                 if left_int & 0x800000:
                     left_int |= 0xFF000000
                 left_sample = left_int / 8388608.0
 
-                # Right channel
                 right_bytes = data[i + 3 : i + 6]
                 right_int = int.from_bytes(right_bytes, byteorder="little", signed=True)
                 if right_int & 0x800000:
@@ -499,7 +494,7 @@ class SF2Sample:
 
             return np.array(samples, dtype=np.float32).reshape(-1, 2)
         else:
-            # Mono 24-bit: 3 bytes per sample
+            mono = []
             for i in range(0, len(data), 3):
                 if i + 3 > len(data):
                     break
@@ -509,9 +504,10 @@ class SF2Sample:
                 if sample_int & 0x800000:
                     sample_int |= 0xFF000000
                 sample = sample_int / 8388608.0
-                samples.append(sample)
+                mono.append(sample)
 
-            return np.array(samples, dtype=np.float32)
+            mono_arr = np.array(mono, dtype=np.float32)
+            return np.column_stack([mono_arr, mono_arr])
 
     def get_loop_samples(self) -> np.ndarray | None:
         """Get loop section of sample data."""

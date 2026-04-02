@@ -88,7 +88,7 @@ voices:
 
 The synthesizer supports loading multiple SoundFont files with advanced configuration options including **priority ordering**, **program blacklisting**, and **program remapping**.
 
-#### Legacy Single Path
+#### Simple Single Path (Backwards Compatible)
 
 ```yaml
 sf2_path: "/path/to/soundfont.sf2"  # Default SoundFont file (backwards compatible)

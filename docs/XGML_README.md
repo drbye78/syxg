@@ -674,7 +674,7 @@ XGMLParser → XGMLDocument
     ↓
 XGMLToMIDITranslator → List[MIDIMessage]
     ↓
-OptimizedXGSynthesizer.send_midi_message_block()
+ModernXGSynthesizer.send_midi_message_block()
     ↓
 Real-time Audio Rendering
 ```

@@ -18,7 +18,28 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Find Python and pybind11
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-find_package(pybind11 REQUIRED)
+
+# Try to find pybind11 via CMake config first, then fallback to pip install
+find_package(pybind11 CONFIG QUIET)
+if(NOT pybind11_FOUND)
+    # Fallback: find pybind11 headers via pip
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import pybind11; print(pybind11.get_include())"
+        OUTPUT_VARIABLE PYBIND11_INCLUDE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE PYBIND11_FIND_RESULT
+    )
+    if(PYBIND11_FIND_RESULT EQUAL 0 AND EXISTS "${PYBIND11_INCLUDE_DIR}")
+        add_library(pybind11::embed INTERFACE IMPORTED)
+        target_include_directories(pybind11::embed INTERFACE "${PYBIND11_INCLUDE_DIR}")
+        target_compile_definitions(pybind11::embed INTERFACE PYBIND11_EMBEDDED_MODULE_IMPL)
+        message(STATUS "Found pybind11 via pip: ${PYBIND11_INCLUDE_DIR}")
+    else()
+        message(FATAL_ERROR "pybind11 not found. Install with: pip install pybind11")
+    endif()
+else()
+    message(STATUS "Found pybind11 via CMake config")
+endif()
 
 # Set JUCE modules directory for the embedded JUCE submodule
 set(JUCE_MODULES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/modules" CACHE PATH "Path to JUCE modules")
@@ -34,7 +55,6 @@ set(JUCE_USE_PULSEAUDIO OFF CACHE BOOL "Disable PulseAudio support")
 set(JUCE_USE_COREAUDIO OFF CACHE BOOL "Disable CoreAudio support")
 set(JUCE_USE_WINRT_MIDI OFF CACHE BOOL "Disable WinRT MIDI support")
 set(JUCE_USE_WEBSOCKET OFF CACHE BOOL "Disable WebSocket support")
-set(JUCE_USE_CURL OFF CACHE BOOL "Disable CURL support")
 
 # Add JUCE - use the embedded submodule
 add_subdirectory(JUCE)
@@ -79,6 +99,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         juce::juce_core
+        juce::juce_audio_basics
         juce::juce_audio_utils
         juce::juce_audio_processors
         juce::juce_gui_basics

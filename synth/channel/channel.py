@@ -594,13 +594,15 @@ class Channel:
         # Create new VoiceInstance for this note with articulation
         # CRITICAL: Always create new voice instance for true polyphony
         # Don't check for existing voices - allow multiple voices per note
+        buffer_pool = getattr(self.synthesizer, "buffer_pool", None) if self.synthesizer else None
         voice_instance = VoiceInstance(
             transposed_note,
             velocity,
             self.channel_number,
             self.sample_rate,
-            voice_id=voice_id,  # Pass unique voice ID
+            voice_id=voice_id,
             articulation=articulation,
+            buffer_pool=buffer_pool,
         )
 
         # Apply articulation parameters
@@ -628,8 +630,8 @@ class Channel:
                 # Fallback: try legacy single voice
                 self.current_voice.note_on(transposed_note, velocity)
                 return True
-            print(
-                f"DEBUG: No regions for note {transposed_note} on channel {self.channel_number}. current_voice={self.current_voice}"
+            logger.debug(
+                f"No regions for note {transposed_note} on channel {self.channel_number}. current_voice={self.current_voice}"
             )
             return False
 
@@ -1062,16 +1064,6 @@ class Channel:
 
         return modulation
 
-    def key_pressure(self, note: int, pressure: int):
-        """
-        Handle polyphonic key pressure.
-
-        Args:
-            note: MIDI note number (0-127)
-            pressure: Pressure value (0-127)
-        """
-        self.key_pressure_values[note] = pressure
-
     def enable_mpe_plus(
         self,
         master_channel: int = 0,
@@ -1279,8 +1271,18 @@ class Channel:
         Returns:
             Stereo audio buffer (block_size, 2)
         """
-        # Start with silence
-        output = np.zeros((block_size, 2), dtype=np.float32)
+        buffer_pool = getattr(self.synthesizer, "buffer_pool", None) if self.synthesizer else None
+        if buffer_pool:
+            if (
+                not hasattr(self, "_channel_output_buffer")
+                or self._channel_output_buffer is None
+                or self._channel_output_buffer.shape[0] != block_size
+            ):
+                self._channel_output_buffer = buffer_pool.get_stereo_buffer(block_size)
+            output = self._channel_output_buffer
+            output.fill(0.0)
+        else:
+            output = np.zeros((block_size, 2), dtype=np.float32)
 
         if self.muted:
             return output
@@ -1325,38 +1327,6 @@ class Channel:
                 voice_instance.update_modulation(modulation)
 
         return output
-
-    def _collect_modulation_values(self) -> dict[str, float]:
-        """
-        Collect modulation values from controllers and channel state.
-
-        Returns:
-            Dictionary of modulation values
-        """
-        # Convert pitch bend to modulation value
-        pitch_bend_semitones = ((self.pitch_bend_value - 8192) / 8192.0) * self.pitch_bend_range
-
-        modulation = {
-            "pitch": pitch_bend_semitones * 100.0,  # Convert to cents
-            "filter_cutoff": 0.0,  # Could be mapped to controllers
-            "amp": 1.0,
-            "pan": self.pan,
-            "velocity_crossfade": 0.0,
-            "note_crossfade": 0.0,
-            "stereo_width": 1.0,
-            "tremolo_rate": 4.0,
-            "tremolo_depth": 0.3,
-            "mod_wheel": self.controllers[1] / 127.0,
-            "breath_controller": self.controllers[2] / 127.0,
-            "foot_controller": self.controllers[4] / 127.0,
-            "expression": self.controllers[11] / 127.0,
-            "brightness": self.controllers[72] / 127.0,
-            "harmonic_content": self.controllers[71] / 127.0,
-            "channel_aftertouch": self.channel_pressure / 127.0,
-            "volume_cc": self.controllers[7] / 127.0,
-        }
-
-        return modulation
 
     def get_channel_info(self) -> dict[str, Any]:
         """

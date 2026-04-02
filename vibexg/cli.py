@@ -251,11 +251,7 @@ def main():
             return 0
 
         # Run workstation
-        if args.no_tui:
-            config["enable_tui"] = False
-            workstation.run()
-        else:
-            workstation.run()
+        workstation.run()
 
         return 0
 

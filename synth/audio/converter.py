@@ -18,8 +18,6 @@ from synth.midi import FileParser, MIDIMessage
 from synth.utils.progress import ProgressReporter
 from synth.xgml import XGMLParser, XGMLToMIDITranslator
 
-print(f"DEBUG: converter.py imports complete", file=sys.stderr)
-
 
 class AudioConverter:
     """Core audio conversion engine for MIDI and XGML files."""
@@ -171,7 +169,7 @@ class AudioConverter:
                 print(f"Converting {input_file} -> {output_file}")
 
             # Parse input file (MIDI or XGML)
-            print(f"DEBUG: Parsing audio file {input_file}", file=sys.stderr)
+            logger.debug(f"Parsing audio file {input_file}")
             midi_messages, duration = self.parse_audio_file(input_file)
             print(
                 f"DEBUG: Parsed {len(midi_messages) if midi_messages else 0} messages, duration={duration}",

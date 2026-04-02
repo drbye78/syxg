@@ -51,7 +51,7 @@ class SongMode:
         # Threading
         self.lock = threading.RLock()
 
-    def create_track(self, track_number: int, track_name: str = None) -> bool:
+    def create_track(self, track_number: int, track_name: str | None = None) -> bool:
         """
         Create a new track.
 

@@ -71,7 +71,7 @@ class SampleFormatHandler:
             with open(file_path, "rb") as f:
                 header = f.read(12)
                 return self._detect_format_from_header(header)
-        except:
+        except Exception:
             pass
 
         return None

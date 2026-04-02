@@ -7,7 +7,6 @@ Provides synthesis partial implementations and engine-agnostic partial interface
 from __future__ import annotations
 
 from .partial import SynthesisPartial
-from .partial_generator import XGPartialGenerator
-from .sf2_partial import SF2Partial
+from .sf2_region import SF2Region
 
-__all__ = ["SF2Partial", "SynthesisPartial", "XGPartialGenerator"]
+__all__ = ["SF2Region", "SynthesisPartial"]

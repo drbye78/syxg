@@ -97,7 +97,7 @@ class FMXEngineTranslator(EngineTranslator):
             algo_cc = min(algorithm.lower().split("_")[-1] if "_" in algorithm else "4", "8")
             try:
                 algo_value = int("".join(filter(str.isdigit, algorithm)) or "4")
-            except:
+            except Exception:
                 algo_value = 4
 
             messages.append(

@@ -314,7 +314,7 @@ class SArt2Region(IRegion):
             modulation: Current modulation values
 
         Returns:
-            Stereo audio buffer (block_size * 2,) as float32
+            Stereo audio buffer (block_size, 2) as float32
         """
         # Step 1: Generate from base region
         samples = self.base_region.generate_samples(block_size, modulation)

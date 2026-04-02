@@ -67,10 +67,14 @@ void XGWorkstationVST3AudioProcessorEditor::resized()
     // Main tabbed interface
     mainTabs.setBounds(area);
 
-    // Layout individual tabs
+    // Layout all tabs (safe to call even for hidden tabs)
     layoutWorkstationTab();
     layoutEffectsTab();
     layoutStatusTab();
+    layoutControllersTab();
+    layoutPartsTab();
+    layoutEffectsRoutingTab();
+    layoutAiComposerTab();
 }
 
 void XGWorkstationVST3AudioProcessorEditor::layoutWorkstationTab()
@@ -393,10 +397,6 @@ void XGWorkstationVST3AudioProcessorEditor::setupTabs()
     setupWorkstationTab();
     setupEffectsTab();
     setupStatusTab();
-    setupControllersTab();
-    setupPartsTab();
-    setupEffectsRoutingTab();
-    setupAiComposerTab();
 }
 
 //==============================================================================
@@ -942,15 +942,15 @@ void XGWorkstationVST3AudioProcessorEditor::updatePerformanceDisplay()
     juce::String perfText = "Performance: ";
     juce::Colour perfColor = juce::Colours::green;
 
-    if (metrics.averageCpuUsage > 50.0)
-    {
-        perfText += "High CPU (" + juce::String(metrics.averageCpuUsage, 1) + "%)";
-        perfColor = juce::Colours::orange;
-    }
-    else if (metrics.averageCpuUsage > 80.0)
+    if (metrics.averageCpuUsage > 80.0)
     {
         perfText += "Critical CPU (" + juce::String(metrics.averageCpuUsage, 1) + "%)";
         perfColor = juce::Colours::red;
+    }
+    else if (metrics.averageCpuUsage > 50.0)
+    {
+        perfText += "High CPU (" + juce::String(metrics.averageCpuUsage, 1) + "%)";
+        perfColor = juce::Colours::orange;
     }
     else
     {
@@ -1071,26 +1071,6 @@ void XGWorkstationVST3AudioProcessorEditor::patternButtonClicked(juce::Button* b
     {
         DBG("Edit pattern button clicked");
         patternInfoLabel.setText("Pattern editor not yet implemented", juce::dontSendNotification);
-    }
-}
-
-void XGWorkstationVST3AudioProcessorEditor::effectsControlChanged(juce::Component* control)
-{
-    // Handle XG effects parameter changes
-    if (control == &reverbTypeSelector)
-    {
-        int reverbType = reverbTypeSelector.getSelectedId();
-        DBG("Reverb type changed to: " + juce::String(reverbType));
-    }
-    else if (control == &chorusTypeSelector)
-    {
-        int chorusType = chorusTypeSelector.getSelectedId();
-        DBG("Chorus type changed to: " + juce::String(chorusType));
-    }
-    else if (control == &variationTypeSelector)
-    {
-        int variationType = variationTypeSelector.getSelectedId();
-        DBG("Variation type changed to: " + juce::String(variationType));
     }
 }
 

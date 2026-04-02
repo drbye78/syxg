@@ -198,7 +198,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ..partial.sf2_partial import SF2Partial
+from ..partial.sf2_region import SF2Region
 from ..sf2.sf2_soundfont_manager import SF2SoundFontManager
 from .synthesis_engine import SynthesisEngine
 
@@ -332,7 +332,7 @@ class SF2Engine(SynthesisEngine):
 
         return SF2Region(descriptor, sample_rate, self.soundfont_manager)
 
-    def create_partial(self, partial_params: dict, sample_rate: int) -> SF2Partial:
+    def create_partial(self, partial_params: dict, sample_rate: int) -> SF2Region:
         """
         Create an SF2 partial with modern synth integration.
 
@@ -341,90 +341,25 @@ class SF2Engine(SynthesisEngine):
             sample_rate: Audio sample rate in Hz
 
         Returns:
-            SF2Partial instance with pooled resource integration
+            SF2Region instance with full SF2 synthesis support
 
         Note:
             If synth is not provided, partial will be created in standalone mode
             without access to the synthesizer's memory pool.
         """
-        # Allow standalone mode without synth - use internal resources
-        if self.synth is None:
-            import logging
+        from ..engine.region_descriptor import RegionDescriptor
 
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                "SF2Engine: Creating partial in standalone mode (no synth instance). "
-                "Some features may be limited."
-            )
-
-        # Load sample data for the partial if not already present
-        if "sample_data" not in partial_params:
-            sample_index = partial_params.get("sample_index")
-            if sample_index is not None:
-                # Try to get sample data from soundfont manager
-                sample_data = self.soundfont_manager.get_sample_data(sample_index)
-                if sample_data is not None:
-                    partial_params = partial_params.copy()  # Don't modify original
-                    partial_params["sample_data"] = sample_data
-            else:
-                # If no sample index provided, try to get from other parameters
-                if "sample_id" in partial_params:
-                    sample_data = self.soundfont_manager.get_sample_data(
-                        partial_params["sample_id"]
-                    )
-                    if sample_data is not None:
-                        partial_params = partial_params.copy()
-                        partial_params["sample_data"] = sample_data
-
-        # Ensure required parameters are present with defaults
-        required_params = [
-            "sample_index",
-            "sample_id",
-            "note",
-            "velocity",
-            "generators",
-            "amp_attack",
-            "amp_decay",
-            "amp_sustain",
-            "amp_release",
-            "filter_cutoff",
-            "filter_resonance",
-            "pan",
-            "reverb_send",
-            "chorus_send",
-        ]
-
-        for param in required_params:
-            if param not in partial_params:
-                # Set reasonable defaults based on parameter type
-                if param in ["amp_attack", "amp_decay", "amp_release"]:
-                    partial_params[param] = 0.01  # Default to 10ms
-                elif param in ["amp_sustain"]:
-                    partial_params[param] = 0.7  # Default to 70%
-                elif param in ["filter_cutoff"]:
-                    partial_params[param] = 20000.0  # Default to 20kHz
-                elif param in ["filter_resonance"]:
-                    partial_params[param] = 0.7  # Default resonance
-                elif param in ["pan"]:
-                    partial_params[param] = 0.0  # Center
-                elif param in ["reverb_send", "chorus_send"]:
-                    partial_params[param] = 0.0  # No effects by default
-                elif param in ["note"]:
-                    partial_params[param] = 60  # Middle C
-                elif param in ["velocity"]:
-                    partial_params[param] = 100  # Medium velocity
-                elif param in ["generators"]:
-                    partial_params[param] = {}  # Empty generators dict
-
-        # Create partial with new architecture integration
-        partial = SF2Partial(partial_params, self.synth)
-
-        # Ensure the partial has access to the synth's memory pool for zero-allocation buffers
-        if self.synth is not None:
-            if hasattr(self.synth, "memory_pool"):
-                partial.memory_pool = self.synth.memory_pool
-            elif hasattr(self.synth, "buffer_pool"):
-                partial.memory_pool = self.synth.buffer_pool
+        partial = SF2Region(
+            RegionDescriptor(
+                region_id=partial_params.get("sample_id", 0),
+                engine_type="sf2",
+                key_range=(0, 127),
+                velocity_range=(0, 127),
+            ),
+            sample_rate,
+            self.soundfont_manager,
+            synth=self.synth,
+        )
 
         return partial
 
@@ -1013,13 +948,13 @@ class SF2Engine(SynthesisEngine):
             program: MIDI program number (default 0)
 
         Returns:
-            Stereo audio buffer (block_size * 2,) as float32
+            Stereo audio buffer (block_size, 2) as float32
         """
         # Get preset info with all regions
         preset_info = self.get_preset_info(bank, program)
         if not preset_info:
             # No preset found - return silence
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
         # Find matching regions for this note/velocity
         matching_descriptors = []
@@ -1029,10 +964,10 @@ class SF2Engine(SynthesisEngine):
 
         if not matching_descriptors:
             # No matching regions - return silence
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
         # Create and initialize regions for all matching descriptors
-        audio_output = np.zeros(block_size * 2, dtype=np.float32)
+        audio_output = np.zeros((block_size, 2), dtype=np.float32)
 
         for descriptor in matching_descriptors:
             try:

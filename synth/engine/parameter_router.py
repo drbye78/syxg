@@ -425,7 +425,7 @@ class ParameterRouter:
         self.monitors[name] = monitor
 
     def route_parameter(
-        self, param_path: str, value: float, channel: int = None, part: int = None
+        self, param_path: str, value: float, channel: int | None = None, part: int | None = None
     ) -> bool:
         """
         Route a parameter change to the appropriate destination.
@@ -463,7 +463,7 @@ class ParameterRouter:
             print(f"Parameter routing error for {param_path}: {e}")
             return False
 
-    def get_parameter_value(self, param_path: str, channel: int = None, part: int = None) -> float:
+    def get_parameter_value(self, param_path: str, channel: int | None = None, part: int | None = None) -> float:
         """
         Get current value of a parameter.
 
@@ -509,7 +509,7 @@ class ParameterRouter:
 
         return True
 
-    def _make_key(self, param_path: str, channel: int = None, part: int = None) -> str:
+    def _make_key(self, param_path: str, channel: int | None = None, part: int | None = None) -> str:
         """Create a unique key for parameter storage"""
         key = param_path
         if channel is not None:

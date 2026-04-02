@@ -322,7 +322,7 @@ class EnvelopePool:
             # Only return if pool isn't full (maintain reasonable size)
             if len(self.pool) < self.max_envelopes:
                 self.pool.append(envelope)
-        except:
+        except Exception:
             # Error during reset - just discard
             pass
 

@@ -248,10 +248,10 @@ class AdvancedPhysicalRegion(IRegion):
             modulation: Current modulation values
 
         Returns:
-            Stereo audio buffer (block_size * 2,) as float32
+            Stereo audio buffer (block_size, 2) as float32
         """
         if not self._partial:
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
         try:
             # Apply modulation
@@ -264,7 +264,7 @@ class AdvancedPhysicalRegion(IRegion):
 
         except Exception as e:
             logger.error(f"Advanced physical sample generation failed: {e}")
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
     def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """Apply modulation to advanced physical parameters."""

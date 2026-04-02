@@ -6,9 +6,12 @@ Contains information about active voices for allocation decisions.
 from __future__ import annotations
 
 import time
+from typing import TYPE_CHECKING, Any
 
-from ..channel.channel_note import ChannelNote
 from .voice_priority import VoicePriority
+
+if TYPE_CHECKING:
+    from ..channel.channel_note import ChannelNote
 
 
 class VoiceInfo:
@@ -18,7 +21,7 @@ class VoiceInfo:
         self,
         note: int,
         velocity: int,
-        channel_note: ChannelNote,
+        channel_note: Any,
         priority: int = VoicePriority.NORMAL,
     ):
         self.note = note
@@ -31,16 +34,9 @@ class VoiceInfo:
 
     def calculate_priority_score(self) -> float:
         """Calculate priority score for voice stealing decisions"""
-        # Higher velocity = higher priority
         velocity_score = self.velocity / 127.0
-
-        # Higher priority level = higher priority
         priority_score = self.priority / VoicePriority.HIGHEST
-
-        # More recent notes get slightly higher priority
         age_penalty = 0.1 * (time.time() - self.start_time)
-
-        # Notes in release phase get lower priority
         release_penalty = 0.5 if self.is_releasing else 0.0
 
         return (
@@ -56,7 +52,7 @@ class VoiceInfo:
         self,
         note: int,
         velocity: int,
-        channel_note: ChannelNote | None,
+        channel_note: Any,
         priority: int = VoicePriority.NORMAL,
     ):
         """Reset voice info for reuse from pool"""

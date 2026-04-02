@@ -496,7 +496,7 @@ class UnifiedSysexRouter:
 
             if "display" in self._system_callbacks:
                 self._system_callbacks["display"](message)
-        except:
+        except Exception:
             pass
 
         return SysexResponse()

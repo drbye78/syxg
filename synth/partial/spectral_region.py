@@ -233,10 +233,10 @@ class SpectralRegion(IRegion):
             modulation: Current modulation values
 
         Returns:
-            Stereo audio buffer (block_size * 2,) as float32
+            Stereo audio buffer (block_size, 2) as float32
         """
         if not self._partial:
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
         try:
             # Apply modulation
@@ -251,13 +251,13 @@ class SpectralRegion(IRegion):
                 if hasattr(env, "generate_block"):
                     env_buffer = np.zeros(block_size, dtype=np.float32)
                     env.generate_block(env_buffer, block_size)
-                    samples[: block_size * 2] *= np.repeat(env_buffer, 2)
+                    samples[:, :] *= env_buffer[:, np.newaxis]
 
             return samples
 
         except Exception as e:
             logger.error(f"Spectral sample generation failed: {e}")
-            return np.zeros(block_size * 2, dtype=np.float32)
+            return np.zeros((block_size, 2), dtype=np.float32)
 
     def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """

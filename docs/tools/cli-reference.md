@@ -37,8 +37,6 @@ render_midi.py config.xgml output.flac
 | `--silent` | Suppress console output | False |
 | `--keyboard-abort` | Enable SPACE key to abort | False |
 | `-r, --recursive` | Recurse into subdirectories | False |
-| `--architecture` | Synthesizer architecture (legacy, voice) | legacy |
-| `--synth` | Engine (modern, optimized) | modern |
 
 ### Examples
 
