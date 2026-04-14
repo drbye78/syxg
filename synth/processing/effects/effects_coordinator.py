@@ -1873,7 +1873,7 @@ class XGEffectsCoordinator:
         delay_buffer = np.zeros(len(audio) * 2)
         delay_buffer[: len(audio)] = audio
 
-        for tap_time, tap_level in zip(tap_times, tap_levels):
+        for tap_time, tap_level in zip(tap_times, tap_levels, strict=False):
             tap_samples = int(tap_time * self.sample_rate / 1000.0)
             if tap_samples < len(delay_buffer):
                 output += delay_buffer[tap_samples : tap_samples + len(audio)] * tap_level

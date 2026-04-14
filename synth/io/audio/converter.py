@@ -11,13 +11,12 @@ import logging
 import sys
 import threading
 import time
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
 from synth.io.audio.writer import AudioWriter
-from synth.synthesizers.rendering import ModernXGSynthesizer
 from synth.io.midi import FileParser, MIDIMessage
+from synth.synthesizers.rendering import ModernXGSynthesizer
 from synth.utils.progress import ProgressReporter
 from synth.xgml import XGMLParser, XGMLToMIDITranslator
 
@@ -165,7 +164,6 @@ class AudioConverter:
         Returns:
             True if conversion successful, False otherwise
         """
-        import sys
 
         try:
             if not silent:

@@ -575,7 +575,7 @@ class StringBodyInteraction:
         # Calculate sympathetic vibration (body to string)
         sympathetic_energy = 0.0
         for i, (other_freq, other_energy) in enumerate(
-            zip(self.string_frequencies, self.string_energies)
+            zip(self.string_frequencies, self.string_energies, strict=False)
         ):
             if abs(other_freq - string_freq) > 1.0:  # Only couple with different strings
                 coupling = self.calculate_string_body_coupling(string_freq, other_freq)

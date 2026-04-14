@@ -7,6 +7,7 @@ import threading
 
 from .compressor import ProfessionalCompressor
 
+
 class MultibandCompressor:
     """
     Multiband compressor for frequency-specific dynamics processing.

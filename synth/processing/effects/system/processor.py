@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import math
 import threading
 from typing import Any
 
 import numpy as np
 
-from .reverb import XGSystemReverbProcessor
 from .chorus import XGSystemChorusProcessor
 from .modulation import XGSystemModulationProcessor
+from .reverb import XGSystemReverbProcessor
+
 
 class XGSystemEffectsProcessor:
     """

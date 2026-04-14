@@ -1,6 +1,9 @@
 """Wavetable data structure."""
 from __future__ import annotations
+
 import numpy as np
+
+
 class Wavetable:
     """
     Single wavetable with interpolation and morphing capabilities.

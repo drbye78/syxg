@@ -137,7 +137,6 @@ class SpectralRegion(IRegion):
             FFTProcessor instance or None
         """
         try:
-            from ...engines.spectral import SpectralEngine
 
             processor = FFTProcessor(
                 fft_size=self._fft_size, hop_size=self._hop_size, window_type="hann"

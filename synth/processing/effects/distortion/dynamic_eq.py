@@ -5,9 +5,8 @@ from __future__ import annotations
 import math
 import threading
 
-import numpy as np
-
 from ..dsp_core import AdvancedEnvelopeFollower
+
 
 class DynamicEQEnhancer:
     """

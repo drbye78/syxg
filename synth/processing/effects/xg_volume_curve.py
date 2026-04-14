@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import math
 import threading
-from enum import IntEnum
-from typing import Any
 
 import numpy as np
+
 
 class XGVolumeCurve:
     """

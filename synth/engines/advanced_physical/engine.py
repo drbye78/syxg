@@ -731,8 +731,8 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         Returns:
             PresetInfo with region descriptors for advanced physical modeling
         """
-        from .preset_info import PresetInfo
-        from .region_descriptor import RegionDescriptor
+        from ..preset_info import PresetInfo
+        from ..region_descriptor import RegionDescriptor
 
         # Advanced physical engine uses enhanced waveguide/modal synthesis
         # Programs define complex physical parameters with extended control

@@ -9,11 +9,12 @@ from typing import Any
 import numpy as np
 
 from ..dsp_core import AdvancedEnvelopeFollower
-from .tube_saturation import TubeSaturationProcessor
-from .multi_stage import MultiStageDistortionProcessor
 from .compressor import ProfessionalCompressor
-from .multiband_compressor import MultibandCompressor
 from .dynamic_eq import DynamicEQEnhancer
+from .multi_stage import MultiStageDistortionProcessor
+from .multiband_compressor import MultibandCompressor
+from .tube_saturation import TubeSaturationProcessor
+
 
 class ProductionDistortionDynamicsProcessor:
     """

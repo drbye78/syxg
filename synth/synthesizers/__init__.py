@@ -1,6 +1,6 @@
 """XG Synthesizer orchestrators."""
 
-from .rendering import ModernXGSynthesizer
 from .realtime import Synthesizer
+from .rendering import ModernXGSynthesizer
 
 __all__ = ["ModernXGSynthesizer", "Synthesizer"]

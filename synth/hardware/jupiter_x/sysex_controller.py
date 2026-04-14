@@ -8,6 +8,7 @@ from typing import Any
 from .component_manager import JupiterXComponentManager
 from .constants import *
 
+
 class JupiterXSysExController:
     """
     Jupiter-X SysEx Message Controller

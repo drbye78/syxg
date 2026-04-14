@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import time
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 
 from .message import MIDIMessage
@@ -47,20 +48,28 @@ except ImportError:
     )
 
 
-class MIDIBackend:
+class MIDIBackend(ABC):
     """Abstract base class for MIDI backends."""
 
+    @abstractmethod
     def get_input_names(self) -> list[str]:
-        raise NotImplementedError
+        """Get list of available MIDI input port names."""
+        pass
 
+    @abstractmethod
     def get_output_names(self) -> list[str]:
-        raise NotImplementedError
+        """Get list of available MIDI output port names."""
+        pass
 
+    @abstractmethod
     def open_input(self, name: str, callback: Callable[[MIDIMessage], None]) -> MIDIInputPort:
-        raise NotImplementedError
+        """Open a MIDI input port."""
+        pass
 
+    @abstractmethod
     def open_output(self, name: str, virtual: bool = False) -> MIDIOutputPort:
-        raise NotImplementedError
+        """Open a MIDI output port."""
+        pass
 
 
 class RtMidiBackend(MIDIBackend):

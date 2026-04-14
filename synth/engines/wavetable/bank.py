@@ -1,9 +1,13 @@
 """Wavetable bank."""
 from __future__ import annotations
+
 from typing import Any
+
 import numpy as np
+
 from .wavetable import Wavetable
-from .oscillator import WavetableOscillator
+
+
 class WavetableBank:
     """
     Bank of wavetables with morphing capabilities.

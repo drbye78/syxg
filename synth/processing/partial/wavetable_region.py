@@ -163,7 +163,6 @@ class WavetableRegion(IRegion):
         """
         if self.wavetable_bank is None:
             # Create default wavetable if no bank available
-            from ...engines.wavetable import WavetableEngine
 
             # Generate simple sine wavetable as fallback
             samples = np.sin(np.linspace(0, 2 * np.pi, 2048)).astype(np.float32)

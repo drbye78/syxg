@@ -939,7 +939,7 @@ class SF2SoundFont:
             else:
                 return False
 
-        except Exception as e:
+        except Exception:
             return False
 
     def get_sample_data(self, sample_id: int) -> Any | None:

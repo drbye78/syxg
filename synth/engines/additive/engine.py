@@ -345,8 +345,8 @@ class AdditiveEngine(SynthesisEngine):
         Returns:
             PresetInfo with region descriptors for additive synthesis
         """
-        from .preset_info import PresetInfo
-        from .region_descriptor import RegionDescriptor
+        from ..preset_info import PresetInfo
+        from ..region_descriptor import RegionDescriptor
 
         # Additive engine uses harmonic synthesis with partials
         # Programs define harmonic spectra and partial configurations

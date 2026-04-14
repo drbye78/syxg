@@ -611,8 +611,8 @@ class FDSPEngine:
         Returns:
             PresetInfo with region descriptors, or None if preset not found
         """
-        from .preset_info import PresetInfo
-        from .region_descriptor import RegionDescriptor
+        from ..preset_info import PresetInfo
+        from ..region_descriptor import RegionDescriptor
 
         # FDSP uses formant-based vocal synthesis
         # Each program defines a set of formant configurations (phonemes)
@@ -822,8 +822,8 @@ class FDSPSynthesisEngine(SynthesisEngine):
         Returns:
             PresetInfo with region descriptors for FDSP synthesis
         """
-        from .preset_info import PresetInfo
-        from .region_descriptor import RegionDescriptor
+        from ..preset_info import PresetInfo
+        from ..region_descriptor import RegionDescriptor
 
         # FDSP uses formant-based vocal synthesis (second engine instance)
         preset_name = f"FDSP {bank}:{program}"

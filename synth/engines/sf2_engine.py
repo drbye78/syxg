@@ -198,8 +198,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ..processing.partial.sf2_region import SF2Region
 from ..io.sf2.sf2_soundfont_manager import SF2SoundFontManager
+from ..processing.partial.sf2_region import SF2Region
 from .synthesis_engine import SynthesisEngine
 
 if TYPE_CHECKING:

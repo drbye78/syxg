@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from synth.processing.channel import Channel
 from synth.engines.synthesis_engine import SynthesisEngineRegistry
+from synth.processing.channel import Channel
 from synth.processing.voice.voice_factory import VoiceFactory
 
 

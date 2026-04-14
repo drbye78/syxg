@@ -51,14 +51,14 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from typing import Self
 
-from ..processing.effects.effects_coordinator import XGEffectsCoordinator
 from ..engines.engine_registry import XGEngineRegistry
 from ..engines.parameter_router import ParameterRouter
 from ..io.midi import MIDIMessage, RealtimeParser
-from ..sampling.sample_manager import SampleManager
+from ..processing.effects.effects_coordinator import XGEffectsCoordinator
 from ..processing.voice.voice_manager import VoiceManager
 from ..protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
 from ..protocols.xg.xg_system import XGSystem
+from ..sampling.sample_manager import SampleManager
 
 # Import available engines
 try:
@@ -100,14 +100,14 @@ try:
     from ..engines.additive import AdditiveEngine
 except ImportError:
     AdditiveEngine = None
-from ..primitives.buffer_pool import XGBufferPool
-from ..primitives.config import SynthConfig
 from ..hardware.s90_s70 import (
     S90S70ControlSurfaceMapping,
     S90S70HardwareSpecs,
     S90S70PerformanceFeatures,
     S90S70PresetCompatibility,
 )
+from ..primitives.buffer_pool import XGBufferPool
+from ..primitives.config import SynthConfig
 from ..sequencer.groove_quantizer import GrooveQuantizer
 from ..sequencer.pattern_sequencer import PatternSequencer
 

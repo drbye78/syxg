@@ -39,8 +39,8 @@ class VoiceInstance:
     """
 
     __slots__ = [
-        "_pending_removal",
         "_output_buffer",
+        "_pending_removal",
         "active_regions",
         "aftertouch",
         "articulation",

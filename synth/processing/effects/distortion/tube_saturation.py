@@ -7,6 +7,7 @@ import threading
 
 import numpy as np
 
+
 class TubeSaturationProcessor:
     """
     Tube saturation modeling for overdrive effects.

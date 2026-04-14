@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import threading
 
+
 class MultiStageDistortionProcessor:
     """
     Multi-stage distortion processor for fuzz and guitar distortion.

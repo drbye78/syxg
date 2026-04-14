@@ -31,17 +31,17 @@ This module implements XG master section effects including:
 All components support XG NRPN parameter control and real-time operation.
 """
 
-import math
 import threading
 from enum import IntEnum
 from typing import Any
 
 import numpy as np
 
-
-from .xg_volume_curve import XGVolumeCurve
 from .xg_master_compressor import XGMasterCompressor
 from .xg_stereo_enhancer import XGStereoEnhancer
+from .xg_volume_curve import XGVolumeCurve
+
+
 class XGMasterSection:
     """
     XG Master Section - Complete Master Effects Chain

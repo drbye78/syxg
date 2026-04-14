@@ -4,10 +4,9 @@ Reduces garbage collection overhead and memory allocation pressure.
 """
 
 import threading
-import time
-from typing import Dict, List, Type, Any, Optional, Callable, Generic, TypeVar
 from collections import deque
-
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
 
 T = TypeVar('T')
 
@@ -77,7 +76,7 @@ class XGObjectPool(Generic[T]):
                 return True
             return False
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get pool performance statistics."""
         with self._lock:
             total_requests = self.acquired_count
@@ -118,13 +117,13 @@ class XGPoolManager:
 
     def _init_standard_pools(self):
         """Initialize pools for XG components."""
-        from ..core.oscillator import LFO
-        from ..core.envelope import ADSREnvelope
-        from ..core.filter import ResonantFilter
-        from ..modulation.matrix import ModulationMatrix
+        from ..primitives.envelope import ADSREnvelope
+        from ..primitives.filter import ResonantFilter
+        from ..primitives.oscillator import XGLFO
+        from ..processing.modulation.matrix import ModulationMatrix
 
         self._pools['lfo'] = XGObjectPool(
-            factory=lambda: LFO(id=0),
+            factory=lambda: XGLFO(id=0),
             max_size=512,
             name="LFO_Pool"
         )

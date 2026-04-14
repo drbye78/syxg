@@ -458,7 +458,7 @@ class SF2Sample:
 
             self.data_loaded = True
             return True
-        except Exception as e:
+        except Exception:
             return False
 
     def _convert_16bit_sample(self, data: bytes) -> np.ndarray:

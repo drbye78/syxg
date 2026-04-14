@@ -1,9 +1,13 @@
 """Wavetable region."""
 from __future__ import annotations
+
 from typing import Any
+
 import numpy as np
+
 from ...processing.partial.region import Region
-from .partial import WavetablePartial
+
+
 class WavetableRegion(Region):
     """
     Wavetable region implementation.

@@ -153,7 +153,6 @@ class GranularRegion(IRegion):
         self._grain_clouds.clear()
 
         try:
-            from ...engines.granular import GranularEngine
 
             for i in range(self._max_clouds):
                 cloud = GrainCloud(self.sample_rate, max_grains=100)

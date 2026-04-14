@@ -1,16 +1,19 @@
 """
 XGML v3.0 Translator
 
-Advanced translator for XGML v3.0 with complete feature support including:
+Advanced translator for XGML v3.0 with feature support including:
 - Hierarchical configuration processing
 - Engine-specific translation
 - Workstation feature translation
 - Real-time parameter mapping
 - Performance optimization
+
+Note: This is an experimental implementation. Some features may be incomplete.
 """
 
 from __future__ import annotations
 
+from abc import abstractmethod
 from typing import Any
 
 from synth.io.midi import MIDIMessage
@@ -27,9 +30,10 @@ class TranslationError(Exception):
 class EngineTranslator:
     """Base class for engine-specific translators."""
 
+    @abstractmethod
     def translate(self, config: dict[str, Any]) -> list[MIDIMessage]:
         """Translate engine configuration to MIDI messages."""
-        raise NotImplementedError
+        pass
 
 
 class SF2EngineTranslator(EngineTranslator):

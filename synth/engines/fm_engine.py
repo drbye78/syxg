@@ -8,21 +8,20 @@ parameter sets and real-time modulation capabilities.
 
 from __future__ import annotations
 
-import math
 from typing import Any
 
 import numpy as np
 
 from ..processing.effects.xg_sysex_controller import XGSYSEXController
-from ..protocols.gs.jv2080_nrpn_controller import JV2080NRPNController
 from ..processing.partial.fm_partial import FMPartial
+from ..protocols.gs.jv2080_nrpn_controller import JV2080NRPNController
+from .fm_lfo import FMXLFO
+from .fm_operator import FMOperator
 from .plugins.base_plugin import SynthesisFeaturePlugin
 from .plugins.plugin_registry import get_global_plugin_registry
 from .synthesis_engine import SynthesisEngine
 
 
-from .fm_lfo import FMXLFO
-from .fm_operator import FMOperator
 class FMEngine(SynthesisEngine):
     """
     FM-X Compatible Frequency Modulation Synthesis Engine.

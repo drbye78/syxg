@@ -20,17 +20,6 @@ Package Structure:
 
 from __future__ import annotations
 
-from .primitives.buffer_pool import XGBufferPool as BufferPool
-from .primitives.config import SynthConfig
-from .primitives.constants import SynthConstants
-
-# Main synthesizer classes
-from .synthesizers.realtime import Synthesizer
-from .synthesizers.rendering import ModernXGSynthesizer
-
-# Effects processing
-from .processing.effects.effects_coordinator import XGEffectsCoordinator as EffectsCoordinator
-
 # Synthesis engines
 from .engines import (
     SF2Engine,
@@ -38,16 +27,13 @@ from .engines import (
     SynthesisEngineRegistry,
     get_global_coefficient_manager,
 )
-from .engines.physical_modeling import ANEngine
 
 # FDSP engine (S90/S70)
 from .engines.fdsp import FDSPEngine
 
 # Parameter routing
 from .engines.parameter_router import ParameterRouter
-
-# MIDI processing - Unified API
-from .io.midi import FileParser, MessageBuffer, MessageType, MIDIMessage, MIDIStatus, RealtimeParser
+from .engines.physical_modeling import ANEngine
 
 # S90/S70 compatibility
 from .hardware.s90_s70 import (
@@ -57,8 +43,27 @@ from .hardware.s90_s70 import (
     S90S70PresetCompatibility,
 )
 
+# MIDI processing - Unified API
+from .io.midi import FileParser, MessageBuffer, MessageType, MIDIMessage, MIDIStatus, RealtimeParser
+from .primitives.buffer_pool import XGBufferPool as BufferPool
+from .primitives.config import SynthConfig
+from .primitives.constants import SynthConstants
+
+# Effects processing
+from .processing.effects.effects_coordinator import XGEffectsCoordinator as EffectsCoordinator
+
+# Voice management
+from .processing.voice.voice_manager import VoiceManager
+
+# XG system
+from .protocols.xg.xg_system import XGSystem
+
 # Sample management
 from .sampling.sample_manager import SampleManager
+
+# Main synthesizer classes
+from .synthesizers.realtime import Synthesizer
+from .synthesizers.rendering import ModernXGSynthesizer
 
 # Type aliases (Python 3.11+)
 from .type_defs import (
@@ -138,12 +143,6 @@ from .type_defs import (
 
 # Core synthesizer components
 from .version import __version__
-
-# Voice management
-from .processing.voice.voice_manager import VoiceManager
-
-# XG system
-from .protocols.xg.xg_system import XGSystem
 
 __all__ = [
     # Version

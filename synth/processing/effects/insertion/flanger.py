@@ -7,6 +7,7 @@ import threading
 
 import numpy as np
 
+
 class ProductionFlangerProcessor:
     """
     Professional flanger with proper delay modulation and interpolation.

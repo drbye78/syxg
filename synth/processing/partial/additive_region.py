@@ -145,7 +145,6 @@ class AdditiveRegion(IRegion):
             HarmonicSpectrum instance or None
         """
         try:
-            from ...engines.additive import AdditiveEngine
 
             spectrum = HarmonicSpectrum(spectrum_type)
 

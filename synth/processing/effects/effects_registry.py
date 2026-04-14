@@ -26,7 +26,6 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any
 
 # Import our effect processors
 try:
@@ -1095,5 +1094,3 @@ class XGEffectRegistry:
 
 
 
-from .effect_factory import XGEffectFactory
-from .parameter_manager import XGParameterManager

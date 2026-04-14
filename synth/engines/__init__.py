@@ -7,13 +7,13 @@ Provides synthesis engine abstraction and registry for different synthesis techn
 from __future__ import annotations
 
 from .additive import AdditiveEngine
-from .physical_modeling import ANEngine
 from .convolution import ConvolutionReverbEngine
 from .fdsp import FDSPEngine
 from .fm_engine import FMEngine
 from .granular import GranularEngine
 from .optimized_coefficient_manager import get_global_coefficient_manager
 from .physical_engine import PhysicalEngine
+from .physical_modeling import ANEngine
 from .sf2_engine import SF2Engine
 from .spectral import SpectralEngine
 from .synthesis_engine import SynthesisEngine, SynthesisEngineRegistry
@@ -26,7 +26,7 @@ __all__ = [
     "FDSPEngine",
     "FMEngine",
     "GranularEngine",
-    
+
     "PhysicalEngine",
     "SF2Engine",
     "SpectralEngine",

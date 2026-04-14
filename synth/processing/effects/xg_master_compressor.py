@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import math
 import threading
-from typing import Any
 
 import numpy as np
 
-from .xg_volume_curve import XGVolumeCurve
 
 class XGMasterCompressor:
     """

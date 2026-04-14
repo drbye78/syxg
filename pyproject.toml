@@ -142,11 +142,11 @@ vibexg = ["*.yaml", "*.yml"]
 
 [tool.black]
 line-length = 100
-target-version = ['py314']
+target-version = ['py313']
 include = '\.pyi?$'
 
 [tool.ruff]
-target-version = "py314"
+target-version = "py313"
 line-length = 100
 select = [
     "E",      # pycodestyle errors

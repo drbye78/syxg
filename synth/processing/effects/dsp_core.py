@@ -542,7 +542,7 @@ class ProfessionalDelayNetwork:
 
             # Process each tap
             for i, (delay_line, delay_samples, level) in enumerate(
-                zip(self.delay_lines, self.tap_delays, self.tap_levels)
+                zip(self.delay_lines, self.tap_delays, self.tap_levels, strict=False)
             ):
                 # Read from delay line
                 read_pos = (len(delay_line) - delay_samples) % len(delay_line)

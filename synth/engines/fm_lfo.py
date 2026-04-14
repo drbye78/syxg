@@ -6,6 +6,7 @@ import math
 
 import numpy as np
 
+
 class FMXLFO:
     """
     FM-X Compatible LFO (Low Frequency Oscillator)

@@ -1,7 +1,11 @@
 """Wavetable oscillator."""
 from __future__ import annotations
+
 import numpy as np
+
 from .wavetable import Wavetable
+
+
 class WavetableOscillator:
     """
     Wavetable oscillator with frequency control and modulation.

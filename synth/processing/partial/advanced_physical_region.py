@@ -144,7 +144,6 @@ class AdvancedPhysicalRegion(IRegion):
             AdvancedPhysicalModel instance or None
         """
         try:
-            from ...engines.advanced_physical import AdvancedPhysicalEngine
 
             model = AdvancedPhysicalModel(self.sample_rate)
 

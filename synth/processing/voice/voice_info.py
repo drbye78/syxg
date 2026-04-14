@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from .voice_priority import VoicePriority
 
 if TYPE_CHECKING:
-    from ...processing.channel_note import ChannelNote
+    pass
 
 
 class VoiceInfo:

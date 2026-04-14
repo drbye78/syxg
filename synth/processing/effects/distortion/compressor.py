@@ -7,6 +7,7 @@ import threading
 
 from ..dsp_core import AdvancedEnvelopeFollower
 
+
 class ProfessionalCompressor:
     """
     Professional compressor with full attack/release characteristics.

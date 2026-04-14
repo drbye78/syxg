@@ -288,7 +288,7 @@ class ReverbPreset:
         delays = [int(0.05 * sample_rate), int(0.067 * sample_rate), int(0.089 * sample_rate)]
         gains = [0.5, 0.35, 0.25]
 
-        for delay, gain in zip(delays, gains):
+        for delay, gain in zip(delays, gains, strict=False):
             if delay < length:
                 ir[delay] = gain * room_size
 
@@ -759,8 +759,8 @@ class ConvolutionReverbEngine(SynthesisEngine):
         Returns:
             PresetInfo with region descriptors for convolution reverb
         """
-        from .preset_info import PresetInfo
-        from .region_descriptor import RegionDescriptor
+        from ..preset_info import PresetInfo
+        from ..region_descriptor import RegionDescriptor
 
         # Convolution reverb uses impulse responses for realistic spaces
         # Programs define IR configurations and mixing parameters

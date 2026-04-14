@@ -7,7 +7,6 @@ from typing import Any
 
 import numpy as np
 
-from .fm_lfo import FMXLFO
 
 class FMOperator:
     """

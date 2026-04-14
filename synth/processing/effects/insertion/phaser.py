@@ -7,6 +7,7 @@ import threading
 
 import numpy as np
 
+
 class ProductionPhaserProcessor:
     """
     Professional phaser implementation with modulated all-pass filters.

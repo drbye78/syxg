@@ -632,7 +632,7 @@ class ModernXGSynthesizer:
         self.engine_registry.register_engine(an_engine, "an", priority=14)
 
         # FDSP (Formant Dynamic Synthesis Processor) Engine - vocal synthesis
-        from ..engines.fdsp import FDSPEngine, FDSPSynthesisEngine
+        from ..engines.fdsp import FDSPSynthesisEngine
 
         fdsp_engine = FDSPSynthesisEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(fdsp_engine, "fdsp", priority=12)

@@ -8,6 +8,7 @@ including packet parsing, serialization, and conversion between MIDI 1.0 and MID
 from __future__ import annotations
 
 import struct
+from abc import ABC, abstractmethod
 from enum import IntEnum
 
 
@@ -33,20 +34,22 @@ class UMPGroup(int):
         return super().__new__(cls, value)
 
 
-class UMPPacket:
+class UMPPacket(ABC):
     """Base class for Universal MIDI Packets"""
 
     def __init__(self, ump_type: UMPMessageType, group: UMPGroup = UMPGroup(0)):
         self.ump_type = ump_type
         self.group = group
 
+    @abstractmethod
     def to_bytes(self) -> bytes:
         """Convert packet to bytes representation"""
-        raise NotImplementedError
+        pass
 
+    @abstractmethod
     def to_words(self) -> list[int]:
         """Convert packet to 32-bit word array"""
-        raise NotImplementedError
+        pass
 
 
 class MIDI2ChannelVoicePacket(UMPPacket):

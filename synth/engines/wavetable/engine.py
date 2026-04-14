@@ -1,17 +1,18 @@
 """Wavetable synthesis engine."""
 
 from __future__ import annotations
+
 from typing import Any
+
 import numpy as np
+
 from ...io.audio.sample_manager import PyAVSampleManager
 from ...processing.partial import SynthesisPartial
-from ...processing.partial.region import Region
 from ..plugins.base_plugin import SynthesisFeaturePlugin
 from ..plugins.plugin_registry import get_global_plugin_registry
 from ..synthesis_engine import SynthesisEngine
-from .wavetable import Wavetable
-from .oscillator import WavetableOscillator
 from .bank import WavetableBank
+from .oscillator import WavetableOscillator
 from .partial import WavetablePartial
 from .region import WavetableRegion
 

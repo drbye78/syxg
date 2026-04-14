@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import logging
-import math
 import threading
-from typing import Any, Callable
-
-import numpy as np
+from typing import Any
 
 from .types import XGEffectCategory
 

@@ -50,7 +50,7 @@ class AudioWriter:
         """
         errors = []
 
-        for i, (audio, output_file, format) in enumerate(zip(audio_data, output_files, formats)):
+        for i, (audio, output_file, format) in enumerate(zip(audio_data, output_files, formats, strict=False)):
             try:
                 writer = self.create_writer(output_file, format)
                 with writer:

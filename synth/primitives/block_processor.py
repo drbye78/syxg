@@ -3,11 +3,11 @@ Block Processing Engine for XG Synthesizer
 Implements high-performance audio processing in blocks while maintaining sample-accurate MIDI timing.
 """
 
-import numpy as np
-from typing import Dict, List, Tuple, Optional, Callable, Any, Union
-from collections import defaultdict, deque
+from collections import deque
 from dataclasses import dataclass
-from .object_pool import xg_pools
+from typing import Any
+
+import numpy as np
 
 
 @dataclass
@@ -45,7 +45,7 @@ class MidiEventQueue:
             else:
                 self.events.append(event)
 
-    def get_events_in_range(self, start_time: float, end_time: float) -> List[TimedMidiEvent]:
+    def get_events_in_range(self, start_time: float, end_time: float) -> list[TimedMidiEvent]:
         """Get all events within the specified time range"""
         result = []
 
@@ -117,7 +117,7 @@ class XGBlockProcessor:
             'channel_utilization': 0.0
         }
 
-    def process_channel_block(self, channel_renderer, channel_num: int) -> Tuple[np.ndarray, np.ndarray]:
+    def process_channel_block(self, channel_renderer, channel_num: int) -> tuple[np.ndarray, np.ndarray]:
         """
         Process one block of audio for a specific channel with precise MIDI timing.
 
@@ -172,10 +172,10 @@ class XGBlockProcessor:
 
         return self._left_buffer.copy(), self._right_buffer.copy()
 
-    def _process_block_with_events(self, channel_renderer, block_events: List[TimedMidiEvent], block_start_time: float):
+    def _process_block_with_events(self, channel_renderer, block_events: list[TimedMidiEvent], block_start_time: float):
         """Process a block that contains MIDI events with sample accuracy."""
-        # For now, use simplified processing - process entire block at once
-        # TODO: Implement sample-accurate event processing within blocks
+        # Sample-accurate event processing within blocks not yet implemented
+        # Currently processes entire block at once - events applied after block completion
         self._process_clean_block(channel_renderer)
 
     def _process_clean_block(self, channel_renderer):
@@ -212,7 +212,7 @@ class XGBlockProcessor:
             )
             self.midi_queues[channel].add_event(event)
 
-    def get_global_stats(self) -> Dict[str, Any]:
+    def get_global_stats(self) -> dict[str, Any]:
         """Get processing statistics."""
         total_queued = sum(queue.size() for queue in self.midi_queues)
 

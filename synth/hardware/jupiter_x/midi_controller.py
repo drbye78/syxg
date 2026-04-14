@@ -7,8 +7,9 @@ from typing import Any
 
 from .component_manager import JupiterXComponentManager
 from .constants import *
-from .sysex_controller import JupiterXSysExController
 from .nrpn_controller import JupiterXNRPNController
+from .sysex_controller import JupiterXSysExController
+
 
 class JupiterXMIDIController:
     """

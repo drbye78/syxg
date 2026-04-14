@@ -1,10 +1,14 @@
 """Wavetable partial."""
 from __future__ import annotations
+
 from typing import Any
+
 import numpy as np
+
 from ...processing.partial.partial import SynthesisPartial
-from ...processing.partial.region import Region
 from .oscillator import WavetableOscillator
+
+
 class WavetablePartial(SynthesisPartial):
     """
     Wavetable synthesis partial that wraps a WavetableOscillator.

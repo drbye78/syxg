@@ -224,9 +224,16 @@ class SynthesisEngine(ABC):
 
         Returns:
             SynthesisPartial instance configured for this engine
+
+        Note:
+            Deprecated: Use create_region() instead. This method exists for
+            backward compatibility with older engine implementations.
         """
         # Default implementation - engines should override if they support partials
-        raise NotImplementedError("create_partial() not implemented. Use create_region().")
+        # Deprecated in favor of create_region()
+        raise NotImplementedError(
+            "create_partial() is deprecated. Use create_region(descriptor, sample_rate) instead."
+        )
 
     def get_supported_formats(self) -> list[str]:
         """

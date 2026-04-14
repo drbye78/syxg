@@ -785,15 +785,15 @@ class SF2Region(IRegion):
         # For time-related generators, if value is >= 0, treat as seconds to convert back to timecents
         # SF2 timecents: -12000 = instant, -11999 = ~1ms, 0 = 1 second
         if gen8_val >= 0:
-            gen8_val = int(-12000)  # instant
+            gen8_val = -12000  # instant
         if gen9_val >= 0:
-            gen9_val = int(-12000)  # instant
+            gen9_val = -12000  # instant
         if gen10_val >= 0:
-            gen10_val = int(-12000)  # instant
+            gen10_val = -12000  # instant
         if gen11_val >= 0:
-            gen11_val = int(-12000)  # instant
+            gen11_val = -12000  # instant
         if gen13_val >= 0:
-            gen13_val = int(-12000)  # instant
+            gen13_val = -12000  # instant
 
         # Sustain is in centibels (0-1000), default to full (1000) when unset
         if gen12_val <= 0:

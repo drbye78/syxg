@@ -8,15 +8,12 @@ with 32-bit parameter precision.
 
 from __future__ import annotations
 
-import math
 from enum import IntEnum
 
 import numpy as np
 
 from .midi_2_effects_processor import (
-    EffectParameter,
     EffectProcessor,
-    EffectType,
     ParameterResolution,
 )
 
@@ -109,9 +106,11 @@ class XGEffectType(IntEnum):
     INSERT_CONVOLUTION_REVERB = 0x6F
 
 
+from .xg_insertion_effect import XGInsertionEffect
 from .xg_system_reverb import XGSystemReverb
 from .xg_variation_effect import XGVariationEffect
-from .xg_insertion_effect import XGInsertionEffect
+
+
 class XGMIDIEffectsProcessor:
     """
     XG MIDI Effects Processor with Full MIDI 2.0 Integration

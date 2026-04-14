@@ -3,9 +3,9 @@ Block-optimized ADSR Envelope implementation for XG synthesizer.
 Provides high-performance envelope generation with vectorized processing.
 """
 
-import math
+from typing import Any
+
 import numpy as np
-from typing import Dict, List, Tuple, Optional, Callable, Any, Union
 
 
 class BlockADSREnvelope:
@@ -60,7 +60,7 @@ class BlockADSREnvelope:
         self.modulated_release = release
 
     def process_block(self, block_size: int, velocity: float = 127.0, note: int = 60,
-                     midi_events: List[Dict[str, Any]] = None) -> np.ndarray:
+                     midi_events: list[dict[str, Any]] = None) -> np.ndarray:
         """
         Process a block of samples with sample-accurate envelope generation.
 
@@ -106,7 +106,7 @@ class BlockADSREnvelope:
 
         return key_scaling_factor
 
-    def _process_midi_event(self, event: Dict[str, Any]):
+    def _process_midi_event(self, event: dict[str, Any]):
         """Process a MIDI event with sample-accurate timing"""
         command = event.get('command', 0)
         data1 = event.get('data1', 0)

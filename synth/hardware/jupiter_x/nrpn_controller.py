@@ -8,6 +8,7 @@ from typing import Any
 from .component_manager import JupiterXComponentManager
 from .constants import *
 
+
 class JupiterXNRPNController:
     """
     Jupiter-X NRPN (Non-Registered Parameter Number) Controller

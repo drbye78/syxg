@@ -7,6 +7,20 @@ for Roland Jupiter-X synthesizer integration.
 
 from __future__ import annotations
 
+__all__ = [
+    "JUPITER_X_MANUFACTURER_ID",
+    "JUPITER_X_MODEL_ID",
+    "JUPITER_X_DEVICE_ID_DEFAULT",
+    "SYSEX_CMD_PARAMETER_CHANGE",
+    "SYSEX_CMD_BULK_DUMP_REQUEST",
+    "SYSEX_CMD_DATA_REQUEST",
+    "SYSEX_CMD_BULK_DUMP",
+    "ENGINE_ANALOG",
+    "ENGINE_DIGITAL",
+    "ENGINE_FM",
+    "ENGINE_EXTERNAL",
+]
+
 # MIDI Constants
 JUPITER_X_MANUFACTURER_ID = 0x41  # Roland
 JUPITER_X_MODEL_ID = 0x64  # Jupiter-X model ID

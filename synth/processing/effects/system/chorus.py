@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import math
 import threading
-from typing import Any
 
 import numpy as np
 
 from ..types import XGChorusType
+
 
 class XGSystemChorusProcessor:
     """

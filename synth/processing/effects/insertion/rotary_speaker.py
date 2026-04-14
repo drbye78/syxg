@@ -7,7 +7,6 @@ import threading
 
 import numpy as np
 
-from ..dsp_core import AdvancedEnvelopeFollower
 
 class ProfessionalRotarySpeaker:
     """

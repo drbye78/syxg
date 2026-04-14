@@ -29,9 +29,8 @@ from .component_manager import (
 from .constants import *
 from .jupiter_x_engine import JupiterXEngineIntegration, create_jupiter_x_engine
 from .midi_controller import JupiterXMIDIController
-from .nrpn_controller import JupiterXNRPNController
-from .sysex_controller import JupiterXSysExController
 from .mpe_manager import JupiterXMPEManager
+from .nrpn_controller import JupiterXNRPNController
 from .part import JupiterXEngine, JupiterXEnvelope, JupiterXPart
 from .performance_optimizer import JupiterXPerformanceOptimizer
 
@@ -44,6 +43,7 @@ from .performance_optimizer import JupiterXPerformanceOptimizer
 # from .fm_engine import JupiterXFMEngine  # REMOVED - use FMEngine + JupiterXFMPlugin
 # from .external_engine import JupiterXExternalEngine  # REMOVED - use GranularEngine + JupiterXExternalPlugin
 from .synthesizer import JupiterXSynthesizer, JupiterXSynthesizerInterface
+from .sysex_controller import JupiterXSysExController
 from .unified_parameter_system import JupiterXUnifiedParameterSystem
 
 __version__ = "1.0.0"

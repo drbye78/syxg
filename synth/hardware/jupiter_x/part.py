@@ -13,10 +13,11 @@ from typing import Any
 
 import numpy as np
 
+from ...engines.additive import AdditiveEngine
+
 # Jupiter-X engines are now consolidated into base engines with plugins
 # from .analog_engine import JupiterXAnalogEngine  # REMOVED - use AdditiveEngine + JupiterXAnalogPlugin
 from ...primitives.oscillator import UltraFastXGLFO
-from ...engines.additive import AdditiveEngine
 from .constants import *
 
 

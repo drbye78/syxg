@@ -224,7 +224,6 @@ class ConvolutionReverbRegion(IRegion):
                 self._load_sample_data()
 
             # Create convolution processor
-            from ...engines.convolution import ConvolutionReverbEngine
 
             self._convolution_processor = ConvolutionProcessor(self._ir_data, self.sample_rate)
 
