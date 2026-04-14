@@ -6,7 +6,7 @@ Provides helper functions for creating MIDI messages for testing.
 
 from __future__ import annotations
 
-from synth.midi.message import MIDIMessage
+from synth.io.midi.message import MIDIMessage
 from typing import Any
 
 

@@ -11,8 +11,8 @@ import logging
 import threading
 import time
 
-from synth.core.synthesizer import Synthesizer
-from synth.midi import MIDIMessage
+from synth.io.midi import MIDIMessage
+from synth.synthesizers.realtime import Synthesizer
 
 from .utils import midimessage_to_bytes
 

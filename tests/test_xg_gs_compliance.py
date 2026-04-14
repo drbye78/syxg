@@ -20,7 +20,7 @@ class TestXGSynthesizerSystem:
 
     def test_xg_system_initialization(self):
         """Test XGSynthesizerSystem initializes correctly."""
-        from synth.xg.xg_synthesizer_system import XGSynthesizerSystem
+        from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
 
         xg_sys = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
 
@@ -32,7 +32,7 @@ class TestXGSynthesizerSystem:
 
     def test_xg_system_enable_xg_mode(self):
         """Test enabling XG mode."""
-        from synth.xg.xg_synthesizer_system import XGSynthesizerSystem
+        from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
 
         xg_sys = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
         xg_sys.enable_xg_mode()
@@ -41,7 +41,7 @@ class TestXGSynthesizerSystem:
 
     def test_xg_system_enable_gs_mode(self):
         """Test enabling GS mode."""
-        from synth.xg.xg_synthesizer_system import XGSynthesizerSystem
+        from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
 
         xg_sys = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
         xg_sys.enable_gs_mode()
@@ -54,7 +54,7 @@ class TestXGDrumMap:
 
     def test_drum_map_manager_initialization(self):
         """Test XGDrumMapManager initializes with correct defaults."""
-        from synth.xg.xg_drum_map import XGDrumMapManager
+        from synth.protocols.xg.xg_drum_map import XGDrumMapManager
 
         manager = XGDrumMapManager(num_parts=16)
 
@@ -63,7 +63,7 @@ class TestXGDrumMap:
 
     def test_drum_map_selection(self):
         """Test selecting different drum maps."""
-        from synth.xg.xg_drum_map import XGDrumMapManager
+        from synth.protocols.xg.xg_drum_map import XGDrumMapManager
 
         manager = XGDrumMapManager(num_parts=16)
 
@@ -81,7 +81,7 @@ class TestXGDrumMap:
 
     def test_drum_note_mapping(self):
         """Test drum note mapping functionality."""
-        from synth.xg.xg_drum_map import XGDrumMapManager
+        from synth.protocols.xg.xg_drum_map import XGDrumMapManager
 
         manager = XGDrumMapManager(num_parts=16)
 
@@ -96,7 +96,7 @@ class TestXGDrumMap:
 
     def test_drum_map_reset(self):
         """Test resetting drum maps to defaults."""
-        from synth.xg.xg_drum_map import XGDrumMapManager
+        from synth.protocols.xg.xg_drum_map import XGDrumMapManager
 
         manager = XGDrumMapManager(num_parts=16)
 
@@ -115,7 +115,7 @@ class TestXGPartModeController:
 
     def test_part_mode_controller_initialization(self):
         """Test XGPartModeController initializes correctly."""
-        from synth.xg.xg_drum_map import XGPartModeController
+        from synth.protocols.xg.xg_drum_map import XGPartModeController
 
         controller = XGPartModeController(num_parts=16)
 
@@ -124,7 +124,7 @@ class TestXGPartModeController:
 
     def test_setting_part_mode(self):
         """Test setting part modes."""
-        from synth.xg.xg_drum_map import XGPartModeController
+        from synth.protocols.xg.xg_drum_map import XGPartModeController
 
         controller = XGPartModeController(num_parts=16)
 
@@ -142,7 +142,7 @@ class TestXGPartModeController:
 
     def test_part_mode_with_bank(self):
         """Test setting part mode with bank selection."""
-        from synth.xg.xg_drum_map import XGPartModeController
+        from synth.protocols.xg.xg_drum_map import XGPartModeController
 
         controller = XGPartModeController(num_parts=16)
 
@@ -154,7 +154,7 @@ class TestXGPartModeController:
 
     def test_drum_map_assignment(self):
         """Test assigning drum maps to parts."""
-        from synth.xg.xg_drum_map import XGPartModeController
+        from synth.protocols.xg.xg_drum_map import XGPartModeController
 
         controller = XGPartModeController(num_parts=16)
 
@@ -170,7 +170,7 @@ class TestGSSysexHandler:
 
     def test_gs_handler_initialization(self):
         """Test GSSysexHandler initializes correctly."""
-        from synth.gs.gs_sysex_handler import GSSysexHandler
+        from synth.protocols.gs.gs_sysex_handler import GSSysexHandler
 
         handler = GSSysexHandler(device_id=0x10)
 
@@ -179,7 +179,7 @@ class TestGSSysexHandler:
 
     def test_gs_handler_enable(self):
         """Test enabling GS mode."""
-        from synth.gs.gs_sysex_handler import GSSysexHandler
+        from synth.protocols.gs.gs_sysex_handler import GSSysexHandler
 
         handler = GSSysexHandler(device_id=0x10)
         handler.enable_gs()
@@ -189,7 +189,7 @@ class TestGSSysexHandler:
 
     def test_gs_channel_parameters(self):
         """Test GS channel parameter handling."""
-        from synth.gs.gs_sysex_handler import GSSysexHandler
+        from synth.protocols.gs.gs_sysex_handler import GSSysexHandler
 
         handler = GSSysexHandler(device_id=0x10)
         handler.enable_gs()
@@ -206,7 +206,7 @@ class TestGSSysexHandler:
 
     def test_gs_drum_part_setup(self):
         """Test GS drum part configuration."""
-        from synth.gs.gs_sysex_handler import GSSysexHandler
+        from synth.protocols.gs.gs_sysex_handler import GSSysexHandler
 
         handler = GSSysexHandler(device_id=0x10)
         handler.enable_gs()
@@ -224,7 +224,7 @@ class TestUnifiedSysexRouter:
 
     def test_router_initialization(self):
         """Test UnifiedSysexRouter initializes correctly."""
-        from synth.midi.unified_sysex_router import UnifiedSysexRouter
+        from synth.io.midi.unified_sysex_router import UnifiedSysexRouter
 
         router = UnifiedSysexRouter(device_id=0x10)
 
@@ -234,7 +234,7 @@ class TestUnifiedSysexRouter:
 
     def test_enable_xg_mode(self):
         """Test enabling XG mode on router."""
-        from synth.midi.unified_sysex_router import UnifiedSysexRouter
+        from synth.io.midi.unified_sysex_router import UnifiedSysexRouter
 
         router = UnifiedSysexRouter(device_id=0x10)
         router.enable_xg()
@@ -243,7 +243,7 @@ class TestUnifiedSysexRouter:
 
     def test_enable_gs_mode(self):
         """Test enabling GS mode on router."""
-        from synth.midi.unified_sysex_router import UnifiedSysexRouter
+        from synth.io.midi.unified_sysex_router import UnifiedSysexRouter
 
         router = UnifiedSysexRouter(device_id=0x10)
         router.enable_gs()
@@ -256,7 +256,7 @@ class TestSF2PartModeIntegrator:
 
     def test_integrator_initialization(self):
         """Test SF2PartModeIntegrator initializes correctly."""
-        from synth.engine.sf2_engine_controller import SF2PartModeIntegrator
+        from synth.engines.sf2_engine_controller import SF2PartModeIntegrator
 
         class MockSF2Engine:
             pass
@@ -269,7 +269,7 @@ class TestSF2PartModeIntegrator:
 
     def test_set_channel_mode(self):
         """Test setting channel modes."""
-        from synth.engine.sf2_engine_controller import SF2PartModeIntegrator
+        from synth.engines.sf2_engine_controller import SF2PartModeIntegrator
 
         class MockSF2Engine:
             pass
@@ -289,7 +289,7 @@ class TestSF2PartModeIntegrator:
 
     def test_get_drum_bank(self):
         """Test getting drum bank for channel."""
-        from synth.engine.sf2_engine_controller import SF2PartModeIntegrator
+        from synth.engines.sf2_engine_controller import SF2PartModeIntegrator
 
         class MockSF2Engine:
             pass
@@ -314,7 +314,7 @@ class TestIntegrationWithSynthesizer:
 
     def test_synthesizer_has_xg_system(self):
         """Test that Synthesizer has XGSynthesizerSystem."""
-        from synth.core.synthesizer import Synthesizer
+        from synth.primitives.synthesizer import Synthesizer
 
         synth = Synthesizer(enable_audio_output=False)
 
@@ -323,7 +323,7 @@ class TestIntegrationWithSynthesizer:
 
     def test_xg_synthesizer_connected_to_engine_registry(self):
         """Test XGSynthesizerSystem is connected to engine registry."""
-        from synth.core.synthesizer import Synthesizer
+        from synth.primitives.synthesizer import Synthesizer
 
         synth = Synthesizer(enable_audio_output=False)
 
@@ -331,7 +331,7 @@ class TestIntegrationWithSynthesizer:
 
     def test_xg_synthesizer_has_required_components(self):
         """Test XGSynthesizerSystem has all required components."""
-        from synth.core.synthesizer import Synthesizer
+        from synth.primitives.synthesizer import Synthesizer
 
         synth = Synthesizer(enable_audio_output=False)
         xg_sys = synth.xg_synthesizer
@@ -348,7 +348,7 @@ class TestXGSystemCompliance:
 
     def test_xg_multi_part_16_channels(self):
         """Test XG multi-part supports 16 channels."""
-        from synth.xg.xg_multi_part_setup import XGMultiPartSetup
+        from synth.protocols.xg.xg_multi_part_setup import XGMultiPartSetup
 
         setup = XGMultiPartSetup(num_parts=16)
 
@@ -361,7 +361,7 @@ class TestXGSystemCompliance:
 
     def test_xg_drum_setup_channels(self):
         """Test XG drum setup for drum channels."""
-        from synth.xg.xg_drum_setup_parameters import XGDrumSetupParameters
+        from synth.protocols.xg.xg_drum_setup_parameters import XGDrumSetupParameters
 
         setup = XGDrumSetupParameters(num_channels=16)
 

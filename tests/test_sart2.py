@@ -14,10 +14,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from synth.engine.region_descriptor import RegionDescriptor
-from synth.xg.sart.articulation_controller import ArticulationController
-from synth.xg.sart.nrpn import YamahaNRPNMapper
-from synth.xg.sart.sart2_region import SArt2Region, SArt2RegionFactory
+from synth.engines.region_descriptor import RegionDescriptor
+from synth.protocols.xg.sart.articulation_controller import ArticulationController
+from synth.protocols.xg.sart.nrpn import YamahaNRPNMapper
+from synth.protocols.xg.sart.sart2_region import SArt2Region, SArt2RegionFactory
 
 # ============================================================================
 # FIXTURES

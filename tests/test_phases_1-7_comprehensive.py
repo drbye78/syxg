@@ -32,7 +32,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_fdsp_engine_region_interface(self):
         """Test FDSP engine implements region interface"""
-        from synth.engine.fdsp_engine import FDSPSynthesisEngine
+        from synth.engines.fdsp import FDSPEngine
 
         engine = FDSPSynthesisEngine(sample_rate=44100)
 
@@ -43,7 +43,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_an_engine_region_interface(self):
         """Test AN engine implements region interface"""
-        from synth.engine.an_engine import ANEngine
+        from synth.engines.physical_modeling import ANEngine
 
         engine = ANEngine(sample_rate=44100)
 
@@ -53,7 +53,7 @@ class TestPhase1_EngineRegionInterfaces:
         assert hasattr(engine, "load_sample_for_region")
 
         # Test _create_base_region doesn't crash
-        from synth.engine.region_descriptor import RegionDescriptor
+        from synth.engines.region_descriptor import RegionDescriptor
 
         descriptor = RegionDescriptor(
             region_id=0,
@@ -67,7 +67,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_wavetable_engine_region_interface(self):
         """Test Wavetable engine implements region interface"""
-        from synth.engine.wavetable_engine import WavetableEngine
+        from synth.engines.wavetable import WavetableEngine
 
         engine = WavetableEngine(sample_rate=44100)
 
@@ -78,7 +78,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_granular_engine_region_interface(self):
         """Test Granular engine implements region interface"""
-        from synth.engine.granular_engine import GranularEngine
+        from synth.engines.granular import GranularEngine
 
         engine = GranularEngine(sample_rate=44100)
 
@@ -89,7 +89,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_additive_engine_region_interface(self):
         """Test Additive engine implements region interface"""
-        from synth.engine.additive_engine import AdditiveEngine
+        from synth.engines.additive import AdditiveEngine
 
         engine = AdditiveEngine(sample_rate=44100)
 
@@ -100,7 +100,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_spectral_engine_region_interface(self):
         """Test Spectral engine implements region interface"""
-        from synth.engine.spectral_engine import SpectralEngine
+        from synth.engines.spectral import SpectralEngine
 
         engine = SpectralEngine(sample_rate=44100)
 
@@ -111,7 +111,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_physical_engine_region_interface(self):
         """Test Physical engine implements region interface"""
-        from synth.engine.physical_engine import PhysicalEngine
+        from synth.engines.physical_engine import PhysicalEngine
 
         engine = PhysicalEngine(sample_rate=44100)
 
@@ -122,7 +122,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_convolution_reverb_engine_region_interface(self):
         """Test Convolution Reverb engine implements region interface"""
-        from synth.engine.convolution_reverb_engine import ConvolutionReverbEngine
+        from synth.engines.convolution import ConvolutionReverbEngine
 
         engine = ConvolutionReverbEngine(sample_rate=44100)
 
@@ -133,7 +133,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_advanced_physical_engine_region_interface(self):
         """Test Advanced Physical engine implements region interface"""
-        from synth.engine.advanced_physical_engine import AdvancedPhysicalEngine
+        from synth.engines.advanced_physical import AdvancedPhysicalEngine
 
         engine = AdvancedPhysicalEngine(sample_rate=44100)
 
@@ -226,7 +226,7 @@ class TestPhase4_AudioQuality:
 
     def test_overlap_add_convolution(self):
         """Test overlap-add convolution"""
-        from synth.engine.convolution_reverb_engine import ConvolutionReverbEngine
+        from synth.engines.convolution import ConvolutionReverbEngine
 
         engine = ConvolutionReverbEngine(sample_rate=44100)
 
@@ -261,7 +261,7 @@ class TestPhase5_6_CompatibilityCleanup:
 
     def test_vcm_phaser(self):
         """Test VCM phaser implementation"""
-        from synth.effects.effects_coordinator import XGEffectsCoordinator
+        from synth.processing.effects.effects_coordinator import XGEffectsCoordinator
 
         coordinator = XGEffectsCoordinator(sample_rate=44100, block_size=512)
 
@@ -274,7 +274,7 @@ class TestPhase5_6_CompatibilityCleanup:
 
     def test_granular_note_tracking(self):
         """Test granular engine note-to-cloud tracking"""
-        from synth.engine.granular_engine import GranularEngine
+        from synth.engines.granular import GranularEngine
 
         engine = GranularEngine(sample_rate=44100)
 
@@ -305,7 +305,7 @@ class TestPhase7_AdvancedFeatures:
 
     def test_mpe_per_note_vibrato(self):
         """Test MPE per-note LFO vibrato"""
-        from synth.jupiter_x.mpe_manager import MPENoteData
+        from synth.hardware.jupiter_x.mpe_manager import MPENoteData
 
         note = MPENoteData(60, 0, 80)
         note.vibrato_depth = 0.5
@@ -321,7 +321,7 @@ class TestPhase7_AdvancedFeatures:
 
     def test_mpe_portamento(self):
         """Test MPE portamento/slide effects"""
-        from synth.jupiter_x.mpe_manager import MPENoteData
+        from synth.hardware.jupiter_x.mpe_manager import MPENoteData
 
         note = MPENoteData(60, 0, 80)
 
@@ -336,7 +336,7 @@ class TestPhase7_AdvancedFeatures:
 
     def test_modulation_curves(self):
         """Test advanced modulation matrix curves"""
-        from synth.modulation.matrix import ModulationMatrix
+        from synth.processing.modulation.matrix import ModulationMatrix
 
         matrix = ModulationMatrix(num_routes=16)
 
@@ -363,7 +363,7 @@ class TestPhase7_AdvancedFeatures:
 
     def test_arpeggiator_groove_templates(self):
         """Test arpeggiator groove templates"""
-        from synth.xg.xg_arpeggiator_engine import ArpeggiatorInstance
+        from synth.protocols.xg.xg_arpeggiator_engine import ArpeggiatorInstance
 
         arp = ArpeggiatorInstance(0, None)
 
@@ -444,7 +444,7 @@ class TestPhase7_AdvancedFeatures:
 
     def test_effects_multiband_compression(self):
         """Test advanced effects multi-band compression"""
-        from synth.effects.effects_coordinator import XGEffectsCoordinator
+        from synth.processing.effects.effects_coordinator import XGEffectsCoordinator
 
         coordinator = XGEffectsCoordinator(sample_rate=44100, block_size=512)
 
@@ -470,7 +470,7 @@ class TestPhase7_AdvancedFeatures:
 
     def test_effects_spectral_processing(self):
         """Test advanced effects spectral processing"""
-        from synth.effects.effects_coordinator import XGEffectsCoordinator
+        from synth.processing.effects.effects_coordinator import XGEffectsCoordinator
 
         coordinator = XGEffectsCoordinator(sample_rate=44100, block_size=512)
 
@@ -487,7 +487,7 @@ class TestPhase7_AdvancedFeatures:
 
     def test_effects_parallel_chains(self):
         """Test advanced effects parallel chains"""
-        from synth.effects.effects_coordinator import XGEffectsCoordinator
+        from synth.processing.effects.effects_coordinator import XGEffectsCoordinator
 
         coordinator = XGEffectsCoordinator(sample_rate=44100, block_size=512)
 
@@ -539,7 +539,7 @@ class TestPerformance_Phases1_7:
         """Test engine initialization performance"""
         import time
 
-        from synth.engine.fdsp_engine import FDSPEngine
+        from synth.engines.fdsp import FDSPEngine
 
         start = time.time()
         engine = FDSPEngine(sample_rate=44100)
@@ -552,7 +552,7 @@ class TestPerformance_Phases1_7:
         """Test audio processing performance"""
         import time
 
-        from synth.effects.effects_coordinator import XGEffectsCoordinator
+        from synth.processing.effects.effects_coordinator import XGEffectsCoordinator
 
         coordinator = XGEffectsCoordinator(sample_rate=44100, block_size=512)
         audio = np.random.randn(512).astype(np.float32)
@@ -570,7 +570,7 @@ class TestPerformance_Phases1_7:
         """Test MPE performance with multiple notes"""
         import time
 
-        from synth.jupiter_x.mpe_manager import JupiterXMPEManager, MPENoteData
+        from synth.hardware.jupiter_x.mpe_manager import JupiterXMPEManager, MPENoteData
 
         mpe_manager = JupiterXMPEManager()
 

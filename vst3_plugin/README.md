@@ -46,7 +46,7 @@ vst3_plugin/
 
 ### System Requirements
 - **Operating System**: Windows 10+, macOS 10.15+, Linux (Ubuntu 18.04+)
-- **Python**: 3.8+ with pybind11 installed
+- **Python**: 3.12+ with pybind11 installed
 - **Build Tools**: CMake 3.16+, C++17 compiler (GCC 7+, Clang 5+, MSVC 2019+)
 - **JUCE**: Included as submodule (automatically downloaded)
 

@@ -22,7 +22,7 @@ class TestVoiceManagementComprehensive:
     @pytest.fixture
     def synthesizer(self):
         """Create a synthesizer instance for testing."""
-        from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+        from synth.synthesizers.rendering import ModernXGSynthesizer
         
         synth = ModernXGSynthesizer(
             sample_rate=44100,

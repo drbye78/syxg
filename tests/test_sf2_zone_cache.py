@@ -7,7 +7,7 @@ Tests AVLRangeTree, HierarchicalZoneCache, and SF2ZoneCacheManager.
 from __future__ import annotations
 
 from synth.sf2 import sf2_zone_cache
-from synth.sf2.sf2_data_model import SF2Zone
+from synth.io.sf2.sf2_data_model import SF2Zone
 
 
 class TestAVLRangeTree:

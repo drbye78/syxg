@@ -39,10 +39,10 @@ class TestSF2MetadataValidation:
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
         # Load with our implementation
-        from synth.sf2.sf2_modulation_engine import SF2ModulationEngine
-        from synth.sf2.sf2_sample_processor import SF2SampleProcessor
-        from synth.sf2.sf2_soundfont import SF2SoundFont
-        from synth.sf2.sf2_zone_cache import SF2ZoneCacheManager
+        from synth.io.sf2.sf2_modulation_engine import SF2ModulationEngine
+        from synth.io.sf2.sf2_sample_processor import SF2SampleProcessor
+        from synth.io.sf2.sf2_soundfont import SF2SoundFont
+        from synth.io.sf2.sf2_zone_cache import SF2ZoneCacheManager
 
         sample_processor = SF2SampleProcessor(cache_memory_mb=256)
         zone_cache_manager = SF2ZoneCacheManager()
@@ -116,10 +116,10 @@ class TestSF2PresetStructure:
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
         # Load with our implementation
-        from synth.sf2.sf2_modulation_engine import SF2ModulationEngine
-        from synth.sf2.sf2_sample_processor import SF2SampleProcessor
-        from synth.sf2.sf2_soundfont import SF2SoundFont
-        from synth.sf2.sf2_zone_cache import SF2ZoneCacheManager
+        from synth.io.sf2.sf2_modulation_engine import SF2ModulationEngine
+        from synth.io.sf2.sf2_sample_processor import SF2SampleProcessor
+        from synth.io.sf2.sf2_soundfont import SF2SoundFont
+        from synth.io.sf2.sf2_zone_cache import SF2ZoneCacheManager
 
         sample_processor = SF2SampleProcessor(cache_memory_mb=256)
         zone_cache_manager = SF2ZoneCacheManager()
@@ -240,10 +240,10 @@ class TestSF2InstrumentStructure:
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
-        from synth.sf2.sf2_modulation_engine import SF2ModulationEngine
-        from synth.sf2.sf2_sample_processor import SF2SampleProcessor
-        from synth.sf2.sf2_soundfont import SF2SoundFont
-        from synth.sf2.sf2_zone_cache import SF2ZoneCacheManager
+        from synth.io.sf2.sf2_modulation_engine import SF2ModulationEngine
+        from synth.io.sf2.sf2_sample_processor import SF2SampleProcessor
+        from synth.io.sf2.sf2_soundfont import SF2SoundFont
+        from synth.io.sf2.sf2_zone_cache import SF2ZoneCacheManager
 
         sample_processor = SF2SampleProcessor(cache_memory_mb=256)
         zone_cache_manager = SF2ZoneCacheManager()
@@ -329,10 +329,10 @@ class TestSF2SampleMetadata:
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
-        from synth.sf2.sf2_modulation_engine import SF2ModulationEngine
-        from synth.sf2.sf2_sample_processor import SF2SampleProcessor
-        from synth.sf2.sf2_soundfont import SF2SoundFont
-        from synth.sf2.sf2_zone_cache import SF2ZoneCacheManager
+        from synth.io.sf2.sf2_modulation_engine import SF2ModulationEngine
+        from synth.io.sf2.sf2_sample_processor import SF2SampleProcessor
+        from synth.io.sf2.sf2_soundfont import SF2SoundFont
+        from synth.io.sf2.sf2_zone_cache import SF2ZoneCacheManager
 
         sample_processor = SF2SampleProcessor(cache_memory_mb=256)
         zone_cache_manager = SF2ZoneCacheManager()
@@ -462,10 +462,10 @@ class TestSF2ZoneStructure:
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
-        from synth.sf2.sf2_modulation_engine import SF2ModulationEngine
-        from synth.sf2.sf2_sample_processor import SF2SampleProcessor
-        from synth.sf2.sf2_soundfont import SF2SoundFont
-        from synth.sf2.sf2_zone_cache import SF2ZoneCacheManager
+        from synth.io.sf2.sf2_modulation_engine import SF2ModulationEngine
+        from synth.io.sf2.sf2_sample_processor import SF2SampleProcessor
+        from synth.io.sf2.sf2_soundfont import SF2SoundFont
+        from synth.io.sf2.sf2_zone_cache import SF2ZoneCacheManager
 
         sample_processor = SF2SampleProcessor(cache_memory_mb=256)
         zone_cache_manager = SF2ZoneCacheManager()
@@ -567,10 +567,10 @@ class TestSF2GeneratorParameters:
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
-        from synth.sf2.sf2_modulation_engine import SF2ModulationEngine
-        from synth.sf2.sf2_sample_processor import SF2SampleProcessor
-        from synth.sf2.sf2_soundfont import SF2SoundFont
-        from synth.sf2.sf2_zone_cache import SF2ZoneCacheManager
+        from synth.io.sf2.sf2_modulation_engine import SF2ModulationEngine
+        from synth.io.sf2.sf2_sample_processor import SF2SampleProcessor
+        from synth.io.sf2.sf2_soundfont import SF2SoundFont
+        from synth.io.sf2.sf2_zone_cache import SF2ZoneCacheManager
 
         sample_processor = SF2SampleProcessor(cache_memory_mb=256)
         zone_cache_manager = SF2ZoneCacheManager()
@@ -675,10 +675,10 @@ class TestSF2ComprehensiveParsing:
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
-        from synth.sf2.sf2_modulation_engine import SF2ModulationEngine
-        from synth.sf2.sf2_sample_processor import SF2SampleProcessor
-        from synth.sf2.sf2_soundfont import SF2SoundFont
-        from synth.sf2.sf2_zone_cache import SF2ZoneCacheManager
+        from synth.io.sf2.sf2_modulation_engine import SF2ModulationEngine
+        from synth.io.sf2.sf2_sample_processor import SF2SampleProcessor
+        from synth.io.sf2.sf2_soundfont import SF2SoundFont
+        from synth.io.sf2.sf2_zone_cache import SF2ZoneCacheManager
 
         sample_processor = SF2SampleProcessor(cache_memory_mb=256)
         zone_cache_manager = SF2ZoneCacheManager()
@@ -819,10 +819,10 @@ class TestSF2MultiZonePresetHandling:
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
-        from synth.sf2.sf2_modulation_engine import SF2ModulationEngine
-        from synth.sf2.sf2_sample_processor import SF2SampleProcessor
-        from synth.sf2.sf2_soundfont import SF2SoundFont
-        from synth.sf2.sf2_zone_cache import SF2ZoneCacheManager
+        from synth.io.sf2.sf2_modulation_engine import SF2ModulationEngine
+        from synth.io.sf2.sf2_sample_processor import SF2SampleProcessor
+        from synth.io.sf2.sf2_soundfont import SF2SoundFont
+        from synth.io.sf2.sf2_zone_cache import SF2ZoneCacheManager
 
         sample_processor = SF2SampleProcessor(cache_memory_mb=256)
         zone_cache_manager = SF2ZoneCacheManager()
@@ -1050,7 +1050,7 @@ class TestSF2ZoneToRegionConversion:
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
 
         engine = SF2Engine(sf2_file_path=str(TEST_SF2_FILE), sample_rate=44100, block_size=1024)
 
@@ -1076,7 +1076,7 @@ class TestSF2ZoneToRegionConversion:
 
     def test_region_descriptors_have_required_fields(self, sf2_engine_with_presets):
         """Test that region descriptors have all required fields."""
-        from synth.engine.region_descriptor import RegionDescriptor
+        from synth.engines.region_descriptor import RegionDescriptor
 
         # Get a preset with regions
         preset_info = None
@@ -1194,7 +1194,7 @@ class TestSF2SampleLoading:
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test file not found: {TEST_SF2_FILE}")
 
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
 
         engine = SF2Engine(sf2_file_path=str(TEST_SF2_FILE), sample_rate=44100, block_size=1024)
 

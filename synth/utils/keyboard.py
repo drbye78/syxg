@@ -8,16 +8,26 @@ from collections.abc import Callable
 
 
 class KeyboardListener:
-    """Sexy cross-platform keyboard listener with event callbacks"""
+    """Cross-platform keyboard listener with separate MIDI and command callbacks."""
 
     def __init__(self):
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
-        self._callbacks: list[Callable[[str], None]] = []
+        self._press_callbacks: list[Callable[[str], None]] = []
+        self._release_callbacks: list[Callable[[str], None]] = []
+        self._command_callback: Callable[[str], None] | None = None
 
-    def add_callback(self, callback: Callable[[str], None]):
-        """Add a callback function to be called on key press"""
-        self._callbacks.append(callback)
+    def add_callback(
+        self,
+        press: Callable[[str], None],
+        release: Callable[[str], None] | None = None,
+    ):
+        self._press_callbacks.append(press)
+        if release:
+            self._release_callbacks.append(release)
+
+    def set_command_callback(self, callback: Callable[[str], None]):
+        self._command_callback = callback
 
     def start(self):
         """Start listening for keyboard input"""
@@ -35,14 +45,23 @@ class KeyboardListener:
             self._thread.join(timeout=1.0)
 
     def _listen_loop(self):
-        """Main listening loop with platform-specific implementations"""
         try:
             if platform.system() == "Windows":
                 self._windows_listen()
             else:
                 self._unix_listen()
         except Exception:
-            pass  # Silently handle any listener errors
+            pass
+
+    def _dispatch_press(self, char: str):
+        for cb in self._press_callbacks:
+            cb(char)
+        if self._command_callback:
+            self._command_callback(char)
+
+    def _dispatch_release(self, char: str):
+        for cb in self._release_callbacks:
+            cb(char)
 
     def _windows_listen(self):
         import msvcrt
@@ -50,12 +69,10 @@ class KeyboardListener:
         while not self._stop_event.is_set():
             if msvcrt.kbhit():
                 char = msvcrt.getch()
-                # Ensure char is always a string
                 if isinstance(char, bytes):
                     char = char.decode("utf-8", errors="ignore")
                 safe_char = str(char)
-                for callback in self._callbacks:
-                    callback(safe_char)
+                self._dispatch_press(safe_char)
             time.sleep(0.1)
 
     def _unix_listen(self):
@@ -69,8 +86,7 @@ class KeyboardListener:
             while not self._stop_event.is_set():
                 if select.select([sys.stdin], [], [], 0.1)[0]:
                     char = sys.stdin.read(1)
-                    for callback in self._callbacks:
-                        callback(char)
+                    self._dispatch_press(char)
         finally:
             termios.tcsetattr(  # type: ignore
                 sys.stdin,

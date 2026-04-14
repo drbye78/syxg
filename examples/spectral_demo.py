@@ -12,7 +12,7 @@ import numpy as np
 from performance_optimizer import PerformanceMonitor
 
 # Import the spectral synthesis engine
-from synth.engine.spectral_engine import SpectralEngine
+from synth.engines.spectral import SpectralEngine
 
 
 def create_spectral_demo():
@@ -57,7 +57,7 @@ def demonstrate_fft_processing():
     print("🎵 Analyzing test signal with multiple frequencies...")
 
     # Create spectral synthesizer for analysis
-    from synth.engine.spectral_engine import SpectralSynthesizer
+    from synth.engines.spectral import SpectralSynthesizer
 
     spectral_synth = SpectralSynthesizer()
 

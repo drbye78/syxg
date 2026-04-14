@@ -16,7 +16,7 @@ import mido
 
 # Import only the specific classes we need to avoid full module import
 # which might hang due to rtmidi dependency
-from synth.midi.message import MIDIMessage
+from synth.io.midi.message import MIDIMessage
 
 # Import FileParser by adding synth directory to path
 synth_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "synth")

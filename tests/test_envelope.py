@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from synth.core.envelope import (
+from synth.primitives.envelope import (
     STATE_MASK_ATTACK,
     STATE_MASK_DECAY,
     STATE_MASK_DELAY,
@@ -1113,7 +1113,7 @@ class TestSF2Integration:
         # This test verifies the envelope module is properly integrated
         # with the SF2 region implementation
 
-        from synth.core.envelope import EnvelopeState, UltraFastADSREnvelope
+        from synth.primitives.envelope import EnvelopeState, UltraFastADSREnvelope
 
         # Verify envelope can be instantiated with typical SF2 parameters
         # SF2 uses timecents for time parameters and centibels for sustain

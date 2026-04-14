@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from synth.midi import RTMIDI_AVAILABLE, get_input_names, get_output_names
+from synth.io.midi import RTMIDI_AVAILABLE, get_input_names, get_output_names
 
 from .types import DEFAULT_BUFFER_SIZE, DEFAULT_SAMPLE_RATE
 from .workstation import XGWorkstation
@@ -69,7 +69,8 @@ Examples:
         action="append",
         dest="midi_inputs",
         metavar="TYPE[:NAME]",
-        help="MIDI input interface (keyboard, mido_port:NAME, virtual_port, network_midi, file:PATH, stdin)",
+        help="MIDI input interface (keyboard, mido_port:NAME, virtual_port, "
+        "network_midi, file:PATH, stdin)",
     )
 
     parser.add_argument(
@@ -181,7 +182,7 @@ def parse_output_spec(spec: str) -> dict[str, Any]:
 def list_midi_ports():
     """List available MIDI ports."""
     if not RTMIDI_AVAILABLE:
-        print("MIDI port support not available - install rtmidi: pip install rtmidi")
+        print("MIDI port support not available - install python-rtmidi: pip install python-rtmidi")
         return
 
     print("\nAvailable MIDI Input Ports:")

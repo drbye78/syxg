@@ -11,11 +11,11 @@ from pathlib import Path
 
 import numpy as np
 from performance_optimizer import PerformanceMonitor
-from synth.sf2.enhanced_sf2_manager import EnhancedSF2Manager
+from synth.io.sf2.enhanced_sf2_manager import EnhancedSF2Manager
 
 # Import the complete SFZ synthesis engine
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-from synth.sfz.sfz_engine import SFZEngine
+from synth.synthesizers.rendering import ModernXGSynthesizer
+from synth.io.sfz.sfz_engine import SFZEngine
 
 
 def create_demo_sfz_instrument():

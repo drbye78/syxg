@@ -24,9 +24,9 @@ import sys
 # Add the project directory to the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from synth.audio.writer import AudioWriter
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
-from synth.midi import MIDIMessage
+from synth.io.audio.writer import AudioWriter
+from synth.synthesizers.rendering import ModernXGSynthesizer
+from synth.io.midi import MIDIMessage
 from synth.xgml import XGMLParser, XGMLToMIDITranslator
 
 
@@ -49,8 +49,8 @@ class NoteRenderer:
         self.synth = ModernXGSynthesizer(
             sample_rate=sample_rate,
             max_channels=16,
-            xg_enabled=True,
-            gs_enabled=True,
+            xg_enabled=False,
+            gs_enabled=False,
             mpe_enabled=False,
             device_id=0x10,
         )

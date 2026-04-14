@@ -1,6 +1,6 @@
 # 🎹 XG Synthesizer - Professional MIDI Workstation
 
-[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://img.shields.io/badge/build-passing-green.svg)](#)
 [![Documentation](https://img.shields.io/badge/docs-complete-blue.svg)](#)
@@ -544,14 +544,14 @@ effects_configuration:
 ## 🔧 System Requirements
 
 ### Minimum Requirements
-- **Python**: 3.8+
+- **Python**: 3.12+
 - **RAM**: 4GB
 - **Disk**: 1GB for samples and temporary files
 - **OS**: Windows 10+, macOS 10.15+, Linux (Ubuntu 18.04+)
 - **CPU**: Dual-core processor
 
 ### Recommended Requirements
-- **Python**: 3.9+
+- **Python**: 3.13+
 - **RAM**: 8GB+
 - **Disk**: SSD with 10GB+ free space
 - **OS**: Windows 11+, macOS 12+, Linux (Ubuntu 22.04+)

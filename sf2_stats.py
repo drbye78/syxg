@@ -279,7 +279,7 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
                         # Each sample point is typically 2 bytes (16-bit)
                         sample_size = (sample_end - sample_start) * 2
                         total_sample_size += sample_size
-                except:
+                except Exception:
                     pass
 
             presets_data.append(

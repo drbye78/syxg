@@ -13,12 +13,11 @@ import hashlib
 import json
 import logging
 import math
-import pickle
 import time
 from pathlib import Path
 from typing import Any
 
-from synth.core.synthesizer import Synthesizer
+from synth.synthesizers.realtime import Synthesizer
 
 from .types import PresetData
 
@@ -96,14 +95,13 @@ class PresetManager:
         preset.modified_at = time.time()
 
         if filename is None:
-            # Generate filename from preset name
             safe_name = hashlib.md5(preset.name.encode()).hexdigest()[:12]
-            filename = f"{safe_name}.preset"
+            filename = f"{safe_name}.json"
 
         filepath = self.preset_dir / filename
 
-        with open(filepath, "wb") as f:
-            pickle.dump(self._preset_to_dict(preset), f)
+        with open(filepath, "w") as f:
+            json.dump(self._preset_to_dict(preset), f, indent=2)
 
         logger.info(f"Preset saved: {filepath}")
         return filepath
@@ -128,8 +126,8 @@ class PresetManager:
                 return None
 
         try:
-            with open(filepath, "rb") as f:
-                data = pickle.load(f)
+            with open(filepath) as f:
+                data = json.load(f)
 
             preset = self._dict_to_preset(data)
             self.current_preset = preset
@@ -149,7 +147,7 @@ class PresetManager:
         Returns:
             List of Path objects for preset files
         """
-        return list(self.preset_dir.glob("*.preset"))
+        return list(self.preset_dir.glob("*.json"))
 
     def delete_preset(self, filename: str) -> bool:
         """
@@ -450,7 +448,7 @@ class StyleEngineIntegration:
         self.loaded_styles: dict[int, Style] = {}  # channel -> style
         self.style_paths: list[Path] = []
 
-    def initialize(self, style_paths: list[str] = None) -> bool:
+    def initialize(self, style_paths: list[str] | None = None) -> bool:
         """
         Initialize style engine.
 

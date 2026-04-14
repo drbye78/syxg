@@ -9,12 +9,13 @@ This module provides audio output engines including:
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 
 import numpy as np
 
-from synth.audio.writer import AudioWriter
-from synth.core.synthesizer import Synthesizer
+from synth.io.audio.writer import AudioWriter
+from synth.synthesizers.realtime import Synthesizer
 
 from .types import AudioOutputConfig
 
@@ -122,7 +123,8 @@ class FileAudioOutput(AudioOutputEngine):
     Audio output to file with proper finalization.
 
     Renders audio to a file format (WAV, FLAC, etc.) with proper
-    header finalization when stopped.
+    header finalization when stopped. Runs a background rendering
+    thread that continuously pulls audio from the synthesizer.
     """
 
     def __init__(self, config: AudioOutputConfig, synthesizer: Synthesizer):
@@ -130,6 +132,8 @@ class FileAudioOutput(AudioOutputEngine):
         self.audio_writer: AudioWriter | None = None
         self.av_writer = None
         self.total_samples = 0
+        self._render_thread: threading.Thread | None = None
+        self._stop_event = threading.Event()
 
     def _start_output(self):
         try:
@@ -147,11 +151,17 @@ class FileAudioOutput(AudioOutputEngine):
             )
             self.av_writer.__enter__()
             self.total_samples = 0
+            self._stop_event.clear()
+            self._render_thread = threading.Thread(target=self._render_loop, daemon=True)
+            self._render_thread.start()
             logger.info(f"File audio output started: {self.config.file_path}")
         except Exception as e:
             logger.error(f"Failed to start file audio output: {e}")
 
     def _stop_output(self):
+        self._stop_event.set()
+        if self._render_thread and self._render_thread.is_alive():
+            self._render_thread.join(timeout=2.0)
         if self.av_writer:
             try:
                 self.av_writer.__exit__(None, None, None)
@@ -163,13 +173,19 @@ class FileAudioOutput(AudioOutputEngine):
             finally:
                 self.av_writer = None
 
-    def render_block(self, audio_data: np.ndarray):
-        """
-        Render audio block to file.
+    def _render_loop(self):
+        """Background thread that renders audio blocks to file."""
+        block_size = self.config.buffer_size
+        buffer = np.zeros((block_size, 2), dtype=np.float32)
+        seconds_per_block = block_size / self.config.sample_rate
 
-        Args:
-            audio_data: Numpy array of audio samples to write
-        """
-        if self.av_writer is not None:
-            self.av_writer.write(audio_data)
-            self.total_samples += len(audio_data)
+        while not self._stop_event.is_set():
+            try:
+                buffer.fill(0.0)
+                self.synthesizer.render_block(buffer)
+                if self.av_writer is not None:
+                    self.av_writer.write(buffer)
+                    self.total_samples += block_size
+            except Exception as e:
+                logger.error(f"File render error: {e}")
+            self._stop_event.wait(seconds_per_block)

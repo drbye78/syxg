@@ -10,7 +10,7 @@ Copyright (c) 2025
 
 import time
 
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 
 def demo_arpeggiator_patterns():

@@ -14,10 +14,10 @@ from pathlib import Path
 
 import numpy as np
 
-from synth.audio.writer import AudioWriter
+from synth.io.audio.writer import AudioWriter
 
 # XG Synthesizer imports
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 
 def create_workstation_synthesizer() -> ModernXGSynthesizer:

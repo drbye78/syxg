@@ -1,12 +1,14 @@
 """
 Vibexg Utilities - Helper functions for MIDI conversion
-
-This module provides utility functions for MIDI message conversion.
 """
 
 from __future__ import annotations
 
-from synth.midi import MIDIMessage
+import threading
+
+from synth.io.midi import MIDIMessage
+
+_parser_local = threading.local()
 
 
 def midimessage_to_bytes(message: MIDIMessage) -> bytes:
@@ -20,7 +22,7 @@ def midimessage_to_bytes(message: MIDIMessage) -> bytes:
         Raw MIDI bytes as bytes object
 
     Example:
-        >>> from synth.midi import MIDIMessage
+        >>> from synth.io.midi import MIDIMessage
         >>> msg = MIDIMessage(type='note_on', channel=0, data={'note': 60, 'velocity': 80})
         >>> data = midimessage_to_bytes(msg)
         >>> data.hex()
@@ -81,24 +83,8 @@ def midimessage_to_bytes(message: MIDIMessage) -> bytes:
 
 
 def bytes_to_midimessage(data: bytes, timestamp: float | None = None) -> list[MIDIMessage]:
-    """
-    Convert MIDI bytes to MIDIMessage objects.
+    from synth.io.midi import RealtimeParser
 
-    Args:
-        data: Raw MIDI bytes to parse
-        timestamp: Optional timestamp to assign to messages (default: None)
-
-    Returns:
-        List of MIDIMessage objects parsed from the byte stream
-
-    Example:
-        >>> data = bytes([0x90, 60, 80])  # Note on, middle C, velocity 80
-        >>> messages = bytes_to_midimessage(data)
-        >>> len(messages)
-        1
-    """
-    from synth.midi import RealtimeParser
-
-    if not hasattr(bytes_to_midimessage, "_parser"):
-        bytes_to_midimessage._parser = RealtimeParser()
-    return bytes_to_midimessage._parser.parse_bytes(data)
+    if not hasattr(_parser_local, "parser"):
+        _parser_local.parser = RealtimeParser()
+    return _parser_local.parser.parse_bytes(data)

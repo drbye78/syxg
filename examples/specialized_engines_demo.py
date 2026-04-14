@@ -10,10 +10,10 @@ import time
 
 import numpy as np
 
-from synth.engine.advanced_physical_engine import AdvancedPhysicalEngine
+from synth.engines.advanced_physical import AdvancedPhysicalEngine
 
 # Import specialized engines
-from synth.engine.convolution_reverb_engine import ConvolutionReverbEngine
+from synth.engines.convolution import ConvolutionReverbEngine
 from synth.mpe.mpe_manager import MPEManager
 
 

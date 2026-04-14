@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from synth.midi import MIDIMessage
+from synth.io.midi import MIDIMessage
 
 from .parser_v3 import XGMLConfigV3
 

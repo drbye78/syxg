@@ -1,29 +1,29 @@
-# XG Synthesizer - Core Requirements (Python 3.11+)
+# XG Synthesizer - Core Requirements (Python 3.14+)
 # ===================================================
 # Install with: pip install -r requirements.txt
 # For full workstation features: pip install -r requirements.txt -r requirements_optional.txt
 
 # =============================================================================
-# Core Dependencies (Required - Python 3.11+ Compatible)
+# Core Dependencies (Required - Python 3.14 Compatible)
 # =============================================================================
 
 # Core scientific libraries
-numpy>=1.24.0,<2.0.0          # Python 3.11 support from 1.24+
-scipy>=1.10.0,<2.0.0          # Python 3.11 support from 1.10+
+numpy>=2.0.0,<3.0.0            # Python 3.14: 2.0+ required for full support
+scipy>=1.14.0,<2.0.0          # Python 3.14: 1.14+ required for full support
 
 # Audio processing and I/O (PyAV - FFmpeg bindings)
 # PyAV handles all audio file reading/writing/conversion
-av>=10.0.0,<13.0.0            # Python 3.11 support from 10.0+
+av>=14.0.0,<16.0.0              # Python 3.14: 14.0+ required for full support
 
 # Performance optimization (JIT compilation)
-numba>=0.57.0,<0.61.0         # Python 3.11 support from 0.57+
+numba>=0.60.0,<0.66.0           # Python 3.14: 0.60+ required (no 3.14 in 0.59)
 
 # System monitoring
-psutil>=5.9.5,<7.0.0          # Python 3.11 compatible
+psutil>=6.0.0,<7.0.0            # Python 3.14: 6.0+ required
 
 # Configuration and data formats
-PyYAML>=6.0.1,<8.0.0          # Python 3.11 compatible
-jsonschema>=4.17.0,<5.0.0     # Python 3.11 compatible
+PyYAML>=6.0.2,<7.0.0            # Python 3.14: 6.0.2+ required
+jsonschema>=4.23.0,<5.0.0       # Python 3.14: 4.23+ required
 
-# Type hints support (Python 3.11+ backports)
-typing-extensions>=4.5.0,<5.0.0  # Backport of 3.11+ typing features
+# Type hints support (Python 3.14 built-in, but keep for older compatibility)
+typing-extensions>=4.12.0,<5.0.0  # Backport of typing features, 4.12+

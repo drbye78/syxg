@@ -12,7 +12,7 @@ Showcase the complete FM-X compatible synthesis engine with all advanced feature
 
 import time
 
-from synth.engine.fm_engine import FMEngine
+from synth.engines.fm_engine import FMEngine
 
 
 def create_fm_x_demo():

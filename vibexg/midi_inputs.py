@@ -20,13 +20,12 @@ import threading
 import time
 from collections.abc import Callable
 
-from synth.midi import (
+from synth.io.midi import (
     RTMIDI_AVAILABLE,
     MIDIMessage,
     RealtimeParser,
     get_input_names,
     open_input,
-    open_output,
 )
 
 from .backends.network import NetworkMIDIHandler
@@ -117,7 +116,7 @@ class MidoPortInput(MIDIInputInterface):
     def _start_interface(self):
         if not RTMIDI_AVAILABLE:
             logger.error(
-                "rtmidi not available for MIDI port input. Install with: pip install rtmidi"
+                "rtmidi not available for MIDI port input. Install with: pip install python-rtmidi"
             )
             return
 
@@ -158,7 +157,7 @@ class VirtualPortInput(MIDIInputInterface):
     def _start_interface(self):
         if not RTMIDI_AVAILABLE:
             logger.error(
-                "rtmidi not available for virtual port creation. Install with: pip install rtmidi"
+                "rtmidi not available for virtual port creation. Install with: pip install python-rtmidi"
             )
             return
 
@@ -218,9 +217,15 @@ class KeyboardInput(MIDIInputInterface):
     - Black keys on upper row
     """
 
-    def __init__(self, config: MIDIInputConfig, message_callback: Callable[[MIDIMessage], None]):
+    def __init__(
+        self,
+        config: MIDIInputConfig,
+        message_callback: Callable[[MIDIMessage], None],
+        command_callback: Callable[[str], None] | None = None,
+    ):
         super().__init__(config, message_callback)
         self.key_map = self._create_key_map()
+        self.command_callback = command_callback
 
     def _create_key_map(self) -> dict[str, int]:
         """
@@ -269,12 +274,14 @@ class KeyboardInput(MIDIInputInterface):
                     msg = MIDIMessage(
                         type="note_off",
                         channel=0,
-                        data={"note": note, "velocity": 64},
+                        data={"note": note, "velocity": 0},
                         timestamp=time.time(),
                     )
                     self._send_message(msg)
 
             self.keyboard_listener.add_callback(on_key_press, on_key_release)
+            if self.command_callback:
+                self.keyboard_listener.set_command_callback(self.command_callback)
             self.keyboard_listener.start()
             logger.info("Keyboard MIDI input started")
         except Exception as e:
@@ -298,17 +305,20 @@ class FileMIDIInput(MIDIInputInterface):
         self.file_path = config.options.get("file_path", "")
         self.tempo_multiplier = config.options.get("tempo", 1.0)
         self.loop = config.options.get("loop", False)
+        self._stop_event = threading.Event()
 
     def _start_interface(self):
+        self._stop_event.clear()
         self.thread = threading.Thread(target=self._playback_thread, daemon=True)
         self.thread.start()
 
     def _stop_interface(self):
         self.running = False
+        self._stop_event.set()
 
     def _playback_thread(self):
         """Playback MIDI file in real-time."""
-        from synth.midi import FileParser
+        from synth.io.midi import FileParser
 
         if not os.path.exists(self.file_path):
             logger.error(f"MIDI file not found: {self.file_path}")
@@ -322,7 +332,6 @@ class FileMIDIInput(MIDIInputInterface):
                 return
 
             while self.running:
-                start_time = time.time()
                 prev_timestamp = messages[0].timestamp
 
                 for midimsg in messages:
@@ -331,7 +340,9 @@ class FileMIDIInput(MIDIInputInterface):
 
                     delta = (midimsg.timestamp - prev_timestamp) / self.tempo_multiplier
                     if delta > 0:
-                        time.sleep(delta)
+                        self._stop_event.wait(delta)
+                        if not self.running:
+                            return
 
                     self._send_message(midimsg)
                     prev_timestamp = midimsg.timestamp

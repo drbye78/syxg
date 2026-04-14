@@ -5,53 +5,52 @@ Python implementation of the Yamaha XG (eXtended General MIDI) synthesizer speci
 Provides modular synthesis engine architecture with MIDI processing, effects, and voice management.
 
 Package Structure:
-- core: Core synthesizer infrastructure (Synthesizer, Config, BufferPool, Constants)
-- engine: Synthesis engine implementations (SF2, FM, AN, FDSP, XG, etc.)
-- effects: Audio effects processing (XG effects, VCM effects, spatial processing)
-- voice: Polyphony management and voice allocation
-- xg: XG specification implementation (system, effects, controllers)
-- midi: MIDI message parsing and processing
-- audio: Audio I/O and sample management
+- primitives: Core DSP building blocks (BufferPool, Config, Envelope, Filter, etc.)
+- synthesizers: Top-level orchestrators (Synthesizer, ModernXGSynthesizer)
+- engines: Synthesis engine implementations (SF2, FM, AN, FDSP, etc.)
+- processing: Audio/MIDI processing pipeline (channel, voice, partial, effects, modulation)
+- protocols: XG and GS specification implementations
+- hardware: Hardware emulation layers (Jupiter-X, S90/S70)
+- io: File/network I/O (MIDI, audio, SF2, SFZ)
 - sampling: Sample loading and manipulation
-- modulation: Parameter modulation and routing
-- sf2: SoundFont 2.0 file format support
-- sfz: SFZ sample format support
-- s90_s70: S90/S70 hardware compatibility layer
+- xgml: XG Markup Language configuration
+- style: Auto-accompaniment style engine
+- sequencer: Pattern sequencing
 """
 
 from __future__ import annotations
 
-from .core.buffer_pool import XGBufferPool as BufferPool
-from .core.config import SynthConfig
-from .core.constants import SynthConstants
+from .primitives.buffer_pool import XGBufferPool as BufferPool
+from .primitives.config import SynthConfig
+from .primitives.constants import SynthConstants
 
-# Main synthesizer class
-from .core.synthesizer import Synthesizer
+# Main synthesizer classes
+from .synthesizers.realtime import Synthesizer
+from .synthesizers.rendering import ModernXGSynthesizer
 
 # Effects processing
-from .effects.effects_coordinator import XGEffectsCoordinator as EffectsCoordinator
+from .processing.effects.effects_coordinator import XGEffectsCoordinator as EffectsCoordinator
 
 # Synthesis engines
-from .engine import (
-    ModernXGSynthesizer,
+from .engines import (
     SF2Engine,
     SynthesisEngine,
     SynthesisEngineRegistry,
     get_global_coefficient_manager,
 )
-from .engine.an_engine import ANEngine
+from .engines.physical_modeling import ANEngine
 
-# FDSP and AN engines (S90/S70)
-from .engine.fdsp_engine import FDSPEngine
+# FDSP engine (S90/S70)
+from .engines.fdsp import FDSPEngine
 
 # Parameter routing
-from .engine.parameter_router import ParameterRouter
+from .engines.parameter_router import ParameterRouter
 
 # MIDI processing - Unified API
-from .midi import FileParser, MessageBuffer, MessageType, MIDIMessage, MIDIStatus, RealtimeParser
+from .io.midi import FileParser, MessageBuffer, MessageType, MIDIMessage, MIDIStatus, RealtimeParser
 
 # S90/S70 compatibility
-from .s90_s70 import (
+from .hardware.s90_s70 import (
     S90S70ControlSurfaceMapping,
     S90S70HardwareSpecs,
     S90S70PerformanceFeatures,
@@ -141,10 +140,10 @@ from .type_defs import (
 from .version import __version__
 
 # Voice management
-from .voice.voice_manager import VoiceManager
+from .processing.voice.voice_manager import VoiceManager
 
 # XG system
-from .xg.xg_system import XGSystem
+from .protocols.xg.xg_system import XGSystem
 
 __all__ = [
     # Version

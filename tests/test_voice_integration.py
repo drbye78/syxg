@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 import numpy as np
 
-from synth.midi.message import MIDIMessage
+from synth.io.midi.message import MIDIMessage
 from tests.utils.audio_utils import calculate_rms
 from tests.utils.midi_utils import create_note_on_message, create_note_off_message
 
@@ -21,7 +21,7 @@ class TestVoiceIntegration:
     @pytest.mark.integration
     def test_voice_note_on_off(self, sample_rate, block_size):
         """Test basic voice note on/off functionality."""
-        from synth.partial.sf2_partial import SF2Partial
+        from synth.processing.partial.sf2_partial import SF2Partial
 
         sample_data = np.random.randn(sample_rate).astype(np.float32) * 0.5
 
@@ -34,7 +34,7 @@ class TestVoiceIntegration:
 
         class MockEnvelopePool:
             def acquire_envelope(self, **kwargs):
-                from synth.core.envelope import UltraFastADSREnvelope
+                from synth.primitives.envelope import UltraFastADSREnvelope
                 return UltraFastADSREnvelope(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -51,7 +51,7 @@ class TestVoiceIntegration:
 
         class MockFilterPool:
             def acquire_filter(self, **kwargs):
-                from synth.core.filter import UltraFastResonantFilter
+                from synth.primitives.filter import UltraFastResonantFilter
                 return UltraFastResonantFilter(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -65,7 +65,7 @@ class TestVoiceIntegration:
 
         class MockLFOPool:
             def acquire_oscillator(self, **kwargs):
-                from synth.core.oscillator import UltraFastXGLFO
+                from synth.primitives.oscillator import UltraFastXGLFO
                 return UltraFastXGLFO(
                     id=kwargs.get("id", 0),
                     sample_rate=sample_rate,
@@ -124,7 +124,7 @@ class TestVoiceIntegration:
     @pytest.mark.integration
     def test_voice_stealing(self, sample_rate, block_size):
         """Test voice stealing when polyphony limit is reached."""
-        from synth.partial.sf2_partial import SF2Partial
+        from synth.processing.partial.sf2_partial import SF2Partial
 
         sample_data = np.random.randn(sample_rate).astype(np.float32) * 0.5
         partials = []
@@ -138,7 +138,7 @@ class TestVoiceIntegration:
 
         class MockEnvelopePool:
             def acquire_envelope(self, **kwargs):
-                from synth.core.envelope import UltraFastADSREnvelope
+                from synth.primitives.envelope import UltraFastADSREnvelope
                 return UltraFastADSREnvelope(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -155,7 +155,7 @@ class TestVoiceIntegration:
 
         class MockFilterPool:
             def acquire_filter(self, **kwargs):
-                from synth.core.filter import UltraFastResonantFilter
+                from synth.primitives.filter import UltraFastResonantFilter
                 return UltraFastResonantFilter(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -169,7 +169,7 @@ class TestVoiceIntegration:
 
         class MockLFOPool:
             def acquire_oscillator(self, **kwargs):
-                from synth.core.oscillator import UltraFastXGLFO
+                from synth.primitives.oscillator import UltraFastXGLFO
                 return UltraFastXGLFO(
                     id=kwargs.get("id", 0),
                     sample_rate=sample_rate,
@@ -219,7 +219,7 @@ class TestVoiceIntegration:
     @pytest.mark.integration
     def test_voice_priority(self, sample_rate, block_size):
         """Test voice priority system."""
-        from synth.partial.sf2_partial import SF2Partial
+        from synth.processing.partial.sf2_partial import SF2Partial
 
         sample_data = np.random.randn(sample_rate).astype(np.float32) * 0.5
 
@@ -232,7 +232,7 @@ class TestVoiceIntegration:
 
         class MockEnvelopePool:
             def acquire_envelope(self, **kwargs):
-                from synth.core.envelope import UltraFastADSREnvelope
+                from synth.primitives.envelope import UltraFastADSREnvelope
                 return UltraFastADSREnvelope(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -249,7 +249,7 @@ class TestVoiceIntegration:
 
         class MockFilterPool:
             def acquire_filter(self, **kwargs):
-                from synth.core.filter import UltraFastResonantFilter
+                from synth.primitives.filter import UltraFastResonantFilter
                 return UltraFastResonantFilter(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -263,7 +263,7 @@ class TestVoiceIntegration:
 
         class MockLFOPool:
             def acquire_oscillator(self, **kwargs):
-                from synth.core.oscillator import UltraFastXGLFO
+                from synth.primitives.oscillator import UltraFastXGLFO
                 return UltraFastXGLFO(
                     id=kwargs.get("id", 0),
                     sample_rate=sample_rate,
@@ -314,7 +314,7 @@ class TestVoiceIntegration:
     @pytest.mark.integration
     def test_exclusive_class(self, sample_rate, block_size):
         """Test exclusive class note stealing."""
-        from synth.partial.sf2_partial import SF2Partial
+        from synth.processing.partial.sf2_partial import SF2Partial
 
         sample_data = np.random.randn(sample_rate).astype(np.float32) * 0.5
 
@@ -327,7 +327,7 @@ class TestVoiceIntegration:
 
         class MockEnvelopePool:
             def acquire_envelope(self, **kwargs):
-                from synth.core.envelope import UltraFastADSREnvelope
+                from synth.primitives.envelope import UltraFastADSREnvelope
                 return UltraFastADSREnvelope(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -344,7 +344,7 @@ class TestVoiceIntegration:
 
         class MockFilterPool:
             def acquire_filter(self, **kwargs):
-                from synth.core.filter import UltraFastResonantFilter
+                from synth.primitives.filter import UltraFastResonantFilter
                 return UltraFastResonantFilter(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -358,7 +358,7 @@ class TestVoiceIntegration:
 
         class MockLFOPool:
             def acquire_oscillator(self, **kwargs):
-                from synth.core.oscillator import UltraFastXGLFO
+                from synth.primitives.oscillator import UltraFastXGLFO
                 return UltraFastXGLFO(
                     id=kwargs.get("id", 0),
                     sample_rate=sample_rate,
@@ -406,7 +406,7 @@ class TestVoiceIntegration:
     @pytest.mark.integration
     def test_voice_cleanup(self, sample_rate, block_size):
         """Test voice cleanup and resource release."""
-        from synth.partial.sf2_partial import SF2Partial
+        from synth.processing.partial.sf2_partial import SF2Partial
 
         sample_data = np.random.randn(sample_rate).astype(np.float32) * 0.5
 
@@ -419,7 +419,7 @@ class TestVoiceIntegration:
 
         class MockEnvelopePool:
             def acquire_envelope(self, **kwargs):
-                from synth.core.envelope import UltraFastADSREnvelope
+                from synth.primitives.envelope import UltraFastADSREnvelope
                 return UltraFastADSREnvelope(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -436,7 +436,7 @@ class TestVoiceIntegration:
 
         class MockFilterPool:
             def acquire_filter(self, **kwargs):
-                from synth.core.filter import UltraFastResonantFilter
+                from synth.primitives.filter import UltraFastResonantFilter
                 return UltraFastResonantFilter(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -450,7 +450,7 @@ class TestVoiceIntegration:
 
         class MockLFOPool:
             def acquire_oscillator(self, **kwargs):
-                from synth.core.oscillator import UltraFastXGLFO
+                from synth.primitives.oscillator import UltraFastXGLFO
                 return UltraFastXGLFO(
                     id=kwargs.get("id", 0),
                     sample_rate=sample_rate,
@@ -505,7 +505,7 @@ class TestVoiceIntegration:
     @pytest.mark.integration
     def test_multiple_voices_mixing(self, sample_rate, block_size):
         """Test mixing multiple voices together."""
-        from synth.partial.sf2_partial import SF2Partial
+        from synth.processing.partial.sf2_partial import SF2Partial
 
         sample_data = np.random.randn(sample_rate).astype(np.float32) * 0.5
 
@@ -518,7 +518,7 @@ class TestVoiceIntegration:
 
         class MockEnvelopePool:
             def acquire_envelope(self, **kwargs):
-                from synth.core.envelope import UltraFastADSREnvelope
+                from synth.primitives.envelope import UltraFastADSREnvelope
                 return UltraFastADSREnvelope(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -535,7 +535,7 @@ class TestVoiceIntegration:
 
         class MockFilterPool:
             def acquire_filter(self, **kwargs):
-                from synth.core.filter import UltraFastResonantFilter
+                from synth.primitives.filter import UltraFastResonantFilter
                 return UltraFastResonantFilter(
                     sample_rate=sample_rate,
                     block_size=block_size,
@@ -549,7 +549,7 @@ class TestVoiceIntegration:
 
         class MockLFOPool:
             def acquire_oscillator(self, **kwargs):
-                from synth.core.oscillator import UltraFastXGLFO
+                from synth.primitives.oscillator import UltraFastXGLFO
                 return UltraFastXGLFO(
                     id=kwargs.get("id", 0),
                     sample_rate=sample_rate,
@@ -609,7 +609,7 @@ class TestVoiceIntegration:
     @pytest.mark.integration
     def test_voice_sustain_pedal(self, sample_rate, block_size):
         """Test sustain pedal functionality."""
-        from synth.core.envelope import UltraFastADSREnvelope
+        from synth.primitives.envelope import UltraFastADSREnvelope
 
         envelope = UltraFastADSREnvelope(
             sample_rate=sample_rate,

@@ -40,9 +40,9 @@ class StyleCategory(Enum):
     ELECTRONIC = "electronic"
     CLASSICAL = "classical"
     ORCHESTRAL = "orchestral"
-    WALTZ = auto()
-    MARCH = auto()
-    CUSTOM = auto()
+    WALTZ = "waltz"
+    MARCH = "march"
+    CUSTOM = "custom"
 
 
 class StyleSectionType(Enum):

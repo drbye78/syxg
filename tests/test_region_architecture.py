@@ -15,14 +15,14 @@ from typing import Any
 import numpy as np
 import pytest
 
-from synth.engine.preset_info import PresetInfo
+from synth.engines.preset_info import PresetInfo
 
 # Import architecture components
-from synth.engine.region_descriptor import RegionDescriptor
-from synth.engine.synthesis_engine import SynthesisEngine, SynthesisEngineRegistry
-from synth.partial.region import IRegion
-from synth.voice.voice import Voice
-from synth.voice.voice_factory import VoiceFactory
+from synth.engines.region_descriptor import RegionDescriptor
+from synth.engines.synthesis_engine import SynthesisEngine, SynthesisEngineRegistry
+from synth.processing.partial.region import IRegion
+from synth.processing.voice.voice import Voice
+from synth.processing.voice.voice_factory import VoiceFactory
 
 # ============================================================================
 # Mock Objects for Testing

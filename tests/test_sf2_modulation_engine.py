@@ -7,7 +7,7 @@ Tests SF2GeneratorProcessor, SF2ModulationEngine, and SF2ZoneEngine.
 from __future__ import annotations
 
 from synth.sf2 import sf2_modulation_engine
-from synth.sf2.sf2_constants import SF2_GENERATORS
+from synth.io.sf2.sf2_constants import SF2_GENERATORS
 
 
 class TestSF2GeneratorProcessor:

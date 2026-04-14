@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 import numpy as np
 
-from synth.engine.sf2_engine import SF2Engine
-from synth.engine.region_descriptor import RegionDescriptor
+from synth.engines.sf2_engine import SF2Engine
+from synth.engines.region_descriptor import RegionDescriptor
 
 
 class TestSF2ZoneSelection:
@@ -20,7 +20,7 @@ class TestSF2ZoneSelection:
     @pytest.mark.unit
     def test_key_range_matching(self, ref_sf2_path):
         """Test zone matching based on key ranges."""
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
         engine = SF2Engine(sf2_file_path=ref_sf2_path, sample_rate=44100, block_size=1024)
         
         # Get preset info
@@ -44,7 +44,7 @@ class TestSF2ZoneSelection:
     @pytest.mark.unit
     def test_velocity_range_matching(self, ref_sf2_path):
         """Test zone matching based on velocity ranges."""
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
         engine = SF2Engine(sf2_file_path=ref_sf2_path, sample_rate=44100, block_size=1024)
         
         preset_info = engine.get_preset_info(0, 0)

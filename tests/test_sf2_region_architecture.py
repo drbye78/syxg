@@ -29,7 +29,7 @@ class TestSF2EnginePresetLoading:
     @pytest.fixture
     def sf2_engine(self):
         """Create SF2 engine with test soundfont."""
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
 
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test soundfont not found: {TEST_SF2_FILE}")
@@ -135,7 +135,7 @@ class TestSF2MultiZoneSupport:
     @pytest.fixture
     def sf2_engine(self):
         """Create SF2 engine with test soundfont."""
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
 
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test soundfont not found: {TEST_SF2_FILE}")
@@ -244,9 +244,9 @@ class TestSF2VoiceCreation:
     @pytest.fixture
     def voice_factory(self):
         """Create voice factory with SF2 engine."""
-        from synth.engine.sf2_engine import SF2Engine
-        from synth.engine.synthesis_engine import SynthesisEngineRegistry
-        from synth.voice.voice_factory import VoiceFactory
+        from synth.engines.sf2_engine import SF2Engine
+        from synth.engines.synthesis_engine import SynthesisEngineRegistry
+        from synth.processing.voice.voice_factory import VoiceFactory
 
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test soundfont not found: {TEST_SF2_FILE}")
@@ -325,7 +325,7 @@ class TestSF2ChannelIntegration:
     @pytest.fixture
     def synthesizer(self):
         """Create synthesizer with SF2 soundfont loaded."""
-        from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+        from synth.synthesizers.rendering import ModernXGSynthesizer
 
         synth = ModernXGSynthesizer(sample_rate=44100, max_channels=16, xg_enabled=True)
 
@@ -397,7 +397,7 @@ class TestSF2AudioGeneration:
     @pytest.fixture
     def synthesizer(self):
         """Create synthesizer with SF2 soundfont loaded."""
-        from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+        from synth.synthesizers.rendering import ModernXGSynthesizer
 
         synth = ModernXGSynthesizer(sample_rate=44100, max_channels=16, xg_enabled=True)
 
@@ -465,7 +465,7 @@ class TestSF2GeneratorParameterCombination:
     @pytest.fixture
     def sf2_engine(self):
         """Create SF2 engine with test soundfont."""
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
 
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test soundfont not found: {TEST_SF2_FILE}")
@@ -506,7 +506,7 @@ class TestSF2RangeIntersection:
     @pytest.fixture
     def sf2_engine(self):
         """Create SF2 engine with test soundfont."""
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
 
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test soundfont not found: {TEST_SF2_FILE}")
@@ -544,7 +544,7 @@ class TestSF2BackwardCompatibility:
     @pytest.fixture
     def sf2_engine(self):
         """Create SF2 engine with test soundfont."""
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
 
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test soundfont not found: {TEST_SF2_FILE}")
@@ -569,7 +569,7 @@ class TestSF2EdgeCases:
     @pytest.fixture
     def sf2_engine(self):
         """Create SF2 engine with test soundfont."""
-        from synth.engine.sf2_engine import SF2Engine
+        from synth.engines.sf2_engine import SF2Engine
 
         if not TEST_SF2_FILE.exists():
             pytest.skip(f"Test soundfont not found: {TEST_SF2_FILE}")

@@ -13,8 +13,8 @@ import time
 
 import numpy as np
 
-from synth.core.buffer_pool import XGBufferPool
-from synth.core.config import (
+from synth.primitives.buffer_pool import XGBufferPool
+from synth.primitives.config import (
     AudioConfig,
     audio_config,
     config_manager,
@@ -22,7 +22,7 @@ from synth.core.config import (
 )
 
 # Import production infrastructure
-from synth.core.validation import (
+from synth.primitives.validation import (
     audio_validator,
     parameter_validator,
 )

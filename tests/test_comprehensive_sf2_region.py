@@ -22,14 +22,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from synth.engine.preset_info import PresetInfo
-from synth.engine.region_descriptor import RegionDescriptor
-from synth.engine.sf2_engine import SF2Engine
-from synth.engine.synthesis_engine import SynthesisEngineRegistry
-from synth.partial.sf2_region import SF2Region
-from synth.sf2.sf2_data_model import SF2Zone
-from synth.sf2.sf2_soundfont_manager import SF2SoundFontManager
-from synth.voice.voice_factory import VoiceFactory
+from synth.engines.preset_info import PresetInfo
+from synth.engines.region_descriptor import RegionDescriptor
+from synth.engines.sf2_engine import SF2Engine
+from synth.engines.synthesis_engine import SynthesisEngineRegistry
+from synth.processing.partial.sf2_region import SF2Region
+from synth.io.sf2.sf2_data_model import SF2Zone
+from synth.io.sf2.sf2_soundfont_manager import SF2SoundFontManager
+from synth.processing.voice.voice_factory import VoiceFactory
 
 logger = logging.getLogger(__name__)
 

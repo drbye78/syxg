@@ -19,7 +19,7 @@ class TestVoiceAllocation:
 
     def test_voice_manager_unique_ids(self):
         """Test that voice manager assigns unique IDs to each voice."""
-        from synth.voice.voice_manager import VoiceManager
+        from synth.processing.voice.voice_manager import VoiceManager
 
         vm = VoiceManager(max_voices=16)
 
@@ -37,7 +37,7 @@ class TestVoiceAllocation:
 
     def test_voice_deallocation(self):
         """Test that voice deallocation works correctly."""
-        from synth.voice.voice_manager import VoiceManager
+        from synth.processing.voice.voice_manager import VoiceManager
 
         vm = VoiceManager(max_voices=16)
 
@@ -57,9 +57,9 @@ class TestChannelNRPN:
 
     def test_nrpn_parameter_handling(self):
         """Test that NRPN parameters can be set."""
-        from synth.channel.channel import Channel
-        from synth.voice.voice_factory import VoiceFactory
-        from synth.voice.voice_manager import VoiceManager
+        from synth.processing.channel import Channel
+        from synth.processing.voice.voice_factory import VoiceFactory
+        from synth.processing.voice.voice_manager import VoiceManager
 
         # Create channel with dependencies
         voice_manager = VoiceManager(max_voices=16)
@@ -144,7 +144,7 @@ class TestJV2080NRPNController:
 
     def test_lfo_parameter_setting(self):
         """Test that LFO parameters are set correctly."""
-        from synth.gs.jv2080_nrpn_controller import JV2080NRPNController
+        from synth.protocols.gs.jv2080_nrpn_controller import JV2080NRPNController
 
         controller = JV2080NRPNController(None)
 
@@ -152,7 +152,7 @@ class TestJV2080NRPNController:
 
     def test_envelope_parameter_setting(self):
         """Test that envelope parameters are set correctly."""
-        from synth.gs.jv2080_nrpn_controller import JV2080NRPNController
+        from synth.protocols.gs.jv2080_nrpn_controller import JV2080NRPNController
 
         controller = JV2080NRPNController(None)
 
@@ -164,7 +164,7 @@ class TestArpeggiatorBulkData:
 
     def test_bulk_pattern_parsing(self):
         """Test that bulk pattern data is parsed correctly."""
-        from synth.xg.xg_arpeggiator_sysex_controller import YamahaArpeggiatorSysexController
+        from synth.protocols.xg.xg_arpeggiator_sysex_controller import YamahaArpeggiatorSysexController
 
         # Use mock engine to avoid initialization issues
         class MockEngine:
@@ -209,7 +209,7 @@ class TestWavetableEngine:
 
     def test_wavetable_engine_instantiation(self):
         """Test that wavetable engine can be instantiated."""
-        from synth.engine.wavetable_engine import WavetableEngine
+        from synth.engines.wavetable import WavetableEngine
 
         engine = WavetableEngine(sample_rate=44100)
 
@@ -227,7 +227,7 @@ class TestEffectsCoordinator:
     def test_effects_coordinator_instantiation(self):
         """Test that effects coordinator can be instantiated."""
         try:
-            from synth.effects.effects_coordinator import XGEffectsCoordinator
+            from synth.processing.effects.effects_coordinator import XGEffectsCoordinator
 
             coordinator = XGEffectsCoordinator(sample_rate=44100, block_size=512)
 
@@ -243,7 +243,7 @@ class TestModulationMatrixAdvanced:
     def test_matrix_instantiation(self):
         """Test that advanced matrix can be instantiated."""
         try:
-            from synth.modulation.advanced_matrix import AdvancedModulationMatrix
+            from synth.processing.modulation.advanced_matrix import AdvancedModulationMatrix
 
             matrix = AdvancedModulationMatrix()
 
@@ -260,7 +260,7 @@ class TestPhysicalEngine:
     def test_physical_engine_instantiation(self):
         """Test that physical engine can be instantiated."""
         try:
-            from synth.engine.physical_engine import PhysicalEngine
+            from synth.engines.physical_engine import PhysicalEngine
 
             engine = PhysicalEngine(sample_rate=44100)
 
@@ -275,9 +275,9 @@ class TestChannelVoiceAllocation:
 
     def test_channel_has_voice_tracking(self):
         """Test that channel has voice tracking structures."""
-        from synth.channel.channel import Channel
-        from synth.voice.voice_factory import VoiceFactory
-        from synth.voice.voice_manager import VoiceManager
+        from synth.processing.channel import Channel
+        from synth.processing.voice.voice_factory import VoiceFactory
+        from synth.processing.voice.voice_manager import VoiceManager
 
         # Create required dependencies
         voice_manager = VoiceManager(max_voices=16)

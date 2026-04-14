@@ -20,10 +20,10 @@ from pathlib import Path
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from synth.audio.converter import AudioConverter
-from synth.audio.writer import AudioWriter
-from synth.core.config_manager import ConfigManager
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.io.audio.converter import AudioConverter
+from synth.io.audio.writer import AudioWriter
+from synth.primitives.config_manager import ConfigManager
+from synth.synthesizers.rendering import ModernXGSynthesizer
 from synth.utils.keyboard import KeyboardListener
 
 
@@ -259,7 +259,6 @@ def main():
     # Extract just the paths for synthesizers that need them
     sf2_files = [c["path"] for c in soundfont_configs if c.get("path")]
 
-    architecture = args.architecture
     synth_choice = args.synth
 
     format = args.format

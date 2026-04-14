@@ -19,7 +19,7 @@ import time
 
 import numpy as np
 
-from synth.core.oscillator import UltraFastXGLFO
+from synth.primitives.oscillator import UltraFastXGLFO
 from synth.jupiter_x import JupiterXComponentManager, JupiterXMIDIController
 
 

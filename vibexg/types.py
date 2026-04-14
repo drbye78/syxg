@@ -6,6 +6,8 @@ This module defines all data structures used throughout the vibexg package.
 
 from __future__ import annotations
 
+import threading
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -92,8 +94,8 @@ class PresetData:
     tempo: float = 120.0
     effects_config: dict[str, Any] = field(default_factory=dict)
     midi_learn_mappings: list[dict[str, Any]] = field(default_factory=list)
-    created_at: float = field(default_factory=lambda: __import__("time").time())
-    modified_at: float = field(default_factory=lambda: __import__("time").time())
+    created_at: float = field(default_factory=time.time)
+    modified_at: float = field(default_factory=time.time)
 
 
 @dataclass(slots=True)
@@ -112,3 +114,21 @@ class WorkstationState:
     cpu_usage: float = 0.0
     midi_activity: dict[int, int] = field(default_factory=lambda: dict.fromkeys(range(16), 0))
     loaded_styles: dict[int, str] = field(default_factory=dict)  # channel -> style name
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    def increment_midi_activity(self, channel: int) -> None:
+        with self._lock:
+            self.midi_activity[channel] = self.midi_activity.get(channel, 0) + 1
+
+    def decay_midi_activity(self, factor: float = 0.9) -> None:
+        with self._lock:
+            for ch in self.midi_activity:
+                self.midi_activity[ch] = max(0, int(self.midi_activity[ch] * factor))
+
+    def adjust_voices_active(self, delta: int) -> None:
+        with self._lock:
+            self.voices_active = max(0, self.voices_active + delta)
+
+    def set_voices_active(self, value: int) -> None:
+        with self._lock:
+            self.voices_active = max(0, value)

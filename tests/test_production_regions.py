@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import pytest
 
-from synth.engine.region_descriptor import RegionDescriptor
-from synth.partial.additive_region import AdditiveRegion
-from synth.partial.physical_region import PhysicalRegion
-from synth.partial.wavetable_region import WavetableRegion
+from synth.engines.region_descriptor import RegionDescriptor
+from synth.processing.partial.additive_region import AdditiveRegion
+from synth.processing.partial.physical_region import PhysicalRegion
+from synth.processing.partial.wavetable_region import WavetableRegion
 
 # ============================================================================
 # WavetableRegion Tests
@@ -288,7 +288,7 @@ class TestEngineRegionIntegration:
 
     def test_wavetable_engine_creates_region(self):
         """Test WavetableEngine creates WavetableRegion."""
-        from synth.engine.wavetable_engine import WavetableEngine
+        from synth.engines.wavetable import WavetableEngine
 
         engine = WavetableEngine(sample_rate=44100, block_size=1024)
 
@@ -306,7 +306,7 @@ class TestEngineRegionIntegration:
 
     def test_additive_engine_creates_region(self):
         """Test AdditiveEngine creates AdditiveRegion."""
-        from synth.engine.additive_engine import AdditiveEngine
+        from synth.engines.additive import AdditiveEngine
 
         engine = AdditiveEngine(max_partials=64, sample_rate=44100, block_size=1024)
 
@@ -324,7 +324,7 @@ class TestEngineRegionIntegration:
 
     def test_physical_engine_creates_region(self):
         """Test PhysicalEngine creates PhysicalRegion."""
-        from synth.engine.physical_engine import PhysicalEngine
+        from synth.engines.physical_engine import PhysicalEngine
 
         engine = PhysicalEngine(max_strings=16, sample_rate=44100, block_size=1024)
 

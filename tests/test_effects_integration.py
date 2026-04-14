@@ -19,7 +19,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_reverb_types(self, sample_rate, block_size):
         """Test different reverb types."""
-        from synth.effects.system_effects import XGSystemReverbProcessor
+        from synth.processing.effects.system import XGSystemReverbProcessor
 
         reverb = XGSystemReverbProcessor(sample_rate=sample_rate)
 
@@ -39,7 +39,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_chorus_types(self, sample_rate, block_size):
         """Test different chorus types."""
-        from synth.effects.system_effects import XGSystemChorusProcessor
+        from synth.processing.effects.system import XGSystemChorusProcessor
 
         chorus = XGSystemChorusProcessor(sample_rate=sample_rate)
 
@@ -59,7 +59,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_insertion_effects(self, sample_rate, block_size):
         """Test insertion effects processing."""
-        from synth.effects.insertion_pro import ProductionXGInsertionEffectsProcessor
+        from synth.processing.effects.insertion import ProductionXGInsertionEffectsProcessor
 
         insertion = ProductionXGInsertionEffectsProcessor(sample_rate=sample_rate)
 
@@ -85,7 +85,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_effects_bypass(self, sample_rate, block_size):
         """Test effects bypass functionality."""
-        from synth.effects.system_effects import XGSystemReverbProcessor
+        from synth.processing.effects.system import XGSystemReverbProcessor
 
         reverb = XGSystemReverbProcessor(sample_rate=sample_rate)
 
@@ -105,7 +105,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_effects_parameter_ranges(self, sample_rate, block_size):
         """Test effects parameter ranges."""
-        from synth.effects.system_effects import XGSystemReverbProcessor
+        from synth.processing.effects.system import XGSystemReverbProcessor
 
         reverb = XGSystemReverbProcessor(sample_rate=sample_rate)
 
@@ -123,7 +123,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_effects_chain_processing(self, sample_rate, block_size):
         """Test complete effects chain processing."""
-        from synth.effects.system_effects import XGSystemEffectsProcessor
+        from synth.processing.effects.system import XGSystemEffectsProcessor
 
         # Create effects processor
         effects = XGSystemEffectsProcessor(
@@ -146,7 +146,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_reverb_send_levels(self, sample_rate, block_size):
         """Test reverb send level control."""
-        from synth.effects.system_effects import XGSystemReverbProcessor
+        from synth.processing.effects.system import XGSystemReverbProcessor
 
         reverb = XGSystemReverbProcessor(sample_rate=sample_rate)
 
@@ -162,7 +162,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_chorus_send_levels(self, sample_rate, block_size):
         """Test chorus send level control."""
-        from synth.effects.system_effects import XGSystemChorusProcessor
+        from synth.processing.effects.system import XGSystemChorusProcessor
 
         chorus = XGSystemChorusProcessor(sample_rate=sample_rate)
 
@@ -178,7 +178,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_reverb_time_modulation(self, sample_rate, block_size):
         """Test reverb time modulation."""
-        from synth.effects.system_effects import XGSystemReverbProcessor
+        from synth.processing.effects.system import XGSystemReverbProcessor
 
         reverb = XGSystemReverbProcessor(sample_rate=sample_rate)
 
@@ -194,7 +194,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_chorus_rate_modulation(self, sample_rate, block_size):
         """Test chorus rate modulation."""
-        from synth.effects.system_effects import XGSystemChorusProcessor
+        from synth.processing.effects.system import XGSystemChorusProcessor
 
         chorus = XGSystemChorusProcessor(sample_rate=sample_rate)
 
@@ -210,7 +210,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_effects_stereo_processing(self, sample_rate, block_size):
         """Test effects stereo processing."""
-        from synth.effects.system_effects import XGSystemReverbProcessor
+        from synth.processing.effects.system import XGSystemReverbProcessor
 
         reverb = XGSystemReverbProcessor(sample_rate=sample_rate)
 
@@ -227,7 +227,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_effects_mono_processing(self, sample_rate, block_size):
         """Test effects mono processing."""
-        from synth.effects.insertion_pro import ProductionXGInsertionEffectsProcessor
+        from synth.processing.effects.insertion import ProductionXGInsertionEffectsProcessor
 
         insertion = ProductionXGInsertionEffectsProcessor(sample_rate=sample_rate)
 
@@ -250,7 +250,7 @@ class TestEffectsIntegration:
     @pytest.mark.integration
     def test_effects_wet_dry_mix(self, sample_rate, block_size):
         """Test effects wet/dry mix control."""
-        from synth.effects.system_effects import XGSystemReverbProcessor
+        from synth.processing.effects.system import XGSystemReverbProcessor
 
         reverb = XGSystemReverbProcessor(sample_rate=sample_rate)
 

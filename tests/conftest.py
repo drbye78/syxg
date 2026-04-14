@@ -10,8 +10,8 @@ import os
 import pytest
 import numpy as np
 
-from synth.engine.sf2_engine import SF2Engine
-from synth.midi.file import FileParser
+from synth.engines.sf2_engine import SF2Engine
+from synth.io.midi.file import FileParser
 
 
 @pytest.fixture(scope="session")

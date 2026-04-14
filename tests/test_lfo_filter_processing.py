@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 import numpy as np
 
-from synth.core.oscillator import UltraFastXGLFO
-from synth.core.filter import UltraFastResonantFilter
+from synth.primitives.oscillator import UltraFastXGLFO
+from synth.primitives.filter import UltraFastResonantFilter
 
 
 class TestLFOProcessing:

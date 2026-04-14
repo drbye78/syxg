@@ -6,7 +6,7 @@ Tests MIDI conversion utilities.
 
 from __future__ import annotations
 
-from synth.midi import MIDIMessage
+from synth.io.midi import MIDIMessage
 from vibexg.utils import bytes_to_midimessage, midimessage_to_bytes
 
 

@@ -11,7 +11,7 @@ import socket
 import threading
 from collections.abc import Callable
 
-from synth.midi import MIDIMessage
+from synth.io.midi import MIDIMessage
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ Converts XGML documents to MIDI message sequences that can be fed to the XG synt
 
 from __future__ import annotations
 
-from synth.midi import MIDIMessage
+from synth.io.midi import MIDIMessage
 
 from .constants import (
     CONTROLLER_ASSIGNMENTS,

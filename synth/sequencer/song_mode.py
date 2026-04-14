@@ -416,7 +416,7 @@ class SongMode:
         """
         try:
 
-            from ..midi.file_handler import MIDIFileHandler
+            from ..io.midi.file_handler import MIDIFileHandler
 
             handler = MIDIFileHandler()
 
@@ -526,7 +526,7 @@ class SongMode:
             Success status
         """
         try:
-            from ..midi.file_handler import MIDIFileHandler
+            from ..io.midi.file_handler import MIDIFileHandler
 
             handler = MIDIFileHandler()
             midi_data = handler.load_midi_file(filename)

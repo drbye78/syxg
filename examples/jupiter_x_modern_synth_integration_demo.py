@@ -21,10 +21,10 @@ import time
 import numpy as np
 
 # Import the integrated synthesizer
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 # Note: binary_parser was removed in refactoring, using new unified MIDI system
-# from synth.midi import RealtimeParser
+# from synth.io.midi import RealtimeParser
 
 
 def create_demo_midi_sequence() -> list[bytes]:

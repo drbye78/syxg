@@ -15,7 +15,6 @@ from .types import WorkstationState
 
 # Conditional imports for Rich
 try:
-    import rich
     from rich.console import Console
     from rich.layout import Layout
     from rich.live import Live

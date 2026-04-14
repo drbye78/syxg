@@ -15,8 +15,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from synth.engine.region_descriptor import RegionDescriptor
-from synth.partial.sf2_region import SF2Region
+from synth.engines.region_descriptor import RegionDescriptor
+from synth.processing.partial.sf2_region import SF2Region
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ class TestSF2Integration:
     @pytest.fixture
     def sf2_manager(self, sf2_soundfont_path):
         """Create SF2SoundFontManager with loaded soundfont."""
-        from synth.sf2.sf2_soundfont_manager import SF2SoundFontManager
+        from synth.io.sf2.sf2_soundfont_manager import SF2SoundFontManager
 
         manager = SF2SoundFontManager(cache_memory_mb=128)
         manager.load_soundfont(sf2_soundfont_path)
@@ -290,7 +290,7 @@ class TestSF2ModulationIntegration:
     @pytest.fixture
     def sf2_manager(self, sf2_soundfont_path):
         """Create SF2SoundFontManager with loaded soundfont."""
-        from synth.sf2.sf2_soundfont_manager import SF2SoundFontManager
+        from synth.io.sf2.sf2_soundfont_manager import SF2SoundFontManager
 
         manager = SF2SoundFontManager(cache_memory_mb=128)
         manager.load_soundfont(sf2_soundfont_path)

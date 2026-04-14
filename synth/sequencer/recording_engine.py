@@ -394,7 +394,7 @@ class RecordingEngine:
 
     def _export_midi(self, track: dict[str, Any], filename: str) -> bool:
         """Export MIDI track to file."""
-        from ..midi.file_writer import MIDIFileWriter
+        from ..io.midi.file_writer import MIDIFileWriter
 
         try:
             events = track.get("events", [])
@@ -416,7 +416,7 @@ class RecordingEngine:
                 else:
                     continue
 
-                from ..midi.message import MIDIMessage
+                from ..io.midi.message import MIDIMessage
 
                 msg = MIDIMessage(
                     type=msg_type,
@@ -503,7 +503,7 @@ class RecordingEngine:
     def _import_midi(self, track_number: int, filename: str) -> bool:
         """Import MIDI track from file."""
         try:
-            from ..midi.file_handler import MIDIFileHandler
+            from ..io.midi.file_handler import MIDIFileHandler
 
             handler = MIDIFileHandler()
             midi_data = handler.load_midi_file(filename)

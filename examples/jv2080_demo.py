@@ -9,7 +9,7 @@ multi-part architecture, MFX effects, NRPN control, and advanced features.
 import time
 
 # Import JV-2080 components
-from synth.gs.jv2080_component_manager import (
+from synth.protocols.gs.jv2080_component_manager import (
     JV2080ComponentManager,
 )
 
