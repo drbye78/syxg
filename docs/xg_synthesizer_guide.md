@@ -267,7 +267,7 @@ matrix.set_route(8, "tremolo_depth", "amp", amount=0.3, polarity=1.0)
 
 ### Basic Setup
 ```python
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 # Create synthesizer
 synth = ModernXGSynthesizer(

@@ -619,11 +619,11 @@ python render_midi.py -c /path/to/custom_config.yaml input.mid
 ### Programmatic Usage
 
 ```python
-from synth.core.config_manager import ConfigManager
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.primitives.config_manager import ConfigManager
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 # Load configuration
-config = ConfigManager('/path/to/config.yaml')
+config = ConfigManager.load_from_file('/path/to/config.yaml')
 config.load()
 
 # Create synthesizer

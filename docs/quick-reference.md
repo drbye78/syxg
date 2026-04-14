@@ -7,7 +7,7 @@ Quick reference guide for common tasks.
 ## Quick Start
 
 ```python
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 import mido
 import soundfile as sf
 

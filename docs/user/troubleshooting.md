@@ -14,7 +14,7 @@ This guide helps you resolve common issues and problems when using the XG Synthe
 ### Emergency Fixes
 ```bash
 # Quick diagnostic
-python -c "from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer; print('Import successful')"
+python -c "from synth.synthesizers.rendering import ModernXGSynthesizer; print('Import successful')"
 
 # Test basic functionality
 render-midi --help
@@ -54,7 +54,7 @@ sd.wait()
 **2. Check Real-time Settings**
 ```python
 # Ensure proper real-time configuration
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 synth = ModernXGSynthesizer(
     sample_rate=44100,
@@ -747,7 +747,7 @@ Create the smallest possible example that reproduces your issue:
 
 ```python
 # minimal_test.py
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 synth = ModernXGSynthesizer()
 audio = synth.generate_note_audio(60, 100, 1.0)  # C4, 1 second

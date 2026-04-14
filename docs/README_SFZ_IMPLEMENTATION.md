@@ -134,7 +134,7 @@ print(f"Preset: {preset.name}, Stereo: {preset.has_stereo_samples}")
 ### 3. XG Synthesizer Usage
 
 ```python
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 # Create XG synthesizer with SFZ support
 synth = ModernXGSynthesizer(xg_enabled=True)
@@ -408,7 +408,7 @@ print(f"Generated {len(audio)} samples of audio")
 ### XG Multi-Part Setup
 
 ```python
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 # Create XG synthesizer
 synth = ModernXGSynthesizer()

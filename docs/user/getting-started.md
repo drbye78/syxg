@@ -6,7 +6,7 @@ Welcome to the XG Synthesizer! This guide will help you get up and running quick
 
 Before you begin, make sure you have:
 
-1. **Python 3.8+** installed
+1. **Python 3.11+** installed
 2. **XG Synthesizer** installed (see [Installation Guide](../../INSTALL.md))
 3. **Basic MIDI file** for testing (or use our examples)
 
@@ -38,7 +38,7 @@ Here's how to use the XG Synthesizer programmatically:
 Basic XG Synthesizer usage example
 """
 
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 import numpy as np
 
 def main():
@@ -91,7 +91,7 @@ For real-time playback, use MIDI message processing:
 Real-time XG Synthesizer example
 """
 
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 import time
 import mido
 

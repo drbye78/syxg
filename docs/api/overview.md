@@ -1029,14 +1029,15 @@ Sets spectral processing parameters.
 ### Configuration Management
 
 ```python
-from synth.core.config import XGConfig
+from synth.primitives.config import SynthConfig
+from synth.primitives.config_manager import ConfigManager
 
 # Load configuration
-config = XGConfig.load_from_file("~/.xg_synth/config.yaml")
+config = ConfigManager.load_from_file("~/.xg_synth/config.yaml")
 
 # Get settings
-sample_rate = config.get("audio.sample_rate", 44100)
-max_polyphony = config.get("synthesis.max_polyphony", 256)
+sample_rate = config.audio.sample_rate if hasattr(config, 'audio') else 44100
+max_polyphony = config.engine.max_polyphony if hasattr(config, 'engine') else 256
 
 # Save configuration
 config.save_to_file("~/.xg_synth/config.yaml")
@@ -1045,7 +1046,7 @@ config.save_to_file("~/.xg_synth/config.yaml")
 ### Performance Monitoring
 
 ```python
-from synth.core.performance import PerformanceMonitor
+from synth.processing.effects.performance_monitor import PerformanceMonitor
 
 # Create monitor
 monitor = PerformanceMonitor()
@@ -1067,10 +1068,16 @@ monitor.stop()
 
 ```python
 import logging
-from synth.core.logging import setup_logging
 
 # Setup logging
-setup_logging(level=logging.DEBUG, log_file="xg_synth.log")
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('xg_synth.log'),
+        logging.StreamHandler()
+    ]
+)
 
 # Use logger
 logger = logging.getLogger("xg_synth")
@@ -1135,14 +1142,11 @@ xgml_document = {
 ### Exception Types
 
 ```python
-from synth.core.exceptions import (
-    XGError,                    # Base exception
-    AudioError,                 # Audio processing errors
-    MIDIError,                  # MIDI processing errors
-    XGMLError,                  # XGML parsing errors
-    EngineError,                # Synthesis engine errors
-    ConfigurationError          # Configuration errors
-)
+# Exception classes are available in their respective modules
+from synth.primitives.validation import ValidationError
+from synth.xgml.parser_v3 import XGMLParseError, XGMLValidationError
+from synth.engines.plugins.plugin_registry import PluginLoadError, PluginDependencyError
+from synth.style.style_loader import StyleValidationError
 
 try:
     synth.render_midi_file("input.mid", "output.wav")

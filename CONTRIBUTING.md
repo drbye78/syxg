@@ -30,7 +30,7 @@ This project follows a code of conduct to ensure a welcoming environment for all
 
 Before contributing, ensure you have:
 
-- **Python 3.8+** installed
+- **Python 3.11+** installed
 - **Git** for version control
 - **Basic understanding** of digital audio and MIDI concepts
 - **Familiarity** with synthesis techniques (helpful but not required)

@@ -43,7 +43,7 @@ The ModernXGSynthesizer uses engines internally based on XG part configuration.
 Engines are registered automatically. Use XGML configuration to select engines:
 
 ```python
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 # Create synthesizer - engines are auto-registered
 synth = ModernXGSynthesizer(
@@ -403,7 +403,7 @@ modulation_matrix:
 ```python
 # Real-time MIDI processing
 import mido
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 synth = ModernXGSynthesizer(
     sample_rate=44100,
@@ -781,7 +781,7 @@ class XGSynthPlugin:
 ```python
 # WebAssembly/Web Audio API (future)
 import asyncio
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 async def web_audio_integration():
     synth = ModernXGSynthesizer(sample_rate=44100)

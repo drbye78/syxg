@@ -5,13 +5,13 @@ This guide covers installing and setting up the XG Synthesizer on different plat
 ## 📋 System Requirements
 
 ### Minimum Requirements
-- **Python**: 3.8 or higher
+- **Python**: 3.11 or higher
 - **RAM**: 4GB
 - **Disk Space**: 1GB for installation + sample storage
 - **Operating System**: Windows 10+, macOS 10.15+, or Linux (Ubuntu 18.04+)
 
 ### Recommended Requirements
-- **Python**: 3.9 or higher
+- **Python**: 3.12 or higher
 - **RAM**: 8GB or more
 - **Disk Space**: 10GB+ SSD for optimal performance
 - **CPU**: Multi-core processor with AVX2 support

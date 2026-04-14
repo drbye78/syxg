@@ -209,7 +209,7 @@ pip install -e ".[dev,audio,visualization,workstation]"
 
 #### As a Library
 ```python
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 # Create synthesizer
 synth = ModernXGSynthesizer(sample_rate=44100, max_channels=32)

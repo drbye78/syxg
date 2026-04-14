@@ -401,7 +401,7 @@ basic_messages:
 ### Python Integration
 
 ```python
-from synth.engine.modern_xg_synthesizer import ModernXGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
 # Create synthesizer with FM-X
 synth = ModernXGSynthesizer(default_engine="fm")
