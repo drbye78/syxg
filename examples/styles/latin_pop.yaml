@@ -1,0 +1,154 @@
+name: Latin Pop
+category: latin
+description: Upbeat Latin pop style with percussion and brass sections
+tempo: 112
+time_signature: [4, 4]
+genre: latin_pop
+character: Energetic and rhythmic
+
+sections:
+  main_a:
+    chord_patterns:
+      - pattern: [1, 0, 1, 0]
+        variation: 1
+    measures: 4
+    dynamics: 80
+
+  main_b:
+    chord_patterns:
+      - pattern: [1, 1, 0, 1]
+        variation: 2
+    measures: 4
+    dynamics: 85
+
+  main_c:
+    chord_patterns:
+      - pattern: [1, 0, 0, 1]
+        variation: 1
+    measures: 8
+    dynamics: 75
+
+  main_d:
+    chord_patterns:
+      - pattern: [1, 1, 1, 0]
+        variation: 3
+    measures: 4
+    dynamics: 90
+
+  intro:
+    measures: 2
+    type: count_in
+
+  ending:
+    measures: 2
+    type: ending
+
+tracks:
+  drums:
+    type: percussion
+    mute: false
+    volume: 90
+    channels: [9]
+    patterns:
+      - name: basic
+        notes:
+          - {note: 36, velocity: 100, timing: 0.0}
+          - {note: 42, velocity: 80, timing: 0.5}
+          - {note: 46, velocity: 70, timing: 1.0}
+          - {note: 42, velocity: 80, timing: 1.5}
+          - {note: 36, velocity: 90, timing: 2.0}
+          - {note: 42, velocity: 80, timing: 2.5}
+          - {note: 46, velocity: 70, timing: 3.0}
+          - {note: 42, velocity: 80, timing: 3.5}
+
+  percussion:
+    type: percussion
+    mute: false
+    volume: 85
+    channels: [9]
+    patterns:
+      - name: clave
+        notes:
+          - {note: 75, velocity: 60, timing: 0.0}
+          - {note: 77, velocity: 60, timing: 1.0}
+          - {note: 75, velocity: 60, timing: 2.0}
+          - {note: 77, velocity: 60, timing: 3.0}
+
+  bass:
+    type: bass
+    mute: false
+    volume: 95
+    channels: [0]
+    patterns:
+      - name: syncopated
+        root_minor_offset: 0
+        root_major_offset: 0
+        notes:
+          - {note: 0, velocity: 90, timing: 0.0, length: 0.5}
+          - {note: 0, velocity: 70, timing: 1.5, length: 0.25}
+          - {note: 0, velocity: 80, timing: 2.0, length: 0.5}
+          - {note: 0, velocity: 60, timing: 3.0, length: 0.25}
+
+  chord:
+    type: polyphonic
+    mute: false
+    volume: 75
+    channels: [1]
+    patterns:
+      - name: full
+        notes:
+          - {note: 0, velocity: 70, timing: 0.0, length: 1.0}
+          - {note: 0, velocity: 60, timing: 2.0, length: 1.0}
+
+  pad:
+    type: pad
+    mute: true
+    volume: 60
+    channels: [2]
+    patterns:
+      - name: sustained
+        notes:
+          - {note: 0, velocity: 50, timing: 0.0, length: 4.0}
+
+  brass:
+    type: lead
+    mute: true
+    volume: 70
+    channels: [3]
+    patterns:
+      - name: hits
+        notes:
+          - {note: 0, velocity: 80, timing: 1.0, length: 0.25}
+          - {note: 0, velocity: 80, timing: 3.0, length: 0.25}
+
+groove:
+  type: latin
+  intensity: 0.6
+  shuffle: 0.0
+
+variations:
+  - name: basic
+    tracks: [drums, percussion, bass, chord]
+  - name: full
+    tracks: [drums, percussion, bass, chord, pad, name: sparse brass]
+  -
+    tracks: [drums, bass]
+
+ots_presets:
+  - name: Piano
+    voices:
+      - {channel: 0, bank: 0, program: 0, volume: 100}
+    sections: [main_a]
+  - name: Organ
+    voices:
+      - {channel: 0, bank: 0, program: 16, volume: 90}
+    sections: [main_b]
+  - name: Strings
+    voices:
+      - {channel: 0, bank: 0, program: 48, volume: 70}
+      - {channel: 1, bank: 0, program: 48, volume: 65}
+    sections: [main_c]
+  - name: Brass
+    voices:
+      - {channel: 0, bank: 0, program: 61, volume: 80}
+    sections: [main_d]

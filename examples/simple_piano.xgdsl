@@ -1,0 +1,24 @@
+xg_dsl_version: "1.0"
+description: "Simple piano configuration"
+timestamp: "2025-12-14T10:45:28Z"
+
+basic_messages:
+  channels:
+    channel_1:
+      program_change: "acoustic_grand_piano"
+      control_changes:
+        volume: 100
+        pan: "center"
+        expression: 127
+
+channel_parameters:
+  channel_1:
+    volume:
+      coarse: 100
+      fine: 64
+    pan:
+      coarse: "center"
+      fine: 64
+    filter:
+      cutoff: 80
+      resonance: 60

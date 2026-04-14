@@ -1,0 +1,203 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xg-synthesizer"
+dynamic = ["version"]
+authors = [
+    {name = "Roger", email = "roger@syxg.dev"},
+]
+description = "Professional XG (eXtended General MIDI) synthesizer and real-time workstation with Vibexg live performance interface, Yamaha S.Art2 articulation, comprehensive effects processing (62+ types), SF2/SFZ sample playback, FM-X synthesis, VST3/AAX plugin support, and vectorized audio processing"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.14"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Musicians",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Sound/Audio :: MIDI",
+    "Topic :: Multimedia :: Sound/Audio :: Sound Synthesis",
+    "Topic :: Multimedia :: Sound/Audio :: Conversion",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Environment :: Console",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    # Core scientific libraries
+    "numpy>=2.0.0,<3.0.0",
+    "scipy>=1.14.0,<2.0.0",
+
+    # Audio processing and I/O (PyAV - FFmpeg bindings)
+    # PyAV handles all audio file reading/writing/conversion
+    "av>=14.0.0,<16.0.0",
+
+    # Performance optimization
+    "numba>=0.61.0",
+
+    # System monitoring
+    "psutil>=6.0.0,<7.0.0",
+
+    # Configuration and data formats
+    "PyYAML>=6.0,<7.0.0",
+    "jsonschema>=4.0.0,<5.0.0",
+
+]
+keywords = [
+    "audio",
+    "synthesizer",
+    "midi",
+    "xg",
+    "soundfont",
+    "sf2",
+    "sfz",
+    "music",
+    "synthesis",
+    "workstation",
+    "vibexg",
+    "yamaha",
+    "sart2",
+    "real-time",
+]
+
+[project.urls]
+Homepage = "https://github.com/drbye78/syxg"
+Documentation = "https://github.com/drbye78/syxg#readme"
+Repository = "https://github.com/drbye78/syxg"
+"Bug Tracker" = "https://github.com/drbye78/syxg/issues"
+Source = "https://github.com/drbye78/syxg"
+
+[project.optional-dependencies]
+# Development tools
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "pytest-asyncio>=0.24.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+    "mypy>=1.11.0",
+]
+
+# Real-time workstation (Vibexg)
+workstation = [
+    "python-rtmidi>=1.5.0,<2.0.0",
+    "sounddevice>=0.5.0,<0.6.0",
+    "rich>=13.0.0,<15.0.0",
+]
+
+# Performance optimization
+performance = [
+    "numba>=0.60.0",
+]
+
+# Audio processing (PyAV-based, all-in-one)
+audio = [
+    "av>=14.0.0",  # Complete audio I/O via FFmpeg
+]
+
+# Visualization
+visualization = [
+    "matplotlib>=3.9.0",
+    "seaborn>=0.13.0",
+]
+
+# Documentation
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+    "sphinx-autobuild>=2024.0.0",
+]
+
+# Complete installation
+full = [
+    "xg-synthesizer[dev,workstation,audio,visualization,docs]",
+]
+
+[project.scripts]
+# MIDI to audio rendering
+render-midi = "render_midi:main"
+
+# Real-time workstation
+vibexg = "vibexg.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+packages = ["synth", "vibexg"]
+
+[tool.setuptools.dynamic]
+version = {attr = "synth.version.__version__"}
+
+[tool.setuptools.package-data]
+synth = ["*.yaml", "*.yml"]
+vibexg = ["*.yaml", "*.yml"]
+
+# =============================================================================
+# Code Quality Tools Configuration
+# =============================================================================
+
+[tool.black]
+line-length = 100
+target-version = ['py314']
+include = '\.pyi?$'
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "E501",   # Line too long (handled by black)
+    "B008",   # Do not perform function calls in argument defaults (ok for FastAPI)
+    "B904",   # Raise without from (ok for some cases)
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401", "F403"]  # Unused imports ok in __init__
+"tests/*" = ["S101", "PLR2004"]  # Assert and magic values ok in tests
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--cov=synth",
+    "--cov=vibexg",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "-n", "auto",  # Parallel execution
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]

@@ -1,6 +1,11 @@
 # IDE settings folders
 .idea/
 .vscode/
+.qwen/
+.github/
+.agents/
+.opencode/
+.cgcignore
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -24,6 +29,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+uv.lock
+package-lock.json
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -137,10 +144,15 @@ Thumbs.db
 
 *.wav
 *.mid
+*.mp3
+*.ogg
+*.prof
+profile_*.py
 *.?
-*test*.py
-*demo*.py
 *.*backup*
 *debug*.py
 temp*.py
-tests/
+*.sf2
+.aider*
+
+
