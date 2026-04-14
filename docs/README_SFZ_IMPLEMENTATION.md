@@ -345,7 +345,7 @@ python performance_optimizer.py
 - **Interpolation**: High-quality sample interpolation
 
 ### System Requirements
-- **Python**: 3.8+
+- **Python**: 3.11+
 - **Memory**: 4GB+ recommended for large libraries
 - **CPU**: SIMD support for optimal performance
 - **Storage**: SSD recommended for sample streaming

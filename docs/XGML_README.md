@@ -684,7 +684,7 @@ Real-time Audio Rendering
 - **Zero Overhead**: XGML → MIDI conversion is computationally free
 - **Full XG Support**: All Yamaha XG parameters and effects
 - **Real-time Ready**: Optimized for live performance and sequencing
-- **Cross-Platform**: Works on any system with Python 3.8+
+- **Cross-Platform**: Works on any system with Python 3.11+
 - **Extensible**: Easy to add new XGML features and parameters
 
 ## 🔧 Development
