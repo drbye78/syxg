@@ -1607,6 +1607,19 @@ class ModernXGSynthesizer:
         # Update channel with GS part reference for parameter access
         self.channels[channel_num].gs_part = gs_part
 
+        # Update gs_params dict for the audio bridge (read by _collect_modulation_values)
+        params: dict[str, int] = {}
+        for attr_name in (
+            "volume", "pan", "filter_cutoff", "filter_resonance",
+            "attack_time", "decay_time", "release_time",
+            "vibrato_rate", "vibrato_depth", "vibrato_delay",
+            "reverb_send", "chorus_send",
+        ):
+            if hasattr(gs_part, attr_name):
+                params[attr_name] = getattr(gs_part, attr_name)
+        if channel_num < len(self.channels):
+            self.channels[channel_num].gs_params = params
+
         # Update parameter priority system with GS part parameters
         self.parameter_priority.update_parameter("part_volume", gs_part.volume, "gs", channel_num)
         self.parameter_priority.update_parameter("part_pan", gs_part.pan, "gs", channel_num)

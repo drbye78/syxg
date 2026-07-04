@@ -1049,7 +1049,7 @@ class SF2Region(IRegion):
         self._gs_vibrato_depth = -1.0
         self._gs_vibrato_delay = -1.0
         self._gs_volume = -1.0
-        self._gs_pan = -1.0
+        self._gs_pan = -2.0
         self._gs_reverb_send = -1.0
         self._gs_chorus_send = -1.0
 
@@ -1392,7 +1392,8 @@ class SF2Region(IRegion):
         self._gs_vibrato_depth = modulation.get("gs_vibrato_depth", -1.0)
         self._gs_vibrato_delay = modulation.get("gs_vibrato_delay", -1.0)
         self._gs_volume = modulation.get("gs_volume", -1.0)
-        self._gs_pan = modulation.get("gs_pan", -1.0)
+        raw_pan = modulation.get("gs_pan", -2.0)
+        self._gs_pan = max(-1.0, min(1.0, raw_pan)) if raw_pan >= -1.5 else -2.0
         self._gs_reverb_send = modulation.get("gs_reverb_send", -1.0)
         self._gs_chorus_send = modulation.get("gs_chorus_send", -1.0)
 
