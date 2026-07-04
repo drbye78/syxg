@@ -1,4 +1,5 @@
 """
+
 FM (Frequency Modulation) Synthesis Engine
 
 Implements FM synthesis with 2-6 operators supporting various algorithms
@@ -7,6 +8,8 @@ parameter sets and real-time modulation capabilities.
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
@@ -20,6 +23,8 @@ from .fm_operator import FMOperator
 from .plugins.base_plugin import SynthesisFeaturePlugin
 from .plugins.plugin_registry import get_global_plugin_registry
 from .synthesis_engine import SynthesisEngine
+
+logger = logging.getLogger(__name__)
 
 
 class FMEngine(SynthesisEngine):
@@ -904,7 +909,7 @@ class FMEngine(SynthesisEngine):
             if self.output_operators:
                 max_op = max(max_op, max(self.output_operators))
             if max_op >= self.num_operators:
-                print(
+                logger.info(
                     f"Warning: Algorithm {algorithm_name} requires {max_op + 1} operators, "
                     f"but engine only has {self.num_operators}"
                 )
@@ -1369,14 +1374,14 @@ class FMEngine(SynthesisEngine):
             if jupiter_fm_plugin in available_plugins:
                 success = self.load_plugin(jupiter_fm_plugin)
                 if success:
-                    print("🎹 FM Engine: Jupiter-X FM extensions loaded automatically")
+                    logger.info("🎹 FM Engine: Jupiter-X FM extensions loaded automatically")
                 else:
-                    print("⚠️  FM Engine: Failed to load Jupiter-X FM extensions")
+                    logger.error("⚠️  FM Engine: Failed to load Jupiter-X FM extensions")
             else:
-                print("ℹ️  FM Engine: Jupiter-X FM extensions not available")
+                logger.info("ℹ️  FM Engine: Jupiter-X FM extensions not available")
 
         except Exception as e:
-            print(f"⚠️  FM Engine: Error during auto-loading Jupiter-X plugin: {e}")
+            logger.error(f"⚠️  FM Engine: Error during auto-loading Jupiter-X plugin: {e}")
 
     def load_plugin(self, plugin_name: str) -> bool:
         """
@@ -1405,13 +1410,13 @@ class FMEngine(SynthesisEngine):
                     # Register plugin integration points
                     self._register_plugin_integration_points(plugin)
 
-                    print(f"✅ FM Engine: Plugin '{plugin_name}' loaded successfully")
+                    logger.info(f"✅ FM Engine: Plugin '{plugin_name}' loaded successfully")
                     return True
 
             return False
 
         except Exception as e:
-            print(f"❌ FM Engine: Failed to load plugin '{plugin_name}': {e}")
+            logger.error(f"❌ FM Engine: Failed to load plugin '{plugin_name}': {e}")
             return False
 
     def unload_plugin(self, plugin_name: str) -> bool:
@@ -1436,13 +1441,13 @@ class FMEngine(SynthesisEngine):
 
                 if success:
                     del self._loaded_plugins[plugin_name]
-                    print(f"✅ FM Engine: Plugin '{plugin_name}' unloaded successfully")
+                    logger.info(f"✅ FM Engine: Plugin '{plugin_name}' unloaded successfully")
                     return True
 
             return False
 
         except Exception as e:
-            print(f"❌ FM Engine: Failed to unload plugin '{plugin_name}': {e}")
+            logger.error(f"❌ FM Engine: Failed to unload plugin '{plugin_name}': {e}")
             return False
 
     def get_loaded_plugins(self) -> dict[str, SynthesisFeaturePlugin]:

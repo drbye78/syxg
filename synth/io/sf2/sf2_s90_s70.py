@@ -1,4 +1,5 @@
 """
+
 SF2 S90/S70 Advanced AWM Stereo Features
 
 Advanced Wave Memory Stereo features for professional synthesis.
@@ -10,12 +11,16 @@ Extends SF2 with S90/S70 AWM Stereo capabilities including:
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
 import numpy as np
 
 from .sf2_sample_processor import StereoProcessor
+
+logger = logging.getLogger(__name__)
 
 
 class S90AWMConfiguration:
@@ -870,13 +875,13 @@ def enable_s90_awm_features(sf2_manager: SF2SoundFontManager) -> S90AWMEngine:
     # Integrate with SF2 manager
     _integrate_awm_with_sf2_manager(sf2_manager, awm_engine)
 
-    print("🎹 SF2: S90/S70 Advanced AWM Stereo features enabled")
-    print(
+    logger.info("🎹 SF2: S90/S70 Advanced AWM Stereo features enabled")
+    logger.info(
         f"   - Multi-layer velocity switching: {len(awm_engine.layer_engine.layer_cache)} presets configured"
     )
-    print("   - Professional stereo processing: Haas effect, frequency panning, compression")
-    print("   - Advanced mixing algorithms: RMS-based compression, limiter")
-    print("   - Real-time performance monitoring and optimization")
+    logger.info("   - Professional stereo processing: Haas effect, frequency panning, compression")
+    logger.info("   - Advanced mixing algorithms: RMS-based compression, limiter")
+    logger.info("   - Real-time performance monitoring and optimization")
 
     return awm_engine
 
@@ -950,12 +955,12 @@ def _integrate_awm_with_sf2_manager(
                 return {
                     "name": sample.name if hasattr(sample, "name") else "",
                     "sample_rate": sample.sample_rate if hasattr(sample, "sample_rate") else 44100,
-                    "original_pitch": sample.original_pitch
-                    if hasattr(sample, "original_pitch")
-                    else 60,
-                    "pitch_correction": sample.pitch_correction
-                    if hasattr(sample, "pitch_correction")
-                    else 0,
+                    "original_pitch": (
+                        sample.original_pitch if hasattr(sample, "original_pitch") else 60
+                    ),
+                    "pitch_correction": (
+                        sample.pitch_correction if hasattr(sample, "pitch_correction") else 0
+                    ),
                 }
             return None
 

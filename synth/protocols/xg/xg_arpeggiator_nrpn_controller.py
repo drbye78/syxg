@@ -1,4 +1,5 @@
 """
+
 Yamaha Arpeggiator NRPN Controller
 
 NRPN parameter control for Yamaha Motif arpeggiator parameters.
@@ -8,9 +9,13 @@ Copyright (c) 2025
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class YamahaArpeggiatorNRPNController:
@@ -46,7 +51,7 @@ class YamahaArpeggiatorNRPNController:
         # Parameter Map - Complete arpeggiator NRPN address space
         self.parameter_map = self._build_parameter_map()
 
-        print("🎹 Yamaha Arpeggiator NRPN Controller: Initialized")
+        logger.info("🎹 Yamaha Arpeggiator NRPN Controller: Initialized")
 
     def _build_parameter_map(self) -> dict[tuple[int, int], dict[str, Any]]:
         """
@@ -206,7 +211,7 @@ class YamahaArpeggiatorNRPNController:
         param_info = self.parameter_map.get(param_key)
 
         if not param_info:
-            print(f"⚠️  Unknown arpeggiator NRPN parameter: {param_key}")
+            logger.warning(f"⚠️  Unknown arpeggiator NRPN parameter: {param_key}")
             return False
 
         # Convert 14-bit value to parameter range

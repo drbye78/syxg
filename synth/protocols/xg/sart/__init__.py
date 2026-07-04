@@ -32,11 +32,8 @@ Usage:
 
 from __future__ import annotations
 
-from .articulation_controller import ArticulationController
 from .controllers import (
-    ArticulationController as ArticulationControllerAlt,
-)
-from .controllers import (
+    ArticulationController,
     create_articulation_controller,
 )
 from .mappings import (
@@ -54,24 +51,19 @@ from .sart2_region import SArt2Region, SArt2RegionFactory
 __version__ = "3.1.0"
 
 __all__ = [
-    # Core S.Art2 integration
+    "ARTICULATION_ALIASES",
+    "MSB_CATEGORIES",
+    "NRPN_ARTICULATION_MAP",
+    "ArticulationController",
     "SArt2Region",
     "SArt2RegionFactory",
-    "ArticulationController",
-    # NRPN mapping
-    "YamahaNRPNMapper",
-    "midi_note_to_frequency",
-    # Articulation mappings
-    "NRPN_ARTICULATION_MAP",
-    "MSB_CATEGORIES",
-    "ARTICULATION_ALIASES",
-    "get_articulation_from_nrpn",
-    "get_nrpn_for_articulation",
-    "get_category_for_msb",
-    # Sample modifiers
     "SF2SampleModifier",
-    # Factory function
+    "YamahaNRPNMapper",
     "create_articulation_controller",
+    "get_articulation_from_nrpn",
+    "get_category_for_msb",
+    "get_nrpn_for_articulation",
+    "midi_note_to_frequency",
 ]
 
 # Deprecated imports (for backward compatibility during transition)

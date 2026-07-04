@@ -1,4 +1,5 @@
 """
+
 SF2 SoundFont Manager
 
 Single optimized SF2 implementation managing multiple soundfonts with complete feature set.
@@ -7,12 +8,15 @@ Handles ordering, blacklisting, remapping, and orchestrates all SF2 components.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class SF2SoundFontManager:
@@ -38,9 +42,9 @@ class SF2SoundFontManager:
         self.loaded_files: dict[str, SF2SoundFont] = {}  # filepath -> soundfont
         self.file_order: list[str] = []  # File loading order for preset resolution
         self.file_blacklist: set[tuple[int, int]] = set()  # (bank, program) to blacklist
-        self.file_remapping: dict[
-            tuple[int, int], tuple[int, int]
-        ] = {}  # (bank, program) -> (new_bank, new_program)
+        self.file_remapping: dict[tuple[int, int], tuple[int, int]] = (
+            {}
+        )  # (bank, program) -> (new_bank, new_program)
 
         # Core components
         self.sample_processor = None  # Will be initialized when first file is loaded
@@ -110,14 +114,16 @@ class SF2SoundFontManager:
                     # Insert into order based on priority
                     self._insert_file_by_priority(filepath, priority)
 
-                    print(f"🎹 SF2: Loaded '{soundfont.name}' in {self.load_times[filepath]:.2f}s")
+                    logger.info(
+                        "SF2: Loaded '%s' in %.2fs", soundfont.name, self.load_times[filepath]
+                    )
                     return True
                 else:
-                    print(f"❌ SF2: Failed to load '{filepath}'")
+                    logger.error("SF2: Failed to load '%s'", filepath)
                     return False
 
             except Exception as e:
-                print(f"❌ SF2: Error loading '{filepath}': {e}")
+                logger.error("SF2: Error loading '%s': %s", filepath, e)
                 return False
 
     def _insert_file_by_priority(self, filepath: str, priority: int) -> None:
@@ -199,7 +205,12 @@ class SF2SoundFontManager:
             return True
 
     def get_program_parameters(
-        self, bank: int, program: int, note: int = 60, velocity: int = 100
+        self,
+        bank: int,
+        program: int,
+        note: int = 60,
+        velocity: int = 100,
+        controllers: dict[int, float] | None = None,
     ) -> dict[str, Any] | None:
         """
         Get program parameters with remapping and blacklisting support.
@@ -209,6 +220,7 @@ class SF2SoundFontManager:
             program: MIDI program number
             note: MIDI note (for zone matching)
             velocity: MIDI velocity (for zone matching)
+            controllers: Optional controller values for modulation matrix
 
         Returns:
             Program parameters or None if not found/blacklisted
@@ -227,7 +239,9 @@ class SF2SoundFontManager:
             for filepath in self.file_order:
                 if filepath in self.loaded_files:
                     soundfont = self.loaded_files[filepath]
-                    params = soundfont.get_program_parameters(bank, program, note, velocity)
+                    params = soundfont.get_program_parameters(
+                        bank, program, note, velocity, controllers=controllers
+                    )
 
                     if params:
                         # Update access statistics

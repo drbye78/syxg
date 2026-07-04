@@ -1,4 +1,5 @@
 """
+
 Engine Registry - Synthesis Engine Management Architecture
 
 ARCHITECTURAL OVERVIEW:
@@ -34,7 +35,6 @@ from __future__ import annotations
 
 import logging
 
-logger = logging.getLogger(__name__)
 
 from typing import Any
 
@@ -49,6 +49,8 @@ from .sf2_engine import SF2Engine
 from .spectral import SpectralEngine
 from .synthesis_engine import SynthesisEngineRegistry
 from .wavetable import WavetableEngine
+
+logger = logging.getLogger(__name__)
 
 
 class XGEngineRegistry:

@@ -1,4 +1,5 @@
 """
+
 Workstation Manager - Complete XGML v3.0 Workstation Integration
 
 Production-quality workstation manager providing complete Motif/S90/S70/Jupiter-X
@@ -15,6 +16,8 @@ Features:
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
@@ -36,6 +39,8 @@ from ..protocols.xg.xg_effects_enhancement import XGSystemEffectsEnhancement
 from ..protocols.xg.xg_micro_tuning import XGMicroTuning
 from ..protocols.xg.xg_motif_effects import MotifEffectsProcessor
 from ..protocols.xg.xg_multi_part_setup import XGMultiPartSetup
+
+logger = logging.getLogger(__name__)
 
 
 class WorkstationManager:
@@ -73,7 +78,7 @@ class WorkstationManager:
             "workstation_features": set(),
         }
 
-        print("🎹 WORKSTATION MANAGER: Advanced workstation integration initialized")
+        logger.info("🎹 WORKSTATION MANAGER: Advanced workstation integration initialized")
 
     def _init_workstation_components(self):
         """Initialize all workstation components."""
@@ -146,11 +151,11 @@ class WorkstationManager:
                 # Update performance stats
                 self._update_performance_stats()
 
-                print("✅ Applied XGML v3.0 workstation configuration")
+                logger.info("✅ Applied XGML v3.0 workstation configuration")
                 return True
 
             except Exception as e:
-                print(f"❌ Failed to apply workstation configuration: {e}")
+                logger.error(f"❌ Failed to apply workstation configuration: {e}")
                 return False
 
     def _configure_motif_integration(self, motif_config: dict[str, Any]):
@@ -158,7 +163,7 @@ class WorkstationManager:
         if not motif_config.get("enabled", False):
             return
 
-        print("🎹 Configuring Motif integration...")
+        logger.info("🎹 Configuring Motif integration...")
 
         # Arpeggiator system
         if "arpeggiator_system" in motif_config:
@@ -174,12 +179,12 @@ class WorkstationManager:
             # Individual arpeggiators
             if "arpeggiators" in arp_config:
                 arpeggiators = arp_config["arpeggiators"]
-                print(f"🎹 Configured {len(arpeggiators)} Motif arpeggiators")
+                logger.info(f"🎹 Configured {len(arpeggiators)} Motif arpeggiators")
 
         # Effects integration
         if "effects_integration" in motif_config:
             effects_config = motif_config["effects_integration"]
-            print("🎹 Motif effects integration enabled")
+            logger.info("🎹 Motif effects integration enabled")
 
         self.performance_stats["workstation_features"].add("motif_integration")
 
@@ -188,24 +193,24 @@ class WorkstationManager:
         if not awm_config.get("enabled", False):
             return
 
-        print("🎹 Configuring S90/S70 AWM Stereo...")
+        logger.info("🎹 Configuring S90/S70 AWM Stereo...")
 
         # Global mixing
         if "global_mixing" in awm_config:
             mixing_config = awm_config["global_mixing"]
             if "stereo_width" in mixing_config:
-                print("🎹 S90/S70 stereo width control enabled")
+                logger.info("🎹 S90/S70 stereo width control enabled")
 
         # Velocity layers
         if "velocity_layers" in awm_config:
             velocity_config = awm_config["velocity_layers"]
-            print("🎹 Configured velocity layers for S90/S70 compatibility")
+            logger.info("🎹 Configured velocity layers for S90/S70 compatibility")
 
         # Advanced interpolation
         if "advanced_interpolation" in awm_config:
             interp_config = awm_config["advanced_interpolation"]
             if interp_config.get("enabled", False):
-                print("🎹 S90/S70 advanced interpolation enabled")
+                logger.info("🎹 S90/S70 advanced interpolation enabled")
 
         self.performance_stats["workstation_features"].add("s90_awm_stereo")
 
@@ -214,59 +219,59 @@ class WorkstationManager:
         if not jupiter_config.get("enabled", False):
             return
 
-        print("🎹 Configuring Jupiter-X integration...")
+        logger.info("🎹 Configuring Jupiter-X integration...")
 
         # VCM Effects
         if "vcm_effects" in jupiter_config:
             vcm_config = jupiter_config["vcm_effects"]
-            print("🎹 Jupiter-X VCM effects configured")
+            logger.info("🎹 Jupiter-X VCM effects configured")
 
         # Performance features
         if "performance_features" in jupiter_config:
             perf_config = jupiter_config["performance_features"]
-            print("🎹 Jupiter-X performance features enabled")
+            logger.info("🎹 Jupiter-X performance features enabled")
 
         # Arpeggiator integration
         if "arpeggiator" in jupiter_config:
             arp_config = jupiter_config["arpeggiator"]
-            print("🎹 Jupiter-X arpeggiator integrated")
+            logger.info("🎹 Jupiter-X arpeggiator integrated")
 
         self.performance_stats["workstation_features"].add("jupiter_x_integration")
 
     def _configure_multi_timbral(self, multi_config: dict[str, Any]):
         """Configure multi-timbral setup."""
-        print("🎹 Configuring multi-timbral setup...")
+        logger.info("🎹 Configuring multi-timbral setup...")
 
         channels = multi_config.get("channels", 16)
         voice_reserve = multi_config.get("voice_reserve", {})
 
         # Apply voice reserve settings
         total_reserved = sum(voice_reserve.values())
-        print(f"🎹 Multi-timbral: {channels} channels, {total_reserved} voices reserved")
+        logger.info(f"🎹 Multi-timbral: {channels} channels, {total_reserved} voices reserved")
 
         self.performance_stats["workstation_features"].add("multi_timbral")
 
     def _configure_xg_effects(self, xg_config: dict[str, Any]):
         """Configure XG effects processing."""
-        print("🎹 Configuring XG effects system...")
+        logger.info("🎹 Configuring XG effects system...")
 
         # System effects
         if "system_effects" in xg_config:
             sys_effects = xg_config["system_effects"]
             if "reverb" in sys_effects:
-                print("🎹 XG system reverb configured")
+                logger.info("🎹 XG system reverb configured")
             if "chorus" in sys_effects:
-                print("🎹 XG system chorus configured")
+                logger.info("🎹 XG system chorus configured")
 
         # Variation effects
         if "variation_effects" in xg_config:
             var_effects = xg_config["variation_effects"]
-            print(f"🎹 XG variation effects: {len(var_effects)} processors")
+            logger.info(f"🎹 XG variation effects: {len(var_effects)} processors")
 
         # Insertion effects
         if "insertion_effects" in xg_config:
             ins_effects = xg_config["insertion_effects"]
-            print(f"🎹 XG insertion effects: {len(ins_effects)} processors")
+            logger.info(f"🎹 XG insertion effects: {len(ins_effects)} processors")
 
         self.performance_stats["workstation_features"].add("xg_effects")
 
@@ -311,12 +316,16 @@ class WorkstationManager:
                 },
                 "effects": {
                     "processors": self.performance_stats["effects_processors"],
-                    "xg_effects": self.xg_effects.get_effect_capabilities()
-                    if hasattr(self.xg_effects, "get_effect_capabilities")
-                    else {},
-                    "motif_effects": self.motif_effects.get_effect_status()
-                    if hasattr(self.motif_effects, "get_effect_status")
-                    else {},
+                    "xg_effects": (
+                        self.xg_effects.get_effect_capabilities()
+                        if hasattr(self.xg_effects, "get_effect_capabilities")
+                        else {}
+                    ),
+                    "motif_effects": (
+                        self.motif_effects.get_effect_status()
+                        if hasattr(self.motif_effects, "get_effect_status")
+                        else {}
+                    ),
                 },
                 "mpe": {
                     "zones": self.performance_stats["mpe_zones"],
@@ -325,27 +334,37 @@ class WorkstationManager:
                 },
                 "multi_timbral": {
                     "channels": self.max_channels,
-                    "setup_status": self.multi_part_setup.get_setup_status()
-                    if hasattr(self.multi_part_setup, "get_setup_status")
-                    else {},
+                    "setup_status": (
+                        self.multi_part_setup.get_setup_status()
+                        if hasattr(self.multi_part_setup, "get_setup_status")
+                        else {}
+                    ),
                 },
                 "jupiter_x": {
                     "integrated": hasattr(self, "jupiter_x_engine"),
-                    "vcm_effects": self.jupiter_x_vcm_effects.get_status()
-                    if hasattr(self.jupiter_x_vcm_effects, "get_status")
-                    else {},
-                    "arpeggiator": self.jupiter_x_arpeggiator.get_status()
-                    if hasattr(self.jupiter_x_arpeggiator, "get_status")
-                    else {},
+                    "vcm_effects": (
+                        self.jupiter_x_vcm_effects.get_status()
+                        if hasattr(self.jupiter_x_vcm_effects, "get_status")
+                        else {}
+                    ),
+                    "arpeggiator": (
+                        self.jupiter_x_arpeggiator.get_status()
+                        if hasattr(self.jupiter_x_arpeggiator, "get_status")
+                        else {}
+                    ),
                 },
                 "xg_system": {
                     "compatibility_mode": self.compatibility_modes.get_current_mode(),
-                    "micro_tuning": self.micro_tuning.get_tuning_status()
-                    if hasattr(self.micro_tuning, "get_tuning_status")
-                    else {},
-                    "drum_setup": self.drum_setup.get_drum_setup_status()
-                    if hasattr(self.drum_setup, "get_drum_setup_status")
-                    else {},
+                    "micro_tuning": (
+                        self.micro_tuning.get_tuning_status()
+                        if hasattr(self.micro_tuning, "get_tuning_status")
+                        else {}
+                    ),
+                    "drum_setup": (
+                        self.drum_setup.get_drum_setup_status()
+                        if hasattr(self.drum_setup, "get_drum_setup_status")
+                        else {}
+                    ),
                 },
                 "xgml_configured": bool(self.xgml_config),
             }
@@ -413,9 +432,11 @@ class WorkstationManager:
         """
         presets = {
             "motif": self.motif_arpeggiator.get_available_patterns(),
-            "jupiter_x": self.jupiter_x_arpeggiator.get_available_patterns()
-            if hasattr(self.jupiter_x_arpeggiator, "get_available_patterns")
-            else {},
+            "jupiter_x": (
+                self.jupiter_x_arpeggiator.get_available_patterns()
+                if hasattr(self.jupiter_x_arpeggiator, "get_available_patterns")
+                else {}
+            ),
         }
 
         return presets
@@ -434,7 +455,7 @@ class WorkstationManager:
         try:
             return self.motif_arpeggiator.load_pattern(arpeggiator_id, preset_name)
         except Exception as e:
-            print(f"Failed to load arpeggiator preset {preset_name}: {e}")
+            logger.error(f"Failed to load arpeggiator preset {preset_name}: {e}")
             return False
 
     def get_effect_presets(self) -> dict[str, Any]:
@@ -445,15 +466,21 @@ class WorkstationManager:
             Dictionary of effect presets by type
         """
         presets = {
-            "xg_system": self.xg_effects.get_available_presets()
-            if hasattr(self.xg_effects, "get_available_presets")
-            else {},
-            "motif": self.motif_effects.get_available_presets()
-            if hasattr(self.motif_effects, "get_available_presets")
-            else {},
-            "jupiter_x_vcm": self.jupiter_x_vcm_effects.get_available_presets()
-            if hasattr(self.jupiter_x_vcm_effects, "get_available_presets")
-            else {},
+            "xg_system": (
+                self.xg_effects.get_available_presets()
+                if hasattr(self.xg_effects, "get_available_presets")
+                else {}
+            ),
+            "motif": (
+                self.motif_effects.get_available_presets()
+                if hasattr(self.motif_effects, "get_available_presets")
+                else {}
+            ),
+            "jupiter_x_vcm": (
+                self.jupiter_x_vcm_effects.get_available_presets()
+                if hasattr(self.jupiter_x_vcm_effects, "get_available_presets")
+                else {}
+            ),
         }
 
         return presets
@@ -480,7 +507,7 @@ class WorkstationManager:
             else:
                 return False
         except Exception as e:
-            print(f"Failed to load effect preset {preset_name}: {e}")
+            logger.error(f"Failed to load effect preset {preset_name}: {e}")
             return False
 
     def enable_mpe_zone(self, zone_id: int, channel_range: tuple[int, int]) -> bool:
@@ -497,7 +524,7 @@ class WorkstationManager:
         try:
             return self.mpe_manager.create_zone(zone_id, channel_range)
         except Exception as e:
-            print(f"Failed to enable MPE zone {zone_id}: {e}")
+            logger.error(f"Failed to enable MPE zone {zone_id}: {e}")
             return False
 
     def disable_mpe_zone(self, zone_id: int) -> bool:
@@ -513,7 +540,7 @@ class WorkstationManager:
         try:
             return self.mpe_manager.remove_zone(zone_id)
         except Exception as e:
-            print(f"Failed to disable MPE zone {zone_id}: {e}")
+            logger.error(f"Failed to disable MPE zone {zone_id}: {e}")
             return False
 
     def set_temperament(self, temperament_name: str) -> bool:
@@ -529,7 +556,7 @@ class WorkstationManager:
         try:
             return self.micro_tuning.apply_temperament(temperament_name)
         except Exception as e:
-            print(f"Failed to apply temperament {temperament_name}: {e}")
+            logger.error(f"Failed to apply temperament {temperament_name}: {e}")
             return False
 
     def get_available_temperaments(self) -> list[str]:
@@ -555,7 +582,7 @@ class WorkstationManager:
         try:
             return self.drum_setup.set_drum_kit(channel, kit_name)
         except Exception as e:
-            print(f"Failed to set drum kit {kit_name} on channel {channel}: {e}")
+            logger.error(f"Failed to set drum kit {kit_name} on channel {channel}: {e}")
             return False
 
     def get_available_drum_kits(self) -> list[str]:
@@ -672,11 +699,11 @@ class WorkstationManager:
             # Reset micro tuning
             self.micro_tuning.reset_to_equal_temperament()
 
-            print("🎹 Workstation reset to defaults")
+            logger.info("🎹 Workstation reset to defaults")
             return True
 
         except Exception as e:
-            print(f"❌ Workstation reset failed: {e}")
+            logger.error(f"❌ Workstation reset failed: {e}")
             return False
 
     def cleanup(self):
@@ -697,10 +724,10 @@ class WorkstationManager:
             if hasattr(self.mpe_manager, "cleanup"):
                 self.mpe_manager.cleanup()
 
-            print("🎹 Workstation resources cleaned up")
+            logger.info("🎹 Workstation resources cleaned up")
 
         except Exception as e:
-            print(f"❌ Workstation cleanup error: {e}")
+            logger.error(f"❌ Workstation cleanup error: {e}")
 
 
 # Global workstation manager instance

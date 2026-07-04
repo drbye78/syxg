@@ -1,4 +1,5 @@
 """
+
 Convolution Reverb Engine
 
 High-quality algorithmic convolution reverb for professional spatial audio processing.
@@ -6,6 +7,8 @@ Provides realistic room acoustics through impulse response convolution.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from pathlib import Path
@@ -14,6 +17,8 @@ from typing import Any
 import numpy as np
 
 from ..synthesis_engine import SynthesisEngine
+
+logger = logging.getLogger(__name__)
 
 
 class ImpulseResponse:
@@ -583,7 +588,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
                     processed_block = self.convolution_processor.process_block(input_block)
                 except Exception as e:
                     # On processing error, pass through input
-                    print(f"[Reverb] Convolution processing error: {e}")
+                    logger.error(f"[Reverb] Convolution processing error: {e}")
                     processed_block = input_block.copy()
 
                 # Apply wet/dry mix
@@ -795,8 +800,8 @@ class ConvolutionReverbEngine(SynthesisEngine):
             name=preset_name,
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
-            is_monophonic=False,
-            category="convolution_reverb",
+
+
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:

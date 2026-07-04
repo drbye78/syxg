@@ -1,4 +1,5 @@
 """
+
 Jupiter-X Unified Parameter System
 
 Complete parameter management system providing unified access to all
@@ -6,12 +7,16 @@ synthesis parameters across GS, Jupiter-X, and advanced features.
 """
 
 from __future__ import annotations
+import logging
+
 
 import json
 import threading
 from collections.abc import Callable
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ParameterScope(Enum):
@@ -127,7 +132,7 @@ class ParameterDefinition:
             try:
                 callback(self, old_value, new_value)
             except Exception as e:
-                print(f"Parameter callback error for {self.name}: {e}")
+                logger.error(f"Parameter callback error for {self.name}: {e}")
 
     def get_parameter_info(self) -> dict[str, Any]:
         """Get comprehensive parameter information."""
@@ -184,7 +189,7 @@ class JupiterXUnifiedParameterSystem:
         # Initialize parameter registry
         self._initialize_parameter_registry()
 
-        print("🎛️ Jupiter-X Unified Parameter System: Initialized")
+        logger.info("🎛️ Jupiter-X Unified Parameter System: Initialized")
 
     def _initialize_parameter_registry(self):
         """Initialize comprehensive parameter registry."""
@@ -569,7 +574,7 @@ class JupiterXUnifiedParameterSystem:
 
             return True
         except Exception as e:
-            print(f"Parameter propagation error for {param.name}: {e}")
+            logger.error(f"Parameter propagation error for {param.name}: {e}")
             return False
 
     def process_midi_cc(self, channel: int, cc_number: int, value: int) -> bool:
@@ -745,7 +750,7 @@ class JupiterXUnifiedParameterSystem:
 
             return True
         except Exception as e:
-            print(f"Export error: {e}")
+            logger.error(f"Export error: {e}")
             return False
 
     def import_parameter_state(self, filename: str) -> bool:
@@ -773,7 +778,7 @@ class JupiterXUnifiedParameterSystem:
 
             return True
         except Exception as e:
-            print(f"Import error: {e}")
+            logger.error(f"Import error: {e}")
             return False
 
     def get_system_info(self) -> dict[str, Any]:

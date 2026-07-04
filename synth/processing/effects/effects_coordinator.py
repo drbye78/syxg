@@ -1,4 +1,5 @@
 """
+
 XG Effects Coordinator - Professional Effects Processing Architecture with Advanced Features
 
 ARCHITECTURAL OVERVIEW:
@@ -302,6 +303,8 @@ PROFESSIONAL STANDARDS:
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 import time
@@ -316,6 +319,8 @@ from .eq_processor import XGMultiBandEqualizer
 from .insertion import ProductionXGInsertionEffectsProcessor
 from .system import XGSystemEffectsProcessor
 from .variation_effects import XGVariationEffectsProcessor
+
+logger = logging.getLogger(__name__)
 
 
 class XGEffectsCoordinator:
@@ -660,7 +665,7 @@ class XGEffectsCoordinator:
 
             except Exception as e:
                 # On processing error, use graceful degradation
-                print(f"XG Effects processing error: {e}")
+                logger.error(f"XG Effects processing error: {e}")
                 self._mix_channels_to_stereo_direct(input_channels, output_stereo, num_samples)
 
             finally:
@@ -962,7 +967,6 @@ class XGEffectsCoordinator:
 
         # Brickwall limiting to prevent clipping
         np.clip(output_stereo[:num_samples], -0.99, 0.99, out=output_stereo[:num_samples])
-
 
     def _apply_stereo_enhancement(self, stereo_buffer: np.ndarray, num_samples: int) -> None:
         """
@@ -1431,7 +1435,7 @@ class XGEffectsCoordinator:
                     # Assume VCM effects take stereo block and return processed block
                     processed = effect_func(processed)
                 except Exception as e:
-                    print(f"VCM effect {effect_name} failed: {e}")
+                    logger.error(f"VCM effect {effect_name} failed: {e}")
                     continue
 
             return processed
@@ -1459,7 +1463,7 @@ class XGEffectsCoordinator:
                 # Assume VCM effects take audio and params, return processed audio
                 return effect_func(audio, params)
             except Exception as e:
-                print(f"VCM effect {effect_name} failed: {e}")
+                logger.error(f"VCM effect {effect_name} failed: {e}")
                 return audio
 
     def get_effect_info(self, effect_name: str) -> dict[str, Any] | None:
@@ -1753,6 +1757,7 @@ class XGEffectsCoordinator:
         if filter_type == "lowpass":
             # Simple lowpass
             alpha = freq
+            # TODO: Use BufferPool when available (hot path allocation)
             filtered = np.zeros_like(audio)
             filtered[0] = audio[0]
             for i in range(1, len(audio)):
@@ -1762,6 +1767,7 @@ class XGEffectsCoordinator:
         elif filter_type == "highpass":
             # Simple highpass
             alpha = freq
+            # TODO: Use BufferPool when available (hot path allocation)
             filtered = np.zeros_like(audio)
             filtered[0] = audio[0]
             for i in range(1, len(audio)):
@@ -1870,6 +1876,7 @@ class XGEffectsCoordinator:
 
         # Simple multi-tap delay implementation
         output = audio.copy()
+        # TODO: Use BufferPool when available (hot path allocation)
         delay_buffer = np.zeros(len(audio) * 2)
         delay_buffer[: len(audio)] = audio
 
@@ -1968,9 +1975,9 @@ class XGEffectsCoordinator:
                 "chorus": self.system_effects.get("chorus", {}).get("type", "none"),
             },
             "variation_effects": self.variation_effect,
-            "insertion_effects": len(self.insertion_effects)
-            if hasattr(self, "insertion_effects")
-            else 0,
+            "insertion_effects": (
+                len(self.insertion_effects) if hasattr(self, "insertion_effects") else 0
+            ),
             "advanced_effects": {
                 "multiband_compression": True,
                 "multitap_delay": True,

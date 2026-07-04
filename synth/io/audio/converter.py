@@ -1,4 +1,5 @@
 """
+
 Audio Converter Engine
 
 Core conversion logic for MIDI and XGML to audio conversion.
@@ -12,13 +13,14 @@ import sys
 import threading
 import time
 
-logger = logging.getLogger(__name__)
 
 from synth.io.audio.writer import AudioWriter
 from synth.io.midi import FileParser, MIDIMessage
 from synth.synthesizers.rendering import ModernXGSynthesizer
 from synth.utils.progress import ProgressReporter
 from synth.xgml import XGMLParser, XGMLToMIDITranslator
+
+logger = logging.getLogger(__name__)
 
 
 class AudioConverter:
@@ -63,7 +65,7 @@ class AudioConverter:
 
                 return all_messages, duration
             except Exception as e:
-                print(f"Error parsing MIDI file {file_path}: {e}")
+                logger.error(f"Error parsing MIDI file {file_path}: {e}")
                 return None, None
 
         elif file_ext in ["xgml", "yaml", "yml"] or file_path.lower().endswith(
@@ -77,32 +79,32 @@ class AudioConverter:
 
                 if document is None:
                     if not parser.has_errors():
-                        print(f"Warning: No XGML content found in {file_path}")
+                        logger.warning(f"Warning: No XGML content found in {file_path}")
                     else:
-                        print(f"Error parsing XGML {file_path}:")
+                        logger.error(f"Error parsing XGML {file_path}:")
                         for error in parser.get_errors():
-                            print(f"  - {error}")
+                            logger.error(f"  - {error}")
                     return None, None
 
                 if parser.has_warnings():
-                    print(f"XGML warnings in {file_path}:")
+                    logger.warning(f"XGML warnings in {file_path}:")
                     for warning in parser.get_warnings():
-                        print(f"  - {warning}")
+                        logger.warning(f"  - {warning}")
 
                 # Translate to MIDI
                 translator = XGMLToMIDITranslator()
                 midi_messages = translator.translate_document(document)
 
                 if translator.has_errors():
-                    print(f"XGML translation errors in {file_path}:")
+                    logger.error(f"XGML translation errors in {file_path}:")
                     for error in translator.get_errors():
-                        print(f"  - {error}")
+                        logger.error(f"  - {error}")
                     return None, None
 
                 if translator.has_warnings():
-                    print(f"XGML translation warnings in {file_path}:")
+                    logger.warning(f"XGML translation warnings in {file_path}:")
                     for warning in translator.get_warnings():
-                        print(f"  - {warning}")
+                        logger.warning(f"  - {warning}")
 
                 # Calculate duration from sequences
                 duration = 0.0
@@ -128,11 +130,11 @@ class AudioConverter:
                 return midi_messages, duration
 
             except Exception as e:
-                print(f"Error processing XGML file {file_path}: {e}")
+                logger.error(f"Error processing XGML file {file_path}: {e}")
                 return None, None
 
         else:
-            print(f"Unsupported file format: {file_path}")
+            logger.info(f"Unsupported file format: {file_path}")
             return None, None
 
     def convert_audio_to_audio_buffered(
@@ -167,12 +169,12 @@ class AudioConverter:
 
         try:
             if not silent:
-                print(f"Converting {input_file} -> {output_file}")
+                logger.info(f"Converting {input_file} -> {output_file}")
 
             # Parse input file (MIDI or XGML)
             logger.debug(f"Parsing audio file {input_file}")
             midi_messages, duration = self.parse_audio_file(input_file)
-            print(
+            logger.info(
                 f"DEBUG: Parsed {len(midi_messages) if midi_messages else 0} messages, duration={duration}",
                 file=sys.stderr,
             )
@@ -184,7 +186,7 @@ class AudioConverter:
                 "XGML" if input_file.lower().endswith((".xgml", ".yaml", ".yml")) else "MIDI"
             )
             if not silent:
-                print(
+                logger.info(
                     f"{file_type} parsed: {len(midi_messages)} MIDI messages, duration: {duration:.2f} seconds"
                 )
 
@@ -240,13 +242,13 @@ class AudioConverter:
                     # Check for abort signal
                     if abort_event and abort_event.is_set():
                         if not silent:
-                            print("\nConversion aborted by user.")
+                            logger.info("\nConversion aborted by user.")
                         return False
 
                     # Check for timeout
                     if abort_at and time.time() > abort_at:
                         if not silent:
-                            print(f"\nConversion timed out after {timeout_seconds} seconds.")
+                            logger.info(f"\nConversion timed out after {timeout_seconds} seconds.")
                         return True
 
                     out_buffer = self.synthesizer.generate_audio_block()
@@ -259,10 +261,10 @@ class AudioConverter:
             self.synthesizer.finalize_audio_logging()
 
             if not silent:
-                print(f"Conversion complete: {output_file}")
+                logger.info(f"Conversion complete: {output_file}")
 
             return True
 
         except Exception as e:
-            print(f"Error converting {input_file}: {e}")
+            logger.error(f"Error converting {input_file}: {e}")
             return False

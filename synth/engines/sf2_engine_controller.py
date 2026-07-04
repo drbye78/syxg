@@ -1,4 +1,5 @@
 """
+
 SF2 Engine Part Mode Integration - Production Grade
 
 Refactored SF2 engine with proper XG/GS part mode and drum bank support.
@@ -35,6 +36,7 @@ class SF2PartModeIntegrator:
     BANK_SFX = 64
     BANK_AN = 126
     BANK_FDSP = 127  # Also used for GS drums
+    BANK_DRUM = 127  # Unified drum bank constant
 
     # Default drum channel
     DRUM_CHANNEL = 9  # MIDI channel 10
@@ -118,10 +120,7 @@ class SF2PartModeIntegrator:
 
     def _setup_drum_bank(self, channel: int):
         """Set up drum bank for channel."""
-        # Load appropriate drum preset
-        # Bank 127 with different programs = different drum kits
-        bank = self.BANK_FDSP
-
+        # Load appropriate drum preset (Bank 127 with different programs = different drum kits)
         # Get drum kit from XG system if available
         if self.xg_system:
             part_info = self.xg_system.get_part_info(channel)
@@ -247,7 +246,7 @@ class SF2PartModeIntegrator:
         # This maps standard GM/XG drum note numbers
         if self.xg_system:
             # Use XG system drum map
-            mapped_note, entry = self.xg_system.get_drum_mapping(channel, note, velocity)
+            _mapped_note, entry = self.xg_system.get_drum_mapping(channel, note, velocity)
             if entry and "drum_kit" in entry:
                 return entry["drum_kit"]
             # Fallback to default drum kit
@@ -411,8 +410,10 @@ class SF2EngineController:
         # Get bank/program for this note
         bank, program, drum_params = self.part_mode.get_preset_for_note(channel, note, velocity)
 
-        # Get voice parameters from SF2 engine
-        voice_params = self.sf2_engine.get_voice_parameters(program, bank, mapped_note, velocity)
+        # Get voice parameters from SF2 engine (pass channel for controller state)
+        voice_params = self.sf2_engine.get_voice_parameters(
+            program, bank, mapped_note, velocity, channel=channel
+        )
 
         if voice_params and drum_params:
             # Apply drum-specific parameters
@@ -437,9 +438,11 @@ class SF2EngineController:
         """Get controller status."""
         return {
             "channels": self.part_mode.get_all_channels_info(),
-            "sf2_engine": self.sf2_engine.get_engine_type()
-            if hasattr(self.sf2_engine, "get_engine_type")
-            else "unknown",
+            "sf2_engine": (
+                self.sf2_engine.get_engine_type()
+                if hasattr(self.sf2_engine, "get_engine_type")
+                else "unknown"
+            ),
         }
 
     def reset(self):

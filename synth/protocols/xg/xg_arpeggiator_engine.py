@@ -1,4 +1,5 @@
 """
+
 Yamaha Motif Arpeggiator Engine
 
 Core arpeggiator processing engine implementing Yamaha Motif series
@@ -9,11 +10,15 @@ Copyright (c) 2025
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 import time
 from collections.abc import Callable
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ArpeggiatorPattern:
@@ -500,7 +505,7 @@ class YamahaArpeggiatorEngine:
         self.note_on_callback: Callable | None = None
         self.note_off_callback: Callable | None = None
 
-        print("🎹 Yamaha Arpeggiator Engine: Initialized with advanced features")
+        logger.info("🎹 Yamaha Arpeggiator Engine: Initialized with advanced features")
 
     def _initialize_builtin_patterns(self):
         """Initialize basic arpeggiator patterns."""
@@ -543,7 +548,7 @@ class YamahaArpeggiatorEngine:
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
-        print(f"🎹 Built-in Arpeggiator Patterns: Initialized {pattern_id} basic patterns")
+        logger.info(f"🎹 Built-in Arpeggiator Patterns: Initialized {pattern_id} basic patterns")
 
     def _initialize_advanced_patterns(self):
         """Initialize advanced arpeggio patterns with complex rhythms."""
@@ -637,7 +642,9 @@ class YamahaArpeggiatorEngine:
         self.patterns[pattern_id] = pattern
         pattern_id += 1
 
-        print(f"🎹 Advanced Arpeggiator Patterns: Initialized {pattern_id - 100} advanced patterns")
+        logger.info(
+            f"🎹 Advanced Arpeggiator Patterns: Initialized {pattern_id - 100} advanced patterns"
+        )
 
     def set_pattern_chain(self, channel: int, chain_id: int, pattern_ids: list[int]):
         """Set pattern chain for complex arpeggio sequences."""
@@ -952,11 +959,11 @@ class YamahaArpeggiatorEngine:
         # Get chord types from ChordDetector class
         chord_types = ChordDetector().CHORD_TYPES
 
-        print(f"🎹 Arpeggiator: Loaded {len(self.patterns)} comprehensive built-in patterns")
-        print(
+        logger.info(f"🎹 Arpeggiator: Loaded {len(self.patterns)} comprehensive built-in patterns")
+        logger.info(
             "   Categories: Basic, Seventh, Extended, Rhythmic, World, Special, Inversions, Drum"
         )
-        print(
+        logger.info(
             f"   Chord Types: {len(chord_types)} supported ({', '.join(list(chord_types.keys())[:5])}...)"
         )
 
@@ -1054,9 +1061,11 @@ class YamahaArpeggiatorEngine:
                 return {
                     "enabled": arpeggiator.enabled,
                     "hold_mode": arpeggiator.hold_mode,
-                    "current_pattern": arpeggiator.current_pattern.pattern_id
-                    if arpeggiator.current_pattern
-                    else None,
+                    "current_pattern": (
+                        arpeggiator.current_pattern.pattern_id
+                        if arpeggiator.current_pattern
+                        else None
+                    ),
                     "octave_range": arpeggiator.octave_range,
                     "gate_time": arpeggiator.gate_time,
                     "swing_amount": arpeggiator.swing_amount,

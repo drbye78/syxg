@@ -1,4 +1,5 @@
 """
+
 Yamaha SFF2 (Style File Format) Parser
 
 Professional-grade parser for Yamaha SFF2 binary style files.
@@ -20,12 +21,16 @@ Usage:
 """
 
 from __future__ import annotations
+import logging
+
 
 import struct
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
 from typing import Any, BinaryIO
+
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # SFF2 Constants and Enums
@@ -334,9 +339,9 @@ class SFF2OTS:
                 {
                     "part_id": i,
                     "enabled": True,
-                    "program_change": self.program_changes[i]
-                    if i < len(self.program_changes)
-                    else 0,
+                    "program_change": (
+                        self.program_changes[i] if i < len(self.program_changes) else 0
+                    ),
                     "bank_msb": self.bank_msb[i] if i < len(self.bank_msb) else 0,
                     "bank_lsb": self.bank_lsb[i] if i < len(self.bank_lsb) else 0,
                     "volume": self.volume[i] if i < len(self.volume) else 100,
@@ -909,7 +914,7 @@ class SFF2Parser:
             style.save(Path(output_path))
             return True
         except Exception as e:
-            print(f"Export failed: {e}")
+            logger.error(f"Export failed: {e}")
             return False
 
 

@@ -1,4 +1,5 @@
 """
+
 Universal MIDI Packet (UMP) Implementation for MIDI 2.0 Support
 
 This module implements the complete UMP specification for MIDI 2.0 support,
@@ -6,10 +7,14 @@ including packet parsing, serialization, and conversion between MIDI 1.0 and MID
 """
 
 from __future__ import annotations
+import logging
+
 
 import struct
 from abc import ABC, abstractmethod
 from enum import IntEnum
+
+logger = logging.getLogger(__name__)
 
 
 class UMPMessageType(IntEnum):
@@ -468,29 +473,29 @@ class MIDI1ToMIDI2Converter:
 # Example usage and testing
 if __name__ == "__main__":
     # Test MIDI 1.0 to MIDI 2.0 conversion
-    print("Testing MIDI 1.0 to MIDI 2.0 conversion...")
+    logger.info("Testing MIDI 1.0 to MIDI 2.0 conversion...")
 
     # Test Note On
     status, d1, d2 = 0x90, 60, 100  # Note On, middle C, velocity 100
     midi2_packet = MIDI1ToMIDI2Converter.midi1_to_midi2_channel_voice(status, d1, d2)
-    print(f"MIDI 1.0: {hex(status)}, {d1}, {d2}")
-    print(f"MIDI 2.0 packet words: {midi2_packet.to_words()}")
+    logger.info(f"MIDI 1.0: {hex(status)}, {d1}, {d2}")
+    logger.info(f"MIDI 2.0 packet words: {midi2_packet.to_words()}")
 
     # Convert back
     status_back, d1_back, d2_back = MIDI1ToMIDI2Converter.midi2_to_midi1_channel_voice(midi2_packet)
-    print(f"Converted back: {hex(status_back)}, {d1_back}, {d2_back}")
-    print(f"Match: {status == status_back and d1 == d1_back and d2 == d2_back}")
+    logger.info(f"Converted back: {hex(status_back)}, {d1_back}, {d2_back}")
+    logger.info(f"Match: {status == status_back and d1 == d1_back and d2 == d2_back}")
 
     # Test SysEx
-    print("\nTesting SysEx UMP...")
+    logger.info("\nTesting SysEx UMP...")
     sys_ex_data = bytes([0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7])  # Example SysEx
     sys_ex_packet = SysExUMP(UMPGroup(0), sys_ex_data, complete=True)
-    print(f"SysEx packet words: {sys_ex_packet.to_words()}")
+    logger.info(f"SysEx packet words: {sys_ex_packet.to_words()}")
 
     # Test parsing
-    print("\nTesting UMP parsing...")
+    logger.info("\nTesting UMP parsing...")
     packet_bytes = sys_ex_packet.to_bytes()
     parsed_packet = UMPParser.parse_packet(packet_bytes)
     if isinstance(parsed_packet, SysExUMP):
-        print(f"Parsed SysEx data: {parsed_packet.sys_ex_data}")
-        print(f"Complete: {parsed_packet.complete}")
+        logger.info(f"Parsed SysEx data: {parsed_packet.sys_ex_data}")
+        logger.info(f"Complete: {parsed_packet.complete}")

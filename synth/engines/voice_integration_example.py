@@ -1,4 +1,5 @@
 """
+
 Voice Architecture Integration Example
 
 Demonstrates how the new Voice-based architecture integrates with the existing
@@ -6,12 +7,16 @@ XG synthesizer, providing a migration path and compatibility layer.
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
 from synth.engines.synthesis_engine import SynthesisEngineRegistry
 from synth.processing.channel import Channel
 from synth.processing.voice.voice_factory import VoiceFactory
+
+logger = logging.getLogger(__name__)
 
 
 class VoiceIntegrationLayer:
@@ -185,43 +190,43 @@ def demonstrate_integration():
     """
     Demonstration function showing Voice architecture integration.
     """
-    print("🎹 XG Synthesizer - Voice Architecture Integration Demo")
-    print("=" * 60)
+    logger.info("🎹 XG Synthesizer - Voice Architecture Integration Demo")
+    logger.info("=" * 60)
 
     # Create integration layer
     integration = VoiceIntegrationLayer()
 
     # Demonstrate capabilities
-    print("\n1. Voice Channel Information:")
+    logger.info("\n1. Voice Channel Information:")
     channel_info = integration.voice_channel.get_channel_info()
-    print(f"   Channel: {channel_info.get('channel_number', 'N/A')}")
-    print(f"   Program: {channel_info.get('program', 'N/A')}")
-    print(f"   Has Voice: {channel_info.get('has_voice', False)}")
+    logger.info(f"   Channel: {channel_info.get('channel_number', 'N/A')}")
+    logger.info(f"   Program: {channel_info.get('program', 'N/A')}")
+    logger.info(f"   Has Voice: {channel_info.get('has_voice', False)}")
 
-    print("\n2. Available Synthesis Engines:")
+    logger.info("\n2. Available Synthesis Engines:")
     engines = integration.engine_registry.get_registered_engines()
     for engine_type, engine_info in engines.items():
-        print(f"   {engine_type}: {engine_info.get('type', 'Unknown')}")
+        logger.warning(f"   {engine_type}: {engine_info.get('type', 'Unknown')}")
 
-    print("\n3. Architecture Comparison:")
+    logger.info("\n3. Architecture Comparison:")
     comparison = integration.compare_architectures()
-    print(f"   New Voice layers: {comparison['new_voice_architecture']['layers']}")
-    print(f"   Benefits: {comparison['new_voice_architecture']['benefits'][:2]}")
+    logger.info(f"   New Voice layers: {comparison['new_voice_architecture']['layers']}")
+    logger.info(f"   Benefits: {comparison['new_voice_architecture']['benefits'][:2]}")
 
-    print("\n4. Engine Capabilities:")
+    logger.info("\n4. Engine Capabilities:")
     engine_comparison = integration.create_engine_comparison()
     for engine_type, info in engine_comparison.items():
         features = [f for f, supported in info["supported_features"].items() if supported]
-        print(f"   {engine_type}: {features[:3]}...")
+        logger.info(f"   {engine_type}: {features[:3]}...")
 
-    print("\n5. Modulation Matrix:")
+    logger.info("\n5. Modulation Matrix:")
     modulation = integration.demonstrate_modulation_matrix()
-    print(f"   Available routes: {modulation.get('voice_modulation_routes', 0)}")
-    print(f"   Sources: {modulation.get('available_sources', [])[:3]}...")
+    logger.info(f"   Available routes: {modulation.get('voice_modulation_routes', 0)}")
+    logger.info(f"   Sources: {modulation.get('available_sources', [])[:3]}...")
 
-    print("\n✅ Voice Architecture Integration Demo Complete")
-    print("The new Voice architecture provides clean separation of concerns")
-    print("while maintaining full compatibility with existing XG features.")
+    logger.info("\n✅ Voice Architecture Integration Demo Complete")
+    logger.info("The new Voice architecture provides clean separation of concerns")
+    logger.info("while maintaining full compatibility with existing XG features.")
 
 
 if __name__ == "__main__":

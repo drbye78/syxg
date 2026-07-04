@@ -1,4 +1,5 @@
 """
+
 XG System Parameters (NRPN MSB 1-2)
 
 Implements XG system effect parameters for reverb and chorus.
@@ -14,8 +15,11 @@ Copyright (c) 2025
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGSystemEffectParameters:
@@ -174,8 +178,8 @@ class XGSystemEffectParameters:
         # Parameter change callback
         self.parameter_change_callback = None
 
-        print("🎹 XG SYSTEM PARAMETERS: Initialized")
-        print("   Reverb, Chorus, and Variation effect parameters ready")
+        logger.info("XG SYSTEM PARAMETERS: Initialized")
+        logger.info("   Reverb, Chorus, and Variation effect parameters ready")
 
     def _create_default_reverb(self) -> dict[str, Any]:
         """Create default XG reverb parameters."""
@@ -519,7 +523,7 @@ class XGSystemEffectParameters:
             self.system_chorus = self._create_default_chorus()
             self.system_variation = self._create_default_variation()
 
-        print("🎹 XG SYSTEM PARAMETERS: Reset to XG defaults")
+        logger.info("XG SYSTEM PARAMETERS: Reset to XG defaults")
 
     def export_parameters(self) -> dict[str, Any]:
         """Export all system effect parameters."""
@@ -543,7 +547,7 @@ class XGSystemEffectParameters:
                     self.system_variation.update(params["variation"])
                 return True
         except Exception as e:
-            print(f"❌ XG SYSTEM PARAMETERS: Import failed - {e}")
+            logger.error("XG SYSTEM PARAMETERS: Import failed - %s", e)
             return False
 
     def get_status(self) -> dict[str, Any]:

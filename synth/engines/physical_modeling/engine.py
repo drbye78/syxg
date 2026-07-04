@@ -1,4 +1,5 @@
 """
+
 Yamaha AN (Analog Physical Modeling) Engine Implementation
 
 Complete AN synthesis engine with physical modeling algorithms,
@@ -7,6 +8,8 @@ Provides authentic Yamaha Motif AN compatibility with modern performance.
 """
 
 from __future__ import annotations
+import logging
+
 
 import math
 from typing import Any
@@ -14,6 +17,8 @@ from typing import Any
 import numpy as np
 
 from ..synthesis_engine import SynthesisEngine
+
+logger = logging.getLogger(__name__)
 
 
 class PhysicalModelingOscillator:
@@ -660,7 +665,7 @@ class MaterialProperties:
         if material_name in self.material_database:
             self.current_material = material_name
         else:
-            print(f"Warning: Unknown material '{material_name}', using spruce")
+            logger.warning(f"Warning: Unknown material '{material_name}', using spruce")
             self.current_material = "spruce"
 
     def get_material_properties(self, material_name: str | None = None) -> dict[str, float]:
@@ -733,7 +738,7 @@ class ANEngine(SynthesisEngine):
         # Initialize components
         self._init_components()
 
-        print(
+        logger.info(
             "🎹 AN Engine: Yamaha Motif AN with S90/S70 RP-PR physical modeling synthesis initialized"
         )
 
@@ -743,10 +748,10 @@ class ANEngine(SynthesisEngine):
         if enabled:
             self.body_resonance_enabled = True
             self.string_body_coupling_enabled = True
-            print("🎹 AN Engine: S90/S70 RP-PR physical modeling enabled")
-            print("   - Body resonance modeling")
-            print("   - String-body interaction")
-            print("   - Material properties simulation")
+            logger.info("🎹 AN Engine: S90/S70 RP-PR physical modeling enabled")
+            logger.info("   - Body resonance modeling")
+            logger.info("   - String-body interaction")
+            logger.info("   - Material properties simulation")
         else:
             self.body_resonance_enabled = False
             self.string_body_coupling_enabled = False
@@ -757,14 +762,16 @@ class ANEngine(SynthesisEngine):
         """Set body characteristics for RP-PR modeling"""
         self.resonance_body.set_body_characteristics(shape, size, material)
         self.material_properties.set_material(material)
-        print(
+        logger.info(
             f"🎹 AN Engine: Body characteristics set - Shape: {shape}, Size: {size}, Material: {material}"
         )
 
     def set_bridge_parameters(self, hardness: float = 0.7, damping: float = 0.02):
         """Set bridge coupling parameters for string-body interaction"""
         self.string_body_interaction.set_bridge_parameters(hardness, damping)
-        print(f"🎹 AN Engine: Bridge parameters set - Hardness: {hardness}, Damping: {damping}")
+        logger.info(
+            f"🎹 AN Engine: Bridge parameters set - Hardness: {hardness}, Damping: {damping}"
+        )
 
     def _init_components(self):
         """Initialize AN engine components"""
@@ -1057,8 +1064,8 @@ class ANEngine(SynthesisEngine):
             name=preset_name,
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
-            is_monophonic=False,
-            category="analog_modeling",
+
+
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
@@ -1130,6 +1137,7 @@ class ANEngine(SynthesisEngine):
         voice_id = self.note_on(note, velocity)
         if voice_id == -1:
             # No free voices, return silence
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Generate audio block

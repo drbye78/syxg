@@ -1,4 +1,5 @@
 """
+
 XG Voice - Refactored with lazy region selection.
 
 Part of the unified region-based synthesis architecture.
@@ -42,6 +43,7 @@ class Voice:
     __slots__ = [
         "_active_instances",
         "_articulation",
+        "_buffer_pool",
         "_chorus_send",
         "_master_level",
         "_master_pan",
@@ -55,7 +57,12 @@ class Voice:
     ]
 
     def __init__(
-        self, preset_info: PresetInfo, engine: SynthesisEngine, channel: int, sample_rate: int
+        self,
+        preset_info: PresetInfo,
+        engine: SynthesisEngine,
+        channel: int,
+        sample_rate: int,
+        buffer_pool: Any | None = None,
     ):
         """
         Initialize Voice with preset definition.
@@ -65,11 +72,13 @@ class Voice:
             engine: Synthesis engine for this voice
             channel: MIDI channel number (0-15)
             sample_rate: Audio sample rate in Hz
+            buffer_pool: Optional BufferPool for zero-allocation audio paths
         """
         self.preset_info = preset_info
         self.engine = engine
         self.channel = channel
         self.sample_rate = sample_rate
+        self._buffer_pool = buffer_pool
 
         # Active region instances for current note
         self._active_instances: list[IRegion] = []
@@ -266,9 +275,14 @@ class Voice:
             Stereo audio buffer (block_size, 2) as float32
         """
         if not self._active_instances:
+            if self._buffer_pool is not None:
+                return self._buffer_pool.get_stereo_buffer(block_size)
             return np.zeros((block_size, 2), dtype=np.float32)
 
-        output = np.zeros((block_size, 2), dtype=np.float32)
+        if self._buffer_pool is not None:
+            output = self._buffer_pool.get_stereo_buffer(block_size)
+        else:
+            output = np.zeros((block_size, 2), dtype=np.float32)
 
         for region in self._active_instances:
             if region.is_active():
@@ -458,6 +472,7 @@ def _create_silent_region(descriptor: RegionDescriptor, sample_rate: int) -> IRe
             pass
 
         def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
+            # TODO: Use BufferPool when available
             return np.zeros((block_size, 2), dtype=np.float32)
 
     return SilentRegion(descriptor, sample_rate)

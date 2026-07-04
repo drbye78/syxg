@@ -71,8 +71,8 @@ class TestChannelNRPN:
         channel.nrpn_msb = 0x01
         channel.nrpn_lsb = 0x20
 
-        # Handle complete NRPN with data
-        channel._handle_nrpn_complete(0x00, 0x64)
+        # Handle complete NRPN with data (single CC6 value per MIDI spec)
+        channel._handle_nrpn_complete(100)
 
         # The handler should process the parameter
         assert hasattr(channel, "nrpn_msb")

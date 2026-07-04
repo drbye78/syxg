@@ -175,9 +175,9 @@ class MIDI2EffectProcessor:
 
         # Effect parameters with 32-bit resolution
         self.effect_parameters: dict[int, dict[str, float]] = {}  # effect_id -> param_name -> value
-        self.per_note_effect_parameters: dict[
-            int, dict[int, dict[str, float]]
-        ] = {}  # note -> effect_id -> param_name -> value
+        self.per_note_effect_parameters: dict[int, dict[int, dict[str, float]]] = (
+            {}
+        )  # note -> effect_id -> param_name -> value
 
         # Effect routing
         self.send_levels: dict[int, float] = {}  # effect_id -> send_level (0.0-1.0)

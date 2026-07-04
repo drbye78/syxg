@@ -1,4 +1,5 @@
 """
+
 Effects System - Professional Audio Effects Processing
 
 Complete effects processing system with XG/GM2 compatibility, workstation-grade
@@ -6,11 +7,15 @@ effects, and comprehensive parameter control for professional audio production.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class EffectsSystem:
@@ -56,7 +61,7 @@ class EffectsSystem:
 
         self.motif_effects = MotifEffectsProcessor(sample_rate=self.synthesizer.sample_rate)
 
-        print("🎹 Effects system initialized with XG/GM2 compatibility")
+        logger.info("🎹 Effects system initialized with XG/GM2 compatibility")
 
     def apply_effects(self, block_size: int) -> None:
         """

@@ -1,4 +1,5 @@
 """
+
 Vibexg Demo Mode - Demo patterns for testing audio output
 
 This module provides demo patterns to test the audio output and

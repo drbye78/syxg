@@ -163,5 +163,3 @@ class XGStereoEnhancer:
                 left, right = self.process_sample(stereo_block[i, 0], stereo_block[i, 1])
                 stereo_block[i, 0] = left
                 stereo_block[i, 1] = right
-
-

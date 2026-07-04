@@ -1,4 +1,5 @@
 """
+
 S90/S70 Performance Features
 
 Real-time performance features and optimizations specific to S90/S70 synthesizers,
@@ -6,6 +7,8 @@ including voice allocation, performance monitoring, and hardware optimizations.
 """
 
 from __future__ import annotations
+import logging
+
 
 import os
 import threading
@@ -13,6 +16,8 @@ import time
 from typing import Any
 
 import psutil
+
+logger = logging.getLogger(__name__)
 
 
 class VoiceAllocationOptimizer:
@@ -302,7 +307,7 @@ class HardwarePerformanceMonitor:
                 time.sleep(0.1)  # 10Hz monitoring
 
             except Exception as e:
-                print(f"Performance monitoring error: {e}")
+                logger.error(f"Performance monitoring error: {e}")
                 break
 
         self.monitoring_active = False
@@ -850,22 +855,20 @@ class S90S70PerformanceFeatures:
         health_status = (
             "Excellent"
             if health_score >= 90
-            else "Good"
-            if health_score >= 80
-            else "Fair"
-            if health_score >= 70
-            else "Poor"
-            if health_score >= 60
-            else "Critical"
+            else (
+                "Good"
+                if health_score >= 80
+                else "Fair" if health_score >= 70 else "Poor" if health_score >= 60 else "Critical"
+            )
         )
 
         return {
             "health_score": health_score,
             "health_status": health_status,
             "issues": issues,
-            "recommendations": self.realtime_optimizer.apply_adaptive_measures(issues)
-            if issues
-            else [],
+            "recommendations": (
+                self.realtime_optimizer.apply_adaptive_measures(issues) if issues else []
+            ),
         }
 
     def optimize_for_workload(self, active_voices: int, effects_active: int) -> dict[str, Any]:

@@ -88,101 +88,8 @@ class AudioProcessor:
             Audio data as numpy array with shape (block_size, 2)
         """
         block_size = self.synthesizer.block_size
-
         with self.lock:
-            # Ensure output buffer is correctly sized
-            if self.synthesizer.output_buffer.shape[0] != block_size:
-                self.synthesizer.output_buffer = self.synthesizer.buffer_pool.get_stereo_buffer(
-                    block_size
-                )
-
-            # Clear output buffer (SIMD optimized)
-            self.synthesizer.output_buffer.fill(0.0)
-
-            # Track active voices for performance monitoring
-            active_voices = 0
-
-            # Process buffered messages sample-perfectly
-            at_time = self._current_time
-            at_index = self._current_message_index
-            block_offset = 0
-
-            # Process messages in segments to reduce per-sample overhead
-            while block_offset < block_size:
-                # Process all messages that occur at or before the minimum time slice
-                messages_in_segment = 0
-                while (
-                    at_index < len(self._message_sequence)
-                    and self._message_sequence[at_index].timestamp
-                    <= at_time + self._minimum_time_slice
-                ):
-                    message = self._message_sequence[at_index]
-                    at_index += 1
-                    messages_in_segment += 1
-
-                    # Process the MIDI message (same as real-time processing)
-                    self._process_buffered_midi_message(message)
-
-                # Determine the segment length until the next MIDI message
-                if at_index < len(self._message_sequence):
-                    next_time = self._message_sequence[at_index].timestamp
-                    segment_length = int((next_time - at_time) * self.synthesizer.sample_rate)
-                    # Clamp to remaining block size
-                    segment_length = min(segment_length, block_size - block_offset)
-                else:
-                    # No more messages, process to end of block
-                    segment_length = block_size - block_offset
-
-                for i, channel in enumerate(self.synthesizer.channels):
-                    if channel.is_active():
-                        channel_audio = channel.generate_samples(segment_length)
-
-                        if channel_audio.shape[0] != segment_length:
-                            if channel_audio.shape[0] < segment_length:
-                                padding = np.zeros(
-                                    (segment_length - channel_audio.shape[0], 2), dtype=np.float32
-                                )
-                                channel_audio = np.vstack([channel_audio, padding])
-                            else:
-                                channel_audio = channel_audio[:segment_length]
-
-                        np.add(
-                            self.synthesizer.output_buffer[
-                                block_offset : block_offset + segment_length
-                            ],
-                            channel_audio,
-                            out=self.synthesizer.output_buffer[
-                                block_offset : block_offset + segment_length
-                            ],
-                        )
-
-                        active_voices += channel.get_active_voice_count()
-
-                # Advance time by the segment length
-                block_offset += segment_length
-                at_time = at_time + (segment_length / self.synthesizer.sample_rate)
-
-            # Update message index and time to reflect current position
-            self._current_message_index = at_index
-            self._current_time = at_time
-
-            # Update performance metrics
-            if hasattr(self.synthesizer, "performance_monitor"):
-                self.synthesizer.performance_monitor.update(active_voices=active_voices)
-
-            # Apply XG effects if enabled and there are active voices
-            if self.synthesizer.xg_enabled and active_voices > 0:
-                self._apply_xg_effects(block_size)
-
-        # Apply master volume
-        if hasattr(self.synthesizer, "master_volume") and self.synthesizer.master_volume != 1.0:
-            np.multiply(
-                self.synthesizer.output_buffer[:block_size],
-                self.synthesizer.master_volume,
-                out=self.synthesizer.output_buffer[:block_size],
-            )
-
-        return self.synthesizer.output_buffer
+            return self._generate_audio_block_buffered(block_size)
 
     def _generate_audio_block_buffered(self, block_size: int) -> np.ndarray:
         """
@@ -236,35 +143,47 @@ class AudioProcessor:
 
             for i, channel in enumerate(self.synthesizer.channels):
                 if channel.is_active():
-                    channel_audio = channel.generate_samples(segment_length)
+                    if self.synthesizer.buffer_pool is not None:
+                        with self.synthesizer.buffer_pool.temporary_buffer(
+                            segment_length, 2
+                        ) as temp_buf:
+                            channel_audio = channel.generate_samples(
+                                segment_length, output_buffer=temp_buf
+                            )
 
-                    # Ensure channel_audio matches segment_length exactly
-                    # Create a fresh copy to avoid modifying pooled buffers
-                    if channel_audio.shape[0] != segment_length:
-                        result = np.zeros((segment_length, 2), dtype=np.float32)
-                        copy_len = min(channel_audio.shape[0], segment_length)
-                        result[:copy_len] = channel_audio[:copy_len]
-                        channel_audio = result
-                    else:
-                        # Make a copy to prevent buffer pool reuse issues
-                        channel_audio = channel_audio.copy()
+                            # Ensure channel_audio matches segment_length exactly
+                            if channel_audio.shape[0] != segment_length:
+                                buffer_pool = self.synthesizer.buffer_pool
+                                if buffer_pool is not None:
+                                    result = buffer_pool.get_stereo_buffer(segment_length)
+                                else:
+                                    result = np.zeros((segment_length, 2), dtype=np.float32)
+                                copy_len = min(channel_audio.shape[0], segment_length)
+                                result[:copy_len] = channel_audio[:copy_len]
+                                channel_audio = result
 
+                            if i < len(self.synthesizer.channel_buffers):
+                                self.synthesizer.channel_buffers[i][
+                                    block_offset : block_offset + segment_length
+                                ] = channel_audio
+
+                            np.add(
+                                self.synthesizer.output_buffer[
+                                    block_offset : block_offset + segment_length
+                                ],
+                                channel_audio,
+                                out=self.synthesizer.output_buffer[
+                                    block_offset : block_offset + segment_length
+                                ],
+                            )
+
+                            active_voices += channel.get_active_voice_count()
+                else:
+                    # Clear unused channel buffers
                     if i < len(self.synthesizer.channel_buffers):
                         self.synthesizer.channel_buffers[i][
                             block_offset : block_offset + segment_length
-                        ] = channel_audio
-
-                    np.add(
-                        self.synthesizer.output_buffer[
-                            block_offset : block_offset + segment_length
-                        ],
-                        channel_audio,
-                        out=self.synthesizer.output_buffer[
-                            block_offset : block_offset + segment_length
-                        ],
-                    )
-
-                    active_voices += channel.get_active_voice_count()
+                        ].fill(0.0)
 
             # Advance time by the segment length
             block_offset += segment_length
@@ -280,7 +199,7 @@ class AudioProcessor:
 
         # Apply XG effects if enabled and there are active voices
         if self.synthesizer.xg_enabled and active_voices > 0:
-            self._apply_xg_effects(block_size)
+            self._apply_xg_effects(block_size, skip_generation=True)
 
         # Apply master volume
         if hasattr(self.synthesizer, "master_volume") and self.synthesizer.master_volume != 1.0:
@@ -314,26 +233,34 @@ class AudioProcessor:
         self.synthesizer.output_buffer.fill(0.0)
 
         active_voices = 0
-        for i, channel in enumerate(self.synthesizer.channels):
+        for channel in self.synthesizer.channels:
             if channel.is_active():
-                channel_audio = channel.generate_samples(block_size)
+                if self.synthesizer.buffer_pool is not None:
+                    with self.synthesizer.buffer_pool.temporary_buffer(block_size, 2) as temp_buf:
+                        channel_audio = channel.generate_samples(block_size, output_buffer=temp_buf)
 
-                if channel_audio.shape[0] != block_size:
-                    if channel_audio.shape[0] < block_size:
-                        padding = np.zeros(
-                            (block_size - channel_audio.shape[0], 2), dtype=np.float32
+                        if channel_audio.shape[0] != block_size:
+                            if channel_audio.shape[0] < block_size:
+                                buffer_pool = self.synthesizer.buffer_pool
+                                if buffer_pool is not None:
+                                    padding = buffer_pool.get_stereo_buffer(
+                                        block_size - channel_audio.shape[0]
+                                    )
+                                else:
+                                    padding = np.zeros(
+                                        (block_size - channel_audio.shape[0], 2), dtype=np.float32
+                                    )
+                                channel_audio = np.vstack([channel_audio, padding])
+                            else:
+                                channel_audio = channel_audio[:block_size]
+
+                        np.add(
+                            self.synthesizer.output_buffer[:block_size],
+                            channel_audio,
+                            out=self.synthesizer.output_buffer[:block_size],
                         )
-                        channel_audio = np.vstack([channel_audio, padding])
-                    else:
-                        channel_audio = channel_audio[:block_size]
 
-                np.add(
-                    self.synthesizer.output_buffer[:block_size],
-                    channel_audio,
-                    out=self.synthesizer.output_buffer[:block_size],
-                )
-
-                active_voices += channel.get_active_voice_count()
+                        active_voices += channel.get_active_voice_count()
 
         # Update performance metrics
         if hasattr(self.synthesizer, "performance_monitor"):
@@ -363,26 +290,45 @@ class AudioProcessor:
         # Use the same processing logic as real-time messages
         self.synthesizer.midi_processor._process_standard_midi(midi_message)
 
-    def _apply_xg_effects(self, block_size: int):
-        """
-        Apply XG effects processing.
+    def _apply_xg_effects(self, block_size: int, skip_generation: bool = False):
+        """Apply XG effects processing.
 
         Args:
             block_size: Size of audio block
+            skip_generation: If True, channel_buffers already contain valid data
+                             (only inactive channels get cleared)
         """
-        # Populate channel_buffers from channels before effects
-        for i, channel in enumerate(self.synthesizer.channels):
-            if channel.is_active():
-                channel_audio = channel.generate_samples(block_size)
-                # Copy to channel_buffer for effects processing
-                if i < len(self.synthesizer.channel_buffers):
-                    self.synthesizer.channel_buffers[i][:block_size] = channel_audio[:block_size]
-            else:
-                # Clear unused channel buffers
-                if i < len(self.synthesizer.channel_buffers):
+        if skip_generation:
+            # Channel buffers already populated by caller — just clear inactive
+            for i, channel in enumerate(self.synthesizer.channels):
+                if not channel.is_active() and i < len(self.synthesizer.channel_buffers):
                     self.synthesizer.channel_buffers[i][:block_size].fill(0.0)
+        else:
+            # Populate channel_buffers from channels
+            for i, channel in enumerate(self.synthesizer.channels):
+                if channel.is_active():
+                    if self.synthesizer.buffer_pool is not None:
+                        with self.synthesizer.buffer_pool.temporary_buffer(
+                            block_size, 2
+                        ) as temp_buf:
+                            channel_audio = channel.generate_samples(
+                                block_size, output_buffer=temp_buf
+                            )
+                            if i < len(self.synthesizer.channel_buffers):
+                                self.synthesizer.channel_buffers[i][:block_size] = channel_audio[
+                                    :block_size
+                                ]
+                    else:
+                        channel_audio = channel.generate_samples(block_size)
+                        if i < len(self.synthesizer.channel_buffers):
+                            self.synthesizer.channel_buffers[i][:block_size] = channel_audio[
+                                :block_size
+                            ]
+                else:
+                    if i < len(self.synthesizer.channel_buffers):
+                        self.synthesizer.channel_buffers[i][:block_size].fill(0.0)
 
-        # Use XG effects coordinator
+        # Effects processing (unchanged)
         channel_audio_list = [
             self.synthesizer.channel_buffers[i][:block_size]
             for i in range(len(self.synthesizer.channels))

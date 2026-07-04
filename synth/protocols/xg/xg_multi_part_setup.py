@@ -1,4 +1,5 @@
 """
+
 XG Multi-Part Setup (NRPN MSB 42-45)
 
 Implements XG multi-part parameters for voice reserve, part mode, part level, and part pan.
@@ -14,10 +15,14 @@ Copyright (c) 2025
 """
 
 from __future__ import annotations
+import logging
+
 
 import math
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGMultiPartSetup:
@@ -73,9 +78,11 @@ class XGMultiPartSetup:
         # Validate initial setup
         self._validate_voice_allocation()
 
-        print("🎹 XG MULTI-PART SETUP: Initialized")
-        print(f"   {num_parts} parts configured for XG multi-timbral operation")
-        print(f"   Total voice reserve: {sum(self.voice_reserve)}/{self.TOTAL_VOICES_AVAILABLE}")
+        logger.info("🎹 XG MULTI-PART SETUP: Initialized")
+        logger.info(f"   {num_parts} parts configured for XG multi-timbral operation")
+        logger.info(
+            f"   Total voice reserve: {sum(self.voice_reserve)}/{self.TOTAL_VOICES_AVAILABLE}"
+        )
 
     def handle_nrpn_msb42(self, lsb: int, data_value: int) -> bool:
         """
@@ -389,9 +396,9 @@ class XGMultiPartSetup:
                 part_info = {
                     "part_number": part,
                     "voice_reserve": self.voice_reserve[part],
-                    "part_mode": "Single"
-                    if self.part_mode[part] == self.PART_MODE_SINGLE
-                    else "Multi",
+                    "part_mode": (
+                        "Single" if self.part_mode[part] == self.PART_MODE_SINGLE else "Multi"
+                    ),
                     "part_level": self.part_level[part],
                     "part_pan": self.part_pan[part] - 64,  # Convert to -64 to +63 range
                     "part_level_db": self._level_to_db(self.part_level[part]),
@@ -426,10 +433,10 @@ class XGMultiPartSetup:
         total_allocated = sum(self.voice_reserve)
 
         if total_allocated > self.TOTAL_VOICES_AVAILABLE:
-            print(
+            logger.info(
                 f"⚠️ XG MULTI-PART: Voice allocation exceeds total available ({total_allocated}/{self.TOTAL_VOICES_AVAILABLE})"
             )
-            print("   Reducing allocations to fit within limits...")
+            logger.info("   Reducing allocations to fit within limits...")
 
             # Reduce allocations proportionally
             reduction_factor = self.TOTAL_VOICES_AVAILABLE / total_allocated
@@ -439,7 +446,7 @@ class XGMultiPartSetup:
                 reduced = int(original * reduction_factor)
                 self.voice_reserve[i] = max(1, reduced)  # Minimum 1 voice per part
 
-            print(f"   Adjusted allocations: {sum(self.voice_reserve)} total voices")
+            logger.info(f"   Adjusted allocations: {sum(self.voice_reserve)} total voices")
 
     def allocate_voices_for_part(self, part: int, requested_voices: int) -> int:
         """
@@ -505,7 +512,7 @@ class XGMultiPartSetup:
 
             self._validate_voice_allocation()
 
-        print("🎹 XG MULTI-PART SETUP: Reset to XG defaults")
+        logger.info("🎹 XG MULTI-PART SETUP: Reset to XG defaults")
 
     def export_setup(self) -> dict[str, Any]:
         """Export multi-part setup for serialization."""
@@ -537,7 +544,7 @@ class XGMultiPartSetup:
                 self._validate_voice_allocation()
                 return True
         except Exception as e:
-            print(f"❌ XG MULTI-PART: Import failed - {e}")
+            logger.error(f"❌ XG MULTI-PART: Import failed - {e}")
             return False
 
     def __str__(self) -> str:

@@ -102,6 +102,10 @@ class MockEngine(SynthesisEngine):
     def get_engine_type(self) -> str:
         return "mock"
 
+    def _create_base_region(self, descriptor: RegionDescriptor, sample_rate: int) -> IRegion:
+        """Create a mock region for testing."""
+        return MockRegion(descriptor, sample_rate)
+
 
 # ============================================================================
 # RegionDescriptor Tests

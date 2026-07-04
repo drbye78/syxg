@@ -77,5 +77,3 @@ class MultiStageDistortionProcessor:
             signal = alpha * signal + (1 - alpha) * self.stage_filters[-1]
 
             return signal * level * 0.3  # Conservative output level
-
-

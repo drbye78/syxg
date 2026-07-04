@@ -309,7 +309,10 @@ class AudioValidator:
         self.lock = threading.RLock()
 
     def validate_buffer(
-        self, buffer: np.ndarray, expected_channels: int | None = None, expected_dtype: np.dtype | None = None
+        self,
+        buffer: np.ndarray,
+        expected_channels: int | None = None,
+        expected_dtype: np.dtype | None = None,
     ) -> ValidationResult:
         """
         Comprehensive audio buffer validation.

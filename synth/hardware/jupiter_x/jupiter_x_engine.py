@@ -1,4 +1,5 @@
 """
+
 Jupiter-X Hardware Integration Architecture - Professional Hardware Synthesis System
 
 ARCHITECTURAL OVERVIEW:
@@ -254,6 +255,8 @@ ARCHITECTURAL PRINCIPLES:
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
@@ -265,6 +268,8 @@ from ...engines.region_descriptor import RegionDescriptor
 from ...engines.synthesis_engine import SynthesisEngine
 from ...processing.partial.region import IRegion
 from .synthesizer import JupiterXSynthesizer
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXEngineIntegration(SynthesisEngine):
@@ -285,6 +290,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
             block_size: Processing block size
         """
         super().__init__(sample_rate, block_size)
+        self.buffer_pool = buffer_pool
 
         # Initialize Jupiter-X synthesizer backend
         self.jupiter_x_synth = JupiterXSynthesizer(
@@ -312,7 +318,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
             "parameters": 500,  # Approximate parameter count
         }
 
-        print("🎹 Jupiter-X Engine: Integrated with modern synthesizer framework")
+        logger.info("🎹 Jupiter-X Engine: Integrated with modern synthesizer framework")
 
     def is_note_supported(self, note: int) -> bool:
         """Check if a note is supported by this engine."""
@@ -438,6 +444,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
             def __init__(self, engine, descriptor, sample_rate):
                 super().__init__({}, sample_rate)
                 self.jupiter_x_engine = engine
+                self.buffer_pool = getattr(engine, "buffer_pool", None)
                 self.descriptor = descriptor
                 self.active = False
                 self.note = 60
@@ -471,9 +478,13 @@ class JupiterXEngineIntegration(SynthesisEngine):
                 self.active = False
                 self.jupiter_x_engine.note_off(self.note)
 
-            def generate_samples(self, block_size: int, modulation: dict | None = None) -> np.ndarray:
+            def generate_samples(
+                self, block_size: int, modulation: dict | None = None
+            ) -> np.ndarray:
                 """Generate samples."""
                 if not self.active:
+                    if self.buffer_pool is not None:
+                        return self.buffer_pool.get_stereo_buffer(block_size)
                     return np.zeros((block_size, 2), dtype=np.float32)
                 return self.jupiter_x_engine.generate_samples(
                     self.note, self.velocity, modulation or {}, block_size
@@ -509,7 +520,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
 
     def set_sample_rate(self, sample_rate: int):
         """Set sample rate (not supported - Jupiter-X must be recreated)."""
-        print("⚠️  Jupiter-X Engine: Sample rate changes require engine recreation")
+        logger.warning("⚠️  Jupiter-X Engine: Sample rate changes require engine recreation")
 
     def generate_samples(
         self, note: int, velocity: int, modulation: dict[str, float], block_size: int
@@ -544,7 +555,11 @@ class JupiterXEngineIntegration(SynthesisEngine):
             if audio_block.shape[0] != block_size:
                 # Pad or truncate as needed
                 if audio_block.shape[0] < block_size:
-                    # Pad with zeros
+                    # Pad with zeros using buffer pool to avoid allocation
+                    if self.buffer_pool is not None:
+                        result = self.buffer_pool.get_stereo_buffer(block_size)
+                        result[: audio_block.shape[0]] = audio_block
+                        return result
                     padding = np.zeros(
                         (block_size - audio_block.shape[0], 2), dtype=audio_block.dtype
                     )

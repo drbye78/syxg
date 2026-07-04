@@ -763,8 +763,8 @@ class AdvancedPhysicalEngine(SynthesisEngine):
             name=preset_name,
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
-            is_monophonic=False,
-            category="advanced_physical_modeling",
+
+
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:

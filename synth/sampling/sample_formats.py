@@ -1,4 +1,5 @@
 """
+
 Sample Format Handler - Audio Format Conversion and Processing
 
 Provides comprehensive audio format conversion, validation, and processing
@@ -6,12 +7,16 @@ capabilities for the XG synthesizer's sample management system.
 """
 
 from __future__ import annotations
+import logging
+
 
 import struct
 import wave
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class SampleFormatHandler:
@@ -144,7 +149,7 @@ class SampleFormatHandler:
                 case _:
                     return self._load_raw_file(file_path)
         except Exception as e:
-            print(f"Error loading {fmt} file {file_path}: {e}")
+            logger.error(f"Error loading {fmt} file {file_path}: {e}")
             return None
 
     def _load_wav_file(self, file_path: str) -> dict[str, Any] | None:
@@ -194,7 +199,7 @@ class SampleFormatHandler:
                 }
 
         except Exception as e:
-            print(f"WAV load error: {e}")
+            logger.error(f"WAV load error: {e}")
             return None
 
     def _load_aiff_file(self, file_path: str) -> dict[str, Any] | None:
@@ -241,7 +246,7 @@ class SampleFormatHandler:
 
             if not audio_stream:
                 container.close()
-                print(f"No audio stream found in {file_path}")
+                logger.info(f"No audio stream found in {file_path}")
                 return None
 
             # Decode all frames
@@ -254,7 +259,7 @@ class SampleFormatHandler:
             container.close()
 
             if not frames:
-                print(f"No audio frames decoded from {file_path}")
+                logger.info(f"No audio frames decoded from {file_path}")
                 return None
 
             # Concatenate frames
@@ -278,10 +283,10 @@ class SampleFormatHandler:
             }
 
         except ImportError:
-            print("PyAV (av) library required for audio file loading")
+            logger.info("PyAV (av) library required for audio file loading")
             return None
         except Exception as e:
-            print(f"PyAV load error for {file_path}: {e}")
+            logger.error(f"PyAV load error for {file_path}: {e}")
             return None
 
     def _get_bit_depth_from_format(self, format_name: str) -> int:
@@ -339,7 +344,7 @@ class SampleFormatHandler:
                     "bit_depth": 16,
                 }
         except Exception as e:
-            print(f"Raw file load error: {e}")
+            logger.error(f"Raw file load error: {e}")
             return None
 
     def _unpack_24bit(self, data: bytes) -> np.ndarray:

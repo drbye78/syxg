@@ -1,4 +1,5 @@
 """
+
 Jupiter-X AN (Analog Physical Modeling) Extensions
 
 Plugin that adds Yamaha AN synthesis features to the base synthesis system.
@@ -6,6 +7,8 @@ Provides Motif-compatible physical modeling capabilities with advanced controls.
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
@@ -18,6 +21,8 @@ from ..base_plugin import (
     PluginType,
     SynthesisFeaturePlugin,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXANPlugin(SynthesisFeaturePlugin):
@@ -130,11 +135,11 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
             # Initialize Jupiter-X AN features
             self._initialize_jupiter_x_an_features()
 
-            print("🎹 Jupiter-X AN Extensions loaded")
+            logger.info("🎹 Jupiter-X AN Extensions loaded")
             return True
 
         except Exception as e:
-            print(f"Failed to load Jupiter-X AN extensions: {e}")
+            logger.error(f"Failed to load Jupiter-X AN extensions: {e}")
             return False
 
     def unload(self) -> bool:
@@ -143,11 +148,11 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
             # Clean up AN-specific resources
             self._cleanup_an_resources()
 
-            print("🎹 Jupiter-X AN Extensions unloaded")
+            logger.info("🎹 Jupiter-X AN Extensions unloaded")
             return True
 
         except Exception as e:
-            print(f"Error unloading Jupiter-X AN extensions: {e}")
+            logger.error(f"Error unloading Jupiter-X AN extensions: {e}")
             return False
 
     def _initialize_jupiter_x_an_features(self):
@@ -327,7 +332,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
             "damping": max(0.0001, min(0.5, damping)),
         }
 
-        print(f"🎛️ Created custom material: {name}")
+        logger.info(f"🎛️ Created custom material: {name}")
         return True
 
     def apply_material_to_voice(self, voice_id: int, material_name: str) -> bool:
@@ -358,7 +363,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
             material_decay = props["damping"] * 0.1  # Convert to decay rate
             env.material_decay = material_decay
 
-        print(f"🎛️ Applied material '{material_name}' to voice {voice_id}")
+        logger.info(f"🎛️ Applied material '{material_name}' to voice {voice_id}")
         return True
 
     def get_an_x_status(self) -> dict[str, Any]:
@@ -442,7 +447,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
             osc.set_parameters(waveguide_length=waveguide_samples)
             osc.excite(velocity / 127.0)
 
-        print(f"🎸 Simulated plucked string: note {note}, length {string_length:.2f}")
+        logger.info(f"🎸 Simulated plucked string: note {note}, length {string_length:.2f}")
         return True
 
     def simulate_percussion_body(
@@ -479,5 +484,5 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
                     material_damping=self.material_damping,
                 )
 
-        print(f"🥁 Simulated percussion body: note {note}, material {material}")
+        logger.info(f"🥁 Simulated percussion body: note {note}, material {material}")
         return True

@@ -1,11 +1,16 @@
 """Wavetable bank."""
+
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
 import numpy as np
 
 from .wavetable import Wavetable
+
+logger = logging.getLogger(__name__)
 
 
 class WavetableBank:
@@ -67,7 +72,7 @@ class WavetableBank:
             return self.add_wavetable(wavetable, name)
 
         except Exception as e:
-            print(f"Failed to load wavetable from {file_path}: {e}")
+            logger.error(f"Failed to load wavetable from {file_path}: {e}")
             return False
 
     def _load_wav_file(self, file_path: str) -> tuple[np.ndarray, int]:
@@ -193,7 +198,7 @@ class WavetableBank:
             return self.add_wavetable(wavetable, name)
 
         except Exception as e:
-            print(f"Failed to create wavetable '{name}': {e}")
+            logger.error(f"Failed to create wavetable '{name}': {e}")
             return False
 
     def get_wavetable(self, name: str) -> Wavetable | None:
@@ -259,5 +264,3 @@ class WavetableBank:
             "morph_groups": len(self.morph_groups),
             "memory_usage_mb": total_samples * 4 / (1024 * 1024),  # float32 = 4 bytes
         }
-
-

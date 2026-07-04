@@ -715,7 +715,7 @@ class UltraFastResonantFilter:
         x_r_arr = np.array(self.x_r, dtype=np.float32)
         y_r_arr = np.array(self.y_r, dtype=np.float32)
 
-        (x_l_arr, y_l_arr, x_r_arr, y_r_arr) = _numba_process_filter_block(
+        x_l_arr, y_l_arr, x_r_arr, y_r_arr = _numba_process_filter_block(
             input_left,
             input_right,
             output_left,

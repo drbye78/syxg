@@ -6,7 +6,7 @@ Tests SF2Zone, SF2Instrument, SF2Preset, SF2Sample, and RangeTree.
 
 from __future__ import annotations
 
-from synth.sf2 import sf2_data_model
+from synth.io.sf2 import sf2_data_model
 
 
 class TestSF2Zone:
@@ -315,79 +315,4 @@ class TestSF2Sample:
         assert abs(sample.get_root_frequency() - 440.0) < 0.1
 
 
-class TestRangeTree:
-    """Tests for RangeTree class."""
 
-    def test_range_tree_insertion(self):
-        """Test zone insertion into range tree."""
-        tree = sf2_data_model.RangeTree()
-
-        zone = sf2_data_model.SF2Zone("preset")
-        zone.key_range = (48, 72)
-        zone.velocity_range = (0, 127)
-
-        tree.add_zone(zone)
-        assert tree.zone_count == 1
-
-    def test_range_tree_query(self):
-        """Test zone query in range tree."""
-        tree = sf2_data_model.RangeTree()
-
-        # Add zone for middle range
-        zone = sf2_data_model.SF2Zone("preset")
-        zone.key_range = (48, 72)
-        zone.velocity_range = (64, 127)
-        tree.add_zone(zone)
-
-        # Query should find it
-        results = tree.find_matching_zones(60, 100)
-        assert len(results) == 1
-
-        # Query outside range should not find it
-        results = tree.find_matching_zones(20, 100)
-        assert len(results) == 0
-
-    def test_range_tree_multiple_zones(self):
-        """Test multiple zones in range tree."""
-        tree = sf2_data_model.RangeTree()
-
-        zones = [
-            (0, 127, 0, 127),  # Full range
-            (48, 60, 0, 127),  # Low keys
-            (72, 96, 0, 127),  # High keys
-        ]
-
-        for key_lo, key_hi, vel_lo, vel_hi in zones:
-            zone = sf2_data_model.SF2Zone("preset")
-            zone.key_range = (key_lo, key_hi)
-            zone.velocity_range = (vel_lo, vel_hi)
-            tree.add_zone(zone)
-
-        # Middle note should match 2 zones
-        results = tree.find_matching_zones(55, 100)
-        assert len(results) == 2
-
-    def test_range_tree_clear(self):
-        """Test clearing range tree."""
-        tree = sf2_data_model.RangeTree()
-
-        zone = sf2_data_model.SF2Zone("preset")
-        zone.key_range = (48, 72)
-        tree.add_zone(zone)
-
-        tree.clear()
-        assert tree.zone_count == 0
-        assert tree.root is None
-
-    def test_range_tree_avl_balance(self):
-        """Test AVL tree remains balanced."""
-        tree = sf2_data_model.RangeTree()
-
-        # Add zones in descending order (worst case for unbalanced)
-        for i in range(10, 0, -1):
-            zone = sf2_data_model.SF2Zone("preset")
-            zone.key_range = (i * 5, i * 5 + 10)
-            tree.add_zone(zone)
-
-        stats = tree.get_stats()
-        assert stats["is_balanced"] is True

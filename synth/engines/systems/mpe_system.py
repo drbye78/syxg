@@ -1,4 +1,5 @@
 """
+
 MPE (Microtonal Expression) System - Complete MPE Implementation
 
 Production-quality Microtonal Expression system with per-note pitch bending,
@@ -6,9 +7,13 @@ timbre control, and slide/lift parameters for expressive synthesis control.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class MPESystem:
@@ -48,7 +53,7 @@ class MPESystem:
         # Create MPE manager
         self.mpe_manager = MPEManager(max_channels=self.max_channels)
 
-        print("🎹 MPE (Microtonal Expression) system initialized")
+        logger.info("🎹 MPE (Microtonal Expression) system initialized")
 
     def process_note_on(self, channel: int, note: int, velocity: int):
         """
@@ -263,9 +268,9 @@ class MPESystem:
             "zones": len(self.mpe_manager.zones),
             "active_notes": len(self.mpe_manager.active_notes),
             "pitch_bend_range": self.global_pitch_bend_range,
-            "manager_info": self.mpe_manager.get_mpe_info()
-            if hasattr(self.mpe_manager, "get_mpe_info")
-            else {},
+            "manager_info": (
+                self.mpe_manager.get_mpe_info() if hasattr(self.mpe_manager, "get_mpe_info") else {}
+            ),
         }
 
     def set_mpe_enabled(self, enabled: bool):

@@ -1,4 +1,5 @@
 """
+
 XG Voice Instance - Refactored for unified region architecture.
 
 Part of the unified region-based synthesis architecture.
@@ -9,6 +10,7 @@ Refactored to work with IRegion interface.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from typing import Any
 
@@ -310,7 +312,14 @@ class VoiceInstance:
                     # Ensure samples match expected block size
                     if samples.shape[0] != block_size:
                         if samples.shape[0] < block_size:
-                            padding = np.zeros((block_size - samples.shape[0], 2), dtype=np.float32)
+                            if self.buffer_pool:
+                                padding = self.buffer_pool.get_stereo_buffer(
+                                    block_size - samples.shape[0]
+                                )
+                            else:
+                                padding = np.zeros(
+                                    (block_size - samples.shape[0], 2), dtype=np.float32
+                                )
                             samples = np.vstack([samples, padding])
                         else:
                             samples = samples[:block_size]
@@ -334,10 +343,11 @@ class VoiceInstance:
         if self.master_volume != 1.0:
             output *= self.master_volume
 
-        # Apply pan
+        # Apply pan (constant-power)
         if self.pan != 0.0:
-            pan_left = 1.0 - max(0.0, self.pan)
-            pan_right = 1.0 - max(0.0, -self.pan)
+            angle = self.pan * (math.pi / 4.0)
+            pan_left = math.cos(angle + math.pi / 4.0)
+            pan_right = math.sin(angle + math.pi / 4.0)
             output[:, 0] *= pan_left  # Left channel
             output[:, 1] *= pan_right  # Right channel
 
@@ -358,10 +368,19 @@ class VoiceInstance:
         """
         gain = 1.0
 
-        # Velocity-based gain - use linear for now
+        # Velocity-based gain with curve selection (SF2 gen 41)
         if hasattr(region, "current_velocity"):
             vel = region.current_velocity
-            gain *= vel / 127.0
+            vel_norm = vel / 127.0
+
+            # Get velocity curve type from region (SF2 gen 41)
+            velocity_curve = region.velocity_curve
+            if velocity_curve == 1:  # concave
+                vel_norm = vel_norm * vel_norm
+            elif velocity_curve == 2:  # convex
+                vel_norm = 1.0 - (1.0 - vel_norm) * (1.0 - vel_norm)
+
+            gain *= vel_norm
 
         # Crossfade gain from region
         if hasattr(region, "calculate_crossfade_gain"):

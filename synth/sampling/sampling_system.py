@@ -1,4 +1,5 @@
 """
+
 Yamaha Motif User Sampling System
 
 Complete sampling and sample management system providing professional
@@ -7,6 +8,8 @@ Provides authentic Motif-compatible sampling workflow.
 """
 
 from __future__ import annotations
+import logging
+
 
 import time
 import wave
@@ -15,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class Sample:
@@ -164,7 +169,7 @@ class AudioRecorder:
         """Start audio recording"""
         self.is_recording = True
         self.recorded_data = []
-        print(f"🎤 Started recording: {self.channels}ch @ {self.sample_rate}Hz")
+        logger.info(f"🎤 Started recording: {self.channels}ch @ {self.sample_rate}Hz")
 
     def stop_recording(self) -> Sample | None:
         """Stop recording and return recorded sample"""
@@ -183,7 +188,9 @@ class AudioRecorder:
         sample_name = f"Recording_{int(time.time())}"
         sample = Sample(recorded_array, self.sample_rate, sample_name)
 
-        print(f"🎤 Recording complete: {sample.get_duration():.2f}s, {len(recorded_array)} samples")
+        logger.info(
+            f"🎤 Recording complete: {sample.get_duration():.2f}s, {len(recorded_array)} samples"
+        )
         return sample
 
     def process_audio_input(self, audio_data: np.ndarray):
@@ -447,20 +454,22 @@ class SampleManager:
         # Memory tracking
         self.memory_used_mb = 0.0
 
-        print(f"🎵 Sample Manager initialized: {max_samples} samples, {max_memory_mb}MB limit")
+        logger.info(
+            f"🎵 Sample Manager initialized: {max_samples} samples, {max_memory_mb}MB limit"
+        )
 
     def add_sample(self, sample: Sample, category: str = "user") -> bool:
         """Add sample to manager"""
         # Check limits
         if len(self.samples) >= self.max_samples:
-            print("❌ Sample limit reached")
+            logger.error("❌ Sample limit reached")
             return False
 
         # Estimate memory usage (float32 = 4 bytes per sample)
         sample_memory_mb = (sample.length * sample.channels * 4) / (1024 * 1024)
 
         if self.memory_used_mb + sample_memory_mb > self.max_memory_mb:
-            print("❌ Memory limit reached")
+            logger.error("❌ Memory limit reached")
             return False
 
         # Generate unique name if needed
@@ -478,7 +487,7 @@ class SampleManager:
             self.categories[category].append(name)
 
         self.memory_used_mb += sample_memory_mb
-        print(f"✅ Added sample: {name} ({sample_memory_mb:.1f}MB)")
+        logger.info(f"✅ Added sample: {name} ({sample_memory_mb:.1f}MB)")
         return True
 
     def remove_sample(self, name: str) -> bool:
@@ -496,7 +505,7 @@ class SampleManager:
 
         del self.samples[name]
         self.memory_used_mb -= sample_memory_mb
-        print(f"🗑️ Removed sample: {name}")
+        logger.info(f"🗑️ Removed sample: {name}")
         return True
 
     def get_sample(self, name: str) -> Sample | None:
@@ -532,11 +541,11 @@ class SampleManager:
                 wav_file.setframerate(sample.sample_rate)
                 wav_file.writeframes(wav_data.tobytes())
 
-            print(f"💾 Saved sample: {name} -> {file_path}")
+            logger.info(f"💾 Saved sample: {name} -> {file_path}")
             return True
 
         except Exception as e:
-            print(f"❌ Failed to save sample: {e}")
+            logger.error(f"❌ Failed to save sample: {e}")
             return False
 
     def load_sample_from_file(self, file_path: str, name: str | None = None) -> bool:
@@ -559,7 +568,7 @@ class SampleManager:
                 elif sample_width == 4:  # 32-bit float
                     data = np.frombuffer(raw_data, dtype=np.float32)
                 else:
-                    print("❌ Unsupported sample format")
+                    logger.error("❌ Unsupported sample format")
                     return False
 
                 # Reshape for multi-channel
@@ -573,7 +582,7 @@ class SampleManager:
                 return self.add_sample(sample, "user")
 
         except Exception as e:
-            print(f"❌ Failed to load sample: {e}")
+            logger.error(f"❌ Failed to load sample: {e}")
             return False
 
     def start_recording(self, sample_rate: int = 44100, channels: int = 1) -> bool:
@@ -614,7 +623,7 @@ class SampleManager:
                 return sample.name
 
         except Exception as e:
-            print(f"❌ Failed to generate waveform: {e}")
+            logger.error(f"❌ Failed to generate waveform: {e}")
 
         return None
 
@@ -645,7 +654,7 @@ class SampleManager:
                 return False
 
         except Exception as e:
-            print(f"❌ Failed to edit sample: {e}")
+            logger.error(f"❌ Failed to edit sample: {e}")
             return False
 
     def get_manager_status(self) -> dict[str, Any]:
@@ -660,9 +669,9 @@ class SampleManager:
             "memory_limit_mb": self.max_memory_mb,
             "sample_limit": self.max_samples,
             "categories": {cat: len(samples) for cat, samples in self.categories.items()},
-            "recording_active": self.recorder.is_recording
-            if hasattr(self.recorder, "is_recording")
-            else False,
+            "recording_active": (
+                self.recorder.is_recording if hasattr(self.recorder, "is_recording") else False
+            ),
             "samples": {
                 name: s.get_sample_info() for name, s in list(self.samples.items())[:10]
             },  # First 10 samples

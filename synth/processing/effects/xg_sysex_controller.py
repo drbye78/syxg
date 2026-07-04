@@ -1,4 +1,5 @@
 """
+
 XG SYSEX Controller - Complete XG System Exclusive Control
 
 Implements XG SYSEX (System Exclusive) message handling for bulk parameter
@@ -16,8 +17,12 @@ Copyright (c) 2025 XG Synthesis Core
 """
 
 from __future__ import annotations
+import logging
+
 
 from enum import IntEnum
+
+logger = logging.getLogger(__name__)
 
 
 class XGSYSEXCommand(IntEnum):
@@ -109,7 +114,7 @@ class XGSYSEXController:
             pass  # Invalid command, continue to unknown command message
 
         # Unknown command
-        print(f"XG SYSEX: Unknown command 0x{command:02X}")
+        logger.warning(f"XG SYSEX: Unknown command 0x{command:02X}")
         return None
 
     def _handle_bulk_dump(self, data: list[int]) -> list[int] | None:
@@ -139,7 +144,7 @@ class XGSYSEXController:
             if self._apply_bulk_parameter(effect_type, param_id, param_value, param_type):
                 applied_params += 1
 
-        print(
+        logger.info(
             f"XG SYSEX: Applied {applied_params}/{param_count} bulk parameters for effect type {effect_type}"
         )
         return None  # No response needed
@@ -159,11 +164,13 @@ class XGSYSEXController:
         param_type = data[4]
 
         if self._apply_bulk_parameter(effect_type, param_id, param_value, param_type):
-            print(
+            logger.info(
                 f"XG SYSEX: Applied parameter {param_id} = {param_value} for effect type {effect_type}"
             )
         else:
-            print(f"XG SYSEX: Failed to apply parameter {param_id} for effect type {effect_type}")
+            logger.error(
+                f"XG SYSEX: Failed to apply parameter {param_id} for effect type {effect_type}"
+            )
 
         return None
 
@@ -199,7 +206,9 @@ class XGSYSEXController:
         midi_channel = data[1]
 
         # This would typically update channel routing tables
-        print(f"XG SYSEX: Receive channel assignment - Part {part_id} -> MIDI CH {midi_channel}")
+        logger.info(
+            f"XG SYSEX: Receive channel assignment - Part {part_id} -> MIDI CH {midi_channel}"
+        )
         return None
 
     def _handle_effect_setup(self, data: list[int]) -> list[int] | None:
@@ -221,7 +230,7 @@ class XGSYSEXController:
         elif setup_command == 0x02:  # Global effect settings
             return self._handle_global_effect_settings(setup_data)
 
-        print(f"XG SYSEX: Unknown effect setup command 0x{setup_command:02X}")
+        logger.warning(f"XG SYSEX: Unknown effect setup command 0x{setup_command:02X}")
         return None
 
     def _handle_preset_dump(self, data: list[int]) -> list[int] | None:
@@ -300,7 +309,7 @@ class XGSYSEXController:
             return False
 
         except Exception as e:
-            print(f"XG SYSEX: Error applying bulk parameter: {e}")
+            logger.error(f"XG SYSEX: Error applying bulk parameter: {e}")
             return False
 
     def _apply_reverb_parameter(self, param_id: int, value: int) -> bool:
@@ -442,7 +451,7 @@ class XGSYSEXController:
 
     def _apply_preset_dump(self, preset_id: int, data: list[int]) -> list[int] | None:
         """Apply a preset dump (would save preset configuration)."""
-        print(f"XG SYSEX: Received preset {preset_id} dump ({len(data)} bytes)")
+        logger.info(f"XG SYSEX: Received preset {preset_id} dump ({len(data)} bytes)")
         return None
 
     def _create_system_capabilities(self) -> list[int]:
@@ -524,10 +533,12 @@ class XGSYSEXController:
         if 0 <= effect_unit <= 9:
             enabled = enable_flag != 0
             if self.coordinator.set_effect_unit_activation(effect_unit, enabled):
-                print(f"XG SYSEX: Effect unit {effect_unit} {'enabled' if enabled else 'disabled'}")
+                logger.info(
+                    f"XG SYSEX: Effect unit {effect_unit} {'enabled' if enabled else 'disabled'}"
+                )
                 return None
 
-        print(f"XG SYSEX: Invalid effect unit {effect_unit} or enable flag {enable_flag}")
+        logger.info(f"XG SYSEX: Invalid effect unit {effect_unit} or enable flag {enable_flag}")
         return None
 
     def _handle_effect_chain_config(self, data: list[int]) -> list[int] | None:
@@ -558,7 +569,7 @@ class XGSYSEXController:
                 channel = params[0]
                 effect_type = params[1]
                 if self.coordinator.set_channel_insertion_effect(channel, 0, effect_type):
-                    print(
+                    logger.info(
                         f"XG SYSEX: Set insertion effect for channel {channel} to type {effect_type}"
                     )
                     return None
@@ -568,7 +579,7 @@ class XGSYSEXController:
             if len(params) >= 1:
                 variation_type = params[0]
                 if self.coordinator.set_variation_effect_type(variation_type):
-                    print(f"XG SYSEX: Set variation effect to type {variation_type}")
+                    logger.info(f"XG SYSEX: Set variation effect to type {variation_type}")
                     return None
 
         elif chain_type == 2:  # System chain
@@ -589,10 +600,10 @@ class XGSYSEXController:
                 if param_id in param_names:
                     effect, param = param_names[param_id]
                     if self.coordinator.set_system_effect_parameter(effect, param, param_value):
-                        print(f"XG SYSEX: Set {effect} {param} to {param_value}")
+                        logger.info(f"XG SYSEX: Set {effect} {param} to {param_value}")
                         return None
 
-        print(f"XG SYSEX: Unknown chain configuration type {chain_type}")
+        logger.warning(f"XG SYSEX: Unknown chain configuration type {chain_type}")
         return None
 
     def _handle_global_effect_settings(self, data: list[int]) -> list[int] | None:
@@ -620,20 +631,20 @@ class XGSYSEXController:
         if setting_type == 0:  # Master level
             master_level = value_norm * 2.0  # 0-2.0 range
             if self.coordinator.set_master_controls(level=master_level):
-                print(f"XG SYSEX: Set master level to {master_level:.2f}")
+                logger.info(f"XG SYSEX: Set master level to {master_level:.2f}")
                 return None
 
         elif setting_type == 1:  # Wet/dry mix
             wet_dry_mix = value_norm
             if self.coordinator.set_master_controls(wet_dry=wet_dry_mix):
-                print(f"XG SYSEX: Set wet/dry mix to {wet_dry_mix:.2f}")
+                logger.info(f"XG SYSEX: Set wet/dry mix to {wet_dry_mix:.2f}")
                 return None
 
         elif setting_type == 2:  # Processing enable/disable
             enabled = value_14bit > 0
             # Note: Coordinator doesn't have a direct enable/disable method
             # This would need to be implemented at a higher level
-            print(
+            logger.info(
                 f"XG SYSEX: Processing {'enabled' if enabled else 'disabled'} (not yet implemented)"
             )
             return None
@@ -641,8 +652,8 @@ class XGSYSEXController:
         elif setting_type == 3:  # Master EQ type
             eq_type = min(4, int(value_norm * 5))  # 0-4 range
             if self.coordinator.set_master_eq_type(eq_type):
-                print(f"XG SYSEX: Set master EQ type to {eq_type}")
+                logger.info(f"XG SYSEX: Set master EQ type to {eq_type}")
                 return None
 
-        print(f"XG SYSEX: Unknown global setting type {setting_type}")
+        logger.warning(f"XG SYSEX: Unknown global setting type {setting_type}")
         return None

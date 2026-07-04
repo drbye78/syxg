@@ -6,7 +6,7 @@ Tests AVLRangeTree, HierarchicalZoneCache, and SF2ZoneCacheManager.
 
 from __future__ import annotations
 
-from synth.sf2 import sf2_zone_cache
+from synth.io.sf2 import sf2_zone_cache
 from synth.io.sf2.sf2_data_model import SF2Zone
 
 
@@ -209,7 +209,7 @@ class TestHierarchicalZoneCache:
 
         # Second query should hit cache
         assert cache.cache_misses == 1
-        results = cache.get_matching_zones(60, 100)
+        cache.get_matching_zones(60, 100)
         assert cache.cache_hits == 1
 
     def test_clear(self):
@@ -299,7 +299,7 @@ class TestZoneCachePerformance:
         # Time the query
         start = time.perf_counter()
         for _ in range(100):
-            results = tree.query(50, 100)
+            tree.query(50, 100)
         elapsed = time.perf_counter() - start
 
         # Should be reasonably fast

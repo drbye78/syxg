@@ -135,17 +135,21 @@ class XGVariationEffectsProcessor:
                 "parameters": dict(self._effect_states),
                 "supported_effects": 84,
                 "modular_processors": {
-                    "delay": self.delay_processor.get_supported_types()
-                    if self.delay_processor
-                    else [],
-                    "chorus": self.chorus_processor.get_supported_types()
-                    if self.chorus_processor
-                    else [],
-                    "distortion": self.distortion_processor.get_supported_types()
-                    if self.distortion_processor
-                    else [],
-                    "special": self.special_processor.get_supported_types()
-                    if self.special_processor
-                    else [],
+                    "delay": (
+                        self.delay_processor.get_supported_types() if self.delay_processor else []
+                    ),
+                    "chorus": (
+                        self.chorus_processor.get_supported_types() if self.chorus_processor else []
+                    ),
+                    "distortion": (
+                        self.distortion_processor.get_supported_types()
+                        if self.distortion_processor
+                        else []
+                    ),
+                    "special": (
+                        self.special_processor.get_supported_types()
+                        if self.special_processor
+                        else []
+                    ),
                 },
             }

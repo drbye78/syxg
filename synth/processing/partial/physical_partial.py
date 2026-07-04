@@ -64,6 +64,7 @@ class PhysicalPartial(SynthesisPartial):
             Stereo audio buffer (block_size, 2)
         """
         if not self.active:
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Use stored note and velocity for generation
@@ -131,9 +132,11 @@ class PhysicalPartial(SynthesisPartial):
                 "brightness": self.brightness,
                 "damping": self.damping,
                 "scattering_coeff": self.scattering_coeff,
-                "physical_engine_info": self.physical_engine.get_engine_info()
-                if hasattr(self.physical_engine, "get_engine_info")
-                else {},
+                "physical_engine_info": (
+                    self.physical_engine.get_engine_info()
+                    if hasattr(self.physical_engine, "get_engine_info")
+                    else {}
+                ),
             }
         )
         return info

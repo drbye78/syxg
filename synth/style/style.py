@@ -405,9 +405,9 @@ class StyleSection:
             fade_out_time=data.get("fade_out_time", 0.0),
             count_in_bars=data.get("count_in_bars", 0),
             auto_fill=data.get("auto_fill", True),
-            variation_link=StyleSectionType(data["variation_link"])
-            if data.get("variation_link")
-            else None,
+            variation_link=(
+                StyleSectionType(data["variation_link"]) if data.get("variation_link") else None
+            ),
         )
 
 

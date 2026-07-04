@@ -1,4 +1,5 @@
 """
+
 Jupiter-X Component Manager
 
 Central hub for all Jupiter-X components, managing the 16-part multitimbral
@@ -6,6 +7,8 @@ system, global parameters, and integration with the modern synthesizer.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
@@ -14,6 +17,8 @@ import numpy as np
 
 from .constants import *
 from .part import ENGINE_DIGITAL, ENGINE_EXTERNAL, ENGINE_FM, JupiterXPart
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXSystemParameters:
@@ -253,15 +258,16 @@ class JupiterXComponentManager:
     system parameters, effects, and integration with the modern synthesizer.
     """
 
-    def __init__(self, sample_rate: int = 44100):
+    def __init__(self, sample_rate: int = 44100, buffer_pool=None):
         self.sample_rate = sample_rate
+        self.buffer_pool = buffer_pool
 
         # Core components
         self.system_params = JupiterXSystemParameters()
         self.effects_params = JupiterXEffectsParameters()
 
         # 16 multitimbral parts
-        self.parts = [JupiterXPart(i, sample_rate) for i in range(16)]
+        self.parts = [JupiterXPart(i, sample_rate, buffer_pool) for i in range(16)]
 
         # Voice allocation (monophonic per part)
         self.active_parts: dict[int, bool] = dict.fromkeys(range(16), False)
@@ -269,7 +275,7 @@ class JupiterXComponentManager:
         # Thread safety
         self.lock = threading.RLock()
 
-        print("🎹 Jupiter-X Component Manager: Initialized with 16 parts")
+        logger.info("🎹 Jupiter-X Component Manager: Initialized with 16 parts")
 
     def process_parameter_change(self, address: bytes, value: int) -> bool:
         """
@@ -397,7 +403,10 @@ class JupiterXComponentManager:
         """
         with self.lock:
             # Initialize output buffer
-            output = np.zeros((block_size, 2), dtype=np.float32)
+            if self.buffer_pool is not None:
+                output = self.buffer_pool.get_stereo_buffer(block_size)
+            else:
+                output = np.zeros((block_size, 2), dtype=np.float32)
 
             # Mix audio from all active parts
             for part in self.parts:

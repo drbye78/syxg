@@ -1,12 +1,16 @@
 """Jupiter-X NRPN Message Controller."""
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
 
 from .component_manager import JupiterXComponentManager
 from .constants import *
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXNRPNController:
@@ -1278,7 +1282,7 @@ class JupiterXNRPNController:
         param_info = self.nrpn_map.get(param_key)
 
         if not param_info:
-            print(f"Jupiter-X NRPN: Unknown parameter {param_key}")
+            logger.warning(f"Jupiter-X NRPN: Unknown parameter {param_key}")
             return False
 
         # Process based on parameter type
@@ -1392,5 +1396,3 @@ class JupiterXNRPNController:
         messages.append(bytes([0xB0 | 0, 38, data_lsb]))  # CC 38 on channel 0
 
         return messages
-
-

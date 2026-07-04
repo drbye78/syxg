@@ -1,4 +1,5 @@
 """
+
 XG Controller Assignments (NRPN MSB 15-16)
 
 Implements XG controller assignment system for professional MIDI control.
@@ -14,9 +15,13 @@ Copyright (c) 2025
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGControllerAssignments:
@@ -86,8 +91,8 @@ class XGControllerAssignments:
         # Initialize defaults
         self._initialize_xg_defaults()
 
-        print("🎛️ XG CONTROLLER ASSIGNMENTS: Initialized")
-        print(f"   {num_channels} channels configured for XG controller routing")
+        logger.info("🎛️ XG CONTROLLER ASSIGNMENTS: Initialized")
+        logger.info(f"   {num_channels} channels configured for XG controller routing")
 
     def _initialize_xg_defaults(self):
         """Initialize XG controller assignment defaults."""
@@ -107,7 +112,9 @@ class XGControllerAssignments:
         for channel in range(self.num_channels):
             self.controller_assignments[channel] = xg_defaults.copy()
             self.controller_curves[channel] = dict.fromkeys(xg_defaults.keys(), 0)  # Linear curves
-            self.controller_ranges[channel] = dict.fromkeys(xg_defaults.keys(), (0, 127))  # Full range
+            self.controller_ranges[channel] = dict.fromkeys(
+                xg_defaults.keys(), (0, 127)
+            )  # Full range
 
     def handle_nrpn_msb15(self, channel: int, lsb: int, data_value: int) -> bool:
         """
@@ -456,7 +463,7 @@ class XGControllerAssignments:
             for channel in range(self.num_channels):
                 self.reset_channel_to_xg_defaults(channel)
 
-        print("🎛️ XG CONTROLLER ASSIGNMENTS: Reset all channels to XG defaults")
+        logger.info("🎛️ XG CONTROLLER ASSIGNMENTS: Reset all channels to XG defaults")
 
     def export_assignments(self) -> dict[str, Any]:
         """Export all controller assignments."""
@@ -484,7 +491,7 @@ class XGControllerAssignments:
                     }
                 return True
         except Exception as e:
-            print(f"❌ XG CONTROLLER ASSIGNMENTS: Import failed - {e}")
+            logger.error(f"❌ XG CONTROLLER ASSIGNMENTS: Import failed - {e}")
             return False
 
     def get_controller_assignment_info(self, assignment: int) -> dict[str, Any]:

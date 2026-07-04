@@ -1,4 +1,5 @@
 """
+
 XG System Exclusive (SYSEX) Controller
 
 Handles XG MIDI System Exclusive messages (F0 43 [device] 4C ... F7).
@@ -10,11 +11,15 @@ Copyright (c) 2025
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 import time
 from collections.abc import Callable
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGSystemExclusiveController:
@@ -142,8 +147,8 @@ class XGSystemExclusiveController:
         self.system_command_callback = None
         self.display_callback = None
 
-        print("🎹 XG SYSEX CONTROLLER: Initialized")
-        print(f"   Device ID: {self.device_id:02X}, Model ID: {self.model_id:02X}")
+        logger.info("🎹 XG SYSEX CONTROLLER: Initialized")
+        logger.info(f"   Device ID: {self.device_id:02X}, Model ID: {self.model_id:02X}")
 
     def _initialize_default_parameters(self):
         """Initialize XG parameters to default values."""
@@ -242,7 +247,7 @@ class XGSystemExclusiveController:
                     calculated_checksum = self._calculate_checksum(message_data[1:-2])
                     received_checksum = message_data[-2]
                     if calculated_checksum != received_checksum:
-                        print(
+                        logger.info(
                             f"⚠️ XG SYSEX: Checksum error (calculated: {calculated_checksum:02X}, received: {received_checksum:02X})"
                         )
                         return None
@@ -253,7 +258,7 @@ class XGSystemExclusiveController:
             return None  # Not an XG message
 
         except Exception as e:
-            print(f"❌ XG SYSEX: Error processing message: {e}")
+            logger.error(f"❌ XG SYSEX: Error processing message: {e}")
             return None
 
     def _process_xg_command(self, command: int, data: list[int]) -> dict[str, Any] | None:
@@ -279,10 +284,10 @@ class XGSystemExclusiveController:
                     result["timestamp"] = time.time()
                     return result
             except Exception as e:
-                print(f"❌ XG SYSEX: Error in {command_name} handler: {e}")
+                logger.error(f"❌ XG SYSEX: Error in {command_name} handler: {e}")
                 return None
         else:
-            print(f"⚠️ XG SYSEX: Unknown command {command:02X}")
+            logger.warning(f"⚠️ XG SYSEX: Unknown command {command:02X}")
             return None
 
         return None
@@ -339,7 +344,7 @@ class XGSystemExclusiveController:
         if self.system_command_callback:
             self.system_command_callback("xg_on")
 
-        print("🎹 XG SYSEX: XG System ON")
+        logger.info("🎹 XG SYSEX: XG System ON")
         return {"type": "system_command", "command": "xg_on"}
 
     def _handle_xg_system_off(self, data: list[int]) -> dict[str, Any] | None:
@@ -347,7 +352,7 @@ class XGSystemExclusiveController:
         if self.system_command_callback:
             self.system_command_callback("xg_off")
 
-        print("🎹 XG SYSEX: XG System OFF")
+        logger.info("🎹 XG SYSEX: XG System OFF")
         return {"type": "system_command", "command": "xg_off"}
 
     def _handle_xg_reset(self, data: list[int]) -> dict[str, Any] | None:
@@ -358,7 +363,7 @@ class XGSystemExclusiveController:
         if self.system_command_callback:
             self.system_command_callback("xg_reset")
 
-        print("🎹 XG SYSEX: XG Reset - All parameters reset to defaults")
+        logger.info("🎹 XG SYSEX: XG Reset - All parameters reset to defaults")
         return {"type": "system_command", "command": "xg_reset"}
 
     def _handle_parameter_change(self, data: list[int]) -> dict[str, Any] | None:
@@ -734,7 +739,7 @@ class XGSystemExclusiveController:
             return True
 
         except Exception as e:
-            print(f"❌ XG SYSEX: Error processing bulk dump data: {e}")
+            logger.error(f"❌ XG SYSEX: Error processing bulk dump data: {e}")
             return False
 
     def _generate_system_bulk_dump(self) -> list[int]:
@@ -857,7 +862,7 @@ class XGSystemExclusiveController:
             return True
 
         except Exception as e:
-            print(f"❌ XG SYSEX: Error processing system bulk dump: {e}")
+            logger.error(f"❌ XG SYSEX: Error processing system bulk dump: {e}")
             return False
 
     def _process_effect_bulk_dump(self, dump_data: list[int]) -> bool:
@@ -920,7 +925,7 @@ class XGSystemExclusiveController:
             return True
 
         except Exception as e:
-            print(f"❌ XG SYSEX: Error processing multipart bulk dump: {e}")
+            logger.error(f"❌ XG SYSEX: Error processing multipart bulk dump: {e}")
             return False
 
     # Bulk Dump Creation Methods

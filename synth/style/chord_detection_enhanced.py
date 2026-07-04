@@ -984,12 +984,16 @@ class EnhancedChordDetector:
         with self._lock:
             return {
                 "active_notes": len(self._active_notes),
-                "current_chord": self._current_chord.to_detected_chord().chord_name
-                if self._current_chord
-                else None,
-                "key_root": ChordRoot(self._key_context.root).name_display
-                if self._key_context.confidence > 0.3
-                else None,
+                "current_chord": (
+                    self._current_chord.to_detected_chord().chord_name
+                    if self._current_chord
+                    else None
+                ),
+                "key_root": (
+                    ChordRoot(self._key_context.root).name_display
+                    if self._key_context.confidence > 0.3
+                    else None
+                ),
                 "key_mode": self._key_context.mode if self._key_context.confidence > 0.3 else None,
                 "detection_count": self._detection_count,
             }

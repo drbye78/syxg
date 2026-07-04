@@ -1,4 +1,5 @@
 """
+
 Vibexg CLI - Command Line Interface
 
 This module provides the command-line interface for the vibexg
@@ -182,18 +183,20 @@ def parse_output_spec(spec: str) -> dict[str, Any]:
 def list_midi_ports():
     """List available MIDI ports."""
     if not RTMIDI_AVAILABLE:
-        print("MIDI port support not available - install python-rtmidi: pip install python-rtmidi")
+        logger.warning(
+            "MIDI port support not available - install python-rtmidi: pip install python-rtmidi"
+        )
         return
 
-    print("\nAvailable MIDI Input Ports:")
-    print("-" * 40)
+    logger.info("\nAvailable MIDI Input Ports:")
+    logger.info("-" * 40)
     for port in get_input_names():
-        print(f"  - {port}")
+        logger.info("  - %s", port)
 
-    print("\nAvailable MIDI Output Ports:")
-    print("-" * 40)
+    logger.info("\nAvailable MIDI Output Ports:")
+    logger.info("-" * 40)
     for port in get_output_names():
-        print(f"  - {port}")
+        logger.info("  - %s", port)
 
 
 def main():
@@ -234,7 +237,7 @@ def main():
 
         # Handle signals
         def signal_handler(sig, frame):
-            print("\nShutting down...")
+            logger.info("Shutting down...")
             workstation.stop()
             sys.exit(0)
 
@@ -243,7 +246,7 @@ def main():
 
         # Run demo if specified
         if args.demo:
-            print(f"Running demo: {args.demo}")
+            logger.info("Running demo: %s", args.demo)
             workstation.start()
             workstation.run_demo(args.demo)
             # Wait for demo to complete

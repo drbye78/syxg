@@ -1,4 +1,5 @@
 """
+
 XG Micro Tuning (NRPN MSB 17-18)
 
 Implements XG micro tuning and temperament system.
@@ -16,8 +17,11 @@ Copyright (c) 2025
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGScaleTuning:
@@ -414,11 +418,12 @@ class XGMicroTuning:
         # Parameter change callback
         self.parameter_change_callback = None
 
-        print("🎹 XG MICRO TUNING: Initialized")
-        print(
-            f"   {len(self.temperament_system.get_available_temperaments())} temperaments available"
+        logger.info("XG MICRO TUNING: Initialized")
+        logger.info(
+            "   %s temperaments available",
+            len(self.temperament_system.get_available_temperaments()),
         )
-        print("   Scale tuning, master tuning, and octave adjustments ready")
+        logger.info("   Scale tuning, master tuning, and octave adjustments ready")
 
     def handle_nrpn_msb17(self, channel: int, lsb: int, data_value: int) -> bool:
         """
@@ -633,7 +638,7 @@ class XGMicroTuning:
             self.master_tuning = XGMasterTuning()  # Reset to defaults
             self.channel_tuning_programs = [0] * self.num_channels
 
-        print("🎹 XG MICRO TUNING: Reset to concert pitch (A4 = 440Hz)")
+        logger.info("XG MICRO TUNING: Reset to concert pitch (A4 = 440Hz)")
 
     def export_tuning_setup(self) -> dict[str, Any]:
         """Export complete tuning setup."""
@@ -675,7 +680,7 @@ class XGMicroTuning:
                     self.channel_tuning_programs = setup_data["channel_programs"].copy()
                 return True
         except Exception as e:
-            print(f"❌ XG MICRO TUNING: Import failed - {e}")
+            logger.error("XG MICRO TUNING: Import failed - %s", e)
             return False
 
     def __str__(self) -> str:

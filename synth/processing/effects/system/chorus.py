@@ -289,5 +289,3 @@ class XGSystemChorusProcessor:
             # Mix dry and wet signals
             stereo_mix[i, 0] = input_left * (1.0 - level) + delayed_left * level
             stereo_mix[i, 1] = input_right * (1.0 - level) + delayed_right * level
-
-

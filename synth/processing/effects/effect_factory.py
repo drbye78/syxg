@@ -6,9 +6,11 @@ import logging
 import threading
 from typing import Any
 
+from .insertion import ProductionXGInsertionEffectsProcessor
 from .types import XGEffectCategory
 
 logger = logging.getLogger(__name__)
+
 
 class XGEffectFactory:
     """
@@ -94,12 +96,12 @@ class XGEffectFactory:
                     processor.set_variation_type(effect_type)
                 return processor
             except Exception as e:
-                print(f"Failed to create variation effect {effect_type}: {e}")
+                logger.error(f"Failed to create variation effect {effect_type}: {e}")
                 return None
 
     def create_insertion_effect(
         self, effect_type: int, max_delay_samples: int = 22050
-    ) -> XGInsertionEffectsProcessor | None:
+    ) -> ProductionXGInsertionEffectsProcessor | None:
         """
         Create an insertion effect processor.
 
@@ -123,7 +125,7 @@ class XGEffectFactory:
 
             # Create new instance
             try:
-                processor = XGInsertionEffectsProcessor(self.sample_rate, max_delay_samples)
+                processor = ProductionXGInsertionEffectsProcessor(self.sample_rate, max_delay_samples)
                 # Set effect types for all slots to the requested type
                 for slot in range(3):  # XG supports 3 insertion slots
                     processor.set_insertion_effect_type(slot, effect_type)
@@ -253,7 +255,5 @@ class XGEffectFactory:
             return processor
 
         except Exception as e:
-            print(f"Failed to create system chorus processor: {e}")
+            logger.error(f"Failed to create system chorus processor: {e}")
             return None
-
-

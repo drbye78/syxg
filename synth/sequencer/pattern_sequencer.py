@@ -1,4 +1,5 @@
 """
+
 XG Pattern Sequencer Architecture - Professional Grid-Based Sequencing System
 
 ARCHITECTURAL OVERVIEW:
@@ -305,6 +306,8 @@ PROFESSIONAL MUSIC PRODUCTION:
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 import time
@@ -313,6 +316,8 @@ from typing import Any
 
 from .groove_quantizer import GrooveQuantizer
 from .sequencer_types import ControlEvent, GrooveTemplate, NoteEvent, Pattern, QuantizeMode
+
+logger = logging.getLogger(__name__)
 
 
 class PatternSequencer:
@@ -744,7 +749,7 @@ class PatternSequencer:
                 time.sleep(0.01)
 
         except Exception as e:
-            print(f"Pattern sequencer playback error: {e}")
+            logger.error(f"Pattern sequencer playback error: {e}")
             self.is_playing = False
 
     def _send_note_off(self, note: NoteEvent) -> None:

@@ -1,4 +1,5 @@
 """
+
 JV-2080 Enhanced GS Component Manager - Roland GS Compatibility Architecture
 
 ARCHITECTURAL OVERVIEW:
@@ -162,9 +163,13 @@ INTEGRATION PATTERNS:
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class JV2080SystemParameters:
@@ -397,7 +402,7 @@ class JV2080Part:
         except ImportError:
             # Fallback if Jupiter-X modules not available
             self._jupiter_x_engines = {}
-            print(f"Warning: Jupiter-X engines not available for part {self.part_number}")
+            logger.warning(f"Warning: Jupiter-X engines not available for part {self.part_number}")
 
     def get_jupiter_x_engine(self, engine_type: int):
         """Get Jupiter-X engine instance by type"""

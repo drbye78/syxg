@@ -1,4 +1,5 @@
 """
+
 Parameter routing system for hierarchical parameter distribution.
 
 This module implements the hierarchical parameter routing system that distributes
@@ -8,6 +9,8 @@ for synthesizer-specific parameter handling.
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import TYPE_CHECKING, Any
 
@@ -15,6 +18,9 @@ from ..types.parameter_types import (
     ParameterScope,
     ParameterUpdate,
 )
+
+logger = logging.getLogger(__name__)
+
 
 if TYPE_CHECKING:
     from .modern_xg_synthesizer import ModernXGSynthesizer
@@ -339,9 +345,9 @@ class ParameterRouter:
             route_target: Target of the routing (e.g., "global", "channel_0")
         """
         route_info = {
-            "timestamp": self.synthesizer.current_time
-            if hasattr(self.synthesizer, "current_time")
-            else 0,
+            "timestamp": (
+                self.synthesizer.current_time if hasattr(self.synthesizer, "current_time") else 0
+            ),
             "parameter": param_update.name,
             "value": param_update.value,
             "scope": param_update.scope.value,
@@ -460,10 +466,12 @@ class ParameterRouter:
             return self.route_parameter_update(param_update)
 
         except Exception as e:
-            print(f"Parameter routing error for {param_path}: {e}")
+            logger.error(f"Parameter routing error for {param_path}: {e}")
             return False
 
-    def get_parameter_value(self, param_path: str, channel: int | None = None, part: int | None = None) -> float:
+    def get_parameter_value(
+        self, param_path: str, channel: int | None = None, part: int | None = None
+    ) -> float:
         """
         Get current value of a parameter.
 
@@ -509,7 +517,9 @@ class ParameterRouter:
 
         return True
 
-    def _make_key(self, param_path: str, channel: int | None = None, part: int | None = None) -> str:
+    def _make_key(
+        self, param_path: str, channel: int | None = None, part: int | None = None
+    ) -> str:
         """Create a unique key for parameter storage"""
         key = param_path
         if channel is not None:

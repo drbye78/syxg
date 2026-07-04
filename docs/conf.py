@@ -22,6 +22,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.coverage",
     "sphinx.ext.todo",
+    "myst_parser",
 ]
 
 templates_path = ["_templates"]

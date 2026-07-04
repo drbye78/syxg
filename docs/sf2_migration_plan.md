@@ -3,6 +3,31 @@
 
 ---
 
+> **Status Update (July 2026):** Many of the features listed in this migration plan have now been implemented in SF2Region. Notable completions include:
+> - **Exponential ADSR envelopes** — Attack, decay, release now use exponential (dB-based) curves
+> - **Modulation envelope** — Per-sample state machine implemented with delay→attack→hold→decay→sustain→release; key tracking (gens 31/32) applied; release starts from current level (not sustain level)
+> - **LFO system** — Mod LFO and Vib LFO objects instantiated and active (UltraFastXGLFO)
+> - **LFO→filter** — 4-sub-block interpolation for waveform-accurate modulation (replacing block-constant)
+> - **LFO→pitch** — Per-sample pitch modulation via _generate_pitch_envelope()
+> - **LFO→pan** — Per-sample constant-power pan with LFO modulation
+> - **Pitch envelope** — Full delay→attack→hold→decay→sustain→release per-sample state machine; routed to filter cutoff modulation
+> - **MIDI controllers** — Pitch bend, mod wheel, expression (CC11), volume (CC7), pan (CC10), sustain, aftertouch, breath all wired
+> - **Modulation matrix** — Controllers dict populated from synth.channels at note_on time, plumbed through the entire call chain
+> - **Velocity curves** — Concave/convex/linear selection via SF2 gen 41
+> - **Loop crossfade** — Fade-in at loop start boundary implemented
+> - **NRPN/SysEx** — XG NRPN protocol (single-CC6), GS sysex parsed and routed
+> - **XG/GS part mode** — SF2PartModeIntegrator routes drum/melodic parts correctly
+> - **Parameter range clamping** — All critical generators clamped (filter Fc/Q, LFO, envelope times, sustain, pan)
+> - **Pitch envelope (gen 54-59)** — Per-sample state machine; full delay→attack→hold→decay→sustain→release; applied to pitch AND filter modulation
+> - **Filter types beyond lowpass** — Highpass, bandpass, notch, peaking (gen 36)
+> - **Reverse playback** — Gen 57 reverse sample mode
+> - **Scale tuning / microtuning** — Generator 52 applied
+> - **GS sysex→audio bridge** — GSSysexHandler → Channel.gs_params → modulation dict → SF2Region pipeline
+> 
+> **Still pending (minor enhancements):** High-quality resampling (sinc/windowed), stereo width processing, voice stealing priority, and insertion effects routing.
+> 
+> This document remains valuable as an architectural reference and completeness checklist.
+
 ## 1. Executive Summary
 
 This document outlines the implementation plan to migrate features from `SF2Partial` (currently unused) to `SF2Region` (the active synthesis implementation). The goal is to achieve full SF2 v2.04 specification compliance with sample-accurate envelope processing, complete LFO modulation, modulation matrix integration, and MIDI controller support.

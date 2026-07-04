@@ -76,5 +76,3 @@ class ProductionFlangerProcessor:
             # Mix dry and wet
             wet_amount = self.lfo_depth
             return input_sample * (1.0 - wet_amount) + delayed_sample * wet_amount
-
-

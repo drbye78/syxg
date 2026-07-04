@@ -1,4 +1,5 @@
 """
+
 File-based MIDI Processing
 
 Handles MIDI file parsing for SMF (Standard MIDI Files) and UMP (Universal MIDI Packet) formats.
@@ -6,12 +7,16 @@ Provides high-level file parsing with proper timing and metadata handling.
 """
 
 from __future__ import annotations
+import logging
+
 
 import os
 import struct
 
 from .message import MIDIMessage
 from .types import MIDIStatus
+
+logger = logging.getLogger(__name__)
 
 
 class FileParser:
@@ -104,11 +109,13 @@ class FileParser:
 
             self.format = struct.unpack(">H", header[8:10])[0]
             if self.format not in [0, 1, 2]:
-                print(f"Warning: Unknown MIDI format {self.format}, continuing with parsing")
+                logger.warning(
+                    f"Warning: Unknown MIDI format {self.format}, continuing with parsing"
+                )
 
             num_tracks = struct.unpack(">H", header[10:12])[0]
             if num_tracks == 0:
-                print("Warning: MIDI file has no tracks")
+                logger.warning("Warning: MIDI file has no tracks")
                 return []
 
             self.division = struct.unpack(">H", header[12:14])[0]
@@ -121,23 +128,25 @@ class FileParser:
             for i in range(num_tracks):
                 track_header = file_handle.read(8)
                 if len(track_header) < 8:
-                    print(f"Warning: Unexpected end of file while reading track {i} header")
+                    logger.warning(
+                        f"Warning: Unexpected end of file while reading track {i} header"
+                    )
                     break
 
                 if track_header[:4] != b"MTrk":
-                    print(f"Warning: Invalid track header at track {i}, expected MTrk")
+                    logger.warning(f"Warning: Invalid track header at track {i}, expected MTrk")
                     continue
 
                 track_length = struct.unpack(">I", track_header[4:8])[0]
                 if track_length > 100 * 1024 * 1024:  # 100MB limit to prevent memory issues
-                    print(
+                    logger.info(
                         f"Warning: Track {i} appears to have invalid length ({track_length}), skipping"
                     )
                     continue
 
                 track_data = file_handle.read(track_length)
                 if len(track_data) != track_length:
-                    print(
+                    logger.info(
                         f"Warning: Track {i} has unexpected length (expected {track_length}, got {len(track_data)})"
                     )
                     # Truncate to actual length if shorter, or skip if too long

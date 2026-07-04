@@ -1,4 +1,5 @@
 """
+
 Jupiter-X MPE (MIDI Polyphonic Expression) Manager
 
 Complete MPE implementation for microtonal expression and per-note control,
@@ -7,6 +8,8 @@ timbre, and expression per note.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 import time
@@ -15,6 +18,8 @@ from typing import Any
 import numpy as np
 
 from .constants import *
+
+logger = logging.getLogger(__name__)
 
 
 class MPENoteData:
@@ -249,7 +254,7 @@ class JupiterXMPEManager:
         self.timbre_callback: Callable | None = None
         self.pressure_callback: Callable | None = None
 
-        print("🎹 Jupiter-X MPE: Initialized with dual-zone support")
+        logger.info("🎹 Jupiter-X MPE: Initialized with dual-zone support")
 
     def enable_mpe(self, enable: bool = True):
         """Enable or disable MPE mode."""
@@ -577,9 +582,9 @@ class JupiterXMPEManager:
                 "harmonic_series_support": hasattr(self, "harmonic_series"),
             },
             "tuning_system": self.microtonal_tuning,
-            "harmonic_content": self.get_harmonic_content(60)
-            if hasattr(self, "harmonic_series")
-            else None,
+            "harmonic_content": (
+                self.get_harmonic_content(60) if hasattr(self, "harmonic_series") else None
+            ),
         }
 
 

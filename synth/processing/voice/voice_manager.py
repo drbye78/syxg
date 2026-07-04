@@ -126,6 +126,7 @@ class VoiceInfo:
     engine_type: str
     state: VoiceState
     start_time: float
+    engine_params: dict[str, Any] | None = None
     priority: int = 0
     effects_chain: list[str] | None = None
     modulation_data: dict[str, Any] | None = None
@@ -276,7 +277,13 @@ class VoiceManager:
         self.voice_stolen_callback: Callable[[VoiceInfo, VoiceInfo], None] | None = None
 
     def allocate_voice(
-        self, channel: int, note: int, velocity: int, engine_type: str
+        self,
+        channel: int,
+        note: int,
+        velocity: int,
+        engine_type: str,
+        engine_params: dict[str, Any] | None = None,
+        modulation_data: dict[str, Any] | None = None,
     ) -> int | None:
         """
         Allocate a voice for note playback.
@@ -286,6 +293,7 @@ class VoiceManager:
             note: MIDI note number (0-127)
             velocity: MIDI velocity (0-127)
             engine_type: Synthesis engine type
+            engine_params: Optional engine-specific parameters (e.g. bank, program)
 
         Returns:
             Voice ID or None if allocation failed
@@ -295,18 +303,28 @@ class VoiceManager:
             existing_voice = self.find_voice(channel, note)
             if existing_voice is not None:
                 # Retrigger existing voice
-                self._update_voice(existing_voice, velocity)
+                self._update_voice(existing_voice, velocity, modulation_data=modulation_data)
                 return existing_voice
 
             # Try to allocate a free voice
             voice_id = self._allocate_free_voice()
             if voice_id is not None:
-                return self._initialize_voice(voice_id, channel, note, velocity, engine_type)
+                return self._initialize_voice(
+                    voice_id, channel, note, velocity, engine_type, engine_params, modulation_data
+                )
 
             # No free voices, attempt stealing
-            stolen_voice_id = self._steal_voice(channel, note, velocity, engine_type)
+            stolen_voice_id = self._steal_voice(channel, note, velocity, engine_type, engine_params)
             if stolen_voice_id is not None:
-                return self._reallocate_voice(stolen_voice_id, channel, note, velocity, engine_type)
+                return self._reallocate_voice(
+                    stolen_voice_id,
+                    channel,
+                    note,
+                    velocity,
+                    engine_type,
+                    engine_params,
+                    modulation_data,
+                )
 
             # Allocation failed
             self.allocation_stats["allocation_failures"] += 1
@@ -319,7 +337,14 @@ class VoiceManager:
         return None
 
     def _initialize_voice(
-        self, voice_id: int, channel: int, note: int, velocity: int, engine_type: str
+        self,
+        voice_id: int,
+        channel: int,
+        note: int,
+        velocity: int,
+        engine_type: str,
+        engine_params: dict[str, Any] | None = None,
+        modulation_data: dict[str, Any] | None = None,
     ) -> int:
         """Initialize a newly allocated voice"""
         voice_info = VoiceInfo(
@@ -328,6 +353,8 @@ class VoiceManager:
             note=note,
             velocity=velocity,
             engine_type=engine_type,
+            engine_params=engine_params or {},
+            modulation_data=modulation_data or {},
             state=VoiceState.ATTACK,
             start_time=time.time(),
             priority=self.voice_priorities.get(engine_type, 0),
@@ -347,7 +374,14 @@ class VoiceManager:
         return voice_id
 
     def _reallocate_voice(
-        self, voice_id: int, channel: int, note: int, velocity: int, engine_type: str
+        self,
+        voice_id: int,
+        channel: int,
+        note: int,
+        velocity: int,
+        engine_type: str,
+        engine_params: dict[str, Any] | None = None,
+        modulation_data: dict[str, Any] | None = None,
     ) -> int:
         """Reallocate a stolen voice"""
         old_voice_info = self.active_voices[voice_id]
@@ -359,6 +393,8 @@ class VoiceManager:
             note=note,
             velocity=velocity,
             engine_type=engine_type,
+            engine_params=engine_params or {},
+            modulation_data=modulation_data or {},
             state=VoiceState.ATTACK,
             start_time=time.time(),
             priority=self.voice_priorities.get(engine_type, 0),
@@ -375,7 +411,14 @@ class VoiceManager:
 
         return voice_id
 
-    def _steal_voice(self, channel: int, note: int, velocity: int, engine_type: str) -> int | None:
+    def _steal_voice(
+        self,
+        channel: int,
+        note: int,
+        velocity: int,
+        engine_type: str,
+        engine_params: dict[str, Any] | None = None,
+    ) -> int | None:
         """
         Attempt to steal a voice using the configured strategy.
 
@@ -400,14 +443,62 @@ class VoiceManager:
         else:
             return self._steal_oldest()  # Default fallback
 
+    def _get_voice_priority_score(self, voice_info: VoiceInfo) -> float:
+        """Get combined voice priority score for stealing decisions.
+
+        Incorporates per-voice fine-grained priority from the synthesis region
+        (e.g., SF2Region._voice_priority) when available, providing more nuanced
+        stealing decisions than engine-type priority alone.
+
+        The region's _voice_priority (0.0-1.0, lower = stolen first) combines:
+        - Velocity factor (quieter = lower priority)
+        - Age factor (older = lower priority, capped at 30s)
+        - Note factor (extreme notes = lower priority)
+        - Drum bonus (drum channels get slightly higher priority)
+
+        Lower score = stolen first.
+
+        Args:
+            voice_info: Voice to evaluate
+
+        Returns:
+            Priority score (0.0 = steal first, higher = less likely to be stolen)
+        """
+        # Per-voice fine-grained priority from the region (e.g., SF2Region)
+        if voice_info.engine_params and "voice_priority" in voice_info.engine_params:
+            return voice_info.engine_params["voice_priority"]
+
+        # Fallback: normalize engine priority (0-10) to 0.0-1.0
+        # Higher engine priority = higher score = less likely to be stolen
+        return voice_info.priority / 10.0 if voice_info.priority > 0 else 0.5
+
     def _steal_by_priority(self, requesting_priority: int) -> int | None:
-        """Steal voice with lowest priority"""
-        lowest_priority = requesting_priority + 1  # Only steal lower priority
+        """Steal voice with lowest combined priority score.
+
+        Uses the combined score from _get_voice_priority_score(), which factors
+        in both the engine-type priority and the per-voice fine-grained priority
+        from the region (e.g., SF2Region._voice_priority).
+
+        Only steals voices with strictly lower engine priority than the requester.
+        Among eligible voices, steals the one with the lowest combined score.
+
+        Args:
+            requesting_priority: Engine priority of the requesting voice
+
+        Returns:
+            Voice ID to steal, or None if no eligible candidate
+        """
+        lowest_score = float("inf")
         candidate_voice = None
 
         for voice_id, voice_info in self.active_voices.items():
-            if voice_info.priority < lowest_priority:
-                lowest_priority = voice_info.priority
+            # Only steal voices with lower engine priority than requester
+            if voice_info.priority >= requesting_priority:
+                continue
+
+            score = self._get_voice_priority_score(voice_info)
+            if score < lowest_score:
+                lowest_score = score
                 candidate_voice = voice_id
 
         return candidate_voice
@@ -548,11 +639,18 @@ class VoiceManager:
                 return True
             return False
 
-    def _update_voice(self, voice_id: int, new_velocity: int):
+    def _update_voice(
+        self,
+        voice_id: int,
+        new_velocity: int,
+        modulation_data: dict[str, Any] | None = None,
+    ) -> None:
         """Update an existing voice (retrigger)"""
         if voice_id in self.active_voices:
             voice_info = self.active_voices[voice_id]
             voice_info.velocity = new_velocity
+            if modulation_data is not None:
+                voice_info.modulation_data = modulation_data
             voice_info.state = VoiceState.ATTACK
             voice_info.start_time = time.time()  # Reset lifetime
 

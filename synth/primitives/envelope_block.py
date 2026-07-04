@@ -3,6 +3,8 @@ Block-optimized ADSR Envelope implementation for XG synthesizer.
 Provides high-performance envelope generation with vectorized processing.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 import numpy as np
@@ -11,8 +13,18 @@ import numpy as np
 class BlockADSREnvelope:
     """Block-optimized ADSR envelope with vectorized processing and sample-accurate timing"""
 
-    def __init__(self, delay=0.0, attack=0.01, hold=0.0, decay=0.3, sustain=0.7, release=0.5,
-                 velocity_sense=1.0, key_scaling=0.0, sample_rate=44100):
+    def __init__(
+        self,
+        delay=0.0,
+        attack=0.01,
+        hold=0.0,
+        decay=0.3,
+        sustain=0.7,
+        release=0.5,
+        velocity_sense=1.0,
+        key_scaling=0.0,
+        sample_rate=44100,
+    ):
         self.delay = delay
         self.attack = attack
         self.hold = hold
@@ -59,8 +71,13 @@ class BlockADSREnvelope:
         self.modulated_sustain = sustain
         self.modulated_release = release
 
-    def process_block(self, block_size: int, velocity: float = 127.0, note: int = 60,
-                     midi_events: list[dict[str, Any]] = None) -> np.ndarray:
+    def process_block(
+        self,
+        block_size: int,
+        velocity: float = 127.0,
+        note: int = 60,
+        midi_events: list[dict[str, Any]] = None,
+    ) -> np.ndarray:
         """
         Process a block of samples with sample-accurate envelope generation.
 
@@ -87,7 +104,7 @@ class BlockADSREnvelope:
             # Check for MIDI events at this sample
             if midi_events:
                 for event in midi_events:
-                    if event.get('sample_position', -1) == i:
+                    if event.get("sample_position", -1) == i:
                         self._process_midi_event(event)
 
             # Generate envelope sample with current parameters
@@ -108,9 +125,9 @@ class BlockADSREnvelope:
 
     def _process_midi_event(self, event: dict[str, Any]):
         """Process a MIDI event with sample-accurate timing"""
-        command = event.get('command', 0)
-        data1 = event.get('data1', 0)
-        data2 = event.get('data2', 0)
+        command = event.get("command", 0)
+        data1 = event.get("data1", 0)
+        data2 = event.get("data2", 0)
 
         # Note On
         if command == 144 and data2 > 0:  # Note On with velocity > 0
@@ -279,10 +296,23 @@ class BlockADSREnvelope:
         """Original per-sample processing for compatibility"""
         return self._process_sample(1.0, 1.0)
 
-    def update_parameters(self, delay=None, attack=None, hold=None, decay=None, sustain=None, release=None,
-                         velocity_sense=None, key_scaling=None,
-                         modulated_delay=None, modulated_attack=None, modulated_hold=None,
-                         modulated_decay=None, modulated_sustain=None, modulated_release=None):
+    def update_parameters(
+        self,
+        delay=None,
+        attack=None,
+        hold=None,
+        decay=None,
+        sustain=None,
+        release=None,
+        velocity_sense=None,
+        key_scaling=None,
+        modulated_delay=None,
+        modulated_attack=None,
+        modulated_hold=None,
+        modulated_decay=None,
+        modulated_sustain=None,
+        modulated_release=None,
+    ):
         """Update envelope parameters"""
         if delay is not None:
             self.delay = max(0.0, delay)

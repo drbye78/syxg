@@ -1,12 +1,16 @@
 """Jupiter-X SysEx Message Controller."""
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
 
 from .component_manager import JupiterXComponentManager
 from .constants import *
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXSysExController:
@@ -171,7 +175,7 @@ class JupiterXSysExController:
         if handler:
             return handler(data)
         else:
-            print(f"Jupiter-X SysEx: Unknown command {command:02X}")
+            logger.warning(f"Jupiter-X SysEx: Unknown command {command:02X}")
             return None
 
     def _is_jupiter_x_sysex(self, data: bytes) -> bool:
@@ -365,7 +369,7 @@ class JupiterXSysExController:
                 return False
 
         except Exception as e:
-            print(f"Jupiter-X SysEx: Error parsing bulk dump data: {e}")
+            logger.error(f"Jupiter-X SysEx: Error parsing bulk dump data: {e}")
             return False
 
     def _apply_system_bulk_dump(self, data: bytes) -> bool:
@@ -574,9 +578,11 @@ class JupiterXSysExController:
             part.key_range_high,
             part.velocity_range_low,
             part.velocity_range_high,
-            part.receive_channel
-            if part.receive_channel < 16
-            else (254 if part.receive_channel == 254 else 255),
+            (
+                part.receive_channel
+                if part.receive_channel < 16
+                else (254 if part.receive_channel == 254 else 255)
+            ),
             0 if part.polyphony_mode == 0 else 1,
             part.portamento_time,
         ]
@@ -977,5 +983,3 @@ class JupiterXSysExController:
     def _handle_mmc_clear(self, data: bytes) -> dict[str, Any]:
         """Handle MMC Clear command."""
         return {"status": "success", "type": "mmc_clear", "command": "clear"}
-
-

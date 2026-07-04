@@ -1,4 +1,5 @@
 """
+
 Vibexg MIDI Inputs - MIDI input interface implementations
 
 This module provides various MIDI input interfaces including:
@@ -28,10 +29,11 @@ from synth.io.midi import (
     open_input,
 )
 
+logger = logging.getLogger(__name__)
+
+
 from .backends.network import NetworkMIDIHandler
 from .types import MIDIInputConfig
-
-logger = logging.getLogger(__name__)
 
 
 class MIDIInputInterface:

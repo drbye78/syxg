@@ -72,6 +72,7 @@ class GranularPartial(SynthesisPartial):
             Stereo audio buffer (block_size, 2)
         """
         if not self.active:
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Use stored note and velocity for generation
@@ -190,9 +191,11 @@ class GranularPartial(SynthesisPartial):
                 "pan_spread": self.pan_spread,
                 "time_stretch": self.time_stretch,
                 "freeze": self.freeze,
-                "granular_engine_info": self.granular_engine.get_engine_info()
-                if hasattr(self.granular_engine, "get_engine_info")
-                else {},
+                "granular_engine_info": (
+                    self.granular_engine.get_engine_info()
+                    if hasattr(self.granular_engine, "get_engine_info")
+                    else {}
+                ),
             }
         )
         return info

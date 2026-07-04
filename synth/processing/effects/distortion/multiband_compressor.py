@@ -69,5 +69,3 @@ class MultibandCompressor:
 
             # Sum bands
             return low_processed + mid_processed + high_processed
-
-

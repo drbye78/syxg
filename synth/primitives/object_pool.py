@@ -3,12 +3,14 @@ XG Object Pool Implementation for high-performance object reuse.
 Reduces garbage collection overhead and memory allocation pressure.
 """
 
+from __future__ import annotations
+
 import threading
 from collections import deque
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class XGObjectPool(Generic[T]):
@@ -18,8 +20,7 @@ class XGObjectPool(Generic[T]):
     Provides thread-safe object reuse with automatic cleanup and monitoring.
     """
 
-    def __init__(self, factory: Callable[[], T], max_size: int = 1024,
-                 name: str = "XGObjectPool"):
+    def __init__(self, factory: Callable[[], T], max_size: int = 1024, name: str = "XGObjectPool"):
         """
         Initialize object pool.
 
@@ -58,7 +59,7 @@ class XGObjectPool(Generic[T]):
             self.acquired_count += 1
 
             # Reset object state if it has a reset method
-            if hasattr(obj, 'reset') and callable(getattr(obj, 'reset', None)):
+            if hasattr(obj, "reset") and callable(getattr(obj, "reset", None)):
                 obj.reset()
 
             return obj
@@ -83,12 +84,12 @@ class XGObjectPool(Generic[T]):
             hit_rate = (self._hit_count / total_requests * 100) if total_requests > 0 else 0
 
             return {
-                'pool_name': self.name,
-                'pool_size': len(self._pool),
-                'max_size': self.max_size,
-                'created_count': self.created_count,
-                'hit_rate_percent': hit_rate,
-                'total_requests': total_requests
+                "pool_name": self.name,
+                "pool_size": len(self._pool),
+                "max_size": self.max_size,
+                "created_count": self.created_count,
+                "hit_rate_percent": hit_rate,
+                "total_requests": total_requests,
             }
 
 
@@ -106,7 +107,7 @@ class XGPoolManager:
         return cls._instance
 
     def __init__(self):
-        if hasattr(self, '_initialized'):
+        if hasattr(self, "_initialized"):
             return
 
         self._initialized = True
@@ -122,28 +123,22 @@ class XGPoolManager:
         from ..primitives.oscillator import XGLFO
         from ..processing.modulation.matrix import ModulationMatrix
 
-        self._pools['lfo'] = XGObjectPool(
-            factory=lambda: XGLFO(id=0),
-            max_size=512,
-            name="LFO_Pool"
+        self._pools["lfo"] = XGObjectPool(
+            factory=lambda: XGLFO(id=0), max_size=512, name="LFO_Pool"
         )
 
-        self._pools['adsr_envelope'] = XGObjectPool(
-            factory=lambda: ADSREnvelope(),
-            max_size=1024,
-            name="ADSR_Envelope_Pool"
+        self._pools["adsr_envelope"] = XGObjectPool(
+            factory=lambda: ADSREnvelope(), max_size=1024, name="ADSR_Envelope_Pool"
         )
 
-        self._pools['resonant_filter'] = XGObjectPool(
-            factory=lambda: ResonantFilter(),
-            max_size=1024,
-            name="Resonant_Filter_Pool"
+        self._pools["resonant_filter"] = XGObjectPool(
+            factory=lambda: ResonantFilter(), max_size=1024, name="Resonant_Filter_Pool"
         )
 
-        self._pools['modulation_matrix'] = XGObjectPool(
+        self._pools["modulation_matrix"] = XGObjectPool(
             factory=lambda: ModulationMatrix(num_routes=16),
             max_size=256,
-            name="Modulation_Matrix_Pool"
+            name="Modulation_Matrix_Pool",
         )
 
 
@@ -153,35 +148,42 @@ xg_pools = XGPoolManager()
 
 # Convenience functions
 def acquire_lfo(**kwargs):
-    lfo = xg_pools._pools['lfo'].acquire()
+    lfo = xg_pools._pools["lfo"].acquire()
     if kwargs:
         lfo.set_parameters(**kwargs)
     return lfo
 
+
 def release_lfo(lfo):
-    return xg_pools._pools['lfo'].release(lfo)
+    return xg_pools._pools["lfo"].release(lfo)
+
 
 def acquire_adsr_envelope(**kwargs):
-    envelope = xg_pools._pools['adsr_envelope'].acquire()
+    envelope = xg_pools._pools["adsr_envelope"].acquire()
     if kwargs:
         envelope.update_parameters(**kwargs)
     return envelope
 
+
 def release_adsr_envelope(envelope):
-    return xg_pools._pools['adsr_envelope'].release(envelope)
+    return xg_pools._pools["adsr_envelope"].release(envelope)
+
 
 def acquire_resonant_filter(**kwargs):
-    filter_obj = xg_pools._pools['resonant_filter'].acquire()
+    filter_obj = xg_pools._pools["resonant_filter"].acquire()
     if kwargs:
         filter_obj.set_parameters(**kwargs)
     return filter_obj
 
+
 def release_resonant_filter(filter_obj):
-    return xg_pools._pools['resonant_filter'].release(filter_obj)
+    return xg_pools._pools["resonant_filter"].release(filter_obj)
+
 
 def acquire_modulation_matrix(**kwargs):
-    matrix = xg_pools._pools['modulation_matrix'].acquire()
+    matrix = xg_pools._pools["modulation_matrix"].acquire()
     return matrix
 
+
 def release_modulation_matrix(matrix):
-    return xg_pools._pools['modulation_matrix'].release(matrix)
+    return xg_pools._pools["modulation_matrix"].release(matrix)

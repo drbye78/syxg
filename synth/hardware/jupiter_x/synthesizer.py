@@ -1,4 +1,5 @@
 """
+
 Jupiter-X Main Synthesizer Class
 
 Complete Jupiter-X synthesizer implementation integrating all components
@@ -6,6 +7,8 @@ into a unified, production-ready synthesizer interface.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
@@ -19,6 +22,8 @@ from .constants import *
 from .mpe_manager import JupiterXMPEManager
 from .performance_optimizer import JupiterXPerformanceOptimizer
 from .unified_parameter_system import JupiterXUnifiedParameterSystem
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXSynthesizer:
@@ -59,7 +64,7 @@ class JupiterXSynthesizer:
         self.processing_active = False
         self.audio_buffer = np.zeros((buffer_size, 2), dtype=np.float32)
 
-        print("🎹 Jupiter-X Synthesizer: Initializing...")
+        logger.info("🎹 Jupiter-X Synthesizer: Initializing...")
 
     def enable_jupiter_x_mode(self):
         """Enable Jupiter-X specific features and processing."""
@@ -70,12 +75,14 @@ class JupiterXSynthesizer:
                 # Initialize all Jupiter-X components
                 self._initialize_components()
 
-                print("🎹 Jupiter-X Synthesizer: Jupiter-X mode enabled")
+                logger.info("🎹 Jupiter-X Synthesizer: Jupiter-X mode enabled")
 
     def _initialize_components(self):
         """Initialize all Jupiter-X components."""
         # Component manager for GS/Jupiter-X parts
-        self.component_manager = JupiterXComponentManager(self.sample_rate)
+        self.component_manager = JupiterXComponentManager(
+            self.sample_rate, buffer_pool=self.buffer_pool
+        )
 
         # Arpeggiator system
         self.arpeggiator = JupiterXArpeggiatorEngine()
@@ -127,7 +134,7 @@ class JupiterXSynthesizer:
             if not self.processing_active:
                 self.processing_active = True
                 # Note: In a real implementation, this would start audio threads
-                print("🎹 Jupiter-X Synthesizer: Audio processing started")
+                logger.info("🎹 Jupiter-X Synthesizer: Audio processing started")
 
     def stop(self):
         """Stop audio processing."""
@@ -135,7 +142,7 @@ class JupiterXSynthesizer:
             if self.processing_active:
                 self.processing_active = False
                 # Clean up
-                print("🎹 Jupiter-X Synthesizer: Audio processing stopped")
+                logger.info("🎹 Jupiter-X Synthesizer: Audio processing stopped")
 
     def process_audio_block(self) -> np.ndarray:
         """Process one block of audio."""

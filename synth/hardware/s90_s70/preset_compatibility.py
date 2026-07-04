@@ -435,7 +435,9 @@ class S90S70PresetCompatibility:
             # Multiple ranges (for multi-element parameters)
             if not isinstance(value, list) or len(value) != len(spec):
                 return False
-            return all(self._validate_parameter_value(v, s) for v, s in zip(value, spec, strict=False))
+            return all(
+                self._validate_parameter_value(v, s) for v, s in zip(value, spec, strict=False)
+            )
 
         return True
 

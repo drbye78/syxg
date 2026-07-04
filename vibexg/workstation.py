@@ -1,4 +1,5 @@
 """
+
 Vibexg Workstation - Main XG Synthesizer Workstation orchestration
 
 This module provides the XGWorkstation class, which is the main
@@ -32,6 +33,10 @@ from .midi_inputs import (
     StdinMIDIInput,
     VirtualPortInput,
 )
+
+logger = logging.getLogger(__name__)
+
+
 from .tui import TUIControlSurface
 from .types import (
     DEFAULT_BUFFER_SIZE,
@@ -50,8 +55,6 @@ try:
     from rich.console import Console  # noqa: F401
 except ImportError:
     RICH_AVAILABLE = False
-
-logger = logging.getLogger(__name__)
 
 
 class XGWorkstation:

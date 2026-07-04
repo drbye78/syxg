@@ -1,4 +1,5 @@
 """
+
 MIDI Processing System - Complete MIDI Message Handling
 
 Production-quality MIDI message processing for XG/GS/MPE synthesizer with
@@ -6,6 +7,8 @@ complete protocol support and sample-perfect timing.
 """
 
 from __future__ import annotations
+import logging
+
 
 import math
 import struct
@@ -13,6 +16,8 @@ import threading
 
 from ...io.midi.message import MIDIMessage
 from ...io.midi.realtime import RealtimeParser
+
+logger = logging.getLogger(__name__)
 
 
 class MIDIMessageProcessor:
@@ -170,16 +175,16 @@ class MIDIMessageProcessor:
 
         # Validate ranges
         if not (0 <= part_id <= 15):
-            print(f"XG SYSEX: Invalid part ID {part_id}")
+            logger.info(f"XG SYSEX: Invalid part ID {part_id}")
             return
 
         if midi_channel not in list(range(16)) + [254, 255]:  # 0-15, 254=OFF, 255=ALL
-            print(f"XG SYSEX: Invalid MIDI channel {midi_channel}")
+            logger.info(f"XG SYSEX: Invalid MIDI channel {midi_channel}")
             return
 
         # Set the receive channel mapping
         if self.synthesizer.receive_channel_manager.set_receive_channel(part_id, midi_channel):
-            print(
+            logger.info(
                 f"XG SYSEX: Part {part_id} receive channel set to "
                 f"{'MIDI CH ' + str(midi_channel) if midi_channel < 16 else 'ALL' if midi_channel == 255 else 'OFF'}"
             )

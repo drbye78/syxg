@@ -1,4 +1,5 @@
 """
+
 SFZ Region Implementation
 
 SFZ-specific region implementation with sample playback, envelopes,
@@ -6,6 +7,8 @@ filters, and modulation according to the SFZ v2 specification.
 """
 
 from __future__ import annotations
+import logging
+
 
 import math
 from typing import Any
@@ -16,6 +19,8 @@ from ...io.audio.sample_manager import PyAVSampleManager
 from ...primitives.oscillator import UltraFastXGLFO
 from ...processing.modulation.advanced_matrix import AdvancedModulationMatrix
 from ...processing.partial.region import Region
+
+logger = logging.getLogger(__name__)
 
 
 class SFZEnvelope:
@@ -244,7 +249,7 @@ class SFZRegion(Region):
             try:
                 self.sample = self.sample_manager.load_sample(self.sample_path)
             except Exception as e:
-                print(f"Warning: Failed to load sample '{self.sample_path}': {e}")
+                logger.error(f"Warning: Failed to load sample '{self.sample_path}': {e}")
                 self.sample = None
 
         # Initialize SFZ components
@@ -303,7 +308,7 @@ class SFZRegion(Region):
             return lfo
 
         except Exception as e:
-            print(f"Failed to create LFO {lfo_id}: {e}")
+            logger.error(f"Failed to create LFO {lfo_id}: {e}")
             return None
 
     def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:

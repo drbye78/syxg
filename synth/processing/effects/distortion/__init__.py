@@ -4,6 +4,8 @@ XG Distortion Effects Subpackage
 Implements XG distortion effects (types 43-56) with DSP algorithms.
 """
 
+from __future__ import annotations
+
 from .compressor import ProfessionalCompressor
 from .dynamic_eq import DynamicEQEnhancer
 from .multi_stage import MultiStageDistortionProcessor

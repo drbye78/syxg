@@ -1,4 +1,5 @@
 """
+
 XG Realtime Control - SYSEX Realtime Operations
 
 Implements XG realtime control features for professional operation.
@@ -14,11 +15,15 @@ Copyright (c) 2025
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 import time
 from collections.abc import Callable
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGRealtimeControl:
@@ -59,8 +64,8 @@ class XGRealtimeControl:
         self.bulk_dump_callback = None
         self.bulk_dump_request_callback = None
 
-        print("🎛️ XG REALTIME CONTROL: Initialized")
-        print(f"   Device ID: {self.device_id:02X}, LED control ready")
+        logger.info("🎛️ XG REALTIME CONTROL: Initialized")
+        logger.info(f"   Device ID: {self.device_id:02X}, LED control ready")
 
     def set_display_callback(self, callback: Callable[[str, Any], None]):
         """Set callback for display operations."""
@@ -121,7 +126,7 @@ class XGRealtimeControl:
                 return self._handle_bulk_dump_request(command_data)
 
         except Exception as e:
-            print(f"❌ XG REALTIME: SYSEX processing error - {e}")
+            logger.error(f"❌ XG REALTIME: SYSEX processing error - {e}")
             return None
 
         return None
@@ -439,7 +444,7 @@ class XGRealtimeControl:
         with self.lock:
             self.led_states = [0] * len(self.led_states)
 
-        print("🎛️ XG REALTIME: All LED states reset")
+        logger.info("🎛️ XG REALTIME: All LED states reset")
 
     def __str__(self) -> str:
         """String representation."""

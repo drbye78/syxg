@@ -5,9 +5,10 @@ Test Runner for XG Synthesizer Test Suite
 Runs all tests or specific test categories with various options.
 """
 
-import sys
 import argparse
+import os
 import subprocess
+import sys
 
 
 def run_tests(args):
@@ -54,7 +55,7 @@ def run_tests(args):
 
     # Run tests
     print(f"Running tests with command: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd="/mnt/c/work/guga/syxg")
+    result = subprocess.run(cmd, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return result.returncode
 
 

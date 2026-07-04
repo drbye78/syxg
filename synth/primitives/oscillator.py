@@ -824,6 +824,32 @@ class UltraFastXGLFO:
         if any([rate is not None, delay is not None]):
             self.reset()
 
+    def set_frequency(self, freq: float) -> None:
+        """Set LFO frequency without resetting phase.
+
+        Updates rate and phase_step in-place.
+        Called from SF2Region via XG vibrato rate (CC77).
+
+        Args:
+            freq: Frequency in Hz. Minimum 0.01.
+        """
+        if freq <= 0:
+            freq = 0.01
+        self.rate = freq
+        self.phase_step = self._calculate_phase_step()
+
+    def set_block_size(self, block_size: int) -> None:
+        """Update block size and reallocate working buffers.
+
+        Called when the synthesis block size changes.
+
+        Args:
+            block_size: New block size in samples
+        """
+        self.block_size = block_size
+        self.temp_phase_buffer = np.zeros(block_size, dtype=np.float64)
+        self.temp_modulated_depth = np.zeros(block_size, dtype=np.float64)
+
     def generate_block(
         self, output_buffer: np.ndarray, num_samples: int | None = None
     ) -> np.ndarray:
@@ -845,7 +871,7 @@ class UltraFastXGLFO:
 
         # Use Numba-compiled function for ultra-fast processing with all parameters passed directly
         # This minimizes function call overhead and maximizes SIMD utilization
-        (self.phase, self.delay_counter) = _numba_process_lfo_block(
+        self.phase, self.delay_counter = _numba_process_lfo_block(
             output_buffer,
             self.temp_phase_buffer,
             self.temp_modulated_depth,

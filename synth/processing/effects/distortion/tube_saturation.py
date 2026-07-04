@@ -64,5 +64,3 @@ class TubeSaturationProcessor:
 
             # Output level scaling
             return filtered_output * level * 0.5
-
-

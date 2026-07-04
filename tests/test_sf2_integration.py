@@ -188,19 +188,25 @@ class TestSF2Integration:
         # Build partial params
         params = region._build_partial_params_from_generators()
 
-        # Check SF2 generator parameters are included
-        assert "amp_attack" in params
-        assert "amp_decay" in params
-        assert "amp_sustain" in params
-        assert "filter_cutoff" in params
-        assert "filter_resonance" in params
+        # Check SF2 generator parameters are included (nested structure)
+        assert "amp_envelope" in params
+        assert "attack" in params["amp_envelope"]
+        assert "decay" in params["amp_envelope"]
+        assert "sustain" in params["amp_envelope"]
+        assert "filter" in params
+        assert "cutoff" in params["filter"]
+        assert "resonance" in params["filter"]
 
-        # Check SF2-specific parameters
-        assert "mod_env_delay" in params
-        assert "mod_lfo_rate" in params
-        assert "vib_lfo_rate" in params
-        assert "reverb_send" in params
-        assert "chorus_send" in params
+        # Check SF2-specific parameters (nested)
+        assert "mod_envelope" in params
+        assert "delay" in params["mod_envelope"]
+        assert "mod_lfo" in params
+        assert "frequency" in params["mod_lfo"]
+        assert "vib_lfo" in params
+        assert "frequency" in params["vib_lfo"]
+        assert "effects" in params
+        assert "reverb_send" in params["effects"]
+        assert "chorus_send" in params["effects"]
 
     def test_sf2_region_timecents_conversion(self, sf2_manager):
         """Test SF2Region timecents to seconds conversion."""
@@ -252,13 +258,16 @@ class TestSF2Integration:
 
         region = SF2Region(descriptor, 44100, sf2_manager)
 
-        # Before zone is cached, uses default ranges (0, 127)
-        # Note in default range, velocity in default range - should match
+        # Before zone is cached, uses descriptor ranges (36, 72) and (0, 64)
+        # Note 60 is in (36, 72), velocity 50 is in (0, 64) - should match
         assert region._matches_note_velocity(60, 50) == True
 
-        # All notes are in default range (0, 127)
-        assert region._matches_note_velocity(30, 50) == True
-        assert region._matches_note_velocity(80, 50) == True
+        # Note 30 is outside (36, 72), note 80 is outside (36, 72) - should NOT match
+        assert region._matches_note_velocity(30, 50) == False
+        assert region._matches_note_velocity(80, 50) == False
+
+        # Velocity 80 is outside (0, 64) - should NOT match
+        assert region._matches_note_velocity(60, 80) == False
 
         # Test with cached zone ranges (after _get_sf2_zone is called)
         # This would use the actual SF2 zone's key/velocity ranges

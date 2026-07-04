@@ -783,11 +783,11 @@ class CapabilityDiscoverySystem:
             "total_supported_message_types": len(
                 caps.get(CapabilityType.SUPPORTED_MESSAGES, set())
             ),
-            "effect_units_available": sum(
-                caps.get(CapabilityType.EFFECTS_CAPABILITIES, {}).values()
-            )
-            if caps.get(CapabilityType.EFFECTS_CAPABILITIES)
-            else 0,
+            "effect_units_available": (
+                sum(caps.get(CapabilityType.EFFECTS_CAPABILITIES, {}).values())
+                if caps.get(CapabilityType.EFFECTS_CAPABILITIES)
+                else 0
+            ),
             "max_simultaneous_profiles": caps.get(CapabilityType.MAX_SIMULTANEOUS_PROFILES, 1),
             "supports_dynamic_profile_switching": caps.get(
                 CapabilityType.DYNAMIC_PROFILE_SWITCHING, False

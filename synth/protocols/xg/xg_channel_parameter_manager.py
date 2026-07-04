@@ -1,7 +1,9 @@
 from __future__ import annotations
+import logging
 
 #!/usr/bin/env python3
 """
+
 XG CHANNEL PARAMETER MANAGER - Professional XG Parameter Control Architecture
 
 ARCHITECTURAL OVERVIEW:
@@ -245,6 +247,8 @@ RESEARCH FEATURES:
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGChannelParameters:
@@ -649,9 +653,9 @@ class XGChannelParameterManager:
         for channel in range(num_channels):
             self.channels[channel] = XGChannelParameters(channel)
 
-        print("🎼 XG CHANNEL PARAMETER MANAGER INITIALIZED")
-        print(f"   {num_channels} channels configured for MSB 3-31 parameter control")
-        print("   Professional XG synthesis parameters now available")
+        logger.info("🎼 XG CHANNEL PARAMETER MANAGER INITIALIZED")
+        logger.info(f"   {num_channels} channels configured for MSB 3-31 parameter control")
+        logger.info("   Professional XG synthesis parameters now available")
 
     def handle_nrpn_msb3_to_31(
         self, channel: int, nrpn_msb: int, nrpn_lsb: int, data_value: int
@@ -698,7 +702,7 @@ class XGChannelParameterManager:
         with self.lock:
             for channel in range(self.num_channels):
                 self.channels[channel].reset_to_xg_defaults()
-            print("🎼 ALL XG CHANNEL PARAMETERS RESET TO DEFAULTS")
+            logger.info("🎼 ALL XG CHANNEL PARAMETERS RESET TO DEFAULTS")
 
     def get_channel_state(self, channel: int) -> dict[str, Any]:
         """Get complete parameter state for a channel."""

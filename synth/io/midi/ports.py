@@ -1,4 +1,5 @@
 """
+
 MIDI Port I/O - Physical and Virtual MIDI Device Support
 
 Cross-platform MIDI port enumeration and communication.
@@ -9,11 +10,11 @@ Example:
 
     # List available ports
     ports = get_input_names()
-    print(f"Available ports: {ports}")
+    logger.info(f"Available ports: {ports}")
 
     # Open port with callback
     def on_midi_message(msg):
-        print(f"Received: {msg.type} on channel {msg.channel}")
+        logger.info(f"Received: {msg.type} on channel {msg.channel}")
 
     port = open_input(ports[0], callback=on_midi_message)
 
@@ -280,7 +281,9 @@ def _get_backend() -> MIDIBackend:
         if RTMIDI_AVAILABLE:
             _default_backend = RtMidiBackend()
         else:
-            raise RuntimeError("No MIDI backend available. Install python-rtmidi: pip install python-rtmidi")
+            raise RuntimeError(
+                "No MIDI backend available. Install python-rtmidi: pip install python-rtmidi"
+            )
     return _default_backend
 
 
@@ -345,7 +348,7 @@ def open_input(
 
     Example:
         >>> def on_message(msg):
-        ...     print(f"Received: {msg.type}")
+        ...     logger.info(f"Received: {msg.type}")
         >>> port = open_input("USB MIDI", callback=on_message)
     """
     backend = _get_backend()

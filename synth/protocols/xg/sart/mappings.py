@@ -373,7 +373,6 @@ ARTICULATION_ALIASES = {
     "acc": "accented",
     "accented": "accented",
     "bend": "bend",
-    "bend": "bend",
 }
 
 

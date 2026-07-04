@@ -103,5 +103,3 @@ class ProfessionalRotarySpeaker:
 
             # Mix horn and rotor
             return horn_output + rotor_output
-
-

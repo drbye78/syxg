@@ -315,5 +315,3 @@ class FMOperator:
         self.envelope_value = 0.0
         self.envelope_time = 0.0
         self.feedback_sample = 0.0
-
-

@@ -1,4 +1,5 @@
 """
+
 Yamaha Motif Multi-Arpeggiator Manager
 
 Implements 4 independent arpeggiators with 128+ patterns,
@@ -7,12 +8,16 @@ Provides complete Motif-compatible arpeggiator functionality.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from collections.abc import Callable
 from typing import Any
 
 from ...hardware.jupiter_x.arpeggiator import JupiterXArpeggiatorEngine, JupiterXArpeggiatorPattern
+
+logger = logging.getLogger(__name__)
 
 
 class MotifArpeggiatorManager:
@@ -39,7 +44,7 @@ class MotifArpeggiatorManager:
         self.note_on_callback: Callable | None = None
         self.note_off_callback: Callable | None = None
 
-        print("🎹 Motif Multi-Arpeggiator Manager: Initialized with 4 arpeggiators")
+        logger.info("🎹 Motif Multi-Arpeggiator Manager: Initialized with 4 arpeggiators")
 
     def _initialize_arpeggiators(self):
         """Initialize 4 independent arpeggiators."""

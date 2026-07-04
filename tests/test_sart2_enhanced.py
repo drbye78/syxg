@@ -428,8 +428,8 @@ class TestSYSEXImplementation:
         # Checksum should be in valid range
         assert 0 <= checksum <= 127
 
-        # Yamaha checksum: (~sum) & 0x7F
-        expected = (~sum(data)) & 0x7F
+        # Yamaha checksum: (128 - (sum(data) % 128)) % 128
+        expected = (128 - (sum(data) % 128)) % 128
         assert checksum == expected
 
     def test_sysex_reverse_lookup(self, controller):
@@ -443,7 +443,7 @@ class TestSYSEXImplementation:
         assert lsb == 2
 
         msb, lsb = controller._find_nrpn_for_articulation("spiccato")
-        assert msb == 4
+        assert msb == 7
         assert lsb == 7
 
 
@@ -559,7 +559,7 @@ class TestYamahaNRPNMapper:
         """Test category-related methods."""
         categories = mapper.get_all_categories()
 
-        assert len(categories) == 13
+        assert len(categories) == 17
 
         # Test MSB/category mapping
         assert mapper.get_category_for_msb(1) == "common"

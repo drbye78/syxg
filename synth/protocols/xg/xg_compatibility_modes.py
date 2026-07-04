@@ -1,4 +1,5 @@
 """
+
 XG Compatibility Modes - GM/GM2/XG Mode Switching
 
 Implements XG compatibility mode switching for GM, GM2, and XG operation.
@@ -15,10 +16,14 @@ Copyright (c) 2025
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from collections.abc import Callable
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGCompatibilityModes:
@@ -103,9 +108,9 @@ class XGCompatibilityModes:
         # SYSEX message handler callback
         self.sysex_callback = None
 
-        print("🎹 XG COMPATIBILITY MODES: Initialized")
-        print(f"   Current mode: {self.current_mode}")
-        print(f"   Available modes: {', '.join(self.MODE_DEFAULTS.keys())}")
+        logger.info("🎹 XG COMPATIBILITY MODES: Initialized")
+        logger.info(f"   Current mode: {self.current_mode}")
+        logger.info(f"   Available modes: {', '.join(self.MODE_DEFAULTS.keys())}")
 
     def set_mode_change_callback(self, callback: Callable[[str, dict[str, Any]], None]):
         """Set callback for mode changes (mode, mode_info)."""
@@ -147,7 +152,7 @@ class XGCompatibilityModes:
                 return self._handle_xg_reset(command_data)
 
         except Exception as e:
-            print(f"❌ XG COMPATIBILITY: SYSEX processing error - {e}")
+            logger.error(f"❌ XG COMPATIBILITY: SYSEX processing error - {e}")
             return None
 
         return None
@@ -214,11 +219,11 @@ class XGCompatibilityModes:
             if self.mode_change_callback:
                 self.mode_change_callback(mode, mode_info)
 
-            print(f"🎹 XG COMPATIBILITY: Switched from {old_mode} to {mode}")
-            print(f"   Mode: {mode_info['description']}")
+            logger.info(f"🎹 XG COMPATIBILITY: Switched from {old_mode} to {mode}")
+            logger.info(f"   Mode: {mode_info['description']}")
 
             if reset_parameters:
-                print("   Parameters reset to mode defaults")
+                logger.info("   Parameters reset to mode defaults")
                 # Note: Actual parameter reset would be handled by the main synthesizer
                 # This is just the mode switching logic
 
@@ -437,9 +442,9 @@ class XGCompatibilityModes:
             "max_voices": mode_info.get("max_voices", 128) if mode_info else 128,
             "max_parts": mode_info.get("max_parts", 16) if mode_info else 16,
             "effects_support": mode_info.get("effects_support", "basic") if mode_info else "basic",
-            "voice_allocation": mode_info.get("voice_allocation", "static")
-            if mode_info
-            else "static",
+            "voice_allocation": (
+                mode_info.get("voice_allocation", "static") if mode_info else "static"
+            ),
             "drum_channels": mode_info.get("drum_channels", [9]) if mode_info else [9],
             "available_modes": self.get_available_modes(),
             "multi_part_supported": self.should_use_multi_part_mode(),
@@ -464,7 +469,7 @@ class XGCompatibilityModes:
     def reset_to_xg_mode(self):
         """Reset to XG mode."""
         self.set_compatibility_mode(self.MODE_XG, reset_parameters=True)
-        print("🎹 XG COMPATIBILITY: Reset to XG mode")
+        logger.info("🎹 XG COMPATIBILITY: Reset to XG mode")
 
     def __str__(self) -> str:
         """String representation."""

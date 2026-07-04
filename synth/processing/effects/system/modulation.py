@@ -72,5 +72,3 @@ class XGSystemModulationProcessor:
                 # Apply to both channels
                 stereo_mix[i, 0] *= amplitude
                 stereo_mix[i, 1] *= amplitude
-
-

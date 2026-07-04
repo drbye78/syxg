@@ -1,4 +1,5 @@
 """Wavetable data structure."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -99,5 +100,3 @@ class Wavetable:
         sample2 = self.data[next_index % self.length]
 
         return sample1 + (sample2 - sample1) * frac
-
-

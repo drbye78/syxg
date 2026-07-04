@@ -108,5 +108,3 @@ class ProfessionalCompressor:
             gain_linear = 10.0 ** (total_gain_db / 20.0)
 
             return input_sample * gain_linear
-
-

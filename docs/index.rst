@@ -23,42 +23,52 @@ Vibexg is a professional real-time MIDI workstation emulator built around the XG
 :caption: User Guide
 
 user/getting-started
-user/installation
-user/quick-start
-user/midi-inputs
-user/audio-outputs
-user/presets
-user/midi-learn
+user/user-guide
 ```
 
 ```{toctree}
 :maxdepth: 2
 :caption: API Reference
 
+api/overview
 api/vibexg
-api/workstation
-api/managers
-api/types
-api/midi_inputs
-api/audio_outputs
+api/modern-xg-synthesizer
 ```
 
 ```{toctree}
 :maxdepth: 2
-:caption: Developer Guide
+:caption: Engine Documentation
 
-dev/architecture
-dev/contributing
-dev/testing
+engines/fm-engine
+engines/sf2-engine
+engines/sfz-engine
+engines/physical-engine
+engines/spectral-engine
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Architecture
+
+architecture/overview
+architecture/workstation
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Reference
+
+WORKSTATION
+CONFIGURATION
+XGML_README
+quick-reference
 ```
 
 ```{toctree}
 :maxdepth: 1
-:caption: Examples
+:caption: Tools
 
-examples/basic_usage
-examples/preset_management
-examples/midi_learn_setup
+tools/cli-reference
 ```
 
 ## Quick Example

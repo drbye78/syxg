@@ -1,4 +1,5 @@
 """
+
 XG Effects Validation and Testing System
 
 This module provides comprehensive validation and testing for all XG effect types.
@@ -23,6 +24,8 @@ XG Effect Coverage Validation:
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 import time
@@ -32,11 +35,14 @@ from typing import Any
 
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 # Import our XG effects ecosystem
 try:
     from .effects_registry import XGEffectCategory, XGEffectFactory, XGEffectRegistry
     from .performance_monitor import XGPerformanceMonitor
     from .types import XGChorusType, XGEQType, XGInsertionType, XGReverbType, XGVariationType
+
 except ImportError:
     # Fallback for development
     pass
@@ -130,9 +136,9 @@ class XGValidationSuite:
                 self.suite_stats[key] = 0.0 if key.endswith("_ms") else 0
 
             if verbose:
-                print("XG Effects Validation Suite")
-                print("=" * 50)
-                print(f"Testing {self.registry.get_effect_count()} effect types")
+                logger.info("XG Effects Validation Suite")
+                logger.info("=" * 50)
+                logger.info(f"Testing {self.registry.get_effect_count()} effect types")
 
             # Test each category
             self._validate_system_effects(verbose)
@@ -149,7 +155,7 @@ class XGValidationSuite:
     def _validate_system_effects(self, verbose: bool) -> None:
         """Validate all system effects (reverb, chorus)."""
         if verbose:
-            print("\nTesting System Effects...")
+            logger.info("\nTesting System Effects...")
 
         system_tests = [
             # XG Reverb Types (1-24)
@@ -165,7 +171,7 @@ class XGValidationSuite:
     def _validate_variation_effects(self, verbose: bool) -> None:
         """Validate all 83 variation effects."""
         if verbose:
-            print("\nTesting Variation Effects...")
+            logger.info("\nTesting Variation Effects...")
 
         # Test all 83 XG variation effect types
         variation_tests = [
@@ -219,12 +225,12 @@ class XGValidationSuite:
             self.test_results[(category, effect_type)] = result
 
             if verbose and effect_type % 10 == 0:
-                print(f"  Variation effects: {effect_type}/116 tested")
+                logger.info(f"  Variation effects: {effect_type}/116 tested")
 
     def _validate_insertion_effects(self, verbose: bool) -> None:
         """Validate all 18 insertion effects."""
         if verbose:
-            print("\nTesting Insertion Effects...")
+            logger.info("\nTesting Insertion Effects...")
 
         insertion_tests = [
             (XGEffectCategory.INSERTION, i, f"Insertion Effect {i}") for i in range(18)
@@ -237,7 +243,7 @@ class XGValidationSuite:
     def _validate_eq_effects(self, verbose: bool) -> None:
         """Validate all 10 EQ curve types."""
         if verbose:
-            print("\nTesting EQ Effects...")
+            logger.info("\nTesting EQ Effects...")
 
         eq_tests = [(XGEffectCategory.EQUALIZER, i, f"EQ Curve {i}") for i in range(10)]
 
@@ -313,14 +319,14 @@ class XGValidationSuite:
             test.performance_score = performance_score
 
             if verbose:
-                print(f"  ✓ {test_name}: PASS")
+                logger.info(f"  ✓ {test_name}: PASS")
 
         except Exception as e:
             test.result = XGValidationResult.FAIL
             test.error_message = f"Exception: {e!s}"
 
             if verbose:
-                print(f"  ✗ {test_name}: FAIL - {e!s}")
+                logger.info(f"  ✗ {test_name}: FAIL - {e!s}")
 
         finally:
             test.execution_time_ms = (time.perf_counter() - start_time) * 1000.0
@@ -676,32 +682,32 @@ def print_validation_summary(report: dict[str, Any]) -> None:
     Args:
         report: Validation report
     """
-    print("\n" + "=" * 50)
-    print("XG EFFECTS VALIDATION SUMMARY")
-    print("=" * 50)
+    logger.info("\n" + "=" * 50)
+    logger.info("XG EFFECTS VALIDATION SUMMARY")
+    logger.info("=" * 50)
 
     info = report["suite_info"]
     results = report["results_summary"]
     cert = report["certification"]
 
-    print(f"Effects Tested: {info['total_effects_tested']}")
-    print(".2f")
-    print(",.0f")
-    print(".2f")
+    logger.info(f"Effects Tested: {info['total_effects_tested']}")
+    logger.info(".2f")
+    logger.info(",.0f")
+    logger.info(".2f")
 
-    print("\nTest Results:")
-    print(f"  Passed: {results['passed']}")
-    print(f"  Warnings: {results['warnings']}")
-    print(f"  Failed: {results['failed']}")
-    print(f"  Not Implemented: {results['not_implemented']}")
-    print(f"  Performance Issues: {results['performance_fails']}")
+    logger.info("\nTest Results:")
+    logger.info(f"  Passed: {results['passed']}")
+    logger.warning(f"  Warnings: {results['warnings']}")
+    logger.error(f"  Failed: {results['failed']}")
+    logger.info(f"  Not Implemented: {results['not_implemented']}")
+    logger.info(f"  Performance Issues: {results['performance_fails']}")
 
-    print(f"\nCertification: {cert['certification_name']}")
-    print(f"Description: {cert['description']}")
+    logger.info(f"\nCertification: {cert['certification_name']}")
+    logger.info(f"Description: {cert['description']}")
 
     if report["recommendations"]:
-        print("Recommendations:")
+        logger.info("Recommendations:")
         for rec in report["recommendations"]:
-            print(f"  • {rec}")
+            logger.info(f"  • {rec}")
 
-    print("=" * 50)
+    logger.info("=" * 50)

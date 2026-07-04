@@ -3,6 +3,8 @@ Block Processing Engine for XG Synthesizer
 Implements high-performance audio processing in blocks while maintaining sample-accurate MIDI timing.
 """
 
+from __future__ import annotations
+
 from collections import deque
 from dataclasses import dataclass
 from typing import Any
@@ -10,9 +12,10 @@ from typing import Any
 import numpy as np
 
 
-@dataclass
+@dataclass(slots=True)
 class TimedMidiEvent:
     """Represents a MIDI event with precise timing"""
+
     timestamp: float  # Sample timestamp (can be fractional for sub-sample precision)
     channel: int
     command: int
@@ -78,8 +81,13 @@ class XGBlockProcessor:
     Processes audio in blocks while maintaining sample-accurate MIDI timing.
     """
 
-    def __init__(self, block_size: int = 128, sample_rate: int = 44100,
-                 max_channels: int = 16, max_block_events: int = 64):
+    def __init__(
+        self,
+        block_size: int = 128,
+        sample_rate: int = 44100,
+        max_channels: int = 16,
+        max_block_events: int = 64,
+    ):
         """
         Initialize block processor.
 
@@ -112,12 +120,14 @@ class XGBlockProcessor:
 
         # Performance monitoring
         self._block_stats = {
-            'avg_processing_time_ms': 0.0,
-            'events_per_block': 0.0,
-            'channel_utilization': 0.0
+            "avg_processing_time_ms": 0.0,
+            "events_per_block": 0.0,
+            "channel_utilization": 0.0,
         }
 
-    def process_channel_block(self, channel_renderer, channel_num: int) -> tuple[np.ndarray, np.ndarray]:
+    def process_channel_block(
+        self, channel_renderer, channel_num: int
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Process one block of audio for a specific channel with precise MIDI timing.
 
@@ -129,6 +139,7 @@ class XGBlockProcessor:
             Tuple of (left_block, right_block) arrays
         """
         import time
+
         start_time = time.perf_counter()
 
         # Clear working buffers
@@ -164,15 +175,19 @@ class XGBlockProcessor:
             self.block_processing_times.pop(0)
 
         avg_time = sum(self.block_processing_times) / len(self.block_processing_times)
-        self._block_stats['avg_processing_time_ms'] = avg_time
-        self._block_stats['events_per_block'] = self.total_events_processed / max(1, self.total_blocks_processed)
+        self._block_stats["avg_processing_time_ms"] = avg_time
+        self._block_stats["events_per_block"] = self.total_events_processed / max(
+            1, self.total_blocks_processed
+        )
 
         # Advance sample time
         self.current_sample_time = block_end_time
 
         return self._left_buffer.copy(), self._right_buffer.copy()
 
-    def _process_block_with_events(self, channel_renderer, block_events: list[TimedMidiEvent], block_start_time: float):
+    def _process_block_with_events(
+        self, channel_renderer, block_events: list[TimedMidiEvent], block_start_time: float
+    ):
         """Process a block that contains MIDI events with sample accuracy."""
         # Sample-accurate event processing within blocks not yet implemented
         # Currently processes entire block at once - events applied after block completion
@@ -181,7 +196,7 @@ class XGBlockProcessor:
     def _process_clean_block(self, channel_renderer):
         """Process a block with no MIDI events - use optimized per-sample processing."""
         for sample_idx in range(self.block_size):
-            if hasattr(channel_renderer, 'generate_sample'):
+            if hasattr(channel_renderer, "generate_sample"):
                 left, right = channel_renderer.generate_sample()
                 self._left_buffer[sample_idx] = left
                 self._right_buffer[sample_idx] = right
@@ -200,15 +215,13 @@ class XGBlockProcessor:
         elif command == 0xE0:  # Pitch Bend
             channel_renderer.pitch_bend(event.data1, event.data2)
 
-    def add_midi_event(self, channel: int, timestamp: float, command: int, data1: int, data2: int = 0):
+    def add_midi_event(
+        self, channel: int, timestamp: float, command: int, data1: int, data2: int = 0
+    ):
         """Add a MIDI event to the queue for processing."""
         if 0 <= channel < self.max_channels:
             event = TimedMidiEvent(
-                timestamp=timestamp,
-                channel=channel,
-                command=command,
-                data1=data1,
-                data2=data2
+                timestamp=timestamp, channel=channel, command=command, data1=data1, data2=data2
             )
             self.midi_queues[channel].add_event(event)
 
@@ -217,14 +230,14 @@ class XGBlockProcessor:
         total_queued = sum(queue.size() for queue in self.midi_queues)
 
         return {
-            'total_blocks_processed': self.total_blocks_processed,
-            'total_events_processed': self.total_events_processed,
-            'events_per_block_avg': self._block_stats['events_per_block'],
-            'avg_processing_time_ms': self._block_stats['avg_processing_time_ms'],
-            'current_sample_time': self.current_sample_time,
-            'total_events_queued': total_queued,
-            'block_size': self.block_size,
-            'sample_rate': self.sample_rate
+            "total_blocks_processed": self.total_blocks_processed,
+            "total_events_processed": self.total_events_processed,
+            "events_per_block_avg": self._block_stats["events_per_block"],
+            "avg_processing_time_ms": self._block_stats["avg_processing_time_ms"],
+            "current_sample_time": self.current_sample_time,
+            "total_events_queued": total_queued,
+            "block_size": self.block_size,
+            "sample_rate": self.sample_rate,
         }
 
     def clear_all_events(self):
@@ -245,8 +258,5 @@ class XGBlockProcessor:
 def create_block_processor(sample_rate: int = 44100, block_size: int = 128) -> XGBlockProcessor:
     """Create and configure a new block processor."""
     return XGBlockProcessor(
-        block_size=block_size,
-        sample_rate=sample_rate,
-        max_channels=16,
-        max_block_events=64
+        block_size=block_size, sample_rate=sample_rate, max_channels=16, max_block_events=64
     )

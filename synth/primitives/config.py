@@ -1,4 +1,5 @@
 """
+
 Synthesizer Configuration Management
 
 Central configuration system for synthesizer settings, hardware profiles,
@@ -6,6 +7,8 @@ performance presets, and system parameters.
 """
 
 from __future__ import annotations
+import logging
+
 
 import json
 import os
@@ -13,6 +16,8 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -232,7 +237,7 @@ class SynthConfig:
                 return True
 
         except Exception as e:
-            print(f"Error loading configuration: {e}")
+            logger.error(f"Error loading configuration: {e}")
             return False
 
     def save(self, config_file: str | None = None) -> bool:
@@ -277,7 +282,7 @@ class SynthConfig:
             return True
 
         except Exception as e:
-            print(f"Error saving configuration: {e}")
+            logger.error(f"Error saving configuration: {e}")
             return False
 
     def _load_audio_config(self, data: dict[str, Any]):

@@ -1,4 +1,5 @@
 """
+
 Voice Factory - Refactored with preset-first approach.
 
 Part of the unified region-based synthesis architecture.
@@ -79,11 +80,13 @@ class VoiceFactory:
 
                 if preset_info:
                     # Create voice with preset definition
+                    buffer_pool = getattr(self.synth, "buffer_pool", None) if self.synth else None
                     return Voice(
                         preset_info=preset_info,
                         engine=engine,
                         channel=channel,
                         sample_rate=sample_rate,
+                        buffer_pool=buffer_pool,
                     )
 
             except Exception as e:

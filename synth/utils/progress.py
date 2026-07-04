@@ -1,6 +1,9 @@
 from __future__ import annotations
-
+import logging
+import sys
 import time
+
+logger = logging.getLogger(__name__)
 
 
 class ProgressReporter:
@@ -54,12 +57,11 @@ class ProgressReporter:
         eta_str = self._format_time(eta)
 
         # Print progress
-        print(
+        sys.stdout.write(
             f"\rProgress: {percent:5.1f}% | {processed_str}/{total_str} | "
-            f"Elapsed: {elapsed_str} | ETA: {eta_str}",
-            end="",
-            flush=True,
+            f"Elapsed: {elapsed_str} | ETA: {eta_str}"
         )
+        sys.stdout.flush()
 
     def _format_time(self, seconds: float) -> str:
         """Format seconds to MM:SS"""

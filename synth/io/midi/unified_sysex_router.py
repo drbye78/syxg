@@ -1,4 +1,5 @@
 """
+
 Unified MIDI SYSEX Router - Production Grade
 
 Central hub for routing all MIDI sysex messages (XG, GS, GM, GM2, XG Native).
@@ -67,7 +68,7 @@ class GSCommand(IntEnum):
     MODEL_ID_2 = 0x02
 
 
-@dataclass
+@dataclass(slots=True)
 class SysexMessage:
     """Parsed sysex message container"""
 
@@ -83,7 +84,7 @@ class SysexMessage:
     error: str = ""
 
 
-@dataclass
+@dataclass(slots=True)
 class SysexResponse:
     """Sysex response container"""
 

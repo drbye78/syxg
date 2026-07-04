@@ -1,6 +1,8 @@
 """Wavetable synthesis engine."""
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
@@ -15,6 +17,8 @@ from .bank import WavetableBank
 from .oscillator import WavetableOscillator
 from .partial import WavetablePartial
 from .region import WavetableRegion
+
+logger = logging.getLogger(__name__)
 
 
 class WavetableEngine(SynthesisEngine):
@@ -182,6 +186,7 @@ class WavetableEngine(SynthesisEngine):
         oscillator = self._find_or_allocate_oscillator(note)
 
         if not oscillator:
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Configure oscillator
@@ -316,17 +321,15 @@ class WavetableEngine(SynthesisEngine):
         Returns:
             PresetInfo with region descriptors for wavetable synthesis
         """
-        from .preset_info import PresetInfo
-        from .region_descriptor import RegionDescriptor
+        from synth.engines.preset_info import PresetInfo
+        from synth.engines.region_descriptor import RegionDescriptor
 
         # Wavetable engine uses wavetable synthesis with morphing
         # Programs define wavetable configurations and morphing settings
         preset_name = f"Wavetable {bank}:{program}"
 
-        # Get wavetable name from preset bank
-        wavetable_name = self.get_wavetable_preset_name(bank, program)
-        if not wavetable_name:
-            wavetable_name = "default"
+        # Get wavetable name from preset bank (default for now)
+        wavetable_name = "default"
 
         # Create region descriptors for wavetable synthesis
         # Wavetable supports polyphonic playback with full keyboard range
@@ -353,8 +356,7 @@ class WavetableEngine(SynthesisEngine):
             name=preset_name,
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
-            is_monophonic=False,
-            category="wavetable_synthesis",
+
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
@@ -382,7 +384,7 @@ class WavetableEngine(SynthesisEngine):
         Returns:
             IRegion instance for wavetable synthesis
         """
-        from ..processing.partial.wavetable_region import WavetableRegion
+        from ...processing.partial.wavetable_region import WavetableRegion
 
         # Create wavetable region with proper initialization
         region = WavetableRegion(descriptor, sample_rate)
@@ -461,14 +463,18 @@ class WavetableEngine(SynthesisEngine):
             if jupiter_digital_plugin in available_plugins:
                 success = self.load_plugin(jupiter_digital_plugin)
                 if success:
-                    print("🎹 Wavetable Engine: Jupiter-X digital extensions loaded automatically")
+                    logger.info(
+                        "🎹 Wavetable Engine: Jupiter-X digital extensions loaded automatically"
+                    )
                 else:
-                    print("⚠️  Wavetable Engine: Failed to load Jupiter-X digital extensions")
+                    logger.error(
+                        "⚠️  Wavetable Engine: Failed to load Jupiter-X digital extensions"
+                    )
             else:
-                print("ℹ️  Wavetable Engine: Jupiter-X digital extensions not available")
+                logger.info("ℹ️  Wavetable Engine: Jupiter-X digital extensions not available")
 
         except Exception as e:
-            print(f"⚠️  Wavetable Engine: Error during auto-loading Jupiter-X plugin: {e}")
+            logger.error(f"⚠️  Wavetable Engine: Error during auto-loading Jupiter-X plugin: {e}")
 
     def load_plugin(self, plugin_name: str) -> bool:
         """
@@ -497,13 +503,13 @@ class WavetableEngine(SynthesisEngine):
                     # Register plugin integration points
                     self._register_plugin_integration_points(plugin)
 
-                    print(f"✅ Wavetable Engine: Plugin '{plugin_name}' loaded successfully")
+                    logger.info(f"✅ Wavetable Engine: Plugin '{plugin_name}' loaded successfully")
                     return True
 
             return False
 
         except Exception as e:
-            print(f"❌ Wavetable Engine: Failed to load plugin '{plugin_name}': {e}")
+            logger.error(f"❌ Wavetable Engine: Failed to load plugin '{plugin_name}': {e}")
             return False
 
     def unload_plugin(self, plugin_name: str) -> bool:
@@ -528,13 +534,15 @@ class WavetableEngine(SynthesisEngine):
 
                 if success:
                     del self._loaded_plugins[plugin_name]
-                    print(f"✅ Wavetable Engine: Plugin '{plugin_name}' unloaded successfully")
+                    logger.info(
+                        f"✅ Wavetable Engine: Plugin '{plugin_name}' unloaded successfully"
+                    )
                     return True
 
             return False
 
         except Exception as e:
-            print(f"❌ Wavetable Engine: Failed to unload plugin '{plugin_name}': {e}")
+            logger.error(f"❌ Wavetable Engine: Failed to unload plugin '{plugin_name}': {e}")
             return False
 
     def get_loaded_plugins(self) -> dict[str, SynthesisFeaturePlugin]:
@@ -644,7 +652,7 @@ class WavetableEngine(SynthesisEngine):
         Returns:
             WavetableRegion instance
         """
-        from ..processing.partial.wavetable_region import WavetableRegion
+        from ...processing.partial.wavetable_region import WavetableRegion
 
         return WavetableRegion(descriptor, sample_rate)
 

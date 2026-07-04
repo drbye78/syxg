@@ -1,4 +1,5 @@
 """
+
 Jupiter-X FM Engine Extensions
 
 Plugin that adds Jupiter-X specific FM synthesis features to the base FM engine.
@@ -7,6 +8,8 @@ a parallel implementation.
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
@@ -19,6 +22,8 @@ from ..base_plugin import (
     PluginType,
     SynthesisFeaturePlugin,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXFMPlugin(SynthesisFeaturePlugin):
@@ -179,11 +184,11 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
             # Initialize Jupiter-X specific features
             self._initialize_jupiter_x_fm_features()
 
-            print("🎹 Jupiter-X FM Extensions loaded")
+            logger.info("🎹 Jupiter-X FM Extensions loaded")
             return True
 
         except Exception as e:
-            print(f"Failed to load Jupiter-X FM extensions: {e}")
+            logger.error(f"Failed to load Jupiter-X FM extensions: {e}")
             return False
 
     def unload(self) -> bool:
@@ -193,11 +198,11 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
             self.ring_mod_connections.clear()
             self.vocal_formants_enabled = False
 
-            print("🎹 Jupiter-X FM Extensions unloaded")
+            logger.info("🎹 Jupiter-X FM Extensions unloaded")
             return True
 
         except Exception as e:
-            print(f"Error unloading Jupiter-X FM extensions: {e}")
+            logger.error(f"Error unloading Jupiter-X FM extensions: {e}")
             return False
 
     def _initialize_jupiter_x_fm_features(self):
@@ -357,7 +362,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "enable_algorithm_morphing"):
             self.fm_engine.enable_algorithm_morphing(enabled, self.algorithm_morph_speed)
 
-        print(
+        logger.info(
             f"🎛️ Algorithm morphing {'enabled' if enabled else 'disabled'} (speed: {self.algorithm_morph_speed:.2f})"
         )
 
@@ -374,7 +379,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
                 self.current_algorithm, self.target_algorithm, self.algorithm_morph_factor
             )
 
-        print(
+        logger.info(
             f"🎛️ Algorithm morphing: {self.current_algorithm} → {self.target_algorithm} (factor: {self.algorithm_morph_factor:.2f})"
         )
 
@@ -385,7 +390,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "enable_multiple_feedback"):
             self.fm_engine.enable_multiple_feedback(enabled)
 
-        print(f"🎛️ Multiple feedback paths {'enabled' if enabled else 'disabled'}")
+        logger.info(f"🎛️ Multiple feedback paths {'enabled' if enabled else 'disabled'}")
 
     def enable_feedback_coloring(self, enabled: bool = True, filter_type: str = "lowpass"):
         """Enable feedback coloring with filter types."""
@@ -396,7 +401,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "enable_feedback_coloring"):
             self.fm_engine.enable_feedback_coloring(enabled, self.feedback_coloring_type)
 
-        print(
+        logger.info(
             f"🎛️ Feedback coloring {'enabled' if enabled else 'disabled'} ({self.feedback_coloring_type})"
         )
 
@@ -407,7 +412,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "enable_operator_stereo"):
             self.fm_engine.enable_operator_stereo(enabled)
 
-        print(f"🎛️ Operator stereo {'enabled' if enabled else 'disabled'}")
+        logger.info(f"🎛️ Operator stereo {'enabled' if enabled else 'disabled'}")
 
     def set_operator_pan_positions(self, pan_positions: list[float]):
         """Set pan positions for each operator (-1.0 to 1.0)."""
@@ -416,7 +421,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "set_operator_pan_positions"):
             self.fm_engine.set_operator_pan_positions(self.operator_pan_positions)
 
-        print(f"🎛️ Operator pan positions set: {self.operator_pan_positions}")
+        logger.info(f"🎛️ Operator pan positions set: {self.operator_pan_positions}")
 
     def set_operator_velocity_scaling(self, scaling_factors: list[float]):
         """Set velocity scaling for each operator."""
@@ -425,7 +430,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "set_operator_velocity_scaling"):
             self.fm_engine.set_operator_velocity_scaling(self.operator_velocity_scaling)
 
-        print(f"🎛️ Operator velocity scaling: {self.operator_velocity_scaling}")
+        logger.info(f"🎛️ Operator velocity scaling: {self.operator_velocity_scaling}")
 
     def set_operator_key_scaling(self, scaling_factors: list[float]):
         """Set key scaling for each operator."""
@@ -434,7 +439,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "set_operator_key_scaling"):
             self.fm_engine.set_operator_key_scaling(self.operator_key_scaling)
 
-        print(f"🎛️ Operator key scaling: {self.operator_key_scaling}")
+        logger.info(f"🎛️ Operator key scaling: {self.operator_key_scaling}")
 
     def enable_phase_modulation(self, enabled: bool = True):
         """Enable phase modulation for operators."""
@@ -443,7 +448,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "enable_phase_modulation"):
             self.fm_engine.enable_phase_modulation(enabled)
 
-        print(f"🎛️ Phase modulation {'enabled' if enabled else 'disabled'}")
+        logger.info(f"🎛️ Phase modulation {'enabled' if enabled else 'disabled'}")
 
     def enable_through_zero_fm(self, enabled: bool = True, index_mod: float = 1.0):
         """Enable through-zero FM synthesis."""
@@ -453,7 +458,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "enable_through_zero_fm"):
             self.fm_engine.enable_through_zero_fm(enabled, self.fm_index_modulation)
 
-        print(
+        logger.info(
             f"🎛️ Through-zero FM {'enabled' if enabled else 'disabled'} (index mod: {self.fm_index_modulation:.1f})"
         )
 
@@ -465,7 +470,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "enable_formant_fm"):
             self.fm_engine.enable_formant_fm(enabled, self.vowel_transition_smoothing)
 
-        print(
+        logger.info(
             f"🎛️ Formant FM {'enabled' if enabled else 'disabled'} (smoothing: {self.vowel_transition_smoothing:.2f})"
         )
 
@@ -479,7 +484,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
                 enabled, self.algorithm_switch_threshold
             )
 
-        print(
+        logger.info(
             f"🎛️ Dynamic algorithm switching {'enabled' if enabled else 'disabled'} (threshold: {self.algorithm_switch_threshold:.2f})"
         )
 
@@ -490,7 +495,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "set_operator_detuning"):
             self.fm_engine.set_operator_detuning(self.operator_detune_amounts)
 
-        print(f"🎛️ Operator detuning: {self.operator_detune_amounts}")
+        logger.info(f"🎛️ Operator detuning: {self.operator_detune_amounts}")
 
     def set_operator_pitch_modulation(self, modulation_depths: list[float]):
         """Set pitch modulation depths for each operator."""
@@ -499,7 +504,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "set_operator_pitch_modulation"):
             self.fm_engine.set_operator_pitch_modulation(self.operator_pitch_modulation)
 
-        print(f"🎛️ Operator pitch modulation: {self.operator_pitch_modulation}")
+        logger.info(f"🎛️ Operator pitch modulation: {self.operator_pitch_modulation}")
 
     def set_operator_amplitude_modulation(self, modulation_depths: list[float]):
         """Set amplitude modulation depths for each operator."""
@@ -508,7 +513,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         if self.fm_engine and hasattr(self.fm_engine, "set_operator_amplitude_modulation"):
             self.fm_engine.set_operator_amplitude_modulation(self.operator_amplitude_modulation)
 
-        print(f"🎛️ Operator amplitude modulation: {self.operator_amplitude_modulation}")
+        logger.info(f"🎛️ Operator amplitude modulation: {self.operator_amplitude_modulation}")
 
     def create_custom_algorithm(self, name: str, connections: list[tuple[int, int, float]]) -> bool:
         """Create a custom FM algorithm with specified operator connections."""

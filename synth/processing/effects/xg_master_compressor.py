@@ -297,5 +297,3 @@ class XGMasterCompressor:
             # Reset lookahead buffer
             self.lookahead_buffer.fill(0.0)
             self.lookahead_write_pos = 0
-
-

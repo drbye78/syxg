@@ -1,7 +1,9 @@
 from __future__ import annotations
+import logging
 
 #!/usr/bin/env python3
 """
+
 XG PART EFFECT ROUTER
 
 Complete MSB 32-39 multi-part effect routing implementation for professional
@@ -16,6 +18,8 @@ Provides:
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGPartEffectRouter:
@@ -407,7 +411,7 @@ class XGPartEffectRouter:
                 return True
 
         except Exception as e:
-            print(f"Error importing effect routing bulk dump: {e}")
+            logger.error(f"Error importing effect routing bulk dump: {e}")
             return False
 
     def __str__(self) -> str:

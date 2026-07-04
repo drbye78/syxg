@@ -1,4 +1,5 @@
 """
+
 XG Channel Management Architecture - Multi-Timbral MIDI Processing System
 
 ARCHITECTURAL OVERVIEW:
@@ -224,6 +225,7 @@ PROFESSIONAL MUSIC PRODUCTION:
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 import numpy as np
@@ -251,7 +253,12 @@ class Channel:
     """
 
     def __init__(
-        self, channel_number: int, voice_factory: VoiceFactory, sample_rate: int, synthesizer=None
+        self,
+        channel_number: int,
+        voice_factory: VoiceFactory,
+        sample_rate: int,
+        synthesizer=None,
+        buffer_pool=None,
     ):
         """
         Initialize XG Channel.
@@ -261,11 +268,13 @@ class Channel:
             voice_factory: Factory for creating voices
             sample_rate: Audio sample rate in Hz
             synthesizer: Reference to parent synthesizer for parameter access
+            buffer_pool: Optional BufferPool for zero-allocation audio buffers
         """
         self.channel_number = channel_number
         self.voice_factory = voice_factory
         self.sample_rate = sample_rate
         self.synthesizer = synthesizer  # Reference to parent synthesizer
+        self.buffer_pool = buffer_pool
 
         # Polyphonic voice management with unique voice IDs
         # CRITICAL FIX: Use unique voice IDs instead of note numbers as keys
@@ -337,6 +346,9 @@ class Channel:
         # GS integration
         self.gs_part = None  # Reference to GS part when in GS mode
 
+        # GS parameter storage from sysex (part-level values from GSSysexHandler)
+        self.gs_params: dict[str, int] = {}
+
         # MPE/MPE+ state
         self.mpe_enabled = False
         self.mpe_configuration = {
@@ -365,6 +377,17 @@ class Channel:
         self.reverb_send = 0.0
         self.chorus_send = 0.0
         self.delay_send = 0.0
+
+        # XGChannelParameterManager reference for NRPN parameter access (MSB 3-31)
+        self._xg_param_manager = None
+
+    def set_xg_parameter_manager(self, mgr):
+        """Set XG parameter manager reference for NRPN parameter access.
+
+        Args:
+            mgr: XGChannelParameterManager instance
+        """
+        self._xg_param_manager = mgr
 
     def update_xg_state_from_message(self, xg_metadata: dict[str, Any]):
         """
@@ -412,11 +435,17 @@ class Channel:
         """
         Load a program (voice) for this channel.
 
+        Per MIDI spec, program change releases all held notes (including
+        sustain-pedal-held notes).
+
         Args:
             program: MIDI program number (0-127)
             bank_msb: Bank select MSB (0-127)
             bank_lsb: Bank select LSB (0-127)
         """
+        # Release all held notes before changing program
+        self.all_notes_off()
+
         self.program = program
         self.bank_msb = bank_msb
         self.bank_lsb = bank_lsb
@@ -424,12 +453,15 @@ class Channel:
 
         # Special handling for channel 9 (drums) in XG/GS
         # Channel 9 is the rhythm channel, and program changes select drum kits
-        # In SoundFonts, drum kits are typically in Bank 128
-        # If channel is 9 and bank is 0 (default), use Bank 128 for drum kits
+        # In SoundFonts, drum kits are typically in Bank 127
+        # Check if this channel is in drum mode (XG/GS part mode)
+        is_drum_mode = getattr(self, "xg_part_mode", None) == "drum" or self.channel_number == 9
         if self.channel_number == 9 and self.bank == 0:
-            # Map to Bank 128 (drum bank) with same program number
-            # This assumes drum kits are in Bank 128, Program 0-127
-            drum_bank = 128
+            is_drum_mode = True
+
+        if is_drum_mode:
+            # Map to Bank 127 (XG/GS drum bank) using program number for drum kit
+            drum_bank = 127
         else:
             drum_bank = self.bank
 
@@ -782,14 +814,11 @@ class Channel:
             return
         elif controller == 6:  # Data Entry MSB
             if self.nrpn_active:
-                if not self.data_msb_received:
-                    self.data_msb = value
-                    self.data_msb_received = True
-                else:
-                    # Complete NRPN message
-                    self._handle_nrpn_complete(self.data_msb, value)
-                    self.nrpn_active = False
-                    self.data_msb_received = False
+                # Standard NRPN: single CC6 provides the 7-bit parameter value
+                # CC38 (Data Entry LSB) can provide fine adjustment, but CC6 alone completes.
+                self._handle_nrpn_complete(value)
+                self.nrpn_active = False
+                self.data_msb_received = True
             elif self.rpn_active:
                 self._handle_rpn_complete(value)
                 self.rpn_active = False
@@ -851,16 +880,17 @@ class Channel:
             # Right side: center to max maps to 0.0 to 1.0
             return (value_32 - center) / center
 
-    def _handle_nrpn_complete(self, msb: int, lsb: int):
+    def _handle_nrpn_complete(self, value: int):
         """
         Handle complete NRPN message.
 
+        Per MIDI spec, a single CC6 (Data Entry MSB) provides the 7-bit
+        parameter value. CC38 (Data Entry LSB) is optional fine adjustment.
+
         Args:
-            msb: Data MSB
-            lsb: Data LSB
+            value: Parameter value (7-bit, 0-127)
         """
         param_number = (self.nrpn_msb << 8) | self.nrpn_lsb
-        value = (msb << 7) | lsb
 
         if param_number == 0:
             self.vibrato_rate = (value - 64) / 64.0
@@ -901,12 +931,14 @@ class Channel:
         """
         Handle complete RPN message.
 
+        Per MIDI spec, CC6 provides a single 7-bit parameter value.
+
         Args:
-            value: RPN value
+            value: RPN value (7-bit, 0-127)
         """
         if self.rpn_msb == 0 and self.rpn_lsb == 0:
-            # Pitch Bend Range
-            self.pitch_bend_range = value
+            # Pitch Bend Range: single 7-bit value = semitones (0-24 per MIDI spec)
+            self.pitch_bend_range = max(0, min(24, value))
         # Other RPN parameters can be handled here
 
     def pitch_bend(self, lsb: int, msb: int, pitch_32bit: int | None = None):
@@ -1026,8 +1058,8 @@ class Channel:
             pitch_bend_semitones = ((self.pitch_bend_value - 8192) / 8192.0) * self.pitch_bend_range
 
         modulation = {
-            "pitch": pitch_bend_semitones * 100.0,  # Convert to cents
-            "filter_cutoff": 0.0,  # Could be mapped to controllers
+            "pitch": pitch_bend_semitones,  # In semitones
+            "filter_cutoff": self.controllers[74] / 127.0,  # CC74 = brightness/cutoff
             "amp": 1.0,
             "pan": self.pan,
             "velocity_crossfade": 0.0,
@@ -1042,7 +1074,8 @@ class Channel:
             "brightness": self.controllers[72] / 127.0,
             "harmonic_content": self.controllers[71] / 127.0,
             "channel_aftertouch": self.channel_pressure / 127.0,
-            "volume_cc": self.controllers[7] / 127.0,
+            "volume": self.controllers[7] / 127.0,  # CC7 -> region _volume_mod
+            "volume_cc": self.controllers[7] / 127.0,  # Kept for backward compat
         }
 
         # Add 32-bit controller values if available
@@ -1061,6 +1094,102 @@ class Channel:
                 modulation["harmonic_content"] = self._normalize_32bit_value(value_32bit)
             elif controller == 72:  # Brightness
                 modulation["brightness"] = self._normalize_32bit_value(value_32bit)
+
+        # Add NRPN-derived modulation values (set via NRPN, consumed by voice pipeline)
+        modulation["nrpn_filter_cutoff"] = self.filter_cutoff
+        modulation["nrpn_filter_resonance"] = self.filter_resonance
+        modulation["nrpn_amp_attack"] = self.amp_attack
+        modulation["nrpn_amp_release"] = self.amp_release
+        modulation["nrpn_vibrato_rate"] = self.vibrato_rate
+        modulation["nrpn_vibrato_depth"] = self.vibrato_depth
+
+        # If filter_cutoff was set via NRPN, override the controller value
+        if hasattr(self, "filter_cutoff") and self.filter_cutoff != 20000.0:
+            # NRPN filter cutoff is in Hz, normalize to 0-1 range (relative to 20kHz)
+            modulation["filter_cutoff"] = min(1.0, self.filter_cutoff / 20000.0)
+
+        # XG NRPN parameters (MSB 3-31) via XGChannelParameterManager
+        if self._xg_param_manager is not None:
+            try:
+                xg_params = self._xg_param_manager.get_channel_synthesis_parameters(
+                    self.channel_number
+                )
+                if xg_params:
+                    # Filter envelope
+                    if "filter_cutoff" in xg_params:
+                        modulation["xg_filter_cutoff"] = xg_params["filter_cutoff"]
+                    if "filter_resonance" in xg_params:
+                        modulation["xg_filter_resonance"] = xg_params["filter_resonance"]
+                    # Amp envelope
+                    if "amp_attack" in xg_params:
+                        modulation["xg_amp_attack"] = xg_params["amp_attack"]
+                    if "amp_decay" in xg_params:
+                        modulation["xg_amp_decay"] = xg_params["amp_decay"]
+                    if "amp_sustain" in xg_params:
+                        modulation["xg_amp_sustain"] = xg_params["amp_sustain"]
+                    if "amp_release" in xg_params:
+                        modulation["xg_amp_release"] = xg_params["amp_release"]
+                    if "amp_velocity_sense" in xg_params:
+                        modulation["xg_amp_velocity_sense"] = xg_params["amp_velocity_sense"]
+                    # Pitch envelope
+                    if "pitch_attack" in xg_params:
+                        modulation["xg_pitch_attack"] = xg_params["pitch_attack"]
+                    if "pitch_decay" in xg_params:
+                        modulation["xg_pitch_decay"] = xg_params["pitch_decay"]
+                    if "pitch_sustain" in xg_params:
+                        modulation["xg_pitch_sustain"] = xg_params["pitch_sustain"]
+                    if "pitch_release" in xg_params:
+                        modulation["xg_pitch_release"] = xg_params["pitch_release"]
+                    # Effects sends
+                    if "reverb_send" in xg_params:
+                        modulation["xg_reverb_send"] = xg_params["reverb_send"]
+                    if "chorus_send" in xg_params:
+                        modulation["xg_chorus_send"] = xg_params["chorus_send"]
+                    if "variation_send" in xg_params:
+                        modulation["xg_variation_send"] = xg_params["variation_send"]
+                    # Volume / expression
+                    if "volume" in xg_params:
+                        modulation["xg_volume"] = xg_params["volume"]
+                    if "expression" in xg_params:
+                        modulation["xg_expression"] = xg_params["expression"]
+                    # LFO
+                    if "lfo1_speed" in xg_params:
+                        modulation["xg_lfo1_speed"] = xg_params["lfo1_speed"]
+            except Exception:
+                pass
+
+        # GS part parameters via GSSysexHandler (bridge from GS sysex → audio)
+        if self.gs_params:
+            if "volume" in self.gs_params:
+                modulation["gs_volume"] = self.gs_params["volume"] / 127.0
+            if "pan" in self.gs_params:
+                # GS pan: 0=left, 64=center, 127=right → -1.0 to 1.0
+                modulation["gs_pan"] = (self.gs_params["pan"] - 64) / 63.0
+            if "filter_cutoff" in self.gs_params:
+                # GS cutoff: 0-127 mapped to ratio (0.0-1.0)
+                modulation["gs_filter_cutoff"] = self.gs_params["filter_cutoff"] / 127.0
+            if "filter_resonance" in self.gs_params:
+                modulation["gs_filter_resonance"] = self.gs_params["filter_resonance"] / 127.0
+            if "attack_time" in self.gs_params:
+                # GS attack: 0-127 → time multiplier (0.1x to 10x, centered at 1.0 for 64)
+                modulation["gs_amp_attack"] = 2.0 ** ((self.gs_params["attack_time"] - 64) / 32.0)
+            if "decay_time" in self.gs_params:
+                modulation["gs_amp_decay"] = 2.0 ** ((self.gs_params["decay_time"] - 64) / 32.0)
+            if "release_time" in self.gs_params:
+                modulation["gs_amp_release"] = 2.0 ** ((self.gs_params["release_time"] - 64) / 32.0)
+            if "vibrato_rate" in self.gs_params:
+                # GS vibrato rate: 0-127 → 0-10 Hz
+                modulation["gs_vibrato_rate"] = self.gs_params["vibrato_rate"] / 127.0 * 10.0
+            if "vibrato_depth" in self.gs_params:
+                # GS vibrato depth: 0-127 → 0-5 semitones
+                modulation["gs_vibrato_depth"] = self.gs_params["vibrato_depth"] / 127.0 * 5.0
+            if "vibrato_delay" in self.gs_params:
+                # GS vibrato delay: 0-127 → 0-5 seconds
+                modulation["gs_vibrato_delay"] = self.gs_params["vibrato_delay"] / 127.0 * 5.0
+            if "reverb_send" in self.gs_params:
+                modulation["gs_reverb_send"] = self.gs_params["reverb_send"] / 127.0
+            if "chorus_send" in self.gs_params:
+                modulation["gs_chorus_send"] = self.gs_params["chorus_send"] / 127.0
 
         return modulation
 
@@ -1136,8 +1265,8 @@ class Channel:
         """
         if self.mpe_enabled:
             # Get MPE configuration
-            master_ch = self.mpe_configuration.get("master_channel", 0)
-            layout = self.mpe_configuration.get("channel_layout", "horizontal")
+            _master_ch = self.mpe_configuration.get("master_channel", 0)
+            _layout = self.mpe_configuration.get("channel_layout", "horizontal")
 
             # Apply per-note parameters from MPE configuration
             # Timbre: stored per-note via set_mpe_per_note_parameter
@@ -1160,7 +1289,7 @@ class Channel:
             pressure = self.key_pressure_values.get(note, 0)
             if pressure > 0:
                 # Apply pressure as volume modulation
-                pressure_mod = pressure / 127.0
+                _pressure_mod = pressure / 127.0
 
             # Call regular note_on with the processed parameters
             return self.note_on(note, velocity)
@@ -1223,7 +1352,7 @@ class Channel:
         CRITICAL FIX: Release all voices using voice IDs.
         """
         # Send note-off to all active voice instances
-        for voice_id, voice_instance in list(self.active_voices.items()):
+        for _voice_id, voice_instance in list(self.active_voices.items()):
             voice_instance.note_off()
             voice_instance._pending_removal = True
 
@@ -1258,7 +1387,9 @@ class Channel:
         self.key_pressure_values.clear()
         self.pitch_bend_value = 8192
 
-    def generate_samples(self, block_size: int) -> np.ndarray:
+    def generate_samples(
+        self, block_size: int, output_buffer: np.ndarray | None = None
+    ) -> np.ndarray:
         """
         Generate audio samples for this channel with true polyphony.
 
@@ -1267,23 +1398,35 @@ class Channel:
 
         Args:
             block_size: Number of samples to generate
+            output_buffer: Optional pre-allocated buffer for zero-allocation path.
+                           If provided, it is filled and returned instead of allocating
+                           a new buffer from the pool.
 
         Returns:
             Stereo audio buffer (block_size, 2)
         """
-        buffer_pool = getattr(self.synthesizer, "buffer_pool", None) if self.synthesizer else None
-        # Always allocate a fresh buffer to avoid pool reuse issues with varying block sizes
-        # This ensures consistent output regardless of block size changes between calls
-        output = np.zeros((block_size, 2), dtype=np.float32)
+        # Use caller-provided buffer for zero-allocation, fall back to pool or np.zeros
+        if output_buffer is not None:
+            output = output_buffer[:block_size]
+            output.fill(0.0)
+        elif self.buffer_pool is not None:
+            output = self.buffer_pool.get_stereo_buffer(block_size)
+        else:
+            output = np.zeros((block_size, 2), dtype=np.float32)
 
         if self.muted:
             return output
+
+        # Collect modulation FIRST so voices use fresh values (Bug 4 fix)
+        modulation = self._collect_modulation_values()
 
         # Generate samples from all active voice instances
         active_voice_count = 0
         voices_to_remove = []
 
         for voice_id, voice_instance in list(self.active_voices.items()):
+            # Apply fresh modulation before generating audio for this block
+            voice_instance.update_modulation(modulation)
             is_active = voice_instance.is_active()
             if is_active:
                 # Get samples from this voice instance
@@ -1292,7 +1435,14 @@ class Channel:
                 # Ensure voice_audio matches expected block size
                 if voice_audio.shape[0] != block_size:
                     if voice_audio.shape[0] < block_size:
-                        padding = np.zeros((block_size - voice_audio.shape[0], 2), dtype=np.float32)
+                        if self.buffer_pool is not None:
+                            padding = self.buffer_pool.get_stereo_buffer(
+                                block_size - voice_audio.shape[0]
+                            )
+                        else:
+                            padding = np.zeros(
+                                (block_size - voice_audio.shape[0], 2), dtype=np.float32
+                            )
                         voice_audio = np.vstack([voice_audio, padding])
                     else:
                         voice_audio = voice_audio[:block_size]
@@ -1310,9 +1460,6 @@ class Channel:
 
         # Apply channel-level processing if we have active voices
         if active_voice_count > 0:
-            # Collect modulation values from controllers
-            modulation = self._collect_modulation_values()
-
             # Apply master level - check GS parameters first
             master_level = self._get_master_level()
             output *= master_level
@@ -1321,10 +1468,6 @@ class Channel:
             pan_gains = self._get_pan_gains()
             output[:, 0] *= pan_gains[0]  # Left channel
             output[:, 1] *= pan_gains[1]  # Right channel
-
-            # Update modulation for all active voices
-            for voice_instance in self.active_voices.values():
-                voice_instance.update_modulation(modulation)
 
         return output
 
@@ -1488,8 +1631,6 @@ class Channel:
                     pan_position = -1.0
                 elif pan_position > 1.0:
                     pan_position = 1.0
-
-                import math
 
                 angle = pan_position * (math.pi / 4.0)  # 45 degrees max
                 left_gain = math.cos(angle + math.pi / 4.0)

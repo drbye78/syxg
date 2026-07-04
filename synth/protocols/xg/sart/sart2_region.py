@@ -78,7 +78,7 @@ class SArt2Region(IRegion):
             sample_rate: Audio sample rate in Hz
             enable_sample_modification: Enable articulation sample processing
         """
-        super().__init__(base_region.descriptor, sample_rate)
+        super().__init__(descriptor=base_region.descriptor, sample_rate=sample_rate)
 
         self.base_region = base_region
         self.articulation_controller = ArticulationController()
@@ -304,31 +304,34 @@ class SArt2Region(IRegion):
 
         This is the CORE method where articulation affects synthesis:
 
-        1. Generate samples from base region
-        2. Apply articulation-specific sample modification
-        3. Apply articulation parameters to synthesis
+        1. Apply articulation parameters to modulation dict FIRST
+           (so the base engine uses them during synthesis)
+        2. Generate samples from base region
+        3. Apply articulation-specific sample modification (DSP layer)
         4. Return processed samples
 
         Args:
             block_size: Number of samples to generate
-            modulation: Current modulation values
+            modulation: Current modulation values (modified in-place)
 
         Returns:
             Stereo audio buffer (block_size, 2) as float32
         """
-        # Step 1: Generate from base region
-        samples = self.base_region.generate_samples(block_size, modulation)
-
-        # Step 2: Get current articulation and parameters
+        # Step 1: Get current articulation and parameters
         articulation = self.get_articulation()
         params = self.get_articulation_params()
 
-        # Step 3: Apply articulation processing if not normal
+        # Step 2: Apply articulation params to modulation BEFORE base engine
+        # generates samples — this is how articulations like legato, staccato,
+        # pizzicato actually affect synthesis (envelopes, filter, LFO).
+        self._apply_articulation_to_modulation(params, modulation)
+
+        # Step 3: Generate from base region (sees the updated modulation)
+        samples = self.base_region.generate_samples(block_size, modulation)
+
+        # Step 4: Apply articulation DSP processing if not normal
         if articulation != "normal" and self._sample_modifier:
             samples = self._sample_modifier.apply_articulation(samples, articulation, params)
-
-        # Step 4: Apply articulation parameters to modulation
-        self._apply_articulation_to_modulation(params, modulation)
 
         return samples
 
@@ -391,29 +394,28 @@ class SArt2Region(IRegion):
         """
         Apply articulation-specific note-on processing.
 
-        Different articulations affect note-on behavior:
-        - staccato: Shorter envelope release
-        - accented: Higher velocity
-        - legato: Smooth parameter transitions
+        Sets persistent base region parameters at note-on time.
+        These differ from the modulation-dict updates (per-block) in that
+        they persist for the entire note's lifetime unless explicitly
+        changed later.
+
+        Articulation categories:
+        - Envelope-shaping: staccato, pizzicato, marcato, dead_note, swell
+        - LFO / modulation: vibrato, tremolo, growl, flutter, trill
+        - Filter/timbre: palm_mute, sul_ponticello, harmonics, con_sordino
+        - Dynamics: accented, marcato, crescendo, diminuendo
+        - Transition: legato, portamento
         """
         articulation = self.get_articulation()
         params = self.get_articulation_params()
 
-        # Apply articulation-specific processing
+        # ---- Envelope-shaping articulations ----
         if articulation == "staccato":
-            # Shorten release time for short, detached notes
+            # Short, detached note
             self._set_base_param("amp_release", 0.05)
 
-        elif articulation == "legato":
-            # Enable smooth transitions between notes
-            self._set_base_param("transition_time", 0.05)
-
-        elif articulation == "accented":
-            # Boost velocity for accented notes
-            self._set_base_param("velocity_boost", 1.2)
-
         elif articulation == "pizzicato":
-            # Very short decay for plucked strings
+            # Plucked string — very short decay and release
             self._set_base_param("amp_decay", 0.05)
             self._set_base_param("amp_release", 0.02)
 
@@ -422,22 +424,122 @@ class SArt2Region(IRegion):
             self._set_base_param("velocity_boost", 1.3)
             self._set_base_param("amp_decay", 0.1)
 
+        elif articulation == "dead_note":
+            # Damped note — instant decay
+            self._set_base_param("amp_decay", 0.01)
+            self._set_base_param("amp_release", 0.005)
+
+        elif articulation == "swell":
+            # Gradual fade-in
+            attack_param = params.get("attack", 0.1)
+            self._set_base_param("amp_attack", attack_param)
+
+        # ---- Transition / legato articulations ----
+        elif articulation == "legato":
+            # Smooth transition between notes
+            transition = params.get("transition_time", 0.05)
+            self._set_base_param("transition_time", transition)
+
+        elif articulation == "portamento":
+            # Pitch glide between notes
+            port_time = params.get("speed", 0.05)
+            self._set_base_param("portamento_time", port_time)
+
+        # ---- Dynamic / accent articulations ----
+        elif articulation == "accented":
+            # Boosted velocity
+            self._set_base_param("velocity_boost", 1.2)
+
+        elif articulation == "crescendo":
+            # Start quiet — target level applied via modulation
+            self._set_base_param("velocity_boost", 0.5)
+
+        elif articulation == "diminuendo":
+            # Start at full level — target level applied via modulation
+            pass
+
+        # ---- Vibrato / LFO articulations ----
+        elif articulation == "vibrato":
+            # Set LFO parameters for vibrato effect
+            rate = params.get("rate", 5.0)
+            depth = params.get("depth", 0.5)
+            self._set_base_param("vibrato_rate", rate)
+            self._set_base_param("vibrato_depth", depth)
+
+        elif articulation == "tremolo":
+            # Amplitude modulation LFO
+            rate = params.get("rate", 6.0)
+            depth = params.get("depth", 0.5)
+            self._set_base_param("tremolo_rate", rate)
+            self._set_base_param("tremolo_depth", depth)
+
+        elif articulation == "trill":
+            # Pitch alternation — set up rapid LFO
+            trill_rate = params.get("rate", 8.0)
+            interval = params.get("interval", 2)
+            self._set_base_param("vibrato_rate", trill_rate)
+            self._set_base_param("vibrato_depth", interval * 0.5)
+
+        elif articulation == "growl":
+            # Low-frequency growl modulation
+            mod_freq = params.get("mod_freq", 25.0)
+            depth = params.get("depth", 0.25)
+            self._set_base_param("growl_freq", mod_freq)
+            self._set_base_param("growl_depth", depth)
+
+        elif articulation == "flutter":
+            # Fast flutter modulation
+            rate = params.get("mod_freq", 12.0)
+            depth = params.get("depth", 0.15)
+            self._set_base_param("tremolo_rate", rate)
+            self._set_base_param("tremolo_depth", depth)
+
+        # ---- Filter / timbre articulations ----
+        elif articulation == "palm_mute":
+            # Dampened string sound
+            self._set_base_param("filter_cutoff", 0.3)
+            self._set_base_param("volume", 0.6)
+
+        elif articulation == "sul_ponticello":
+            # Bright, scratchy sound
+            self._set_base_param("filter_cutoff", 1.5)  # Boost cutoff
+
+        elif articulation == "harmonics":
+            # Natural harmonics — brighter
+            self._set_base_param("filter_cutoff", 1.3)
+
+        elif articulation == "con_sordino":
+            # Muted (violin mute) — darker
+            mute_amount = params.get("mute_level", 0.5)
+            self._set_base_param("filter_cutoff", max(0.1, 1.0 - mute_amount))
+
+        # ---- Fallback: voice param from params dict ----
+        else:
+            # Generic: forward known synthesis params to base region
+            for key in ("amp_attack", "amp_decay", "amp_release",
+                        "filter_cutoff", "filter_resonance",
+                        "vibrato_rate", "vibrato_depth",
+                        "volume", "velocity_boost"):
+                if key in params:
+                    self._set_base_param(key, params[key])
+
     def _apply_note_off_articulation(self) -> None:
         """
         Apply articulation-specific note-off processing.
 
-        Different articulations affect note-off behavior:
-        - key_off: Add key-off noise
-        - staccato: Immediate release
+        Called when a note-off is received. Some articulations
+        need specific release behavior:
+        - staccato: Already handled by shortened release in note_on
+        - key_off: Could add key-off noise (finger noise)
         """
         articulation = self.get_articulation()
 
-        if articulation == "key_off":
-            # Add key-off noise (finger lifting off key)
+        if articulation == "staccato":
+            # Already handled by shortened release — nothing extra needed
             pass
 
-        elif articulation == "staccato":
-            # Already handled by shortened release
+        elif articulation == "key_off":
+            # Key-off click/noise would go here
             pass
 
     def _apply_articulation_to_modulation(
@@ -446,32 +548,124 @@ class SArt2Region(IRegion):
         """
         Apply articulation parameters to modulation values.
 
-        This method maps articulation parameters to synthesis parameters:
-        - vibrato: rate, depth → LFO modulation
-        - trill: interval, rate → Pitch modulation
-        - crescendo: target_level, duration → Volume envelope
+        This is the SYNTHESIS PARAMETER ROUTING path of the two-path architecture.
+        It maps articulation parameters to modulation keys that the base engine
+        (SF2Region) consumes directly — affecting envelope, filter, vibrato LFO,
+        volume, pan, and effect sends.
+
+        The complementary DSP path (post-hoc sample manipulation) runs after
+        base_region.generate_samples() via self._sample_modifier.apply_articulation().
+
+        Key modulation destinations (consumed by sf2_region.py):
+          gs_vibrato_rate / gs_vibrato_depth / gs_vibrato_delay
+          gs_filter_cutoff / gs_filter_resonance
+          gs_amp_attack / gs_amp_decay / gs_amp_release
+          gs_volume / gs_pan
+          gs_reverb_send / gs_chorus_send
         """
-        # Vibrato/Tremolo
-        if "rate" in params and "depth" in params:
-            modulation["vibrato_rate"] = params.get("rate", 5.0)
-            modulation["vibrato_depth"] = params.get("depth", 0.05)
 
-        # Trill
-        if "interval" in params and "rate" in params:
-            # Apply trill pitch modulation
-            modulation["trill_interval"] = params.get("interval", 2)
-            modulation["trill_rate"] = params.get("rate", 6.0)
+        # ---- Vibrato LFO (gs_vibrato_* keys) ----
+        rate = params.get("rate")
+        depth = params.get("depth")
+        if rate is not None:
+            modulation["gs_vibrato_rate"] = float(rate)
+        if depth is not None:
+            # Scale depth 0-1 → 0-1.0 for gs consumption
+            modulation["gs_vibrato_depth"] = float(depth)
+        delay = params.get("delay")
+        if delay is not None:
+            modulation["gs_vibrato_delay"] = float(delay)
 
-        # Crescendo/Diminuendo
-        if "target_level" in params and "duration" in params:
-            # Apply dynamic change over time
-            modulation["crescendo_target"] = params.get("target_level", 1.0)
-            modulation["crescendo_duration"] = params.get("duration", 1.0)
+        # Trill — route interval to synthesis vibrato depth
+        interval = params.get("interval")
+        trill_rate = params.get("trill_rate", params.get("rate"))
+        if interval is not None:
+            modulation["gs_vibrato_depth"] = float(interval) * 0.5  # semitones
+            if trill_rate is not None:
+                modulation["gs_vibrato_rate"] = float(trill_rate)
 
-        # Growl/Flutter (modulation effects)
-        if "mod_freq" in params and "mod_depth" in params:
-            modulation["growl_freq"] = params.get("mod_freq", 25.0)
-            modulation["growl_depth"] = params.get("mod_depth", 0.25)
+        # ---- Filter parameters (gs_filter_* keys) ----
+        cutoff = params.get("cutoff")
+        if cutoff is not None:
+            modulation["gs_filter_cutoff"] = float(cutoff)
+        resonance = params.get("resonance")
+        if resonance is not None:
+            modulation["gs_filter_resonance"] = float(resonance)
+        # Tone darkness/brightness → filter cutoff adjustment
+        darkness = params.get("tone_darkness")
+        if darkness is not None:
+            modulation["gs_filter_cutoff"] = max(0.0, 1.0 - float(darkness))
+        brightness = params.get("tone_brightness")
+        if brightness is not None:
+            modulation["gs_filter_cutoff"] = min(1.0, float(brightness))
+        # Filter sweep endpoints
+        cutoff_start = params.get("cutoff_start")
+        if cutoff_start is not None:
+            modulation["gs_filter_cutoff"] = float(cutoff_start) / 163850.0
+
+        # ---- Volume / dynamics (gs_volume key) ----
+        volume = params.get("volume")
+        if volume is not None:
+            modulation["gs_volume"] = float(volume)
+        target_level = params.get("target_level")
+        if target_level is not None:
+            modulation["gs_volume"] = float(target_level)
+        breath_level = params.get("breath_level")
+        if breath_level is not None:
+            modulation["gs_volume"] = float(breath_level)
+
+        # ---- Pan ----
+        pan = params.get("pan")
+        if pan is not None:
+            modulation["gs_pan"] = float(pan)
+
+        # ---- Effect sends ----
+        reverb = params.get("reverb_send")
+        if reverb is not None:
+            modulation["gs_reverb_send"] = float(reverb)
+        chorus = params.get("chorus_send")
+        if chorus is not None:
+            modulation["gs_chorus_send"] = float(chorus)
+
+        # ---- Stereo width ----
+        stereo_width = params.get("stereo_width")
+        if stereo_width is not None:
+            modulation["stereo_width"] = float(stereo_width)
+
+        # ---- Growl / Flutter (modulation effects also synthesizer-relevant) ----
+        mod_freq = params.get("mod_freq")
+        mod_depth = params.get("mod_depth", params.get("depth"))
+        if mod_freq is not None:
+            # Growl is below ~30 Hz — route as LFO modulation to filter cutoff
+            # if it's in the sub-audio range
+            if float(mod_freq) < 100.0:
+                modulation["gs_vibrato_rate"] = float(mod_freq)
+                if mod_depth is not None:
+                    modulation["gs_vibrato_depth"] = float(mod_depth) * 0.5
+            modulation["growl_freq"] = float(mod_freq)
+            if mod_depth is not None:
+                modulation["growl_depth"] = float(mod_depth)
+
+        # ---- Mute / sordino → filter + volume ----
+        mute_level = params.get("mute_level")
+        if mute_level is not None:
+            # Mute dampens both filter and volume
+            modulation["gs_filter_cutoff"] = max(0.05, 1.0 - float(mute_level) * 0.7)
+            modulation["gs_volume"] = max(0.1, 1.0 - float(mute_level) * 0.5)
+        pressure = params.get("pressure")
+        if pressure is not None:
+            # Palm mute pressure → darker filter + lower volume
+            modulation["gs_filter_cutoff"] = max(0.05, 1.0 - float(pressure))
+            modulation["gs_volume"] = max(0.05, 1.0 - float(pressure) * 0.5)
+
+        # ---- Brightness / hardness ----
+        hardness = params.get("hardness")
+        if hardness is not None:
+            modulation["gs_filter_cutoff"] = min(1.0, float(hardness))
+        click_level = params.get("click_level")
+        if click_level is not None:
+            # Click level → brighter attack filter
+            modulation["gs_filter_cutoff"] = min(1.0, float(click_level))
 
     def _set_base_param(self, param: str, value: Any) -> None:
         """

@@ -1,4 +1,5 @@
 """
+
 XG Audio Sample Management Architecture - Professional PyAV-Powered Sample Processing System
 
 ARCHITECTURAL OVERVIEW:
@@ -269,6 +270,8 @@ QUALITY ASSURANCE:
 """
 
 from __future__ import annotations
+import logging
+
 
 import os
 import threading
@@ -277,6 +280,8 @@ from typing import Any
 
 import av
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class SampleCache:
@@ -663,7 +668,7 @@ class PyAVSampleManager:
             try:
                 self.load_sample(path)
             except Exception as e:
-                print(f"Warning: Failed to preload sample {path}: {e}")
+                logger.error(f"Warning: Failed to preload sample {path}: {e}")
 
     def clear_cache(self) -> None:
         """Clear all cached samples"""

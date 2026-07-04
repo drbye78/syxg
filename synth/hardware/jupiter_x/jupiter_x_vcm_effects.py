@@ -21,16 +21,18 @@ class JupiterXVCMEffects:
     with the same sound characteristics as the original Jupiter-X synthesizer.
     """
 
-    def __init__(self, sample_rate: int = 44100, max_block_size: int = 8192):
+    def __init__(self, sample_rate: int = 44100, max_block_size: int = 8192, buffer_pool=None):
         """
         Initialize Jupiter-X VCM effects processor.
 
         Args:
             sample_rate: Audio sample rate
             max_block_size: Maximum processing block size
+            buffer_pool: Optional buffer pool for zero-allocation audio paths
         """
         self.sample_rate = sample_rate
         self.max_block_size = max_block_size
+        self.buffer_pool = buffer_pool
 
         # VCM processing state
         self.vcm_enabled = True
@@ -42,9 +44,9 @@ class JupiterXVCMEffects:
         self._initialize_vcm_processors()
 
         # Buffer management for VCM processing
-        self.input_buffer = np.zeros(max_block_size, dtype=np.float32)
-        self.output_buffer = np.zeros(max_block_size, dtype=np.float32)
-        self.temp_buffer = np.zeros(max_block_size, dtype=np.float32)
+        self.input_buffer = np.zeros(max_block_size, dtype=np.float32)  # Init-time (one-time)
+        self.output_buffer = np.zeros(max_block_size, dtype=np.float32)  # Init-time (one-time)
+        self.temp_buffer = np.zeros(max_block_size, dtype=np.float32)  # Init-time (one-time)
 
     def _initialize_vcm_processors(self):
         """Initialize individual VCM effect processors."""
@@ -52,7 +54,7 @@ class JupiterXVCMEffects:
         self.vcm_phaser = JupiterXVCMPhaser(self.sample_rate)
         self.vcm_chorus = JupiterXVCMChorus(self.sample_rate)
         self.vcm_delay = JupiterXVCMDelay(self.sample_rate)
-        self.vcm_reverb = JupiterXVCMReverb(self.sample_rate)
+        self.vcm_reverb = JupiterXVCMReverb(self.sample_rate, buffer_pool=self.buffer_pool)
 
     def process_vcm_chain(
         self, audio: np.ndarray, parameters: dict[str, Any] | None = None
@@ -76,8 +78,12 @@ class JupiterXVCMEffects:
 
         # Ensure output buffer is large enough
         if len(self.output_buffer) < len(audio):
-            self.output_buffer = np.zeros(len(audio), dtype=np.float32)
-            self.temp_buffer = np.zeros(len(audio), dtype=np.float32)
+            if self.buffer_pool is not None:
+                self.output_buffer = self.buffer_pool.get_mono_buffer(len(audio)).reshape(-1)
+                self.temp_buffer = self.buffer_pool.get_mono_buffer(len(audio)).reshape(-1)
+            else:
+                self.output_buffer = np.zeros(len(audio), dtype=np.float32)
+                self.temp_buffer = np.zeros(len(audio), dtype=np.float32)
 
         # Copy input to processing buffer
         np.copyto(self.output_buffer[: len(audio)], audio)
@@ -302,7 +308,7 @@ class JupiterXVCMPhaser:
 
         # Phaser state
         self.phase = 0.0
-        self.last_output = np.zeros(6, dtype=np.float32)  # 6 all-pass filters
+        self.last_output = np.zeros(6, dtype=np.float32)  # Init-time allocation (one-time), 6 all-pass filters
 
     def process(self, audio: np.ndarray) -> np.ndarray:
         """Process audio through VCM phaser."""
@@ -364,7 +370,7 @@ class JupiterXVCMChorus:
 
         # Chorus state
         self.phase = 0.0
-        self.delay_buffer = np.zeros(int(sample_rate * 0.05), dtype=np.float32)  # 50ms max
+        self.delay_buffer = np.zeros(int(sample_rate * 0.05), dtype=np.float32)  # Init-time allocation (one-time), 50ms max
         self.buffer_index = 0
 
     def process(self, audio: np.ndarray) -> np.ndarray:
@@ -423,7 +429,7 @@ class JupiterXVCMDelay:
 
         # Delay state
         max_delay = int(sample_rate * 2.0)  # 2 seconds max
-        self.delay_buffer = np.zeros(max_delay, dtype=np.float32)
+        self.delay_buffer = np.zeros(max_delay, dtype=np.float32)  # Init-time allocation (one-time)
         self.buffer_index = 0
 
     def process(self, audio: np.ndarray) -> np.ndarray:
@@ -465,8 +471,9 @@ class JupiterXVCMDelay:
 class JupiterXVCMReverb:
     """Jupiter-X VCM Reverb - Authentic analog reverb modeling."""
 
-    def __init__(self, sample_rate: int):
+    def __init__(self, sample_rate: int, buffer_pool=None):
         self.sample_rate = sample_rate
+        self.buffer_pool = buffer_pool
         self.enabled = False
         self.decay_time = 2.0  # 2 seconds
         self.mix = 0.3  # 0-1
@@ -480,14 +487,14 @@ class JupiterXVCMReverb:
         for delay_ms in [29.7, 37.1, 41.1, 43.7]:  # Prime delays in ms
             delay_samples = int((delay_ms / 1000.0) * sample_rate)
             self.comb_filters.append(
-                {"buffer": np.zeros(delay_samples, dtype=np.float32), "index": 0, "feedback": 0.84}
+                {"buffer": np.zeros(delay_samples, dtype=np.float32), "index": 0, "feedback": 0.84}  # Init-time (one-time)
             )
 
         # Initialize allpass filters for diffusion
         for delay_ms in [5.0, 1.7]:  # Allpass delays in ms
             delay_samples = int((delay_ms / 1000.0) * sample_rate)
             self.allpass_filters.append(
-                {"buffer": np.zeros(delay_samples, dtype=np.float32), "index": 0, "feedback": 0.7}
+                {"buffer": np.zeros(delay_samples, dtype=np.float32), "index": 0, "feedback": 0.7}  # Init-time (one-time)
             )
 
     def process(self, audio: np.ndarray) -> np.ndarray:
@@ -496,11 +503,17 @@ class JupiterXVCMReverb:
             return audio
 
         processed = np.copy(audio)
-        wet_signal = np.zeros_like(audio)
+        if self.buffer_pool is not None:
+            wet_signal = self.buffer_pool.get_mono_buffer(len(audio)).reshape(-1)
+        else:
+            wet_signal = np.zeros_like(audio)
 
         # Apply comb filters
-        for comb in self.comb_filters:
+        if self.buffer_pool is not None:
+            comb_output = self.buffer_pool.get_mono_buffer(len(audio)).reshape(-1)
+        else:
             comb_output = np.zeros_like(audio)
+        for comb in self.comb_filters:
             for i in range(len(audio)):
                 # Get delayed sample
                 delay_index = (comb["index"] - len(comb["buffer"])) % len(comb["buffer"])

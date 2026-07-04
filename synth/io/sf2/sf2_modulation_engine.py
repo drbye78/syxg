@@ -5,7 +5,6 @@ from typing import Any
 from .sf2_constants import (
     SF2_GENERATORS,
 )
-from .sf2_zone_engine import SF2ZoneEngine
 
 
 class SF2GeneratorProcessor:
@@ -167,6 +166,124 @@ class SF2GeneratorProcessor:
         return 2.0 ** (cent / 1200.0)
 
 
+class SF2ZoneEngine:
+    """
+    Per-zone modulation engine that processes generators and modulators.
+
+    Merges generators from preset and instrument levels, applies modulators,
+    and produces final synthesis parameters.
+    """
+
+    def __init__(
+        self,
+        zone_id: str,
+        instrument_generators: dict[int, int],
+        instrument_modulators: list[dict],
+        preset_generators: dict[int, int],
+        preset_modulators: list[dict],
+        preset_global_generators: dict[int, int] | None = None,
+        instrument_global_generators: dict[int, int] | None = None,
+    ):
+        """
+        Initialize zone engine.
+
+        Implements SF2 4-layer generator inheritance:
+        preset_global → preset_local → instrument_global → instrument_local
+
+        Args:
+            zone_id: Unique zone identifier
+            instrument_generators: Generator values from instrument zone
+            instrument_modulators: Modulator list from instrument zone
+            preset_generators: Generator values from preset zone
+            preset_modulators: Modulator list from preset zone
+            preset_global_generators: Preset global zone generators (layer 1)
+            instrument_global_generators: Instrument global zone generators (layer 3)
+        """
+        self.zone_id = zone_id
+        self.processor = SF2GeneratorProcessor()
+
+        # Layer 1: Preset global generators
+        for gen_type, gen_value in (preset_global_generators or {}).items():
+            self.processor.set_generator(gen_type, gen_value)
+
+        # Layer 2: Preset local generators
+        for gen_type, gen_value in preset_generators.items():
+            self.processor.set_generator(gen_type, gen_value)
+
+        # Layer 3: Instrument global generators
+        for gen_type, gen_value in (instrument_global_generators or {}).items():
+            self.processor.set_generator(gen_type, gen_value)
+
+        # Layer 4: Instrument local generators (highest priority)
+        for gen_type, gen_value in instrument_generators.items():
+            self.processor.set_generator(gen_type, gen_value)
+
+        # Store modulators for runtime processing
+        self.instrument_modulators = instrument_modulators
+        self.preset_modulators = preset_modulators
+
+    def get_modulated_parameters(self, note: int, velocity: int) -> dict[str, Any]:
+        """
+        Get final synthesis parameters after modulation.
+
+        Args:
+            note: MIDI note number
+            velocity: MIDI velocity
+
+        Returns:
+            Dictionary of synthesis parameters
+        """
+        # Get base parameters from generators
+        params = self.processor.to_modern_synth_params()
+
+        # Apply velocity-based scaling
+        velocity_factor = velocity / 127.0
+        if "amp_sustain" in params:
+            # Scale sustain by velocity
+            params["amp_sustain"] = params["amp_sustain"] * velocity_factor
+
+        # Apply note-based modifications
+        params["note"] = note
+        params["velocity"] = velocity
+
+        return params
+
+
+def create_zone_engine(
+    zone_id: str,
+    instrument_generators: dict[int, int],
+    instrument_modulators: list[dict],
+    preset_generators: dict[int, int],
+    preset_modulators: list[dict],
+    preset_global_generators: dict[int, int] | None = None,
+    instrument_global_generators: dict[int, int] | None = None,
+) -> SF2ZoneEngine:
+    """
+    Factory function to create a zone engine.
+
+    Args:
+        zone_id: Unique zone identifier
+        instrument_generators: Generator values from instrument zone
+        instrument_modulators: Modulator list from instrument zone
+        preset_generators: Generator values from preset zone
+        preset_modulators: Modulator list from preset zone
+        preset_global_generators: Preset global zone generators (layer 1)
+        instrument_global_generators: Instrument global zone generators (layer 3)
+
+    Returns:
+        SF2ZoneEngine instance
+    """
+    return SF2ZoneEngine(
+        zone_id,
+        instrument_generators,
+        instrument_modulators,
+        preset_generators,
+        preset_modulators,
+        preset_global_generators=preset_global_generators,
+        instrument_global_generators=instrument_global_generators,
+    )
+
+
 class SF2ModulationEngine:
     """
     Complete SF2 modulation matrix engine.
@@ -264,14 +381,18 @@ class SF2ModulationEngine:
         instrument_modulators: list[dict],
         preset_generators: dict[int, int],
         preset_modulators: list[dict],
+        preset_global_generators: dict[int, int] | None = None,
+        instrument_global_generators: dict[int, int] | None = None,
     ) -> SF2ZoneEngine:
-        """Create a per-zone modulation engine."""
+        """Create a per-zone modulation engine with global zone inheritance."""
         return SF2ZoneEngine(
             zone_id,
             instrument_generators,
             instrument_modulators,
             preset_generators,
             preset_modulators,
+            preset_global_generators=preset_global_generators,
+            instrument_global_generators=instrument_global_generators,
         )
 
     def _get_source_value(self, src_operator: int) -> float:
@@ -743,9 +864,11 @@ class SF2RealtimeControllerManager:
         instrument_modulators: list[dict],
         preset_generators: dict[int, int],
         preset_modulators: list[dict],
+        preset_global_generators: dict[int, int] | None = None,
+        instrument_global_generators: dict[int, int] | None = None,
     ) -> SF2ZoneEngine:
         """
-        Create a per-zone modulation engine.
+        Create a per-zone modulation engine with global zone inheritance.
 
         Args:
             zone_id: Unique zone identifier
@@ -753,6 +876,8 @@ class SF2RealtimeControllerManager:
             instrument_modulators: Modulator list from instrument zone
             preset_generators: Generator values from preset zone
             preset_modulators: Modulator list from preset zone
+            preset_global_generators: Preset global zone generators (layer 1)
+            instrument_global_generators: Instrument global zone generators (layer 3)
 
         Returns:
             SF2ZoneEngine instance
@@ -763,6 +888,8 @@ class SF2RealtimeControllerManager:
             instrument_modulators,
             preset_generators,
             preset_modulators,
+            preset_global_generators=preset_global_generators,
+            instrument_global_generators=instrument_global_generators,
         )
 
     def reset_all_controllers(self) -> None:
@@ -806,100 +933,3 @@ class SF2RealtimeControllerManager:
             depth: Global modulation depth (0.0-1.0)
         """
         self.update_controller(143, depth, smooth=True)  # Master modulation depth
-
-
-class SF2ZoneEngine:
-    """
-    Per-zone modulation engine that processes generators and modulators.
-
-    Merges generators from preset and instrument levels, applies modulators,
-    and produces final synthesis parameters.
-    """
-
-    def __init__(
-        self,
-        zone_id: str,
-        instrument_generators: dict[int, int],
-        instrument_modulators: list[dict],
-        preset_generators: dict[int, int],
-        preset_modulators: list[dict],
-    ):
-        """
-        Initialize zone engine.
-
-        Args:
-            zone_id: Unique zone identifier
-            instrument_generators: Generator values from instrument zone
-            instrument_modulators: Modulator list from instrument zone
-            preset_generators: Generator values from preset zone
-            preset_modulators: Modulator list from preset zone
-        """
-        self.zone_id = zone_id
-        self.processor = SF2GeneratorProcessor()
-
-        # Apply preset generators first (lower priority)
-        for gen_type, gen_value in preset_generators.items():
-            self.processor.set_generator(gen_type, gen_value)
-
-        # Apply instrument generators (higher priority, override preset)
-        for gen_type, gen_value in instrument_generators.items():
-            self.processor.set_generator(gen_type, gen_value)
-
-        # Store modulators for runtime processing
-        self.instrument_modulators = instrument_modulators
-        self.preset_modulators = preset_modulators
-
-    def get_modulated_parameters(self, note: int, velocity: int) -> dict[str, Any]:
-        """
-        Get final synthesis parameters after modulation.
-
-        Args:
-            note: MIDI note number
-            velocity: MIDI velocity
-
-        Returns:
-            Dictionary of synthesis parameters
-        """
-        # Get base parameters from generators
-        params = self.processor.to_modern_synth_params()
-
-        # Apply velocity-based scaling
-        velocity_factor = velocity / 127.0
-        if "amp_sustain" in params:
-            # Scale sustain by velocity
-            params["amp_sustain"] = params["amp_sustain"] * velocity_factor
-
-        # Apply note-based modifications
-        params["note"] = note
-        params["velocity"] = velocity
-
-        return params
-
-
-def create_zone_engine(
-    zone_id: str,
-    instrument_generators: dict[int, int],
-    instrument_modulators: list[dict],
-    preset_generators: dict[int, int],
-    preset_modulators: list[dict],
-) -> SF2ZoneEngine:
-    """
-    Factory function to create a zone engine.
-
-    Args:
-        zone_id: Unique zone identifier
-        instrument_generators: Generator values from instrument zone
-        instrument_modulators: Modulator list from instrument zone
-        preset_generators: Generator values from preset zone
-        preset_modulators: Modulator list from preset zone
-
-    Returns:
-        SF2ZoneEngine instance
-    """
-    return SF2ZoneEngine(
-        zone_id,
-        instrument_generators,
-        instrument_modulators,
-        preset_generators,
-        preset_modulators,
-    )

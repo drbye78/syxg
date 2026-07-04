@@ -1,4 +1,5 @@
 """
+
 Jupiter-X Arpeggiator Implementation
 
 Grid-based arpeggiator system for Jupiter-X with pattern sequencing,
@@ -6,6 +7,8 @@ velocity control, and real-time parameter modulation.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 import time
@@ -13,6 +16,8 @@ from collections.abc import Callable
 from typing import Any
 
 from .constants import *
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXArpeggiatorPattern:
@@ -231,7 +236,7 @@ class JupiterXArpeggiatorEngine:
         self.note_on_callback: Callable | None = None
         self.note_off_callback: Callable | None = None
 
-        print("🎹 Jupiter-X Arpeggiator: Initialized with pattern library")
+        logger.info("🎹 Jupiter-X Arpeggiator: Initialized with pattern library")
 
     def _initialize_builtin_patterns(self):
         """Initialize comprehensive built-in arpeggio patterns (32 total like Jupiter-X)."""

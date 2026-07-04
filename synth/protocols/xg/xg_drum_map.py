@@ -1,4 +1,5 @@
 """
+
 XG Drum Map - Complete Implementation
 
 Implements XG Drum Map functionality (Drum Map 1-4) per XG specification.
@@ -29,7 +30,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class DrumNoteEntry:
     """Single drum note mapping entry"""
 
@@ -45,7 +46,7 @@ class DrumNoteEntry:
     volume_velocity: int = 100  # Velocity sensitivity
 
 
-@dataclass
+@dataclass(slots=True)
 class DrumMap:
     """Complete XG Drum Map"""
 
@@ -101,7 +102,6 @@ class XGDrumMapManager:
         # Callback for parameter changes
         self.parameter_change_callback = None
 
-        logger = logging.getLogger(__name__)
         self._logger = logger
 
         self._logger.info(
@@ -547,7 +547,6 @@ class XGPartModeController:
         # Callback
         self.parameter_change_callback = None
 
-        logger = logging.getLogger(__name__)
         self._logger = logger
 
     def set_part_mode(

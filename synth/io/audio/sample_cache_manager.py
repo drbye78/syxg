@@ -1,4 +1,5 @@
 """
+
 Sample Cache Manager - Memory-efficient sample caching with LRU eviction.
 
 Part of the unified region-based synthesis architecture.

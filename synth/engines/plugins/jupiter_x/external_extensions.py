@@ -1,4 +1,5 @@
 """
+
 Jupiter-X External/Sample Engine Extensions
 
 Plugin that adds Jupiter-X specific sample playback features to the base sample engine.
@@ -7,6 +8,8 @@ a parallel implementation.
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
@@ -19,6 +22,8 @@ from ..base_plugin import (
     PluginType,
     SynthesisFeaturePlugin,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXExternalPlugin(SynthesisFeaturePlugin):
@@ -162,11 +167,11 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
             # Initialize Jupiter-X specific features
             self._initialize_jupiter_x_external_features()
 
-            print("🎹 Jupiter-X External Extensions loaded")
+            logger.info("🎹 Jupiter-X External Extensions loaded")
             return True
 
         except Exception as e:
-            print(f"Failed to load Jupiter-X external extensions: {e}")
+            logger.error(f"Failed to load Jupiter-X external extensions: {e}")
             return False
 
     def unload(self) -> bool:
@@ -176,11 +181,11 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
             self.sample_layers.clear()
             self.crossfade_points.clear()
 
-            print("🎹 Jupiter-X External Extensions unloaded")
+            logger.info("🎹 Jupiter-X External Extensions unloaded")
             return True
 
         except Exception as e:
-            print(f"Error unloading Jupiter-X external extensions: {e}")
+            logger.error(f"Error unloading Jupiter-X external extensions: {e}")
             return False
 
     def _initialize_jupiter_x_external_features(self):
@@ -541,7 +546,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
         if self.sample_engine and hasattr(self.sample_engine, "add_keygroup"):
             self.sample_engine.add_keygroup(keygroup)
 
-        print(f"🎛️ Created keygroup: keys {low_key}-{high_key}, sample {sample_index}")
+        logger.info(f"🎛️ Created keygroup: keys {low_key}-{high_key}, sample {sample_index}")
         return True
 
     def create_velocity_layer(
@@ -565,7 +570,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
         if self.sample_engine and hasattr(self.sample_engine, "add_velocity_layer"):
             self.sample_engine.add_velocity_layer(velocity_layer)
 
-        print(
+        logger.info(
             f"🎛️ Created velocity layer: vel {low_velocity}-{high_velocity}, sample {sample_index}"
         )
         return True
@@ -582,7 +587,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
         if self.sample_engine and hasattr(self.sample_engine, "add_round_robin_group"):
             self.sample_engine.add_round_robin_group(group_index, sample_indices)
 
-        print(f"🎛️ Created round-robin group {group_index}: {sample_indices}")
+        logger.info(f"🎛️ Created round-robin group {group_index}: {sample_indices}")
         return group_index
 
     def get_next_round_robin_sample(self, group_index: int) -> int:
@@ -626,7 +631,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
                 },
             )
 
-        print(
+        logger.info(
             f"🎛️ Grain cloud {'enabled' if enabled else 'disabled'} (density: {self.grain_cloud_density:.1f})"
         )
 
@@ -647,7 +652,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
                 },
             )
 
-        print(
+        logger.info(
             f"🎛️ Formant correction {'enabled' if enabled else 'disabled'} (strength: {self.formant_correction_strength:.2f})"
         )
 
@@ -672,7 +677,9 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
                 },
             )
 
-        print(f"🎛️ Loop mode set to {self.loop_mode} (crossfade: {self.loop_crossfade_enabled})")
+        logger.info(
+            f"🎛️ Loop mode set to {self.loop_mode} (crossfade: {self.loop_crossfade_enabled})"
+        )
 
     def configure_sample_stretching(
         self, enabled: bool = True, algorithm: str = "phase_vocoder", quality: str = "high"
@@ -695,7 +702,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
                 },
             )
 
-        print(
+        logger.info(
             f"🎛️ Sample stretching {'enabled' if enabled else 'disabled'} ({self.pitch_shifting_algorithm}, {self.time_stretching_quality} quality)"
         )
 
@@ -709,7 +716,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
                 enabled, self.keygroup_crossfade_range_semitones
             )
 
-        print(
+        logger.info(
             f"🎛️ Keygroup crossfade {'enabled' if enabled else 'disabled'} (range: {self.keygroup_crossfade_range_semitones:.1f} semitones)"
         )
 
@@ -730,7 +737,7 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
         if self.sample_engine and hasattr(self.sample_engine, "configure_velocity_switching"):
             self.sample_engine.configure_velocity_switching(enabled, self.velocity_switch_points)
 
-        print(
+        logger.info(
             f"🎛️ Velocity switching {'enabled' if enabled else 'disabled'} (points: {self.velocity_switch_points})"
         )
 

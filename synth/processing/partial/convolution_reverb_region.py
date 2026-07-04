@@ -1,4 +1,5 @@
 """
+
 Convolution Reverb Region - Production-grade IR-based reverb region.
 
 Part of the unified region-based synthesis architecture.
@@ -306,6 +307,7 @@ class ConvolutionReverbRegion(IRegion):
         # For region use, we generate processed noise/signal
 
         if not self._partial:
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         try:
@@ -319,6 +321,7 @@ class ConvolutionReverbRegion(IRegion):
 
         except Exception as e:
             logger.error(f"Convolution reverb sample generation failed: {e}")
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
     def _apply_modulation(self, modulation: dict[str, float]) -> None:

@@ -1,4 +1,5 @@
 """
+
 SF2 SoundFont Core Architecture - Professional Sample Management System
 
 ARCHITECTURAL OVERVIEW:
@@ -294,9 +295,12 @@ INDUSTRY COMPLIANCE:
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class SF2SoundFont:
@@ -370,7 +374,7 @@ class SF2SoundFont:
             return True
 
         except Exception as e:
-            print(f"Error loading SF2 soundfont {self.filepath}: {e}")
+            logger.error("Error loading SF2 soundfont %s: %s", self.filepath, e)
             return False
 
     def unload(self) -> None:
@@ -404,7 +408,12 @@ class SF2SoundFont:
             self._is_loaded = False
 
     def get_program_parameters(
-        self, bank: int, program: int, note: int = 60, velocity: int = 100
+        self,
+        bank: int,
+        program: int,
+        note: int = 60,
+        velocity: int = 100,
+        controllers: dict[int, float] | None = None,
     ) -> dict[str, Any] | None:
         """
         Get program parameters for synthesis.
@@ -414,6 +423,7 @@ class SF2SoundFont:
             program: MIDI program number
             note: MIDI note for zone matching
             velocity: MIDI velocity for zone matching
+            controllers: Optional controller values for modulation matrix
 
         Returns:
             Program parameters dict or None if not found
@@ -422,7 +432,6 @@ class SF2SoundFont:
             return None
 
         with self._lock:
-            preset_key = (bank, program)
 
             # Get or load preset
             preset = self._get_or_load_preset(bank, program)
@@ -435,7 +444,9 @@ class SF2SoundFont:
                 return None
 
             # Process zones into synthesis parameters
-            return self._process_zones_to_parameters(matching_zones, note, velocity)
+            return self._process_zones_to_parameters(
+                matching_zones, note, velocity, controllers=controllers
+            )
 
     def get_zone(self, bank: int, program: int, zone_id: int) -> SF2Zone | None:
         """
@@ -569,7 +580,7 @@ class SF2SoundFont:
             return True
 
         except Exception as e:
-            print(f"Error loading preset {bank}:{program}: {e}")
+            logger.error("Error loading preset %s:%s: %s", bank, program, e)
             return False
 
     def _load_preset_zones_selective(
@@ -664,6 +675,15 @@ class SF2SoundFont:
 
             zones.append(zone)
 
+        # Apply global zone generators to all subsequent zones (SF2 spec inheritance)
+        if len(zones) > 1:
+            global_zone = zones[0]
+            if global_zone.is_global:
+                for zone in zones[1:]:
+                    for gen_type, gen_amount in global_zone.generators.items():
+                        if gen_type not in zone.generators:
+                            zone.add_generator(gen_type, gen_amount)
+
         return zones
 
     def _populate_zone_generators(
@@ -690,14 +710,35 @@ class SF2SoundFont:
             zone.add_modulator(mod_data[mod_idx])
 
     def _process_zones_to_parameters(
-        self, zones: list[SF2Zone], note: int, velocity: int
+        self,
+        zones: list[SF2Zone],
+        note: int,
+        velocity: int,
+        controllers: dict[int, float] | None = None,
     ) -> dict[str, Any]:
-        """Process zones into synthesis parameters."""
+        """Process zones into synthesis parameters.
+
+        Args:
+            zones: List of matching preset zones (may include global zone at index 0)
+            note: MIDI note for modulation
+            velocity: MIDI velocity for modulation
+            controllers: Optional controller values for modulation matrix
+
+        Returns:
+            Synthesis parameter dictionary
+        """
         if not zones:
             return {}
 
-        # Use first zone as primary (layering would use all zones)
+        # Handle preset global zone: zones[0] may be the global zone
         primary_zone = zones[0]
+        preset_global_gens: dict[int, int] | None = None
+        if primary_zone.is_global:
+            preset_global_gens = primary_zone.generators
+            if len(zones) > 1:
+                primary_zone = zones[1]
+            else:
+                return {}  # Only a global zone, no actual zone to process
 
         # Get instrument
         instrument_index = primary_zone.instrument_index
@@ -727,7 +768,13 @@ class SF2SoundFont:
         if not sample:
             return {}
 
-        # Create zone engine for modulation
+        # Collect instrument global generators for 4-layer merge
+        inst_global_gens: dict[int, int] | None = (
+            instrument.global_zone.generators if instrument.global_zone else None
+        )
+
+        # Create zone engine for modulation (4-layer merge:
+        # preset_global → preset_local → instrument_global → instrument_local)
         zone_id = (
             f"preset_{primary_zone.instrument_index}_inst_{instrument_index}_sample_{sample_id}"
         )
@@ -737,10 +784,12 @@ class SF2SoundFont:
             instrument_zone.modulators,
             primary_zone.generators,
             primary_zone.modulators,
+            preset_global_generators=preset_global_gens,
+            instrument_global_generators=inst_global_gens,
         )
 
-        # Get modulated parameters
-        params = zone_engine.get_modulated_parameters(note, velocity)
+        # Get modulated parameters (pass controllers for modulation matrix support)
+        params = zone_engine.get_modulated_parameters(note, velocity, controllers=controllers)
 
         # Add sample information
         params.update(
@@ -793,7 +842,7 @@ class SF2SoundFont:
             return True
 
         except Exception as e:
-            print(f"Error loading instrument {instrument_index}: {e}")
+            logger.error("Error loading instrument %s: %s", instrument_index, e)
             return False
 
     def _load_instrument_zones_selective(
@@ -887,6 +936,15 @@ class SF2SoundFont:
             zone.finalize()
 
             zones.append(zone)
+
+        # Apply global zone generators to all subsequent zones (SF2 spec inheritance)
+        if len(zones) > 1:
+            global_zone = zones[0]
+            if global_zone.is_global:
+                for zone in zones[1:]:
+                    for gen_type, gen_amount in global_zone.generators.items():
+                        if gen_type not in zone.generators:
+                            zone.add_generator(gen_type, gen_amount)
 
         return zones
 

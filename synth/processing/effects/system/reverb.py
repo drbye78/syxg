@@ -139,8 +139,7 @@ class XGSystemReverbProcessor:
             or self.convolution_buffers[0].shape[0] < required_size
         ):
             self.convolution_buffers = [
-                np.zeros(required_size, dtype=np.float32)
-                for _ in range(2)  # Left and right
+                np.zeros(required_size, dtype=np.float32) for _ in range(2)  # Left and right
             ]
             self.buffer_positions = [0, 0]
 
@@ -171,6 +170,7 @@ class XGSystemReverbProcessor:
 
         # Process left channel
         left_input = stereo_mix[:, 0]
+        # TODO: Use BufferPool when available (hot path allocation)
         left_output = np.zeros(num_samples, dtype=np.float32)
 
         # Add current input to convolution buffer
@@ -194,6 +194,7 @@ class XGSystemReverbProcessor:
 
         # Same for right channel
         right_input = stereo_mix[:, 1]
+        # TODO: Use BufferPool when available (hot path allocation)
         right_output = np.zeros(num_samples, dtype=np.float32)
 
         self.convolution_buffers[1][
@@ -475,5 +476,3 @@ class XGSystemReverbProcessor:
             if i > 0.1 * self.sample_rate:
                 noise = noise * max(0.6, 1.0 - (i / self.sample_rate) * 0.5)
             self.current_ir[i] += noise * decay_factor * damping_factor * density
-
-

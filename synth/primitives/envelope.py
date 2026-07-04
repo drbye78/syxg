@@ -21,6 +21,7 @@ Architecture:
 
 from __future__ import annotations
 
+import math
 import threading
 from collections import deque
 
@@ -85,9 +86,9 @@ def _numba_process_envelope_block_robust(
         hold_counter: Current hold counter
         delay_samples: Total delay samples
         hold_samples: Total hold samples
-        attack_increment: Attack increment per sample
-        decay_decrement: Decay decrement per sample
-        release_decrement: Release decrement per sample
+        attack_increment: Exponential attack coefficient (convergence rate toward target)
+        decay_decrement: Exponential decay coefficient (convergence rate toward sustain)
+        release_decrement: Exponential release coefficient (convergence rate toward zero)
         sustain_level: Sustain level (0.0-1.0)
         velocity_factor: Velocity scaling factor
         block_size: Number of samples to process
@@ -112,12 +113,13 @@ def _numba_process_envelope_block_robust(
                 state = 2  # EnvelopeState.ATTACK
 
         if state == 2:  # EnvelopeState.ATTACK
-            # Calculate attack increment from current level
-            new_level = level + attack_increment
+            # Exponential attack: converge toward velocity_factor
+            # new_level = level + coeff * (target - level)
+            new_level = level + attack_increment * (velocity_factor - level)
             new_level = min(new_level, velocity_factor)  # Don't exceed target
             output_buffer[sample_idx] = new_level
 
-            # Check if attack completed
+            # Check if attack completed (within 0.001 of target)
             if new_level >= velocity_factor - 0.001:
                 # Attack complete, transition to hold
                 level = velocity_factor
@@ -133,16 +135,16 @@ def _numba_process_envelope_block_robust(
             else:
                 # Hold complete, transition to decay
                 state = 4  # EnvelopeState.DECAY
-                # Process this sample with decay logic
-                new_level = level - decay_decrement
+                # Process this sample with exponential decay logic
                 target_sustain = sustain_level * velocity_factor
+                new_level = level + decay_decrement * (target_sustain - level)
                 new_level = max(target_sustain, new_level)
                 new_level = max(0.0, new_level)
                 output_buffer[sample_idx] = new_level
                 level = new_level  # Update level for next sample
 
                 # Check if sustain reached immediately
-                if new_level <= target_sustain + 0.001:
+                if abs(new_level - target_sustain) < 0.001:
                     # Sustain reached
                     level = target_sustain
                     state = 5  # EnvelopeState.SUSTAIN
@@ -150,15 +152,15 @@ def _numba_process_envelope_block_robust(
                 # by falling through to the DECAY case
 
         if state == 4:  # EnvelopeState.DECAY
-            # Calculate decay from current level
-            new_level = level - decay_decrement
+            # Exponential decay: converge toward target_sustain
             target_sustain = sustain_level * velocity_factor
+            new_level = level + decay_decrement * (target_sustain - level)
             new_level = max(target_sustain, new_level)
             new_level = max(0.0, new_level)
             output_buffer[sample_idx] = new_level
 
-            # Check if sustain reached
-            if new_level <= target_sustain + 0.001:
+            # Check if sustain reached (within 0.001)
+            if abs(new_level - target_sustain) < 0.001:
                 # Sustain reached
                 level = target_sustain
                 state = 5  # EnvelopeState.SUSTAIN
@@ -169,13 +171,14 @@ def _numba_process_envelope_block_robust(
             output_buffer[sample_idx] = level
 
         if state == 6:  # EnvelopeState.RELEASE
-            # Calculate release from current level
-            new_level = level - release_decrement
+            # Exponential release: decay toward zero
+            # new_level = level * (1 - coeff)  — equivalent to level + coeff * (0 - level)
+            new_level = level * (1.0 - release_decrement)
             new_level = max(0.0, new_level)
             output_buffer[sample_idx] = new_level
 
-            # Check if release completed
-            if new_level <= 0.0:
+            # Check if release completed (within 0.001 of zero)
+            if new_level <= 0.001:
                 # Release complete, transition to idle
                 level = 0.0
                 state = 0  # EnvelopeState.IDLE
@@ -492,24 +495,33 @@ class UltraFastADSREnvelope:
         self._recalculate_increments()
 
     def _recalculate_increments(self):
-        """Recalculate increments for current parameters - optimized version."""
-        # Attack - optimized for vectorized processing
+        """
+        Calculate exponential coefficients for ADSR envelope phases.
+
+        Uses a 4-time-constant model (~98% convergence) for natural exponential
+        attack/decay/release curves matching XG/SF2 behavior:
+        - Attack: fast start, slows as it approaches peak
+        - Decay: fast initial drop, tapering tail toward sustain
+        - Release: fast initial drop, tapering tail toward zero
+        """
+        # Exponential attack coefficient: converge toward 1.0
         if self.attack > 0:
-            self.attack_increment = np.float32(1.0 / (self.attack * self.sample_rate))
+            attack_samples = max(1, int(self.attack * self.sample_rate))
+            self.attack_increment = np.float32(1.0 - math.exp(-4.0 / attack_samples))
         else:
             self.attack_increment = np.float32(1.0)  # instant attack
 
-        # Decay - optimized for vectorized processing
+        # Exponential decay coefficient: converge toward sustain level
         if self.decay > 0:
-            self.decay_decrement = np.float32(
-                (1.0 - self.sustain) / (self.decay * self.sample_rate)
-            )
+            decay_samples = max(1, int(self.decay * self.sample_rate))
+            self.decay_decrement = np.float32(1.0 - math.exp(-4.0 / decay_samples))
         else:
-            self.decay_decrement = np.float32(1.0 - self.sustain)  # instant decay
+            self.decay_decrement = np.float32(1.0)  # instant decay
 
-        # Release - optimized for vectorized processing
+        # Exponential release coefficient: converge toward zero
         if self.release > 0:
-            self.release_decrement = np.float32(1.0 / (self.release * self.sample_rate))
+            release_samples = max(1, int(self.release * self.sample_rate))
+            self.release_decrement = np.float32(1.0 - math.exp(-4.0 / release_samples))
         else:
             self.release_decrement = np.float32(1.0)  # instant release
 
@@ -604,9 +616,18 @@ class UltraFastADSREnvelope:
         self.sustain_pedal = True
 
     def sustain_pedal_off(self):
-        """Sustain pedal off."""
+        """Sustain pedal off.
+
+        Per MIDI spec: releasing the sustain pedal sends all held notes
+        to release regardless of envelope phase (attack, hold, decay, or sustain).
+        """
         self.sustain_pedal = False
-        if self.state == EnvelopeState.SUSTAIN and not (self.sostenuto_pedal or self.hold_notes):
+        if self.state in (
+            EnvelopeState.ATTACK,
+            EnvelopeState.HOLD,
+            EnvelopeState.DECAY,
+            EnvelopeState.SUSTAIN,
+        ) and not (self.sostenuto_pedal or self.hold_notes):
             self.release_start = self.level
             self.state = EnvelopeState.RELEASE
 
@@ -617,10 +638,19 @@ class UltraFastADSREnvelope:
             self.held_by_sostenuto = True
 
     def sostenuto_pedal_off(self):
-        """Sostenuto pedal off."""
+        """Sostenuto pedal off.
+
+        Per MIDI spec: releasing the sostenuto pedal sends all held notes
+        to release regardless of envelope phase (attack, hold, decay, or sustain).
+        """
         self.sostenuto_pedal = False
         self.held_by_sostenuto = False
-        if self.state == EnvelopeState.SUSTAIN and not (self.sustain_pedal or self.hold_notes):
+        if self.state in (
+            EnvelopeState.ATTACK,
+            EnvelopeState.HOLD,
+            EnvelopeState.DECAY,
+            EnvelopeState.SUSTAIN,
+        ) and not (self.sustain_pedal or self.hold_notes):
             self.release_start = self.level
             self.state = EnvelopeState.RELEASE
 
@@ -745,7 +775,7 @@ class UltraFastADSREnvelope:
         self._update_parameter_transitions()
 
         # Use Numba-compiled robust function for ultra-fast processing
-        (self.state, self.level, self.release_start, self.delay_counter, self.hold_counter) = (
+        self.state, self.level, self.release_start, self.delay_counter, self.hold_counter = (
             _numba_process_envelope_block_robust(
                 output_buffer,
                 self.state,

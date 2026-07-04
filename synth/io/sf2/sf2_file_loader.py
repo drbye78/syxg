@@ -1,4 +1,5 @@
 """
+
 SF2 File Loader with Binary Chunk Storage
 
 Handles SF2 file loading, RIFF chunk parsing, and on-demand binary data access.
@@ -7,10 +8,13 @@ Optimized for large soundfonts with 100% SF2 specification compliance.
 
 from __future__ import annotations
 
+import logging
 import struct
 import threading
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class SF2BinaryChunk:
@@ -119,9 +123,9 @@ class SF2ChunkIndex:
     def __init__(self):
         """Initialize chunk index."""
         self.chunks: dict[str, SF2BinaryChunk] = {}
-        self.list_chunks: dict[
-            str, dict[str, SF2BinaryChunk]
-        ] = {}  # list_type -> {subchunk_id -> chunk}
+        self.list_chunks: dict[str, dict[str, SF2BinaryChunk]] = (
+            {}
+        )  # list_type -> {subchunk_id -> chunk}
 
     def add_chunk(self, chunk_id: str, chunk: SF2BinaryChunk) -> None:
         """
@@ -257,7 +261,7 @@ class SF2FileLoader:
             return True
 
         except Exception as e:
-            print(f"Error loading SF2 file {self.filepath}: {e}")
+            logger.error("Error loading SF2 file %s: %s", self.filepath, e)
             self._cleanup()
             return False
 
@@ -956,7 +960,7 @@ class SF2FileLoader:
             return bytes(combined_data)
 
         except Exception as e:
-            print(f"Error reading 24-bit sample data from file: {e}")
+            logger.error("Error reading 24-bit sample data from file: %s", e)
             return None
 
     def _combine_24bit_sample_data(
@@ -1027,7 +1031,7 @@ class SF2FileLoader:
             return bytes(combined_data[: len(combined_data) // 3 * 3])  # Ensure complete samples
 
         except Exception as e:
-            print(f"Error combining 24-bit sample data: {e}")
+            logger.error("Error combining 24-bit sample data: %s", e)
             return None
 
     def get_bag_data(self, level_type: str) -> list[tuple[int, int]]:
@@ -1318,18 +1322,31 @@ class SF2FileLoader:
         """Clear all parsed data caches."""
         self.chunk_index.clear()
 
-    def _cleanup(self) -> None:
-        """Clean up file handles and resources."""
-        if self._file_handle:
+    def close(self) -> None:
+        """Close the file handle and release resources."""
+        if self._file_handle is not None:
             try:
                 self._file_handle.close()
             except Exception:
                 pass
             self._file_handle = None
 
+    def __enter__(self):
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager, ensuring file handle is closed."""
+        self.close()
+        return False
+
+    def _cleanup(self) -> None:
+        """Clean up file handles and resources."""
+        self.close()
+
         self.chunk_index.clear()
         self._is_loaded = False
 
     def __del__(self):
-        """Destructor - ensure cleanup."""
-        self._cleanup()
+        """Destructor - ensure file handle is closed."""
+        self.close()

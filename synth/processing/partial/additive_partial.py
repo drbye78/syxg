@@ -68,6 +68,7 @@ class AdditivePartial(SynthesisPartial):
             Stereo audio buffer (block_size, 2)
         """
         if not self.active:
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Use stored note and velocity for generation
@@ -127,9 +128,11 @@ class AdditivePartial(SynthesisPartial):
                 "num_partials": self.num_partials,
                 "brightness": self.brightness,
                 "spread": self.spread,
-                "additive_engine_info": self.additive_engine.get_engine_info()
-                if hasattr(self.additive_engine, "get_engine_info")
-                else {},
+                "additive_engine_info": (
+                    self.additive_engine.get_engine_info()
+                    if hasattr(self.additive_engine, "get_engine_info")
+                    else {}
+                ),
             }
         )
         return info

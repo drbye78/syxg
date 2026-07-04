@@ -1,4 +1,5 @@
 """
+
 Region Base Class - Unified interface for all synthesis regions.
 
 Part of the unified region-based synthesis architecture.
@@ -8,6 +9,7 @@ with support for lazy initialization and on-demand sample loading.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from typing import Any
@@ -16,6 +18,8 @@ import numpy as np
 
 # Import from engine module where RegionDescriptor is defined
 from ...engines.region_descriptor import RegionDescriptor
+
+logger = logging.getLogger(__name__)
 
 
 class RegionState(IntEnum):
@@ -49,6 +53,7 @@ class IRegion(ABC):
     """
 
     __slots__ = [
+        "_buffer_pool",
         "_envelopes",
         "_filters",
         "_initialized",
@@ -65,17 +70,21 @@ class IRegion(ABC):
         "state",
     ]
 
-    def __init__(self, descriptor: RegionDescriptor, sample_rate: int = 44100):
+    def __init__(
+        self, descriptor: RegionDescriptor, sample_rate: int = 44100, buffer_pool: Any | None = None
+    ):
         """
         Initialize region with descriptor.
 
         Args:
             descriptor: Region metadata and parameters
             sample_rate: Audio sample rate in Hz
+            buffer_pool: Optional BufferPool for zero-allocation audio paths
         """
         self.descriptor = descriptor
         self.sample_rate = sample_rate
         self.block_size = 1024  # Default, can be overridden
+        self._buffer_pool = buffer_pool
 
         # State
         self.state = RegionState.CREATED
@@ -95,6 +104,11 @@ class IRegion(ABC):
         # Buffers (allocated on demand)
         self._output_buffer: np.ndarray | None = None
         self._work_buffer: np.ndarray | None = None
+
+    @property
+    def velocity_curve(self) -> int:
+        """SF2 velocity curve type: 0=linear, 1=concave, 2=convex. Default 0."""
+        return getattr(self, "_velocity_curve", 0)
 
     # ========== LIFECYCLE MANAGEMENT ==========
 
@@ -139,7 +153,6 @@ class IRegion(ABC):
             # Log error using proper logging module
             import logging
 
-            logger = logging.getLogger(__name__)
             logger.error(
                 f"Region initialization failed for {self.descriptor.engine_type}: {e}",
                 exc_info=True,
@@ -184,8 +197,12 @@ class IRegion(ABC):
     def _allocate_buffers(self) -> None:
         """Allocate processing buffers."""
         # Allocate stereo output buffer (2D interleaved: block_size x 2)
-        self._output_buffer = np.zeros((self.block_size, 2), dtype=np.float32)
-        self._work_buffer = np.zeros(self.block_size, dtype=np.float32)
+        if self._buffer_pool is not None:
+            self._output_buffer = self._buffer_pool.get_stereo_buffer(self.block_size)
+            self._work_buffer = self._buffer_pool.get_mono_buffer(self.block_size)
+        else:
+            self._output_buffer = np.zeros((self.block_size, 2), dtype=np.float32)
+            self._work_buffer = np.zeros(self.block_size, dtype=np.float32)
 
     # ========== PLAYBACK ==========
 

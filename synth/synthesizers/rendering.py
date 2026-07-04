@@ -1,4 +1,5 @@
 """
+
 Modern XG Synthesizer - Complete XG Synthesis Engine Architecture
 
 ARCHITECTURAL OVERVIEW:
@@ -312,37 +313,80 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-# Set up logger
-logger = logging.getLogger(__name__)
-
-from ..engines.components.gs_components import GSMIDIProcessor, GSStateManager
-from ..engines.components.parameter_systems import ParameterPrioritySystem, PerformanceMonitor
+# Synthesis Engines
+from ..engines.additive import AdditiveEngine
+from ..engines.advanced_physical import AdvancedPhysicalEngine
 
 # Component Systems
+from ..engines.components.gs_components import GSMIDIProcessor, GSStateManager
+from ..engines.components.parameter_systems import ParameterPrioritySystem, PerformanceMonitor
 from ..engines.components.xg_components import (
     XGComponentManager,
     XGMIDIProcessor,
     XGStateManager,
 )
-from ..engines.processors.audio_processor import AudioProcessor
 
-# Processor Systems
+logger = logging.getLogger(__name__)
+
+
+from ..engines.convolution import ConvolutionReverbEngine
+from ..engines.fdsp import FDSPSynthesisEngine
+from ..engines.fm_engine import FMEngine
+from ..engines.granular import GranularEngine
+from ..engines.physical_engine import PhysicalEngine
+from ..engines.physical_modeling import ANEngine
+from ..engines.plugins.plugin_registry import get_global_plugin_registry
+from ..engines.processors.audio_processor import AudioProcessor
 from ..engines.processors.midi_processor import MIDIMessageProcessor
+from ..engines.sf2_engine import SF2Engine
+from ..engines.spectral import SpectralEngine
+from ..engines.synthesis_engine import SynthesisEngineRegistry
 from ..engines.systems.arpeggiator_system import ArpeggiatorSystem
 from ..engines.systems.config_system import XGMLConfigSystem
 from ..engines.systems.effects_system import EffectsSystem
-
-# Feature Systems
 from ..engines.systems.mpe_system import MPESystem
+from ..engines.wavetable import WavetableEngine
+
+# Hardware Integration
+from ..hardware.jupiter_x.jupiter_x_engine import JupiterXEngineIntegration
+
+# File I/O
+from ..io.sfz.sfz_engine import SFZEngine
+
+# Buffer Management
+from ..primitives.buffer_pool import XGBufferPool
+from ..primitives.config import get_global_config
+
+# Audio Processing
+from ..processing.channel import Channel
+from ..processing.effects import XGEffectsCoordinator
+from ..processing.voice.voice_factory import VoiceFactory
+from ..processing.voice.voice_manager import VoiceManager
+
+# XG/GS Protocols
+from ..protocols.gs.jv2080_component_manager import JV2080ComponentManager
+from ..protocols.xg.sart import ArticulationController, YamahaNRPNMapper
+from ..protocols.xg.sart.articulation_preset import create_builtin_presets
+from ..protocols.xg.sart.sart2_region import SArt2RegionFactory
+from ..protocols.xg.xg_channel_parameter_manager import XGChannelParameterManager
+from ..protocols.xg.xg_motif_effects import MotifEffectsProcessor
+from ..protocols.xg.xg_receive_channel_manager import XGReceiveChannelManager
+
+# Sampling
+from ..sampling.sampling_system import SampleManager
+
+# Set up logger
+
+if TYPE_CHECKING:
+    from ..engines.systems.config_system import ConfigManager
 
 # XGML v3.0 support (lazy loaded to avoid dependency issues)
 # from ..xgml.parser_v3 import XGMLParserV3, XGMLConfigV3
 # from ..xgml.translator_v3 import XGMLTranslatorV3
-# Workstation Manager
 
 
 class ModernXGSynthesizer:
@@ -390,8 +434,6 @@ class ModernXGSynthesizer:
 
         # Determine active protocol based on configuration
         try:
-            from ..primitives.config import get_global_config
-
             config = get_global_config()
             gs_mode_config = getattr(config.midi, "gs_mode", "auto")
         except ImportError:
@@ -423,10 +465,10 @@ class ModernXGSynthesizer:
         # Master volume (0.0 to 1.0)
         self.master_volume = 1.0
 
-        print("🎹 ENHANCED MODERN XG/GS SYNTHESIZER: Initializing...")
-        print(f"   Sample Rate: {sample_rate}Hz, Channels: {max_channels}")
-        print(f"   XG Enabled: {xg_enabled}, GS Enabled: {gs_enabled}")
-        print(
+        logger.info("🎹 ENHANCED MODERN XG/GS SYNTHESIZER: Initializing...")
+        logger.info(f"   Sample Rate: {sample_rate}Hz, Channels: {max_channels}")
+        logger.info(f"   XG Enabled: {xg_enabled}, GS Enabled: {gs_enabled}")
+        logger.info(
             f"   Active Protocol: {self.active_protocol.upper()}, Device ID: {self.device_id:02X}"
         )
 
@@ -457,61 +499,49 @@ class ModernXGSynthesizer:
         self.effects_system = EffectsSystem(self)
         self.config_system = XGMLConfigSystem(self)
 
-        print("🎹 ENHANCED MODERN XG/GS/MPE SYNTHESIZER: Initialization complete!")
+        logger.info("🎹 ENHANCED MODERN XG/GS/MPE SYNTHESIZER: Initialization complete!")
         if hasattr(self, "arpeggiator_system") and self.arpeggiator_system:
-            arp_status = self.arpeggiator_system.get_arpeggiator_status()
-            print("   Arpeggiator: System initialized with multi-arpeggiator support")
+            _arp_status = self.arpeggiator_system.get_arpeggiator_status()
+            logger.info("   Arpeggiator: System initialized with multi-arpeggiator support")
         if self.mpe_enabled and hasattr(self, "mpe_system") and self.mpe_system:
             mpe_info = self.mpe_system.get_mpe_info()
             if mpe_info.get("enabled", False):
-                print(f"   MPE: {mpe_info.get('zones', 0)} zones configured")
-        print("   Jupiter-X: Integrated as synthesis engine")
+                logger.info(f"   MPE: {mpe_info.get('zones', 0)} zones configured")
+        logger.info("   Jupiter-X: Integrated as synthesis engine")
 
     def _init_core_synthesis(self):
         """Initialize core synthesis system with modern architecture"""
         # Zero-allocation buffer pool
-        from ..primitives.buffer_pool import XGBufferPool
-
         self.buffer_pool = XGBufferPool(
-            self.sample_rate, max_block_size=2048, max_channels=self.max_channels
+            self.sample_rate, max_block_size=self.block_size, max_channels=self.max_channels
         )
 
         # Pre-allocate all buffers
         self._preallocate_buffers()
 
         # Synthesis engine registry
-        from ..engines.synthesis_engine import SynthesisEngineRegistry
-
         self.engine_registry = SynthesisEngineRegistry()
         self._register_engines()
 
         # SFZ Engine for advanced sample playback
-        from ..io.sfz.sfz_engine import SFZEngine
-
         sfz_engine = SFZEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(
             sfz_engine, "sfz", priority=19
         )  # High priority after SF2
 
         # Wavetable Engine for classic synthesis
-        from ..engines.wavetable import WavetableEngine
-
         wavetable_engine = WavetableEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(
             wavetable_engine, "wavetable", priority=7
         )  # Medium priority
 
         # Spectral Engine for advanced sound design
-        from ..engines.spectral import SpectralEngine
-
         spectral_engine = SpectralEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(
             spectral_engine, "spectral", priority=3
         )  # Advanced priority
 
         # Convolution Reverb Engine for high-quality spatial processing
-        from ..engines.convolution import ConvolutionReverbEngine
-
         convolution_reverb_engine = ConvolutionReverbEngine(
             sample_rate=self.sample_rate, block_size=1024
         )
@@ -520,27 +550,23 @@ class ModernXGSynthesizer:
         )  # Effect priority
 
         # Advanced Physical Modeling Engine for realistic acoustic simulation
-        from ..engines.advanced_physical import AdvancedPhysicalEngine
-
         physical_engine = AdvancedPhysicalEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(
             physical_engine, "advanced_physical", priority=5
         )  # Physical modeling priority
 
         # Voice factory with SF2 support
-        from ..processing.voice.voice_factory import VoiceFactory
-
         self.voice_factory = VoiceFactory(self.engine_registry)
 
         # Voice manager for GS voice reserve integration - enhanced for S90/S70
-        from ..processing.voice.voice_manager import VoiceManager
-
         # Use enhanced voice management for S90/S70 compatibility
         if self.s90_mode:
             self.voice_manager = VoiceManager(max_voices=256)  # Increased for 32-channel support
             # Set advanced XG allocation mode for S90/S70 compatibility
             self.voice_manager.set_xg_allocation_mode(2)  # Advanced XG polyphonic
-            print("🎹 Voice Manager: Enhanced for S90/S70 compatibility (256 voices, 32 channels)")
+            logger.info(
+                "🎹 Voice Manager: Enhanced for S90/S70 compatibility (256 voices, 32 channels)"
+            )
         else:
             self.voice_manager = VoiceManager(max_voices=128)  # GS supports up to 128 voices
 
@@ -549,8 +575,6 @@ class ModernXGSynthesizer:
         self._create_channels()
 
         # Effects coordinator with GS integration
-        from ..processing.effects import XGEffectsCoordinator
-
         self.effects_coordinator = XGEffectsCoordinator(
             sample_rate=self.sample_rate,
             block_size=1024,
@@ -560,89 +584,110 @@ class ModernXGSynthesizer:
         )
 
         # Motif Effects Processor for workstation-grade effects
-        from ..protocols.xg.xg_motif_effects import MotifEffectsProcessor
-
         self.motif_effects = MotifEffectsProcessor(sample_rate=self.sample_rate)
 
         # User Sampling System for Motif-compatible recording and editing
-        from ..sampling.sampling_system import SampleManager
-
         self.sample_manager = SampleManager(max_samples=1000, max_memory_mb=512)
 
     def _preallocate_buffers(self):
         """Pre-allocate all buffers - zero runtime allocations"""
         # Main audio buffers
-        self.output_buffer = self.buffer_pool.get_stereo_buffer(2048)
-        self.mix_buffer = self.buffer_pool.get_stereo_buffer(2048)
+        self.output_buffer = self.buffer_pool.get_stereo_buffer(self.block_size)
+        self.mix_buffer = self.buffer_pool.get_stereo_buffer(self.block_size)
 
         # Temporary processing buffers
-        self.temp_buffers = [self.buffer_pool.get_stereo_buffer(2048) for _ in range(8)]
+        self.temp_buffers = [self.buffer_pool.get_stereo_buffer(self.block_size) for _ in range(8)]
 
         # Channel-specific buffers
         self.channel_buffers = [
-            self.buffer_pool.get_stereo_buffer(2048) for _ in range(self.max_channels)
+            self.buffer_pool.get_stereo_buffer(self.block_size) for _ in range(self.max_channels)
         ]
 
         # XG-specific buffers
         if self.xg_enabled:
-            self.xg_temp_buffers = [self.buffer_pool.get_stereo_buffer(2048) for _ in range(4)]
+            self.xg_temp_buffers = [
+                self.buffer_pool.get_stereo_buffer(self.block_size) for _ in range(4)
+            ]
 
     def _register_engines(self):
         """Register synthesis engines with priority system"""
         # Create SF2 engine with new modular manager
-        from ..engines.sf2_engine import SF2Engine
-
         sf2_engine = SF2Engine(sample_rate=self.sample_rate, block_size=1024, synth=self)
         self.engine_registry.register_engine(sf2_engine, "sf2", priority=25)
 
-        # FM Engine - high priority
-        from ..engines.fm_engine import FMEngine
+        # Create and wire SF2PartModeIntegrator for XG/GS part mode awareness
+        try:
+            from ..engines.sf2_engine_controller import SF2PartModeIntegrator as _SPMI
 
+            part_mode_integrator = _SPMI(sf2_engine)
+            sf2_engine.set_part_mode_integrator(part_mode_integrator)
+            self._sf2_part_mode_integrator = part_mode_integrator
+
+            # Sync initial channel modes: default channel 10 to drum
+            part_mode_integrator.set_channel_mode(9, "drum")
+
+            # Sync from XG multi-part setup if available
+            if hasattr(self, "xg_components"):
+                multi_part = self.xg_components.get_component("multi_part")
+                if multi_part and hasattr(multi_part, "get_part_mode"):
+                    for ch in range(min(16, self.max_channels)):
+                        try:
+                            mode_val = multi_part.get_part_mode(ch)
+                            is_drum = mode_val in (1, 2, 3)
+                            part_mode_integrator.set_channel_mode(
+                                ch,
+                                "drum" if is_drum else "normal",
+                                bank_msb=127 if is_drum else 0,
+                            )
+                        except Exception:
+                            pass  # Use defaults
+
+            logger.info("SF2PartModeIntegrator: Wired for offline rendering")
+        except ImportError:
+            logger.warning("SF2PartModeIntegrator not available")
+        except Exception as e:
+            logger.warning(f"SF2PartModeIntegrator init failed: {e}")
+
+        # FM Engine - high priority
         fm_engine = FMEngine(num_operators=6, sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(fm_engine, "fm", priority=8)
 
         # Additive Engine - medium priority
-        from ..engines.additive import AdditiveEngine
-
         additive_engine = AdditiveEngine(
             max_partials=64, sample_rate=self.sample_rate, block_size=1024
         )
         self.engine_registry.register_engine(additive_engine, "additive", priority=6)
 
         # Physical Modeling - lower priority
-        from ..engines.physical_engine import PhysicalEngine
-
         physical_engine = PhysicalEngine(
             max_strings=16, sample_rate=self.sample_rate, block_size=1024
         )
         self.engine_registry.register_engine(physical_engine, "physical", priority=4)
 
         # Granular Synthesis - lowest priority
-        from ..engines.granular import GranularEngine
-
         granular_engine = GranularEngine(
             max_clouds=8, sample_rate=self.sample_rate, block_size=1024
         )
         self.engine_registry.register_engine(granular_engine, "granular", priority=2)
 
         # AN (Analog Physical Modeling) Engine - high priority for Motif compatibility
-        from ..engines.physical_modeling import ANEngine
-
         an_engine = ANEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(an_engine, "an", priority=14)
 
         # FDSP (Formant Dynamic Synthesis Processor) Engine - vocal synthesis
-        from ..engines.fdsp import FDSPSynthesisEngine
-
         fdsp_engine = FDSPSynthesisEngine(sample_rate=self.sample_rate, block_size=1024)
         self.engine_registry.register_engine(fdsp_engine, "fdsp", priority=12)
 
     def _create_channels(self):
         """Create MIDI channels with modern architecture"""
-        from ..processing.channel import Channel
-
         for channel_num in range(self.max_channels):
-            channel = Channel(channel_num, self.voice_factory, self.sample_rate, self)
+            channel = Channel(
+                channel_num,
+                self.voice_factory,
+                self.sample_rate,
+                self,
+                buffer_pool=self.buffer_pool,
+            )
 
             # Add XG configuration if enabled
             if self.xg_enabled:
@@ -669,9 +714,21 @@ class ModernXGSynthesizer:
         self.xg_state = XGStateManager(self.xg_components)
 
         # XG Receive Channel Manager - Production-ready multichannel routing
-        from ..protocols.xg.xg_receive_channel_manager import XGReceiveChannelManager
-
         self.receive_channel_manager = XGReceiveChannelManager(num_parts=self.max_channels)
+
+        # XG Channel Parameter Manager - NRPN MSB 3-31 parameters for audio pipeline
+        self.xg_channel_params = XGChannelParameterManager(self.max_channels)
+
+        # Wire XGChannelParameterManager to all channels for NRPN→audio pipeline
+        if hasattr(self, "channels") and self.channels:
+            for ch in self.channels:
+                ch.set_xg_parameter_manager(self.xg_channel_params)
+
+        # Register GS parameter callback for real-time part param updates
+        self._gs_part_params: dict[int, dict[str, int]] = {
+            ch: {} for ch in range(self.max_channels)
+        }
+        # This will be populated by GS sysex via the process_sysex method
 
         # XG components are ready for use in MIDI/audio processing
 
@@ -684,8 +741,6 @@ class ModernXGSynthesizer:
     def _init_gs_system(self):
         """Initialize GS system with clean integration"""
         # GS Component Manager
-        from ..protocols.gs.jv2080_component_manager import JV2080ComponentManager
-
         self.gs_components = JV2080ComponentManager()
 
         # GS MIDI Processor
@@ -702,9 +757,6 @@ class ModernXGSynthesizer:
     def _init_jupiter_x_integration(self):
         """Initialize Jupiter-X integration with the modern synthesizer"""
         try:
-            # Import Jupiter-X engine integration
-            from ..hardware.jupiter_x.jupiter_x_engine import JupiterXEngineIntegration
-
             # Create Jupiter-X engine instance
             jupiter_x_engine = JupiterXEngineIntegration(
                 sample_rate=self.sample_rate,
@@ -721,18 +773,16 @@ class ModernXGSynthesizer:
             # Initialize plugin system and discover Jupiter-X plugins
             self._init_plugin_system()
 
-            print("🎹 Jupiter-X engine registered with modern synthesizer")
+            logger.info("🎹 Jupiter-X engine registered with modern synthesizer")
 
         except ImportError as e:
-            print(f"⚠️  Jupiter-X integration not available: {e}")
+            logger.warning(f"⚠️  Jupiter-X integration not available: {e}")
         except Exception as e:
-            print(f"⚠️  Failed to initialize Jupiter-X integration: {e}")
+            logger.error(f"⚠️  Failed to initialize Jupiter-X integration: {e}")
 
     def _init_plugin_system(self):
         """Initialize plugin system and discover plugins"""
         try:
-            from ..engines.plugins.plugin_registry import get_global_plugin_registry
-
             # Get global plugin registry
             self.plugin_registry = get_global_plugin_registry()
 
@@ -740,7 +790,7 @@ class ModernXGSynthesizer:
             self.plugin_registry.clear_registry()
             discovered_count = self.plugin_registry.discover_plugins()
 
-            print(f"🔌 Plugin system initialized: {discovered_count} plugins discovered")
+            logger.info(f"🔌 Plugin system initialized: {discovered_count} plugins discovered")
 
             # Try to load Jupiter-X FM plugin
             if (
@@ -753,12 +803,12 @@ class ModernXGSynthesizer:
                     "jupiter_x.fm_extensions.JupiterXFMPlugin", fm_engine
                 )
                 if success:
-                    print("✅ Jupiter-X FM plugin loaded successfully")
+                    logger.info("✅ Jupiter-X FM plugin loaded successfully")
                 else:
-                    print("⚠️  Failed to load Jupiter-X FM plugin")
+                    logger.error("⚠️  Failed to load Jupiter-X FM plugin")
 
         except Exception as e:
-            print(f"⚠️  Plugin system initialization failed: {e}")
+            logger.error(f"⚠️  Plugin system initialization failed: {e}")
 
     def _init_workstation_manager(self):
         """Initialize workstation manager for XGML v3.0 features"""
@@ -767,7 +817,7 @@ class ModernXGSynthesizer:
             # This is a placeholder for future XGML v3.0 workstation features
             pass
         except Exception as e:
-            print(f"⚠️  Workstation manager initialization failed: {e}")
+            logger.error(f"⚠️  Workstation manager initialization failed: {e}")
 
         # S.Art2 Integration - Initialize articulation system
         self._init_sart2()
@@ -779,12 +829,6 @@ class ModernXGSynthesizer:
         S.Art2 provides universal articulation control across ALL synthesis engines
         via NRPN/SYSEX messages. It wraps all regions with an articulation layer.
         """
-        from ..protocols.xg.sart import ArticulationController, YamahaNRPNMapper
-        from ..protocols.xg.sart.articulation_preset import (
-            create_builtin_presets,
-        )
-        from ..protocols.xg.sart.sart2_region import SArt2RegionFactory
-
         # NRPN mapper for articulation control (275+ articulations)
         self.nrpn_mapper = YamahaNRPNMapper()
 
@@ -804,8 +848,8 @@ class ModernXGSynthesizer:
                 engine.sart2_enabled = True
                 engine.sart2_factory = self.sart2_factory
 
-        print("   S.Art2: Articulation system initialized (275+ articulations)")
-        print(
+        logger.info("   S.Art2: Articulation system initialized (275+ articulations)")
+        logger.info(
             f"   S.Art2: Articulation presets loaded ({self.articulation_preset_manager.get_preset_count()} presets)"
         )
 
@@ -843,22 +887,153 @@ class ModernXGSynthesizer:
 
     def process_sysex(self, data: bytes) -> None:
         """
-        Process SYSEX message for S.Art2 articulation.
+        Process SYSEX message for S.Art2 articulation and GS parameter updates.
 
         SYSEX (System Exclusive) messages provide advanced articulation
-        control with parameter settings.
+        control with parameter settings, and GS parameter control for
+        Roland GS-compatible synthesizers.
 
         Args:
             data: SYSEX byte data
         """
-        result = self.articulation_manager.parse_sysex(data)
+        # Route GS sysex to MIDI processor for JV2080/GS parameter updates
+        # GS format: F0 41 (Roland) device_id 42 (GS) cmd addr_high addr_mid addr_low ... F7
+        if len(data) > 4 and data[0] == 0xF0 and data[1] == 0x41 and data[3] == 0x42:
+            try:
+                if hasattr(self, "gs_midi_processor"):
+                    self.gs_midi_processor.process_message(data)
+                    # After processing, sync GS params to all channels
+                    self._update_all_channel_parameters()
+                    logger.debug(f"GS sysex routed to MIDI processor ({len(data)} bytes)")
+            except Exception as e:
+                logger.error(f"GS MIDI processor error: {e}")
 
-        if result["command"] == "set_articulation":
-            articulation = result["articulation"]
-            # Apply to appropriate channel
-            channel = result.get("channel", 0)
-            if 0 <= channel < len(self.channels):
-                self.channels[channel].set_articulation(articulation)
+            # Also sync to _gs_part_params for the Channel.gs_params bridge
+            try:
+                if hasattr(self, "xg_components"):
+                    gs_comp = getattr(self, "gs_components", None)
+                    if gs_comp:
+                        # JV2080ComponentManager stores part params
+                        multi_part = gs_comp.get_component("multipart")
+                        if multi_part:
+                            # Determine affected part from sysex address (Bug 9)
+                            affected_part = -1  # -1 = all channels
+                            if len(data) > 5 and 0x01 <= data[4] <= 0x10:
+                                affected_part = data[4] - 1  # addr_high is 1-indexed part number
+
+                            channels_to_sync = (
+                                [affected_part]
+                                if 0 <= affected_part < len(self._gs_part_params)
+                                else range(min(16, self.max_channels))
+                            )
+                            for ch in channels_to_sync:
+                                try:
+                                    part = multi_part.get_part(ch)
+                                    if part:
+                                        # Set each param independently so missing one doesn't block others (Bug 7)
+                                        if hasattr(part, "volume"):
+                                            self._gs_part_params[ch]["volume"] = getattr(
+                                                part, "volume", 100
+                                            )
+                                        if hasattr(part, "pan"):
+                                            self._gs_part_params[ch]["pan"] = getattr(
+                                                part, "pan", 64
+                                            )
+                                        if hasattr(part, "filter_cutoff"):
+                                            self._gs_part_params[ch]["filter_cutoff"] = getattr(
+                                                part, "filter_cutoff", 64
+                                            )
+                                        if hasattr(part, "filter_resonance"):
+                                            self._gs_part_params[ch]["filter_resonance"] = getattr(
+                                                part, "filter_resonance", 64
+                                            )
+                                        if hasattr(part, "attack_time"):
+                                            self._gs_part_params[ch]["attack_time"] = getattr(
+                                                part, "attack_time", 64
+                                            )
+                                        if hasattr(part, "decay_time"):
+                                            self._gs_part_params[ch]["decay_time"] = getattr(
+                                                part, "decay_time", 64
+                                            )
+                                        if hasattr(part, "release_time"):
+                                            self._gs_part_params[ch]["release_time"] = getattr(
+                                                part, "release_time", 64
+                                            )
+                                        if hasattr(part, "vibrato_rate"):
+                                            self._gs_part_params[ch]["vibrato_rate"] = getattr(
+                                                part, "vibrato_rate", 64
+                                            )
+                                        if hasattr(part, "vibrato_depth"):
+                                            self._gs_part_params[ch]["vibrato_depth"] = getattr(
+                                                part, "vibrato_depth", 64
+                                            )
+                                        if hasattr(part, "vibrato_delay"):
+                                            self._gs_part_params[ch]["vibrato_delay"] = getattr(
+                                                part, "vibrato_delay", 0
+                                            )
+                                        if hasattr(part, "reverb_send"):
+                                            self._gs_part_params[ch]["reverb_send"] = getattr(
+                                                part, "reverb_send", 0
+                                            )
+                                        if hasattr(part, "chorus_send"):
+                                            self._gs_part_params[ch]["chorus_send"] = getattr(
+                                                part, "chorus_send", 0
+                                            )
+                                except Exception:
+                                    pass
+
+                        # Push to channels
+                        for ch in range(min(16, self.max_channels)):
+                            if ch < len(self.channels):
+                                self.channels[ch].gs_params = self._gs_part_params[ch]
+            except Exception:
+                logger.warning("GS part param sync failed", exc_info=True)
+
+        # Route XG/S.Art2 sysex (Yamaha XG format: F0 43 [device_id] 4C ...)
+        if len(data) > 5 and data[0] == 0xF0 and data[1] == 0x43 and data[3] == 0x4C:
+            # Try S.Art2 articulation sysex first
+            if data[4] not in (0x02, 0x03, 0x04, 0x07, 0x08, 0x09, 0x0A, 0x0C):
+                try:
+                    result = self.articulation_manager.process_sysex(data)
+                    if result and result.get("command") == "set_articulation":
+                        articulation = result["articulation"]
+                        channel = result.get("channel", 0)
+                        if 0 <= channel < len(self.channels):
+                            self.channels[channel].set_articulation(articulation)
+                            logger.debug(f"S.Art2: {articulation} on channel {channel}")
+                            return  # Already handled
+                except Exception:
+                    pass  # Fall through to XG processing
+
+            # Route XG sysex for part mode changes
+            try:
+                if hasattr(self, "xg_midi_processor"):
+                    self.xg_midi_processor.process_message(data)
+
+                    # After XG sysex, sync part modes to channels and SF2 integrator
+                    if hasattr(self, "xg_components"):
+                        multi_part = self.xg_components.get_component("multi_part")
+                        if multi_part and hasattr(multi_part, "get_part_mode"):
+                            for ch in range(min(16, self.max_channels)):
+                                try:
+                                    mode_val = multi_part.get_part_mode(ch)
+                                    is_drum = mode_val in (1, 2, 3)
+                                    mode_str = "drum" if is_drum else "normal"
+
+                                    # Update channel xg_part_mode
+                                    if ch < len(self.channels):
+                                        self.channels[ch].xg_part_mode = mode_str
+
+                                    # Update SF2 integrator
+                                    if hasattr(self, "_sf2_part_mode_integrator"):
+                                        self._sf2_part_mode_integrator.set_channel_mode(
+                                            ch, mode_str, bank_msb=127 if is_drum else 0
+                                        )
+                                except Exception:
+                                    pass
+                    logger.debug(f"XG sysex processed ({len(data)} bytes)")
+            except Exception as e:
+                logger.error(f"XG sysex processing error: {e}")
 
     def set_channel_articulation(self, channel: int, articulation: str) -> None:
         """
@@ -1169,10 +1344,10 @@ class ModernXGSynthesizer:
         if sf2_engine.load_soundfont(sf2_path, priority):
             # Reload current programs on all channels to use the new SF2 soundfont
             self._reload_all_channel_programs()
-            print(f"✅ Loaded SoundFont: {sf2_path}")
+            logger.info(f"✅ Loaded SoundFont: {sf2_path}")
             return True
         else:
-            print(f"❌ Failed to load SoundFont: {sf2_path}")
+            logger.error(f"❌ Failed to load SoundFont: {sf2_path}")
             return False
 
     def blacklist_program(self, bank: int, program: int):
@@ -1180,21 +1355,21 @@ class ModernXGSynthesizer:
         sf2_engine = self.engine_registry.get_engine("sf2")
         if sf2_engine and hasattr(sf2_engine, "soundfont_manager"):
             sf2_engine.soundfont_manager.blacklist_program(bank, program)
-            print(f"🚫 Blacklisted program: bank={bank}, program={program}")
+            logger.info(f"🚫 Blacklisted program: bank={bank}, program={program}")
 
     def unblacklist_program(self, bank: int, program: int):
         """Remove a program from blacklist"""
         sf2_engine = self.engine_registry.get_engine("sf2")
         if sf2_engine and hasattr(sf2_engine, "soundfont_manager"):
             sf2_engine.soundfont_manager.unblacklist_program(bank, program)
-            print(f"✅ Unblacklisted program: bank={bank}, program={program}")
+            logger.info(f"✅ Unblacklisted program: bank={bank}, program={program}")
 
     def remap_program(self, from_bank: int, from_program: int, to_bank: int, to_program: int):
         """Remap a program to different bank/program numbers"""
         sf2_engine = self.engine_registry.get_engine("sf2")
         if sf2_engine and hasattr(sf2_engine, "soundfont_manager"):
             sf2_engine.soundfont_manager.remap_program(from_bank, from_program, to_bank, to_program)
-            print(
+            logger.info(
                 f"🔄 Remapped program: bank={from_bank}, prog={from_program} -> bank={to_bank}, prog={to_program}"
             )
 
@@ -1203,11 +1378,11 @@ class ModernXGSynthesizer:
         sf2_engine = self.engine_registry.get_engine("sf2")
         if sf2_engine and hasattr(sf2_engine, "soundfont_manager"):
             sf2_engine.soundfont_manager.clear_remapping(bank, program)
-            print(f"✅ Cleared remapping for: bank={bank}, program={program}")
+            logger.info(f"✅ Cleared remapping for: bank={bank}, program={program}")
 
     def _reload_all_channel_programs(self):
         """Reload current programs on all channels to use newly loaded SF2 soundfont."""
-        for channel_num, channel in enumerate(self.channels):
+        for _channel_num, channel in enumerate(self.channels):
             # Reload the current program to use the new SF2 engine
             channel.load_program(channel.program, channel.bank_msb, channel.bank_lsb)
 
@@ -1305,7 +1480,11 @@ class ModernXGSynthesizer:
             # Reset effects
             self.effects_coordinator.reset_all_effects()
 
-        print("🎹 ENHANCED MODERN XG SYNTHESIZER: Reset complete")
+            # Reset articulation state on all channels
+            for ch in range(min(16, len(self.channels))):
+                self.set_channel_articulation(ch, "normal")
+
+        logger.info("🎹 ENHANCED MODERN XG SYNTHESIZER: Reset complete")
 
     def cleanup(self):
         """Clean up all resources"""
@@ -1360,7 +1539,7 @@ class ModernXGSynthesizer:
         self.gs_mode = mode
         self.parameter_priority.set_active_protocol(mode)
         self._update_all_channel_parameters()
-        print(f"🎹 GS/XG mode set to: {mode.upper()}")
+        logger.info(f"🎹 GS/XG mode set to: {mode.upper()}")
 
     def get_gs_system_info(self) -> dict[str, Any]:
         """Get GS system status"""
@@ -1788,7 +1967,7 @@ class ModernXGSynthesizer:
         if sf2_path and os.path.exists(sf2_path):
             self.load_soundfont(sf2_path)
 
-        print(f"✅ Configuration applied from {config.config_path}")
+        logger.info(f"✅ Configuration applied from {config.config_path}")
 
     def _configure_part_from_config(self, part_num: int, part_config: dict):
         """Configure a specific part from config"""
@@ -1801,7 +1980,7 @@ class ModernXGSynthesizer:
         program = part_config.get("program", 0)
         bank_msb = part_config.get("bank_msb", 0)
         bank_lsb = part_config.get("bank_lsb", 0)
-        bank = (bank_msb << 7) | bank_lsb
+        _bank = (bank_msb << 7) | bank_lsb
         channel.load_program(program, bank_msb, bank_lsb)
 
         # Set volume (0-127)
@@ -1854,7 +2033,7 @@ class ModernXGSynthesizer:
             return
 
         # Set algorithm
-        algorithm = fm_config.get("algorithm", 1)
+        _algorithm = fm_config.get("algorithm", 1)
         algorithm_name = fm_config.get("algorithm_name", "basic")
         fm_engine.set_algorithm(algorithm_name)
 
@@ -1932,17 +2111,17 @@ class ModernXGSynthesizer:
             return
 
         # Enable/disable arpeggiator globally
-        enabled = arp_config.get("enabled", False)
+        _enabled = arp_config.get("enabled", False)
 
         # Set tempo
-        tempo = arp_config.get("tempo", 120)
+        _tempo = arp_config.get("tempo", 120)
 
         # Configure channel patterns
         channel_patterns = arp_config.get("channel_patterns", {})
         for channel_num in range(16):
             channel_key = f"channel_{channel_num}"
             if channel_key in channel_patterns:
-                pattern_name = channel_patterns[channel_key]
+                _pattern_name = channel_patterns[channel_key]
                 # Would need to look up pattern ID from name
                 # This is simplified - actual implementation would need pattern registry
 
@@ -1956,7 +2135,7 @@ class ModernXGSynthesizer:
         self.mpe_system.set_mpe_enabled(enabled)
 
         # Configure zones
-        zones = mpe_config.get("zones", [])
+        _zones = mpe_config.get("zones", [])
         # MPE zone configuration would be applied here
 
     def _configure_tuning_from_config(self, tuning_config: dict):
@@ -1965,7 +2144,7 @@ class ModernXGSynthesizer:
             return
 
         temperament = tuning_config.get("temperament", "equal")
-        a4_freq = tuning_config.get("a4_frequency", 440.0)
+        _a4_freq = tuning_config.get("a4_frequency", 440.0)
 
         # Apply temperament
         if hasattr(self.xg_components, "micro_tuning"):

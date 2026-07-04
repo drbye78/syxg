@@ -501,7 +501,6 @@ class AutoAccompaniment:
         if not self._current_section or not self.config.auto_fill_enabled:
             return
 
-
         current = self._current_section.section_type
         if current.is_main:
             fills = self.style.get_fill_for_main(current)
@@ -523,7 +522,6 @@ class AutoAccompaniment:
         target = self._get_section_by_name(target_section)
         if not target:
             return
-
 
         # If we're going to a main section and fill is enabled
         if use_fill and target.section_type.is_main:
@@ -994,17 +992,19 @@ class AutoAccompaniment:
         return {
             "mode": self.mode.name,
             "playback_state": self.playback_state.name,
-            "current_section": self._current_section.section_type.value
-            if self._current_section
-            else None,
+            "current_section": (
+                self._current_section.section_type.value if self._current_section else None
+            ),
             "tempo": self._tempo,
             "tick_position": self._tick_position,
             "bar_position": self._bar_position,
             "loop_count": self._loop_count,
             "is_filling": self._is_filling,
-            "current_chord": self.chord_detector.get_current_chord().chord_name
-            if self.chord_detector.get_current_chord()
-            else None,
+            "current_chord": (
+                self.chord_detector.get_current_chord().chord_name
+                if self.chord_detector.get_current_chord()
+                else None
+            ),
             "active_notes": len(self._active_notes),
             "scheduled_events": len([e for e in self._scheduled_events if not e.played]),
         }

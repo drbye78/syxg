@@ -1,4 +1,5 @@
 """
+
 Buffer Pool Management - Zero-Allocation Memory Architecture
 
 ARCHITECTURAL OVERVIEW:
@@ -177,6 +178,7 @@ RECOVERY STRATEGIES:
 from __future__ import annotations
 
 import gc
+import logging
 import threading
 from collections import defaultdict
 from contextlib import contextmanager
@@ -186,6 +188,8 @@ import numpy as np
 
 from .config import audio_config
 from .validation import ValidationError, ValidationResult
+
+logger = logging.getLogger(__name__)
 
 
 class BufferPoolExhaustedError(Exception):
@@ -283,9 +287,9 @@ class XGBufferPool:
         self._multi_channel_pools: dict[tuple[int, int], list[np.ndarray]] = defaultdict(list)
 
         # Active buffer tracking (for leak detection)
-        self._active_buffers: dict[
-            int, tuple[np.ndarray, str, int]
-        ] = {}  # id -> (buffer, stack_trace, thread_id)
+        self._active_buffers: dict[int, tuple[np.ndarray, str, int]] = (
+            {}
+        )  # id -> (buffer, stack_trace, thread_id)
         self._buffer_id_counter = 0
 
         # Memory pressure monitoring
@@ -305,9 +309,9 @@ class XGBufferPool:
         # Pre-allocate common buffer sizes
         common_sizes = [256, 512, 1024, 2048, 4096, max_buffer_size]
 
-        print("🎛️  Initializing XG Buffer Pool...")
-        print(f"   Max buffer size: {max_buffer_size} samples")
-        print(f"   Max channels: {max_channels}")
+        logger.info("Initializing XG Buffer Pool...")
+        logger.info("   Max buffer size: %s samples", max_buffer_size)
+        logger.info("   Max channels: %s", max_channels)
 
         total_allocated = 0
 
@@ -363,15 +367,17 @@ class XGBufferPool:
                 total_allocated += buffer.nbytes
 
         total_mb = total_allocated / (1024 * 1024)
-        print(f"Total allocated: {total_mb:.1f} MB")
-        print(f"Memory budget: {self.memory_budget_mb:.1f} MB")
+        logger.info("Total allocated: %.1f MB", total_mb)
+        logger.info("Memory budget: %.1f MB", self.memory_budget_mb)
 
         # Check if initial allocation exceeds budget
         if total_allocated > self.memory_budget_bytes:
-            print(
-                f"⚠️  Initial pool allocation ({total_mb:.1f} MB) exceeds memory budget ({self.memory_budget_mb:.1f} MB)"
+            logger.warning(
+                "Initial pool allocation (%.1f MB) exceeds memory budget (%.1f MB)",
+                total_mb,
+                self.memory_budget_mb,
             )
-            print("   This may limit dynamic allocation capabilities")
+            logger.warning("   This may limit dynamic allocation capabilities")
 
         self.stats.total_allocated = total_allocated
         self.total_memory_used = total_allocated
@@ -501,9 +507,12 @@ class XGBufferPool:
                 size, ch = key
                 buffer_size = size * ch * 4
                 if self.total_memory_used + buffer_size <= self.memory_budget_bytes:
-                    print(
-                        f"🔄 Dynamic allocation for {pool_name} size {key}, "
-                        f"within budget ({self.total_memory_used + buffer_size}/{self.memory_budget_bytes} bytes)"
+                    logger.debug(
+                        "Dynamic allocation for %s size %s, " "within budget (%s/%s bytes)",
+                        pool_name,
+                        key,
+                        self.total_memory_used + buffer_size,
+                        self.memory_budget_bytes,
                     )
                     buffer = self._allocate_aligned_buffer(size, ch)
                     self.total_memory_used += buffer.nbytes
@@ -537,7 +546,7 @@ class XGBufferPool:
             buffer_id = id(buffer)
 
             if buffer_id not in self._active_buffers:
-                print(f"⚠️  Attempted to return unknown buffer {buffer_id}")
+                logger.warning("Attempted to return unknown buffer %s", buffer_id)
                 return
 
             # Clear buffer contents for security
@@ -689,18 +698,18 @@ class XGBufferPool:
 
     def emergency_cleanup(self):
         """Emergency cleanup when memory pressure is critical."""
-        print("🚨 Emergency buffer pool cleanup initiated")
+        logger.warning("Emergency buffer pool cleanup initiated")
 
         with self.lock:
             # Force return of all active buffers (dangerous but necessary)
             for buffer_id, (buffer, location, thread_id) in list(self._active_buffers.items()):
-                print(f"⚠️  Force returning buffer from {location} (thread {thread_id})")
+                logger.warning("Force returning buffer from %s (thread %s)", location, thread_id)
                 self.return_buffer(buffer)
 
             # Force garbage collection
             gc.collect()
 
-            print("✅ Emergency cleanup completed")
+            logger.warning("Emergency cleanup completed")
 
     def __str__(self) -> str:
         """String representation."""

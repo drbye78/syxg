@@ -1,4 +1,5 @@
 """
+
 XG Effects System Enhancement - Complete 62 XG Effect Types
 
 Implements the complete XG effects specification with all 62 effect types
@@ -13,9 +14,13 @@ Copyright (c) 2025
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGSystemEffectsEnhancement:
@@ -375,14 +380,14 @@ class XGSystemEffectsEnhancement:
         # Effect processors (will integrate with existing system)
         self.effect_processors = {}
 
-        print("🎹 XG EFFECTS ENHANCEMENT: Initialized")
-        print(
+        logger.info("🎹 XG EFFECTS ENHANCEMENT: Initialized")
+        logger.info(
             f"   {len(self.XG_REVERB_TYPES)} reverb types, {len(self.XG_CHORUS_TYPES)} chorus types"
         )
-        print(
+        logger.info(
             f"   {len(self.XG_VARIATION_TYPES)} variation types, {len(self.XG_INSERTION_TYPES)} insertion types"
         )
-        print("   Complete XG effects specification now available")
+        logger.info("   Complete XG effects specification now available")
 
     def get_reverb_type_info(self, type_value: int) -> dict[str, Any] | None:
         """Get information about a reverb type."""

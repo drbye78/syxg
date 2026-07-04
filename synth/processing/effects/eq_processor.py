@@ -493,6 +493,7 @@ class XGMultiBandEqualizer:
         else:
             # Pure NumPy implementation as fallback - not ideal but functional
             # Process left channel
+            # TODO: Use BufferPool when available (hot path allocation)
             left_out = np.zeros_like(left_in)
             x1_l, x2_l = state[0], state[1]
             y1_l, y2_l = state[2], state[3]
@@ -504,6 +505,7 @@ class XGMultiBandEqualizer:
                 y2_l, y1_l = y1_l, y0
 
             # Process right channel
+            # TODO: Use BufferPool when available (hot path allocation)
             right_out = np.zeros_like(right_in)
             x1_r, x2_r = state[4], state[5]
             y1_r, y2_r = state[6], state[7]

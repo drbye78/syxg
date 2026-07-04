@@ -6,12 +6,15 @@ This section provides comprehensive API documentation for the XG Synthesizer, in
 
 The XG Synthesizer API is organized into several key modules:
 
-- **`synth.engine`** - Core synthesis engines and main synthesizer
+- **`synth.engines`** - Core synthesis engines (SF2, SFZ, FM, physical, spectral) and main synthesizer
 - **`synth.xgml`** - XGML configuration language parser and translator
-- **`synth.effects`** - Audio effects processing
-- **`synth.midi`** - MIDI processing and file handling
-- **`synth.audio`** - Audio I/O and sample management
-- **`synth.core`** - Core utilities and base classes
+- **`synth.processing`** - Audio effects processing, voice management, channel processing
+- **`synth.protocols`** - MIDI protocol handling (XG, GS, MIDI 2.0, NRPN/SysEx)
+- **`synth.io`** - SoundFont file I/O, MIDI file handling, sample management
+- **`synth.primitives`** - Core building blocks (envelopes, oscillators, filters, buffers)
+- **`synth.synthesizers`** - High-level synthesizer orchestration (rendering, real-time)
+- **`synth.hardware`** - Hardware-specific integrations (Jupiter-X)
+- **`vibexg`** - Real-time MIDI workstation (TUI, CLI, MIDI I/O, audio output)
 
 ## 🎹 Main Synthesizer API
 

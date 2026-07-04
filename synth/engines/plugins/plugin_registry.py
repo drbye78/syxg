@@ -1,4 +1,5 @@
 """
+
 Plugin Registry System
 
 Manages discovery, loading, and lifecycle of engine plugins.
@@ -6,6 +7,8 @@ Provides dependency resolution, compatibility checking, and plugin management.
 """
 
 from __future__ import annotations
+import logging
+
 
 import importlib
 import inspect
@@ -19,6 +22,8 @@ from .base_plugin import (
     PluginLoadContext,
     PluginType,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PluginLoadError(Exception):
@@ -69,7 +74,7 @@ class PluginRegistry:
         """
         try:
             if name in self._plugin_classes:
-                print(f"Warning: Plugin '{name}' already registered, overwriting")
+                logger.warning(f"Warning: Plugin '{name}' already registered, overwriting")
 
             self._plugin_classes[name] = plugin_class
 
@@ -86,7 +91,7 @@ class PluginRegistry:
                             self._reverse_dependencies[dep] = set()
                         self._reverse_dependencies[dep].add(name)
                 except Exception as e:
-                    print(f"Warning: Could not extract metadata from plugin '{name}': {e}")
+                    logger.warning(f"Warning: Could not extract metadata from plugin '{name}': {e}")
                     self._plugin_dependencies[name] = set()
             elif hasattr(plugin_class, "get_metadata"):
                 try:
@@ -101,13 +106,13 @@ class PluginRegistry:
                             self._reverse_dependencies[dep] = set()
                         self._reverse_dependencies[dep].add(name)
                 except Exception as e:
-                    print(f"Warning: Could not extract metadata from plugin '{name}': {e}")
+                    logger.warning(f"Warning: Could not extract metadata from plugin '{name}': {e}")
                     self._plugin_dependencies[name] = set()
 
             return True
 
         except Exception as e:
-            print(f"Failed to register plugin class '{name}': {e}")
+            logger.error(f"Failed to register plugin class '{name}': {e}")
             return False
 
     def load_plugin(
@@ -161,11 +166,11 @@ class PluginRegistry:
             self._plugins[name] = plugin_instance
             self._loaded_plugins.add(name)
 
-            print(f"✅ Plugin '{name}' loaded successfully")
+            logger.info(f"✅ Plugin '{name}' loaded successfully")
             return True
 
         except Exception as e:
-            print(f"Failed to load plugin '{name}': {e}")
+            logger.error(f"Failed to load plugin '{name}': {e}")
             traceback.print_exc()
             return False
 
@@ -195,17 +200,17 @@ class PluginRegistry:
             # Unload the plugin
             plugin = self._plugins[name]
             if not plugin.unload():
-                print(f"Warning: Plugin '{name}' may not have unloaded cleanly")
+                logger.warning(f"Warning: Plugin '{name}' may not have unloaded cleanly")
 
             # Remove from registry
             del self._plugins[name]
             self._loaded_plugins.remove(name)
 
-            print(f"✅ Plugin '{name}' unloaded successfully")
+            logger.info(f"✅ Plugin '{name}' unloaded successfully")
             return True
 
         except Exception as e:
-            print(f"Failed to unload plugin '{name}': {e}")
+            logger.error(f"Failed to unload plugin '{name}': {e}")
             return False
 
     def get_plugin(self, name: str) -> BaseEnginePlugin | None:
@@ -267,7 +272,7 @@ class PluginRegistry:
             count = self._discover_plugins_in_path(search_path)
             discovered_count += count
 
-        print(f"🔍 Discovered {discovered_count} plugins")
+        logger.info(f"🔍 Discovered {discovered_count} plugins")
         return discovered_count
 
     def _discover_plugins_in_path(self, path: Path) -> int:
@@ -313,7 +318,7 @@ class PluginRegistry:
                         discovered += 1
 
             except Exception as e:
-                print(f"Warning: Failed to load plugin from {py_file}: {e}")
+                logger.error(f"Warning: Failed to load plugin from {py_file}: {e}")
 
         return discovered
 
@@ -493,7 +498,7 @@ class PluginRegistry:
                 self.unload_plugin(name)
             return self.load_plugin(name)
         except Exception as e:
-            print(f"Failed to reload plugin '{name}': {e}")
+            logger.error(f"Failed to reload plugin '{name}': {e}")
             return False
 
     def clear_registry(self) -> None:
@@ -508,7 +513,7 @@ class PluginRegistry:
         self._plugin_dependencies.clear()
         self._reverse_dependencies.clear()
 
-        print("🧹 Plugin registry cleared")
+        logger.info("🧹 Plugin registry cleared")
 
 
 # Global plugin registry instance

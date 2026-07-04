@@ -1,4 +1,5 @@
 """
+
 SF2 Advanced Sample Processor
 
 Handles mono/stereo sample processing, mip-mapping, interpolation, and caching.
@@ -6,11 +7,15 @@ Optimized for real-time synthesis with high-quality sample playback.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class MipMapLevel:
@@ -463,7 +468,7 @@ class SF2SampleCache:
         """
         self.max_memory = max_memory_mb * 1024 * 1024  # Convert to bytes
         self.current_memory = 0
-        self.cache: Ordereddict[str, tuple[np.ndarray, int]] = {}  # key -> (data, size)
+        self.cache: dict[str, tuple[np.ndarray, int]] = {}  # key -> (data, size)
         self.lock = threading.RLock()
 
     def get(self, key: str) -> np.ndarray | None:
@@ -481,7 +486,7 @@ class SF2SampleCache:
                 # Move to end (most recently used)
                 data, size = self.cache.pop(key)
                 self.cache[key] = (data, size)
-                return data.copy()
+                return data
             return None
 
     def put(self, key: str, data: np.ndarray) -> None:
@@ -497,7 +502,7 @@ class SF2SampleCache:
 
             # Remove if already exists
             if key in self.cache:
-                old_data, old_size = self.cache[key]
+                _old_data, old_size = self.cache[key]
                 self.current_memory -= old_size
 
             # Check memory limits
@@ -511,7 +516,7 @@ class SF2SampleCache:
         """Ensure enough memory by evicting LRU items."""
         while self.current_memory + needed_size > self.max_memory and self.cache:
             # Evict least recently used
-            evicted_key, (evicted_data, evicted_size) = self.cache.popitem(last=False)
+            _evicted_key, (evicted_data, evicted_size) = self.cache.popitem(last=False)
             self.current_memory -= evicted_size
             # Explicitly delete the evicted data to free memory
             del evicted_data
@@ -530,9 +535,9 @@ class SF2SampleCache:
                 "memory_usage_bytes": self.current_memory,
                 "memory_usage_mb": self.current_memory / (1024 * 1024),
                 "max_memory_mb": self.max_memory / (1024 * 1024),
-                "utilization": (self.current_memory / self.max_memory * 100)
-                if self.max_memory > 0
-                else 0.0,
+                "utilization": (
+                    (self.current_memory / self.max_memory * 100) if self.max_memory > 0 else 0.0
+                ),
             }
 
 
@@ -579,9 +584,20 @@ class SF2SampleProcessor:
         Returns:
             Processed sample data
         """
-        # Create cache key
+        # Create cache key — use mip_level instead of pitch_ratio (which changes every block)
         sample_name = sample_info.get("name", "unknown")
-        cache_key = f"{sample_name}_{pitch_ratio}_{interpolation}"
+        # Compute stable mip level matching MipLevelSelector.select_stable_level logic
+        if pitch_ratio < 1.5:
+            mip_level = 0
+        elif pitch_ratio < 3.0:
+            mip_level = 1
+        elif pitch_ratio < 6.0:
+            mip_level = 2
+        elif pitch_ratio < 12.0:
+            mip_level = 3
+        else:
+            mip_level = 4
+        cache_key = f"{sample_name}_{mip_level}_{interpolation}"
 
         # Check cache first
         cached_data = self.sample_cache.get(cache_key)
@@ -635,7 +651,7 @@ class SF2SampleProcessor:
             return sample_data
 
         except Exception as e:
-            print(f"Error processing sample {sample_info.get('name', 'unknown')}: {e}")
+            logger.warning(f"Error processing sample {sample_info.get('name', 'unknown')}: {e}")
             return None
 
     def _convert_16bit_data(self, data: bytes, is_stereo: bool) -> np.ndarray:

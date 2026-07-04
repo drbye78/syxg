@@ -1,11 +1,16 @@
 """Wavetable region."""
+
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
 import numpy as np
 
 from ...processing.partial.region import Region
+
+logger = logging.getLogger(__name__)
 
 
 class WavetableRegion(Region):
@@ -69,7 +74,7 @@ class WavetableRegion(Region):
             return envelope
 
         except Exception as e:
-            print(f"Failed to create {env_type} envelope: {e}")
+            logger.error(f"Failed to create {env_type} envelope: {e}")
             return None
 
     def _create_filter(self, filter_type: str, cutoff: float, resonance: float):
@@ -107,7 +112,7 @@ class WavetableRegion(Region):
             return filter_instance
 
         except Exception as e:
-            print(f"Failed to create {filter_type} filter: {e}")
+            logger.error(f"Failed to create {filter_type} filter: {e}")
             return None
 
     def _create_modulation_matrix(self):
@@ -129,7 +134,7 @@ class WavetableRegion(Region):
             return matrix
 
         except Exception as e:
-            print(f"Failed to create modulation matrix: {e}")
+            logger.error(f"Failed to create modulation matrix: {e}")
             return None
 
     def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
@@ -144,6 +149,7 @@ class WavetableRegion(Region):
             Audio buffer (block_size, channels) - mono or stereo
         """
         if not self.active:
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Calculate pitch ratio
@@ -187,5 +193,3 @@ class WavetableRegion(Region):
             stereo_samples[:, 1] *= pan_right
 
         return stereo_samples
-
-

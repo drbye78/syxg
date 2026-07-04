@@ -1,4 +1,5 @@
 """
+
 One Touch Settings (OTS) System
 
 Provides quick voice preset functionality that links to styles.
@@ -6,10 +7,14 @@ Each style has multiple OTS presets that can be instantly recalled.
 """
 
 from __future__ import annotations
+import logging
+
 
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class OTSSection(Enum):
@@ -193,9 +198,9 @@ class OTSPreset:
             chorus_parameter=data.get("chorus_parameter", 64),
             variation_type=data.get("variation_type", 0),
             variation_parameter=data.get("variation_parameter", 64),
-            linked_section=OTSSection(data["linked_section"])
-            if data.get("linked_section")
-            else None,
+            linked_section=(
+                OTSSection(data["linked_section"]) if data.get("linked_section") else None
+            ),
             dual_voice_enabled=data.get("dual_voice_enabled", False),
             dual_voice_part=data.get("dual_voice_part", -1),
             dual_voice_octave=data.get("dual_voice_octave", 0),
@@ -456,7 +461,7 @@ class OneTouchSettings:
             return True
 
         except Exception as e:
-            print(f"Error storing to preset: {e}")
+            logger.error(f"Error storing to preset: {e}")
             return False
 
     def get_preset_names(self) -> list[str]:

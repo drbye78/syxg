@@ -314,7 +314,7 @@ class TestIntegrationWithSynthesizer:
 
     def test_synthesizer_has_xg_system(self):
         """Test that Synthesizer has XGSynthesizerSystem."""
-        from synth.primitives.synthesizer import Synthesizer
+        from synth.synthesizers.realtime import Synthesizer
 
         synth = Synthesizer(enable_audio_output=False)
 
@@ -323,7 +323,7 @@ class TestIntegrationWithSynthesizer:
 
     def test_xg_synthesizer_connected_to_engine_registry(self):
         """Test XGSynthesizerSystem is connected to engine registry."""
-        from synth.primitives.synthesizer import Synthesizer
+        from synth.synthesizers.realtime import Synthesizer
 
         synth = Synthesizer(enable_audio_output=False)
 
@@ -331,7 +331,7 @@ class TestIntegrationWithSynthesizer:
 
     def test_xg_synthesizer_has_required_components(self):
         """Test XGSynthesizerSystem has all required components."""
-        from synth.primitives.synthesizer import Synthesizer
+        from synth.synthesizers.realtime import Synthesizer
 
         synth = Synthesizer(enable_audio_output=False)
         xg_sys = synth.xg_synthesizer

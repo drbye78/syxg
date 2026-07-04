@@ -1,4 +1,5 @@
 """
+
 FM Region - Frequency Modulation region with per-note parameter scaling.
 
 Part of the unified region-based synthesis architecture.
@@ -257,6 +258,7 @@ class FMRegion(IRegion):
             Stereo audio buffer (block_size, 2) as float32
         """
         if not self._partial:
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         try:
@@ -278,6 +280,7 @@ class FMRegion(IRegion):
 
         except Exception as e:
             logger.error(f"FM sample generation failed: {e}")
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
     def is_active(self) -> bool:

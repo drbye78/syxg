@@ -175,9 +175,9 @@ class XGDrumKitStateManager:
             # Initialize default drum detail parameters
             self.drum_detail_parameters[channel] = {}
             for note in range(128):  # All possible MIDI notes
-                self.drum_detail_parameters[channel][note] = (
-                    self._create_default_drum_detail_parameters()
-                )
+                self.drum_detail_parameters[channel][
+                    note
+                ] = self._create_default_drum_detail_parameters()
 
     def _create_default_kit_parameters(self) -> dict[str, Any]:
         """Create default XG kit parameters."""
@@ -292,9 +292,9 @@ class XGDrumKitStateManager:
             if channel not in self.drum_detail_parameters:
                 self.drum_detail_parameters[channel] = {}
             if note not in self.drum_detail_parameters[channel]:
-                self.drum_detail_parameters[channel][note] = (
-                    self._create_default_drum_detail_parameters()
-                )
+                self.drum_detail_parameters[channel][
+                    note
+                ] = self._create_default_drum_detail_parameters()
 
             # Validate and set parameter
             if self._validate_parameter(param_name, value):
@@ -389,9 +389,9 @@ class XGDrumKitStateManager:
                     if channel not in self.kit_parameters:
                         self.kit_parameters[channel] = {}
                     if converted_value not in self.kit_parameters[channel]:
-                        self.kit_parameters[channel][converted_value] = (
-                            self._create_default_kit_parameters()
-                        )
+                        self.kit_parameters[channel][
+                            converted_value
+                        ] = self._create_default_kit_parameters()
 
                 return self.set_kit_parameter(
                     channel,
@@ -530,9 +530,9 @@ class XGDrumKitStateManager:
                 self.kit_parameters[channel] = {0: self._create_default_kit_parameters()}
                 self.drum_detail_parameters[channel] = {}
                 for note in range(128):
-                    self.drum_detail_parameters[channel][note] = (
-                        self._create_default_drum_detail_parameters()
-                    )
+                    self.drum_detail_parameters[channel][
+                        note
+                    ] = self._create_default_drum_detail_parameters()
                 self._parameter_cache_dirty = True
 
     def get_kit_name(self, kit_number: int) -> str:

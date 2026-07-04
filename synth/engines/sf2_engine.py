@@ -1,4 +1,5 @@
 """
+
 SF2 Wavetable Synthesis Engine - Professional Sample Playback Architecture
 
 ARCHITECTURAL OVERVIEW:
@@ -198,14 +199,17 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ..io.sf2.sf2_constants import cents_to_frequency
 from ..io.sf2.sf2_soundfont_manager import SF2SoundFontManager
 from ..processing.partial.sf2_region import SF2Region
+from .preset_info import PresetInfo
+from .region_descriptor import RegionDescriptor
 from .synthesis_engine import SynthesisEngine
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..engine.modern_xg_synthesizer import ModernXGSynthesizer
-
-logger = logging.getLogger(__name__)
 
 
 class SF2Engine(SynthesisEngine):
@@ -328,8 +332,6 @@ class SF2Engine(SynthesisEngine):
         Returns:
             SF2Region instance
         """
-        from ..processing.partial.sf2_region import SF2Region
-
         return SF2Region(descriptor, sample_rate, self.soundfont_manager)
 
     def create_partial(self, partial_params: dict, sample_rate: int) -> SF2Region:
@@ -347,8 +349,6 @@ class SF2Engine(SynthesisEngine):
             If synth is not provided, partial will be created in standalone mode
             without access to the synthesizer's memory pool.
         """
-        from ..engine.region_descriptor import RegionDescriptor
-
         partial = SF2Region(
             RegionDescriptor(
                 region_id=partial_params.get("sample_id", 0),
@@ -384,9 +384,6 @@ class SF2Engine(SynthesisEngine):
         Returns:
             PresetInfo with all region descriptors, or None if not found
         """
-        # Import here to avoid circular imports
-        from .preset_info import PresetInfo
-        from .region_descriptor import RegionDescriptor
 
         # Search through loaded soundfonts
         for filepath in self.soundfont_manager.file_order:
@@ -558,8 +555,6 @@ class SF2Engine(SynthesisEngine):
         Returns:
             SF2Region instance ready for lazy initialization
         """
-        from ..processing.partial.sf2_region import SF2Region
-
         region = SF2Region(descriptor, sample_rate, self.soundfont_manager, synth=self.synth)
         return region
 
@@ -589,7 +584,6 @@ class SF2Engine(SynthesisEngine):
         Returns:
             RegionDescriptor with zone metadata
         """
-        from .region_descriptor import RegionDescriptor
 
         # Extract key/velocity ranges from zone
         key_range = getattr(zone, "key_range", (0, 127))
@@ -677,7 +671,12 @@ class SF2Engine(SynthesisEngine):
     # ========== LEGACY METHODS (kept for transition) ==========
 
     def get_voice_parameters(
-        self, program: int, bank: int = 0, note: int = 60, velocity: int = 100
+        self,
+        program: int,
+        bank: int = 0,
+        note: int = 60,
+        velocity: int = 100,
+        channel: int = 0,
     ) -> dict | None:
         """
         Get SF2 voice parameters for a program/bank.
@@ -690,12 +689,27 @@ class SF2Engine(SynthesisEngine):
             bank: MIDI bank number (0-127)
             note: MIDI note for zone matching (default 60)
             velocity: MIDI velocity for zone matching (default 100)
+            channel: MIDI channel for controller state lookup
 
         Returns:
             Voice parameters dictionary, or None if not found
         """
+        # Build controllers dict from channel state for modulation matrix
+        controllers: dict[int, float] | None = None
+        if self.synth is not None and 0 <= channel < len(self.synth.channels):
+            ch = self.synth.channels[channel]
+            controllers = {
+                1: ch.controllers[1] / 127.0,  # Mod wheel
+                2: ch.controllers[2] / 127.0,  # Breath
+                128: ch.channel_pressure / 127.0,  # Aftertouch
+                160: 0.0,  # Poly pressure (per-note)
+                208: ch.channel_pressure / 127.0,  # Channel pressure (alt SF2)
+                224: (ch.pitch_bend_value - 8192) / 8192.0,  # Pitch wheel -1..1
+            }
         # Try to get parameters from the soundfont manager
-        params = self.soundfont_manager.get_program_parameters(bank, program, 60, 100)
+        params = self.soundfont_manager.get_program_parameters(
+            bank, program, note, velocity, controllers=controllers
+        )
         if params:
             return params
 
@@ -810,8 +824,6 @@ class SF2Engine(SynthesisEngine):
 
     def _cents_to_frequency(self, cents: int) -> float:
         """Convert SF2 cents to frequency in Hz."""
-        from ..io.sf2.sf2_constants import cents_to_frequency
-
         return cents_to_frequency(cents)
 
     def supports_feature(self, feature: str) -> bool:
@@ -939,6 +951,9 @@ class SF2Engine(SynthesisEngine):
         """
         Generate audio samples for a note using SF2 synthesis with preset lookup.
 
+        DEPRECATED: Use the Voice/VoiceInstance pipeline instead.
+        This method creates and destroys regions on every call, bypassing polyphony management.
+
         Args:
             note: MIDI note number (0-127)
             velocity: MIDI velocity (0-127)
@@ -950,10 +965,24 @@ class SF2Engine(SynthesisEngine):
         Returns:
             Stereo audio buffer (block_size, 2) as float32
         """
+        logger.warning("SF2Engine.generate_samples() is deprecated. Use Voice pipeline.")
+
+        # Try to use buffer pool if available
+        _pool = None
+        if hasattr(self, "buffer_pool") and self.buffer_pool is not None:
+            _pool = self.buffer_pool
+        elif (
+            hasattr(self, "synth") and self.synth is not None and hasattr(self.synth, "buffer_pool")
+        ):
+            _pool = self.synth.buffer_pool
+
         # Get preset info with all regions
         preset_info = self.get_preset_info(bank, program)
         if not preset_info:
             # No preset found - return silence
+            if _pool is not None:
+                return _pool.get_stereo_buffer(block_size)
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Find matching regions for this note/velocity
@@ -964,10 +993,16 @@ class SF2Engine(SynthesisEngine):
 
         if not matching_descriptors:
             # No matching regions - return silence
+            if _pool is not None:
+                return _pool.get_stereo_buffer(block_size)
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Create and initialize regions for all matching descriptors
-        audio_output = np.zeros((block_size, 2), dtype=np.float32)
+        if _pool is not None:
+            audio_output = _pool.get_stereo_buffer(block_size)
+        else:
+            audio_output = np.zeros((block_size, 2), dtype=np.float32)
 
         for descriptor in matching_descriptors:
             try:

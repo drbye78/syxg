@@ -1,4 +1,5 @@
 """
+
 SFZ Synthesis Engine
 
 Complete SFZ v2 synthesis engine implementation that integrates with the
@@ -7,6 +8,8 @@ with advanced features like velocity layers, round robin, crossfading, etc.
 """
 
 from __future__ import annotations
+import logging
+
 
 import os
 from typing import Any
@@ -24,6 +27,8 @@ from .sfz_parser import SFZInstrument, SFZParser
 from .sfz_region import SFZRegion
 from .voice_effects import SFZVoiceEffectsProcessor
 from .voice_modulation import SFZVoiceModulationMatrix
+
+logger = logging.getLogger(__name__)
 
 
 class SFZEngine(SynthesisEngine):
@@ -119,7 +124,7 @@ class SFZEngine(SynthesisEngine):
 
             # Validate instrument has regions
             if not instrument.get_all_regions():
-                print(f"Warning: SFZ file '{sfz_path}' contains no regions")
+                logger.warning(f"Warning: SFZ file '{sfz_path}' contains no regions")
                 return False
 
             # Store instrument
@@ -133,13 +138,13 @@ class SFZEngine(SynthesisEngine):
             # Cache regions for performance
             self._cache_instrument_regions(instrument, key)
 
-            print(
+            logger.info(
                 f"🎹 SFZ: Loaded instrument '{key}' with {len(instrument.get_all_regions())} regions"
             )
             return True
 
         except Exception as e:
-            print(f"Error loading SFZ instrument '{sfz_path}': {e}")
+            logger.error(f"Error loading SFZ instrument '{sfz_path}': {e}")
             return False
 
     def _preload_instrument_samples(self, instrument: SFZInstrument):
@@ -155,7 +160,7 @@ class SFZEngine(SynthesisEngine):
 
         # Pre-load samples
         if sample_paths:
-            print(f"🎹 SFZ: Pre-loading {len(sample_paths)} samples...")
+            logger.info(f"🎹 SFZ: Pre-loading {len(sample_paths)} samples...")
             self.sample_manager.preload_samples(list(sample_paths))
 
     def _cache_instrument_regions(self, instrument: SFZInstrument, key: str):
@@ -585,7 +590,7 @@ class SFZEngine(SynthesisEngine):
         try:
             return region.load_sample()
         except Exception as e:
-            print(f"Warning: SFZ sample loading failed: {e}")
+            logger.error(f"Warning: SFZ sample loading failed: {e}")
             return False
 
     # ========== END NEW REGION-BASED ARCHITECTURE METHODS ==========
@@ -625,7 +630,7 @@ class SFZEngine(SynthesisEngine):
             audio = region.generate_samples(block_size, modulation)
             return audio
         except Exception as e:
-            print(f"Warning: SFZ region generation failed: {e}")
+            logger.error(f"Warning: SFZ region generation failed: {e}")
             return np.zeros((block_size, 2), dtype=np.float32)
 
     def is_note_supported(self, note: int) -> bool:

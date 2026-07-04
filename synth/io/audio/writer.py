@@ -1,10 +1,14 @@
 from __future__ import annotations
+import logging
+
 
 import sys
 from fractions import Fraction
 
 import av
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class AudioWriter:
@@ -28,8 +32,8 @@ class AudioWriter:
         try:
             return AvWriter(output_file, format, self.sample_rate)
         except ImportError:
-            print("Error: Audio encoding requires 'av' library")
-            print("Install with: pip install av")
+            logger.error("Error: Audio encoding requires 'av' library")
+            logger.info("Install with: pip install av")
             sys.exit(1)
 
     def write_multiple_files(
@@ -50,7 +54,9 @@ class AudioWriter:
         """
         errors = []
 
-        for i, (audio, output_file, format) in enumerate(zip(audio_data, output_files, formats, strict=False)):
+        for i, (audio, output_file, format) in enumerate(
+            zip(audio_data, output_files, formats, strict=False)
+        ):
             try:
                 writer = self.create_writer(output_file, format)
                 with writer:
@@ -96,7 +102,7 @@ class AvWriter:
                 for packet in self.stream.encode():
                     self.container.mux(packet)
             except Exception as e:
-                print(f"Warning: Error flushing audio stream: {e}")
+                logger.error(f"Warning: Error flushing audio stream: {e}")
         if self.container:
             self.container.close()
 
@@ -133,7 +139,7 @@ class AvWriter:
             self._write_count = 0
         self._write_count += 1
         if self._write_count % 100 == 0:
-            print(
+            logger.info(
                 f"DEBUG: AudioWriter wrote {self._write_count} blocks, packets_written={packets_written}",
                 file=sys.stderr,
             )

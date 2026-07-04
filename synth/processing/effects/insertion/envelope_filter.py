@@ -96,5 +96,3 @@ class ProductionEnvelopeFilter:
             self.y1 = output
 
             return output
-
-

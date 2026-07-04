@@ -1,4 +1,5 @@
 """
+
 Vibexg Managers - Management classes for presets, MIDI learn, and style engine
 
 This module provides:

@@ -1,4 +1,5 @@
 """
+
 Jupiter-X Digital/Wavetable Engine Extensions
 
 Plugin that adds Jupiter-X specific wavetable synthesis features to the base wavetable engine.
@@ -7,6 +8,8 @@ a parallel implementation.
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
@@ -19,6 +22,8 @@ from ..base_plugin import (
     PluginType,
     SynthesisFeaturePlugin,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
@@ -155,11 +160,11 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
             # Initialize Jupiter-X specific features
             self._initialize_jupiter_x_digital_features()
 
-            print("🎹 Jupiter-X Digital Extensions loaded")
+            logger.info("🎹 Jupiter-X Digital Extensions loaded")
             return True
 
         except Exception as e:
-            print(f"Failed to load Jupiter-X digital extensions: {e}")
+            logger.error(f"Failed to load Jupiter-X digital extensions: {e}")
             return False
 
     def unload(self) -> bool:
@@ -170,11 +175,11 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
             self.ring_mod_modulator = None
             self.formant_processing_enabled = False
 
-            print("🎹 Jupiter-X Digital Extensions unloaded")
+            logger.info("🎹 Jupiter-X Digital Extensions unloaded")
             return True
 
         except Exception as e:
-            print(f"Error unloading Jupiter-X digital extensions: {e}")
+            logger.error(f"Error unloading Jupiter-X digital extensions: {e}")
             return False
 
     def _initialize_jupiter_x_digital_features(self):
@@ -453,7 +458,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
         if self.wavetable_engine and hasattr(self.wavetable_engine, "enable_multi_timbral"):
             self.wavetable_engine.enable_multi_timbral(enabled, self.wavetable_layers)
 
-        print(
+        logger.info(
             f"🎛️ Multi-timbral {'enabled' if enabled else 'disabled'} ({self.wavetable_layers} layers)"
         )
 
@@ -470,7 +475,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
                 enabled, self.scan_speed, self.scan_modulation_depth
             )
 
-        print(
+        logger.info(
             f"🎛️ Wavetable scanning {'enabled' if enabled else 'disabled'} (speed: {self.scan_speed:.1f}x, mod: {self.scan_modulation_depth:.2f})"
         )
 
@@ -499,7 +504,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
                 enabled, self.fft_size, self.spectral_enhancement, self.harmonic_focus
             )
 
-        print(
+        logger.info(
             f"🎛️ Spectral processing {'enabled' if enabled else 'disabled'} (FFT: {self.fft_size}, enhancement: {self.spectral_enhancement:.2f})"
         )
 
@@ -511,7 +516,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
         if self.wavetable_engine and hasattr(self.wavetable_engine, "enable_formant_tracking"):
             self.wavetable_engine.enable_formant_tracking(enabled, self.vowel_transition_speed)
 
-        print(
+        logger.info(
             f"🎛️ Formant tracking {'enabled' if enabled else 'disabled'} (transition: {self.vowel_transition_speed:.2f})"
         )
 
@@ -529,7 +534,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
         if self.wavetable_engine and hasattr(self.wavetable_engine, "set_vowel_formants"):
             self.wavetable_engine.set_vowel_formants(vowel, self.vowel_formants.get(vowel, []))
 
-        print(f"🎛️ Vowel formants set to '{vowel}': {self.vowel_formants.get(vowel, [])}")
+        logger.info(f"🎛️ Vowel formants set to '{vowel}': {self.vowel_formants.get(vowel, [])}")
 
     def enable_wavetable_ring_modulation(
         self, enabled: bool = True, carrier_freq: float = 440.0, index: float = 1.0
@@ -544,7 +549,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
                 enabled, self.ring_mod_carrier_freq, self.ring_mod_index
             )
 
-        print(
+        logger.info(
             f"🎛️ Wavetable ring modulation {'enabled' if enabled else 'disabled'} (carrier: {self.ring_mod_carrier_freq:.0f}Hz, index: {self.ring_mod_index:.1f})"
         )
 
@@ -556,7 +561,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
         if self.wavetable_engine and hasattr(self.wavetable_engine, "enable_realtime_editing"):
             self.wavetable_engine.enable_realtime_editing(enabled, wavetable_name)
 
-        print(
+        logger.info(
             f"🎛️ Real-time wavetable editing {'enabled' if enabled else 'disabled'} ({'all wavetables' if not wavetable_name else wavetable_name})"
         )
 
@@ -599,7 +604,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
                 enabled, self.harmonic_boost, self.harmonic_suppression
             )
 
-        print(f"🎛️ Harmonic processing {'enabled' if enabled else 'disabled'}")
+        logger.info(f"🎛️ Harmonic processing {'enabled' if enabled else 'disabled'}")
 
     def apply_spectral_enhancement(self, wavetable_data: np.ndarray) -> np.ndarray:
         """Apply spectral enhancement to wavetable data."""

@@ -113,5 +113,3 @@ class DynamicEQEnhancer:
             self.y1 = output
 
             return output
-
-

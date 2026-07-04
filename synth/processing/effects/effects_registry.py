@@ -1,4 +1,5 @@
 """
+
 XG Effects Registry and Factory
 
 This module provides the comprehensive XG effects registry and factory system.
@@ -22,10 +23,14 @@ XG Effect Coverage:
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from dataclasses import dataclass
 from enum import IntEnum
+
+logger = logging.getLogger(__name__)
 
 # Import our effect processors
 try:
@@ -45,9 +50,10 @@ try:
         XGVariationType,
     )
     from .variation_effects import XGVariationEffectsProcessor
+
 except ImportError as e:
     # Fallback for development
-    print(f"Import error in effects_registry: {e}")
+    logger.error(f"Import error in effects_registry: {e}")
     XGMultiBandEqualizer = None
     pass
 
@@ -1091,6 +1097,3 @@ class XGEffectRegistry:
             if category is None:
                 return len(self._effects)
             return sum(1 for (cat, _), _ in self._effects.items() if cat == category)
-
-
-

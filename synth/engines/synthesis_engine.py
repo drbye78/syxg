@@ -1,4 +1,5 @@
 """
+
 Advanced Synthesis Engine Registry System - Unified Region-Based Architecture
 
 Production-quality engine registry with dynamic loading, plugin architecture,
@@ -21,6 +22,8 @@ Features:
 """
 
 from __future__ import annotations
+import logging
+
 
 import importlib
 import importlib.util
@@ -36,6 +39,8 @@ from .preset_info import PresetInfo
 
 # Import new region-based architecture
 from .region_descriptor import RegionDescriptor
+
+logger = logging.getLogger(__name__)
 
 
 class SynthesisEngine(ABC):
@@ -358,7 +363,7 @@ class EnginePluginManager:
                         plugin_name = plugin_info["name"]
                         discovered[plugin_name] = plugin_info
                 except Exception as e:
-                    print(f"Error analyzing plugin {py_file}: {e}")
+                    logger.error(f"Error analyzing plugin {py_file}: {e}")
 
         return discovered
 
@@ -378,7 +383,7 @@ class EnginePluginManager:
 
             discovered = self.discover_plugins()
             if plugin_name not in discovered:
-                print(f"Plugin {plugin_name} not found")
+                logger.info(f"Plugin {plugin_name} not found")
                 return False
 
             plugin_info = discovered[plugin_name]
@@ -388,7 +393,7 @@ class EnginePluginManager:
                 module_path = plugin_info["module_path"]
                 spec = importlib.util.spec_from_file_location(plugin_name, module_path)
                 if spec is None or spec.loader is None:
-                    print(f"No valid module spec found for {plugin_name}")
+                    logger.info(f"No valid module spec found for {plugin_name}")
                     return False
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
@@ -404,7 +409,7 @@ class EnginePluginManager:
                         engine_classes.append(obj)
 
                 if not engine_classes:
-                    print(f"No engine classes found in plugin {plugin_name}")
+                    logger.info(f"No engine classes found in plugin {plugin_name}")
                     return False
 
                 # Store loaded plugin info
@@ -415,11 +420,11 @@ class EnginePluginManager:
                     "loaded_at": time.time(),
                 }
 
-                print(f"✅ Loaded plugin {plugin_name} with {len(engine_classes)} engine(s)")
+                logger.info(f"✅ Loaded plugin {plugin_name} with {len(engine_classes)} engine(s)")
                 return True
 
             except Exception as e:
-                print(f"❌ Failed to load plugin {plugin_name}: {e}")
+                logger.error(f"❌ Failed to load plugin {plugin_name}: {e}")
                 return False
 
     def unload_plugin(self, plugin_name: str) -> bool:
@@ -444,12 +449,12 @@ class EnginePluginManager:
                 try:
                     plugin_data["module"].cleanup()
                 except Exception as e:
-                    print(f"Error cleaning up plugin {plugin_name}: {e}")
+                    logger.error(f"Error cleaning up plugin {plugin_name}: {e}")
 
             # Remove from loaded plugins
             del self.loaded_plugins[plugin_name]
 
-            print(f"✅ Unloaded plugin {plugin_name}")
+            logger.info(f"✅ Unloaded plugin {plugin_name}")
             return True
 
     def get_loaded_plugins(self) -> dict[str, dict[str, Any]]:
@@ -542,7 +547,7 @@ class EnginePluginManager:
             return plugin_info if plugin_info["engines"] or "engine" in content.lower() else None
 
         except Exception as e:
-            print(f"Error analyzing {file_path}: {e}")
+            logger.error(f"Error analyzing {file_path}: {e}")
             return None
 
 
@@ -749,20 +754,20 @@ class PerformanceOptimizer:
                 current_polyphony = engine.get_max_polyphony()
                 new_polyphony = int(current_polyphony * 0.8)  # Reduce by 20%
                 engine.optimize_for_polyphony(new_polyphony)
-                print(
+                logger.info(
                     f"Optimized {engine.get_engine_type()} polyphony: {current_polyphony} -> {new_polyphony}"
                 )
                 return True
 
             elif rec_type == "optimize_buffering":
                 # This would typically adjust buffer sizes or processing parameters
-                print(f"Applied buffering optimization to {engine.get_engine_type()}")
+                logger.info(f"Applied buffering optimization to {engine.get_engine_type()}")
                 return True
 
             return False
 
         except Exception as e:
-            print(f"Failed to apply optimization: {e}")
+            logger.error(f"Failed to apply optimization: {e}")
             return False
 
 
@@ -848,7 +853,7 @@ class SynthesisEngineRegistry:
                 "error_count": 0,
             }
 
-            print(f"✅ Registered engine: {engine_type} (priority: {priority})")
+            logger.info(f"✅ Registered engine: {engine_type} (priority: {priority})")
 
     def load_plugin_engines(self, plugin_name: str) -> int:
         """
@@ -887,7 +892,7 @@ class SynthesisEngineRegistry:
                 engines_loaded += 1
 
             except Exception as e:
-                print(
+                logger.info(
                     f"Failed to load engine {engine_class.__name__} from plugin {plugin_name}: {e}"
                 )
 
@@ -955,7 +960,9 @@ class SynthesisEngineRegistry:
                 # Configure channel assignments
                 channel_assignments = xgml_config.get("channel_engines", {})
                 if channel_assignments:
-                    print(f"🎹 Configured {len(channel_assignments)} channel engine assignments")
+                    logger.info(
+                        f"🎹 Configured {len(channel_assignments)} channel engine assignments"
+                    )
 
                 # Configure individual engines
                 engine_configs = {}
@@ -971,13 +978,13 @@ class SynthesisEngineRegistry:
                         engine_configs[engine_type] = config
 
                         if engine_type in self._engines and config.get("enabled", True):
-                            print(f"🎹 Configured {engine_type} engine")
+                            logger.info(f"🎹 Configured {engine_type} engine")
 
-                print("✅ Applied XGML v3.0 engine registry configuration")
+                logger.info("✅ Applied XGML v3.0 engine registry configuration")
                 return True
 
             except Exception as e:
-                print(f"❌ Failed to apply XGML engine configuration: {e}")
+                logger.error(f"❌ Failed to apply XGML engine configuration: {e}")
                 return False
 
     def optimize_performance(self) -> dict[str, Any]:
@@ -1076,7 +1083,7 @@ class SynthesisEngineRegistry:
                     return engine
 
                 except Exception as e:
-                    print(f"Failed to create engine {engine_type}: {e}")
+                    logger.error(f"Failed to create engine {engine_type}: {e}")
                     if engine_type in self.engine_usage_stats:
                         self.engine_usage_stats[engine_type]["error_count"] += 1
                     return None
@@ -1214,4 +1221,5 @@ class SynthesisEngineRegistry:
 
 # Import here to avoid circular imports
 from ..processing.partial.partial import SynthesisPartial
+
 # Note: Region import removed - use forward references instead to avoid circular import

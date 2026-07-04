@@ -643,8 +643,8 @@ class FDSPEngine:
             name=preset_name,
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
-            is_monophonic=True,
-            category="vocal_synthesis",
+
+
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
@@ -847,8 +847,8 @@ class FDSPSynthesisEngine(SynthesisEngine):
             name=preset_name,
             engine_type="fdsp",
             region_descriptors=[descriptor],
-            is_monophonic=True,
-            category="vocal_synthesis",
+
+
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:

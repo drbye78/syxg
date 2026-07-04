@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .sf2_constants import SF2_GENERATORS
+
 
 class SF2ZoneEngine:
     """
@@ -22,12 +24,14 @@ class SF2ZoneEngine:
 
     __slots__ = [
         "instrument_gens",
+        "instrument_global_gens",
         "instrument_mods",
         "last_note",
         "last_velocity",
         "merged_gens",
         "modulation_cache",
         "preset_gens",
+        "preset_global_gens",
         "preset_mods",
         "zone_id",
     ]
@@ -39,25 +43,34 @@ class SF2ZoneEngine:
         instrument_mods: list[dict[str, Any]],
         preset_gens: dict[int, int],
         preset_mods: list[dict[str, Any]],
+        preset_global_gens: dict[int, int] | None = None,
+        instrument_global_gens: dict[int, int] | None = None,
     ):
         """
         Initialize zone engine.
 
         Args:
             zone_id: Zone identifier
-            instrument_gens: Instrument-level generators
+            instrument_gens: Instrument local zone generators
             instrument_mods: Instrument-level modulators
-            preset_gens: Preset-level generators (global)
+            preset_gens: Preset local zone generators
             preset_mods: Preset-level modulators
+            preset_global_gens: Preset global zone generators (apply to all zones)
+            instrument_global_gens: Instrument global zone generators (apply to all zones)
         """
         self.zone_id = zone_id
         self.instrument_gens = instrument_gens
         self.instrument_mods = instrument_mods
         self.preset_gens = preset_gens
         self.preset_mods = preset_mods
+        self.preset_global_gens = preset_global_gens or {}
+        self.instrument_global_gens = instrument_global_gens or {}
 
-        # Merge generators (instrument overrides preset)
-        self.merged_gens = preset_gens.copy()
+        # SF2 spec 4-layer merge: preset_global → preset → instrument_global → instrument
+        self.merged_gens = {}
+        self.merged_gens.update(self.preset_global_gens)
+        self.merged_gens.update(preset_gens)
+        self.merged_gens.update(self.instrument_global_gens)
         self.merged_gens.update(instrument_gens)
 
         # Modulation cache
@@ -96,8 +109,6 @@ class SF2ZoneEngine:
 
     def _generators_to_params(self) -> dict[str, float]:
         """Convert merged generators to parameter dictionary."""
-        from .sf2_constants import SF2_GENERATORS
-
         params = {}
 
         for gen_id, value in self.merged_gens.items():
@@ -110,47 +121,53 @@ class SF2ZoneEngine:
 
     def _convert_generator_value(self, gen_id: int, value: int) -> float:
         """Convert generator value to appropriate units."""
-        # Volume envelope (timecents to seconds)
+        # Volume envelope (timecents to seconds) - clamp to 100s max
         if gen_id in range(8, 14):
             if value <= -12000:
                 return 0.0
-            return 2.0 ** (value / 1200.0)
+            return min(100.0, 2.0 ** (value / 1200.0))
 
-        # Modulation envelope (timecents to seconds)
+        # Modulation envelope (timecents to seconds) - clamp to 100s max
         if gen_id in range(14, 20):
             if value <= -12000:
                 return 0.0
-            return 2.0 ** (value / 1200.0)
+            return min(100.0, 2.0 ** (value / 1200.0))
 
-        # LFO delay (timecents to seconds)
+        # LFO delay (timecents to seconds) - clamp to 100s max
         if gen_id in [21, 26]:
             if value <= -12000:
                 return 0.0
-            return 2.0 ** (value / 1200.0)
+            return min(100.0, 2.0 ** (value / 1200.0))
 
-        # LFO frequency (cents to Hz)
+        # LFO frequency (cents to Hz) - clamp to 0.01-100 Hz
         if gen_id in [22, 27]:
-            return 440.0 * (2.0 ** (value / 1200.0))
+            hz = 440.0 * (2.0 ** (value / 1200.0))
+            return max(0.01, min(100.0, hz))
 
-        # Filter cutoff (cents to Hz)
+        # Filter cutoff (cents to Hz) - clamp to 20-20000 Hz
         if gen_id == 29:
-            return 440.0 * (2.0 ** ((value + 6900) / 1200.0))
+            hz = 440.0 * (2.0 ** ((value + 6900) / 1200.0))
+            return max(20.0, min(20000.0, hz))
+
+        # Filter Q (tenths of dB to dB) - clamp to 0-96 dB
+        if gen_id == 30:
+            return max(0.0, min(96.0, value / 10.0))
 
         # Sustain levels (0-1000 to 0.0-1.0)
         if gen_id in [12, 18]:
-            return value / 1000.0
+            return max(0.0, min(1.0, value / 1000.0))
 
         # Effects sends (0-1000 to 0.0-1.0)
         if gen_id in [32, 33]:
-            return value / 1000.0
+            return max(0.0, min(1.0, value / 1000.0))
 
         # Pan (-500 to 500 to -1.0 to 1.0)
         if gen_id == 34:
-            return value / 500.0
+            return max(-1.0, min(1.0, value / 500.0))
 
-        # Fine tune (cents to semitones)
+        # Fine tune (cents to semitones) - clamp to +/-1 semitone
         if gen_id == 49:
-            return value / 100.0
+            return max(-1.0, min(1.0, value / 100.0))
 
         # Default: return as float
         return float(value)
@@ -177,7 +194,7 @@ class SF2ZoneEngine:
         src_oper = modulator.get("src_oper", 0)
         dest_oper = modulator.get("dest_oper", 0)
         amount = modulator.get("amount", 0)
-        amt_src_oper = modulator.get("amt_src_oper", 0)
+        _amt_src_oper = modulator.get("amt_src_oper", 0)
         trans_oper = modulator.get("trans_oper", 0)
 
         # Calculate modulation source value
@@ -371,15 +388,15 @@ class SF2ZoneEngine:
                 params["chorusEffectsSend"] += amount
 
 
-class SF2ModulationEngine:
+class SF2ZoneEngineManager:
     """
-    SF2 Modulation Engine - Manages zone engines and global modulation.
+    SF2 Zone Engine Manager - Manages zone engines and global modulation.
     """
 
     __slots__ = ["global_controllers", "mod_wheel", "pitch_bend", "zone_engines"]
 
     def __init__(self):
-        """Initialize modulation engine."""
+        """Initialize zone engine manager."""
         self.zone_engines: dict[str, SF2ZoneEngine] = {}
         self.global_controllers: dict[int, float] = {}
         self.pitch_bend: float = 0.0
@@ -392,21 +409,33 @@ class SF2ModulationEngine:
         instrument_mods: list[dict[str, Any]],
         preset_gens: dict[int, int],
         preset_mods: list[dict[str, Any]],
+        preset_global_gens: dict[int, int] | None = None,
+        instrument_global_gens: dict[int, int] | None = None,
     ) -> SF2ZoneEngine:
         """
         Create zone engine for modulation processing.
 
         Args:
             zone_id: Zone identifier
-            instrument_gens: Instrument-level generators
+            instrument_gens: Instrument local zone generators
             instrument_mods: Instrument-level modulators
-            preset_gens: Preset-level generators
+            preset_gens: Preset local zone generators
             preset_mods: Preset-level modulators
+            preset_global_gens: Preset global zone generators
+            instrument_global_gens: Instrument global zone generators
 
         Returns:
             SF2ZoneEngine instance
         """
-        engine = SF2ZoneEngine(zone_id, instrument_gens, instrument_mods, preset_gens, preset_mods)
+        engine = SF2ZoneEngine(
+            zone_id,
+            instrument_gens,
+            instrument_mods,
+            preset_gens,
+            preset_mods,
+            preset_global_gens=preset_global_gens,
+            instrument_global_gens=instrument_global_gens,
+        )
         self.zone_engines[zone_id] = engine
         return engine
 

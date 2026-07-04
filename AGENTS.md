@@ -32,7 +32,7 @@ python -m vibexg
 - **Formatter**: Black, line length 100
 - **Linter**: Ruff + Flake8 (see `pyproject.toml` for rules)
 - **Type Checking**: MyPy strict mode
-- **Python**: 3.11+ required — use pattern matching, `Self`, `TypeAlias`
+- **Python**: 3.12+ required — use pattern matching, `Self`, `TypeAlias`
 
 ### Imports & Formatting
 - `from __future__ import annotations` in every file

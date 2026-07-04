@@ -1,13 +1,18 @@
 """
+
 Song Mode - Advanced Sequencer Capabilities
 
 Provides song mode functionality for multi-track sequencing and arrangement.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class SongMode:
@@ -508,11 +513,11 @@ class SongMode:
             success = handler.save_midi_file(midi_data, filename)
 
             if success:
-                print(f"✓ Exported song to {filename}")
+                logger.info(f"✓ Exported song to {filename}")
             return success
 
         except Exception as e:
-            print(f"Error exporting MIDI file: {e}")
+            logger.error(f"Error exporting MIDI file: {e}")
             return False
 
     def import_midi_file(self, filename: str) -> bool:
@@ -658,9 +663,9 @@ class SongMode:
             # Update song length
             self._update_song_length()
 
-            print(f"✓ Imported song from {filename} ({len(self.tracks)} tracks)")
+            logger.info(f"✓ Imported song from {filename} ({len(self.tracks)} tracks)")
             return True
 
         except Exception as e:
-            print(f"Error importing MIDI file: {e}")
+            logger.error(f"Error importing MIDI file: {e}")
             return False

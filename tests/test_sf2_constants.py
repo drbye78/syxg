@@ -7,7 +7,7 @@ and all conversion functions for specification compliance.
 
 from __future__ import annotations
 
-from synth.sf2 import sf2_constants
+from synth.io.sf2 import sf2_constants
 
 
 class TestSF2Generators:
@@ -15,7 +15,7 @@ class TestSF2Generators:
 
     def test_all_generator_indices_valid(self):
         """Test all generator indices are in valid range 0-65."""
-        for gen_id, gen_info in sf2_constants.SF2_GENERATORS.items():
+        for gen_id, _gen_info in sf2_constants.SF2_GENERATORS.items():
             assert 0 <= gen_id <= 65, f"Generator {gen_id} out of range"
 
     def test_generator_has_required_fields(self):
@@ -159,7 +159,7 @@ class TestSF2SampleTypes:
 
     def test_sample_types_have_required_fields(self):
         """Test each sample type has required fields."""
-        for type_id, type_info in sf2_constants.SF2_SAMPLE_TYPES.items():
+        for _type_id, type_info in sf2_constants.SF2_SAMPLE_TYPES.items():
             assert "name" in type_info
             assert "channels" in type_info
             assert "bit_depth" in type_info

@@ -37,6 +37,7 @@ import numpy as np
 try:
     from .effects_coordinator import XGEffectsCoordinator
     from .eq_processor import XGMultiBandEqualizer
+
     # Note: XGChannelMixerProcessor doesn't exist yet, commented out
     # from .mixer_processor import XGChannelMixerProcessor
 except ImportError:

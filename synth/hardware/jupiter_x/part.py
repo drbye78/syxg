@@ -289,10 +289,13 @@ class JupiterXEngine:
     and implements specific synthesis algorithms.
     """
 
-    def __init__(self, engine_type: int, part: JupiterXPart, sample_rate: int = 44100):
+    def __init__(
+        self, engine_type: int, part: JupiterXPart, sample_rate: int = 44100, buffer_pool=None
+    ):
         self.engine_type = engine_type
         self.part = part
         self.sample_rate = sample_rate
+        self.buffer_pool = buffer_pool
         self.enabled = False
         self.level = DEFAULT_ENGINE_LEVEL / 127.0  # 0.0 to 1.0
 
@@ -355,6 +358,8 @@ class JupiterXEngine:
             Stereo audio buffer (block_size, 2)
         """
         # Base implementation returns silence - overridden by subclasses
+        if self.buffer_pool is not None:
+            return self.buffer_pool.get_stereo_buffer(block_size)
         return np.zeros((block_size, 2), dtype=np.float32)
 
     def reset(self):
@@ -371,8 +376,8 @@ class JupiterXDigitalEngine(JupiterXEngine):
     modulation and advanced digital signal processing.
     """
 
-    def __init__(self, part: JupiterXPart, sample_rate: int = 44100):
-        super().__init__(ENGINE_DIGITAL, part, sample_rate)
+    def __init__(self, part: JupiterXPart, sample_rate: int = 44100, buffer_pool=None):
+        super().__init__(ENGINE_DIGITAL, part, sample_rate, buffer_pool)
 
         # Wavetable Core
         self.wavetable_position = 0.0  # Current position in wavetable (0.0-1.0)
@@ -494,12 +499,18 @@ class JupiterXDigitalEngine(JupiterXEngine):
 
         # Apply LFO modulation to wavetable position and speed
         if self.lfo and self.lfo_to_pitch > 0.0:
-            lfo_buffer = np.zeros(block_size, dtype=np.float32)
+            if self.buffer_pool is not None:
+                lfo_buffer = self.buffer_pool.get_mono_buffer(block_size)
+            else:
+                lfo_buffer = np.zeros(block_size, dtype=np.float32)
             self.lfo.generate_block(lfo_buffer, block_size)
             effective_speed *= 1.0 + lfo_buffer * self.lfo_to_pitch
 
         # Generate samples
-        samples = np.zeros((block_size, 2), dtype=np.float32)
+        if self.buffer_pool is not None:
+            samples = self.buffer_pool.get_stereo_buffer(block_size)
+        else:
+            samples = np.zeros((block_size, 2), dtype=np.float32)
 
         for i in range(block_size):
             # Wavetable playback
@@ -812,9 +823,10 @@ class JupiterXPart:
     engines that can be mixed and layered.
     """
 
-    def __init__(self, part_number: int, sample_rate: int = 44100):
+    def __init__(self, part_number: int, sample_rate: int = 44100, buffer_pool=None):
         self.part_number = part_number
         self.sample_rate = sample_rate
+        self.buffer_pool = buffer_pool
 
         # Basic part parameters
         self.volume = DEFAULT_PART_VOLUME / 127.0
@@ -844,11 +856,11 @@ class JupiterXPart:
                 max_partials=64, sample_rate=sample_rate
             ),  # Analog (Additive)
             ENGINE_DIGITAL: JupiterXEngine(
-                ENGINE_DIGITAL, self, sample_rate
+                ENGINE_DIGITAL, self, sample_rate, buffer_pool
             ),  # Digital (Wavetable)
-            ENGINE_FM: JupiterXEngine(ENGINE_FM, self, sample_rate),  # FM
+            ENGINE_FM: JupiterXEngine(ENGINE_FM, self, sample_rate, buffer_pool),  # FM
             ENGINE_EXTERNAL: JupiterXEngine(
-                ENGINE_EXTERNAL, self, sample_rate
+                ENGINE_EXTERNAL, self, sample_rate, buffer_pool
             ),  # External (Sampler)
         }
 
@@ -1115,10 +1127,15 @@ class JupiterXPart:
         """Generate audio for current note."""
         with self.lock:
             if self.current_note is None:
+                if self.buffer_pool is not None:
+                    return self.buffer_pool.get_stereo_buffer(block_size)
                 return np.zeros((block_size, 2), dtype=np.float32)
 
             # Generate from all enabled engines and mix
-            mixed_output = np.zeros((block_size, 2), dtype=np.float32)
+            if self.buffer_pool is not None:
+                mixed_output = self.buffer_pool.get_stereo_buffer(block_size)
+            else:
+                mixed_output = np.zeros((block_size, 2), dtype=np.float32)
 
             for engine_type, engine in self.engines.items():
                 if engine.enabled and self.engine_levels[engine_type] > 0:

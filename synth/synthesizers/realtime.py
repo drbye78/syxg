@@ -1,4 +1,5 @@
 """
+
 Main Synthesizer Class - Core Architecture
 
 The Synthesizer class represents the central orchestration component of the XG synthesizer system,
@@ -374,6 +375,39 @@ class Synthesizer:
                     sf2_engine.set_part_mode_integrator(part_mode_integrator)
                     self._sf2_part_mode_integrator = part_mode_integrator
 
+                    # Register part mode callback: sync XG part mode → SF2 integrator
+                    def _on_xg_part_mode(part_num: int, mode: int) -> None:
+                        mode_map = {0: "normal", 1: "drum", 4: "single"}
+                        mode_str = mode_map.get(mode, "normal")
+                        bank_msb = self.xg_synthesizer.parts[part_num].get("bank_msb", 0)
+                        part_mode_integrator.set_channel_mode(part_num, mode_str, bank_msb)
+
+                    self.xg_synthesizer.register_part_mode_callback(_on_xg_part_mode)
+
+                    # Register GS parameter callback: sync GS part params → Channel.gs_params
+                    def _on_gs_part_param(section: str, param_name: str, value: int) -> None:
+                        """Handle GS part parameter changes from sysex."""
+                        if section.startswith("part_"):
+                            try:
+                                part_idx = int(section.split("_")[1])
+                                if (
+                                    0 <= part_idx < 16
+                                    and hasattr(self, "channels")
+                                    and self.channels
+                                ):
+                                    self.channels[part_idx].gs_params[param_name] = value
+                                    logger.debug(f"GS part {part_idx} param {param_name} = {value}")
+                            except (ValueError, IndexError, AttributeError):
+                                pass
+
+                    self.xg_synthesizer.register_parameter_callback(_on_gs_part_param)
+
+                    # Sync initial state: push all existing part modes into integrator
+                    for ch in range(16):
+                        part_info = self.xg_synthesizer.parts[ch]
+                        part_mode = part_info.get("part_mode", 0)
+                        _on_xg_part_mode(ch, part_mode)
+
                 engines_registered += 1
             except Exception as e:
                 logger.error(f"Failed to register SF2 engine: {e}")
@@ -472,6 +506,16 @@ class Synthesizer:
         self.xg_synthesizer.voice_manager = self.voice_manager
         self.xg_synthesizer.synthesizer = self
 
+        # Store reference to XGChannelParameterManager for future Channel integration
+        # Used by rendering.ModernXGSynthesizer channels; wired here for realtime use
+        self.xg_channel_params = getattr(self.xg_synthesizer, "xg_channel_params", None)
+
+        # Wire XGChannelParameterManager to channels if they exist
+        if hasattr(self, "channels") and self.xg_channel_params is not None:
+            for ch in self.channels:
+                if hasattr(ch, "set_xg_parameter_manager"):
+                    ch.set_xg_parameter_manager(self.xg_channel_params)
+
         logger.info("XG system initialized")
 
     def _initialize_s90_s70_compatibility(self):
@@ -491,7 +535,10 @@ class Synthesizer:
     def _initialize_audio_output(self):
         """Initialize real-time audio output via sounddevice."""
         try:
-            from synth.protocols.xg.sart.audio import SoundDeviceOutput
+            try:
+                from vibexg.audio_outputs import SoundDeviceOutput
+            except ImportError:
+                from synth.protocols.xg.sart.audio import SoundDeviceOutput
 
             def audio_callback(outdata, frames, time_info, status):
                 if status:
@@ -602,6 +649,10 @@ class Synthesizer:
             self.pitch_bend(message.channel or 0, message.bend_value or 0)
         elif message.is_program_change():
             self.program_change(message.channel or 0, message.program or 0)
+        elif message.type == "sysex":
+            raw_data = bytes(message.data.get("raw_data", []))
+            if raw_data and hasattr(self, "xg_synthesizer"):
+                self.xg_synthesizer.process_sysex(raw_data)
 
     def _generate_audio_block(self):
         """Generate one block of audio."""
@@ -634,7 +685,15 @@ class Synthesizer:
         modulation = voice_info.modulation_data or {}
 
         try:
-            audio_block = engine.generate_samples(note, velocity, modulation, self.buffer_size)
+            engine_params = voice_info.engine_params or {}
+            if engine_type == "sf2":
+                bank = engine_params.get("bank", 0)
+                program = engine_params.get("program", 0)
+                audio_block = engine.generate_samples(
+                    note, velocity, modulation, self.buffer_size, bank=bank, program=program
+                )
+            else:
+                audio_block = engine.generate_samples(note, velocity, modulation, self.buffer_size)
 
             if voice_info.effects_chain:
                 audio_block = self._apply_voice_effects(audio_block, voice_info.effects_chain)
@@ -746,8 +805,40 @@ class Synthesizer:
     def _trigger_voice(self, channel: int, note: int, velocity: int):
         """Internal method to trigger a voice."""
         engine_type = self.xg_system.get_engine_for_channel(channel)
+        engine_params: dict[str, Any] = {}
 
-        self.voice_manager.allocate_voice(channel, note, velocity, engine_type)
+        # Consult SF2 part mode integrator if available
+        if (
+            hasattr(self, "_sf2_part_mode_integrator")
+            and self._sf2_part_mode_integrator is not None
+        ):
+            try:
+                bank, program, drum_params = self._sf2_part_mode_integrator.get_preset_for_note(
+                    channel, note, velocity
+                )
+                engine_params = {"bank": bank, "program": program}
+                # If drum mode, route to SF2 engine
+                if drum_params and drum_params.get("is_drum"):
+                    engine_type = "sf2"
+            except Exception:
+                logger.warning("Failed to query SF2 part mode integrator", exc_info=True)
+
+        # Collect current modulation state for this channel
+        modulation_data = {}
+        try:
+            if hasattr(self, "channels") and 0 <= channel < len(self.channels):
+                modulation_data = self.channels[channel]._collect_modulation_values()
+        except Exception:
+            logger.warning("Failed to collect modulation values", exc_info=True)
+
+        self.voice_manager.allocate_voice(
+            channel,
+            note,
+            velocity,
+            engine_type,
+            engine_params,
+            modulation_data=modulation_data,
+        )
 
     def _trigger_voice_off(self, channel: int, note: int):
         """Internal method to handle note off."""

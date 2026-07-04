@@ -1,4 +1,5 @@
 """
+
 Yamaha Motif Effects System
 
 Implementation of Yamaha Motif effects processing with multiple effect types
@@ -7,10 +8,13 @@ and individual part processing.
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class MotifEffectType:
@@ -236,9 +240,10 @@ class MotifDelayEffect:
         self.dry_level = 0.6  # 0.0-1.0
         self.high_cut = 8000  # Hz
 
-        # Delay state
+        # Delay state - pre-allocate to max possible size (2000ms max delay time)
+        self.max_delay_samples = int(2000 * sample_rate / 1000)
         self.delay_samples = int(self.delay_time * sample_rate / 1000)
-        self.delay_line = np.zeros(max(2048, self.delay_samples * 2))
+        self.delay_line = np.zeros(max(2048, self.max_delay_samples * 2))
         self.delay_pos = 0
 
     def set_parameters(
@@ -258,9 +263,8 @@ class MotifDelayEffect:
         self.dry_level = max(0.0, min(1.0, dry_level))
         self.high_cut = max(1000, min(20000, high_cut))
 
-        # Recalculate delay line size
+        # Update delay samples (delay_line pre-allocated to max size)
         self.delay_samples = int(self.delay_time * self.sample_rate / 1000)
-        self.delay_line = np.zeros(max(2048, self.delay_samples * 2))
 
     def process_sample(self, input_sample: float) -> float:
         """Process one sample through delay with high-cut filtering."""
@@ -532,7 +536,7 @@ class MotifEffectsProcessor:
         self.part_routing = {}
         self._init_part_routing()
 
-        print("🎛️ Motif Effects Processor: Initialized with 40+ effect types")
+        logger.debug("Motif Effects Processor initialized with 40+ effect types")
 
     def _init_part_routing(self):
         """Initialize part routing to effects"""

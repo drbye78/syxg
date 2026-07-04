@@ -1,4 +1,5 @@
 """
+
 Yamaha Arpeggiator SYSEX Controller
 
 SYSEX command processing for Yamaha Motif arpeggiator control.
@@ -9,8 +10,11 @@ Copyright (c) 2025
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class YamahaArpeggiatorSysexController:
@@ -63,7 +67,7 @@ class YamahaArpeggiatorSysexController:
         self.bulk_data_buffer = bytearray()
         self.bulk_expected_size = 0
 
-        print("🎹 Yamaha Arpeggiator SYSEX Controller: Initialized")
+        logger.info("Yamaha Arpeggiator SYSEX Controller: Initialized")
 
     def process_sysex_message(self, data: bytes) -> dict[str, Any] | None:
         """
@@ -96,11 +100,11 @@ class YamahaArpeggiatorSysexController:
             if handler:
                 return handler(device_id, command_data)
             else:
-                print(f"⚠️  Unknown arpeggiator SYSEX command: {command:02X}")
+                logger.warning("Unknown arpeggiator SYSEX command: %02X", command)
                 return None
 
         except Exception as e:
-            print(f"❌ Arpeggiator SYSEX processing error: {e}")
+            logger.error("Arpeggiator SYSEX processing error: %s", e)
             return None
 
     def _handle_arp_switch(self, device_id: int, data: bytes) -> dict[str, Any] | None:
@@ -298,11 +302,11 @@ class YamahaArpeggiatorSysexController:
                 # Pattern library data
                 return self._process_bulk_pattern_library(bulk_payload)
             else:
-                print(f"⚠️  Unknown bulk data type: {bulk_type}")
+                logger.warning("Unknown bulk data type: %s", bulk_type)
                 return None
 
         except Exception as e:
-            print(f"❌ Bulk data processing error: {e}")
+            logger.error("Bulk data processing error: %s", e)
             return None
 
     def _process_bulk_arpeggiator_settings(self, data: bytes) -> dict[str, Any] | None:
@@ -310,7 +314,7 @@ class YamahaArpeggiatorSysexController:
         try:
             # Expected format: 16 parts × 16 parameters per part = 256 bytes
             if len(data) != 256:
-                print(f"⚠️  Invalid bulk settings size: {len(data)} (expected 256)")
+                logger.warning("Invalid bulk settings size: %s (expected 256)", len(data))
                 return None
 
             parts_processed = 0
@@ -322,7 +326,7 @@ class YamahaArpeggiatorSysexController:
                 if self._apply_bulk_part_settings(part, part_data):
                     parts_processed += 1
 
-            print(f"🎹 Arpeggiator bulk settings loaded: {parts_processed}/16 parts")
+            logger.info("Arpeggiator bulk settings loaded: %s/16 parts", parts_processed)
             return {
                 "type": "bulk_operation",
                 "command": "bulk_data_complete",
@@ -332,7 +336,7 @@ class YamahaArpeggiatorSysexController:
             }
 
         except Exception as e:
-            print(f"❌ Bulk arpeggiator settings processing error: {e}")
+            logger.error("Bulk arpeggiator settings processing error: %s", e)
             return None
 
     def _apply_bulk_part_settings(self, part: int, part_data: bytes) -> bool:
@@ -376,7 +380,7 @@ class YamahaArpeggiatorSysexController:
             return True
 
         except Exception as e:
-            print(f"❌ Error applying bulk settings for part {part}: {e}")
+            logger.error("Error applying bulk settings for part %s: %s", part, e)
             return False
 
     def _process_bulk_pattern_library(self, data: bytes) -> dict[str, Any] | None:
@@ -423,7 +427,7 @@ class YamahaArpeggiatorSysexController:
             return result
 
         except Exception as e:
-            print(f"❌ Bulk pattern library processing error: {e}")
+            logger.error("Bulk pattern library processing error: %s", e)
             return None
 
     def create_bulk_dump_request(self, dump_type: int, device_id: int = 0x10) -> bytes:

@@ -1,4 +1,5 @@
 """
+
 Region Pool - Object pooling for region instances.
 
 Part of the unified region-based synthesis architecture.
@@ -16,11 +17,11 @@ from typing import Any
 
 from ...engines.region_descriptor import RegionDescriptor
 
+logger = logging.getLogger(__name__)
+
 # Forward reference to avoid circular import
 if __name__ == "__annotations__":
     pass
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)

@@ -1,4 +1,5 @@
 """
+
 Complete GS Sysex Handler - Production Grade
 
 Full implementation of Roland GS sysex message handling with complete
@@ -51,7 +52,7 @@ class GSAddress(IntEnum):
     DRUM_PART_16 = 0x1F
 
 
-@dataclass
+@dataclass(slots=True)
 class GSPartParameter:
     """GS Part Parameter Definition"""
 
@@ -679,6 +680,34 @@ class GSSysexHandler:
         elif param == "pan":
             return 64
         return 0
+
+    def set_part_parameter(self, part: int, group: int, param: int, value: int) -> bool:
+        """
+        Set a GS part parameter from sysex router.
+
+        Args:
+            part: Part number (0-15)
+            group: Address group byte
+            param: Address parameter byte
+            value: Parameter value (0-127)
+
+        Returns:
+            True if parameter was recognized and set
+        """
+        if not (0 <= part < 16):
+            return False
+
+        param_addr = (group << 8) | param
+        if param_addr not in self.part_param_map:
+            return False
+
+        param_name, _, _ = self.part_param_map[param_addr]
+        self.part_params[part][param_name] = value
+
+        # Notify callbacks
+        self._notify_param_change(f"part_{part}", param_name, value)
+
+        return True
 
     def set_drum_part(self, channel: int, drum_map: int) -> bool:
         """

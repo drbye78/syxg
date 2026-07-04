@@ -1,4 +1,5 @@
 """
+
 GS Component System - Complete GS Implementation
 
 Production-quality GS synthesizer components with complete GS specification compliance.
@@ -6,8 +7,12 @@ Contains GS MIDI processor and state management for Roland GS compatibility.
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class GSMIDIProcessor:
@@ -61,7 +66,7 @@ class GSMIDIProcessor:
         if handler:
             return handler(data)
         else:
-            print(f"Unknown GS SYSEX command: {command:02X}")
+            logger.warning(f"Unknown GS SYSEX command: {command:02X}")
             return False
 
     def _process_gs_reset(self, data: bytes) -> bool:
@@ -71,7 +76,7 @@ class GSMIDIProcessor:
             # Reset GS system to defaults
             if hasattr(self.components, "reset_all_components"):
                 self.components.reset_all_components()
-                print("GS: System reset to defaults")
+                logger.info("GS: System reset to defaults")
                 return True
         return False
 

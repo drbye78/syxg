@@ -83,5 +83,3 @@ class FMXLFO:
         self.phase = 0.0
         self.random_value = 0.0
         self.random_hold_time = 0.0
-
-

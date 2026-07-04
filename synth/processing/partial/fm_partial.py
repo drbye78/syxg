@@ -62,6 +62,7 @@ class FMPartial(SynthesisPartial):
             Stereo audio buffer (block_size, 2)
         """
         if not self.active:
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Use stored note and velocity for generation
@@ -119,9 +120,11 @@ class FMPartial(SynthesisPartial):
                 "engine_type": "fm",
                 "algorithm": self.algorithm,
                 "num_operators": self.num_operators,
-                "fm_engine_info": self.fm_engine.get_engine_info()
-                if hasattr(self.fm_engine, "get_engine_info")
-                else {},
+                "fm_engine_info": (
+                    self.fm_engine.get_engine_info()
+                    if hasattr(self.fm_engine, "get_engine_info")
+                    else {}
+                ),
             }
         )
         return info

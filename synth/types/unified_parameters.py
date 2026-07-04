@@ -1,4 +1,5 @@
 """
+
 Unified Parameter System - Jupiter-X Compatible Parameter Management
 
 ARCHITECTURAL OVERVIEW:
@@ -128,11 +129,15 @@ MEMORY EFFICIENCY: Minimal memory footprint for parameter storage
 """
 
 from __future__ import annotations
+import logging
+
 
 import math
 from collections.abc import Callable
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ParameterScope(Enum):
@@ -467,7 +472,7 @@ class UnifiedParameterSystem:
                 try:
                     callback(param_name, new_value, old_value)
                 except Exception as e:
-                    print(f"Parameter callback error for {param_name}: {e}")
+                    logger.error(f"Parameter callback error for {param_name}: {e}")
 
     def process_midi_cc(
         self, cc_number: int, cc_value: int, channel: int = 0

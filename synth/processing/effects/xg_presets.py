@@ -1,4 +1,5 @@
 """
+
 XG Effect Presets - Complete XG Effect Configuration Presets
 
 Provides predefined effect configurations for common scenarios,
@@ -19,6 +20,7 @@ Copyright (c) 2025 XG Synthesis Core
 """
 
 from __future__ import annotations
+import logging
 
 """
 XG Master Section - XG Master Compressor/Limiter, Stereo Enhancer, and Volume Curves
@@ -40,6 +42,8 @@ import numpy as np
 from .xg_master_compressor import XGMasterCompressor
 from .xg_stereo_enhancer import XGStereoEnhancer
 from .xg_volume_curve import XGVolumeCurve
+
+logger = logging.getLogger(__name__)
 
 
 class XGMasterSection:
@@ -597,5 +601,5 @@ class XGEffectPresets:
             return True
 
         except Exception as e:
-            print(f"Error applying preset {preset_id}: {e}")
+            logger.error(f"Error applying preset {preset_id}: {e}")
             return False

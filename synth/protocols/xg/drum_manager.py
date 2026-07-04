@@ -1,14 +1,19 @@
 """
+
 XG Synthesizer Drum Manager
 
 Handles drum kit management and XG drum specifications.
 """
 
 from __future__ import annotations
+import logging
+
 
 from typing import Any
 
 from ...primitives.constants import DEFAULT_DRUM_KIT_NOTES, DEFAULT_DRUM_PARAMETERS, XG_CONSTANTS
+
+logger = logging.getLogger(__name__)
 
 
 class DrumManager:
@@ -602,7 +607,7 @@ class DrumManager:
 
             return True
         except Exception as e:
-            print(f"Error processing drum bulk dump: {e}")
+            logger.error(f"Error processing drum bulk dump: {e}")
             return False
 
     def get_bulk_parameter(self, address: int) -> int:
@@ -679,7 +684,7 @@ class DrumManager:
             # Return default value if parameter not found
             return 0
         except Exception as e:
-            print(f"Error getting drum bulk parameter: {e}")
+            logger.error(f"Error getting drum bulk parameter: {e}")
             return 0
 
     def reset_to_xg_defaults(self):

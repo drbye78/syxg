@@ -1,4 +1,5 @@
 """
+
 Jupiter-X Performance Optimization Suite
 
 Comprehensive real-time performance optimization system providing
@@ -7,6 +8,8 @@ performance and stability.
 """
 
 from __future__ import annotations
+import logging
+
 
 import gc
 import os
@@ -19,6 +22,8 @@ from typing import Any
 
 import numpy as np
 import psutil
+
+logger = logging.getLogger(__name__)
 
 
 class PerformanceMetrics:
@@ -484,7 +489,7 @@ class JupiterXPerformanceOptimizer:
         # Optimization history
         self.optimization_history = deque(maxlen=100)
 
-        print("⚡ Jupiter-X Performance Optimizer: Initialized with real-time monitoring")
+        logger.info("⚡ Jupiter-X Performance Optimizer: Initialized with real-time monitoring")
 
     def update_metrics(self):
         """Update all performance metrics."""
@@ -658,7 +663,7 @@ class JupiterXPerformanceOptimizer:
 
             return True
         except Exception as e:
-            print(f"Performance data export error: {e}")
+            logger.error(f"Performance data export error: {e}")
             return False
 
     def get_optimization_recommendations(self) -> list[str]:

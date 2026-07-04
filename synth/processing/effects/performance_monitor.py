@@ -1,4 +1,5 @@
 """
+
 XG Effects Performance Monitor and Profiler
 
 This module provides comprehensive performance monitoring and profiling
@@ -24,6 +25,8 @@ Performance Categories:
 """
 
 from __future__ import annotations
+import logging
+
 
 import os
 import threading
@@ -37,10 +40,13 @@ from typing import Any
 import numpy as np
 import psutil
 
+logger = logging.getLogger(__name__)
+
 # Import our core components for monitoring
 try:
     from ...primitives.buffer_pool import XGBufferPool
     from .effects_coordinator import XGEffectsCoordinator
+
 except ImportError:
     # Fallback for development
     pass
@@ -293,15 +299,19 @@ class XGPerformanceProfiler:
                 "session_time_seconds": session_time_seconds,
                 "global_stats": {
                     "blocks_processed": self.global_stats.total_blocks,
-                    "blocks_per_second": self.global_stats.total_blocks / session_time_seconds
-                    if session_time_seconds > 0
-                    else 0,
+                    "blocks_per_second": (
+                        self.global_stats.total_blocks / session_time_seconds
+                        if session_time_seconds > 0
+                        else 0
+                    ),
                     "latency_ms": {
                         "current": self.latency_history[-1] if self.latency_history else 0,
                         "average": self.global_stats.avg_latency_ms,
-                        "min": self.global_stats.min_latency_ms
-                        if self.global_stats.min_latency_ms != float("inf")
-                        else 0,
+                        "min": (
+                            self.global_stats.min_latency_ms
+                            if self.global_stats.min_latency_ms != float("inf")
+                            else 0
+                        ),
                         "max": self.global_stats.max_latency_ms,
                         "target": self.target_latency_ms,
                     },
@@ -346,9 +356,11 @@ class XGPerformanceProfiler:
                 },
                 "alerts": {
                     "cpu_high": current_cpu > self.cpu_threshold_percent,
-                    "latency_high": self.latency_history[-1] > self.latency_threshold_ms
-                    if self.latency_history
-                    else False,
+                    "latency_high": (
+                        self.latency_history[-1] > self.latency_threshold_ms
+                        if self.latency_history
+                        else False
+                    ),
                     "memory_high": current_memory > self.memory_threshold_mb,
                 },
             }
@@ -432,7 +444,7 @@ class XGPerformanceProfiler:
                     self.last_sample_time = current_time
 
             except Exception as e:
-                print(f"Performance monitoring error: {e}")
+                logger.error(f"Performance monitoring error: {e}")
                 break
 
     def _reset_periodic_stats(self) -> None:
@@ -519,7 +531,7 @@ class XGMemoryProfiler:
         """
         with self.lock:
             self.zero_alloc_violations += 1
-            print(f"ZERO-ALLOCATION VIOLATION: {violation_type}")
+            logger.info(f"ZERO-ALLOCATION VIOLATION: {violation_type}")
 
     def get_memory_report(self) -> dict[str, Any]:
         """Generate detailed memory usage report."""

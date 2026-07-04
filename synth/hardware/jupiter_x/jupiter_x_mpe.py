@@ -329,9 +329,11 @@ class JupiterXMPEManager:
                         "channel": channel,
                         "note": data1,
                         "velocity": data2,
-                        "timbre": mpe_channel.get_note_expression(data1)["timbre"]
-                        if data1 in mpe_channel.active_notes
-                        else 0.0,
+                        "timbre": (
+                            mpe_channel.get_note_expression(data1)["timbre"]
+                            if data1 in mpe_channel.active_notes
+                            else 0.0
+                        ),
                     }
                 )
 

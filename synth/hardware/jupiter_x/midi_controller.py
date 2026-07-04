@@ -1,6 +1,8 @@
 """Jupiter-X MIDI Controller - orchestrator."""
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
@@ -9,6 +11,8 @@ from .component_manager import JupiterXComponentManager
 from .constants import *
 from .nrpn_controller import JupiterXNRPNController
 from .sysex_controller import JupiterXSysExController
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXMIDIController:
@@ -28,7 +32,7 @@ class JupiterXMIDIController:
         # Thread safety
         self.lock = threading.RLock()
 
-        print("🎹 Jupiter-X MIDI Controller: Initialized")
+        logger.info("🎹 Jupiter-X MIDI Controller: Initialized")
 
     def process_midi_message(self, message_bytes: bytes) -> dict[str, Any] | None:
         """
@@ -53,9 +57,11 @@ class JupiterXMIDIController:
                 # NRPN controllers
                 if controller in [98, 99, 6, 38, 96, 97]:  # NRPN related
                     return {
-                        "status": "processed"
-                        if self.nrpn_controller.process_nrpn_message(controller, value)
-                        else "ignored",
+                        "status": (
+                            "processed"
+                            if self.nrpn_controller.process_nrpn_message(controller, value)
+                            else "ignored"
+                        ),
                         "type": "nrpn",
                         "controller": controller,
                         "value": value,

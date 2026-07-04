@@ -1,6 +1,6 @@
 # 🎹 XG Synthesizer - Professional MIDI Workstation
 
-[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://img.shields.io/badge/build-passing-green.svg)](#)
 [![Documentation](https://img.shields.io/badge/docs-complete-blue.svg)](#)
@@ -145,7 +145,7 @@ Per-channel processing including:
 - **Multiple MIDI Inputs**: Keyboard, physical ports, virtual ports, network, file, stdin
 - **Real-Time Audio**: Low-latency output via sounddevice to any audio interface
 - **TUI Control Surface**: Rich text-based interface with live visualization
-- **Preset Management**: Save and recall complete setups with pickle serialization
+- **Preset Management**: Save and recall complete setups with JSON serialization
 - **MIDI Learn**: Map hardware controllers to parameters with curve shaping
 - **Demo Mode**: Built-in test patterns (scale, chords, arpeggio)
 - **Recording & Playback**: Capture and replay MIDI performances
@@ -291,53 +291,43 @@ cmake --build . --config Release --target XGWorkstationVST3_AAX
 - **[User Manual](docs/user/user-guide.md)** - Complete usage guide
 - **[Vibexg Workstation](docs/WORKSTATION.md)** - Real-time workstation manual
 - **[XGML Reference](docs/XGML_README.md)** - XGML v2.1 specification
-- **[Configuration](docs/user/configuration.md)** - All configuration options
+- **[Configuration](docs/CONFIGURATION.md)** - All configuration options
 
 ### 🔧 **Engine Documentation**
 - **[FM-X Engine](docs/engines/fm-engine.md)** - 8-operator FM synthesis
 - **[SF2 Engine](docs/engines/sf2-engine.md)** - SoundFont 2.0 playback
 - **[SFZ Engine](docs/engines/sfz-engine.md)** - Modern sample playback
-- **[S.Art2 Articulation](docs/engines/sart2-articulation.md)** - Yamaha articulation system
+- **[S.Art2 Articulation](docs/SART2_USER_GUIDE.md)** - Yamaha articulation system
 - **[Physical Modeling](docs/engines/physical-engine.md)** - Waveguide synthesis
 - **[Spectral Processing](docs/engines/spectral-engine.md)** - FFT-based effects
 
 ### 🎛️ **Plugin Documentation**
 - **[VST3 Plugin](vst3_plugin/README.md)** - VST3/AAX plugin build and usage
-- **[Plugin Architecture](docs/plugins/plugin-architecture.md)** - Plugin integration design
-- **[Parameter Automation](docs/plugins/parameter-automation.md)** - DAW automation guide
 
 ### 🎛️ **Effects Documentation**
-- **[System Effects](docs/effects/system-effects.md)** - Reverb, Chorus, Delay
-- **[Variation Effects](docs/effects/variation-effects.md)** - 62+ effect types
-- **[Insertion Effects](docs/effects/insertion-effects.md)** - Per-channel processing
-- **[Master Processing](docs/effects/master-processing.md)** - EQ, limiting, enhancement
+- **[System Effects](docs/xg_synthesizer_guide.md)** - Reverb, Chorus, Delay (see XG Synthesizer Guide)
 
 ### 💻 **Developer Resources**
 - **[API Reference](docs/api/overview.md)** - Complete API documentation
-- **[Vibexg Package](docs/api/vibexg.md)** - Workstation API reference
-- **[Architecture](docs/developer/architecture.md)** - System design
+- **[Vibexg Package](docs/api/vibexg.rst)** - Workstation API reference
+- **[Architecture](docs/architecture/overview.md)** - System design
 - **[Contributing](CONTRIBUTING.md)** - Development guidelines
-- **[Testing](docs/developer/testing.md)** - Test suite documentation
-- **[Python 3.11 Migration](docs/PYTHON_311_MIGRATION.md)** - Migration guide and new features
+- **[Testing](tests/README.md)** - Test suite documentation
 
-### 🐍 **Python 3.11 Features**
+### 🐍 **Python 3.12+ Features**
 
-The XG Synthesizer now requires **Python 3.11+** and leverages modern Python features:
+The XG Synthesizer requires **Python 3.12+** and leverages modern Python features:
 
 - **Pattern Matching** - Clean MIDI message handling with `match`/`case`
 - **Type Safety** - Comprehensive type hints with `typing.Self`, `TypeAlias`, `Annotated`
 - **Exception Groups** - Better batch error handling with `ExceptionGroup` and `except*`
-- **Exception Notes** - Rich error context with `add_note()`
-- **Performance** - 10-60% faster audio processing (automatic Python 3.11 improvement)
-
-See [`docs/PYTHON_311_FEATURES.md`](docs/PYTHON_311_FEATURES.md) for details.
+- **Performance** - JIT compilation via Numba for real-time audio processing
 
 ### 🎓 **Examples & Tutorials**
-- **[Basic Synthesis](examples/tutorials/basic-synthesis.md)** - Simple patches
-- **[Advanced Effects](examples/tutorials/advanced-effects.md)** - Professional processing
-- **[Articulation Setup](examples/tutorials/articulation-setup.md)** - S.Art2 configuration
-- **[Live Performance](examples/tutorials/live-performance.md)** - Vibexg workstation setup
-- **[SF2 Programming](examples/tutorials/sf2-programming.md)** - SoundFont creation
+- **[Examples Directory](examples/)** - Working example scripts and configurations
+- **[Jazz Combo Example](examples/jazz_combo_example.md)** - XGML configuration tutorial
+- **[Electronic Music Example](examples/electronic_music_example.md)** - Modern production setup
+- **[SF2 Comprehensive Test](examples/sf2_comprehensive_test.py)** - SoundFont testing script
 
 ## 🎼 XGML Configuration Example
 

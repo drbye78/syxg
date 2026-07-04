@@ -1,4 +1,5 @@
 """
+
 XG Drum Setup Parameters (NRPN MSB 48-63)
 
 Implements XG drum kit editing and individual drum voice parameters.
@@ -14,9 +15,13 @@ Copyright (c) 2025
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class XGDrumSetupParameters:
@@ -122,10 +127,10 @@ class XGDrumSetupParameters:
         # Parameter change callback
         self.parameter_change_callback = None
 
-        print("🥁 XG DRUM SETUP PARAMETERS: Initialized")
-        print(f"   {num_channels} channels configured for XG drum editing")
-        print(f"   {len(self.XG_DRUM_KIT_PARAMETERS)} drum kit parameters available")
-        print(f"   {len(self.XG_DRUM_NOTE_PARAMETERS)} parameters per drum note")
+        logger.info("🥁 XG DRUM SETUP PARAMETERS: Initialized")
+        logger.info(f"   {num_channels} channels configured for XG drum editing")
+        logger.info(f"   {len(self.XG_DRUM_KIT_PARAMETERS)} drum kit parameters available")
+        logger.info(f"   {len(self.XG_DRUM_NOTE_PARAMETERS)} parameters per drum note")
 
     def _initialize_default_parameters(self):
         """Initialize default XG drum parameters."""
@@ -468,14 +473,14 @@ class XGDrumSetupParameters:
                 self.drum_kit_parameters[channel] = {}
                 self.drum_note_parameters[channel] = {}
                 self._initialize_default_parameters()
-                print(f"🥁 XG DRUM: Reset channel {channel} to XG defaults")
+                logger.info(f"🥁 XG DRUM: Reset channel {channel} to XG defaults")
 
     def reset_all_channels_to_defaults(self):
         """Reset all channels to XG drum defaults."""
         with self.lock:
             for channel in range(self.num_channels):
                 self.reset_channel_to_defaults(channel)
-            print("🥁 XG DRUM: Reset all channels to XG defaults")
+            logger.info("🥁 XG DRUM: Reset all channels to XG defaults")
 
     def export_drum_setup(self, channel: int) -> dict[str, Any]:
         """Export drum setup for a channel."""
@@ -500,7 +505,7 @@ class XGDrumSetupParameters:
                     self.drum_note_parameters[channel] = setup_data["note_parameters"]
                 return True
         except Exception as e:
-            print(f"❌ XG DRUM: Import failed - {e}")
+            logger.error(f"❌ XG DRUM: Import failed - {e}")
             return False
 
     def get_drum_setup_status(self) -> dict[str, Any]:

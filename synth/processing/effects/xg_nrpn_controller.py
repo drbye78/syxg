@@ -1,4 +1,5 @@
 """
+
 XG NRPN Controller - Complete XG MIDI Parameter Control
 
 Implements full XG NRPN (Non-Registered Parameter Number) specification
@@ -19,12 +20,16 @@ Copyright (c) 2025 XG Synthesis Core
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from collections.abc import Callable
 from typing import Any
 
 from .xg_presets import XGEffectPresets
+
+logger = logging.getLogger(__name__)
 
 
 class XGNRPNController:
@@ -145,7 +150,7 @@ class XGNRPNController:
                 return self.nrpn_handlers[handler_key](data_value, data_lsb)
 
             # Unknown NRPN parameter
-            print(f"XG NRPN: Unknown parameter MSB={msb}, LSB={lsb}, Data={data_value}")
+            logger.warning(f"XG NRPN: Unknown parameter MSB={msb}, LSB={lsb}, Data={data_value}")
             return False
 
     # ===== SYSTEM REVERB HANDLERS (MSB 0) =====
@@ -327,9 +332,9 @@ class XGNRPNController:
         if success:
             preset_info = XGEffectPresets.get_preset(preset_id)
             preset_name = preset_info.get("name", f"Preset {preset_id}")
-            print(f"XG NRPN: Applied effect preset '{preset_name}' (ID: {preset_id})")
+            logger.info(f"XG NRPN: Applied effect preset '{preset_name}' (ID: {preset_id})")
         else:
-            print(f"XG NRPN: Failed to apply effect preset {preset_id}")
+            logger.error(f"XG NRPN: Failed to apply effect preset {preset_id}")
 
         return success
 
@@ -338,7 +343,7 @@ class XGNRPNController:
     def _handle_part_select(self, value: int, lsb: int) -> bool:
         """Handle part selection NRPN (MSB 32, LSB 0)."""
         self.selected_part = min(max(value, 0), 15)  # 0-15 parts
-        print(f"XG NRPN: Selected part {self.selected_part}")
+        logger.info(f"XG NRPN: Selected part {self.selected_part}")
         return True
 
     # ===== PART SEND LEVELS (MSB 37) =====
@@ -427,7 +432,7 @@ class XGNRPNController:
             return False
 
         except Exception as e:
-            print(
+            logger.info(
                 f"XG NRPN: Error handling insertion parameter slot={slot}, type={param_type}: {e}"
             )
             return False

@@ -1,4 +1,5 @@
 """
+
 Vibexg TUI - Text User Interface control surface
 
 This module provides a Rich-based terminal user interface for the
@@ -12,6 +13,8 @@ import time
 from typing import TYPE_CHECKING
 
 from .types import WorkstationState
+
+logger = logging.getLogger(__name__)
 
 # Conditional imports for Rich
 try:
@@ -32,7 +35,6 @@ except ImportError:
     Layout = None
     Text = None
 
-logger = logging.getLogger(__name__)
 
 # Import MIDI channel count
 MIDI_CHANNELS = 16

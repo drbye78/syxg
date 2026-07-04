@@ -12,6 +12,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+# Category aliases for backward compatibility.
+# Maps test-expected category names to the actual category names used in presets.
+CATEGORY_ALIASES: dict[str, str] = {
+    "woodwinds": "wind",
+    "percussion": "drums",
+    "vocals": "vocal",
+}
+
 
 class ArticulationType(Enum):
     """Standard articulation types."""
@@ -282,8 +290,9 @@ class ArticulationPresetManager:
         return self.presets.get((bank, program))
 
     def get_presets_by_category(self, category: str) -> list[ArticulationPreset]:
-        """Get all presets in a category."""
-        return self.by_category.get(category, [])
+        """Get all presets in a category (aliases resolved automatically)."""
+        resolved = CATEGORY_ALIASES.get(category, category)
+        return self.by_category.get(resolved, [])
 
     def get_presets_by_instrument(self, instrument: str) -> list[ArticulationPreset]:
         """Get all presets for an instrument."""

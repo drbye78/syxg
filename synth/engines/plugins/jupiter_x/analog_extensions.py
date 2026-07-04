@@ -1,4 +1,5 @@
 """
+
 Jupiter-X Analog Engine Extensions
 
 Plugin that adds Jupiter-X specific analog synthesis features to the base analog engine.
@@ -11,7 +12,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -22,6 +22,8 @@ from ..base_plugin import (
     PluginType,
     SynthesisFeaturePlugin,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class JupiterXAnalogPlugin(SynthesisFeaturePlugin):

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from synth.sf2 import sf2_file_loader
+from synth.io.sf2 import sf2_file_loader
 
 # Path to test soundfonts
 TESTS_DIR = Path(__file__).parent

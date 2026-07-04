@@ -1,4 +1,5 @@
 """
+
 MIDI File Handler - Standard MIDI File Import/Export
 
 Provides comprehensive MIDI file handling capabilities including Standard MIDI Files (SMF)
@@ -6,10 +7,14 @@ format 0 and 1 support, with import/export functionality for the XG sequencer.
 """
 
 from __future__ import annotations
+import logging
+
 
 import math
 import struct
 from typing import Any, BinaryIO
+
+logger = logging.getLogger(__name__)
 
 
 class MIDIFileHandler:
@@ -86,7 +91,7 @@ class MIDIFileHandler:
             with open(filename, "rb") as f:
                 return self._parse_midi_file(f)
         except Exception as e:
-            print(f"Error loading MIDI file {filename}: {e}")
+            logger.error(f"Error loading MIDI file {filename}: {e}")
             return None
 
     def _parse_midi_file(self, file: BinaryIO) -> dict[str, Any] | None:
@@ -348,7 +353,7 @@ class MIDIFileHandler:
                 self._write_midi_file(midi_data, f)
             return True
         except Exception as e:
-            print(f"Error saving MIDI file {filename}: {e}")
+            logger.error(f"Error saving MIDI file {filename}: {e}")
             return False
 
     def _write_midi_file(self, midi_data: dict[str, Any], file: BinaryIO):

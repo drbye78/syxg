@@ -1,4 +1,5 @@
 """
+
 Unified Configuration Manager for syxg synthesizer
 
 Loads and manages the unified config.yaml file which supports:
@@ -8,12 +9,16 @@ Loads and manages the unified config.yaml file which supports:
 """
 
 from __future__ import annotations
+import logging
+
 
 import os
 from copy import deepcopy
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 class IncludeLoader(yaml.SafeLoader):
@@ -47,7 +52,7 @@ def include_constructor(loader: IncludeLoader, node: yaml.Node) -> Any:
             # Recursively process includes in the included file
             return yaml.load(f, IncludeLoader)
     else:
-        print(f"Warning: Included file not found: {include_path}")
+        logger.warning(f"Warning: Included file not found: {include_path}")
         return {}
 
 
@@ -112,7 +117,7 @@ class ConfigManager:
                     break
 
         if not loaded_path:
-            print("Warning: Config file not found, using defaults")
+            logger.warning("Warning: Config file not found, using defaults")
             self._set_defaults()
             return False
 
@@ -127,7 +132,7 @@ class ConfigManager:
             self._loaded = True
             return True
         except Exception as e:
-            print(f"Error loading config: {e}")
+            logger.error(f"Error loading config: {e}")
             self._set_defaults()
             return False
 
@@ -169,7 +174,7 @@ class ConfigManager:
                 if os.path.exists(include_path):
                     # Avoid circular includes
                     if include_path in self._include_stack:
-                        print(f"Warning: Circular include detected: {include_path}")
+                        logger.warning(f"Warning: Circular include detected: {include_path}")
                         continue
 
                     # Track included file
@@ -189,7 +194,7 @@ class ConfigManager:
                         # Remove from stack after processing
                         self._include_stack.pop()
                 else:
-                    print(f"Warning: Included file not found: {include_path}")
+                    logger.warning(f"Warning: Included file not found: {include_path}")
 
         return merged_config
 

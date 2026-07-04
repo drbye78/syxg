@@ -1,4 +1,5 @@
 """
+
 Additive Synthesis Engine
 
 Implements additive synthesis with up to 128 partials supporting real-time
@@ -6,6 +7,8 @@ harmonic control, morphing, and bandwidth optimization for high partial counts.
 """
 
 from __future__ import annotations
+import logging
+
 
 import math
 from typing import Any
@@ -16,6 +19,8 @@ from ...processing.partial.additive_partial import AdditivePartial
 from ..plugins.base_plugin import SynthesisFeaturePlugin
 from ..plugins.plugin_registry import get_global_plugin_registry
 from ..synthesis_engine import SynthesisEngine
+
+logger = logging.getLogger(__name__)
 
 
 class AdditivePartialOscillator:
@@ -163,9 +168,9 @@ class HarmonicSpectrum:
     def __init__(self, name: str = "custom"):
         """Initialize harmonic spectrum."""
         self.name = name
-        self.harmonics: dict[
-            int, dict[str, float]
-        ] = {}  # harmonic_number -> {'amplitude': float, 'phase': float}
+        self.harmonics: dict[int, dict[str, float]] = (
+            {}
+        )  # harmonic_number -> {'amplitude': float, 'phase': float}
 
     def set_harmonic(self, harmonic_number: int, amplitude: float, phase: float = 0.0):
         """Set parameters for a specific harmonic."""
@@ -376,8 +381,8 @@ class AdditiveEngine(SynthesisEngine):
             name=preset_name,
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
-            is_monophonic=False,
-            category="additive_synthesis",
+
+
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
@@ -759,14 +764,16 @@ class AdditiveEngine(SynthesisEngine):
             if jupiter_analog_plugin in available_plugins:
                 success = self.load_plugin(jupiter_analog_plugin)
                 if success:
-                    print("🎹 Additive Engine: Jupiter-X analog extensions loaded automatically")
+                    logger.info(
+                        "🎹 Additive Engine: Jupiter-X analog extensions loaded automatically"
+                    )
                 else:
-                    print("⚠️  Additive Engine: Failed to load Jupiter-X analog extensions")
+                    logger.error("⚠️  Additive Engine: Failed to load Jupiter-X analog extensions")
             # else:
-            #     print("ℹ️  Additive Engine: Jupiter-X analog extensions not available")
+            #     logger.info("ℹ️  Additive Engine: Jupiter-X analog extensions not available")
 
         except Exception as e:
-            print(f"⚠️  Additive Engine: Error during auto-loading Jupiter-X plugin: {e}")
+            logger.error(f"⚠️  Additive Engine: Error during auto-loading Jupiter-X plugin: {e}")
 
     def load_plugin(self, plugin_name: str) -> bool:
         """
@@ -795,13 +802,13 @@ class AdditiveEngine(SynthesisEngine):
                     # Register plugin integration points
                     self._register_plugin_integration_points(plugin)
 
-                    print(f"✅ Additive Engine: Plugin '{plugin_name}' loaded successfully")
+                    logger.info(f"✅ Additive Engine: Plugin '{plugin_name}' loaded successfully")
                     return True
 
             return False
 
         except Exception as e:
-            print(f"❌ Additive Engine: Failed to load plugin '{plugin_name}': {e}")
+            logger.error(f"❌ Additive Engine: Failed to load plugin '{plugin_name}': {e}")
             return False
 
     def unload_plugin(self, plugin_name: str) -> bool:
@@ -826,13 +833,13 @@ class AdditiveEngine(SynthesisEngine):
 
                 if success:
                     del self._loaded_plugins[plugin_name]
-                    print(f"✅ Additive Engine: Plugin '{plugin_name}' unloaded successfully")
+                    logger.info(f"✅ Additive Engine: Plugin '{plugin_name}' unloaded successfully")
                     return True
 
             return False
 
         except Exception as e:
-            print(f"❌ Additive Engine: Failed to unload plugin '{plugin_name}': {e}")
+            logger.error(f"❌ Additive Engine: Failed to unload plugin '{plugin_name}': {e}")
             return False
 
     def get_loaded_plugins(self) -> dict[str, SynthesisFeaturePlugin]:

@@ -1,4 +1,5 @@
 """Wavetable oscillator."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -115,5 +116,3 @@ class WavetableOscillator:
         self.frequency_mod = 0.0
         self.amplitude_mod = 0.0
         self.active = False
-
-

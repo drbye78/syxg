@@ -7,12 +7,13 @@ for advanced articulation management.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 
 def midi_note_to_frequency(note: int) -> float:
     """Convert MIDI note number to frequency (A4 = 440Hz at note 69)."""
-    SEMITONE_RATIO = 1.059463359
+    # 12th root of 2: 2^(1/12) = 1.059463094359...
+    SEMITONE_RATIO = 1.059463094359
     return 440.0 * (SEMITONE_RATIO ** (note - 69))
 
 
@@ -21,7 +22,7 @@ class YamahaNRPNMapper:
     Enhanced NRPN mapper for Yamaha S.Art2 articulations with Genos2 compatibility.
 
     Features:
-    - Category-based NRPN mapping (13 categories, 275+ articulations)
+    - Category-based NRPN mapping (17 categories, 275+ articulations)
     - Reverse lookup (articulation → NRPN)
     - Category hints for disambiguation
     - Backward compatible with simplified map
@@ -39,7 +40,7 @@ class YamahaNRPNMapper:
     """
 
     # Category names for each MSB
-    MSB_CATEGORIES = {
+    MSB_CATEGORIES: ClassVar[dict[int, str]] = {
         1: "common",
         2: "dynamics",
         3: "wind_sax",
@@ -53,6 +54,10 @@ class YamahaNRPNMapper:
         11: "percussion",
         12: "ethnic",
         13: "effects",
+        14: "piano",
+        15: "bass",
+        16: "organ",
+        17: "ethnic_world",
     }
 
     def __init__(self):
@@ -80,6 +85,10 @@ class YamahaNRPNMapper:
             "percussion": {},
             "ethnic": {},
             "effects": {},
+            "piano": {},
+            "bass": {},
+            "organ": {},
+            "ethnic_world": {},
         }
 
         # Initialize all mappings
@@ -88,7 +97,7 @@ class YamahaNRPNMapper:
     def _initialize_mappings(self) -> None:
         """Initialize all NRPN mappings from articulation_controller."""
         # Import articulation map from controller
-        from .articulation_controller import ArticulationController
+        from .controllers import ArticulationController
 
         for (msb, lsb), articulation in ArticulationController.NRPN_ARTICULATION_MAP.items():
             # Get category for this MSB
@@ -293,7 +302,7 @@ class NRPNParameterController:
 
     # Parameter NRPN mappings
     # Format: (param_msb, param_lsb): (articulation, param_name, scale, offset)
-    PARAMETER_MAPPINGS = {
+    PARAMETER_MAPPINGS: ClassVar[dict[tuple[int, int], tuple[str, str, float, float]]] = {
         # Vibrato parameters (param MSB 0)
         (0, 0): ("vibrato", "rate", 0.01, 0.0),  # 0-127 → 0.0-1.27 Hz
         (0, 1): ("vibrato", "depth", 0.001, 0.0),  # 0-16383 → 0.0-16.38

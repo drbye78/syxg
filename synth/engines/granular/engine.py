@@ -1,4 +1,5 @@
 """
+
 Granular Synthesis Engine
 
 Implements granular synthesis with real-time grain control, cloud manipulation,
@@ -6,6 +7,8 @@ and advanced time-stretching/pitch-shifting capabilities.
 """
 
 from __future__ import annotations
+import logging
+
 
 import random
 from typing import Any
@@ -16,6 +19,8 @@ from ...processing.partial.granular_partial import GranularPartial
 from ..plugins.base_plugin import SynthesisFeaturePlugin
 from ..plugins.plugin_registry import get_global_plugin_registry
 from ..synthesis_engine import SynthesisEngine
+
+logger = logging.getLogger(__name__)
 
 
 class Grain:
@@ -366,8 +371,8 @@ class GranularEngine(SynthesisEngine):
             name=preset_name,
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
-            is_monophonic=False,
-            category="granular_synthesis",
+
+
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
@@ -681,14 +686,18 @@ class GranularEngine(SynthesisEngine):
             if jupiter_external_plugin in available_plugins:
                 success = self.load_plugin(jupiter_external_plugin)
                 if success:
-                    print("🎹 Granular Engine: Jupiter-X external extensions loaded automatically")
+                    logger.info(
+                        "🎹 Granular Engine: Jupiter-X external extensions loaded automatically"
+                    )
                 else:
-                    print("⚠️  Granular Engine: Failed to load Jupiter-X external extensions")
+                    logger.error(
+                        "⚠️  Granular Engine: Failed to load Jupiter-X external extensions"
+                    )
             else:
-                print("ℹ️  Granular Engine: Jupiter-X external extensions not available")
+                logger.info("ℹ️  Granular Engine: Jupiter-X external extensions not available")
 
         except Exception as e:
-            print(f"⚠️  Granular Engine: Error during auto-loading Jupiter-X plugin: {e}")
+            logger.error(f"⚠️  Granular Engine: Error during auto-loading Jupiter-X plugin: {e}")
 
     def load_plugin(self, plugin_name: str) -> bool:
         """
@@ -717,13 +726,13 @@ class GranularEngine(SynthesisEngine):
                     # Register plugin integration points
                     self._register_plugin_integration_points(plugin)
 
-                    print(f"✅ Granular Engine: Plugin '{plugin_name}' loaded successfully")
+                    logger.info(f"✅ Granular Engine: Plugin '{plugin_name}' loaded successfully")
                     return True
 
             return False
 
         except Exception as e:
-            print(f"❌ Granular Engine: Failed to load plugin '{plugin_name}': {e}")
+            logger.error(f"❌ Granular Engine: Failed to load plugin '{plugin_name}': {e}")
             return False
 
     def unload_plugin(self, plugin_name: str) -> bool:
@@ -748,13 +757,13 @@ class GranularEngine(SynthesisEngine):
 
                 if success:
                     del self._loaded_plugins[plugin_name]
-                    print(f"✅ Granular Engine: Plugin '{plugin_name}' unloaded successfully")
+                    logger.info(f"✅ Granular Engine: Plugin '{plugin_name}' unloaded successfully")
                     return True
 
             return False
 
         except Exception as e:
-            print(f"❌ Granular Engine: Failed to unload plugin '{plugin_name}': {e}")
+            logger.error(f"❌ Granular Engine: Failed to unload plugin '{plugin_name}': {e}")
             return False
 
     def get_loaded_plugins(self) -> dict[str, SynthesisFeaturePlugin]:

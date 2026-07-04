@@ -1,4 +1,5 @@
 """
+
 Recording Engine - Real-time MIDI and Audio Recording
 
 Provides comprehensive recording capabilities for the XG sequencer,
@@ -6,12 +7,16 @@ including MIDI sequence recording, audio recording, and overdub features.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 import time
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class RecordingEngine:
@@ -109,7 +114,7 @@ class RecordingEngine:
                 )  # 60 seconds max
                 self.audio_buffers[track_number] = []
 
-            print(f"🎙️  Started recording on track {track_number} ({record_type})")
+            logger.info(f"🎙️  Started recording on track {track_number} ({record_type})")
             return True
 
     def stop_recording(self) -> bool:
@@ -129,7 +134,7 @@ class RecordingEngine:
             # Process recorded data
             self._process_recorded_data()
 
-            print("⏹️  Recording stopped")
+            logger.info("⏹️  Recording stopped")
             return True
 
     def record_midi_event(self, track_number: int, event_data: dict[str, Any]) -> bool:
@@ -430,12 +435,12 @@ class RecordingEngine:
             if midi_messages:
                 writer.add_track(midi_messages)
                 writer.save(filename)
-                print(f"✓ Exported MIDI track to {filename}")
+                logger.info(f"✓ Exported MIDI track to {filename}")
                 return True
 
             return False
         except Exception as e:
-            print(f"Error exporting MIDI: {e}")
+            logger.error(f"Error exporting MIDI: {e}")
             return False
 
     def _export_wav(self, track: dict[str, Any], filename: str) -> bool:
@@ -469,10 +474,10 @@ class RecordingEngine:
                 wav_file.setframerate(self.sample_rate)
                 wav_file.writeframes(audio_int16.tobytes())
 
-            print(f"✓ Exported audio track to {filename}")
+            logger.info(f"✓ Exported audio track to {filename}")
             return True
         except Exception as e:
-            print(f"Error exporting WAV: {e}")
+            logger.error(f"Error exporting WAV: {e}")
             return False
 
     def import_track(self, track_number: int, filename: str) -> bool:
@@ -574,10 +579,10 @@ class RecordingEngine:
                 "length": max_tick,
             }
 
-            print(f"✓ Imported MIDI track from {filename} ({len(events)} events)")
+            logger.info(f"✓ Imported MIDI track from {filename} ({len(events)} events)")
             return True
         except Exception as e:
-            print(f"Error importing MIDI: {e}")
+            logger.error(f"Error importing MIDI: {e}")
             return False
 
     def _import_wav(self, track_number: int, filename: str) -> bool:
@@ -627,10 +632,10 @@ class RecordingEngine:
             }
 
             self.sample_rate = sample_rate
-            print(f"✓ Imported audio track from {filename} ({len(audio_float)} samples)")
+            logger.info(f"✓ Imported audio track from {filename} ({len(audio_float)} samples)")
             return True
         except Exception as e:
-            print(f"Error importing WAV: {e}")
+            logger.error(f"Error importing WAV: {e}")
             return False
 
     def set_quantize_settings(self, enabled: bool, grid_size: int = 480) -> bool:
@@ -663,8 +668,8 @@ class RecordingEngine:
             return {
                 "total_tracks": total_tracks,
                 "total_events": total_events,
-                "recording_time": time.time() - self.recording_start_time
-                if self.is_recording
-                else 0,
+                "recording_time": (
+                    time.time() - self.recording_start_time if self.is_recording else 0
+                ),
                 "average_events_per_track": total_events / max(1, total_tracks),
             }

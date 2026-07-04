@@ -1,4 +1,5 @@
 """
+
 Arpeggiator System - Yamaha Motif Compatible Arpeggiation
 
 Complete arpeggiator system with multi-arpeggiator support, pattern sequencing,
@@ -6,9 +7,13 @@ and SYSEX/NRPN control for professional workstation-style arpeggiation.
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ArpeggiatorSystem:
@@ -61,7 +66,7 @@ class ArpeggiatorSystem:
         self.arpeggiator_engine.note_on_callback = self._handle_arpeggiator_note_on
         self.arpeggiator_engine.note_off_callback = self._handle_arpeggiator_note_off
 
-        print("🎹 Arpeggiator system initialized and connected to MIDI processing")
+        logger.info("🎹 Arpeggiator system initialized and connected to MIDI processing")
 
     def _init_multi_arpeggiator_system(self):
         """Initialize Multi-Arpeggiator system (Yamaha Motif compatible)"""
@@ -78,7 +83,7 @@ class ArpeggiatorSystem:
         self.arpeggiator_manager.note_on_callback = self._handle_arpeggiator_note_on
         self.arpeggiator_manager.note_off_callback = self._handle_arpeggiator_note_off
 
-        print("🎹 Multi-Arpeggiator system initialized with 4 arpeggiators and 128+ patterns")
+        logger.info("🎹 Multi-Arpeggiator system initialized with 4 arpeggiators and 128+ patterns")
 
     def _handle_arpeggiator_note_on(self, channel: int, note: int, velocity: int):
         """

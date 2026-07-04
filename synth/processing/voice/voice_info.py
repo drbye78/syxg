@@ -23,6 +23,7 @@ class VoiceInfo:
         velocity: int,
         channel_note: Any,
         priority: int = VoicePriority.NORMAL,
+        engine_params: dict | None = None,
     ):
         self.note = note
         self.velocity = velocity
@@ -31,6 +32,7 @@ class VoiceInfo:
         self.start_time = time.time()
         self.release_time = None
         self.is_releasing = False
+        self.engine_params = engine_params or {}
 
     def calculate_priority_score(self) -> float:
         """Calculate priority score for voice stealing decisions"""
@@ -54,6 +56,7 @@ class VoiceInfo:
         velocity: int,
         channel_note: Any,
         priority: int = VoicePriority.NORMAL,
+        engine_params: dict | None = None,
     ):
         """Reset voice info for reuse from pool"""
         self.note = note
@@ -63,3 +66,4 @@ class VoiceInfo:
         self.start_time = time.time()
         self.release_time = None
         self.is_releasing = False
+        self.engine_params = engine_params or {}

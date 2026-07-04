@@ -1,4 +1,5 @@
 """
+
 XG System - Yamaha XG Specification Implementation
 
 Complete implementation of Yamaha XG music synthesis specification,
@@ -8,12 +9,16 @@ Part of S90/S70 compatibility - Core Infrastructure (Phase 1).
 """
 
 from __future__ import annotations
+import logging
+
 
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from typing import Self
@@ -520,7 +525,7 @@ class XGSystem:
 
                 return True
             except Exception as e:
-                print(f"Error loading XG preset: {e}")
+                logger.error(f"Error loading XG preset: {e}")
                 return False
 
     def get_current_preset_data(self) -> dict[str, Any]:

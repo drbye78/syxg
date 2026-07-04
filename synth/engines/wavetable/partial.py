@@ -1,4 +1,5 @@
 """Wavetable partial."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -58,6 +59,7 @@ class WavetablePartial(SynthesisPartial):
             Stereo audio buffer (block_size, 2)
         """
         if not self.active:
+            # TODO: Use BufferPool when available (hot path allocation)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Apply modulation
@@ -112,5 +114,3 @@ class WavetablePartial(SynthesisPartial):
         # Reconfigure oscillator if relevant parameters changed
         if param_name in ["wavetable", "frequency", "amplitude"]:
             self._configure_oscillator()
-
-

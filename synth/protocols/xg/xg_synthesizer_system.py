@@ -1,4 +1,5 @@
 """
+
 XGSynthesizerSystem - Production Grade XG/GS/GM Synthesizer Core
 
 Complete implementation integrating:
@@ -24,7 +25,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class SynthesizerMode:
     """Current synthesizer operating mode"""
 
@@ -53,8 +54,9 @@ class XGSynthesizerSystem:
     BANK_NORMAL = 0  # Normal XG voices
     BANK_SFX = 64  # SFX voices
     BANK_AN = 126  # Analog modeling (S90/S70)
-    BANK_FDSP = 127  # FDSP voices (S90/S70)
-    BANK_GS_DRUM = 127  # GS Drum (conflicts with FDSP - use part mode to differentiate)
+    BANK_DRUM = 127  # Unified drum bank MSB for XG/GS drums
+    BANK_FDSP = BANK_DRUM  # FDSP voices (S90/S70) — also drum bank
+    BANK_GS_DRUM = BANK_DRUM  # GS Drum (conflicts with FDSP - use part mode to differentiate)
 
     # Default drum channel
     DEFAULT_DRUM_CHANNEL = 9  # MIDI channel 10
@@ -84,6 +86,7 @@ class XGSynthesizerSystem:
         # Callbacks
         self._parameter_callbacks: list[Callable] = []
         self._system_callbacks: dict[str, Callable] = {}
+        self._part_mode_callbacks: list[Callable] = []
 
         # Part configuration (16 parts)
         self.parts: dict[int, dict] = {}
@@ -458,6 +461,13 @@ class XGSynthesizerSystem:
                 self.xg_part_mode.drum_map_manager.select_drum_map(part_num, 0)
                 self.parts[part_num]["drum_map"] = 0
 
+            # Notify part mode callbacks
+            for callback in self._part_mode_callbacks:
+                try:
+                    callback(part_num, mode)
+                except Exception as e:
+                    logger.error(f"Part mode callback error: {e}")
+
             logger.info(f"Part {part_num}: Mode set to {mode}")
             return True
 
@@ -550,6 +560,15 @@ class XGSynthesizerSystem:
         """Register parameter change callback."""
         with self.lock:
             self._parameter_callbacks.append(callback)
+
+    def register_part_mode_callback(self, callback: Callable[[int, int], None]):
+        """Register callback for part mode changes.
+
+        Args:
+            callback: Called with (part_num, mode) when part mode changes.
+                     mode: 0=Normal, 1=Drum, 4=Single
+        """
+        self._part_mode_callbacks.append(callback)
 
     def get_status(self) -> dict[str, Any]:
         """Get system status."""

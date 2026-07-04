@@ -1,4 +1,5 @@
 """
+
 Style Engine Integration Module
 
 This module provides integration between the style engine and other synth subsystems:
@@ -23,9 +24,13 @@ Usage:
 """
 
 from __future__ import annotations
+import logging
+
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .dynamics import DynamicsParameter, StyleDynamics
@@ -742,9 +747,9 @@ class StyleIntegrations:
         for name, integration in self.integrations.items():
             try:
                 integration.enable()
-                print(f"Enabled integration: {name}")
+                logger.info(f"Enabled integration: {name}")
             except Exception as e:
-                print(f"Failed to enable {name}: {e}")
+                logger.error(f"Failed to enable {name}: {e}")
 
     def disable_all(self):
         """Disable all integrations."""

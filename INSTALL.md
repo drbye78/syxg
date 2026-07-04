@@ -5,13 +5,13 @@ This guide covers installing and setting up the XG Synthesizer on different plat
 ## 📋 System Requirements
 
 ### Minimum Requirements
-- **Python**: 3.11 or higher
+- **Python**: 3.12 or higher
 - **RAM**: 4GB
 - **Disk Space**: 1GB for installation + sample storage
 - **Operating System**: Windows 10+, macOS 10.15+, or Linux (Ubuntu 18.04+)
 
 ### Recommended Requirements
-- **Python**: 3.12 or higher
+- **Python**: 3.13 or higher
 - **RAM**: 8GB or more
 - **Disk Space**: 10GB+ SSD for optimal performance
 - **CPU**: Multi-core processor with AVX2 support
@@ -82,7 +82,7 @@ pip install -e .
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Install Python
-brew install python@3.9
+brew install python@3.12
 
 # Install audio libraries
 brew install ffmpeg
@@ -99,12 +99,12 @@ pip3 install -e .
 # Install MacPorts from https://www.macports.org/
 
 # Install Python and audio libraries
-sudo port install python39 py39-pip ffmpeg
+sudo port install python312 py312-pip ffmpeg
 
 # Clone and install
 git clone https://github.com/drbye78/syxg.git
 cd syxg
-pip-3.9 install -e .
+pip-3.12 install -e .
 ```
 
 ## 🪟 Windows Installation
@@ -113,7 +113,7 @@ pip-3.9 install -e .
 
 1. **Download Python**
    - Go to https://www.python.org/downloads/
-   - Download Python 3.9 or later
+   - Download Python 3.12 or later
    - Run the installer
    - **Important**: Check "Add Python to PATH" during installation
 
@@ -138,7 +138,7 @@ pip-3.9 install -e .
 # Install Miniconda from https://docs.conda.io/en/latest/miniconda.html
 
 # Create environment
-conda create -n xg-synth python=3.9
+conda create -n xg-synth python=3.12
 conda activate xg-synth
 
 # Clone and install
@@ -326,7 +326,7 @@ python --version
 python3 --version
 
 # Use specific Python version
-python3.9 -m pip install -e .
+python3.12 -m pip install -e .
 ```
 
 #### Permission Errors

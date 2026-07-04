@@ -105,5 +105,3 @@ class XGVolumeCurve:
             self.master_volume = 1.0
             self.curve_shape = 2.0
             self.custom_curve = np.linspace(0.0, 1.0, 1024, dtype=np.float32)
-
-

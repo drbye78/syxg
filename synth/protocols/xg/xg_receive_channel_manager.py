@@ -1,7 +1,9 @@
 from __future__ import annotations
+import logging
 
 #!/usr/bin/env python3
 """
+
 XG Receive Channel Manager - XG Channel Mapping and Routing Architecture
 
 ARCHITECTURAL OVERVIEW:
@@ -246,6 +248,8 @@ PROFESSIONAL MUSIC PRODUCTION:
 import threading
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 
 class XGReceiveChannelManager:
     """
@@ -289,8 +293,8 @@ class XGReceiveChannelManager:
         # Reverse lookup tables for O(1) performance
         self._build_reverse_mappings()
 
-        print(f"🎹 XG RECEIVE CHANNEL MANAGER: {num_parts} parts initialized")
-        print("   Default 1:1 MIDI channel mapping active")
+        logger.info(f"🎹 XG RECEIVE CHANNEL MANAGER: {num_parts} parts initialized")
+        logger.info("   Default 1:1 MIDI channel mapping active")
 
     def _build_reverse_mappings(self):
         """Build optimized reverse lookup tables for O(1) MIDI-to-part mapping."""
@@ -340,7 +344,7 @@ class XGReceiveChannelManager:
             # Rebuild reverse mappings for consistency
             self._build_reverse_mappings()
 
-            print(
+            logger.info(
                 f"🎹 XG RECEIVE: Part {part_id} now receives from "
                 f"{'MIDI CH ' + str(midi_channel) if midi_channel < 16 else 'ALL' if midi_channel == 255 else 'OFF'}"
             )
@@ -413,7 +417,7 @@ class XGReceiveChannelManager:
         with self.lock:
             self.receive_channels = list(range(self.num_parts))
             self._build_reverse_mappings()
-            print("🎹 XG RECEIVE CHANNELS: Reset to XG defaults (1:1 mapping)")
+            logger.info("🎹 XG RECEIVE CHANNELS: Reset to XG defaults (1:1 mapping)")
 
     def handle_sysex_receive_channel(self, part_id: int, midi_channel: int) -> bool:
         """
@@ -502,10 +506,10 @@ class XGReceiveChannelManager:
                     if len(channels) == self.num_parts:
                         self.receive_channels = channels.copy()
                         self._build_reverse_mappings()
-                        print("🎹 XG RECEIVE CHANNELS: Mapping imported successfully")
+                        logger.info("🎹 XG RECEIVE CHANNELS: Mapping imported successfully")
                         return True
         except Exception as e:
-            print(f"❌ XG RECEIVE CHANNELS: Import failed - {e}")
+            logger.error(f"❌ XG RECEIVE CHANNELS: Import failed - {e}")
 
         return False
 

@@ -1,4 +1,5 @@
 """
+
 JV-2080 NRPN (Non-Registered Parameter Number) Controller
 
 Full NRPN parameter control system for JV-2080 enhanced GS implementation,
@@ -7,8 +8,11 @@ providing comprehensive parameter access via MIDI NRPN messages.
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class JV2080NRPNController:
@@ -448,7 +452,7 @@ class JV2080NRPNController:
         param_info = self.parameter_map.get(param_key)
 
         if not param_info:
-            print(f"Unknown NRPN parameter: {param_key}")
+            logger.warning("Unknown NRPN parameter: %s", param_key)
             return False
 
         # Process parameter based on type
@@ -510,7 +514,7 @@ class JV2080NRPNController:
             return self._set_jupiter_x_modulation_parameter(part_num, param_id, midi_value)
 
         else:
-            print(f"Unimplemented NRPN parameter: {param_name}")
+            logger.warning("Unimplemented NRPN parameter: %s", param_name)
             return False
 
     def _set_system_parameter(self, param_name: str, value: int) -> bool:
@@ -627,7 +631,7 @@ class JV2080NRPNController:
                     part.notify_engine_change(engine_type)
                 return True
         except Exception as e:
-            print(f"Error setting Jupiter-X engine parameter: {e}")
+            logger.error("Error setting Jupiter-X engine parameter: %s", e)
         return False
 
     def _set_jupiter_x_lfo_parameter(self, part_num: int, param_id: int, value: int) -> bool:
@@ -663,7 +667,7 @@ class JV2080NRPNController:
                         return True
                     return False
         except Exception as e:
-            print(f"Error setting Jupiter-X LFO parameter: {e}")
+            logger.error("Error setting Jupiter-X LFO parameter: %s", e)
         return False
 
     def _set_jupiter_x_envelope_parameter(self, part_num: int, param_id: int, value: int) -> bool:
@@ -697,7 +701,7 @@ class JV2080NRPNController:
                         return True
                     return False
         except Exception as e:
-            print(f"Error setting Jupiter-X envelope parameter: {e}")
+            logger.error("Error setting Jupiter-X envelope parameter: %s", e)
         return False
 
     def _set_jupiter_x_modulation_parameter(self, part_num: int, param_id: int, value: int) -> bool:
@@ -724,10 +728,12 @@ class JV2080NRPNController:
 
             if param_id in modulation_param_map:
                 param_name = modulation_param_map[param_id]
-                print(f"Jupiter-X modulation parameter: part {part_num}, {param_name} = {value}")
+                logger.info(
+                    "Jupiter-X modulation parameter: part %s, %s = %s", part_num, param_name, value
+                )
                 return True
         except Exception as e:
-            print(f"Error setting Jupiter-X modulation parameter: {e}")
+            logger.error("Error setting Jupiter-X modulation parameter: %s", e)
         return False
 
     def get_current_parameter_value(self) -> int | None:
