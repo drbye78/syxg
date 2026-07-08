@@ -328,7 +328,7 @@ class PhysicalRegion(IRegion):
         """
         if not self._partial:
             # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
         try:
             # Generate samples from partial
@@ -350,7 +350,7 @@ class PhysicalRegion(IRegion):
         except Exception as e:
             logger.error(f"Physical sample generation failed: {e}")
             # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
     def is_active(self) -> bool:
         """Check if physical region is still producing sound."""

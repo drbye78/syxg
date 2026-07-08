@@ -120,13 +120,13 @@ KeySignature: TypeAlias = Annotated[int, -7, 7]
 XGPart: TypeAlias = Annotated[int, 0, 31]
 
 # XG Reverb Type (0-12 for 13 reverb types)
-XGReverbType: TypeAlias = Annotated[int, 0, 12]
+XGReverbType: TypeAlias = Annotated[int, 1, 24]
 
 # XG Chorus Type (0-17 for 18 chorus types)
 XGChorusType: TypeAlias = Annotated[int, 0, 17]
 
 # XG Variation Effect Type (0-45 for 46 variation types)
-XGVariationType: TypeAlias = Annotated[int, 0, 45]
+XGVariationType: TypeAlias = Annotated[int, 0, 83]
 
 # XG Insertion Effect Type (0-16 for 17 insertion types)
 XGInsertionType: TypeAlias = Annotated[int, 0, 16]

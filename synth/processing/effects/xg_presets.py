@@ -69,7 +69,6 @@ class XGMasterSection:
         self.lock = threading.RLock()
 
     def set_parameter(self, component: str, param: str, value: float) -> bool:
-        """Set parameter for a specific component."""
         with self.lock:
             if component == "compressor":
                 return self.compressor.set_parameter(param, value)
@@ -88,28 +87,18 @@ class XGMasterSection:
             return False
 
     def set_chain_order(self, order: list[str]) -> None:
-        """Set the processing order of master effects."""
         with self.lock:
             valid_components = {"compressor", "stereo_enhancer", "volume_curve"}
             if all(comp in valid_components for comp in order):
                 self.chain_order = order
 
     def set_master_bypass(self, bypass: bool) -> None:
-        """Set master bypass for entire section."""
         with self.lock:
             self.master_bypass = bypass
 
     def process_block(
         self, stereo_block: np.ndarray, num_samples: int, input_level: float = 1.0
     ) -> None:
-        """
-        Process block through complete master section.
-
-        Args:
-            stereo_block: Stereo audio block (num_samples, 2)
-            num_samples: Number of samples to process
-            input_level: Input level for volume curve (0-1)
-        """
         if self.master_bypass:
             return
 
@@ -160,8 +149,6 @@ class XGMasterSection:
 
 
 class XGPresetCategory(IntEnum):
-    """XG Effect Preset Categories"""
-
     HALL = 0
     ROOM = 1
     PLATE = 2
@@ -499,54 +486,20 @@ class XGEffectPresets:
 
     @classmethod
     def get_preset(cls, preset_id: int) -> dict[str, Any]:
-        """
-        Get a preset configuration by ID.
-
-        Args:
-            preset_id: Preset ID (0-127)
-
-        Returns:
-            Preset configuration dictionary, or default if not found
-        """
         return cls.PRESETS.get(preset_id, cls.PRESETS[127])  # Default to XG Default
 
     @classmethod
     def get_preset_names(cls) -> dict[int, str]:
-        """
-        Get all preset names indexed by ID.
-
-        Returns:
-            Dictionary mapping preset IDs to names
-        """
         return {pid: preset["name"] for pid, preset in cls.PRESETS.items()}
 
     @classmethod
     def get_presets_by_category(cls, category: XGPresetCategory) -> dict[int, dict[str, Any]]:
-        """
-        Get all presets in a specific category.
-
-        Args:
-            category: Preset category
-
-        Returns:
-            Dictionary of presets in the category
-        """
         return {
             pid: preset for pid, preset in cls.PRESETS.items() if preset.get("category") == category
         }
 
     @classmethod
     def apply_preset_to_coordinator(cls, preset_id: int, coordinator) -> bool:
-        """
-        Apply a preset configuration to an effects coordinator.
-
-        Args:
-            preset_id: Preset ID to apply
-            coordinator: XGEffectsCoordinator instance
-
-        Returns:
-            True if preset was applied successfully
-        """
         preset = cls.get_preset(preset_id)
         if not preset:
             return False
@@ -603,3 +556,4 @@ class XGEffectPresets:
         except Exception as e:
             logger.error(f"Error applying preset {preset_id}: {e}")
             return False
+

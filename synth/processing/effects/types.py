@@ -15,8 +15,6 @@ import numpy as np
 
 
 class XGProcessingState(Enum):
-    """XG Effects Processing State"""
-
     IDLE = 0
     INITIALIZING = 1
     PROCESSING = 2
@@ -24,8 +22,6 @@ class XGProcessingState(Enum):
 
 
 class XGReverbType(IntEnum):
-    """XG Reverb Types (MSB 0, Type 1-24)"""
-
     HALL_1 = 1  # Small Hall
     HALL_2 = 2  # Medium Hall
     HALL_3 = 3  # Large Hall
@@ -50,22 +46,32 @@ class XGReverbType(IntEnum):
     PLATE_6 = 22  # Plate Reverb 6
     PLATE_7 = 23  # Plate Reverb 7
     PLATE_8 = 24  # Plate Reverb 8
+    STAGE_1 = 25  # Stage 1
+    STAGE_2 = 26  # Stage 2
 
 
 class XGChorusType(IntEnum):
-    """XG Chorus Types (MSB 2, LSB 0-1)"""
-
     CHORUS_1 = 0
     CHORUS_2 = 1
-    CELESTE_1 = 2
-    CELESTE_2 = 3
-    FLANGER_1 = 4
-    FLANGER_2 = 5
+    CHORUS_3 = 2
+    CHORUS_4 = 3
+    CELESTE_1 = 4
+    CELESTE_2 = 5
+    CELESTE_3 = 6
+    CELESTE_4 = 7
+    FLANGER_1 = 8
+    FLANGER_2 = 9
+    FLANGER_3 = 10
+    FLANGER_4 = 11
+    SYMPHONIC_1 = 12
+    SYMPHONIC_2 = 13
+    PHASER_1 = 14
+    PHASER_2 = 15
+    SHORT_DELAY_1 = 16
+    SHORT_DELAY_2 = 17
 
 
 class XGVariationType(IntEnum):
-    """XG Variation Types (MSB 3, LSB 0-83) - Complete 84-type enumeration"""
-
     # Delay Effects (0-19)
     DELAY_LCR = 0
     DELAY_LR = 1
@@ -172,8 +178,6 @@ class XGVariationType(IntEnum):
 
 
 class XGInsertionType(IntEnum):
-    """XG Insertion Effect Types (0-24)"""
-
     THROUGH = 0  # Bypass
     DISTORTION = 1  # Distortion
     OVERDRIVE = 2  # Overdrive
@@ -202,8 +206,6 @@ class XGInsertionType(IntEnum):
 
 
 class XGBusType(Enum):
-    """XG Audio Bus Types"""
-
     MAIN_L = "main_l"
     MAIN_R = "main_r"
     REVERB_SEND = "reverb_send"
@@ -223,8 +225,6 @@ class XGBusType(Enum):
 
 
 class XGChannelParams(NamedTuple):
-    """XG Channel Parameters Structure - Optimized for zero-allocation"""
-
     volume: float  # 0.0-1.0, channel volume
     expression: float  # 0.0-1.0, channel expression
     pan: float  # -1.0 (left) to +1.0 (right), channel pan
@@ -236,8 +236,6 @@ class XGChannelParams(NamedTuple):
 
 
 class XGSystemEffectsParams(NamedTuple):
-    """XG System Effects Parameters"""
-
     reverb_type: XGReverbType
     reverb_level: float
     reverb_time: float
@@ -254,8 +252,6 @@ class XGSystemEffectsParams(NamedTuple):
 
 
 class XGProcessingContext(NamedTuple):
-    """XG Processing Context - All state needed for block processing"""
-
     sample_rate: int
     block_size: int
     num_input_channels: int
@@ -265,8 +261,6 @@ class XGProcessingContext(NamedTuple):
 
 
 class XGBiquadCoeffs(NamedTuple):
-    """Biquad Filter Coefficients - Optimized for SIMD-friendly access"""
-
     b0: float
     b1: float
     b2: float
@@ -275,8 +269,6 @@ class XGBiquadCoeffs(NamedTuple):
 
 
 class XGBiquadState(NamedTuple):
-    """Biquad Filter State - 8 floats for stereo processing (L + R channels)"""
-
     x1: float  # input n-1 (left)
     x2: float  # input n-2 (left)
     y1: float  # output n-1 (left)
@@ -288,16 +280,12 @@ class XGBiquadState(NamedTuple):
 
 
 class XGDelayLineState(NamedTuple):
-    """Delay Line State - Fixed-size circular buffer indices"""
-
     write_pos: int
     feedback_buffer: float
     feedback_right: float  # for stereo delay lines
 
 
 class XGLFOState(NamedTuple):
-    """LFO State - For modulation effects"""
-
     phase: float
     phase_r: float  # right channel phase (for stereo)
     current_value: float
@@ -305,8 +293,6 @@ class XGLFOState(NamedTuple):
 
 
 class XGProcessingStats(NamedTuple):
-    """XG Processing Statistics - For monitoring and profiling"""
-
     total_samples_processed: int
     average_block_time_ms: float
     peak_cpu_usage_percent: float
@@ -318,8 +304,6 @@ class XGProcessingStats(NamedTuple):
 
 # EQ and Mixer types (additional)
 class XGEQType(IntEnum):
-    """XG Equalization Types (standard EQ curves)"""
-
     FLAT = 0
     BRILLIANCE = 1
     MELLOW = 2
@@ -333,8 +317,6 @@ class XGEQType(IntEnum):
 
 
 class XGChannelEQParams(NamedTuple):
-    """XG Channel EQ Parameters (XG CC 71 for resonance, 74 for frequency)"""
-
     type: XGEQType
     level: float  # -12 to +12 dB range
     frequency: float  # Center frequency in Hz
@@ -342,8 +324,6 @@ class XGChannelEQParams(NamedTuple):
 
 
 class XGMasterEQParams(NamedTuple):
-    """XG Master EQ Parameters"""
-
     low_gain: float  # Low frequency gain (-12 to +12 dB)
     mid_gain: float  # Mid frequency gain (-12 to +12 dB)
     high_gain: float  # High frequency gain (-12 to +12 dB)
@@ -354,8 +334,6 @@ class XGMasterEQParams(NamedTuple):
 
 
 class XGChannelMixerParams(NamedTuple):
-    """XG Channel Mixer Parameters for Channel Mixing"""
-
     volume: float  # 0.0-1.0, channel volume
     pan: float  # -1.0 (left) to +1.0 (right), channel pan
     reverb_send: float  # 0.0-1.0, reverb send level
@@ -366,8 +344,6 @@ class XGChannelMixerParams(NamedTuple):
 
 
 class XGEffectCategory(IntEnum):
-    """XG Effect Categories"""
-
     SYSTEM = 0  # System-wide effects (Reverb, Chorus)
     VARIATION = 1  # Variation effects (83 types)
     INSERTION = 2  # Insertion effects (18 types)
@@ -466,3 +442,4 @@ XG_MASTER_EQ_DEFAULT = XGMasterEQParams(
     high_freq=8000.0,
     q_factor=0.707,
 )
+

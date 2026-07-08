@@ -472,7 +472,6 @@ def _create_silent_region(descriptor: RegionDescriptor, sample_rate: int) -> IRe
             pass
 
         def generate_samples(self, block_size: int, modulation: dict[str, float]) -> np.ndarray:
-            # TODO: Use BufferPool when available
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
     return SilentRegion(descriptor, sample_rate)

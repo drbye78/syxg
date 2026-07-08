@@ -56,6 +56,9 @@ class SFZChorusProcessor:
         self.current_delay_left = self._ms_to_samples(self.delay)
         self.current_delay_right = self._ms_to_samples(self.delay)
 
+        # Lazy-resize work buffer for zero-allocation hot path
+        self._work_buffer: np.ndarray | None = None
+
     def _ms_to_samples(self, ms: float) -> int:
         """Convert milliseconds to samples."""
         return int((ms / 1000.0) * self.sample_rate)
@@ -95,7 +98,9 @@ class SFZChorusProcessor:
             return input_signal.copy()
 
         block_size = len(input_signal)
-        output = np.zeros_like(input_signal)
+        if self._work_buffer is None or len(self._work_buffer) < block_size:
+            self._work_buffer = np.zeros_like(input_signal)
+        output = self._work_buffer[:block_size]
 
         for i in range(block_size):
             # Update LFO phase
@@ -190,6 +195,9 @@ class SFZReverbProcessor:
         self.pre_delay_buffer = np.zeros(self._ms_to_samples(100.0))  # 100ms max
         self.pre_delay_pos = 0
         self.pre_delay_samples = self._ms_to_samples(self.pre_delay)
+
+        # Lazy-resize work buffer for zero-allocation hot path
+        self._work_buffer: np.ndarray | None = None
 
         self._initialize_filters()
 
@@ -297,7 +305,9 @@ class SFZReverbProcessor:
             return input_signal.copy()
 
         block_size = len(input_signal)
-        output = np.zeros_like(input_signal)
+        if self._work_buffer is None or len(self._work_buffer) < block_size:
+            self._work_buffer = np.zeros_like(input_signal)
+        output = self._work_buffer[:block_size]
 
         for i in range(block_size):
             # Apply pre-delay
@@ -450,6 +460,9 @@ class SFZDelayProcessor:
         self.damp_state_left = 0.0
         self.damp_state_right = 0.0
 
+        # Lazy-resize work buffer for zero-allocation hot path
+        self._work_buffer: np.ndarray | None = None
+
     def _ms_to_samples(self, ms: float) -> int:
         """Convert milliseconds to samples."""
         return int((ms / 1000.0) * self.sample_rate)
@@ -494,7 +507,9 @@ class SFZDelayProcessor:
             return input_signal.copy()
 
         block_size = len(input_signal)
-        output = np.zeros_like(input_signal)
+        if self._work_buffer is None or len(self._work_buffer) < block_size:
+            self._work_buffer = np.zeros_like(input_signal)
+        output = self._work_buffer[:block_size]
 
         for i in range(block_size):
             # Calculate read positions

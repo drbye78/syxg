@@ -498,8 +498,8 @@ class PhysicalEngine(SynthesisEngine):
         bend_ratio = 2.0 ** (pitch_bend_semitones / 12.0)
         base_freq *= bend_ratio
 
-        # Generate samples
-        output = np.zeros(block_size, dtype=np.float32)
+        # Use pre-allocated or pooled buffer (zero-filled already)
+        output = self.get_mono_buffer(block_size)
 
         for i in range(block_size):
             sample = 0.0
@@ -527,8 +527,10 @@ class PhysicalEngine(SynthesisEngine):
 
             output[i] = sample
 
-        # Convert to stereo
-        stereo_output = np.column_stack((output, output))
+        # Convert mono->stereo via pooled/scratch buffer
+        stereo_output = self.get_stereo_buffer(block_size)
+        stereo_output[:, 0] = output
+        stereo_output[:, 1] = output
 
         return stereo_output
 

@@ -780,8 +780,8 @@ class FMEngine(SynthesisEngine):
         bend_ratio = 2.0 ** (pitch_bend_semitones / 12.0)
         base_freq *= bend_ratio
 
-        # Generate samples
-        output = np.zeros(block_size, dtype=np.float32)
+        # Use pre-allocated or pooled buffer (zero-filled already)
+        output = self.get_mono_buffer(block_size)
 
         for i in range(block_size):
             # Update envelopes
@@ -818,12 +818,10 @@ class FMEngine(SynthesisEngine):
                     and 0 <= op2_idx < self.num_operators
                     and op1_idx != op2_idx
                 ):
-                    # Apply ring modulation: output = op1_output * op2_output
                     ring_modulated_outputs[op1_idx] = (
                         operator_outputs[op1_idx] * operator_outputs[op2_idx]
                     )
 
-                    # Optionally apply to both operators for symmetric ring modulation
                     if (
                         self.operators[op1_idx].ring_mod_enabled
                         and self.operators[op2_idx].ring_mod_enabled
@@ -836,44 +834,37 @@ class FMEngine(SynthesisEngine):
             final_outputs = ring_modulated_outputs.copy()
             for source, dest, amount in self.modulation_assignments:
                 if source.startswith("lfo") and dest == "pitch":
-                    # LFO to pitch modulation
-                    lfo_idx = int(source[3]) - 1  # lfo1 -> 0, lfo2 -> 1, etc.
+                    lfo_idx = int(source[3]) - 1
                     if 0 <= lfo_idx < len(lfo_outputs):
-                        pitch_mod = lfo_outputs[lfo_idx] * amount * 100.0  # Convert to cents
-                        # Apply LFO pitch modulation to base frequency
+                        pitch_mod = lfo_outputs[lfo_idx] * amount * 100.0
                         base_freq *= 2.0 ** (pitch_mod / 1200.0)
 
                 elif source == "velocity" and dest == "amplitude":
-                    # Velocity to amplitude scaling (already handled in envelopes)
                     pass
 
                 elif source == "aftertouch" and dest == "pitch":
-                    # Aftertouch to pitch
                     aftertouch = modulation.get("aftertouch", 0.0) / 127.0
-                    pitch_mod = aftertouch * amount * 200.0  # ±200 cents max
-                    # Apply to base frequency
+                    pitch_mod = aftertouch * amount * 200.0
                     base_freq_mod = base_freq * (2.0 ** (pitch_mod / 1200.0))
 
-            # Sum output operators
             sample = 0.0
             for op_idx in self.output_operators:
                 if 0 <= op_idx < len(final_outputs):
                     sample += final_outputs[op_idx]
 
-            # Apply master volume and velocity
             velocity_scale = velocity / 127.0
             sample *= self.master_volume * velocity_scale
 
-            # Apply effects sends (simplified)
             if self.effects_enabled:
-                # Basic effects mixing - would integrate with full effects system
                 wet_amount = (self.reverb_send + self.chorus_send + self.delay_send) / 3.0
-                sample = sample * (1.0 - wet_amount * 0.3)  # Simple dry/wet mix
+                sample = sample * (1.0 - wet_amount * 0.3)
 
             output[i] = sample
 
-        # Convert to stereo
-        stereo_output = np.column_stack((output, output))
+        # Convert mono→stereo via pooled/scratch buffer
+        stereo_output = self.get_stereo_buffer(block_size)
+        stereo_output[:, 0] = output
+        stereo_output[:, 1] = output
 
         return stereo_output
 

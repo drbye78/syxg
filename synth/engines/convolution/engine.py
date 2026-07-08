@@ -524,7 +524,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
         Convolution reverb processes existing audio, doesn't generate notes.
         Returns silence for interface compatibility.
         """
-        return np.zeros((block_size, 2), dtype=np.float32)
+        return self.get_stereo_buffer(block_size)
 
     def process_audio(self, input_audio: np.ndarray) -> np.ndarray:
         """
@@ -569,7 +569,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
             num_samples = len(mono_input)
 
             # Allocate output buffer
-            output_mono = np.zeros(num_samples, dtype=np.float32)
+            output_mono = self.get_mono_buffer(num_samples)
 
             # Process audio in blocks
             for start_idx in range(0, num_samples, block_size):
@@ -620,7 +620,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
             return audio
 
         # Simple delay using circular buffer
-        output = np.zeros_like(audio)
+        output = self.get_mono_buffer(len(audio))
 
         for i in range(len(audio)):
             # Write to delay buffer
@@ -649,7 +649,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
             return audio_block.copy()
 
         # Create output buffer
-        output = np.zeros_like(audio_block)
+        output = self.get_mono_buffer(len(audio_block))
 
         # Apply delay using circular buffer approach
         block_size = len(audio_block)
@@ -676,7 +676,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
         # Simple one-pole lowpass filter
         damping_coeff = 0.9 + (self.high_freq_damping * 0.09)  # 0.9 to 0.99
 
-        filtered = np.zeros_like(audio)
+        filtered = self.get_mono_buffer(len(audio))
         filtered[0] = audio[0]
 
         for i in range(1, len(audio)):
@@ -701,7 +701,7 @@ class ConvolutionReverbEngine(SynthesisEngine):
         # Higher damping values result in more aggressive filtering
         damping_coeff = 0.9 + (self.high_freq_damping * 0.09)  # 0.9 to 0.99
 
-        filtered = np.zeros_like(audio_block)
+        filtered = self.get_mono_buffer(len(audio_block))
         filtered[0] = audio_block[0]
 
         # Apply filter across the block

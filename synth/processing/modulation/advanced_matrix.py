@@ -59,6 +59,9 @@ class ModulationRoute:
         # Pre-computed curve function
         self.curve_func = self._get_curve_function(curve)
 
+        # Scratch buffer for hot-path block processing (avoids np.zeros per call)
+        self._scratch: np.ndarray | None = None
+
     def _calculate_smoothing_factor(self, smooth_time: float) -> float:
         """Calculate smoothing factor from time constant."""
         if smooth_time <= 0.0:
@@ -116,10 +119,16 @@ class ModulationRoute:
         """
         if self.smooth <= 0.0:
             # No smoothing - constant value
-            return np.full(block_size, self.target_value, dtype=np.float32)
+            if self._scratch is None or len(self._scratch) != block_size:
+                self._scratch = np.full(block_size, self.target_value, dtype=np.float32)
+            else:
+                self._scratch.fill(self.target_value)
+            return self._scratch
 
         # Apply smoothing filter
-        output = np.zeros(block_size, dtype=np.float32)
+        if self._scratch is None or len(self._scratch) != block_size:
+            self._scratch = np.zeros(block_size, dtype=np.float32)
+        output = self._scratch
 
         for i in range(block_size):
             # One-pole lowpass filter
@@ -227,6 +236,9 @@ class AdvancedModulationMatrix:
         # Initialize standard sources to 0
         for source in self.STANDARD_SOURCES.values():
             self.source_values[source] = 0.0
+
+        # Scratch buffer for per-destination accumulation
+        self._dest_scratch: np.ndarray | None = None
 
     def add_route(
         self,
@@ -341,7 +353,10 @@ class AdvancedModulationMatrix:
                 continue
 
             # Sum all routes for this destination
-            dest_array = np.zeros(block_size, dtype=np.float32)
+            if self._dest_scratch is None or len(self._dest_scratch) != block_size:
+                self._dest_scratch = np.zeros(block_size, dtype=np.float32)
+            dest_array = self._dest_scratch
+            dest_array.fill(0.0)
 
             for route in routes:
                 route_array = route.process(block_size)

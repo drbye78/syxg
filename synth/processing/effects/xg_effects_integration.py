@@ -19,8 +19,6 @@ from .midi_2_effects_processor import (
 
 
 class XGEffectType(IntEnum):
-    """XG-specific effect types"""
-
     # System Effects (applied globally)
     REVERB_PLATE = 0x00
     REVERB_HALL = 0x01
@@ -120,12 +118,6 @@ class XGMIDIEffectsProcessor:
     """
 
     def __init__(self, sample_rate: int = 48000):
-        """
-        Initialize XG MIDI effects processor.
-
-        Args:
-            sample_rate: Audio sample rate in Hz
-        """
         self.sample_rate = sample_rate
         self.enabled = True
 
@@ -150,43 +142,23 @@ class XGMIDIEffectsProcessor:
         self.insertion_effects.append(default_insertion)
 
     def set_system_reverb_type(self, reverb_type: XGEffectType):
-        """Set system reverb type."""
         if self.system_reverb:
             self.system_reverb.xg_effect_type = reverb_type
             # Reinitialize parameters for the new type
             self.system_reverb._initialize_xg_parameters()
 
     def set_variation_type(self, var_type: XGEffectType):
-        """Set variation effect type."""
         if self.variation_effect:
             self.variation_effect.xg_effect_type = var_type
             # Reinitialize parameters for the new type
             self.variation_effect._initialize_xg_variation_parameters()
 
     def add_insertion_effect(self, effect_type: XGEffectType) -> int:
-        """
-        Add an insertion effect.
-
-        Args:
-            effect_type: Type of insertion effect to add
-
-        Returns:
-            Index of the added effect
-        """
         effect = XGInsertionEffect(self.sample_rate, effect_type)
         self.insertion_effects.append(effect)
         return len(self.insertion_effects) - 1
 
     def remove_insertion_effect(self, index: int) -> bool:
-        """
-        Remove an insertion effect.
-
-        Args:
-            index: Index of effect to remove
-
-        Returns:
-            True if removed successfully
-        """
         if 0 <= index < len(self.insertion_effects):
             del self.insertion_effects[index]
             return True
@@ -238,15 +210,6 @@ class XGMIDIEffectsProcessor:
         value: float,
         resolution: ParameterResolution = ParameterResolution.MIDI_2_32_BIT,
     ):
-        """
-        Set an XG parameter with specified resolution.
-
-        Args:
-            effect_slot: 'system_reverb', 'system_chorus', 'variation', or 'insertion_N' where N is index
-            param_name: Parameter name
-            value: Parameter value
-            resolution: Parameter resolution
-        """
         if effect_slot.startswith("insertion_"):
             # Parse insertion effect index
             try:
@@ -269,16 +232,6 @@ class XGMIDIEffectsProcessor:
         value: float,
         resolution: ParameterResolution = ParameterResolution.MIDI_2_32_BIT,
     ):
-        """
-        Set a per-note XG parameter.
-
-        Args:
-            note: MIDI note number
-            effect_slot: Effect slot identifier
-            param_name: Parameter name
-            value: Parameter value
-            resolution: Parameter resolution
-        """
         if effect_slot.startswith("insertion_"):
             # Parse insertion effect index
             try:
@@ -299,10 +252,5 @@ xg_midi_effects_processor = XGMIDIEffectsProcessor()
 
 
 def get_xg_midi_effects_processor() -> XGMIDIEffectsProcessor:
-    """
-    Get the global XG MIDI effects processor instance.
-
-    Returns:
-        XGMIDIEffectsProcessor instance
-    """
     return xg_midi_effects_processor
+

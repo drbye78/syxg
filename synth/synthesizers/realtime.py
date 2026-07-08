@@ -294,6 +294,7 @@ class Synthesizer:
 
         # Audio output buffers
         self.output_buffer = np.zeros((buffer_size, 2), dtype=np.float32)
+        self._channel_buffers: list[np.ndarray | None] = [None] * 16
 
         # Threading and synchronization
         self.lock = threading.RLock()
@@ -755,7 +756,12 @@ class Synthesizer:
             for voice_info in active_voices:
                 channel = voice_info.channel
                 if channel not in channel_buffers:
-                    channel_buffers[channel] = np.zeros((num_samples, 2), dtype=np.float32)
+                    # Lazy-resize pre-allocated per-channel buffer (zero allocation in hot path)
+                    if self._channel_buffers[channel] is None or len(self._channel_buffers[channel]) < num_samples:  # type: ignore[arg-type]
+                        self._channel_buffers[channel] = np.zeros((num_samples, 2), dtype=np.float32)
+                    channel_buffer = self._channel_buffers[channel][:num_samples]
+                    channel_buffer.fill(0.0)
+                    channel_buffers[channel] = channel_buffer
 
                 voice_audio = self._generate_voice_audio(voice_info)
                 if voice_audio is not None:
@@ -768,8 +774,12 @@ class Synthesizer:
                 if ch in channel_buffers:
                     channel_list.append(channel_buffers[ch])
                 else:
-                    # Empty channel
-                    channel_list.append(np.zeros((num_samples, 2), dtype=np.float32))
+                    # Empty channel — use lazy-resize pre-allocated buffer
+                    if self._channel_buffers[ch] is None or len(self._channel_buffers[ch]) < num_samples:  # type: ignore[arg-type]
+                        self._channel_buffers[ch] = np.zeros((num_samples, 2), dtype=np.float32)
+                    empty_buffer = self._channel_buffers[ch][:num_samples]
+                    empty_buffer.fill(0.0)
+                    channel_list.append(empty_buffer)
 
             # Process through effects chain (insertion → variation → system → master)
             self.effects_coordinator.process_channels_to_stereo_zero_alloc(

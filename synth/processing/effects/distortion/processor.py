@@ -104,6 +104,12 @@ class ProductionDistortionDynamicsProcessor:
                 self._process_enhancer_shelving(stereo_mix, num_samples, params)
             elif effect_type == 56:
                 self._process_multi_band_enhancer(stereo_mix, num_samples, params)
+            elif effect_type == 231:
+                self._process_vcm_phaser(stereo_mix, num_samples, params)
+            elif effect_type == 232:
+                self._process_vcm_equalizer(stereo_mix, num_samples, params)
+            elif effect_type == 233:
+                self._process_vcm_stereo_enhancer(stereo_mix, num_samples, params)
 
     def _process_overdrive_1(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
@@ -589,7 +595,9 @@ class ProductionDistortionDynamicsProcessor:
             {
                 "low_filter_l": {"x1": 0.0, "x2": 0.0, "y1": 0.0, "y2": 0.0},
                 "low_filter_r": {"x1": 0.0, "x2": 0.0, "y1": 0.0, "y2": 0.0},
-                "delay_lines": [np.zeros(256, dtype=np.float32) for _ in range(2)],
+                "delay_lines": [
+                    np.zeros(self.max_delay_samples, dtype=np.float32) for _ in range(2)
+                ],
                 "write_pos": [0, 0],
             },
         )
@@ -624,20 +632,20 @@ class ProductionDistortionDynamicsProcessor:
             if delay_samples > 0:
                 # Delay left channel slightly
                 delayed_left = state["delay_lines"][0][
-                    (state["write_pos"][0] - delay_samples) % 256
+                    (state["write_pos"][0] - delay_samples) % self.max_delay_samples
                 ]
                 state["delay_lines"][0][state["write_pos"][0]] = left
                 left = delayed_left * (1 - width * 0.5) + left * (width * 0.5)
 
                 # Delay right channel in opposite direction
                 delayed_right = state["delay_lines"][1][
-                    (state["write_pos"][1] - delay_samples) % 256
+                    (state["write_pos"][1] - delay_samples) % self.max_delay_samples
                 ]
                 state["delay_lines"][1][state["write_pos"][1]] = right
                 right = delayed_right * (1 - width * 0.5) + right * (width * 0.5)
 
-                state["write_pos"][0] = (state["write_pos"][0] + 1) % 256
-                state["write_pos"][1] = (state["write_pos"][1] + 1) % 256
+                state["write_pos"][0] = (state["write_pos"][0] + 1) % self.max_delay_samples
+                state["write_pos"][1] = (state["write_pos"][1] + 1) % self.max_delay_samples
 
             # Reconstruct stereo from mid/side
             new_left = mid_processed + side_enhanced
@@ -804,430 +812,213 @@ class ProductionDistortionDynamicsProcessor:
                 modulated = input_sample * carrier
                 stereo_mix[i, ch] = input_sample * (1.0 - balance) + modulated * balance * level
 
-    def _process_step_phaser_up(
-        self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
+    def _process_step_phaser(
+        self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float], upward: bool
     ) -> None:
-        """
-        Process Step Phaser Up effect (XG Variation Type 35).
-        Multi-stage phaser with stepped frequency sweep upward.
-        """
         rate = params.get("parameter1", 0.5) * 2.0
         depth = params.get("parameter2", 0.5)
-        feedback = params.get("parameter3", 0.3)
         level = params.get("parameter4", 0.5)
 
+        state_key = "step_phaser_up" if upward else "step_phaser_down"
         state = self._ensure_state(
-            "step_phaser_up",
+            state_key,
             {"lfo_phase": 0.0, "step_index": 0, "step_phases": [0.0] * 6, "step_delays": [0.0] * 6},
         )
-
-        # Step frequencies for upward sweep
-        step_freqs = [200, 300, 450, 675, 1012, 1518]  # Hz
+        step_freqs = (
+            [200, 300, 450, 675, 1012, 1518] if upward else [1518, 1012, 675, 450, 300, 200]
+        )
 
         for i in range(num_samples):
-            # Update LFO for step timing
             phase_increment = 2 * math.pi * rate / self.sample_rate
             state["lfo_phase"] = (state["lfo_phase"] + phase_increment) % (2 * math.pi)
-
-            # Update step index based on LFO phase
             state["step_index"] = int(state["lfo_phase"] / (2 * math.pi) * 6) % 6
 
-            # Process allpass filters
-            output = stereo_mix[i, 0]  # Start with left channel
-
+            output = stereo_mix[i, 0]
             for stage in range(6):
                 freq = step_freqs[stage] * (1.0 + depth * math.sin(state["step_phases"][stage]))
                 state["step_phases"][stage] = (
                     state["step_phases"][stage] + 2 * math.pi * freq / self.sample_rate
                 ) % (2 * math.pi)
 
-                # Simple allpass filter
-                delay_samples = self.sample_rate / (freq * 4)  # Quarter wavelength delay
-                if delay_samples > 0:
-                    # Update delay line (simplified)
-                    delayed = state["step_delays"][stage]
-                    state["step_delays"][stage] = output
-
-                    # Allpass calculation
-                    g = 0.7  # Allpass coefficient
-                    output = delayed + g * (output - delayed * g)
-
-            stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - level) + output * level
-            stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output * level
-
-    def _process_step_phaser_down(
-        self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
-    ) -> None:
-        """
-        Process Step Phaser Down effect (XG Variation Type 36).
-        Multi-stage phaser with stepped frequency sweep downward.
-        """
-        rate = params.get("parameter1", 0.5) * 2.0
-        depth = params.get("parameter2", 0.5)
-        feedback = params.get("parameter3", 0.3)
-        level = params.get("parameter4", 0.5)
-
-        state = self._ensure_state(
-            "step_phaser_down",
-            {"lfo_phase": 0.0, "step_index": 0, "step_phases": [0.0] * 6, "step_delays": [0.0] * 6},
-        )
-
-        # Step frequencies for downward sweep (reverse order)
-        step_freqs = [1518, 1012, 675, 450, 300, 200]  # Hz
-
-        for i in range(num_samples):
-            # Update LFO for step timing
-            phase_increment = 2 * math.pi * rate / self.sample_rate
-            state["lfo_phase"] = (state["lfo_phase"] + phase_increment) % (2 * math.pi)
-
-            # Update step index based on LFO phase
-            state["step_index"] = int(state["lfo_phase"] / (2 * math.pi) * 6) % 6
-
-            # Process allpass filters
-            output = stereo_mix[i, 0]  # Start with left channel
-
-            for stage in range(6):
-                freq = step_freqs[stage] * (1.0 + depth * math.sin(state["step_phases"][stage]))
-                state["step_phases"][stage] = (
-                    state["step_phases"][stage] + 2 * math.pi * freq / self.sample_rate
-                ) % (2 * math.pi)
-
-                # Simple allpass filter
                 delay_samples = self.sample_rate / (freq * 4)
                 if delay_samples > 0:
                     delayed = state["step_delays"][stage]
                     state["step_delays"][stage] = output
-
                     g = 0.7
                     output = delayed + g * (output - delayed * g)
 
             stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - level) + output * level
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output * level
 
-    def _process_step_flanger_up(
+    def _process_step_phaser_up(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Step Flanger Up effect (XG Variation Type 37).
-        Multi-tap flanger with stepped delay sweep upward.
-        """
+        self._process_step_phaser(stereo_mix, num_samples, params, upward=True)
+
+    def _process_step_phaser_down(
+        self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
+    ) -> None:
+        self._process_step_phaser(stereo_mix, num_samples, params, upward=False)
+
+    def _process_step_flanger(
+        self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float], upward: bool
+    ) -> None:
         rate = params.get("parameter1", 0.5) * 2.0
         depth = params.get("parameter2", 0.5)
         feedback = params.get("parameter3", 0.3)
         level = params.get("parameter4", 0.5)
 
+        state_key = "step_flanger_up" if upward else "step_flanger_down"
         state = self._ensure_state(
-            "step_flanger_up",
+            state_key,
             {
                 "lfo_phase": 0.0,
                 "step_index": 0,
-                "delay_lines": [np.zeros(2048, dtype=np.float32) for _ in range(4)],
+                "delay_lines": [
+                    np.zeros(self.max_delay_samples, dtype=np.float32) for _ in range(4)
+                ],
                 "write_pos": [0, 0, 0, 0],
                 "feedback_buf": [0.0, 0.0, 0.0, 0.0],
             },
         )
-
-        # Step delay times for upward sweep (ms)
-        step_delays = [0.5, 0.8, 1.2, 1.8]
+        step_delays = [0.5, 0.8, 1.2, 1.8] if upward else [1.8, 1.2, 0.8, 0.5]
 
         for i in range(num_samples):
-            # Update LFO for step timing
             phase_increment = 2 * math.pi * rate / self.sample_rate
             state["lfo_phase"] = (state["lfo_phase"] + phase_increment) % (2 * math.pi)
             state["step_index"] = int(state["lfo_phase"] / (2 * math.pi) * 4) % 4
 
-            # Mix flanged signals
             flanged_sum = 0.0
-
             for tap in range(4):
                 base_delay = int(step_delays[tap] * self.sample_rate / 1000.0)
                 modulation = int(
                     math.sin(state["lfo_phase"] + tap * math.pi / 2) * depth * base_delay * 0.5
                 )
-                total_delay = max(1, min(base_delay + modulation, 2047))
+                total_delay = max(1, min(base_delay + modulation, self.max_delay_samples - 1))
 
-                # Read from delay line
-                read_pos = (state["write_pos"][tap] - total_delay) % 2048
+                read_pos = (state["write_pos"][tap] - total_delay) % self.max_delay_samples
                 delayed = state["delay_lines"][tap][int(read_pos)]
 
-                # Write to delay line with feedback
                 input_sample = (stereo_mix[i, 0] + stereo_mix[i, 1]) / 2.0
                 state["delay_lines"][tap][state["write_pos"][tap]] = (
                     input_sample + state["feedback_buf"][tap] * feedback
                 )
                 state["feedback_buf"][tap] = delayed
-
                 flanged_sum += delayed * 0.25
 
-                state["write_pos"][tap] = (state["write_pos"][tap] + 1) % 2048
+                state["write_pos"][tap] = (state["write_pos"][tap] + 1) % self.max_delay_samples
 
-            # Apply to stereo
             output = flanged_sum * level
             stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - level) + output
             stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output
+
+    def _process_step_flanger_up(
+        self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
+    ) -> None:
+        self._process_step_flanger(stereo_mix, num_samples, params, upward=True)
 
     def _process_step_flanger_down(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Step Flanger Down effect (XG Variation Type 38).
-        Multi-tap flanger with stepped delay sweep downward.
-        """
-        rate = params.get("parameter1", 0.5) * 2.0
+        self._process_step_flanger(stereo_mix, num_samples, params, upward=False)
+
+    def _process_step_tremolo(
+        self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float], upward: bool
+    ) -> None:
+        rate = params.get("parameter1", 0.5) * 10.0
         depth = params.get("parameter2", 0.5)
-        feedback = params.get("parameter3", 0.3)
+        waveform = int(params.get("parameter3", 0.5) * 3)
         level = params.get("parameter4", 0.5)
 
-        state = self._ensure_state(
-            "step_flanger_down",
-            {
-                "lfo_phase": 0.0,
-                "step_index": 0,
-                "delay_lines": [np.zeros(2048, dtype=np.float32) for _ in range(4)],
-                "write_pos": [0, 0, 0, 0],
-                "feedback_buf": [0.0, 0.0, 0.0, 0.0],
-            },
-        )
+        state_key = "step_tremolo_up" if upward else "step_tremolo_down"
+        state = self._ensure_state(state_key, {"lfo_phase": 0.0, "step_phase": 0.0})
 
-        # Step delay times for downward sweep (reverse order)
-        step_delays = [1.8, 1.2, 0.8, 0.5]
+        up_rates = [rate * 0.5, rate * 0.7, rate * 1.0, rate * 1.4, rate * 2.0]
+        step_rates = up_rates if upward else list(reversed(up_rates))
 
         for i in range(num_samples):
-            # Update LFO for step timing
-            phase_increment = 2 * math.pi * rate / self.sample_rate
-            state["lfo_phase"] = (state["lfo_phase"] + phase_increment) % (2 * math.pi)
-            state["step_index"] = int(state["lfo_phase"] / (2 * math.pi) * 4) % 4
+            step_increment = 2 * math.pi * rate / (self.sample_rate * 5)
+            state["step_phase"] = (state["step_phase"] + step_increment) % (2 * math.pi)
+            step_index = int(state["step_phase"] / (2 * math.pi) * 5) % 5
 
-            # Mix flanged signals
-            flanged_sum = 0.0
+            lfo_increment = 2 * math.pi * step_rates[step_index] / self.sample_rate
+            state["lfo_phase"] = (state["lfo_phase"] + lfo_increment) % (2 * math.pi)
 
-            for tap in range(4):
-                base_delay = int(step_delays[tap] * self.sample_rate / 1000.0)
-                modulation = int(
-                    math.sin(state["lfo_phase"] + tap * math.pi / 2) * depth * base_delay * 0.5
-                )
-                total_delay = max(1, min(base_delay + modulation, 2047))
+            if waveform == 0:
+                lfo_value = math.sin(state["lfo_phase"])
+            elif waveform == 1:
+                lfo_value = 1 - abs((state["lfo_phase"] / math.pi) % 2 - 1) * 2
+            elif waveform == 2:
+                lfo_value = 1 if math.sin(state["lfo_phase"]) > 0 else -1
+            else:
+                lfo_value = (state["lfo_phase"] / (2 * math.pi)) % 1 * 2 - 1
 
-                read_pos = (state["write_pos"][tap] - total_delay) % 2048
-                delayed = state["delay_lines"][tap][int(read_pos)]
-
-                input_sample = (stereo_mix[i, 0] + stereo_mix[i, 1]) / 2.0
-                state["delay_lines"][tap][state["write_pos"][tap]] = (
-                    input_sample + state["feedback_buf"][tap] * feedback
-                )
-                state["feedback_buf"][tap] = delayed
-
-                flanged_sum += delayed * 0.25
-
-                state["write_pos"][tap] = (state["write_pos"][tap] + 1) % 2048
-
-            output = flanged_sum * level
-            stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - level) + output
-            stereo_mix[i, 1] = stereo_mix[i, 1] * (1.0 - level) + output
+            amplitude = 1.0 - depth * 0.5 + depth * 0.5 * lfo_value
+            stereo_mix[i, 0] *= amplitude * level + (1.0 - level)
+            stereo_mix[i, 1] *= amplitude * level + (1.0 - level)
 
     def _process_step_tremolo_up(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Step Tremolo Up effect (XG Variation Type 39).
-        Amplitude modulation with stepped waveform sweep upward.
-        """
-        rate = params.get("parameter1", 0.5) * 10.0
-        depth = params.get("parameter2", 0.5)
-        waveform = int(params.get("parameter3", 0.5) * 3)
-        level = params.get("parameter4", 0.5)
-
-        state = self._ensure_state("step_tremolo_up", {"lfo_phase": 0.0, "step_phase": 0.0})
-
-        # Step frequencies for upward sweep
-        step_rates = [rate * 0.5, rate * 0.7, rate * 1.0, rate * 1.4, rate * 2.0]
-
-        for i in range(num_samples):
-            # Update step timing
-            step_increment = 2 * math.pi * rate / (self.sample_rate * 5)  # 5 steps per cycle
-            state["step_phase"] = (state["step_phase"] + step_increment) % (2 * math.pi)
-            step_index = int(state["step_phase"] / (2 * math.pi) * 5) % 5
-
-            # Update LFO at current step rate
-            lfo_increment = 2 * math.pi * step_rates[step_index] / self.sample_rate
-            state["lfo_phase"] = (state["lfo_phase"] + lfo_increment) % (2 * math.pi)
-
-            # Get LFO value based on waveform
-            if waveform == 0:  # Sine
-                lfo_value = math.sin(state["lfo_phase"])
-            elif waveform == 1:  # Triangle
-                lfo_value = 1 - abs((state["lfo_phase"] / math.pi) % 2 - 1) * 2
-            elif waveform == 2:  # Square
-                lfo_value = 1 if math.sin(state["lfo_phase"]) > 0 else -1
-            else:  # Sawtooth
-                lfo_value = (state["lfo_phase"] / (2 * math.pi)) % 1 * 2 - 1
-
-            # Convert to amplitude modulation
-            amplitude = 1.0 - depth * 0.5 + depth * 0.5 * lfo_value
-
-            # Apply modulation
-            stereo_mix[i, 0] *= amplitude * level + (1.0 - level)
-            stereo_mix[i, 1] *= amplitude * level + (1.0 - level)
+        self._process_step_tremolo(stereo_mix, num_samples, params, upward=True)
 
     def _process_step_tremolo_down(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Step Tremolo Down effect (XG Variation Type 40).
-        Amplitude modulation with stepped waveform sweep downward.
-        """
-        rate = params.get("parameter1", 0.5) * 10.0
+        self._process_step_tremolo(stereo_mix, num_samples, params, upward=False)
+
+    def _process_step_pan(
+        self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float], upward: bool
+    ) -> None:
+        rate = params.get("parameter1", 0.5) * 5.0
         depth = params.get("parameter2", 0.5)
         waveform = int(params.get("parameter3", 0.5) * 3)
         level = params.get("parameter4", 0.5)
 
-        state = self._ensure_state("step_tremolo_down", {"lfo_phase": 0.0, "step_phase": 0.0})
+        state_key = "step_pan_up" if upward else "step_pan_down"
+        state = self._ensure_state(state_key, {"lfo_phase": 0.0, "step_phase": 0.0})
 
-        # Step frequencies for downward sweep (reverse order)
-        step_rates = [rate * 2.0, rate * 1.4, rate * 1.0, rate * 0.7, rate * 0.5]
+        up_rates = [rate * 0.5, rate * 0.7, rate * 1.0, rate * 1.4, rate * 2.0]
+        step_rates = up_rates if upward else list(reversed(up_rates))
 
         for i in range(num_samples):
-            # Update step timing
             step_increment = 2 * math.pi * rate / (self.sample_rate * 5)
             state["step_phase"] = (state["step_phase"] + step_increment) % (2 * math.pi)
             step_index = int(state["step_phase"] / (2 * math.pi) * 5) % 5
 
-            # Update LFO at current step rate
             lfo_increment = 2 * math.pi * step_rates[step_index] / self.sample_rate
             state["lfo_phase"] = (state["lfo_phase"] + lfo_increment) % (2 * math.pi)
 
-            # Get LFO value based on waveform
-            if waveform == 0:  # Sine
+            if waveform == 0:
                 lfo_value = math.sin(state["lfo_phase"])
-            elif waveform == 1:  # Triangle
+            elif waveform == 1:
                 lfo_value = 1 - abs((state["lfo_phase"] / math.pi) % 2 - 1) * 2
-            elif waveform == 2:  # Square
+            elif waveform == 2:
                 lfo_value = 1 if math.sin(state["lfo_phase"]) > 0 else -1
-            else:  # Sawtooth
+            else:
                 lfo_value = (state["lfo_phase"] / (2 * math.pi)) % 1 * 2 - 1
 
-            # Convert to amplitude modulation
-            amplitude = 1.0 - depth * 0.5 + depth * 0.5 * lfo_value
+            pan = lfo_value * depth
+            left_gain = math.cos(pan * math.pi / 4) if pan >= 0 else 1.0
+            right_gain = 1.0 if pan >= 0 else math.cos(-pan * math.pi / 4)
 
-            # Apply modulation
-            stereo_mix[i, 0] *= amplitude * level + (1.0 - level)
-            stereo_mix[i, 1] *= amplitude * level + (1.0 - level)
+            ol, lr = stereo_mix[i, 0], stereo_mix[i, 1]
+            stereo_mix[i, 0] = ol * left_gain * level + ol * (1.0 - level)
+            stereo_mix[i, 1] = lr * right_gain * level + lr * (1.0 - level)
 
     def _process_step_pan_up(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Step Pan Up effect (XG Variation Type 41).
-        Stereo panning with stepped LFO sweep upward.
-        """
-        rate = params.get("parameter1", 0.5) * 5.0
-        depth = params.get("parameter2", 0.5)
-        waveform = int(params.get("parameter3", 0.5) * 3)
-        level = params.get("parameter4", 0.5)
-
-        state = self._ensure_state("step_pan_up", {"lfo_phase": 0.0, "step_phase": 0.0})
-
-        # Step rates for upward sweep
-        step_rates = [rate * 0.5, rate * 0.7, rate * 1.0, rate * 1.4, rate * 2.0]
-
-        for i in range(num_samples):
-            # Update step timing
-            step_increment = 2 * math.pi * rate / (self.sample_rate * 5)
-            state["step_phase"] = (state["step_phase"] + step_increment) % (2 * math.pi)
-            step_index = int(state["step_phase"] / (2 * math.pi) * 5) % 5
-
-            # Update LFO at current step rate
-            lfo_increment = 2 * math.pi * step_rates[step_index] / self.sample_rate
-            state["lfo_phase"] = (state["lfo_phase"] + lfo_increment) % (2 * math.pi)
-
-            # Get LFO value based on waveform
-            if waveform == 0:  # Sine
-                lfo_value = math.sin(state["lfo_phase"])
-            elif waveform == 1:  # Triangle
-                lfo_value = 1 - abs((state["lfo_phase"] / math.pi) % 2 - 1) * 2
-            elif waveform == 2:  # Square
-                lfo_value = 1 if math.sin(state["lfo_phase"]) > 0 else -1
-            else:  # Sawtooth
-                lfo_value = (state["lfo_phase"] / (2 * math.pi)) % 1 * 2 - 1
-
-            # Convert to pan position (-1 to 1)
-            pan = lfo_value * depth
-
-            # Calculate left/right gains using equal power panning
-            if pan >= 0:
-                left_gain = math.cos(pan * math.pi / 4)
-                right_gain = 1.0
-            else:
-                left_gain = 1.0
-                right_gain = math.cos(-pan * math.pi / 4)
-
-            # Store original samples
-            original_l = stereo_mix[i, 0]
-            original_r = stereo_mix[i, 1]
-
-            # Apply panning
-            stereo_mix[i, 0] = original_l * left_gain * level + original_l * (1.0 - level)
-            stereo_mix[i, 1] = original_r * right_gain * level + original_r * (1.0 - level)
+        self._process_step_pan(stereo_mix, num_samples, params, upward=True)
 
     def _process_step_pan_down(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Step Pan Down effect (XG Variation Type 42).
-        Stereo panning with stepped LFO sweep downward.
-        """
-        rate = params.get("parameter1", 0.5) * 5.0
-        depth = params.get("parameter2", 0.5)
-        waveform = int(params.get("parameter3", 0.5) * 3)
-        level = params.get("parameter4", 0.5)
-
-        state = self._ensure_state("step_pan_down", {"lfo_phase": 0.0, "step_phase": 0.0})
-
-        # Step rates for downward sweep (reverse order)
-        step_rates = [rate * 2.0, rate * 1.4, rate * 1.0, rate * 0.7, rate * 0.5]
-
-        for i in range(num_samples):
-            # Update step timing
-            step_increment = 2 * math.pi * rate / (self.sample_rate * 5)
-            state["step_phase"] = (state["step_phase"] + step_increment) % (2 * math.pi)
-            step_index = int(state["step_phase"] / (2 * math.pi) * 5) % 5
-
-            # Update LFO at current step rate
-            lfo_increment = 2 * math.pi * step_rates[step_index] / self.sample_rate
-            state["lfo_phase"] = (state["lfo_phase"] + lfo_increment) % (2 * math.pi)
-
-            # Get LFO value based on waveform
-            if waveform == 0:  # Sine
-                lfo_value = math.sin(state["lfo_phase"])
-            elif waveform == 1:  # Triangle
-                lfo_value = 1 - abs((state["lfo_phase"] / math.pi) % 2 - 1) * 2
-            elif waveform == 2:  # Square
-                lfo_value = 1 if math.sin(state["lfo_phase"]) > 0 else -1
-            else:  # Sawtooth
-                lfo_value = (state["lfo_phase"] / (2 * math.pi)) % 1 * 2 - 1
-
-            # Convert to pan position (-1 to 1)
-            pan = lfo_value * depth
-
-            # Calculate left/right gains using equal power panning
-            if pan >= 0:
-                left_gain = math.cos(pan * math.pi / 4)
-                right_gain = 1.0
-            else:
-                left_gain = 1.0
-                right_gain = math.cos(-pan * math.pi / 4)
-
-            # Store original samples
-            original_l = stereo_mix[i, 0]
-            original_r = stereo_mix[i, 1]
-
-            # Apply panning
-            stereo_mix[i, 0] = original_l * left_gain * level + original_l * (1.0 - level)
-            stereo_mix[i, 1] = original_r * right_gain * level + original_r * (1.0 - level)
+        self._process_step_pan(stereo_mix, num_samples, params, upward=False)
 
     def get_supported_types(self) -> list:
-        """Get list of supported effect types."""
-        return list(range(32, 57))  # Types 32-56
+        """Get list of supported effect types (XG 32-56 + extended VCM 231-233)."""
+        return list(range(32, 57)) + [231, 232, 233]
 
     def _ensure_state(self, effect_key: str, state_config: dict[str, Any]) -> dict[str, Any]:
         """Ensure effect state exists, create if needed."""

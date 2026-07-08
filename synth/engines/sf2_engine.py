@@ -227,6 +227,7 @@ class SF2Engine(SynthesisEngine):
         block_size: int = 1024,
         synth: ModernXGSynthesizer | None = None,
         max_memory_mb: int = 512,
+        buffer_pool=None,
     ):
         """
         Initialize SF2 synthesis engine with optimized architecture.
@@ -237,8 +238,9 @@ class SF2Engine(SynthesisEngine):
             block_size: Processing block size in samples
             synth: ModernXGSynthesizer instance for infrastructure access
             max_memory_mb: Maximum memory for SF2 caching
+            buffer_pool: Optional XGBufferPool for zero-alloc buffer management
         """
-        super().__init__(sample_rate, block_size)
+        super().__init__(sample_rate, block_size, buffer_pool=buffer_pool)
         self.synth = synth
         self.max_memory_mb = max_memory_mb
 

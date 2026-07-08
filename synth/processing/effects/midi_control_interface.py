@@ -46,16 +46,12 @@ except ImportError:
 
 
 class XGControlType(IntEnum):
-    """XG Control Message Types"""
-
     CC_MESSAGE = 0  # MIDI CC (7-bit)
     NRPN_MESSAGE = 1  # NRPN parameter (MSB/LSB)
     SYSEX_MESSAGE = 2  # SysEx parameter control
 
 
 class XGNRPNBanks(IntEnum):
-    """XG NRPN Parameter Banks (MSB values)"""
-
     SYSTEM_REVERB = 0  # System Reverb Parameters
     SYSTEM_CHORUS = 1  # System Chorus Parameters
     VARIATION_EFFECT = 2  # Variation Effect Parameters
@@ -80,7 +76,7 @@ class XGNRPNParameters:
 
     # System Chorus (MSB 1)
     CHORUS_PARAMS = {
-        0: ("chorus_type", lambda x: int(x)),  # Type 0-5
+        0: ("chorus_type", lambda x: int(x)),  # Type 0-17
         1: ("rate", lambda x: 0.125 + x * 9.875),  # 0.125-10.0 Hz
         2: ("depth", lambda x: x),  # 0.0-1.0
         3: ("feedback", lambda x: (x - 0.5) * 0.5),  # -0.25 to +0.25
@@ -134,12 +130,6 @@ class XGNRPNController:
     """
 
     def __init__(self, effects_coordinator: Any | None = None):
-        """
-        Initialize NRPN controller.
-
-        Args:
-            effects_coordinator: XG effects coordinator for parameter updates
-        """
         self.effects_coordinator = effects_coordinator
 
         # NRPN state
@@ -160,23 +150,12 @@ class XGNRPNController:
         self.parameter_callbacks: dict[tuple[int, int], list[Callable]] = {}
 
     def register_callback(self, bank: int, param: int, callback: Callable) -> None:
-        """Register a callback for parameter changes."""
         key = (bank, param)
         if key not in self.parameter_callbacks:
             self.parameter_callbacks[key] = []
         self.parameter_callbacks[key].append(callback)
 
     def process_nrpn_message(self, cc_number: int, value: int) -> bool:
-        """
-        Process NRPN control change message.
-
-        Args:
-            cc_number: MIDI CC number
-            value: CC value (0-127)
-
-        Returns:
-            True if parameter was updated
-        """
         with self.lock:
             parameter_updated = False
 
@@ -215,17 +194,6 @@ class XGNRPNController:
             return parameter_updated
 
     def _apply_nrpn_parameter(self, bank: int, param: int, normalized_value: float) -> bool:
-        """
-        Apply NRPN parameter update to effects coordinator.
-
-        Args:
-            bank: NRPN bank (MSB)
-            param: Parameter number (LSB)
-            normalized_value: Normalized parameter value (0.0-1.0)
-
-        Returns:
-            True if parameter was successfully applied
-        """
         if self.effects_coordinator is None:
             return False
 
@@ -310,7 +278,6 @@ class XGNRPNController:
         return success
 
     def _apply_channel_parameter(self, channel: int, param: int, value: float) -> bool:
-        """Apply channel-specific NRPN parameter."""
         if self.effects_coordinator is None:
             return False
 
@@ -346,14 +313,6 @@ class XGMIDIController:
         eq_processor: Any | None = None,
         mixer_processor: Any | None = None,
     ):
-        """
-        Initialize MIDI controller.
-
-        Args:
-            effects_coordinator: Main XG effects coordinator
-            eq_processor: Optional separate EQ processor
-            mixer_processor: Optional separate mixer processor
-        """
         self.effects_coordinator = effects_coordinator
         self.eq_processor = eq_processor
         self.mixer_processor = mixer_processor
@@ -420,17 +379,6 @@ class XGMIDIController:
                 return False
 
     def _process_cc_message(self, cc_number: int, value: int, channel: int) -> bool:
-        """
-        Process MIDI CC message.
-
-        Args:
-            cc_number: CC number
-            value: CC value (0-127)
-            channel: MIDI channel
-
-        Returns:
-            True if parameter was updated
-        """
         normalized_value = value / 127.0  # Normalize to 0.0-1.0
 
         # Channel-specific effect sends
@@ -465,7 +413,6 @@ class XGMIDIController:
         return False
 
     def _process_channel_send_cc(self, cc_number: int, channel: int, value: float) -> bool:
-        """Process channel-specific effect send CC message."""
         if cc_number == 91:  # Reverb send
             self.channel_reverb_sends[channel] = value
             target = "reverb_send"
@@ -487,7 +434,6 @@ class XGMIDIController:
         return False
 
     def _process_effect_unit_activation(self, unit: int, active: bool) -> bool:
-        """Process effect unit activation CC message."""
         if 0 <= unit < len(self.effect_units_active):
             old_state = self.effect_units_active[unit]
             self.effect_units_active[unit] = active
@@ -500,7 +446,6 @@ class XGMIDIController:
         return False
 
     def _process_master_volume(self, value: float) -> bool:
-        """Process master volume CC message."""
         if self.effects_coordinator:
             return self.effects_coordinator.set_master_controls(level=value * 2.0)
         elif self.mixer_processor:
@@ -539,12 +484,6 @@ class XGSysExController:
     """
 
     def __init__(self, effects_coordinator: Any | None = None):
-        """
-        Initialize SysEx controller.
-
-        Args:
-            effects_coordinator: XG effects coordinator for parameter updates
-        """
         self.effects_coordinator = effects_coordinator
 
         # XG SysEx constants
@@ -555,15 +494,6 @@ class XGSysExController:
         self.lock = threading.RLock()
 
     def process_sysex_message(self, data: bytes) -> bool:
-        """
-        Process XG System Exclusive message.
-
-        Args:
-            data: Raw SysEx data bytes
-
-        Returns:
-            True if message was processed successfully
-        """
         with self.lock:
             if len(data) < 8 or data[0] != 0xF0 or data[-1] != 0xF7:
                 return False  # Invalid SysEx format
@@ -584,15 +514,6 @@ class XGSysExController:
             return self._process_sysex_parameters(data[4:-1])
 
     def _process_sysex_parameters(self, param_data: bytes) -> bool:
-        """
-        Process XG SysEx parameter data.
-
-        Args:
-            param_data: Parameter data bytes
-
-        Returns:
-            True if parameters were processed
-        """
         # XG SysEx parameter format: aa bb cc dd ee
         # Where aa = parameter high, bb = parameter mid, cc = parameter low
         # dd = data high, ee = data low
@@ -617,21 +538,6 @@ class XGSysExController:
         return self._apply_sysex_parameter(param_address, normalized_value)
 
     def _apply_sysex_parameter(self, address: int, value: float) -> bool:
-        """
-        Apply SysEx parameter update.
-
-        XG address format:
-        - 0x020000-0x02FFFF: System effects
-        - 0x030000-0x03FFFF: Variation effects
-        - 0x040000-0x04FFFF: Channel parameters
-
-        Args:
-            address: Parameter address
-            value: Normalized parameter value
-
-        Returns:
-            True if parameter was applied
-        """
         if self.effects_coordinator is None:
             return False
 
@@ -661,7 +567,6 @@ class XGSysExController:
         return False
 
     def _apply_channel_sysex_parameter(self, channel: int, param_type: int, value: float) -> bool:
-        """Apply SysEx channel parameter update."""
         if self.effects_coordinator is None:
             return False
 
@@ -673,3 +578,4 @@ class XGSysExController:
             return self.effects_coordinator.set_channel_pan(channel, pan_value)
 
         return False
+

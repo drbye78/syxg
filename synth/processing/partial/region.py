@@ -204,6 +204,20 @@ class IRegion(ABC):
             self._output_buffer = np.zeros((self.block_size, 2), dtype=np.float32)
             self._work_buffer = np.zeros(self.block_size, dtype=np.float32)
 
+        # Silence buffer shared by all subclasses for early-return paths
+        self._silence_buffer: np.ndarray | None = None
+
+    def _get_silence(self, block_size: int) -> np.ndarray:
+        """Return a reusable zero-filled stereo buffer (avoids hot-path allocation).
+
+        Intended for early-return silence paths in generate_samples().
+        """
+        if self._silence_buffer is None or len(self._silence_buffer) != block_size:
+            self._silence_buffer = np.zeros((block_size, 2), dtype=np.float32)
+        else:
+            self._silence_buffer.fill(0.0)
+        return self._silence_buffer
+
     # ========== PLAYBACK ==========
 
     def note_on(self, velocity: int, note: int) -> bool:

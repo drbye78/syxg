@@ -195,7 +195,7 @@ class XGSystemEffectParameters:
     def _create_default_chorus(self) -> dict[str, Any]:
         """Create default XG chorus parameters."""
         return {
-            "type": 0x41,  # Chorus 1
+            "type": 0x40,  # Chorus 1 per XG spec
             "lfo_freq": 0.4,  # Hz (0.0-39.7)
             "depth": 0.6,  # 0.0-1.0
             "feedback": 0.3,  # -1.0 to 1.0
@@ -504,7 +504,7 @@ class XGSystemEffectParameters:
                 "level": {"min": 0.0, "max": 1.0, "default": 0.4},
             },
             "chorus": {
-                "type": {"min": 0x40, "max": 0x51, "default": 0x41},
+                "type": {"min": 0x40, "max": 0x51, "default": 0x40},
                 "lfo_freq": {"min": 0.0, "max": 39.7, "default": 0.4},
                 "depth": {"min": 0.0, "max": 1.0, "default": 0.6},
                 "feedback": {"min": -1.0, "max": 1.0, "default": 0.3},

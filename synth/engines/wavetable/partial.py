@@ -29,6 +29,8 @@ class WavetablePartial(SynthesisPartial):
         super().__init__(params, sample_rate)
         self.wavetable_bank = wavetable_bank
         self.oscillator = WavetableOscillator(sample_rate)
+        self._silence_buffer: np.ndarray | None = None
+        self._stereo_scratch: np.ndarray | None = None
 
         # Configure oscillator
         self._configure_oscillator()
@@ -59,8 +61,9 @@ class WavetablePartial(SynthesisPartial):
             Stereo audio buffer (block_size, 2)
         """
         if not self.active:
-            # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            if self._silence_buffer is None or len(self._silence_buffer) != block_size:
+                self._silence_buffer = np.zeros((block_size, 2), dtype=np.float32)
+            return self._silence_buffer
 
         # Apply modulation
         freq_mod = modulation.get("pitch", 0.0) / 1200.0  # Convert cents to ratio
@@ -72,8 +75,11 @@ class WavetablePartial(SynthesisPartial):
         # Generate mono samples
         mono_samples = self.oscillator.generate_samples(block_size)
 
-        # Convert to stereo (2D interleaved format)
-        stereo_samples = np.zeros((block_size, 2), dtype=np.float32)
+        # Convert to stereo via scratch buffer
+        if self._stereo_scratch is None or len(self._stereo_scratch) != block_size:
+            self._stereo_scratch = np.zeros((block_size, 2), dtype=np.float32)
+        stereo_samples = self._stereo_scratch
+        stereo_samples.fill(0.0)
         stereo_samples[:, 0] = mono_samples  # Left channel
         stereo_samples[:, 1] = mono_samples  # Right channel
 

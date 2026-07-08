@@ -36,13 +36,6 @@ class DelayVariationProcessor:
     """
 
     def __init__(self, sample_rate: int, max_delay_samples: int = 44100):
-        """
-        Initialize delay processor.
-
-        Args:
-            sample_rate: Sample rate in Hz
-            max_delay_samples: Maximum delay line length
-        """
         self.sample_rate = sample_rate
         self.max_delay_samples = max_delay_samples
 
@@ -53,15 +46,6 @@ class DelayVariationProcessor:
     def process_effect(
         self, effect_type: int, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process delay variation effect.
-
-        Args:
-            effect_type: XG variation effect type (0-9)
-            stereo_mix: Input/output stereo buffer (num_samples, 2)
-            num_samples: Number of samples to process
-            params: Effect parameters (parameter1-4)
-        """
         with self._lock:
             if effect_type == 0:
                 self._process_delay_lcr(stereo_mix, num_samples, params)
@@ -85,7 +69,6 @@ class DelayVariationProcessor:
                 self._process_auto_pan(stereo_mix, num_samples, params)
 
     def _ensure_state(self, effect_key: str, state_config: dict[str, Any]) -> dict[str, Any]:
-        """Ensure effect state exists, create if needed."""
         if effect_key not in self._effect_states:
             self._effect_states[effect_key] = state_config.copy()
         return self._effect_states[effect_key]
@@ -93,10 +76,6 @@ class DelayVariationProcessor:
     def _process_delay_lcr(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Delay L/C/R effect (XG Variation Type 0).
-        Production implementation with proper delay line processing.
-        """
         # XG Parameters: time(0-1000ms), feedback(0-1), level(0-1), stereo(0-1)
         time = params.get("parameter1", 0.5) * 1000  # 0-1000ms
         feedback = params.get("parameter2", 0.3)
@@ -116,9 +95,6 @@ class DelayVariationProcessor:
                 "write_pos_l": 0,
                 "write_pos_r": 0,
                 "write_pos_c": 0,
-                "feedback_l": 0.0,
-                "feedback_r": 0.0,
-                "feedback_c": 0.0,
             },
         )
 
@@ -137,20 +113,10 @@ class DelayVariationProcessor:
             input_r = stereo_mix[i, 1]
             input_c = (input_l + input_r) * 0.5
 
-            # Apply feedback
-            processed_l = input_l + state["feedback_l"] * feedback
-            processed_r = input_r + state["feedback_r"] * feedback
-            processed_c = input_c + state["feedback_c"] * feedback
-
-            # Write to delay lines
-            state["delay_line_l"][state["write_pos_l"]] = processed_l
-            state["delay_line_r"][state["write_pos_r"]] = processed_r
-            state["delay_line_c"][state["write_pos_c"]] = processed_c
-
-            # Update feedback state
-            state["feedback_l"] = processed_l
-            state["feedback_r"] = processed_r
-            state["feedback_c"] = processed_c
+            # Write to delay lines: input + delayed_tap * feedback
+            state["delay_line_l"][state["write_pos_l"]] = input_l + delayed_l * feedback
+            state["delay_line_r"][state["write_pos_r"]] = input_r + delayed_r * feedback
+            state["delay_line_c"][state["write_pos_c"]] = input_c + delayed_c * feedback
 
             # Mix dry/wet with stereo width
             wet_l = (delayed_l * (1.0 + stereo_width) + delayed_c * (1.0 - stereo_width)) * 0.5
@@ -167,10 +133,6 @@ class DelayVariationProcessor:
     def _process_delay_lr(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Delay L/R effect (XG Variation Type 1).
-        Dual delay implementation with cross-feedback support.
-        """
         time = params.get("parameter1", 0.5) * 1000
         feedback = params.get("parameter2", 0.3)
         level = params.get("parameter3", 0.5)
@@ -186,8 +148,6 @@ class DelayVariationProcessor:
                 "delay_line_r": np.zeros(self.max_delay_samples, dtype=np.float32),
                 "write_pos_l": 0,
                 "write_pos_r": 0,
-                "feedback_l": 0.0,
-                "feedback_r": 0.0,
             },
         )
 
@@ -203,27 +163,14 @@ class DelayVariationProcessor:
             input_l = stereo_mix[i, 0]
             input_r = stereo_mix[i, 1]
 
-            # Apply feedback with optional cross-feedback
-            processed_l = (
-                input_l
-                + state["feedback_l"] * feedback
-                + state["feedback_r"] * feedback * cross_feedback
+            # Apply feedback with optional cross-feedback (using delay tap outputs)
+            state["delay_line_l"][state["write_pos_l"]] = (
+                input_l + delayed_l * feedback + delayed_r * feedback * cross_feedback
             )
-            processed_r = (
-                input_r
-                + state["feedback_r"] * feedback
-                + state["feedback_l"] * feedback * cross_feedback
+            state["delay_line_r"][state["write_pos_r"]] = (
+                input_r + delayed_r * feedback + delayed_l * feedback * cross_feedback
             )
 
-            # Write to delay lines
-            state["delay_line_l"][state["write_pos_l"]] = processed_l
-            state["delay_line_r"][state["write_pos_r"]] = processed_r
-
-            # Update feedback state
-            state["feedback_l"] = processed_l
-            state["feedback_r"] = processed_r
-
-            # Mix dry/wet
             stereo_mix[i, 0] = input_l * (1.0 - level) + delayed_l * level
             stereo_mix[i, 1] = input_r * (1.0 - level) + delayed_r * level
 
@@ -234,10 +181,6 @@ class DelayVariationProcessor:
     def _process_echo(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Echo effect (XG Variation Type 2).
-        Echo with configurable decay and feedback.
-        """
         time = params.get("parameter1", 0.5) * 1000
         feedback = params.get("parameter2", 0.7)
         level = params.get("parameter3", 0.5)
@@ -251,26 +194,18 @@ class DelayVariationProcessor:
             {
                 "delay_line": np.zeros(self.max_delay_samples, dtype=np.float32),
                 "write_pos": 0,
-                "feedback": 0.0,
             },
         )
 
         for i in range(num_samples):
             input_sample = (stereo_mix[i, 0] + stereo_mix[i, 1]) / 2.0
 
-            # Read from delay line
             read_pos = (state["write_pos"] - delay_samples) % self.max_delay_samples
             delayed_sample = state["delay_line"][int(read_pos)]
 
-            # Apply feedback with decay
-            feedback_sample = state["feedback"] * feedback * decay
-            processed_sample = input_sample + feedback_sample
+            # Write to delay line: input + delayed_tap * feedback * decay
+            state["delay_line"][state["write_pos"]] = input_sample + delayed_sample * feedback * decay
 
-            # Write to delay line
-            state["delay_line"][state["write_pos"]] = processed_sample
-            state["feedback"] = processed_sample
-
-            # Mix dry/wet
             output = input_sample * (1.0 - level) + delayed_sample * level
             stereo_mix[i, 0] = output
             stereo_mix[i, 1] = output
@@ -280,10 +215,6 @@ class DelayVariationProcessor:
     def _process_dual_delay(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Dual Delay effect (XG Variation Type 3).
-        Two independent delay lines.
-        """
         time1 = params.get("parameter1", 0.3) * 1000
         time2 = params.get("parameter2", 0.6) * 1000
         feedback = params.get("parameter3", 0.5)
@@ -301,8 +232,6 @@ class DelayVariationProcessor:
                 "delay_line2": np.zeros(self.max_delay_samples, dtype=np.float32),
                 "write_pos1": 0,
                 "write_pos2": 0,
-                "feedback1": 0.0,
-                "feedback2": 0.0,
             },
         )
 
@@ -316,18 +245,10 @@ class DelayVariationProcessor:
             delayed1 = state["delay_line1"][int(read_pos1)]
             delayed2 = state["delay_line2"][int(read_pos2)]
 
-            # Apply feedback
-            processed1 = input_sample + state["feedback1"] * feedback
-            processed2 = input_sample + state["feedback2"] * feedback
+            # Write to delay lines: input + delayed_tap * feedback
+            state["delay_line1"][state["write_pos1"]] = input_sample + delayed1 * feedback
+            state["delay_line2"][state["write_pos2"]] = input_sample + delayed2 * feedback
 
-            # Write to delay lines
-            state["delay_line1"][state["write_pos1"]] = processed1
-            state["delay_line2"][state["write_pos2"]] = processed2
-
-            state["feedback1"] = processed1
-            state["feedback2"] = processed2
-
-            # Mix dry/wet
             output = input_sample * (1.0 - level) + (delayed1 + delayed2) * level * 0.5
             stereo_mix[i, 0] = output
             stereo_mix[i, 1] = output
@@ -338,10 +259,6 @@ class DelayVariationProcessor:
     def _process_pan_delay(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Pan Delay effect (XG Variation Type 4).
-        Auto-panning delay with LFO modulation.
-        """
         time = params.get("parameter1", 0.3) * 1000
         feedback = params.get("parameter2", 0.5)
         level = params.get("parameter3", 0.5)
@@ -355,7 +272,6 @@ class DelayVariationProcessor:
             {
                 "delay_line": np.zeros(self.max_delay_samples, dtype=np.float32),
                 "write_pos": 0,
-                "feedback": 0.0,
                 "lfo_phase": 0.0,
             },
         )
@@ -363,22 +279,15 @@ class DelayVariationProcessor:
         for i in range(num_samples):
             input_sample = (stereo_mix[i, 0] + stereo_mix[i, 1]) / 2.0
 
-            # Update LFO
             lfo_phase = state["lfo_phase"]
             lfo_phase += 2 * math.pi * rate / self.sample_rate
             pan = math.sin(lfo_phase) * 0.5 + 0.5
 
-            # Read from delay line
             read_pos = (state["write_pos"] - delay_samples) % self.max_delay_samples
             delayed_sample = state["delay_line"][int(read_pos)]
 
-            # Apply feedback
-            feedback_sample = state["feedback"] * feedback
-            processed_sample = input_sample + feedback_sample
-
-            # Write to delay line
-            state["delay_line"][state["write_pos"]] = processed_sample
-            state["feedback"] = processed_sample
+            # Write to delay line: input + delayed_tap * feedback
+            state["delay_line"][state["write_pos"]] = input_sample + delayed_sample * feedback
 
             # Mix dry/wet with panning
             output = input_sample * (1.0 - level) + delayed_sample * level
@@ -394,10 +303,6 @@ class DelayVariationProcessor:
     def _process_cross_delay(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Cross Delay effect (XG Variation Type 5).
-        Cross-feedback delay processing.
-        """
         time = params.get("parameter1", 0.3) * 1000
         feedback = params.get("parameter2", 0.5)
         level = params.get("parameter3", 0.5)
@@ -413,8 +318,6 @@ class DelayVariationProcessor:
                 "right_delay": np.zeros(self.max_delay_samples, dtype=np.float32),
                 "write_pos_l": 0,
                 "write_pos_r": 0,
-                "feedback_l": 0.0,
-                "feedback_r": 0.0,
             },
         )
 
@@ -430,23 +333,18 @@ class DelayVariationProcessor:
             input_l = stereo_mix[i, 0]
             input_r = stereo_mix[i, 1]
 
-            # Apply feedback with cross-feedback
-            feedback_l = state["feedback_l"] * feedback * (1 - cross)
-            feedback_r = state["feedback_r"] * feedback * (1 - cross)
-            cross_l_feedback = state["feedback_r"] * feedback * cross
-            cross_r_feedback = state["feedback_l"] * feedback * cross
+            # Apply feedback with cross-feedback (using delay tap outputs)
+            state["left_delay"][state["write_pos_l"]] = (
+                input_l
+                + delayed_l * feedback * (1.0 - cross)
+                + delayed_r * feedback * cross
+            )
+            state["right_delay"][state["write_pos_r"]] = (
+                input_r
+                + delayed_r * feedback * (1.0 - cross)
+                + delayed_l * feedback * cross
+            )
 
-            processed_l = input_l + feedback_l + cross_l_feedback
-            processed_r = input_r + feedback_r + cross_r_feedback
-
-            # Write to delay lines
-            state["left_delay"][state["write_pos_l"]] = processed_l
-            state["right_delay"][state["write_pos_r"]] = processed_r
-
-            state["feedback_l"] = processed_l
-            state["feedback_r"] = processed_r
-
-            # Mix dry/wet
             stereo_mix[i, 0] = input_l * (1.0 - level) + delayed_l * level
             stereo_mix[i, 1] = input_r * (1.0 - level) + delayed_r * level
 
@@ -456,10 +354,6 @@ class DelayVariationProcessor:
     def _process_multi_tap_delay(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Multi-tap Delay effect (XG Variation Type 6).
-        Multiple simultaneous delay taps.
-        """
         taps = int(params.get("parameter1", 0.5) * 10) + 1
         feedback = params.get("parameter2", 0.5)
         level = params.get("parameter3", 0.5)
@@ -470,7 +364,6 @@ class DelayVariationProcessor:
             {
                 "delay_line": np.zeros(self.max_delay_samples, dtype=np.float32),
                 "write_pos": 0,
-                "feedback": 0.0,
             },
         )
 
@@ -489,15 +382,9 @@ class DelayVariationProcessor:
 
             delayed_sum /= taps
 
-            # Apply feedback
-            feedback_sample = state["feedback"] * feedback
-            processed_sample = input_sample + feedback_sample
+            # Write to delay line: input + average_delayed_tap * feedback
+            state["delay_line"][state["write_pos"]] = input_sample + delayed_sum * feedback
 
-            # Write to delay line
-            state["delay_line"][state["write_pos"]] = processed_sample
-            state["feedback"] = processed_sample
-
-            # Mix dry/wet
             output = input_sample * (1.0 - level) + delayed_sum * level
             stereo_mix[i, 0] = output
             stereo_mix[i, 1] = output
@@ -507,10 +394,6 @@ class DelayVariationProcessor:
     def _process_reverse_delay(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Reverse Delay effect (XG Variation Type 7).
-        Reverse delay effect.
-        """
         time = params.get("parameter1", 0.5) * 1000
         feedback = params.get("parameter2", 0.5)
         level = params.get("parameter3", 0.5)
@@ -525,7 +408,6 @@ class DelayVariationProcessor:
                 "delay_line": np.zeros(self.max_delay_samples, dtype=np.float32),
                 "reverse_buffer": np.zeros(self.max_delay_samples, dtype=np.float32),
                 "write_pos": 0,
-                "feedback": 0.0,
                 "buffer_index": 0,
             },
         )
@@ -533,7 +415,6 @@ class DelayVariationProcessor:
         for i in range(num_samples):
             input_sample = (stereo_mix[i, 0] + stereo_mix[i, 1]) / 2.0
 
-            # Read from delay line
             read_pos = (state["write_pos"] - delay_samples) % self.max_delay_samples
             delayed_sample = state["delay_line"][int(read_pos)]
 
@@ -541,14 +422,10 @@ class DelayVariationProcessor:
             reverse_pos = (state["buffer_index"] + delay_samples) % self.max_delay_samples
             reverse_sample = state["reverse_buffer"][int(reverse_pos)]
 
-            # Apply feedback
-            feedback_sample = state["feedback"] * feedback
-            processed_sample = input_sample + feedback_sample
-
-            # Write to buffers
-            state["delay_line"][state["write_pos"]] = processed_sample
-            state["reverse_buffer"][state["write_pos"]] = processed_sample
-            state["feedback"] = processed_sample
+            # Write to buffers: input + delayed_tap * feedback
+            written = input_sample + delayed_sample * feedback
+            state["delay_line"][state["write_pos"]] = written
+            state["reverse_buffer"][state["write_pos"]] = written
 
             # Mix dry/wet with reverse mixing
             output = (
@@ -565,10 +442,6 @@ class DelayVariationProcessor:
     def _process_tremolo(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Tremolo effect (XG Variation Type 8).
-        Amplitude modulation with multiple waveforms.
-        """
         rate = params.get("parameter1", 0.5) * 10.0
         depth = params.get("parameter2", 0.5)
         waveform = int(params.get("parameter3", 0.5) * 3)
@@ -578,7 +451,6 @@ class DelayVariationProcessor:
         phase_increment = 2 * math.pi * rate / self.sample_rate
 
         for i in range(num_samples):
-            # Update LFO
             state["lfo_phase"] = (state["lfo_phase"] + phase_increment) % (2 * math.pi)
 
             # Get LFO value based on waveform
@@ -601,10 +473,6 @@ class DelayVariationProcessor:
     def _process_auto_pan(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """
-        Process Auto Pan effect (XG Variation Type 9).
-        Stereo panning modulation with multiple waveforms.
-        """
         rate = params.get("parameter1", 0.5) * 5.0
         depth = params.get("parameter2", 0.5)
         waveform = int(params.get("parameter3", 0.5) * 3)
@@ -614,7 +482,6 @@ class DelayVariationProcessor:
         phase_increment = 2 * math.pi * rate / self.sample_rate
 
         for i in range(num_samples):
-            # Update LFO
             state["lfo_phase"] = (state["lfo_phase"] + phase_increment) % (2 * math.pi)
 
             # Get LFO value
@@ -630,21 +497,16 @@ class DelayVariationProcessor:
             # Convert to pan position (-1 to 1)
             pan = lfo_value * depth
 
-            # Calculate left/right gains using equal power panning
-            if pan >= 0:
-                left_gain = math.cos(pan * math.pi / 4)
-                right_gain = 1.0
-            else:
-                left_gain = 1.0
-                right_gain = math.cos(-pan * math.pi / 4)
+            # Normalize pan to 0-1 for equal-power panning
+            pan_norm = (pan + 1.0) * 0.5
+            left_gain = math.cos(pan_norm * math.pi / 2.0)
+            right_gain = math.sin(pan_norm * math.pi / 2.0)
 
-            # Store original samples
+            # Apply panning (no cross-mixing)
             original_l = stereo_mix[i, 0]
             original_r = stereo_mix[i, 1]
-
-            # Apply panning
-            stereo_mix[i, 0] = original_l * left_gain + original_r * (1.0 - right_gain)
-            stereo_mix[i, 1] = original_r * right_gain + original_l * (1.0 - left_gain)
+            stereo_mix[i, 0] = original_l * left_gain
+            stereo_mix[i, 1] = original_r * right_gain
 
     def get_supported_types(self) -> list:
         """Get list of supported effect types."""
@@ -654,3 +516,4 @@ class DelayVariationProcessor:
         """Reset all effect states."""
         with self._lock:
             self._effect_states.clear()
+

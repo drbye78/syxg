@@ -237,7 +237,7 @@ class SpectralRegion(IRegion):
         """
         if not self._partial:
             # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
         try:
             # Apply modulation
@@ -259,7 +259,7 @@ class SpectralRegion(IRegion):
         except Exception as e:
             logger.error(f"Spectral sample generation failed: {e}")
             # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
     def _apply_modulation(self, modulation: dict[str, float]) -> None:
         """

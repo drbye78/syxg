@@ -5,8 +5,6 @@ from __future__ import annotations
 import math
 import threading
 
-import numpy as np
-
 
 class TubeSaturationProcessor:
     """
@@ -42,16 +40,22 @@ class TubeSaturationProcessor:
 
             # Tube transfer function approximation
             # Triode tube model: i = k * (v_g + v_gk)^1.5
+            # Use abs() to avoid NaN from negative fractional power,
+            # then restore sign for asymmetric clipping
+            abs_input = abs(biased_input)
             if biased_input >= 0:
                 # Positive region - soft clipping
-                output_current = 0.1 * (biased_input**1.5)
+                output_current = 0.1 * (abs_input**1.5)
             else:
                 # Negative region - asymmetric behavior
-                output_current = 0.05 * (biased_input**1.5) * 0.7
+                output_current = -0.05 * (abs_input**1.5) * 0.7
 
             # Plate voltage limiting
             output_voltage = output_current * 1000.0  # Load resistor
-            output_voltage = np.clip(output_voltage, -self.plate_voltage, self.plate_voltage)
+            if output_voltage > self.plate_voltage:
+                output_voltage = self.plate_voltage
+            elif output_voltage < -self.plate_voltage:
+                output_voltage = -self.plate_voltage
 
             # Add even harmonics (tube characteristic)
             harmonic_content = 0.1 * math.sin(output_voltage * math.pi * 2)

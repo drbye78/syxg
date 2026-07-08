@@ -856,7 +856,7 @@ class ANEngine(SynthesisEngine):
 
     def process_block(self, block_size: int) -> np.ndarray:
         """Process block of AN synthesis with S90/S70 RP-PR physical modeling"""
-        output = np.zeros(block_size, dtype=np.float32)
+        output = self.get_mono_buffer(block_size)
 
         # Clear string interaction data for this block
         if self.rp_pr_enabled and self.string_body_coupling_enabled:
@@ -874,8 +874,8 @@ class ANEngine(SynthesisEngine):
             frequency = voice_data.get("frequency", 440.0)
 
             # Generate block of samples for this voice
-            voice_output = np.zeros(block_size, dtype=np.float32)
-            string_output = np.zeros(block_size, dtype=np.float32)
+            voice_output = self.get_mono_buffer(block_size)
+            string_output = self.get_mono_buffer(block_size)
 
             for i in range(block_size):
                 # Generate oscillator sample (string simulation)
@@ -1136,15 +1136,14 @@ class ANEngine(SynthesisEngine):
         # Start voice for this note
         voice_id = self.note_on(note, velocity)
         if voice_id == -1:
-            # No free voices, return silence
-            # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            # No free voices, return silence via pooled buffer
+            return self.get_stereo_buffer(block_size)
 
         # Generate audio block
         audio_block = self.process_block(block_size)
 
-        # Convert mono to stereo
-        stereo_block = np.zeros((block_size, 2), dtype=np.float32)
+        # Convert mono to stereo via pooled/scratch buffer
+        stereo_block = self.get_stereo_buffer(block_size)
         stereo_block[:, 0] = audio_block  # Left channel
         stereo_block[:, 1] = audio_block  # Right channel (mono)
 

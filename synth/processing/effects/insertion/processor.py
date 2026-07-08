@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+import math
 import threading
 from typing import Any
 
 import numpy as np
 
 from ..distortion import DynamicEQEnhancer, ProfessionalCompressor, TubeSaturationProcessor
-from ..dsp_core import AdvancedEnvelopeFollower
 from ..pitch_effects import ProductionPitchEffectsProcessor
 from ..spatial_enhanced import EnhancedEarlyReflections
 from .envelope_filter import ProductionEnvelopeFilter
 from .flanger import ProductionFlangerProcessor
 from .phaser import ProductionPhaserProcessor
 from .rotary_speaker import ProfessionalRotarySpeaker
+from .vocoder import CarrierVocoder
 
 
 class ProductionXGInsertionEffectsProcessor:
@@ -68,6 +69,7 @@ class ProductionXGInsertionEffectsProcessor:
             "speed": {"range": (0, 127), "default": 64, "name": "Speed"},
             "depth": {"range": (0, 127), "default": 100, "name": "Depth"},
             "crossover": {"range": (200, 2000), "default": 800, "name": "Crossover"},
+            "dry_wet": {"range": (0, 127), "default": 64, "name": "Dry/Wet"},
         },
         8: {  # Leslie
             "speed": {"range": (0, 127), "default": 50, "name": "Speed"},
@@ -108,13 +110,14 @@ class ProductionXGInsertionEffectsProcessor:
             "rate": {"range": (0.1, 10), "default": 1.0, "name": "Rate"},
             "depth": {"range": (0, 127), "default": 64, "name": "Depth"},
             "feedback": {"range": (-0.9, 0.9), "default": 0.3, "name": "Feedback"},
-            "stages": {"range": (2, 12), "default": 6, "name": "Stages"},
+            "dry_wet": {"range": (0.0, 1.0), "default": 0.5, "name": "Dry/Wet"},
         },
         16: {  # Flanger
             "rate": {"range": (0.05, 5.0), "default": 0.5, "name": "Rate"},
             "depth": {"range": (0, 127), "default": 90, "name": "Depth"},
             "feedback": {"range": (-0.9, 0.9), "default": 0.5, "name": "Feedback"},
             "delay": {"range": (0.1, 10), "default": 2.0, "name": "Delay"},
+            "dry_wet": {"range": (0, 127), "default": 64, "name": "Dry/Wet"},
         },
         17: {  # Wah Wah
             "sensitivity": {"range": (0, 127), "default": 115, "name": "Sensitivity"},
@@ -134,6 +137,7 @@ class ProductionXGInsertionEffectsProcessor:
         self.flanger = ProductionFlangerProcessor(sample_rate, max_delay_samples)
         self.rotary = ProfessionalRotarySpeaker(sample_rate)
         self.envelope_filter = ProductionEnvelopeFilter(sample_rate)
+        self.vocoder = CarrierVocoder(sample_rate)
         self.enhancer = DynamicEQEnhancer(sample_rate, freq=5000.0, peaking=True)
 
         # Pitch effects from variation effects
@@ -141,6 +145,10 @@ class ProductionXGInsertionEffectsProcessor:
 
         # Early reflections for Leslie effect
         self.early_reflections = EnhancedEarlyReflections(sample_rate)
+
+        # Pre-allocated work buffers (avoid allocation in audio path)
+        self._pitch_stereo_buffer: np.ndarray | None = None
+        self._leslie_temp: np.ndarray | None = None
 
         # Current insertion effects configuration
         self.insertion_types: list[int] = [0, 0, 0]  # Effect types for slots 0-2
@@ -231,6 +239,7 @@ class ProductionXGInsertionEffectsProcessor:
         insertion_params: dict[str, Any],
         num_samples: int,
         channel_idx: int,
+        modulation_buffer: np.ndarray | None = None,
     ) -> None:
         """Apply complete insertion effects chain to a channel buffer."""
         with self.lock:
@@ -253,7 +262,12 @@ class ProductionXGInsertionEffectsProcessor:
                 for ch in range(2):
                     channel_samples = target_buffer[:num_samples, ch]
                     self._apply_single_effect_to_samples(
-                        channel_samples, num_samples, effect_type, insertion_params
+                        channel_samples,
+                        num_samples,
+                        effect_type,
+                        insertion_params,
+                        slot,
+                        modulation_buffer,
                     )
 
             # Convert back to mono if input was mono
@@ -265,16 +279,18 @@ class ProductionXGInsertionEffectsProcessor:
                 target_buffer[:num_samples, 1] = mono_output
 
     def _apply_single_effect_to_samples(
-        self, samples: np.ndarray, num_samples: int, effect_type: int, params: dict[str, float]
-    ) -> None:
+        self,
+        samples: np.ndarray,
+        num_samples: int,
+        effect_type: int,
+        params: dict[str, float],
+        slot: int = 0,
+        modulation_buffer: np.ndarray | None = None,
+    ) -> np.ndarray:
         """Apply a single insertion effect to mono samples using XG parameters."""
 
-        # Get XG parameters for this effect slot (find which slot this is for)
-        slot_params = {}
-        for slot in range(3):
-            if self.insertion_types[slot] == effect_type:
-                slot_params = self.slot_parameters[slot]
-                break
+        # Get XG parameters for this effect slot
+        slot_params = self.slot_parameters[slot]
 
         # Route to appropriate processor based on XG insertion type
         if effect_type == 0:  # Distortion
@@ -326,19 +342,32 @@ class ProductionXGInsertionEffectsProcessor:
             self.envelope_filter.freq_range = (frequency * 0.1, frequency * 2.0)
 
             filter_params = {"sensitivity": sensitivity, "resonance": resonance}
-            for i in range(num_samples):
-                samples[i] = self.envelope_filter.process_sample(samples[i], filter_params)
+            self.envelope_filter.process_block(samples[:num_samples], filter_params)
 
         elif effect_type == 5:  # Vocoder
             bandwidth = slot_params.get("bandwidth", 0.5)
             sensitivity = slot_params.get("sensitivity", 80) / 127.0
             dry_wet = slot_params.get("dry_wet", 64) / 127.0
 
-            # Simplified vocoder using envelope filter
-            filter_params = {"sensitivity": sensitivity, "resonance": bandwidth * 5.0}
-            for i in range(num_samples):
-                wet = self.envelope_filter.process_sample(samples[i], filter_params)
-                samples[i] = samples[i] * (1.0 - dry_wet) + wet * dry_wet
+            if modulation_buffer is not None:
+                # Full multiband vocoder with external modulation
+                self.vocoder.set_attack_release(10.0, 50.0 * (1.0 + bandwidth))
+                for i in range(num_samples):
+                    mod = (
+                        modulation_buffer[i]
+                        if modulation_buffer.ndim == 1
+                        else modulation_buffer[i, 0]
+                    )
+                    wet = self.vocoder.process_sample(mod, samples[i])
+                    samples[i] = samples[i] * (1.0 - dry_wet) + wet * dry_wet
+            else:
+                # Same-signal vocoder: multiband spectral shaping
+                self.vocoder.set_attack_release(10.0, 50.0 * (1.0 + bandwidth))
+                for i in range(num_samples):
+                    wet = self.vocoder.process_sample(samples[i], samples[i])
+                    # Scale by sensitivity
+                    mixed = samples[i] * (1.0 - sensitivity * dry_wet) + wet * sensitivity * dry_wet
+                    samples[i] = mixed
 
         elif effect_type == 6:  # Amp Simulator
             drive = slot_params.get("drive", 100) / 127.0
@@ -354,51 +383,59 @@ class ProductionXGInsertionEffectsProcessor:
             speed = slot_params.get("speed", 64) / 127.0
             depth = slot_params.get("depth", 100) / 127.0
             crossover = slot_params.get("crossover", 800)
+            dry_wet = slot_params.get("dry_wet", 64) / 127.0
 
             # Update rotary crossover
             self.rotary.crossover_freq = crossover
 
-            rotary_params = {"speed": speed, "depth": depth}
-            for i in range(num_samples):
-                samples[i] = self.rotary.process_sample(samples[i], rotary_params)
+            rotary_params = {"speed": speed, "depth": depth, "dry_wet": dry_wet}
+            self.rotary.process_block(samples[:num_samples], rotary_params)
 
         elif effect_type == 8:  # Leslie
             speed = slot_params.get("speed", 50) / 127.0
             depth = slot_params.get("depth", 90) / 127.0
             reverb_amount = slot_params.get("reverb", 30) / 127.0
+            dry_wet = slot_params.get("dry_wet", 64) / 127.0
 
-            # Apply rotary first
-            rotary_params = {"speed": speed, "depth": depth}
-            temp_samples = samples.copy()
-            for i in range(num_samples):
-                temp_samples[i] = self.rotary.process_sample(samples[i], rotary_params)
+            if self._leslie_temp is None or len(self._leslie_temp) < num_samples:
+                self._leslie_temp = np.zeros(num_samples, dtype=np.float32)
+            temp = self._leslie_temp[:num_samples]
+
+            rotary_params = {"speed": speed, "depth": depth, "dry_wet": dry_wet}
+            self.rotary.process_block(temp[:num_samples], rotary_params)
 
             # Add reverb
             self.early_reflections.configure_room("studio_light", reverb_amount)
             for i in range(num_samples):
-                temp_samples[i] += self.early_reflections.process_sample(temp_samples[i])
+                temp[i] += self.early_reflections.process_sample(temp[i])
 
-            samples[:] = temp_samples
+            samples[:num_samples] = temp[:num_samples]
 
         elif effect_type == 9:  # Enhancer
             enhance = slot_params.get("enhance", 64) / 127.0
             frequency = slot_params.get("frequency", 5000)
             width = slot_params.get("width", 1.0)
 
-            # Create new enhancer with updated frequency
-            temp_enhancer = DynamicEQEnhancer(self.sample_rate, freq=frequency, peaking=True)
-
+            self.enhancer.center_freq = frequency
             for i in range(num_samples):
-                samples[i] = temp_enhancer.process_sample(samples[i], enhance * width)
+                samples[i] = self.enhancer.process_sample(samples[i], enhance * width)
 
         elif effect_type == 10:  # Auto Wah
             rate = slot_params.get("rate", 2.0)
             depth = slot_params.get("depth", 80) / 127.0
             resonance = slot_params.get("resonance", 3.0)
 
-            # Use envelope filter with LFO modulation (simplified)
-            filter_params = {"sensitivity": depth, "resonance": resonance}
+            # Auto Wah: LFO-driven sensitivity
+            if not hasattr(self, "_autowah_phase"):
+                self._autowah_phase = 0.0
+
             for i in range(num_samples):
+                phase_inc = 2 * math.pi * rate / self.sample_rate
+                self._autowah_phase = (self._autowah_phase + phase_inc) % (2 * math.pi)
+                lfo = (math.sin(self._autowah_phase) + 1.0) * 0.5  # 0 to 1
+
+                # LFO-driven sensitivity
+                filter_params = {"sensitivity": lfo * depth, "resonance": resonance}
                 samples[i] = self.envelope_filter.process_sample(samples[i], filter_params)
 
         elif effect_type == 11:  # Talk Wah
@@ -406,8 +443,22 @@ class ProductionXGInsertionEffectsProcessor:
             resonance = slot_params.get("resonance", 4.0)
             decay = slot_params.get("decay", 0.1)
 
-            filter_params = {"sensitivity": sensitivity, "resonance": resonance}
+            if not hasattr(self, "_talkwah_envelope"):
+                self._talkwah_envelope = 0.0
+
             for i in range(num_samples):
+                # Envelope follower with decay
+                abs_input = abs(samples[i])
+                if abs_input > self._talkwah_envelope:
+                    self._talkwah_envelope = abs_input  # Instant attack
+                else:
+                    self._talkwah_envelope += decay * (abs_input - self._talkwah_envelope)  # Decay
+
+                # Talk wah: formant-like bandpass with envelope-driven frequency
+                # Vowel formants typically around 500-3000 Hz
+                formant_freq = 500.0 + self._talkwah_envelope * sensitivity * 2500.0
+                self.envelope_filter.freq_range = (formant_freq * 0.6, formant_freq * 2.0)
+                filter_params = {"sensitivity": 1.0, "resonance": resonance}
                 samples[i] = self.envelope_filter.process_sample(samples[i], filter_params)
 
         elif effect_type == 12:  # Harmonizer
@@ -421,11 +472,16 @@ class ProductionXGInsertionEffectsProcessor:
                 "parameter2": mix,  # Mix level
                 "parameter3": detune,  # Fine detune
             }
-            self.pitch_processor.process_effect(
-                64, np.column_stack((samples, samples)), num_samples, harmonizer_params
-            )
-            # Extract mono result
-            samples[:] = np.column_stack((samples, samples))[:, 0]
+            if (
+                self._pitch_stereo_buffer is None
+                or self._pitch_stereo_buffer.shape[0] < num_samples
+            ):
+                self._pitch_stereo_buffer = np.zeros((num_samples, 2), dtype=np.float32)
+            buf = self._pitch_stereo_buffer[:num_samples]
+            buf[:, 0] = samples[:num_samples]
+            buf[:, 1] = samples[:num_samples]
+            self.pitch_processor.process_effect(64, buf, num_samples, harmonizer_params)
+            samples[:num_samples] = buf[:, 0]
 
         elif effect_type == 13:  # Octave
             octave = slot_params.get("octave", -1)
@@ -438,10 +494,16 @@ class ProductionXGInsertionEffectsProcessor:
                 "parameter2": mix,
                 "parameter3": dry_wet,
             }
-            self.pitch_processor.process_effect(
-                60, np.column_stack((samples, samples)), num_samples, octave_params
-            )
-            samples[:] = np.column_stack((samples, samples))[:, 0]
+            if (
+                self._pitch_stereo_buffer is None
+                or self._pitch_stereo_buffer.shape[0] < num_samples
+            ):
+                self._pitch_stereo_buffer = np.zeros((num_samples, 2), dtype=np.float32)
+            buf = self._pitch_stereo_buffer[:num_samples]
+            buf[:, 0] = samples[:num_samples]
+            buf[:, 1] = samples[:num_samples]
+            self.pitch_processor.process_effect(60, buf, num_samples, octave_params)
+            samples[:num_samples] = buf[:, 0]
 
         elif effect_type == 14:  # Detune
             detune = slot_params.get("detune", 10)
@@ -450,30 +512,30 @@ class ProductionXGInsertionEffectsProcessor:
 
             # Use pitch processor for detune
             detune_params = {"parameter1": detune, "parameter2": mix, "parameter3": delay}
-            self.pitch_processor.process_effect(
-                65, np.column_stack((samples, samples)), num_samples, detune_params
-            )
-            samples[:] = np.column_stack((samples, samples))[:, 0]
+            if (
+                self._pitch_stereo_buffer is None
+                or self._pitch_stereo_buffer.shape[0] < num_samples
+            ):
+                self._pitch_stereo_buffer = np.zeros((num_samples, 2), dtype=np.float32)
+            buf = self._pitch_stereo_buffer[:num_samples]
+            buf[:, 0] = samples[:num_samples]
+            buf[:, 1] = samples[:num_samples]
+            self.pitch_processor.process_effect(65, buf, num_samples, detune_params)
+            samples[:num_samples] = buf[:, 0]
 
         elif effect_type == 15:  # Phaser
             rate = slot_params.get("rate", 1.0)
             depth = slot_params.get("depth", 64) / 127.0
             feedback = slot_params.get("feedback", 0.3)
-            stages = slot_params.get("stages", 6)
+            dry_wet = slot_params.get("dry_wet", 0.5)
 
-            # Update phaser stages
-            self.phaser.allpass_stages = stages
-            self.phaser.allpass_delays = [
-                int(0.001 * self.sample_rate * (i + 1)) for i in range(stages)
-            ]
-            self.phaser.allpass_states = [
-                {"delay_line": np.zeros(int(0.01 * self.sample_rate)), "write_pos": 0}
-                for _ in range(stages)
-            ]
-
-            phaser_params = {"rate": rate, "depth": depth, "feedback": feedback}
-            for i in range(num_samples):
-                samples[i] = self.phaser.process_sample(samples[i], phaser_params)
+            phaser_params = {
+                "rate": rate,
+                "depth": depth,
+                "feedback": feedback,
+                "dry_wet": dry_wet,
+            }
+            self.phaser.process_block(samples[:num_samples], phaser_params)
 
         elif effect_type == 16:  # Flanger
             rate = slot_params.get("rate", 0.5)
@@ -486,9 +548,17 @@ class ProductionXGInsertionEffectsProcessor:
             self.flanger.min_delay = max(1, delay_samples - 1000)
             self.flanger.max_delay = delay_samples + 1000
 
-            flanger_params = {"rate": rate, "depth": depth, "feedback": feedback}
-            for i in range(num_samples):
-                samples[i] = self.flanger.process_sample(samples[i], flanger_params)
+            dry_wet = slot_params.get("dry_wet", 64) / 127.0
+            hf_damping = slot_params.get("hf_damping", 64) * 0.99 / 127.0
+
+            flanger_params = {
+                "rate": rate,
+                "depth": depth,
+                "feedback": feedback,
+                "dry_wet": dry_wet,
+                "hf_damping": hf_damping,
+            }
+            self.flanger.process_block(samples[:num_samples], flanger_params)
 
         elif effect_type == 17:  # Wah Wah
             sensitivity = slot_params.get("sensitivity", 115) / 127.0
@@ -499,8 +569,9 @@ class ProductionXGInsertionEffectsProcessor:
             self.envelope_filter.freq_range = (frequency * 0.3, frequency * 3.0)
 
             filter_params = {"sensitivity": sensitivity, "resonance": resonance}
-            for i in range(num_samples):
-                samples[i] = self.envelope_filter.process_sample(samples[i], filter_params)
+            self.envelope_filter.process_block(samples[:num_samples], filter_params)
+
+        return samples
 
     def get_supported_types(self) -> list:
         """Get list of supported effect types."""
@@ -509,14 +580,19 @@ class ProductionXGInsertionEffectsProcessor:
     def reset(self) -> None:
         """Reset all effect states."""
         with self.lock:
-            # Reset envelope followers
-            self.envelope_follower.envelope = 0.0
-            self.enhancer.envelope = AdvancedEnvelopeFollower(self.sample_rate)
-
-            # Reset delay lines
-            self.flanger.delay_line.fill(0)
-            self.rotary.horn_delay_line.fill(0)
-            self.rotary.rotor_delay_line.fill(0)
-
-            # Reset pitch processor
+            self.phaser.reset()
+            self.envelope_filter.x1 = self.envelope_filter.x2 = 0.0
+            self.envelope_filter.y1 = self.envelope_filter.y2 = 0.0
+            self.enhancer.x1 = self.enhancer.x2 = 0.0
+            self.enhancer.y1 = self.enhancer.y2 = 0.0
+            self.enhancer.envelope.reset()
+            self.flanger.delay_line.fill(0.0)
+            self.flanger.write_pos = 0
+            self.flanger.fb_lowpass_state = 0.0
+            self.rotary.horn_delay.fill(0.0)
+            self.rotary.rotor_delay.fill(0.0)
+            self.rotary.horn_write = 0
+            self.rotary.rotor_write = 0
+            self.rotary._svf_lp = 0.0
+            self.rotary._svf_bp = 0.0
             self.pitch_processor.reset()

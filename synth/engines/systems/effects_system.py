@@ -188,15 +188,16 @@ class EffectsSystem:
             True if set successfully, False otherwise
         """
         if self.effects_coordinator:
-            # Try to set via XG components first
+            # Try XG protocol layer first, but fall through to coordinator on failure
+            xg_ok = False
             if hasattr(self.synthesizer, "xg_components") and self.synthesizer.xg_components:
-                return self.synthesizer.xg_components.get_component(
+                xg_ok = self.synthesizer.xg_components.get_component(
                     "effects"
                 ).set_system_variation_type(variation_type)
-
+            if xg_ok:
+                return True
             # Fallback to direct coordinator control
-            if hasattr(self.effects_coordinator, "set_variation_type"):
-                return self.effects_coordinator.set_variation_type(variation_type, parameters)
+            return self.effects_coordinator.set_variation_effect_type(variation_type)
 
         return False
 

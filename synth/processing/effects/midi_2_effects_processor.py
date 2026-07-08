@@ -15,8 +15,6 @@ import numpy as np
 
 
 class MIDI2EffectType(IntEnum):
-    """MIDI 2.0 Effect Types with 32-bit parameter support"""
-
     # Standard Effects with Enhanced Resolution
     REVERB_HALL_32BIT = 0x100
     REVERB_ROOM_32BIT = 0x101
@@ -159,12 +157,6 @@ class MIDI2EffectProcessor:
     """
 
     def __init__(self, sample_rate: int = 48000):
-        """
-        Initialize MIDI 2.0 effects processor.
-
-        Args:
-            sample_rate: Audio sample rate in Hz
-        """
         self.sample_rate = sample_rate
         self.enabled = True
         self.bypass = False
@@ -217,16 +209,6 @@ class MIDI2EffectProcessor:
     def create_effect(
         self, effect_type: MIDI2EffectType, effect_id: int | None = None
     ) -> int | None:
-        """
-        Create a new effect instance with MIDI 2.0 capabilities.
-
-        Args:
-            effect_type: Type of effect to create
-            effect_id: Optional specific ID for the effect
-
-        Returns:
-            Effect ID or None if creation failed
-        """
         if effect_id is None:
             effect_id = len(self.effects)
 
@@ -339,7 +321,6 @@ class MIDI2EffectProcessor:
         return None
 
     def _create_specialized_effect(self, effect_type: MIDI2EffectType):
-        """Create specialized effects that don't fit standard categories."""
         if effect_type in [
             MIDI2EffectType.PER_NOTE_REVERB_SEND_32BIT,
             MIDI2EffectType.PER_NOTE_CHORUS_SEND_32BIT,
@@ -375,30 +356,12 @@ class MIDI2EffectProcessor:
             return BasicEffect(self.sample_rate, effect_type=effect_type.name)
 
     def enable_effect(self, effect_id: int) -> bool:
-        """
-        Enable an effect.
-
-        Args:
-            effect_id: ID of effect to enable
-
-        Returns:
-            True if effect was enabled
-        """
         if effect_id in self.effects:
             self.active_effects.add(effect_id)
             return True
         return False
 
     def disable_effect(self, effect_id: int) -> bool:
-        """
-        Disable an effect.
-
-        Args:
-            effect_id: ID of effect to disable
-
-        Returns:
-            True if effect was disabled
-        """
         if effect_id in self.active_effects:
             self.active_effects.remove(effect_id)
             return True
@@ -412,16 +375,6 @@ class MIDI2EffectProcessor:
         resolution_bits: int = 32,
         note: int | None = None,
     ):
-        """
-        Set an effect parameter with specified resolution.
-
-        Args:
-            effect_id: Effect ID
-            param_name: Parameter name
-            value: Parameter value (0.0-1.0 normalized)
-            resolution_bits: Parameter resolution (7, 14, 32, or 64)
-            note: Optional note number for per-note parameters
-        """
         if note is not None:
             # Per-note parameter
             if note not in self.per_note_effect_parameters:
@@ -490,46 +443,15 @@ class MIDI2EffectProcessor:
             return self.effect_parameters.get(effect_id, {}).get(param_name, 0.0)
 
     def set_send_level(self, effect_id: int, level: float):
-        """
-        Set the send level for an effect.
-
-        Args:
-            effect_id: Effect ID
-            level: Send level (0.0-1.0)
-        """
         self.send_levels[effect_id] = max(0.0, min(1.0, level))
 
     def set_return_level(self, effect_id: int, level: float):
-        """
-        Set the return level for an effect.
-
-        Args:
-            effect_id: Effect ID
-            level: Return level (0.0-1.0)
-        """
         self.return_levels[effect_id] = max(0.0, min(1.0, level))
 
     def set_effect_pan(self, effect_id: int, pan: float):
-        """
-        Set the pan position for an effect.
-
-        Args:
-            effect_id: Effect ID
-            pan: Pan position (-1.0 to 1.0, 0.0 = center)
-        """
         self.pan_controls[effect_id] = max(-1.0, min(1.0, pan))
 
     def process_audio(self, audio_input: np.ndarray, note: int | None = None) -> np.ndarray:
-        """
-        Process audio through active effects with MIDI 2.0 parameter resolution.
-
-        Args:
-            audio_input: Input audio as numpy array (samples, channels)
-            note: Optional note number for per-note processing
-
-        Returns:
-            Processed audio as numpy array
-        """
         if not self.enabled or not self.active_effects:
             return audio_input.copy()
 
@@ -562,16 +484,6 @@ class MIDI2EffectProcessor:
         resolution_bits: int = 32,
         note: int | None = None,
     ):
-        """
-        Process MIDI control change for effect parameter control.
-
-        Args:
-            controller: MIDI controller number
-            value: Controller value
-            channel: MIDI channel
-            resolution_bits: Controller resolution
-            note: Optional note number for per-note controllers
-        """
         # Convert controller value to normalized 0.0-1.0 range based on resolution
         if resolution_bits == 7:
             normalized_value = value / 127.0
@@ -602,15 +514,6 @@ class MIDI2EffectProcessor:
         # Add more controller mappings as needed
 
     def get_effect_info(self, effect_id: int) -> dict[str, Any] | None:
-        """
-        Get information about an effect.
-
-        Args:
-            effect_id: Effect ID
-
-        Returns:
-            Dictionary with effect information or None
-        """
         if effect_id in self.effects:
             effect = self.effects[effect_id]
             return {
@@ -628,12 +531,6 @@ class MIDI2EffectProcessor:
         return None
 
     def get_all_effects_info(self) -> list[dict[str, Any]]:
-        """
-        Get information about all effects.
-
-        Returns:
-            List of effect information dictionaries
-        """
         return [
             self.get_effect_info(eid) for eid in self.effects.keys() if self.get_effect_info(eid)
         ]
@@ -655,39 +552,14 @@ class MIDI2EffectProcessor:
         self.per_note_effect_parameters.clear()
 
     def bypass_all_effects(self, bypass: bool = True):
-        """
-        Bypass all effects.
-
-        Args:
-            bypass: True to bypass, False to enable
-        """
         self.bypass = bypass
 
     def get_active_effect_count(self) -> int:
-        """
-        Get the number of active effects.
-
-        Returns:
-            Number of active effects
-        """
         return len(self.active_effects)
 
 
 class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
-    """
-    XG-specific MIDI 2.0 Effects Processor
-
-    Extends the base MIDI 2.0 effects processor with XG-specific effects
-    and parameter mappings that leverage 32-bit resolution.
-    """
-
     def __init__(self, sample_rate: int = 48000):
-        """
-        Initialize XG MIDI 2.0 effects processor.
-
-        Args:
-            sample_rate: Audio sample rate in Hz
-        """
         super().__init__(sample_rate)
 
         # XG-specific effect IDs
@@ -739,14 +611,6 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
             self.enable_effect(self.system_variation_id)
 
     def set_xg_parameter(self, parameter_address: int, value: int, resolution_bits: int = 32):
-        """
-        Set an XG parameter with MIDI 2.0 resolution.
-
-        Args:
-            parameter_address: XG parameter address (as used in NRPN)
-            value: Parameter value
-            resolution_bits: Parameter resolution
-        """
         # Convert to normalized value based on resolution
         if resolution_bits == 7:
             normalized_value = value / 127.0
@@ -778,7 +642,6 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
             self._set_xg_insertion_parameter(parameter_address, normalized_value)
 
     def _set_xg_reverb_parameter(self, address: int, value: float):
-        """Set XG system reverb parameter."""
         # XG reverb parameters mapping
         if address == 0x000000:  # REV TYPE
             self.set_effect_parameter(self.system_reverb_id, "type", value, resolution_bits=32)
@@ -803,7 +666,6 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
         # Add more reverb parameters as needed
 
     def _set_xg_chorus_parameter(self, address: int, value: float):
-        """Set XG system chorus parameter."""
         # XG chorus parameters mapping
         if address == 0x000100:  # CHO TYPE
             self.set_effect_parameter(self.system_chorus_id, "type", value, resolution_bits=32)
@@ -828,7 +690,6 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
         # Add more chorus parameters as needed
 
     def _set_xg_variation_parameter(self, address: int, value: float):
-        """Set XG system variation parameter."""
         # XG variation parameters mapping
         if address == 0x000200:  # VAR TYPE
             self.set_effect_parameter(self.system_variation_id, "type", value, resolution_bits=32)
@@ -840,7 +701,6 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
         # Add more variation parameters as needed
 
     def _set_xg_insertion_parameter(self, address: int, value: float):
-        """Set XG insertion effect parameter."""
         # For now, just store the parameter - insertion effects would be implemented separately
         insertion_effect_id = (address >> 8) & 0xFF  # Extract effect number from address
         parameter_num = address & 0xFF  # Extract parameter number
@@ -850,15 +710,6 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
         pass
 
     def process_xg_sysex(self, data: list[int]) -> bool:
-        """
-        Process XG System Exclusive messages for effects control.
-
-        Args:
-            data: SYSEX data as list of integers
-
-        Returns:
-            True if message was handled
-        """
         # Check if this is an XG SYSEX message (manufacturer ID 0x43 = Yamaha)
         if len(data) < 5 or data[0] != 0x43:  # Yamaha manufacturer ID
             return False
@@ -891,7 +742,6 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
         return False
 
     def _process_xg_bulk_dump(self, data: list[int]) -> bool:
-        """Process XG bulk dump data."""
         # XG bulk dump format: [address_msb, address_lsb, value_msb, value_lsb, ...]
         if len(data) < 4 or len(data) % 4 != 0:
             return False
@@ -913,7 +763,6 @@ class XGMIDI2EffectsProcessor(MIDI2EffectProcessor):
         return True
 
     def _process_xg_data_set(self, data: list[int]) -> bool:
-        """Process XG data set message."""
         # XG data set format: [address_msb, address_lsb, value]
         if len(data) < 3:
             return False
@@ -932,10 +781,5 @@ midi2_effects_processor = XGMIDI2EffectsProcessor()
 
 
 def get_midi2_effects_processor() -> XGMIDI2EffectsProcessor:
-    """
-    Get the global MIDI 2.0 effects processor instance.
-
-    Returns:
-        XGMIDI2EffectsProcessor instance
-    """
     return midi2_effects_processor
+

@@ -71,6 +71,9 @@ class BlockADSREnvelope:
         self.modulated_sustain = sustain
         self.modulated_release = release
 
+        # Lazy-resize work buffer for zero-allocation block processing
+        self._work_buffer: np.ndarray | None = None
+
     def process_block(
         self,
         block_size: int,
@@ -91,7 +94,9 @@ class BlockADSREnvelope:
             NumPy array of envelope values (0.0 to 1.0)
         """
         # Initialize output block
-        envelope_block = np.zeros(block_size, dtype=np.float32)
+        if self._work_buffer is None or len(self._work_buffer) < block_size:
+            self._work_buffer = np.zeros(block_size, dtype=np.float32)
+        envelope_block = self._work_buffer[:block_size]
 
         # Apply parameter modulation
         velocity_factor = min(1.0, (velocity / 127.0) ** self.velocity_sense)

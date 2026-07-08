@@ -25,76 +25,90 @@ class XGSystemChorusProcessor:
 
     def __init__(self, sample_rate: int, max_delay_samples: int = 8192):
         """
-        Initialize XG chorus processor with all 6 XG chorus types.
-
-        Args:
-            sample_rate: Sample rate in Hz
-            max_delay_samples: Maximum delay line length in samples
+        Initialize XG chorus processor with all 18 XG chorus types (0-17).
         """
         self.sample_rate = sample_rate
         self.max_delay_samples = max_delay_samples
 
-        # XG chorus type definitions with default parameters
+        # XG chorus type definitions with default parameters — 18 types (0-17)
         self.chorus_type_presets = {
-            0: {  # Chorus 1
-                "rate": 1.0,
-                "depth": 0.5,
-                "feedback": 0.3,
-                "delay": 0.012,
-                "cross_feedback": 0.0,
-                "lfo_waveform": 0,
-                "phase_diff": 90.0,
+            0: {  # Chorus 1 — standard chorus, moderate modulation
+                "rate": 1.0, "depth": 0.5, "feedback": 0.3, "delay": 0.012,
+                "cross_feedback": 0.0, "lfo_waveform": 0, "phase_diff": 90.0,
             },
-            1: {  # Chorus 2
-                "rate": 0.8,
-                "depth": 0.6,
-                "feedback": 0.4,
-                "delay": 0.015,
-                "cross_feedback": 0.1,
-                "lfo_waveform": 0,
-                "phase_diff": 120.0,
+            1: {  # Chorus 2 — slightly deeper chorus
+                "rate": 0.8, "depth": 0.6, "feedback": 0.4, "delay": 0.015,
+                "cross_feedback": 0.1, "lfo_waveform": 0, "phase_diff": 120.0,
             },
-            2: {  # Celeste 1
-                "rate": 0.5,
-                "depth": 0.7,
-                "feedback": 0.2,
-                "delay": 0.008,
-                "cross_feedback": 0.0,
-                "lfo_waveform": 1,
-                "phase_diff": 180.0,  # Triangle wave
+            2: {  # Chorus 3 — warmer chorus
+                "rate": 0.9, "depth": 0.55, "feedback": 0.35, "delay": 0.014,
+                "cross_feedback": 0.05, "lfo_waveform": 0, "phase_diff": 100.0,
             },
-            3: {  # Celeste 2
-                "rate": 0.3,
-                "depth": 0.8,
-                "feedback": 0.3,
-                "delay": 0.010,
-                "cross_feedback": 0.2,
-                "lfo_waveform": 1,
-                "phase_diff": 150.0,
+            3: {  # Chorus 4 — thicker chorus
+                "rate": 0.7, "depth": 0.65, "feedback": 0.45, "delay": 0.018,
+                "cross_feedback": 0.15, "lfo_waveform": 0, "phase_diff": 135.0,
             },
-            4: {  # Flanger 1
-                "rate": 0.2,
-                "depth": 0.9,
-                "feedback": 0.7,
-                "delay": 0.002,
-                "cross_feedback": 0.0,
-                "lfo_waveform": 0,
-                "phase_diff": 0.0,
+            4: {  # Celeste 1 — gentle, triangle LFO
+                "rate": 0.5, "depth": 0.7, "feedback": 0.2, "delay": 0.008,
+                "cross_feedback": 0.0, "lfo_waveform": 1, "phase_diff": 180.0,
             },
-            5: {  # Flanger 2
-                "rate": 0.15,
-                "depth": 1.0,
-                "feedback": 0.8,
-                "delay": 0.003,
-                "cross_feedback": 0.3,
-                "lfo_waveform": 2,
-                "phase_diff": 45.0,  # Square wave
+            5: {  # Celeste 2 — slower, deeper celeste
+                "rate": 0.3, "depth": 0.8, "feedback": 0.3, "delay": 0.010,
+                "cross_feedback": 0.2, "lfo_waveform": 1, "phase_diff": 150.0,
+            },
+            6: {  # Celeste 3 — very slow celeste
+                "rate": 0.2, "depth": 0.85, "feedback": 0.25, "delay": 0.012,
+                "cross_feedback": 0.1, "lfo_waveform": 1, "phase_diff": 170.0,
+            },
+            7: {  # Celeste 4 — extreme celeste
+                "rate": 0.15, "depth": 0.95, "feedback": 0.35, "delay": 0.014,
+                "cross_feedback": 0.3, "lfo_waveform": 1, "phase_diff": 160.0,
+            },
+            8: {  # Flanger 1 — classic flanger
+                "rate": 0.2, "depth": 0.9, "feedback": 0.7, "delay": 0.002,
+                "cross_feedback": 0.0, "lfo_waveform": 0, "phase_diff": 0.0,
+            },
+            9: {  # Flanger 2 — deeper flanger
+                "rate": 0.15, "depth": 1.0, "feedback": 0.8, "delay": 0.003,
+                "cross_feedback": 0.3, "lfo_waveform": 2, "phase_diff": 45.0,
+            },
+            10: {  # Flanger 3 — jet flanger
+                "rate": 0.25, "depth": 0.95, "feedback": 0.85, "delay": 0.0015,
+                "cross_feedback": 0.2, "lfo_waveform": 0, "phase_diff": 60.0,
+            },
+            11: {  # Flanger 4 — extreme flanger
+                "rate": 0.1, "depth": 1.0, "feedback": 0.9, "delay": 0.001,
+                "cross_feedback": 0.4, "lfo_waveform": 2, "phase_diff": 90.0,
+            },
+            12: {  # Symphonic 1 — wide stereo, rich
+                "rate": 0.6, "depth": 0.6, "feedback": 0.15, "delay": 0.020,
+                "cross_feedback": 0.0, "lfo_waveform": 0, "phase_diff": 180.0,
+            },
+            13: {  # Symphonic 2 — deeper symphonic
+                "rate": 0.4, "depth": 0.75, "feedback": 0.2, "delay": 0.025,
+                "cross_feedback": 0.1, "lfo_waveform": 0, "phase_diff": 180.0,
+            },
+            14: {  # Phaser 1 — classic phaser
+                "rate": 0.3, "depth": 0.5, "feedback": 0.4, "delay": 0.005,
+                "cross_feedback": 0.0, "lfo_waveform": 0, "phase_diff": 90.0,
+            },
+            15: {  # Phaser 2 — deep phaser
+                "rate": 0.2, "depth": 0.7, "feedback": 0.6, "delay": 0.004,
+                "cross_feedback": 0.2, "lfo_waveform": 0, "phase_diff": 120.0,
+            },
+            16: {  # Short Delay 1 — short modulated delay
+                "rate": 0.8, "depth": 0.3, "feedback": 0.2, "delay": 0.030,
+                "cross_feedback": 0.0, "lfo_waveform": 0, "phase_diff": 0.0,
+            },
+            17: {  # Short Delay 2 — longer short delay
+                "rate": 0.5, "depth": 0.4, "feedback": 0.3, "delay": 0.050,
+                "cross_feedback": 0.1, "lfo_waveform": 0, "phase_diff": 0.0,
             },
         }
 
         # XG chorus parameters
         self.params = {
-            "chorus_type": XGChorusType.CHORUS_1.value,  # Type 0-5
+            "chorus_type": XGChorusType.CHORUS_1.value,  # Type 0-17
             "rate": 1.0,  # LFO rate in Hz (0.125-10.0)
             "depth": 0.5,  # Modulation depth (0-1)
             "feedback": 0.3,  # Feedback amount (-0.5 to +0.5)
@@ -114,7 +128,7 @@ class XGSystemChorusProcessor:
         Apply XG chorus type preset parameters.
 
         Args:
-            chorus_type: XG chorus type (0-5)
+            chorus_type: XG chorus type (0-17)
         """
         if chorus_type in self.chorus_type_presets:
             preset = self.chorus_type_presets[chorus_type]
@@ -122,22 +136,32 @@ class XGSystemChorusProcessor:
                 self.params[param] = value
             self.param_updated = True
 
-        # Delay lines for stereo processing
-        self.left_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
-        self.right_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
-        self.left_write_pos = 0
-        self.right_write_pos = 0
+        # Initialize delay lines on first call; zero existing on type change
+        if not hasattr(self, "left_delay_line"):
+            self.left_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
+            self.right_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
+            self.left_write_pos = 0
+            self.right_write_pos = 0
 
-        # LFO state
-        self.lfo_phase = 0.0
-        self.lfo_phase_right = 0.0
+            # LFO state
+            self.lfo_phase = 0.0
+            self.lfo_phase_right = 0.0
 
-        # Thread safety
-        self.lock = threading.RLock()
+            # Thread safety
+            self.lock = threading.RLock()
+
+            # Pre-compute modulation tables for better performance
+            self._lfo_tables = self._generate_lfo_tables()
+        else:
+            # Zero existing delay lines instead of reallocating (avoids audio pop)
+            self.left_delay_line.fill(0.0)
+            self.right_delay_line.fill(0.0)
+            self.left_write_pos = 0
+            self.right_write_pos = 0
+            self.lfo_phase = 0.0
+            self.lfo_phase_right = 0.0
+
         self.param_updated = True
-
-        # Pre-compute modulation tables for better performance
-        self._lfo_tables = self._generate_lfo_tables()
 
     def set_parameter(self, param: str, value: float) -> bool:
         """
@@ -157,7 +181,7 @@ class XGSystemChorusProcessor:
             # Special handling for chorus_type - apply preset
             if param == "chorus_type":
                 chorus_type = int(value)
-                if 0 <= chorus_type <= 5:
+                if 0 <= chorus_type <= 17:
                     self._apply_chorus_type_preset(chorus_type)
                     return True
                 return False
@@ -168,11 +192,11 @@ class XGSystemChorusProcessor:
 
     def set_chorus_type(self, chorus_type: int) -> bool:
         """
-        Set XG chorus type (0-5).
+        Set XG chorus type (0-17).
 
         Args:
-            chorus_type: XG chorus type (0=Chorus 1, 1=Chorus 2, 2=Celeste 1,
-                           3=Celeste 2, 4=Flanger 1, 5=Flanger 2)
+            chorus_type: XG chorus type (0=Chorus1, 4=Celeste1, 8=Flanger1,
+                          12=Symphonic1, 14=Phaser1, 16=ShortDelay1)
 
         Returns:
             True if type was set successfully
@@ -227,10 +251,10 @@ class XGSystemChorusProcessor:
         """Process a block of samples through chorus modulation."""
         rate = self.params["rate"]
         depth = self.params["depth"]
-        feedback = self.params["feedback"] / 127.0 * 0.5  # Scale feedback
+        feedback = self.params["feedback"] * 0.5  # Scale feedback
         level = self.params["level"]
         delay = self.params["delay"]
-        cross_feedback = self.params["cross_feedback"] / 127.0 * 0.5
+        cross_feedback = self.params["cross_feedback"] * 0.5
         lfo_waveform = int(self.params["lfo_waveform"])
         phase_diff_degrees = self.params["phase_diff"]
 
@@ -238,13 +262,14 @@ class XGSystemChorusProcessor:
         base_delay_samples = int(delay * self.sample_rate)
         max_modulation_samples = int(0.012 * self.sample_rate)  # 12ms max modulation
 
+        # Pre-compute block-constant values
+        phase_increment = 2 * np.pi * rate / self.sample_rate
+        phase_diff_rad = phase_diff_degrees * np.pi / 180.0
+
         # Process each sample
         for i in range(num_samples):
             # Update LFO phases
-            phase_increment = 2 * np.pi * rate / self.sample_rate
             self.lfo_phase = (self.lfo_phase + phase_increment) % (2 * np.pi)
-
-            phase_diff_rad = phase_diff_degrees * np.pi / 180.0
             self.lfo_phase_right = (self.lfo_phase + phase_diff_rad) % (2 * np.pi)
 
             # Get LFO values

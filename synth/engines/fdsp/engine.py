@@ -761,16 +761,17 @@ class FDSPSynthesisEngine(SynthesisEngine):
         breath_level = (1.0 - velocity / 127.0) * 0.1  # More breath at lower velocities
         self.fdsp_engine.set_breath_level(breath_level)
 
-        # Generate mono audio block
-        output_samples = np.zeros(block_size, dtype=np.float32)
+        # Use pooled/scratch mono buffer (zero-filled already)
+        output_samples = self.get_mono_buffer(block_size)
 
         for i in range(block_size):
-            # Process one sample (using 0.0 as input for pure synthesis)
             sample = self.fdsp_engine.process_sample(0.0)
             output_samples[i] = sample
 
-        # Convert to stereo
-        stereo_output = np.column_stack((output_samples, output_samples))
+        # Convert to stereo via pooled/scratch buffer
+        stereo_output = self.get_stereo_buffer(block_size)
+        stereo_output[:, 0] = output_samples
+        stereo_output[:, 1] = output_samples
 
         return stereo_output
 
@@ -1031,9 +1032,9 @@ class FDSPSynthesisPartial:
             Mono audio buffer as float32 array
         """
         if not self.is_active:
-            return np.zeros(block_size, dtype=np.float32)
+            return self.get_mono_buffer(block_size)
 
-        output_samples = np.zeros(block_size, dtype=np.float32)
+        output_samples = self.get_mono_buffer(block_size)
 
         for i in range(block_size):
             # Process one sample

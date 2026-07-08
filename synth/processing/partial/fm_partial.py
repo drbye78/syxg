@@ -63,7 +63,7 @@ class FMPartial(SynthesisPartial):
         """
         if not self.active:
             # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
         # Use stored note and velocity for generation
         return self.fm_engine.generate_samples(

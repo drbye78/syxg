@@ -11,8 +11,10 @@ from .flanger import ProductionFlangerProcessor
 from .phaser import ProductionPhaserProcessor
 from .processor import ProductionXGInsertionEffectsProcessor
 from .rotary_speaker import ProfessionalRotarySpeaker
+from .vocoder import CarrierVocoder
 
 __all__ = [
+    "CarrierVocoder",
     "ProductionEnvelopeFilter",
     "ProductionFlangerProcessor",
     "ProductionPhaserProcessor",

@@ -185,7 +185,7 @@ class SF2Region(IRegion):
         "_sf2_instrument",
         "_sf2_preset",
         "_sf2_zone",
-        "_silent_buffer",
+        "_silence_buffer",
         "_soft_pedal",
         "_soft_pedal_depth",
         "_sostenuto_pedal",
@@ -275,7 +275,7 @@ class SF2Region(IRegion):
         self._voice_priority: float = 0.0
 
         # Silent buffer for early return paths (lazy allocated)
-        self._silent_buffer: np.ndarray | None = None
+        self._silence_buffer: np.ndarray | None = None
 
         # Initialize LFO objects (zero-allocation: created once)
         self._mod_lfo = None
@@ -1793,15 +1793,15 @@ class SF2Region(IRegion):
             Stereo audio buffer (block_size, 2) as float32
         """
         # Lazily allocate silent buffer for early return paths (one-time per block size change)
-        if self._silent_buffer is None or self._silent_buffer.shape[0] < block_size:
+        if self._silence_buffer is None or self._silence_buffer.shape[0] < block_size:
             if self._buffer_pool is not None:
-                self._silent_buffer = self._buffer_pool.get_stereo_buffer(block_size)
+                self._silence_buffer = self._buffer_pool.get_stereo_buffer(block_size)
             else:
-                self._silent_buffer = np.zeros((block_size, 2), dtype=np.float32)
+                self._silence_buffer = np.zeros((block_size, 2), dtype=np.float32)
 
         # Handle inactive state
         if not self._active:
-            return self._silent_buffer[:block_size]
+            return self._silence_buffer[:block_size]
 
         # Initialize if needed
         if self._sample_data is None:
@@ -1810,12 +1810,12 @@ class SF2Region(IRegion):
                 self._sample_data = loaded_data
             else:
                 self._active = False
-                return self._silent_buffer[:block_size]
+                return self._silence_buffer[:block_size]
 
         if not self._initialized:
             if not self.initialize():
                 self._active = False
-                return self._silent_buffer[:block_size]
+                return self._silence_buffer[:block_size]
 
         # Update block size if changed
         if block_size != self._current_block_size:

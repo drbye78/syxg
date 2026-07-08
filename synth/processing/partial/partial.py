@@ -314,6 +314,18 @@ class SynthesisPartial(ABC):
         self.params = params.copy()
         self.sample_rate = sample_rate
         self.active = True
+        self._silence_buffer: np.ndarray | None = None
+
+    def _get_silence(self, block_size: int) -> np.ndarray:
+        """Return a reusable zero-filled stereo buffer (avoids hot-path allocation).
+
+        Intended for early-return silence paths in generate_samples().
+        """
+        if self._silence_buffer is None or len(self._silence_buffer) != block_size:
+            self._silence_buffer = np.zeros((block_size, 2), dtype=np.float32)
+        else:
+            self._silence_buffer.fill(0.0)
+        return self._silence_buffer
 
     @abstractmethod
     def generate_samples(self, block_size: int, modulation: dict) -> np.ndarray:

@@ -24,7 +24,6 @@ class XGSystemEffectsProcessor:
         self,
         sample_rate: int,
         block_size: int,
-        dsp_units,
         max_reverb_delay: int,
         max_chorus_delay: int,
     ):
@@ -34,7 +33,6 @@ class XGSystemEffectsProcessor:
         Args:
             sample_rate: Sample rate in Hz
             block_size: Maximum block size for processing
-            dsp_units: DSP units manager (for sharing resources)
             max_reverb_delay: Maximum reverb delay in samples
             max_chorus_delay: Maximum chorus delay in samples
         """

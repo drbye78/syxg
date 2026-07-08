@@ -81,6 +81,9 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
         self.ring_modulation_enabled = True
         self.dynamic_loading_enabled = False
 
+        # Pre-allocated work buffer for morphing (avoids hot-path np.zeros_like)
+        self._morphing_work_buffer: np.ndarray | None = None
+
         # Multi-timbral wavetable system
         self.multi_timbral_enabled = False
         self.wavetable_layers = 4  # Up to 4 simultaneous wavetables
@@ -677,8 +680,11 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
                 )
                 layers.append(layer_data)
 
-        # Mix layers according to allocation
-        result = np.zeros_like(base_wavetable)
+        # Mix layers according to allocation (reuse work buffer to avoid hot-path allocation)
+        if self._morphing_work_buffer is None or len(self._morphing_work_buffer) < len(base_wavetable):
+            self._morphing_work_buffer = np.zeros_like(base_wavetable)
+        result = self._morphing_work_buffer[: len(base_wavetable)]
+        result.fill(0.0)
         for i, layer in enumerate(layers):
             if i < len(self.layer_allocation) and self.layer_allocation[i]:
                 result += layer * (1.0 / len(layers))  # Equal mixing

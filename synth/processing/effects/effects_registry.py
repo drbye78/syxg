@@ -59,8 +59,6 @@ except ImportError as e:
 
 
 class XGEffectCategory(IntEnum):
-    """XG Effect Categories"""
-
     SYSTEM = 0  # System-wide effects (Reverb, Chorus)
     VARIATION = 1  # Variation effects (83 types)
     INSERTION = 2  # Insertion effects (18 types)
@@ -103,7 +101,6 @@ class XGEffectRegistry:
         self._initialize_eq_effects()
 
     def _register_effect(self, effect: XGEffectMetadata) -> None:
-        """Register an effect in the central registry."""
         key = (effect.category, effect.effect_type)
         self._effects[key] = effect
         self._name_to_type[effect.name.lower().replace(" ", "_")] = key
@@ -139,7 +136,7 @@ class XGEffectRegistry:
                 description="Small Room Reverb",
                 has_parameters=True,
             ),
-            # Register XGChorusType effects here as well
+            # XG Chorus types (18 total, 0-17)
             XGEffectMetadata(
                 effect_type=XGChorusType.CHORUS_1.value,
                 category=XGEffectCategory.SYSTEM,
@@ -149,11 +146,139 @@ class XGEffectRegistry:
                 has_parameters=True,
             ),
             XGEffectMetadata(
+                effect_type=XGChorusType.CHORUS_2.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Chorus 2",
+                short_name="Cho2",
+                description="Deeper Chorus",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.CHORUS_3.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Chorus 3",
+                short_name="Cho3",
+                description="Warm Chorus",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.CHORUS_4.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Chorus 4",
+                short_name="Cho4",
+                description="Thick Chorus",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
                 effect_type=XGChorusType.CELESTE_1.value,
                 category=XGEffectCategory.SYSTEM,
                 name="Celeste 1",
                 short_name="Cel1",
-                description="Celeste Modulation",
+                description="Gentle Celeste",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.CELESTE_2.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Celeste 2",
+                short_name="Cel2",
+                description="Deep Celeste",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.CELESTE_3.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Celeste 3",
+                short_name="Cel3",
+                description="Slow Celeste",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.CELESTE_4.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Celeste 4",
+                short_name="Cel4",
+                description="Extreme Celeste",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.FLANGER_1.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Flanger 1",
+                short_name="Fla1",
+                description="Classic Flanger",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.FLANGER_2.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Flanger 2",
+                short_name="Fla2",
+                description="Deep Flanger",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.FLANGER_3.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Flanger 3",
+                short_name="Fla3",
+                description="Jet Flanger",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.FLANGER_4.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Flanger 4",
+                short_name="Fla4",
+                description="Extreme Flanger",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.SYMPHONIC_1.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Symphonic 1",
+                short_name="Sym1",
+                description="Wide Symphonic",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.SYMPHONIC_2.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Symphonic 2",
+                short_name="Sym2",
+                description="Deep Symphonic",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.PHASER_1.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Phaser 1",
+                short_name="Pha1",
+                description="Classic Phaser",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.PHASER_2.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Phaser 2",
+                short_name="Pha2",
+                description="Deep Phaser",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.SHORT_DELAY_1.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Short Delay 1",
+                short_name="Sd1",
+                description="Short Modulated Delay",
+                has_parameters=True,
+            ),
+            XGEffectMetadata(
+                effect_type=XGChorusType.SHORT_DELAY_2.value,
+                category=XGEffectCategory.SYSTEM,
+                name="Short Delay 2",
+                short_name="Sd2",
+                description="Longer Short Delay",
                 has_parameters=True,
             ),
         ]
@@ -192,7 +317,6 @@ class XGEffectRegistry:
             self._register_effect(effect)
 
     def _create_delay_effects(self) -> list[XGEffectMetadata]:
-        """Create all delay-type variation effects (0-9)."""
         return [
             XGEffectMetadata(
                 0,
@@ -257,7 +381,6 @@ class XGEffectRegistry:
         ]
 
     def _create_chorus_effects(self) -> list[XGEffectMetadata]:
-        """Create all chorus-type variation effects (10-31)."""
         return [
             XGEffectMetadata(
                 10,
@@ -418,7 +541,6 @@ class XGEffectRegistry:
         ]
 
     def _create_modulation_effects(self) -> list[XGEffectMetadata]:
-        """Create all modulation variation effects (32-42)."""
         return [
             XGEffectMetadata(
                 32, XGEffectCategory.VARIATION, "Auto Pan", "APAN", "Automatic stereo panning", True
@@ -501,7 +623,6 @@ class XGEffectRegistry:
         ]
 
     def _create_distortion_effects(self) -> list[XGEffectMetadata]:
-        """Create all distortion variation effects (43-52)."""
         return [
             XGEffectMetadata(
                 43, XGEffectCategory.VARIATION, "Overdrive 1", "OVD1", "Light tube overdrive", True
@@ -566,7 +687,6 @@ class XGEffectRegistry:
         ]
 
     def _create_dynamics_effects(self) -> list[XGEffectMetadata]:
-        """Create all dynamics variation effects (53-57)."""
         return [
             XGEffectMetadata(
                 53, XGEffectCategory.VARIATION, "Expander", "EXP", "Dynamic expander", True
@@ -606,7 +726,6 @@ class XGEffectRegistry:
         ]
 
     def _create_enhancer_effects(self) -> list[XGEffectMetadata]:
-        """Create all enhancer variation effects (58-61)."""
         return [
             XGEffectMetadata(
                 58,
@@ -638,7 +757,6 @@ class XGEffectRegistry:
         ]
 
     def _create_vocoder_effects(self) -> list[XGEffectMetadata]:
-        """Create all vocoder variation effects (62-65)."""
         return [
             XGEffectMetadata(
                 62,
@@ -675,7 +793,6 @@ class XGEffectRegistry:
         ]
 
     def _create_pitch_effects(self) -> list[XGEffectMetadata]:
-        """Create all pitch variation effects (66-69)."""
         return [
             XGEffectMetadata(
                 66,
@@ -712,7 +829,6 @@ class XGEffectRegistry:
         ]
 
     def _create_er_effects(self) -> list[XGEffectMetadata]:
-        """Create all early reflection variation effects (70-77)."""
         return [
             XGEffectMetadata(
                 70,
@@ -781,7 +897,6 @@ class XGEffectRegistry:
         ]
 
     def _create_gate_reverb_effects(self) -> list[XGEffectMetadata]:
-        """Create all gate reverb variation effects (78-80)."""
         return [
             XGEffectMetadata(
                 78,
@@ -810,7 +925,6 @@ class XGEffectRegistry:
         ]
 
     def _create_special_effects(self) -> list[XGEffectMetadata]:
-        """Create all special variation effects (81-83)."""
         return [
             XGEffectMetadata(
                 81,
@@ -1087,7 +1201,6 @@ class XGEffectRegistry:
             return [effect for (cat, _), effect in self._effects.items() if cat == category]
 
     def is_valid_effect_type(self, category: XGEffectCategory, effect_type: int) -> bool:
-        """Check if an effect type is valid."""
         with self.lock:
             return (category, effect_type) in self._effects
 
@@ -1097,3 +1210,4 @@ class XGEffectRegistry:
             if category is None:
                 return len(self._effects)
             return sum(1 for (cat, _), _ in self._effects.items() if cat == category)
+

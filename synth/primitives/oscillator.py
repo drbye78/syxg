@@ -157,8 +157,9 @@ def _numba_process_lfo_block_critical_optimized(
         output_temp = saw_values * depth
     elif waveform == WAVEFORM_SAMPLE_AND_HOLD:
         # Sample & Hold: Hold random values for each LFO cycle
+        # Use pre-allocated temp_modulated_depth as work buffer (avoids np.zeros_like allocation)
         # Use phase to determine when to change values (at cycle boundaries)
-        sh_values = np.zeros_like(phase_norm)
+        sh_values = temp_modulated_depth[: len(phase_norm)]
         for i in range(len(phase_norm)):
             # Simple pseudo-random based on phase quantization
             cycle_index = int(phase_norm[i] * 16)  # 16 steps per cycle

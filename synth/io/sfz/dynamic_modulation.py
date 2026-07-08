@@ -237,6 +237,9 @@ class RandomModulation:
         self.smooth_samples = int(sample_rate * 0.05)  # 50ms smoothing
         self.smooth_step = 0.0
 
+        # Lazy-resize work buffer for zero-allocation hot path
+        self._work_buffer: np.ndarray | None = None
+
     def generate(self, block_size: int) -> np.ndarray:
         """
         Generate random modulation values for a block.
@@ -247,7 +250,9 @@ class RandomModulation:
         Returns:
             Array of modulation values (-1.0 to 1.0)
         """
-        output = np.zeros(block_size)
+        if self._work_buffer is None or len(self._work_buffer) < block_size:
+            self._work_buffer = np.zeros(block_size)
+        output = self._work_buffer[:block_size]
 
         for i in range(block_size):
             # Check if we need a new random value
@@ -323,6 +328,9 @@ class NoiseModulation:
         self.filter_state = 0.0
         self.filter_coeff = self._calculate_filter_coeff()
 
+        # Lazy-resize work buffer for zero-allocation hot path
+        self._work_buffer: np.ndarray | None = None
+
     def _calculate_filter_coeff(self) -> float:
         """Calculate filter coefficient from cutoff frequency."""
         if self.filter_cutoff <= 0:
@@ -339,7 +347,9 @@ class NoiseModulation:
         Returns:
             Array of white noise values (-1.0 to 1.0)
         """
-        output = np.zeros(block_size)
+        if self._work_buffer is None or len(self._work_buffer) < block_size:
+            self._work_buffer = np.zeros(block_size)
+        output = self._work_buffer[:block_size]
 
         for i in range(block_size):
             # Get white noise sample
@@ -363,7 +373,9 @@ class NoiseModulation:
         Returns:
             Array of pink noise values (-1.0 to 1.0)
         """
-        output = np.zeros(block_size)
+        if self._work_buffer is None or len(self._work_buffer) < block_size:
+            self._work_buffer = np.zeros(block_size)
+        output = self._work_buffer[:block_size]
 
         for i in range(block_size):
             # Generate white noise
@@ -405,7 +417,9 @@ class NoiseModulation:
         Returns:
             Array of brown noise values (-1.0 to 1.0)
         """
-        output = np.zeros(block_size)
+        if self._work_buffer is None or len(self._work_buffer) < block_size:
+            self._work_buffer = np.zeros(block_size)
+        output = self._work_buffer[:block_size]
 
         for i in range(block_size):
             # Generate small random step

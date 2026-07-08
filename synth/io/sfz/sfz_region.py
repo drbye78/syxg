@@ -44,6 +44,9 @@ class SFZEnvelope:
         # Pre-calculate envelope stages
         self._precalculate_stages()
 
+        # Lazy-resize work buffer for zero-allocation hot path
+        self._work_buffer: np.ndarray | None = None
+
     def _precalculate_stages(self):
         """Pre-calculate envelope stage parameters for efficiency."""
         # Convert times to avoid division by zero
@@ -75,7 +78,9 @@ class SFZEnvelope:
         Returns:
             Envelope modulation values for the block
         """
-        output = np.zeros(block_size, dtype=np.float32)
+        if self._work_buffer is None or len(self._work_buffer) < block_size:
+            self._work_buffer = np.zeros(block_size, dtype=np.float32)
+        output = self._work_buffer[:block_size]
         dt = 1.0 / sample_rate
 
         for i in range(block_size):
@@ -154,6 +159,9 @@ class SFZFilter:
         # Filter state
         self.x1 = self.x2 = self.y1 = self.y2 = 0.0
 
+        # Lazy-resize work buffer for zero-allocation hot path
+        self._work_buffer: np.ndarray | None = None
+
         # Update coefficients
         self._update_coefficients()
 
@@ -193,7 +201,9 @@ class SFZFilter:
         Returns:
             Filtered audio buffer
         """
-        output = np.zeros_like(input_signal)
+        if self._work_buffer is None or len(self._work_buffer) < len(input_signal):
+            self._work_buffer = np.zeros_like(input_signal)
+        output = self._work_buffer[: len(input_signal)]
 
         for i, x0 in enumerate(input_signal):
             # Direct Form I implementation
@@ -273,6 +283,7 @@ class SFZRegion(Region):
         # Runtime state
         self.playback_position = 0
         self.loop_count = 0
+        self._lfo_scratch: np.ndarray | None = None
 
     def _create_lfo(self, lfo_params: dict[str, Any], lfo_id: int) -> UltraFastXGLFO | None:
         """
@@ -323,7 +334,7 @@ class SFZRegion(Region):
             Stereo audio buffer (block_size, 2)
         """
         if not self.sample or not self.is_active():
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
         # Store current modulation for use in sample generation
         self.current_modulation = modulation
@@ -415,9 +426,14 @@ class SFZRegion(Region):
         smooth playback at any pitch ratio.
         """
         if not self.sample:
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
-        output = np.zeros((block_size, 2), dtype=np.float32)
+        if self._buffer_pool is not None:
+            output = self._buffer_pool.get_stereo_buffer(block_size)
+        else:
+            if self._output_buffer is None or self._output_buffer.shape[0] != block_size:
+                self._output_buffer = np.zeros((block_size, 2), dtype=np.float32)
+            output = self._output_buffer
 
         # Calculate pitch ratio
         pitch_ratio = self.get_pitch_ratio(self.current_note)
@@ -559,7 +575,12 @@ class SFZRegion(Region):
 
         # Generate LFO1 modulation
         if self.lfo1:
-            lfo1_buffer = np.zeros(block_size, dtype=np.float32)
+            if self._buffer_pool is not None:
+                lfo1_buffer = self._buffer_pool.get_mono_buffer(block_size)
+            else:
+                if self._lfo_scratch is None or len(self._lfo_scratch) < block_size:
+                    self._lfo_scratch = np.zeros(block_size, dtype=np.float32)
+                lfo1_buffer = self._lfo_scratch[:block_size]
             self.lfo1.generate_block(lfo1_buffer)
 
             # Apply LFO1 modulation based on its parameters
@@ -574,7 +595,12 @@ class SFZRegion(Region):
 
         # Generate LFO2 modulation
         if self.lfo2:
-            lfo2_buffer = np.zeros(block_size, dtype=np.float32)
+            if self._buffer_pool is not None:
+                lfo2_buffer = self._buffer_pool.get_mono_buffer(block_size)
+            else:
+                if self._lfo_scratch is None or len(self._lfo_scratch) < block_size:
+                    self._lfo_scratch = np.zeros(block_size, dtype=np.float32)
+                lfo2_buffer = self._lfo_scratch[:block_size]
             self.lfo2.generate_block(lfo2_buffer)
 
             # Apply LFO2 modulation based on its parameters

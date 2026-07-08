@@ -31,6 +31,7 @@ class WavetableRegion(Region):
         super().__init__(region_params)
         self.wavetable_bank = wavetable_bank
         self.oscillator = WavetableOscillator(44100)  # Default sample rate
+        self._silence_buffer: np.ndarray | None = None
 
         # Configure oscillator
         self._configure_oscillator()
@@ -149,8 +150,9 @@ class WavetableRegion(Region):
             Audio buffer (block_size, channels) - mono or stereo
         """
         if not self.active:
-            # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            if self._silence_buffer is None or len(self._silence_buffer) != block_size:
+                self._silence_buffer = np.zeros((block_size, 2), dtype=np.float32)
+            return self._silence_buffer
 
         # Calculate pitch ratio
         pitch_ratio = self.get_pitch_ratio(self.current_note)

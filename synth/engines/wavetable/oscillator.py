@@ -18,6 +18,7 @@ class WavetableOscillator:
     def __init__(self, sample_rate: int = 44100):
         self.sample_rate = sample_rate
         self.wavetable: Wavetable | None = None
+        self._silence_buffer: np.ndarray | None = None
 
         # Oscillator state
         self.phase = 0.0
@@ -75,15 +76,17 @@ class WavetableOscillator:
             Audio buffer (block_size,)
         """
         if not self.wavetable or not self.active:
-            return np.zeros(block_size, dtype=np.float32)
+            if self._silence_buffer is None or len(self._silence_buffer) != block_size:
+                self._silence_buffer = np.zeros(block_size, dtype=np.float32)
+            return self._silence_buffer
 
         # Calculate phase increment
         base_increment = self.frequency / self.sample_rate
         modulated_freq = self.frequency * (1.0 + self.frequency_mod)
         phase_increment = modulated_freq / self.sample_rate
 
-        # Generate phases
-        phases = np.zeros(block_size)
+        # Generate phases (pre-allocate, avoid zero-init since we fill immediately)
+        phases = np.empty(block_size, dtype=np.float64)
         current_phase = self.phase
 
         for i in range(block_size):

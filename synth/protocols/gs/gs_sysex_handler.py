@@ -36,6 +36,18 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# GS to XG reverb type mapping
+# GS reverb types: 0=Room1, 1=Room2, 2=Room3, 3=Hall1, 4=Hall2, 5=Plate, 6=Delay, 7=Panning Delay
+# XG NRPN reverb types: 0=NoEffect, 1=Hall1, 2=Hall2, 3=Room1, 4=Room2, 5=Room3,
+#                       6=Stage1, 7=Stage2, 8=Plate, 9=WhiteRoom, etc.
+GS_TO_XG_REVERB = {0: 3, 1: 4, 2: 5, 3: 1, 4: 2, 5: 8, 6: 10, 7: 10}
+
+# GS to XG chorus type mapping
+# GS chorus types: 0=Chorus1, 1=Chorus2, 2=Chorus3, 3=Chorus4, 4=Feedback, 5=Flanger
+# XG NRPN chorus types: 0x40=Chorus1, 0x41=Chorus2, 0x42=Chorus3, 0x43=Chorus4,
+#                       0x4A=Flanger1, etc.
+GS_TO_XG_CHORUS = {0: 0x40, 1: 0x41, 2: 0x42, 3: 0x43, 4: 0x40, 5: 0x4A}
+
 
 class GSAddress(IntEnum):
     """GS Address Space"""
@@ -457,10 +469,13 @@ class GSSysexHandler:
                 self.chorus_params[param_name] = value
                 self._notify_param_change("chorus", param_name, value)
 
-                # Forward to effects coordinator
+                # Forward to effects coordinator with GS→XG type mapping
                 if self.effects_coordinator:
+                    forwarded_value = value
+                    if param_name == "type":
+                        forwarded_value = GS_TO_XG_CHORUS.get(value, value)
                     self.effects_coordinator.set_system_effect_parameter(
-                        "chorus", param_name, value
+                        "chorus", param_name, forwarded_value
                     )
 
         elif addr_high == 0x05:
@@ -470,15 +485,22 @@ class GSSysexHandler:
                 self.reverb_params[param_name] = value
                 self._notify_param_change("reverb", param_name, value)
 
-                # Forward to effects coordinator
+                # Forward to effects coordinator with GS→XG type mapping
                 if self.effects_coordinator:
+                    forwarded_value = value
+                    if param_name == "type":
+                        forwarded_value = GS_TO_XG_REVERB.get(value, value)
                     self.effects_coordinator.set_system_effect_parameter(
-                        "reverb", param_name, value
+                        "reverb", param_name, forwarded_value
                     )
 
         elif addr_high == 0x06:
             # Variation (MFX) parameters
             self._notify_param_change("variation", f"param_{param}", value)
+            if self.effects_coordinator:
+                vfx = getattr(self.effects_coordinator, "variation_effects", None)
+                if vfx and hasattr(vfx, "set_parameter"):
+                    vfx.set_parameter(f"param_{param}", value)
 
         return None
 

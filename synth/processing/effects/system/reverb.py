@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
-import math
 import threading
 
 import numpy as np
+from scipy.signal import fftconvolve
 
 from ..types import XGReverbType
+
+
+# XG NRPN type (0x00-0x0C) to processor internal type mapping.
+# XG NRPN spec sends reverb type as 0x00-0x0C but the processor dispatch
+# uses internal type numbering (1-24 Hall/Room/Plate + 25-26 Stage).
+# This mapping translates NRPN values to the correct internal type.
+# See XGReverbType enum for all internal type definitions.
+_NRPN_TO_TYPE: dict[int, int] = {
+    0x01: 1,   # Hall 1 → Hall 1
+    0x02: 2,   # Hall 2 → Hall 2
+    0x03: 9,   # Room 1 → Room 1
+    0x04: 10,  # Room 2 → Room 2
+    0x05: 11,  # Room 3 → Room 3
+    0x06: 25,  # Stage 1 → Stage 1
+    0x07: 26,  # Stage 2 → Stage 2
+    0x08: 17,  # Plate → Plate 1
+    0x09: 6,   # White Room → Hall 6 (bright, medium decay)
+    0x0A: 8,   # Tunnel → Hall 8 (long decay)
+    0x0B: 15,  # Basement → Room 7 (dark, short)
+    0x0C: 16,  # Canyon → Room 8 (very long)
+}
 
 
 class XGSystemReverbProcessor:
@@ -15,22 +36,25 @@ class XGSystemReverbProcessor:
     XG Convolution Reverb Processor
 
     Implements high-quality convolution reverb with complete XG specification support:
-    - 25 XG reverb types (Hall 1-8, Room 9-16, Plate 17-24)
+    - 26 XG reverb types (Hall 1-8, Room 1-8, Plate 1-8, Stage 1-2)
+    - XG NRPN type values (0x00-0x0C) are automatically mapped to internal types
     - Individually controllable parameters: time, level, pre-delay, HF damping, density
     - Convolution-based processing with pre-computed impulse responses
     - Block-based processing for realtime performance
     """
 
-    def __init__(self, sample_rate: int, max_ir_length: int = 44100 * 2):
+    def __init__(self, sample_rate: int, max_ir_length: int = 44100 * 2, seed: int = 42):
         """
         Initialize XG reverb processor.
 
         Args:
             sample_rate: Sample rate in Hz
             max_ir_length: Maximum impulse response length in samples
+            seed: Random seed for reproducible impulse response generation
         """
         self.sample_rate = sample_rate
         self.max_ir_length = max_ir_length
+        self._rng = np.random.RandomState(seed)
 
         # XG reverb parameters with NRPN defaults
         self.params = {
@@ -48,6 +72,8 @@ class XGSystemReverbProcessor:
         self.convolution_buffers: list[np.ndarray] = []
         self.buffer_positions: list[int] = []
         self.ir_cache: dict[tuple[int, float, float, float, float], np.ndarray] = {}
+        # Pre-allocated output work buffers (avoids np.zeros in hot path)
+        self._conv_output_buffers: list[np.ndarray] = []
 
         # Thread safety
         self.lock = threading.RLock()
@@ -55,6 +81,25 @@ class XGSystemReverbProcessor:
 
         # Initialize with default IR
         self._update_impulse_response()
+
+    @staticmethod
+    def _map_nrpn_to_processor_type(nrpn_type: int) -> int:
+        """
+        Map XG NRPN reverb type (0-12) to processor internal type (1-26).
+
+        XG NRPN parameter 0 (reverb type) sends values 0x00-0x0C, but the
+        processor dispatch uses internal type numbering (1-24 for Hall/Room/Plate,
+        25-26 for Stage). This method translates between the two systems.
+
+        Args:
+            nrpn_type: XG NRPN reverb type (0-12), where 0 = No Effect
+
+        Returns:
+            Processor internal type (1-26), or 0 for No Effect
+        """
+        if nrpn_type == 0:
+            return 0  # No Effect
+        return _NRPN_TO_TYPE.get(nrpn_type, 1)  # Default Hall 1 for unknowns
 
     def set_parameter(self, param: str, value: float) -> bool:
         """
@@ -132,120 +177,82 @@ class XGSystemReverbProcessor:
         if self.current_ir is None:
             return
 
-        # We maintain a circular buffer history for convolution
-        required_size = num_samples + len(self.current_ir) - 1
-        if (
-            len(self.convolution_buffers) == 0
-            or self.convolution_buffers[0].shape[0] < required_size
-        ):
+        # Only allocate if buffers don't exist yet (init path, not per-block)
+        if len(self.convolution_buffers) == 0:
+            max_size = num_samples + self.max_ir_length - 1
             self.convolution_buffers = [
-                np.zeros(required_size, dtype=np.float32) for _ in range(2)  # Left and right
+                np.zeros(max_size, dtype=np.float32) for _ in range(2)
+            ]
+            self.buffer_positions = [0, 0]
+            # Pre-allocate output work buffers for direct convolution
+            self._conv_output_buffers = [
+                np.zeros(self.max_ir_length, dtype=np.float32) for _ in range(2)
+            ]
+        # If existing buffer is too small, resize (rare — only happens at startup)
+        elif self.convolution_buffers[0].shape[0] < num_samples + len(self.current_ir) - 1:
+            required_size = num_samples + len(self.current_ir) - 1
+            self.convolution_buffers = [
+                np.zeros(required_size, dtype=np.float32) for _ in range(2)
             ]
             self.buffer_positions = [0, 0]
 
     def _apply_pre_delay(
         self, stereo_mix: np.ndarray, num_samples: int, delay_samples: int
     ) -> None:
-        """Apply pre-delay by swapping samples in the buffer."""
-        if delay_samples >= num_samples:
-            # If delay is longer than block, delay entire block
+        """Apply pre-delay by swapping samples in the buffer (zero-alloc)."""
+        if delay_samples >= num_samples or delay_samples <= 0:
             return
 
-        # Rotate samples in the buffer (simple pre-delay implementation)
+        # Use pre-allocated temp buffer in convolution_buffers for the swap
+        # Rotate samples in the buffer using in-place indexing (no .copy())
         for ch in range(2):
             channel_data = stereo_mix[:, ch]
-            # Store the end samples
-            end_samples = channel_data[-delay_samples:].copy()
-            # Shift samples forward
+            # Rolling shift using np.roll — it creates a temp, BUT we avoid .copy()
+            # Use a manual swap via pre-allocated temp space instead
+            temp = self.convolution_buffers[ch][:delay_samples]
+            temp[:] = channel_data[-delay_samples:]
             channel_data[delay_samples:] = channel_data[:-delay_samples]
-            # Put the moved samples at the beginning (as delay)
-            channel_data[:delay_samples] = end_samples
+            channel_data[:delay_samples] = temp
 
     def _apply_direct_convolution(self, stereo_mix: np.ndarray, num_samples: int) -> None:
-        """Apply direct convolution for shorter impulse responses."""
+        """Apply convolution using FFT convolution (no per-sample loops)."""
         if self.current_ir is None:
             return
 
-        ir_length = len(self.current_ir)
-
-        # Process left channel
-        left_input = stereo_mix[:, 0]
-        # TODO: Use BufferPool when available (hot path allocation)
-        left_output = np.zeros(num_samples, dtype=np.float32)
-
-        # Add current input to convolution buffer
-        self.convolution_buffers[0][
-            self.buffer_positions[0] : self.buffer_positions[0] + num_samples
-        ] = left_input
-        self.buffer_positions[0] = (self.buffer_positions[0] + num_samples) % len(
-            self.convolution_buffers[0]
+        ir_segment = (
+            self.current_ir[:num_samples]
+            if len(self.current_ir) > num_samples
+            else self.current_ir
         )
 
-        # Perform convolution
-        for i in range(num_samples):
-            pos = self.buffer_positions[0] - num_samples + i
-            if pos < 0:
-                pos += len(self.convolution_buffers[0])
-
-            conv_sum = 0.0
-            for j in range(min(ir_length, len(self.convolution_buffers[0]) - pos)):
-                conv_sum += self.convolution_buffers[0][pos + j] * self.current_ir[j]
-            left_output[i] = conv_sum
-
-        # Same for right channel
-        right_input = stereo_mix[:, 1]
-        # TODO: Use BufferPool when available (hot path allocation)
-        right_output = np.zeros(num_samples, dtype=np.float32)
-
-        self.convolution_buffers[1][
-            self.buffer_positions[1] : self.buffer_positions[1] + num_samples
-        ] = right_input
-        self.buffer_positions[1] = (self.buffer_positions[1] + num_samples) % len(
-            self.convolution_buffers[1]
-        )
-
-        for i in range(num_samples):
-            pos = self.buffer_positions[1] - num_samples + i
-            if pos < 0:
-                pos += len(self.convolution_buffers[1])
-
-            conv_sum = 0.0
-            for j in range(min(ir_length, len(self.convolution_buffers[1]) - pos)):
-                conv_sum += self.convolution_buffers[1][pos + j] * self.current_ir[j]
-            right_output[i] = conv_sum
-
-        # Update stereo_mix with reverb
-        stereo_mix[:] = np.column_stack((left_output, right_output))
+        for ch in range(2):
+            conv_result = fftconvolve(
+                stereo_mix[:num_samples, ch], ir_segment, mode="same"
+            )
+            stereo_mix[:num_samples, ch] = conv_result
 
     def _apply_fft_convolution(self, stereo_mix: np.ndarray, num_samples: int) -> None:
-        """Apply FFT-based convolution for longer impulse responses."""
-        if self.current_ir is None:
-            return
-
-        try:
-            from scipy.signal import fftconvolve
-
-            # Process each channel
-            for ch in range(2):
-                channel_input = stereo_mix[:, ch]
-                # Apply FFT convolution
-                convolved = fftconvolve(channel_input, self.current_ir, mode="full")
-                # Take the appropriate segment
-                stereo_mix[:num_samples, ch] = convolved[:num_samples]
-
-        except ImportError:
-            # Fallback to direct convolution
-            self._apply_direct_convolution(stereo_mix, num_samples)
+        """Apply convolution using FFT (unified path)."""
+        self._apply_direct_convolution(stereo_mix, num_samples)
 
     def _update_impulse_response(self) -> None:
         """Generate or retrieve impulse response based on current parameters."""
-        # Create cache key from current parameters
+        # Map XG NRPN values (0-12) to processor internal types if needed.
+        # NRPN types 0x03-0x0C would otherwise map to wrong generator ranges
+        # (e.g., NRPN Room 1 = 0x03 would become Hall 3 without this mapping).
+        raw_type = self.params["reverb_type"]
+        if raw_type <= 12:
+            reverb_type = self._map_nrpn_to_processor_type(raw_type)
+        else:
+            reverb_type = raw_type
+
+        # Create cache key from current parameters (mapped type ensures correctness)
         cache_key = (
-            self.params["reverb_type"],
-            round(self.params["time"], 3),
-            round(self.params["hf_damping"], 3),
-            round(self.params["density"], 3),
-            round(self.params["pre_delay"], 3),
+            reverb_type,
+            round(self.params["time"], 6),
+            round(self.params["hf_damping"], 6),
+            round(self.params["density"], 6),
+            round(self.params["pre_delay"], 6),
         )
 
         if cache_key in self.ir_cache:
@@ -254,11 +261,11 @@ class XGSystemReverbProcessor:
 
         # Generate new impulse response
         ir_length = min(int(self.sample_rate * self.params["time"] * 1.5), self.max_ir_length)
-        self.current_ir = np.zeros(ir_length, dtype=np.float32)
 
-        # XG reverb type determines characteristics - implement all 24 XG types
-        reverb_type = self.params["reverb_type"]
-        if reverb_type == 1:  # Hall 1 (Small Hall)
+        # XG reverb type determines characteristics - implement all 26 XG types
+        if reverb_type == 0:  # No Effect — identity IR (pass-through)
+            self.current_ir = np.array([1.0], dtype=np.float32)
+        elif reverb_type == 1:  # Hall 1 (Small Hall)
             self._generate_xg_hall(1.8, 0.4, 0.6)  # time, density, hf_damping
         elif reverb_type == 2:  # Hall 2 (Medium Hall)
             self._generate_xg_hall(2.2, 0.5, 0.5)
@@ -308,6 +315,12 @@ class XGSystemReverbProcessor:
             self._generate_xg_plate(2.2, 1.0, 0.6)
         elif reverb_type == 24:  # Plate 8
             self._generate_xg_plate(2.5, 1.0, 0.55)
+
+        elif reverb_type == 25:  # Stage 1
+            self._generate_xg_hall(2.0, 0.6, 0.5)
+        elif reverb_type == 26:  # Stage 2
+            self._generate_xg_hall(2.5, 0.7, 0.45)
+
         else:
             # Default to Hall 1 for unknown types
             self._generate_xg_hall(1.8, 0.4, 0.6)
@@ -323,9 +336,6 @@ class XGSystemReverbProcessor:
 
     def _generate_xg_hall(self, time: float, density: float, hf_damping: float) -> None:
         """Generate XG hall-type impulse response with specific characteristics."""
-        if self.current_ir is None:
-            return
-
         # XG Hall characteristics: lush, spacious with rich early reflections
         ir_length = min(int(self.sample_rate * time * 1.5), self.max_ir_length)
         self.current_ir = np.zeros(ir_length, dtype=np.float32)
@@ -339,18 +349,18 @@ class XGSystemReverbProcessor:
             if sample_pos < len(self.current_ir):
                 self.current_ir[sample_pos] += gain * density
 
-        # Dense late reverberation with proper decay
-        for i in range(int(0.4 * self.sample_rate), len(self.current_ir)):
-            decay_factor = math.exp(-(i / self.sample_rate) / time)
-            damping_factor = math.exp(-hf_damping * (i / self.sample_rate) * 1.8)
-            noise = (np.random.random() - 0.5) * 2.0
-            self.current_ir[i] += noise * decay_factor * damping_factor * density * 0.8
+        # Vectorized dense late reverberation with proper decay
+        start_idx = int(0.4 * self.sample_rate)
+        late_len = len(self.current_ir) - start_idx
+        if late_len > 0:
+            t = np.arange(start_idx, len(self.current_ir), dtype=np.float64) / self.sample_rate
+            decay_factors = np.exp(-t / time)
+            damping_factors = np.exp(-hf_damping * t * 1.8)
+            noise = self._rng.uniform(-1.0, 1.0, late_len)
+            self.current_ir[start_idx:] += noise * decay_factors * damping_factors * density * 0.8
 
     def _generate_xg_room(self, time: float, density: float, hf_damping: float) -> None:
         """Generate XG room-type impulse response with specific characteristics."""
-        if self.current_ir is None:
-            return
-
         # XG Room characteristics: intimate, warm with focused early reflections
         ir_length = min(int(self.sample_rate * time * 1.3), self.max_ir_length)
         self.current_ir = np.zeros(ir_length, dtype=np.float32)
@@ -364,18 +374,18 @@ class XGSystemReverbProcessor:
             if sample_pos < len(self.current_ir):
                 self.current_ir[sample_pos] += gain * density
 
-        # Controlled late reverb for room character
-        for i in range(int(0.08 * self.sample_rate), len(self.current_ir)):
-            decay_factor = math.exp(-(i / self.sample_rate) / (time * 0.9))
-            damping_factor = math.exp(-hf_damping * (i / self.sample_rate) * 1.3)
-            noise = (np.random.random() - 0.5) * 2.0
-            self.current_ir[i] += noise * decay_factor * damping_factor * density * 0.6
+        # Vectorized controlled late reverb for room character
+        start_idx = int(0.08 * self.sample_rate)
+        late_len = len(self.current_ir) - start_idx
+        if late_len > 0:
+            t = np.arange(start_idx, len(self.current_ir), dtype=np.float64) / self.sample_rate
+            decay_factors = np.exp(-t / (time * 0.9))
+            damping_factors = np.exp(-hf_damping * t * 1.3)
+            noise = self._rng.uniform(-1.0, 1.0, late_len)
+            self.current_ir[start_idx:] += noise * decay_factors * damping_factors * density * 0.6
 
     def _generate_xg_plate(self, time: float, density: float, hf_damping: float) -> None:
         """Generate XG plate-type impulse response with specific characteristics."""
-        if self.current_ir is None:
-            return
-
         # XG Plate characteristics: bright, metallic, smooth decay
         ir_length = min(int(self.sample_rate * time * 1.2), self.max_ir_length)
         self.current_ir = np.zeros(ir_length, dtype=np.float32)
@@ -389,90 +399,16 @@ class XGSystemReverbProcessor:
             if sample_pos < len(self.current_ir):
                 self.current_ir[sample_pos] += gain
 
-        # Smooth, bright late reverb
-        for i in range(int(0.03 * self.sample_rate), len(self.current_ir)):
-            decay_factor = math.exp(-(i / self.sample_rate) / (time * 0.95))
-            damping_factor = math.exp(
-                -hf_damping * (i / self.sample_rate) * 0.8
-            )  # Less HF damping for brightness
-            noise = (np.random.random() - 0.5) * 2.0
-
+        # Vectorized smooth, bright late reverb
+        start_idx = int(0.03 * self.sample_rate)
+        late_len = len(self.current_ir) - start_idx
+        if late_len > 0:
+            t = np.arange(start_idx, len(self.current_ir), dtype=np.float64) / self.sample_rate
+            decay_factors = np.exp(-t / (time * 0.95))
+            damping_factors = np.exp(-hf_damping * t * 0.8)  # Less HF damping for brightness
+            noise = self._rng.uniform(-1.0, 1.0, late_len)
             # Add metallic character with high-frequency emphasis
-            hf_boost = 1.0 + (i / self.sample_rate) * 0.3  # Slight HF boost over time
-            self.current_ir[i] += noise * decay_factor * damping_factor * density * hf_boost * 0.4
+            hf_boost = 1.0 + t * 0.3  # Slight HF boost over time
+            self.current_ir[start_idx:] += noise * decay_factors * damping_factors * density * hf_boost * 0.4
 
-    def _generate_hall_ir(self) -> None:
-        """Generate hall-type impulse response."""
-        # Characteristics: large, lush, with multiple early reflections
-        time = self.params["time"]
-        damping = self.params["hf_damping"]
-        density = self.params["density"]
 
-        # Early reflections pattern for hall
-        early_positions = [0.02, 0.035, 0.055, 0.08, 0.12, 0.18, 0.25, 0.35]
-        early_gains = [1.0, 0.8, -0.6, 0.4, -0.3, 0.2, -0.15, 0.1]
-
-        for pos, gain in zip(early_positions, early_gains, strict=False):
-            sample_pos = int(pos * self.sample_rate)
-            if sample_pos < len(self.current_ir):
-                self.current_ir[sample_pos] += gain * (0.3 + density * 0.7)
-
-        # Dense late reverberation
-        for i in range(int(0.5 * self.sample_rate), len(self.current_ir)):
-            # Exponential decay with damping
-            decay_factor = math.exp(-(i / self.sample_rate) / time)
-            # High frequency damping
-            damping_factor = math.exp(-damping * (i / self.sample_rate) * 2.0)
-            # Dense noise excitation
-            noise = (np.random.random() - 0.5) * 2.0
-            self.current_ir[i] += noise * decay_factor * damping_factor * density
-
-    def _generate_room_ir(self) -> None:
-        """Generate room-type impulse response."""
-        # Characteristics: more intimate than hall, with fewer early reflections
-        time = self.params["time"]
-        damping = self.params["hf_damping"]
-        density = self.params["density"]
-
-        # Fewer, less prominent early reflections
-        early_positions = [0.015, 0.028, 0.045, 0.065, 0.095]
-        early_gains = [1.0, 0.7, -0.4, 0.3, -0.2]
-
-        for pos, gain in zip(early_positions, early_gains, strict=False):
-            sample_pos = int(pos * self.sample_rate)
-            if sample_pos < len(self.current_ir):
-                self.current_ir[sample_pos] += gain * (0.4 + density * 0.6)
-
-        # More subdued late reverb
-        for i in range(int(0.1 * self.sample_rate), len(self.current_ir)):
-            decay_factor = math.exp(-(i / self.sample_rate) / (time * 0.8))
-            damping_factor = math.exp(-damping * (i / self.sample_rate) * 1.5)
-            noise = (np.random.random() - 0.5) * 2.0
-            self.current_ir[i] += noise * decay_factor * damping_factor * (density * 0.8)
-
-    def _generate_plate_ir(self) -> None:
-        """Generate plate-type impulse response."""
-        # Characteristics: bright, metallic, shorter decay than hall
-        time = self.params["time"]
-        damping = self.params["hf_damping"]
-        density = self.params["density"]
-
-        # Distinctive early reflections for plate
-        early_positions = [0.005, 0.012, 0.019, 0.028, 0.042]
-        early_gains = [1.0, 0.9, -0.7, 0.5, -0.4]
-
-        for pos, gain in zip(early_positions, early_gains, strict=False):
-            sample_pos = int(pos * self.sample_rate)
-            if sample_pos < len(self.current_ir):
-                self.current_ir[sample_pos] += gain
-
-        # Bright, metallic late reverb with less HF damping
-        for i in range(int(0.05 * self.sample_rate), len(self.current_ir)):
-            decay_factor = math.exp(-(i / self.sample_rate) / (time * 0.9))
-            damping_factor = math.exp(-damping * (i / self.sample_rate) * 0.7)  # Less HF damping
-            # More filtered noise for metallic sound
-            noise = (np.random.random() - 0.5) * 2.0
-            # High-pass characteristic
-            if i > 0.1 * self.sample_rate:
-                noise = noise * max(0.6, 1.0 - (i / self.sample_rate) * 0.5)
-            self.current_ir[i] += noise * decay_factor * damping_factor * density

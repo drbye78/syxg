@@ -46,7 +46,6 @@ class VocoderCombFilterProcessor:
         self.lock = threading.RLock()
 
     def _setup_comb_filters(self):
-        """Set up comb filters for vocoder effect."""
         # Fundamental frequencies for vocal formants
         formant_freqs = [600, 1000, 2400, 3200]  # Hz
 
@@ -60,7 +59,6 @@ class VocoderCombFilterProcessor:
             self.feedback_gains.append(0.7)  # Moderate feedback
 
     def process_sample(self, input_sample: float, params: dict[str, float]) -> float:
-        """Process sample through comb filter vocoder."""
         with self.lock:
             frequency = params.get("parameter1", 0.5) * 1000.0  # 0-1000 Hz
             resonance = params.get("parameter2", 0.5) * 0.9 + 0.1
@@ -108,7 +106,6 @@ class VocoderPhaserProcessor:
         self.lock = threading.RLock()
 
     def _setup_allpass_filters(self):
-        """Set up all-pass filters for vocoder phaser."""
         # Create 6-stage all-pass filter network
         for i in range(6):
             self.allpass_filters.append(
@@ -121,7 +118,6 @@ class VocoderPhaserProcessor:
             )
 
     def process_sample(self, input_sample: float, params: dict[str, float]) -> float:
-        """Process sample through phaser vocoder."""
         with self.lock:
             frequency = params.get("parameter1", 0.5) * 1000.0
             depth = params.get("parameter2", 0.8)
@@ -178,13 +174,11 @@ class PhaseVocoderPitchShifter:
         self.lock = threading.RLock()
 
     def set_pitch_ratio(self, ratio: float):
-        """Set pitch shifting ratio."""
         with self.lock:
             self.left_vocoder.set_pitch_ratio(ratio)
             self.right_vocoder.set_pitch_ratio(ratio)
 
     def process_stereo_sample(self, left_sample: float, right_sample: float) -> tuple[float, float]:
-        """Process stereo sample through phase vocoder."""
         with self.lock:
             left_out = self.left_vocoder.process_sample(left_sample)
             right_out = self.right_vocoder.process_sample(right_sample)
@@ -215,7 +209,6 @@ class MultibandVocoder:
         self.lock = threading.RLock()
 
     def _calculate_carrier_frequencies(self) -> np.ndarray:
-        """Calculate carrier frequencies for each band."""
         # Carrier frequencies follow filter bank crossover points
         crossovers = self.filter_bank.crossover_freqs
         carriers = []
@@ -234,7 +227,6 @@ class MultibandVocoder:
         return np.array(carriers)
 
     def process_sample(self, modulator: float, carrier: float) -> float:
-        """Process vocoder sample."""
         with self.lock:
             # Split modulator into frequency bands
             mod_bands = self.filter_bank.process_sample(modulator)
@@ -292,7 +284,6 @@ class ProductionPitchEffectsProcessor:
         self.lock = threading.RLock()
 
     def _setup_harmonizer(self):
-        """Set up harmonizer voices."""
         # Create multiple pitch shifters for harmonizer effect
         self.harmonizer_voices = [PhaseVocoderPitchShifter(self.sample_rate) for _ in range(3)]
 
@@ -302,7 +293,6 @@ class ProductionPitchEffectsProcessor:
         self.harmonizer_voices[2].set_pitch_ratio(0.8)  # Fifth down
 
     def _setup_detune(self):
-        """Set up detune voices."""
         self.detune_voices = [PhaseVocoderPitchShifter(self.sample_rate) for _ in range(3)]
 
         # Small detuning amounts
@@ -313,7 +303,6 @@ class ProductionPitchEffectsProcessor:
     def process_effect(
         self, effect_type: int, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """Process pitch effect."""
         with self.lock:
             if effect_type == 58:
                 self._process_vocoder_comb(stereo_mix, num_samples, params)
@@ -339,7 +328,6 @@ class ProductionPitchEffectsProcessor:
     def _process_vocoder_comb(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """Process Vocoder Comb Filter effect."""
         for i in range(num_samples):
             # Use left channel as modulator, right as carrier
             modulator = stereo_mix[i, 0]
@@ -356,7 +344,6 @@ class ProductionPitchEffectsProcessor:
     def _process_vocoder_phaser(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """Process Vocoder Phaser effect."""
         for i in range(num_samples):
             modulator = stereo_mix[i, 0]
             carrier = stereo_mix[i, 1]
@@ -370,7 +357,6 @@ class ProductionPitchEffectsProcessor:
     def _process_pitch_shift(
         self, ratio: float, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """Process pitch shift effect using phase vocoder."""
         self.pitch_shifter.set_pitch_ratio(ratio)
 
         mix = params.get("parameter3", 0.5)
@@ -380,14 +366,12 @@ class ProductionPitchEffectsProcessor:
             left_in, right_in = stereo_mix[i, 0], stereo_mix[i, 1]
             left_out, right_out = self.pitch_shifter.process_stereo_sample(left_in, right_in)
 
-            # Mix dry/wet
             stereo_mix[i, 0] = left_in * (1 - mix) + left_out * mix * level
             stereo_mix[i, 1] = right_in * (1 - mix) + right_out * mix * level
 
     def _process_harmonizer(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """Process harmonizer effect with multiple voices."""
         mix = params.get("parameter4", 0.5)
 
         for i in range(num_samples):
@@ -409,7 +393,6 @@ class ProductionPitchEffectsProcessor:
     def _process_detune(
         self, stereo_mix: np.ndarray, num_samples: int, params: dict[str, float]
     ) -> None:
-        """Process detune effect for chorus-like sound."""
         mix = params.get("parameter3", 0.5)
         level = params.get("parameter4", 0.5)
 
@@ -445,3 +428,4 @@ class ProductionPitchEffectsProcessor:
             for voice in self.detune_voices:
                 voice.left_vocoder.reset()
                 voice.right_vocoder.reset()
+

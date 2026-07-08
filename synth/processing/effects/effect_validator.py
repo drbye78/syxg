@@ -49,8 +49,6 @@ except ImportError:
 
 
 class XGValidationResult(IntEnum):
-    """XG Effect Validation Results"""
-
     PASS = 0
     WARNING = 1
     FAIL = 2
@@ -82,13 +80,6 @@ class XGValidationSuite:
     """
 
     def __init__(self, sample_rate: int = 44100, block_size: int = 1024):
-        """
-        Initialize validation suite.
-
-        Args:
-            sample_rate: Sample rate for testing
-            block_size: Block size for processing tests
-        """
         self.sample_rate = sample_rate
         self.block_size = block_size
 
@@ -118,15 +109,6 @@ class XGValidationSuite:
         self.lock = threading.RLock()
 
     def run_full_validation(self, verbose: bool = True) -> dict[str, Any]:
-        """
-        Run complete validation suite for all XG effects.
-
-        Args:
-            verbose: Enable detailed progress output
-
-        Returns:
-            Comprehensive validation report
-        """
         with self.lock:
             start_time = time.time()
             self.test_results.clear()
@@ -153,7 +135,6 @@ class XGValidationSuite:
             return self.generate_validation_report()
 
     def _validate_system_effects(self, verbose: bool) -> None:
-        """Validate all system effects (reverb, chorus)."""
         if verbose:
             logger.info("\nTesting System Effects...")
 
@@ -169,7 +150,6 @@ class XGValidationSuite:
             self.test_results[(category, effect_type)] = result
 
     def _validate_variation_effects(self, verbose: bool) -> None:
-        """Validate all 83 variation effects."""
         if verbose:
             logger.info("\nTesting Variation Effects...")
 
@@ -228,7 +208,6 @@ class XGValidationSuite:
                 logger.info(f"  Variation effects: {effect_type}/116 tested")
 
     def _validate_insertion_effects(self, verbose: bool) -> None:
-        """Validate all 18 insertion effects."""
         if verbose:
             logger.info("\nTesting Insertion Effects...")
 
@@ -241,7 +220,6 @@ class XGValidationSuite:
             self.test_results[(category, effect_type)] = result
 
     def _validate_eq_effects(self, verbose: bool) -> None:
-        """Validate all 10 EQ curve types."""
         if verbose:
             logger.info("\nTesting EQ Effects...")
 
@@ -334,7 +312,6 @@ class XGValidationSuite:
         return test
 
     def _create_effect_instance(self, category: XGEffectCategory, effect_type: int) -> Any | None:
-        """Create an effect instance for testing."""
         try:
             if category == XGEffectCategory.VARIATION:
                 return self.factory.create_variation_effect(effect_type)
@@ -481,7 +458,6 @@ class XGValidationSuite:
             return 0.0
 
     def _calculate_final_statistics(self) -> None:
-        """Calculate final suite statistics."""
         for test in self.test_results.values():
             self.suite_stats["total_tests"] += 1
 
@@ -497,12 +473,6 @@ class XGValidationSuite:
                 self.suite_stats["performance_fails"] += 1
 
     def generate_validation_report(self) -> dict[str, Any]:
-        """
-        Generate comprehensive validation report.
-
-        Returns:
-            Detailed validation report with all test results
-        """
         with self.lock:
             compliance_percent = (
                 self.suite_stats["passed_tests"] / max(self.suite_stats["total_tests"], 1)
@@ -540,7 +510,6 @@ class XGValidationSuite:
             }
 
     def _generate_category_breakdown(self) -> dict[str, dict[str, int]]:
-        """Generate results breakdown by category."""
         breakdown = {}
 
         for category in XGEffectCategory:
@@ -568,7 +537,6 @@ class XGValidationSuite:
         return breakdown
 
     def _generate_recommendations(self, compliance_percent: float) -> list[str]:
-        """Generate implementation recommendations."""
         recommendations = []
 
         if compliance_percent < 50.0:
@@ -617,15 +585,6 @@ class XGComplianceCertifier:
         }
 
     def certify_implementation(self, validation_report: dict[str, Any]) -> dict[str, Any]:
-        """
-        Certify XG effects implementation.
-
-        Args:
-            validation_report: Complete validation report
-
-        Returns:
-            Certification results
-        """
         compliance = validation_report["suite_info"]["xg_compliance_percent"]
 
         cert_level = None
@@ -676,12 +635,6 @@ def validate_xg_effects_implementation(
 
 
 def print_validation_summary(report: dict[str, Any]) -> None:
-    """
-    Print formatted validation summary.
-
-    Args:
-        report: Validation report
-    """
     logger.info("\n" + "=" * 50)
     logger.info("XG EFFECTS VALIDATION SUMMARY")
     logger.info("=" * 50)
@@ -711,3 +664,4 @@ def print_validation_summary(report: dict[str, Any]) -> None:
             logger.info(f"  • {rec}")
 
     logger.info("=" * 50)
+

@@ -467,9 +467,8 @@ class AdditiveEngine(SynthesisEngine):
         # Update spectral morphing
         self.update_spectral_morphing(1.0 / self.sample_rate)
 
-        # Generate samples
-        left_output = np.zeros(block_size, dtype=np.float32)
-        right_output = np.zeros(block_size, dtype=np.float32)
+        # Use pooled/scratch stereo buffer (zero-filled already)
+        stereo_output = self.get_stereo_buffer(block_size)
 
         for i in range(block_size):
             # Update envelopes for active partials
@@ -484,31 +483,23 @@ class AdditiveEngine(SynthesisEngine):
 
             for partial_idx, partial in enumerate(self.partials):
                 if partial.amplitude > 0.0 and partial.is_active():
-                    # Generate partial sample
                     sample = partial.generate_sample(base_freq)
 
-                    # Apply stereo spread based on partial index
                     if self.spread > 0.0:
-                        # Higher partials are panned wider
                         pan_factor = (partial_idx / max(1, len(self.partials) - 1)) * self.spread
                         left_gain = 1.0 - pan_factor * 0.5
                         right_gain = 1.0 + pan_factor * 0.5
                         left_sample += sample * left_gain
                         right_sample += sample * right_gain
                     else:
-                        # Mono
                         left_sample += sample
                         right_sample += sample
 
-            # Apply master volume and velocity
             velocity_scale = velocity / 127.0
             master_scale = self.master_volume * velocity_scale
 
-            left_output[i] = left_sample * master_scale
-            right_output[i] = right_sample * master_scale
-
-        # Combine into stereo buffer
-        stereo_output = np.column_stack((left_output, right_output))
+            stereo_output[i, 0] = left_sample * master_scale
+            stereo_output[i, 1] = right_sample * master_scale
 
         return stereo_output
 

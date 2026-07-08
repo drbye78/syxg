@@ -14,7 +14,9 @@ Features:
 
 Current modules:
 - delay_variations.py: Delay effects (types 0-9)
-- [Future]: chorus_modulation.py, distortion_dynamics.py, special_variations.py
+- chorus_modulation.py: Chorus/Modulation effects (types 10-31)
+- distortion/processor.py: Distortion/Dynamics effects (types 32-56)
+- special_variations.py: Special/Spatial effects (types 57-83)
 """
 
 from __future__ import annotations
@@ -71,10 +73,13 @@ class XGVariationEffectsProcessor:
         # Thread safety
         self.lock = threading.RLock()
 
-    def set_variation_type(self, variation_type: XGVariationType) -> None:
+    def set_variation_type(self, variation_type: int | XGVariationType) -> None:
         """Set the current variation effect type."""
         with self.lock:
-            self.current_variation_type = variation_type.value
+            if isinstance(variation_type, XGVariationType):
+                self.current_variation_type = variation_type.value
+            else:
+                self.current_variation_type = int(variation_type)
 
     def set_parameter(self, param: str, value: float) -> bool:
         """
@@ -105,24 +110,21 @@ class XGVariationEffectsProcessor:
                 self.delay_processor.process_effect(
                     effect_type, stereo_mix, num_samples, self._effect_states
                 )
-            elif 10 <= effect_type <= 26:
-                # Chorus/Modulation effects (10-26) - route to chorus processor (PRODUCTION-READY)
-                if self.chorus_processor:
-                    self.chorus_processor.process_effect(
-                        effect_type, stereo_mix, num_samples, self._effect_states
-                    )
-            elif 27 <= effect_type <= 57:
-                # Distortion/Dynamics effects (27-57) - route to distortion processor (production-ready)
-                if self.distortion_processor:
-                    self.distortion_processor.process_effect(
-                        effect_type, stereo_mix, num_samples, self._effect_states
-                    )
-            elif 58 <= effect_type <= 83:
-                # Special/Spatial effects (58-83) - route to special processor (production-ready)
-                if self.special_processor:
-                    self.special_processor.process_effect(
-                        effect_type, stereo_mix, num_samples, self._effect_states
-                    )
+            elif 10 <= effect_type <= 31:
+                # Chorus/Modulation effects (10-31)
+                self.chorus_processor.process_effect(
+                    effect_type, stereo_mix, num_samples, self._effect_states
+                )
+            elif 32 <= effect_type <= 56:
+                # Distortion/Dynamics effects (32-56)
+                self.distortion_processor.process_effect(
+                    effect_type, stereo_mix, num_samples, self._effect_states
+                )
+            elif 57 <= effect_type <= 83:
+                # Special/Spatial effects (57-83)
+                self.special_processor.process_effect(
+                    effect_type, stereo_mix, num_samples, self._effect_states
+                )
             else:
                 # Unknown effect type - pass through
                 pass

@@ -617,7 +617,7 @@ class SFZEngine(SynthesisEngine):
         regions = self.get_regions_for_note(note, velocity)
 
         if not regions:
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self.get_stereo_buffer(block_size)
 
         # For now, use the first region (should use all regions with proper mixing)
         region = regions[0]
@@ -631,7 +631,7 @@ class SFZEngine(SynthesisEngine):
             return audio
         except Exception as e:
             logger.error(f"Warning: SFZ region generation failed: {e}")
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self.get_stereo_buffer(block_size)
 
     def is_note_supported(self, note: int) -> bool:
         """

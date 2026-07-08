@@ -37,12 +37,6 @@ class XGChannelMixer:
     """
 
     def __init__(self, sample_rate: int):
-        """
-        Initialize XG channel mixer.
-
-        Args:
-            sample_rate: Sample rate in Hz
-        """
         self.sample_rate = sample_rate
 
         # XG channel parameters
@@ -131,18 +125,6 @@ class XGChannelMixer:
         chorus_send_buffers: list[np.ndarray] | None = None,
         variation_send_buffers: list[np.ndarray] | None = None,
     ) -> None:
-        """
-        Apply channel mixing with panning and effect sends to separate buffers.
-
-        Args:
-            input_audio: Input audio (samples,) for mono or (samples, 2) for stereo
-            main_mix_left: Main mix left buffer to accumulate into
-            main_mix_right: Main mix right buffer to accumulate into
-            num_samples: Number of samples to process
-            reverb_send_buffers: List of reverb send buffers (one per channel)
-            chorus_send_buffers: List of chorus send buffers (one per channel)
-            variation_send_buffers: List of variation send buffers (one per channel)
-        """
         with self.lock:
             # Skip processing if muted
             if self.params.mute:
@@ -211,12 +193,6 @@ class XGMasterMixer:
     """
 
     def __init__(self, sample_rate: int):
-        """
-        Initialize XG master mixer.
-
-        Args:
-            sample_rate: Sample rate in Hz
-        """
         self.sample_rate = sample_rate
 
         # Master parameters
@@ -270,13 +246,6 @@ class XGMasterMixer:
             return changed
 
     def apply_master_processing_zero_alloc(self, stereo_mix: np.ndarray, num_samples: int) -> None:
-        """
-        Apply master processing to stereo mix (in-place).
-
-        Args:
-            stereo_mix: Input/output stereo mix buffer (num_samples, 2)
-            num_samples: Number of samples to process
-        """
         with self.lock:
             # Apply stereo width enhancement
             if self.stereo_width != 1.0:
@@ -291,7 +260,6 @@ class XGMasterMixer:
                 self._apply_master_limiter(stereo_mix, num_samples)
 
     def _apply_stereo_width(self, stereo_mix: np.ndarray, num_samples: int) -> None:
-        """Apply stereo width enhancement/correction."""
         for i in range(num_samples):
             left = stereo_mix[i, 0]
             right = stereo_mix[i, 1]
@@ -313,7 +281,6 @@ class XGMasterMixer:
             stereo_mix[i, 1] = mid - side
 
     def _apply_master_limiter(self, stereo_mix: np.ndarray, num_samples: int) -> None:
-        """Apply simple master limiting to prevent clipping."""
         threshold_linear = 10.0 ** (self.limiter_threshold / 20.0)
 
         for i in range(num_samples):
@@ -351,13 +318,6 @@ class XGChannelMixerProcessor:
     """
 
     def __init__(self, sample_rate: int, max_channels: int = 16):
-        """
-        Initialize XG channel mixer processor.
-
-        Args:
-            sample_rate: Sample rate in Hz
-            max_channels: Maximum number of channels to support
-        """
         self.sample_rate = sample_rate
         self.max_channels = max_channels
 
@@ -376,16 +336,6 @@ class XGChannelMixerProcessor:
         self.lock = threading.RLock()
 
     def set_channel_params(self, channel: int, **params) -> bool:
-        """
-        Set parameters for a specific channel.
-
-        Args:
-            channel: Channel number (0-15)
-            **params: Channel parameters (volume, pan, sends, etc.)
-
-        Returns:
-            True if parameters were set successfully
-        """
         with self.lock:
             if 0 <= channel < len(self.channel_mixers):
                 success = self.channel_mixers[channel].set_channel_params(**params)
@@ -400,16 +350,6 @@ class XGChannelMixerProcessor:
         num_samples: int,
         effect_send_outputs: dict[str, list[np.ndarray]] | None = None,
     ) -> None:
-        """
-        Mix multiple channel inputs to stereo output with XG-compliant processing.
-
-        Args:
-            channel_inputs: List of channel audio arrays (mono or stereo)
-            stereo_output: Output stereo buffer (num_samples, 2) - modified in-place
-            num_samples: Number of samples to process
-            effect_send_outputs: Optional dict of effect send buffers by type
-                               ('reverb', 'chorus', 'variation' -> list[buffer])
-        """
         with self.lock:
             # Clear output buffers
             stereo_output[:num_samples, :] = 0.0
@@ -459,7 +399,6 @@ class XGChannelMixerProcessor:
             self.master_mixer.apply_master_processing_zero_alloc(stereo_output, num_samples)
 
     def set_master_params(self, **params) -> bool:
-        """Set master mixing parameters."""
         with self.lock:
             return self.master_mixer.set_master_params(**params)
 
@@ -488,11 +427,6 @@ class XGChannelMixerProcessor:
             self.solo_channels.clear()
 
     def _get_active_channels(self, num_inputs: int) -> list[int]:
-        """
-        Determine which channels should be mixed based on solo/mute state.
-
-        Returns list of channel indices to process.
-        """
         if len(self.solo_channels) == 0:
             # No solos enabled - mix all active channels that aren't muted
             return [
@@ -509,8 +443,8 @@ class XGChannelMixerProcessor:
             ]
 
     def _update_solo_state(self, channel: int) -> None:
-        """Update internal solo state tracking."""
         if self.channel_mixers[channel].params.solo:
             self.solo_channels.add(channel)
         else:
             self.solo_channels.discard(channel)
+

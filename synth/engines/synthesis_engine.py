@@ -35,6 +35,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from .preset_info import PresetInfo
 
 # Import new region-based architecture
@@ -65,21 +67,64 @@ class SynthesisEngine(ABC):
     - Multi-zone preset support (key/velocity splits)
     """
 
-    def __init__(self, sample_rate: int = 44100, block_size: int = 1024):
+    def __init__(
+        self, sample_rate: int = 44100, block_size: int = 1024, buffer_pool=None
+    ):
         """
         Initialize synthesis engine.
 
         Args:
             sample_rate: Audio sample rate in Hz
             block_size: Processing block size in samples
+            buffer_pool: Optional XGBufferPool for zero-alloc buffer management
         """
         self.sample_rate = sample_rate
         self.block_size = block_size
+        self.buffer_pool = buffer_pool
+
+        # Pre-allocated working buffers for hot paths (filled on first use)
+        self._mono_work_buffer: np.ndarray | None = None
+        self._stereo_work_buffer: np.ndarray | None = None
 
         # S.Art2 articulation support - ENABLED BY DEFAULT
         # All regions created by this engine will be S.Art2-enabled
         self.sart2_enabled = True
         self.sart2_factory = None  # Set by ModernXGSynthesizer
+
+    # ========== BUFFER POOL HELPERS ==========
+
+    def get_stereo_buffer(self, size: int | None = None) -> np.ndarray:
+        """Get a pre-allocated stereo (n, 2) working buffer, zero-filled.
+
+        Uses buffer pool when available, falls back to a per-engine lazy-
+        allocated scratch buffer, and finally to np.zeros.
+        """
+        if self.buffer_pool is not None:
+            return self.buffer_pool.get_stereo_buffer(
+                self.block_size if size is None else size
+            )
+        if size is not None and size != self.block_size:
+            return np.zeros((size, 2), dtype=np.float32)
+        if self._stereo_work_buffer is None:
+            self._stereo_work_buffer = np.zeros((self.block_size, 2), dtype=np.float32)
+        return self._stereo_work_buffer
+
+    def get_mono_buffer(self, size: int | None = None) -> np.ndarray:
+        """Get a pre-allocated mono (n,) working buffer, zero-filled."""
+        if self.buffer_pool is not None:
+            return self.buffer_pool.get_mono_buffer(
+                self.block_size if size is None else size
+            )
+        if size is not None and size != self.block_size:
+            return np.zeros(size, dtype=np.float32)
+        if self._mono_work_buffer is None:
+            self._mono_work_buffer = np.zeros(self.block_size, dtype=np.float32)
+        return self._mono_work_buffer
+
+    def return_buffer(self, buf: np.ndarray) -> None:
+        """Return a buffer to the pool (no-op if no pool)."""
+        if self.buffer_pool is not None:
+            self.buffer_pool.return_buffer(buf)
 
     # ========== PRESET MANAGEMENT (NEW) ==========
 

@@ -259,7 +259,7 @@ class FMRegion(IRegion):
         """
         if not self._partial:
             # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
         try:
             # Generate samples from FM partial
@@ -281,7 +281,7 @@ class FMRegion(IRegion):
         except Exception as e:
             logger.error(f"FM sample generation failed: {e}")
             # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self._get_silence(block_size)
 
     def is_active(self) -> bool:
         """Check if FM region is still producing sound."""

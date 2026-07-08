@@ -11,37 +11,16 @@ from __future__ import annotations
 from .effects_coordinator import XGEffectsCoordinator
 
 # Factory System
-try:
-    from .effects_registry import XGEffectFactory, XGEffectRegistry
-except ImportError:
-    XGEffectRegistry = None
-    XGEffectFactory = None
+from .effects_registry import XGEffectRegistry
 
 # MIDI Control
-try:
-    from .midi_control_interface import XGMIDIController, XGNRPNController
-except ImportError:
-    XGNRPNController = None
-    XGMIDIController = None
+from .midi_control_interface import XGMIDIController, XGNRPNController
 
 # Performance Monitoring
-try:
-    from .performance_monitor import XGPerformanceMonitor, enable_performance_monitoring
-except ImportError:
-    XGPerformanceMonitor = None
-    enable_performance_monitoring = lambda: None
+from .performance_monitor import XGPerformanceMonitor, enable_performance_monitoring
 
 # Validation and Testing
-try:
-    from .effect_validator import (
-        XGValidationSuite,
-        print_validation_summary,
-        validate_xg_effects_implementation,
-    )
-except ImportError:
-    XGValidationSuite = None
-    print_validation_summary = None
-    validate_xg_effects_implementation = lambda *args, **kwargs: None
+from .effect_validator import XGValidationSuite, print_validation_summary, validate_xg_effects_implementation
 
 # Core Types (always available)
 from .types import (
@@ -76,7 +55,6 @@ __all__ = [
     "XGEffectsCoordinator",
     # Factory System
     "XGEffectRegistry",
-    "XGEffectFactory",
     # MIDI Control
     "XGNRPNController",
     "XGMIDIController",

@@ -186,8 +186,7 @@ class WavetableEngine(SynthesisEngine):
         oscillator = self._find_or_allocate_oscillator(note)
 
         if not oscillator:
-            # TODO: Use BufferPool when available (hot path allocation)
-            return np.zeros((block_size, 2), dtype=np.float32)
+            return self.get_stereo_buffer(block_size)
 
         # Configure oscillator
         oscillator.set_note(note, velocity)
@@ -202,8 +201,10 @@ class WavetableEngine(SynthesisEngine):
         # Generate samples
         mono_audio = oscillator.generate_samples(block_size)
 
-        # Convert to stereo
-        stereo_audio = np.column_stack([mono_audio, mono_audio])
+        # Convert to stereo via pooled/scratch buffer
+        stereo_audio = self.get_stereo_buffer(block_size)
+        stereo_audio[:, 0] = mono_audio
+        stereo_audio[:, 1] = mono_audio
 
         # Apply additional processing
         stereo_audio = self._apply_modulation(stereo_audio, modulation, block_size)

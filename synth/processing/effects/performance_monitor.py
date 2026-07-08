@@ -53,8 +53,6 @@ except ImportError:
 
 
 class XGPerformanceMetric(IntEnum):
-    """XG Performance Metrics"""
-
     CPU_PERCENT = 0
     MEMORY_MB = 1
     LATENCY_MS = 2
@@ -65,8 +63,6 @@ class XGPerformanceMetric(IntEnum):
 
 
 class XGProfilingEvent(IntEnum):
-    """Profiling Events for Timeline Tracking"""
-
     PROCESS_START = 0
     PROCESS_END = 1
     PARAMETER_UPDATE = 2
@@ -115,13 +111,6 @@ class XGPerformanceProfiler:
     """
 
     def __init__(self, target_latency_ms: float = 10.0, history_size: int = 1000):
-        """
-        Initialize performance profiler.
-
-        Args:
-            target_latency_ms: Target processing latency in milliseconds
-            history_size: Number of historical samples to keep
-        """
         self.target_latency_ms = target_latency_ms
         self.history_size = history_size
 
@@ -164,7 +153,6 @@ class XGPerformanceProfiler:
         self.alert_callbacks: list[Callable] = []
 
     def start_monitoring(self) -> None:
-        """Start continuous performance monitoring."""
         with self.lock:
             if self.monitoring_active:
                 return
@@ -174,38 +162,19 @@ class XGPerformanceProfiler:
             self.monitor_thread.start()
 
     def stop_monitoring(self) -> None:
-        """Stop performance monitoring."""
         with self.lock:
             self.monitoring_active = False
             if self.monitor_thread:
                 self.monitor_thread.join(timeout=1.0)
 
     def register_alert_callback(self, callback: Callable) -> None:
-        """Register a callback for performance alerts."""
         with self.lock:
             self.alert_callbacks.append(callback)
 
     def begin_frame(self) -> float:
-        """
-        Mark the beginning of a processing frame.
-
-        Returns:
-            Start time for profiling
-        """
         return time.perf_counter()
 
     def end_frame(self, start_time: float, num_samples: int, num_channels: int) -> float:
-        """
-        Mark the end of a processing frame and record timing.
-
-        Args:
-            start_time: Start time from begin_frame()
-            num_samples: Number of samples processed
-            num_channels: Number of channels processed
-
-        Returns:
-            Processing latency in milliseconds
-        """
         end_time = time.perf_counter()
         latency_ms = (end_time - start_time) * 1000.0
 
@@ -243,15 +212,6 @@ class XGPerformanceProfiler:
         cpu_percent: float = 0.0,
         allocations: int = 0,
     ) -> None:
-        """
-        Record processing statistics for a specific effect.
-
-        Args:
-            effect_name: Name of the effect
-            processing_time_ms: Time spent processing this effect
-            cpu_percent: CPU usage for this effect
-            allocations: Number of memory allocations made
-        """
         with self.lock:
             if effect_name not in self.effect_profiles:
                 self.effect_profiles[effect_name] = XGEffectProfile(effect_name)
@@ -265,7 +225,6 @@ class XGPerformanceProfiler:
             self.global_stats.buffer_allocations += allocations
 
     def record_parameter_update(self, effect_name: str = "unknown") -> None:
-        """Record a parameter update event."""
         with self.lock:
             self.global_stats.parameter_updates += 1
 
@@ -273,12 +232,6 @@ class XGPerformanceProfiler:
                 self.effect_profiles[effect_name].parameter_changes += 1
 
     def get_performance_report(self) -> dict[str, Any]:
-        """
-        Generate a comprehensive performance report.
-
-        Returns:
-            Dictionary containing all performance metrics
-        """
         with self.lock:
             # Calculate final averages
             total_blocks = max(self.global_stats.total_blocks, 1)
@@ -366,18 +319,6 @@ class XGPerformanceProfiler:
             }
 
     def _calculate_quality_score(self) -> float:
-        """
-        Calculate overall system quality score.
-
-        Quality factors:
-        - Latency compliance (40%)
-        - CPU usage efficiency (30%)
-        - Memory usage efficiency (20%)
-        - Allocation compliance (10%)
-
-        Returns:
-            Quality score from 0.0 to 1.0
-        """
         # Latency quality (inverted - lower latency = higher quality)
         latency_ratio = (
             min(self.target_latency_ms / self.global_stats.avg_latency_ms, 1.0)
@@ -408,7 +349,6 @@ class XGPerformanceProfiler:
         return max(0.0, min(1.0, final_score))
 
     def _trigger_alert(self, alert_type: str, message: str) -> None:
-        """Trigger performance alert to all registered callbacks."""
         alert_data = {
             "type": alert_type,
             "message": message,
@@ -423,7 +363,6 @@ class XGPerformanceProfiler:
                 pass  # Don't let callback errors affect performance
 
     def _monitor_loop(self) -> None:
-        """Main monitoring loop for continuous performance tracking."""
         while self.monitoring_active:
             try:
                 # Periodic performance checks
@@ -468,12 +407,6 @@ class XGMemoryProfiler:
     """
 
     def __init__(self, buffer_pool: Any | None = None):
-        """
-        Initialize memory profiler.
-
-        Args:
-            buffer_pool: XGBufferPool instance to monitor
-        """
         self.buffer_pool = buffer_pool
         self.memory_samples: dict[str, list[float]] = {}
         self.allocation_events: list[tuple[float, str, bool]] = []  # (time, type, allocated)
@@ -490,14 +423,6 @@ class XGMemoryProfiler:
     def record_allocation(
         self, allocation_type: str, size_bytes: int, allocated: bool = True
     ) -> None:
-        """
-        Record a memory allocation/deallocation event.
-
-        Args:
-            allocation_type: Type of allocation (buffer, effect, etc.)
-            size_bytes: Size of allocation in bytes
-            allocated: True for allocation, False for deallocation
-        """
         with self.lock:
             timestamp = time.time()
             self.allocation_events.append((timestamp, allocation_type, allocated))
@@ -523,18 +448,11 @@ class XGMemoryProfiler:
                     self.memory_samples[allocation_type].pop()
 
     def record_zero_alloc_violation(self, violation_type: str) -> None:
-        """
-        Record a zero-allocation policy violation.
-
-        Args:
-            violation_type: Type of violation (realtime_alloc, etc.)
-        """
         with self.lock:
             self.zero_alloc_violations += 1
             logger.info(f"ZERO-ALLOCATION VIOLATION: {violation_type}")
 
     def get_memory_report(self) -> dict[str, Any]:
-        """Generate detailed memory usage report."""
         with self.lock:
             total_allocated = sum(sum(samples) for samples in self.memory_samples.values())
 
@@ -567,12 +485,6 @@ class XGPerformanceMonitor:
     """
 
     def __init__(self, target_latency_ms: float = 10.0):
-        """
-        Initialize XG performance monitor.
-
-        Args:
-            target_latency_ms: Target processing latency in milliseconds
-        """
         self.profiler = XGPerformanceProfiler(target_latency_ms)
         self.memory_profiler = XGMemoryProfiler()
 
@@ -583,35 +495,14 @@ class XGPerformanceMonitor:
         self.lock = threading.RLock()
 
     def begin_processing_frame(self) -> None:
-        """Mark the start of an audio processing frame."""
         with self.lock:
             self._current_frame_start = self.profiler.begin_frame()
 
     def end_processing_frame(self, num_samples: int, num_channels: int) -> float:
-        """
-        Mark the end of an audio processing frame.
-
-        Args:
-            num_samples: Number of samples processed
-            num_channels: Number of channels processed
-
-        Returns:
-            Processing latency in milliseconds
-        """
         with self.lock:
             return self.profiler.end_frame(self._current_frame_start, num_samples, num_channels)
 
     def monitor_effect(self, effect_name: str, start_time: float | None = None) -> Callable:
-        """
-        Create a context manager for monitoring effect processing.
-
-        Args:
-            effect_name: Name of the effect to monitor
-            start_time: Optional explicit start time
-
-        Returns:
-            Context manager for timing the effect
-        """
         actual_start = start_time if start_time is not None else time.perf_counter()
 
         class EffectMonitor:
@@ -629,32 +520,22 @@ class XGPerformanceMonitor:
         return monitor
 
     def get_comprehensive_report(self) -> dict[str, Any]:
-        """
-        Get comprehensive performance and memory report.
-
-        Returns:
-            Combined performance and memory statistics
-        """
         with self.lock:
             report = self.profiler.get_performance_report()
             report["memory"] = self.memory_profiler.get_memory_report()
             return report
 
     def add_performance_alert_callback(self, callback: Callable) -> None:
-        """Add a callback for performance alerts."""
         self.profiler.register_alert_callback(callback)
 
     def start_continuous_monitoring(self) -> None:
-        """Start continuous performance monitoring."""
         self.profiler.start_monitoring()
 
     def stop_continuous_monitoring(self) -> None:
-        """Stop continuous performance monitoring."""
         self.profiler.stop_monitoring()
 
     @staticmethod
     def create_default_monitor() -> XGPerformanceMonitor:
-        """Create a default XG performance monitor with standard settings."""
         return XGPerformanceMonitor(target_latency_ms=10.0)  # <10ms for realtime
 
 
@@ -668,10 +549,9 @@ def get_global_monitor() -> XGPerformanceMonitor:
 
 
 def enable_performance_monitoring() -> None:
-    """Enable global performance monitoring."""
     _default_monitor.start_continuous_monitoring()
 
 
 def disable_performance_monitoring() -> None:
-    """Disable global performance monitoring."""
     _default_monitor.stop_continuous_monitoring()
+

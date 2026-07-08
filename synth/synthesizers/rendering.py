@@ -612,7 +612,12 @@ class ModernXGSynthesizer:
     def _register_engines(self):
         """Register synthesis engines with priority system"""
         # Create SF2 engine with new modular manager
-        sf2_engine = SF2Engine(sample_rate=self.sample_rate, block_size=1024, synth=self)
+        sf2_engine = SF2Engine(
+            sample_rate=self.sample_rate,
+            block_size=1024,
+            synth=self,
+            buffer_pool=self.buffer_pool,
+        )
         self.engine_registry.register_engine(sf2_engine, "sf2", priority=25)
 
         # Create and wire SF2PartModeIntegrator for XG/GS part mode awareness
@@ -841,12 +846,13 @@ class ModernXGSynthesizer:
         # S.Art2 factory - wraps ALL regions with articulation support
         self.sart2_factory = SArt2RegionFactory(self.sample_rate)
 
-        # Configure ALL engines with S.Art2
+        # Configure ALL engines with S.Art2 and buffer pool
         for engine_type in self.engine_registry.get_priority_order():
             engine = self.engine_registry.get_engine(engine_type)
             if engine:
                 engine.sart2_enabled = True
                 engine.sart2_factory = self.sart2_factory
+                engine.buffer_pool = self.buffer_pool
 
         logger.info("   S.Art2: Articulation system initialized (275+ articulations)")
         logger.info(

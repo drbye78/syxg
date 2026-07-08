@@ -390,6 +390,26 @@ class GranularEngine:
         # Random number generator for grain scattering
         self.rng = np.random.RandomState()
 
+        # Pre-allocated scratch buffers for hot paths
+        self._output_scratch: np.ndarray | None = None
+        self._result_scratch: np.ndarray | None = None
+
+    def _get_silence(self, block_size: int) -> np.ndarray:
+        """Return a reusable zero-filled buffer (avoids hot-path allocation)."""
+        if self._output_scratch is None or len(self._output_scratch) != block_size:
+            self._output_scratch = np.zeros(block_size, dtype=np.float32)
+        else:
+            self._output_scratch.fill(0.0)
+        return self._output_scratch
+
+    def _get_scratch(self, attr: str, block_size: int) -> np.ndarray:
+        """Return or create a reusable scratch buffer."""
+        buf = getattr(self, attr, None)
+        if buf is None or len(buf) != block_size:
+            buf = np.zeros(block_size, dtype=np.float32)
+            setattr(self, attr, buf)
+        return buf
+
     def set_source_audio(self, audio: np.ndarray):
         """Set source audio for granulation."""
         if audio is not None and len(audio) > 0:
@@ -477,9 +497,9 @@ class GranularEngine:
             Audio block with grain output
         """
         if self.source_audio is None:
-            return np.zeros(block_size)
+            return self._get_silence(block_size)
 
-        output = np.zeros(block_size)
+        output = self._get_scratch("_output_scratch", block_size)
 
         # Find grains active in this block
         block_start = current_time
@@ -510,7 +530,7 @@ class GranularEngine:
         # Get grain audio from source
         grain_length = end_sample - start_sample
         if grain_length <= 0:
-            return np.zeros(block_size)
+            return self._get_silence(block_size)
 
         # Extract grain with pitch shifting
         if pitch == 1.0:
@@ -546,7 +566,8 @@ class GranularEngine:
             grain_audio *= envelope * amplitude
 
         # Return grain (will be zero-padded to block_size if needed)
-        result = np.zeros(block_size)
+        result = self._get_scratch("_result_scratch", block_size)
+        result.fill(0.0)
         result[: len(grain_audio)] = grain_audio
 
         return result

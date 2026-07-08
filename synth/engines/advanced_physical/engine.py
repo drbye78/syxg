@@ -636,7 +636,7 @@ class AdvancedPhysicalEngine(SynthesisEngine):
         """
         with self.lock:
             # Generate mono output
-            mono_output = np.zeros(block_size, dtype=np.float32)
+            mono_output = self.get_mono_buffer(block_size)
 
             # Sum output from all active strings
             for string in self.strings:

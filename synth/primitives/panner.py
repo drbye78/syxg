@@ -213,6 +213,8 @@ class UltraFastStereoPanner:
         "pan_position",
         "right_gain",
         "sample_rate",
+        "_work_left",
+        "_work_right",
     )
 
     def __init__(self, pan_position=0.5, sample_rate=48000, block_size=1024, memory_pool=None):
@@ -234,6 +236,10 @@ class UltraFastStereoPanner:
         # XGBufferPool integration
         self.memory_pool = memory_pool
         self.is_pooled = memory_pool is not None
+
+        # Lazy-resize work buffers for zero-allocation fallback path
+        self._work_left: np.ndarray | None = None
+        self._work_right: np.ndarray | None = None
 
         self._update_gains()
 
@@ -323,13 +329,19 @@ class UltraFastStereoPanner:
             if self.memory_pool:
                 output_left = self.memory_pool.get_mono_buffer(len(input_mono))
             else:
-                output_left = np.zeros(len(input_mono), dtype=np.float32)
+                n = len(input_mono)
+                if self._work_left is None or len(self._work_left) < n:
+                    self._work_left = np.zeros(n, dtype=np.float32)
+                output_left = self._work_left[:n]
 
         if output_right is None:
             if self.memory_pool:
                 output_right = self.memory_pool.get_mono_buffer(len(input_mono))
             else:
-                output_right = np.zeros(len(input_mono), dtype=np.float32)
+                n = len(input_mono)
+                if self._work_right is None or len(self._work_right) < n:
+                    self._work_right = np.zeros(n, dtype=np.float32)
+                output_right = self._work_right[:n]
 
         # Process block with Numba-compiled function
         _numba_process_pan_block_mono(

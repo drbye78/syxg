@@ -129,7 +129,6 @@ class TestEffectsIntegration:
         effects = XGSystemEffectsProcessor(
             sample_rate=sample_rate,
             block_size=block_size,
-            dsp_units=None,
             max_reverb_delay=sample_rate * 2,
             max_chorus_delay=8192,
         )

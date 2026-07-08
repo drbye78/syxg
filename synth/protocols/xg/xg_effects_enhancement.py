@@ -372,9 +372,12 @@ class XGSystemEffectsEnhancement:
         self.sample_rate = sample_rate
         self.lock = threading.RLock()
 
+        # Callback for forwarding parameter changes to effects system
+        self._parameter_change_callback = None  # Will be set by effects system
+
         # Current effect settings
         self.current_reverb_type = 0x01  # Hall 1
-        self.current_chorus_type = 0x41  # Chorus 1
+        self.current_chorus_type = 0x40  # Chorus 1
         self.current_variation_type = 0x10  # Chorus 1
 
         # Effect processors (will integrate with existing system)
@@ -405,6 +408,10 @@ class XGSystemEffectsEnhancement:
         """Get information about an insertion type."""
         return self.XG_INSERTION_TYPES.get(type_value)
 
+    def set_parameter_change_callback(self, callback):
+        """Set callback for forwarding parameter changes."""
+        self._parameter_change_callback = callback
+
     def set_system_reverb_type(self, type_value: int) -> bool:
         """
         Set system reverb type (MSB 1 LSB 0).
@@ -428,7 +435,7 @@ class XGSystemEffectsEnhancement:
         Set system chorus type (MSB 2 LSB 0).
 
         Args:
-            type_value: Chorus type (0x40-0x51)
+            type_value: Chorus type (0x40-0x51) or sequential (0-17)
 
         Returns:
             True if type was set successfully
@@ -439,46 +446,59 @@ class XGSystemEffectsEnhancement:
                 # Apply to system chorus processor
                 self._apply_chorus_type_to_processor(type_value)
                 return True
+            # Accept sequential enum values (0-17) as well
+            if 0 <= type_value <= 17:
+                self.current_chorus_type = type_value + 0x40
+                self._apply_chorus_type_to_processor(type_value + 0x40)
+                return True
         return False
 
     def set_system_variation_type(self, type_value: int) -> bool:
         """
         Set system variation type (MSB 2 LSB 0).
 
+        Accepts both the original XG hex encoding (0x00-0x41) and sequential
+        0-83 numbering used by the effects processors.
+
         Args:
-            type_value: Variation type (0x00-0x41)
+            type_value: Variation type (0-83)
 
         Returns:
             True if type was set successfully
         """
         with self.lock:
-            if type_value in self.XG_VARIATION_TYPES:
+            if 0 <= type_value <= 83:
                 self.current_variation_type = type_value
-                # Apply to system variation processor
-                self._apply_variation_type_to_processor(type_value)
                 return True
         return False
 
     def _apply_reverb_type_to_processor(self, type_value: int):
         """Apply reverb type settings to the processor."""
-        type_info = self.XG_REVERB_TYPES[type_value]
-        # Integration point with existing reverb processor
-        # This would update the convolution reverb with new parameters
-        pass
+        type_info = self.XG_REVERB_TYPES.get(type_value, {})
+        if self._parameter_change_callback:
+            self._parameter_change_callback("reverb_type", type_value)
+        # Set default reverb parameters from spec
+        if type_info:
+            for key, val in type_info.items():
+                if key in ("time", "hf_damp", "level"):
+                    self._parameter_change_callback(key, val)
 
     def _apply_chorus_type_to_processor(self, type_value: int):
         """Apply chorus type settings to the processor."""
-        type_info = self.XG_CHORUS_TYPES[type_value]
-        # Integration point with existing chorus processor
-        # This would update the chorus with new LFO and parameters
-        pass
+        type_info = self.XG_CHORUS_TYPES.get(type_value, {})
+        if self._parameter_change_callback:
+            self._parameter_change_callback("chorus_type", type_value)
+        # Set default chorus parameters from spec
+        if type_info:
+            for key, val in type_info.items():
+                if key in ("lfo_freq", "depth", "feedback"):
+                    self._parameter_change_callback(key, val)
 
     def _apply_variation_type_to_processor(self, type_value: int):
         """Apply variation type settings to the processor."""
-        type_info = self.XG_VARIATION_TYPES[type_value]
-        # Integration point with existing variation processor
-        # This would switch effect types and parameters
-        pass
+        type_info = self.XG_VARIATION_TYPES.get(type_value, {})
+        if self._parameter_change_callback:
+            self._parameter_change_callback("variation_type", type_value)
 
     def get_effect_capabilities(self) -> dict[str, Any]:
         """
@@ -639,3 +659,7 @@ class XGSystemEffectsEnhancement:
 
     def __repr__(self) -> str:
         return self.__str__()
+
+
+# Alias for compatibility with effects system imports
+XGEffectsEnhancement = XGSystemEffectsEnhancement

@@ -441,8 +441,8 @@ class GranularEngine(SynthesisEngine):
         Returns:
             Stereo audio buffer (block_size, 2) as float32
         """
-        # Generate samples
-        output = np.zeros((block_size, 2), dtype=np.float32)
+        # Use pooled/scratch stereo buffer (zero-filled already)
+        output = self.get_stereo_buffer(block_size)
         dt = 1.0 / self.sample_rate
 
         for i in range(block_size):
