@@ -61,7 +61,7 @@ class XGSynthesizerSystem:
     # Default drum channel
     DEFAULT_DRUM_CHANNEL = 9  # MIDI channel 10
 
-    def __init__(self, sample_rate: int = 44100, device_id: int = 0x10, max_polyphony: int = 128):
+    def __init__(self, sample_rate: int = 44100, device_id: int = 0x10, max_polyphony: int = 128, num_parts: int = 16):
         """
         Initialize XG Synthesizer System.
 
@@ -69,10 +69,12 @@ class XGSynthesizerSystem:
             sample_rate: Audio sample rate
             device_id: MIDI device ID
             max_polyphony: Maximum polyphony
+            num_parts: Number of parts/channels (default 16, up to 32)
         """
         self.sample_rate = sample_rate
         self.device_id = device_id
         self.max_polyphony = max_polyphony
+        self.num_parts = num_parts
 
         # Thread safety
         self.lock = threading.RLock()
@@ -88,7 +90,7 @@ class XGSynthesizerSystem:
         self._system_callbacks: dict[str, Callable] = {}
         self._part_mode_callbacks: list[Callable] = []
 
-        # Part configuration (16 parts)
+        # Part configuration
         self.parts: dict[int, dict] = {}
         self._initialize_parts()
 
@@ -122,14 +124,15 @@ class XGSynthesizerSystem:
         from ...protocols.xg.xg_system_parameters import XGSystemEffectParameters
 
         # Initialize XG components
-        self.xg_multi_part = XGMultiPartSetup(16)
-        self.xg_drum_setup = XGDrumSetupParameters(16)
-        self.xg_part_mode = XGPartModeController(16)
-        self.xg_channel_params = XGChannelParameterManager(16)
+        n = self.num_parts
+        self.xg_multi_part = XGMultiPartSetup(n)
+        self.xg_drum_setup = XGDrumSetupParameters(n)
+        self.xg_part_mode = XGPartModeController(n)
+        self.xg_channel_params = XGChannelParameterManager(n)
         self.xg_system_params = XGSystemEffectParameters()
-        self.xg_controllers = XGControllerAssignments(16)
+        self.xg_controllers = XGControllerAssignments(n)
         self.xg_effects = XGSystemEffectsEnhancement(self.sample_rate)
-        self.xg_micro_tuning = XGMicroTuning(16)
+        self.xg_micro_tuning = XGMicroTuning(n)
 
         # Initialize GS handler
         self.gs_handler = GSSysexHandler(self.device_id)
@@ -242,8 +245,8 @@ class XGSynthesizerSystem:
         logger.info("System: GM2 Mode enabled")
 
     def _initialize_parts(self):
-        """Initialize 16 parts with defaults."""
-        for part_num in range(16):
+        """Initialize parts with defaults."""
+        for part_num in range(self.num_parts):
             self.parts[part_num] = {
                 "part_number": part_num,
                 "channel": part_num,
@@ -539,7 +542,7 @@ class XGSynthesizerSystem:
 
     def get_all_parts_info(self) -> list[dict[str, Any]]:
         """Get information for all parts."""
-        return [self.get_part_info(i) for i in range(16)]
+        return [self.get_part_info(i) for i in range(self.num_parts)]
 
     def reset_to_defaults(self):
         """Reset to XG/GS defaults."""

@@ -18,7 +18,7 @@ from synth.io.audio.writer import AudioWriter
 from synth.io.midi import FileParser, MIDIMessage
 from synth.synthesizers.rendering import ModernXGSynthesizer
 from synth.utils.progress import ProgressReporter
-from synth.xgml import XGMLParser, XGMLToMIDITranslator
+from synth.xgml import XGMLConfigParser, XGMLMIDIBridge
 
 logger = logging.getLogger(__name__)
 
@@ -71,19 +71,18 @@ class AudioConverter:
         elif file_ext in ["xgml", "yaml", "yml"] or file_path.lower().endswith(
             (".xgml", ".yaml", ".yml")
         ):
-            # Parse as XGML file
+            # Parse as XGML file — use new typed parser + MIDI bridge
             try:
-                # Parse XGML
-                parser = XGMLParser()
-                document = parser.parse_file(file_path)
+                parser = XGMLConfigParser()
+                config = parser.parse_file(file_path)
 
-                if document is None:
-                    if not parser.has_errors():
-                        logger.warning(f"Warning: No XGML content found in {file_path}")
-                    else:
+                if config is None:
+                    if parser.has_errors():
                         logger.error(f"Error parsing XGML {file_path}:")
                         for error in parser.get_errors():
                             logger.error(f"  - {error}")
+                    else:
+                        logger.warning(f"No XGML content found in {file_path}")
                     return None, None
 
                 if parser.has_warnings():
@@ -92,40 +91,33 @@ class AudioConverter:
                         logger.warning(f"  - {warning}")
 
                 # Translate to MIDI
-                translator = XGMLToMIDITranslator()
-                midi_messages = translator.translate_document(document)
+                bridge = XGMLMIDIBridge()
+                midi_messages = bridge.translate(config)
 
-                if translator.has_errors():
+                if bridge.has_errors():
                     logger.error(f"XGML translation errors in {file_path}:")
-                    for error in translator.get_errors():
+                    for error in bridge.get_errors():
                         logger.error(f"  - {error}")
                     return None, None
 
-                if translator.has_warnings():
+                if bridge.has_warnings():
                     logger.warning(f"XGML translation warnings in {file_path}:")
-                    for warning in translator.get_warnings():
+                    for warning in bridge.get_warnings():
                         logger.warning(f"  - {warning}")
 
-                # Calculate duration from sequences
+                # Calculate duration from sequences (convert beats → seconds)
                 duration = 0.0
-                sequences = document.get_section("sequences")
-                if sequences:
-                    for seq_name, seq_data in sequences.items():
-                        # Check for explicit duration or calculate from events
-                        if "duration" in seq_data:
-                            duration = max(duration, seq_data["duration"])
-                        else:
-                            # Calculate from last event time
-                            for track in seq_data.get("tracks", []):
-                                for event in track.get("events", []):
-                                    if "at" in event:
-                                        event_time = event["at"].get("time", 0)
-                                        if isinstance(event_time, (int, float)):
-                                            duration = max(duration, float(event_time))
+                if config.sequences:
+                    for seq in config.sequences.values():
+                        tempo = seq.tempo or 120
+                        sec_per_beat = 60.0 / tempo
+                        for track in seq.tracks:
+                            for event in track.events:
+                                duration = max(duration, event.at * sec_per_beat)
 
                 # Minimum duration fallback
                 if duration == 0.0:
-                    duration = 10.0  # Default 10 seconds
+                    duration = 10.0
 
                 return midi_messages, duration
 

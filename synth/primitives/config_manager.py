@@ -66,14 +66,16 @@ class ConfigManager:
     Supports layered configuration via file includes.
     """
 
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = "config.yaml", num_parts: int = 16):
         """
         Initialize ConfigManager
 
         Args:
             config_path: Path to config.yaml file
+            num_parts: Number of parts (default 16)
         """
         self.config_path = config_path
+        self.num_parts = num_parts
         self.config: dict[str, Any] = {}
         self._loaded = False
         self._include_stack: list[str] = []  # Track included files for debugging
@@ -339,7 +341,7 @@ class ConfigManager:
         """Get per-part voice reserve"""
         voices = self.get_voices_config()
         reserve = {}
-        for i in range(16):
+        for i in range(self.num_parts):
             key = f"part_{i}"
             if key in voices:
                 reserve[i] = voices[key]
@@ -523,7 +525,7 @@ class ConfigManager:
         Returns:
             List of 16 part configurations
         """
-        return [self.get_part_config(i) for i in range(16)]
+        return [self.get_part_config(i) for i in range(self.num_parts)]
 
     # ============================================================
     # FM Engine Configuration

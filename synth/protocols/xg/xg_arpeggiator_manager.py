@@ -28,8 +28,9 @@ class MotifArpeggiatorManager:
     matching Motif's professional sequencing capabilities.
     """
 
-    def __init__(self):
+    def __init__(self, num_parts: int = 16):
         self.lock = threading.RLock()
+        self.num_parts = num_parts
 
         # 4 independent arpeggiators (Motif standard)
         self.arpeggiators: dict[int, JupiterXArpeggiatorEngine] = {}
@@ -112,7 +113,7 @@ class MotifArpeggiatorManager:
         with self.lock:
             # Process timing through each arpeggiator's instances
             for arp in self.arpeggiators.values():
-                for part_id in range(16):  # Check all parts
+                for part_id in range(self.num_parts):  # Check all parts
                     arp_instance = arp.get_arpeggiator(part_id)
                     if arp_instance and arp_instance.enabled:
                         arp_instance.process_timing(current_time)
@@ -168,7 +169,7 @@ class MotifArpeggiatorManager:
         with self.lock:
             for arp in self.arpeggiators.values():
                 # Reset each arpeggiator instance
-                for part_id in range(16):
+                for part_id in range(self.num_parts):
                     arp_instance = arp.get_arpeggiator(part_id)
                     if arp_instance:
                         arp_instance.stop()

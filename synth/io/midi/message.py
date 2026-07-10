@@ -458,4 +458,19 @@ def midimessage_to_bytes(msg: MIDIMessage) -> bytes:
             result.append(byte & 0x7F)
         result.append(0xF7)
 
+    elif msg.type == "meta_event":
+        result.append(0xFF)
+        meta_type = msg.data.get("meta_type", 0)
+        result.append(meta_type & 0x7F)
+        raw_data = msg.data.get("data", [])
+        # Variable-length quantity for length
+        length = len(raw_data)
+        if length < 128:
+            result.append(length)
+        else:
+            result.append((length & 0x7F) | 0x80)
+            result.append((length >> 7) & 0x7F)
+        for byte in raw_data:
+            result.append(byte & 0x7F)
+
     return bytes(result)

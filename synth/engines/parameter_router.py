@@ -35,14 +35,16 @@ class ParameterRouter:
     scoping and validation.
     """
 
-    def __init__(self, synthesizer: ModernXGSynthesizer | None = None):
+    def __init__(self, synthesizer: ModernXGSynthesizer | None = None, num_channels: int = 16):
         """
         Initialize parameter router.
 
         Args:
             synthesizer: Reference to the main synthesizer (optional for testing)
+            num_channels: Number of MIDI channels (default 16)
         """
         self.synthesizer = synthesizer
+        self.num_channels = num_channels
         self.parameter_cache: dict[str, ParameterUpdate] = {}
         self.route_history: list[dict] = []  # For debugging
 
@@ -135,7 +137,7 @@ class ParameterRouter:
         # Determine if parameter needs channel propagation
         if self._should_propagate_to_channels(param_update.name):
             # Propagate to all active channels
-            for channel_num in range(16):
+            for channel_num in range(self.num_channels):
                 if (
                     hasattr(self.synthesizer, "channels")
                     and channel_num in self.synthesizer.channels

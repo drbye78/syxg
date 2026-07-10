@@ -223,6 +223,8 @@ class Synthesizer:
         sample_rate: int = 44100,
         buffer_size: int = 1024,
         enable_audio_output: bool = False,
+        max_channels: int = 16,
+        midi_2_enabled: bool = False,
     ):
         """
         Initialize the synthesizer.
@@ -231,10 +233,14 @@ class Synthesizer:
             sample_rate: Audio sample rate in Hz
             buffer_size: Processing buffer size in samples
             enable_audio_output: Enable real-time audio output via sounddevice
+            max_channels: Maximum MIDI channels/parts (default 16, up to 32 for multi-port)
+            midi_2_enabled: Enable MIDI 2.0 features
         """
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
         self.enable_audio_output = enable_audio_output
+        self.max_channels = max_channels
+        self.midi_2_enabled = midi_2_enabled
         self.audio_output = None
 
         # Core components
@@ -271,7 +277,7 @@ class Synthesizer:
 
         # XG/GS/GM Synthesizer System (production-grade)
         self.xg_synthesizer = XGSynthesizerSystem(
-            sample_rate=self.sample_rate, device_id=0x10, max_polyphony=128
+            sample_rate=self.sample_rate, device_id=0x10, max_polyphony=128, num_parts=self.max_channels
         )
 
         # Sequencing
@@ -294,7 +300,7 @@ class Synthesizer:
 
         # Audio output buffers
         self.output_buffer = np.zeros((buffer_size, 2), dtype=np.float32)
-        self._channel_buffers: list[np.ndarray | None] = [None] * 16
+        self._channel_buffers: list[np.ndarray | None] = [None] * self.max_channels
 
         # Threading and synchronization
         self.lock = threading.RLock()
@@ -404,7 +410,7 @@ class Synthesizer:
                     self.xg_synthesizer.register_parameter_callback(_on_gs_part_param)
 
                     # Sync initial state: push all existing part modes into integrator
-                    for ch in range(16):
+                    for ch in range(self.max_channels):
                         part_info = self.xg_synthesizer.parts[ch]
                         part_mode = part_info.get("part_mode", 0)
                         _on_xg_part_mode(ch, part_mode)
@@ -770,7 +776,7 @@ class Synthesizer:
             # Step 3-5: Process through effects coordinator
             # Convert channel dict to list for effects coordinator
             channel_list = []
-            for ch in range(16):  # XG has 16 channels
+            for ch in range(self.max_channels):
                 if ch in channel_buffers:
                     channel_list.append(channel_buffers[ch])
                 else:

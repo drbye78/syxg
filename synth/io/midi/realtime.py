@@ -18,6 +18,8 @@ from .types import MIDIStatus, get_message_type_from_status
 from .ump_packets import (
     MIDI1ChannelVoicePacket,
     MIDI2ChannelVoicePacket,
+    PerNoteControllerUMP,
+    PerNoteManagementUMP,
     SysExUMP,
     UMPPacket,
     UMPParser,
@@ -107,6 +109,8 @@ class RealtimeParser:
         from .ump_packets import (
             MIDI1ChannelVoicePacket,
             MIDI2ChannelVoicePacket,
+            PerNoteControllerUMP,
+            PerNoteManagementUMP,
             SysExUMP,
             UtilityUMP,
         )
@@ -114,6 +118,10 @@ class RealtimeParser:
         if isinstance(packet, MIDI2ChannelVoicePacket):
             # Convert MIDI 2.0 packet to MIDIMessage
             return self._convert_midi2_packet_to_message(packet)
+        elif isinstance(packet, PerNoteControllerUMP):
+            return self._convert_per_note_controller(packet)
+        elif isinstance(packet, PerNoteManagementUMP):
+            return self._convert_per_note_management(packet)
         elif isinstance(packet, MIDI1ChannelVoicePacket):
             # Convert MIDI 1.0 packet to MIDIMessage
             return self._convert_midi1_packet_to_message(packet)
@@ -153,64 +161,67 @@ class RealtimeParser:
 
         # Create appropriate MIDIMessage based on message type
         if message_type == 0x8:  # Note Off
-            note = (data_word_1 >> 24) & 0xFF
-            velocity = (data_word_2 >> 24) & 0xFF
+            note = data_word_1 & 0xFFFF
+            velocity = (data_word_2 >> 16) & 0xFFFF
             return MIDIMessage(
                 type="note_off",
                 channel=channel,
-                data={"note": note, "velocity": velocity},
+                data={"note": note, "velocity": velocity, "velocity_16bit": velocity, "is_midi2": True, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0x9:  # Note On
-            note = (data_word_1 >> 24) & 0xFF
-            velocity = (data_word_2 >> 24) & 0xFF
+            note = data_word_1 & 0xFFFF
+            velocity = (data_word_2 >> 16) & 0xFFFF
             return MIDIMessage(
                 type="note_on",
                 channel=channel,
-                data={"note": note, "velocity": velocity},
+                data={"note": note, "velocity": velocity, "velocity_16bit": velocity, "is_midi2": True, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xA:  # Poly Pressure
-            note = (data_word_1 >> 24) & 0xFF
-            pressure = (data_word_2 >> 24) & 0xFF
+            note = data_word_1 & 0xFFFF
+            pressure = data_word_2  # Full 32-bit
+            midi1_pressure = (pressure * 127) // 0xFFFFFFFF
             return MIDIMessage(
                 type="poly_pressure",
                 channel=channel,
-                data={"note": note, "pressure": pressure},
+                data={"note": note, "pressure": midi1_pressure, "pressure_32bit": pressure, "is_midi2": True, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xB:  # Control Change
-            controller = (data_word_1 >> 24) & 0xFF
-            value = (data_word_2 >> 24) & 0xFF
+            controller = (data_word_1 >> 9) & 0x7F
+            value_32bit = data_word_2
+            value = (value_32bit * 127) // 0xFFFFFFFF
             return MIDIMessage(
                 type="control_change",
                 channel=channel,
-                data={"controller": controller, "value": value},
+                data={"controller": controller, "value": value, "value_32bit": value_32bit, "is_midi2": True, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xC:  # Program Change
-            program = (data_word_1 >> 24) & 0xFF
+            program = data_word_1 & 0xFFFF
             return MIDIMessage(
                 type="program_change",
                 channel=channel,
-                data={"program": program},
+                data={"program": program, "is_midi2": True, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xD:  # Channel Pressure
-            pressure = (data_word_1 >> 24) & 0xFF
+            pressure = data_word_2  # Full 32-bit
+            midi1_pressure = (pressure * 127) // 0xFFFFFFFF
             return MIDIMessage(
                 type="channel_pressure",
                 channel=channel,
-                data={"pressure": pressure},
+                data={"pressure": midi1_pressure, "pressure_32bit": pressure, "is_midi2": True, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xE:  # Pitch Bend
             # MIDI 2.0 pitch bend is 32-bit
-            pitch_value = data_word_1
+            pitch_value = data_word_2  # Full 32-bit pitch from data_word_2
             return MIDIMessage(
                 type="pitch_bend",
                 channel=channel,
-                data={"value": pitch_value},
+                data={"value": pitch_value, "pitch_32bit": pitch_value, "is_midi2": True, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         # Add more message types as needed
@@ -237,42 +248,42 @@ class RealtimeParser:
             return MIDIMessage(
                 type="note_off",
                 channel=channel,
-                data={"note": packet.data1, "velocity": packet.data2},
+                data={"note": packet.data1, "velocity": packet.data2, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0x9:  # Note On
             return MIDIMessage(
                 type="note_on",
                 channel=channel,
-                data={"note": packet.data1, "velocity": packet.data2},
+                data={"note": packet.data1, "velocity": packet.data2, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xA:  # Poly Pressure
             return MIDIMessage(
                 type="poly_pressure",
                 channel=channel,
-                data={"note": packet.data1, "pressure": packet.data2},
+                data={"note": packet.data1, "pressure": packet.data2, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xB:  # Control Change
             return MIDIMessage(
                 type="control_change",
                 channel=channel,
-                data={"controller": packet.data1, "value": packet.data2},
+                data={"controller": packet.data1, "value": packet.data2, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xC:  # Program Change
             return MIDIMessage(
                 type="program_change",
                 channel=channel,
-                data={"program": packet.data1},
+                data={"program": packet.data1, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xD:  # Channel Pressure
             return MIDIMessage(
                 type="channel_pressure",
                 channel=channel,
-                data={"pressure": packet.data1},
+                data={"pressure": packet.data1, "midi_group": packet.group},
                 timestamp=time.time(),
             )
         elif message_type == 0xE:  # Pitch Bend
@@ -280,11 +291,60 @@ class RealtimeParser:
             return MIDIMessage(
                 type="pitch_bend",
                 channel=channel,
-                data={"value": pitch_value},
+                data={"value": pitch_value, "midi_group": packet.group},
                 timestamp=time.time(),
             )
 
         return None
+
+    def _convert_per_note_controller(
+        self, packet: PerNoteControllerUMP
+    ) -> MIDIMessage | None:
+        """
+        Convert Per-Note Controller UMP to MIDIMessage.
+
+        Per-Note Controllers carry MIDI controller values for a specific note
+        with 24-bit precision, used by MPE+ for per-note CC74 (timbre),
+        CC75 (slide), CC76 (lift), etc.
+        """
+        controller = packet.controller_index  # Actual MIDI CC number (0-127)
+        value_24bit = packet.value            # 24-bit value (0-16777215)
+        note = packet.note
+
+        return MIDIMessage(
+            type="midi2_per_note_controller",
+            channel=packet.channel,
+            data={
+                "note": note,
+                "controller": controller,
+                "value": value_24bit,
+                "value_24bit": value_24bit,
+                "is_midi2": True,
+                "midi_group": packet.group,
+            },
+            timestamp=time.time(),
+        )
+
+    def _convert_per_note_management(
+        self, packet: PerNoteManagementUMP
+    ) -> MIDIMessage | None:
+        """
+        Convert Per-Note Management UMP to MIDIMessage.
+        
+        Per-Note Management messages explicitly assign or remove 
+        notes from MPE zones.
+        """
+        return MIDIMessage(
+            type="midi2_per_note_management",
+            channel=packet.channel,
+            data={
+                "note": packet.note,
+                "assign": packet.assign,
+                "is_midi2": True,
+                "midi_group": packet.group,
+            },
+            timestamp=time.time(),
+        )
 
     def _convert_sysex_packet_to_message(self, packet: SysExUMP) -> MIDIMessage | None:
         """

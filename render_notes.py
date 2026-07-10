@@ -26,8 +26,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from synth.io.audio.writer import AudioWriter
 from synth.synthesizers.rendering import ModernXGSynthesizer
-from synth.io.midi import MIDIMessage
-from synth.xgml import XGMLParser, XGMLToMIDITranslator
+from synth.io.midi import MIDIMessage, midimessage_to_bytes
+from synth.xgml import XGMLConfigParser, XGMLMIDIBridge
 
 
 DEFAULT_SOUNDFONT = "tests/ref.sf2"
@@ -67,44 +67,34 @@ class NoteRenderer:
             return False
 
         try:
-            parser = XGMLParser()
-            document = parser.parse_file(xgml_path)
+            parser = XGMLConfigParser(validate_schema=False)
+            config = parser.parse_file(xgml_path)
 
-            if document is None:
+            if config is None:
                 print(f"Warning: Failed to parse XGML file: {xgml_path}, skipping config")
+                if parser.has_errors():
+                    for error in parser.get_errors():
+                        print(f"  - {error}")
                 return False
 
-            translator = XGMLToMIDITranslator()
-            try:
-                messages = translator.translate_document(document)
-            except AttributeError as e:
-                if "time" in str(e):
-                    print(f"Warning: XGML translator has compatibility issue, attempting fallback")
-                    messages = []
-                    try:
-                        messages.extend(translator._translate_basic_messages(document))
-                        messages.extend(translator._translate_effects(document))
-                        messages.extend(translator._translate_system_exclusive(document))
-                    except Exception:
-                        pass
+            bridge = XGMLMIDIBridge()
+            messages = bridge.translate(config)
 
-            if translator.has_errors():
-                for error in translator.get_errors():
+            if bridge.has_errors():
+                for error in bridge.get_errors():
                     print(f"  - {error}")
 
             applied_count = 0
             for msg in messages:
-                if hasattr(msg, "timestamp"):
-                    msg.timestamp = 0.0
+                msg.timestamp = 0.0  # apply immediately
 
-                if hasattr(msg, "to_bytes"):
-                    msg_bytes = msg.to_bytes()
-                    if msg_bytes:
-                        try:
-                            self.synth.process_midi_message(msg_bytes)
-                            applied_count += 1
-                        except Exception:
-                            pass
+                msg_bytes = midimessage_to_bytes(msg)
+                if msg_bytes:
+                    try:
+                        self.synth.process_midi_message(msg_bytes)
+                        applied_count += 1
+                    except Exception:
+                        pass
 
             print(f"Applied XGML configuration from: {xgml_path} ({applied_count} messages)")
             return applied_count > 0

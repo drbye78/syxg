@@ -404,6 +404,7 @@ class ModernXGSynthesizer:
         xg_enabled: bool = True,
         gs_enabled: bool = True,
         mpe_enabled: bool = True,
+        midi_2_enabled: bool = False,
         device_id: int = 0x10,
         gs_mode: str = "auto",
         s90_mode: bool = False,
@@ -417,6 +418,7 @@ class ModernXGSynthesizer:
             xg_enabled: Enable XG features
             gs_enabled: Enable GS features
             mpe_enabled: Enable MPE features
+            midi_2_enabled: Enable MIDI 2.0 features
             device_id: XG/GS/MPE device ID
             gs_mode: GS/XG mode ('xg', 'gs', or 'auto')
         """
@@ -425,6 +427,7 @@ class ModernXGSynthesizer:
         self.xg_enabled = xg_enabled
         self.gs_enabled = gs_enabled
         self.mpe_enabled = mpe_enabled
+        self.midi_2_enabled = midi_2_enabled
         self.device_id = device_id
         self.gs_mode = gs_mode
         self.s90_mode = s90_mode  # S90/S70 compatibility flag
@@ -1686,8 +1689,11 @@ class ModernXGSynthesizer:
         if not hasattr(self, "mpe_system") or not self.mpe_system:
             return False
 
-        # Use the MPE system's controller processing method
-        return self.mpe_system.process_mpe_controller(channel, controller, value)
+        if self.mpe_system.process_mpe_controller(channel, controller, value):
+            self._update_channel_voices_mpe(channel)
+            return True
+
+        return False
 
     def _process_pitch_bend_mpe(self, channel: int, bend_value: int) -> bool:
         """Process pitch bend with MPE support"""
@@ -1701,22 +1707,46 @@ class ModernXGSynthesizer:
         return False  # Not handled by MPE
 
     def _allocate_voice_with_mpe(self, mpe_note):
-        """Allocate voice with MPE parameters"""
-        # This would integrate with the voice allocation system
-        # For now, use regular channel allocation but store MPE reference
-        if 0 <= mpe_note.channel < len(self.channels):
-            voice_id = self.channels[mpe_note.channel].note_on(
-                mpe_note.note_number, mpe_note.velocity
-            )
-            if voice_id:
-                mpe_note.voice_id = voice_id
-                # Update voice with MPE parameters
-                self._apply_mpe_to_voice(voice_id, mpe_note)
+        """Allocate voice with MPE parameters through VoiceManager"""
+        if not self.voice_manager:
+            return
+
+        # Determine engine type from channel
+        ch = mpe_note.channel
+        engine_type = "xg"  # default
+        engine_params = {"mpe": True, "original_channel": ch}
+
+        if 0 <= ch < len(self.channels):
+            channel = self.channels[ch]
+            if hasattr(channel, "engine_type"):
+                engine_type = channel.engine_type
+
+        # Determine MPE zone
+        zone_id = None
+        if self.mpe_system and self.mpe_system.mpe_manager:
+            zone = self.mpe_system.mpe_manager.get_zone_for_channel(ch)
+            if zone:
+                zone_id = zone.zone_id
+
+        # Allocate voice through VoiceManager with MPE metadata
+        voice_id = self.voice_manager.allocate_voice(
+            channel=ch,
+            note=mpe_note.note_number,
+            velocity=mpe_note.velocity,
+            engine_type=engine_type,
+            engine_params=engine_params,
+            mpe_zone_id=zone_id,
+            mpe_note_number=mpe_note.note_number,
+        )
+
+        if voice_id is not None:
+            mpe_note.voice_id = voice_id
+            self._apply_mpe_to_voice(voice_id, mpe_note)
 
     def _release_voice_mpe(self, voice_id):
         """Release voice by ID (MPE version)"""
         if hasattr(self, "voice_manager") and self.voice_manager:
-            self.voice_manager.release_voice(voice_id)
+            self.voice_manager.deallocate_voice(voice_id)
 
     def _update_channel_voices_mpe(self, channel: int):
         """Update all voices on channel with current MPE parameters"""
@@ -1735,7 +1765,7 @@ class ModernXGSynthesizer:
 
         # Find the specific MPE note
         active_notes = self.mpe_system.get_active_mpe_notes(channel)
-        mpe_note = next((note for note in active_notes if note.note_number == note), None)
+        mpe_note = next((n for n in active_notes if n.note_number == note), None)
         if mpe_note and hasattr(mpe_note, "voice_id") and mpe_note.voice_id:
             self._apply_mpe_to_voice(mpe_note.voice_id, mpe_note)
 
@@ -1950,7 +1980,7 @@ class ModernXGSynthesizer:
 
         # Apply per-part configuration
         parts_config = config.get_parts_config()
-        for part_num in range(16):
+        for part_num in range(self.max_channels):
             part_key = f"part_{part_num}"
             if part_key in parts_config:
                 part_cfg = parts_config[part_key]
@@ -2137,7 +2167,7 @@ class ModernXGSynthesizer:
 
         # Configure channel patterns
         channel_patterns = arp_config.get("channel_patterns", {})
-        for channel_num in range(16):
+        for channel_num in range(self.max_channels):
             channel_key = f"channel_{channel_num}"
             if channel_key in channel_patterns:
                 _pattern_name = channel_patterns[channel_key]

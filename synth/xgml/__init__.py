@@ -1,15 +1,23 @@
 """
-XGML (XG Markup Language) Parser and Translator
+XGML (XG Markup Language) — Parser, Bridges, and Type System.
 
-Provides high-level YAML-based interface for XG synthesizer control,
-converting XGML documents to MIDI message sequences.
+Provides:
+  - XGMLConfigParser: unified YAML → typed XGMLConfig
+  - XGMLMIDIBridge: XGMLConfig → list[MIDIMessage]
+  - XGMLSynthBridge: XGMLConfig → synthesizer API calls
+  - XGMLConfig: typed dataclass for the full XGML document model
 """
 
 from __future__ import annotations
 
-from .constants import XGML_VERSION
-from .parser import XGMLParser
-from .translator import XGMLToMIDITranslator
+from .bridges.midi import XGMLMIDIBridge
+from .bridges.synth import XGMLSynthBridge
+from .parser import XGMLConfigParser
+from .types import XGMLConfig
 
-__version__ = "2.0.0"
-__all__ = ["XGML_VERSION", "XGMLParser", "XGMLToMIDITranslator"]
+__all__ = [
+    "XGMLConfigParser",
+    "XGMLMIDIBridge",
+    "XGMLSynthBridge",
+    "XGMLConfig",
+]

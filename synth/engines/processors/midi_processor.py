@@ -231,6 +231,7 @@ class MIDIMessageProcessor:
 
         # For all other messages, check if they have valid channels
         midi_channel = midi_message.channel
+        midi_group = midi_message.data.get("midi_group", 0)
         if midi_channel is None or not (0 <= midi_channel <= 15):  # MIDI channels 0-15
             return
 
@@ -278,17 +279,19 @@ class MIDIMessageProcessor:
                     # Process message based on type
                     self._process_message_on_channel(target_channel, modified_message)
             else:
-                # No specific mapping, use default 1:1
-                if midi_channel < len(self.synthesizer.channels):
-                    target_channel = self.synthesizer.channels[midi_channel]
+                # No specific mapping, use default 1:1 with group offset
+                synth_channel = midi_group * 16 + midi_channel
+                if synth_channel < len(self.synthesizer.channels):
+                    target_channel = self.synthesizer.channels[synth_channel]
                     modified_message = self._apply_xg_channel_modifications(
                         midi_channel, midi_message
                     )
                     self._process_message_on_channel(target_channel, modified_message)
         else:
             # Fallback to direct 1:1 mapping when XG is disabled or manager not available
-            if midi_channel < len(self.synthesizer.channels):
-                target_channel = self.synthesizer.channels[midi_channel]
+            synth_channel = midi_group * 16 + midi_channel
+            if synth_channel < len(self.synthesizer.channels):
+                target_channel = self.synthesizer.channels[synth_channel]
                 modified_message = self._apply_xg_channel_modifications(midi_channel, midi_message)
                 self._process_message_on_channel(target_channel, modified_message)
 
@@ -323,10 +326,24 @@ class MIDIMessageProcessor:
             value = midi_message.data.get("value", 0)
 
             # MPE controller processing (highest priority)
-            if self.synthesizer.mpe_enabled and self.synthesizer._process_mpe_controller(
-                midi_channel, controller, value
-            ):
-                return  # MPE controller handled it
+            if self.synthesizer.mpe_enabled:
+                # Check for MIDI 2.0 32-bit value
+                value_32bit = midi_message.data.get("value_32bit")
+                if midi_message.data.get("is_midi2") and value_32bit is not None:
+                    # Still call standard MPE controller for zone/note routing
+                    self.synthesizer._process_mpe_controller(
+                        midi_channel, controller, value
+                    )
+                    # Apply 32-bit precision
+                    if hasattr(self.synthesizer, "mpe_system") and self.synthesizer.mpe_system:
+                        self.synthesizer.mpe_system.process_mpe_controller_32bit(
+                            midi_channel, controller, value_32bit
+                        )
+                    return
+                elif self.synthesizer._process_mpe_controller(
+                    midi_channel, controller, value
+                ):
+                    return  # MPE controller handled it (7-bit)
 
             # Arpeggiator NRPN processing (Yamaha Motif style - highest priority)
             if (
@@ -351,25 +368,76 @@ class MIDIMessageProcessor:
                 if applied:
                     return  # XG controller handled it
 
-            target_channel.control_change(controller, value)
+            # MPE RPN handling - intercept RPN 0 (Pitch Bend Range) on MPE master channels
+            if hasattr(self.synthesizer, "mpe_system") and self.synthesizer.mpe_system:
+                rpn_value = self.synthesizer.mpe_system.handle_rpn(midi_channel, controller, value)
+                if rpn_value is not None:
+                    return  # RPN was handled
+
+            # Check for MIDI 2.0 32-bit value
+            value_32bit = midi_message.data.get("value_32bit")
+            if midi_message.data.get("is_midi2") and value_32bit is not None:
+                target_channel.control_change(controller, value_32bit, is_32bit=True)
+            else:
+                target_channel.control_change(controller, value)
         elif msg_type == "program_change":
             program = midi_message.data.get("program", 0)
             target_channel.program_change(program)
         elif msg_type == "channel_pressure":
             pressure = midi_message.data.get("pressure", 0)
-            target_channel.set_channel_pressure(pressure)
+            pressure_32bit = midi_message.data.get("pressure_32bit")
+            if midi_message.data.get("is_midi2") and pressure_32bit is not None:
+                target_channel.set_channel_pressure_32bit(pressure_32bit)
+            else:
+                target_channel.set_channel_pressure(pressure)
         elif msg_type == "pitch_bend":
             # Check for MPE pitch bend first
             pitch_value = midi_message.data.get("value", midi_message.data.get("pitch", 0))
-            if self.synthesizer.mpe_enabled and self.synthesizer._process_pitch_bend_mpe(
-                midi_channel, pitch_value
-            ):
-                return  # MPE handled it
+            pitch_32bit = midi_message.data.get("pitch_32bit")
+
+            if self.synthesizer.mpe_enabled:
+                if pitch_32bit is not None:
+                    # Use 32-bit MPE pitch bend with full precision
+                    if hasattr(self.synthesizer, "mpe_system") and self.synthesizer.mpe_system:
+                        self.synthesizer.mpe_system.process_pitch_bend_32bit(
+                            midi_channel, pitch_32bit
+                        )
+                elif self.synthesizer._process_pitch_bend_mpe(midi_channel, pitch_value):
+                    return  # MPE handled it (14-bit path)
 
             # Convert pitch bend value to LSB/MSB for regular processing
-            lsb = pitch_value & 0x7F
-            msb = (pitch_value >> 7) & 0x7F
-            target_channel.pitch_bend(lsb, msb)
+            if pitch_32bit is not None:
+                target_channel.pitch_bend(0, 0, pitch_32bit)
+            else:
+                lsb = pitch_value & 0x7F
+                msb = (pitch_value >> 7) & 0x7F
+                target_channel.pitch_bend(lsb, msb)
+
+        elif msg_type == "midi2_per_note_controller":
+            # MIDI 2.0 Per-Note Controller with 24-bit precision
+            note = midi_message.data.get("note", 60)
+            controller = midi_message.data.get("controller", 0)
+            value_24bit = midi_message.data.get("value_24bit", 0)
+
+            # Route through MPE system for per-note handling
+            if self.synthesizer.mpe_enabled and hasattr(self.synthesizer, "mpe_system"):
+                self.synthesizer.mpe_system.process_per_note_controller(
+                    midi_channel, note, controller, value_24bit
+                )
+            else:
+                # Fallback: apply as regular control change on the channel
+                # (less precise, but functional without MPE)
+                target_channel.control_change(controller, value_24bit, is_32bit=True)
+
+        elif msg_type == "midi2_per_note_management":
+            # MIDI 2.0 Per-Note Management — assign/remove notes from MPE zones
+            note = midi_message.data.get("note", 60)
+            assign = midi_message.data.get("assign", True)
+            
+            if self.synthesizer.mpe_enabled and hasattr(self.synthesizer, "mpe_system"):
+                self.synthesizer.mpe_system.process_per_note_management(
+                    midi_channel, note, assign
+                )
 
     def _apply_xg_channel_modifications(self, channel: int, midi_message):
         """

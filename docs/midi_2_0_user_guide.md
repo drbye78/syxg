@@ -1,545 +1,766 @@
 # MIDI 2.0 User Guide for XG Synthesizer
 
-This guide explains how to use the advanced MIDI 2.0 features in the XG Synthesizer, including 32-bit parameter control, per-note controllers, MPE+ extensions, and XG effects integration.
+This guide explains how to use the MIDI 2.0 features in the XG Synthesizer, including 32-bit parameter resolution, per-note controllers, MPE+ extensions, and UMP packet handling.
 
 ## Table of Contents
-1. [Introduction to MIDI 2.0 in XG](#introduction-to-midi-20-in-xg)
-2. [Setting Up MIDI 2.0](#setting-up-midi-20)
-3. [32-bit Parameter Control](#32-bit-parameter-control)
-4. [Per-Note Controllers](#per-note-controllers)
-5. [MPE+ Extensions](#mpe-extensions)
-6. [XG Effects with MIDI 2.0](#xg-effects-with-midi-20)
-7. [Profile Configuration](#profile-configuration)
-8. [Best Practices](#best-practices)
-9. [Troubleshooting](#troubleshooting)
 
-## Introduction to MIDI 2.0 in XG
+1. [Introduction to MIDI 2.0 in XG](#1-introduction-to-midi-20-in-xg)
+2. [Enabling MIDI 2.0](#2-enabling-midi-20)
+3. [Sending MIDI 2.0 Messages](#3-sending-midi-20-messages)
+4. [Receiving MIDI 2.0 Messages](#4-receiving-midi-20-messages)
+5. [Per-Note Controllers](#5-per-note-controllers)
+6. [MPE+ Extensions](#6-mpe-extensions)
+7. [Channel-Level 32-bit Control](#7-channel-level-32-bit-control)
+8. [Troubleshooting](#8-troubleshooting)
+9. [UMP Group Routing](#9-ump-group-routing)
 
-MIDI 2.0 brings revolutionary improvements to the XG Synthesizer with:
+---
 
-- **32-bit Parameter Resolution**: 4.2 billion possible values vs 127 in MIDI 1.0
-- **Per-Note Controllers**: Individual control of parameters per note
-- **MPE+ Extensions**: Enhanced MPE with 32-bit resolution
-- **Profile Configuration**: Automatic device capability negotiation
-- **Enhanced Effects**: Professional-grade effects with high-resolution control
+## 1. Introduction to MIDI 2.0 in XG
 
-### Key Improvements Over MIDI 1.0
+MIDI 2.0 brings higher precision and greater expressiveness to the XG Synthesizer. The implementation focuses on the Universal MIDI Packet (UMP) transport and higher-resolution parameter control.
 
-1. **Ultra-Precise Control**: 32-bit resolution eliminates quantization artifacts
-2. **Expressive Performance**: Per-note controllers enable unprecedented expressiveness
-3. **Automatic Compatibility**: Profile negotiation ensures optimal device compatibility
-4. **Future-Proof**: Architecture ready for upcoming MIDI specifications
+### Key Features
 
-## Setting Up MIDI 2.0
+- **32-bit Parameter Resolution**: Over 4 billion possible values (vs 127 in MIDI 1.0) for controllers, pitch bend, and pressure
+- **16-bit Note Velocity**: 0-65535 range instead of 0-127 for finer dynamic control
+- **Per-Note Controllers**: Individual CC74 (timbre), CC75 (slide), CC76 (lift) per note with 24-bit precision
+- **MPE+**: MPE with 32-bit precision for pitch bend and controllers
+- **Backward Compatibility**: Full MIDI 1.0 support; conversion utilities bridge both worlds
 
-### Prerequisites
-- MIDI 2.0 compatible hardware or software
-- XG Synthesizer with MIDI 2.0 support enabled
-- Understanding of basic MIDI concepts
+### What MIDI 2.0 Is Not
 
-### Enabling MIDI 2.0 Support
-MIDI 2.0 support is enabled by default in the XG Synthesizer. To verify it's active:
+The XG Synthesizer implements the core MIDI 2.0 channel voice and stream (per-note) message types. The following MIDI 2.0 features are **not** implemented:
+- Capability Discovery (CI — Protocol Negotiation)
+- Profile Configuration
+- MIDI 2.0 Property Exchange
+- MIDI 2.0 Effects processors (separate from the existing XG effects system)
+
+---
+
+## 2. Enabling MIDI 2.0
+
+MIDI 2.0 support is **disabled by default** (`midi_2_enabled=False`). Enable it at construction time:
+
+### Offline Synthesizer (ModernXGSynthesizer)
 
 ```python
-from synth.synthesizer import XGSynthesizer
+from synth.synthesizers.rendering import ModernXGSynthesizer
 
-synth = XGSynthesizer()
-print(f"MIDI 2.0 enabled: {synth.midi_2_enabled}")
-print(f"32-bit parameter support: {synth.supports_32bit_parameters}")
-print(f"Per-note controller support: {synth.supports_per_note_controllers}")
+synth = ModernXGSynthesizer(
+    sample_rate=44100,
+    midi_2_enabled=True,  # Enable MIDI 2.0 features
+    xg_enabled=True,
+    mpe_enabled=True,
+)
+print(f"MIDI 2.0 enabled: {synth.midi_2_enabled}")  # True
 ```
 
-### Basic MIDI 2.0 Message Sending
-Sending MIDI 2.0 messages is similar to MIDI 1.0 but with higher resolution:
+### Real-Time Synthesizer (Synthesizer)
 
 ```python
-# Standard MIDI 1.0 (7-bit resolution)
-synth.send_midi_message([0x90, 60, 100])  # Note On, C4, velocity 100
+from synth.synthesizers.realtime import Synthesizer
 
-# MIDI 2.0 with 32-bit resolution (using UMP format)
-from synth.midi.ump_packets import MIDI2ChannelVoicePacket
+synth = Synthesizer(
+    sample_rate=44100,
+    buffer_size=1024,
+    midi_2_enabled=True,  # Enable MIDI 2.0 features
+)
+print(f"MIDI 2.0 enabled: {synth.midi_2_enabled}")  # True
+```
 
-# Create a MIDI 2.0 Note On with full 32-bit velocity resolution
-note_on_packet = MIDI2ChannelVoicePacket(
-    ump_type=0x2,  # MIDI 2.0 Channel Voice
-    group=0,
-    message_type=0x9,  # Note On
+### Checking Current State
+
+```python
+# Both synthesizers expose the property
+is_enabled = synth.midi_2_enabled
+```
+
+---
+
+## 3. Sending MIDI 2.0 Messages
+
+MIDI 2.0 messages are constructed as UMP (Universal MIDI Packet) objects, serialized to bytes, and sent through the MIDI processing pipeline.
+
+### 3.1 Using the MIDI1ToMIDI2Converter (Recommended)
+
+The simplest way to create MIDI 2.0 messages is to start from MIDI 1.0 values and convert them:
+
+```python
+from synth.io.midi.ump_packets import MIDI1ToMIDI2Converter
+
+# Note On: convert standard MIDI 1.0 values
+packet = MIDI1ToMIDI2Converter.midi1_to_midi2_channel_voice(
+    status_byte=0x90,  # Note On, channel 0
+    data1=60,           # Middle C
+    data2=100           # Velocity 100 (scaled to 16-bit automatically)
+)
+
+# Get bytes for processing
+ump_bytes = packet.to_bytes()
+```
+
+### 3.2 Direct MIDI2ChannelVoicePacket Construction
+
+For full control over 32-bit data words:
+
+```python
+from synth.io.midi.ump_packets import MIDI2ChannelVoicePacket, UMPGroup
+
+# Note On with explicit 16-bit velocity
+note = 60
+velocity_16bit = 50000  # 0-65535 (vs 0-127 in MIDI 1.0)
+
+packet = MIDI2ChannelVoicePacket(
+    group=UMPGroup(0),
     channel=0,
-    data_word_1=(60 << 24) | (0x7F << 16),  # Note 60, unused
-    data_word_2=(0x7FFFFFFF << 0)  # Maximum 32-bit velocity
-)
-
-# Send the packet
-synth.send_ump_packet(note_on_packet)
-```
-
-## 32-bit Parameter Control
-
-### Understanding 32-bit Resolution
-MIDI 2.0 introduces 32-bit parameter resolution, providing over 4 billion possible values compared to MIDI 1.0's 128 values. This enables:
-
-- Ultra-smooth parameter transitions
-- Precise control over synthesis parameters
-- Elimination of quantization artifacts
-- Professional-grade parameter automation
-
-### Setting 32-bit Parameters
-You can set 32-bit parameters using the AdvancedParameterController:
-
-```python
-from synth.midi.advanced_parameter_control import AdvancedParameterController
-
-param_controller = AdvancedParameterController()
-
-# Set a parameter with 32-bit resolution
-param_controller.set_parameter_value('filter_cutoff', 0.7532, resolution='32bit')
-
-# Set a parameter with explicit 32-bit value
-param_controller.set_parameter_value('resonance', 0x7FFFFFFF, resolution='32bit_raw')
-```
-
-### Parameter Mapping
-Create sophisticated parameter mappings between controllers and synthesis parameters:
-
-```python
-# Map mod wheel to filter cutoff with custom curve
-mapping_id = param_controller.add_parameter_mapping(
-    source='mod_wheel',
-    destination='filter_cutoff',
-    min_value=0.1,      # Minimum filter cutoff
-    max_value=0.9,      # Maximum filter cutoff
-    curve='exponential', # Exponential response curve
-    sensitivity=0.8      # Sensitivity factor
-)
-
-# Remove the mapping later if needed
-param_controller.remove_parameter_mapping(mapping_id)
-```
-
-### Working with Controller Values
-The system automatically handles conversion between different resolutions:
-
-```python
-# Set a 7-bit controller value (MIDI 1.0)
-param_controller.set_parameter_value('mod_wheel', 64, resolution='7bit')
-# The system internally converts to 32-bit equivalent
-
-# Set a 14-bit controller value (MIDI 1.0 with LSB)
-param_controller.set_parameter_value('pitch_bend_range', 8192, resolution='14bit')
-# The system internally converts to 32-bit equivalent
-
-# Set a 32-bit controller value (MIDI 2.0 native)
-param_controller.set_parameter_value('timbre', 0x3F7F0000, resolution='32bit')
-```
-
-## Per-Note Controllers
-
-### Introduction to Per-Note Control
-Per-note controllers allow individual control of parameters for each note being played, enabling unprecedented expressiveness:
-
-- Individual pitch bend per note
-- Per-note pressure and timbre
-- Note-specific effects parameters
-- Polyphonic aftertouch with 32-bit resolution
-
-### Setting Per-Note Parameters
-Use the per-note parameter system to control individual notes:
-
-```python
-# Set per-note expression for specific notes
-for note in [60, 62, 64, 65, 67, 69, 71, 72]:  # C major scale
-    # Higher notes get more expression
-    expression_value = 0.5 + (note - 60) * 0.05
-    param_controller.set_per_note_parameter(
-        note=note,
-        param_name='expression',
-        value=min(expression_value, 1.0),  # Clamp to 1.0 max
-        resolution='32bit'
-    )
-
-# Set per-note timbre for each note in a chord
-chord_notes = [60, 64, 67, 71]  # C major 7th chord
-for i, note in enumerate(chord_notes):
-    # Different timbre for each note in the chord
-    timbre_value = 0.3 + i * 0.2
-    param_controller.set_per_note_parameter(
-        note=note,
-        param_name='timbre',
-        value=timbre_value,
-        resolution='32bit'
-    )
-```
-
-### Per-Note Pitch Bend
-MIDI 2.0 supports per-note pitch bend for expressive polyphonic performance:
-
-```python
-# Apply different pitch bends to different notes
-param_controller.set_per_note_parameter(60, 'per_note_pitch_bend', 2.0)  # 2 semitones up
-param_controller.set_per_note_parameter(64, 'per_note_pitch_bend', -1.5)  # 1.5 semitones down
-param_controller.set_per_note_parameter(67, 'per_note_pitch_bend', 0.5)  # 0.5 semitones up
-```
-
-### Per-Note Effects Control
-Control effects parameters on a per-note basis:
-
-```python
-# Apply different reverb sends to different notes
-for note in [60, 62, 64]:
-    # Higher notes get more reverb
-    reverb_send = 0.2 + (note - 60) * 0.1
-    param_controller.set_per_note_parameter(
-        note=note,
-        param_name='reverb_send',
-        value=reverb_send,
-        resolution='32bit'
-    )
-
-# Set per-note chorus depth
-param_controller.set_per_note_parameter(72, 'chorus_depth', 0.8, resolution='32bit')
-```
-
-## MPE+ Extensions
-
-### Understanding MPE+
-MPE+ (MIDI Polyphonic Expression Plus) extends the standard MPE specification with additional capabilities:
-
-- Enhanced per-note parameter control
-- 32-bit resolution for all MPE parameters
-- Advanced channel mapping options
-- Integration with XG effects
-
-### Enabling MPE+ Mode
-Activate MPE+ mode for expressive polyphonic performance:
-
-```python
-from synth.channel.channel import Channel
-
-# Get a channel instance
-channel = synth.get_channel(0)
-
-# Enable MPE+ mode
-channel.enable_mpe_plus(
-    master_channel=15,           # Channel 16 controls global parameters
-    first_note_channel=1,        # Channels 1-14 for note data
-    last_note_channel=14,
-    layout='horizontal'          # Horizontal ribbon layout (pitch = X, pressure = Y)
-)
-
-# You can also use vertical layout (pitch = Y, pressure = X)
-channel.enable_mpe_plus(
-    master_channel=15,
-    first_note_channel=1,
-    last_note_channel=14,
-    layout='vertical'
+    message_type=0x9,     # Note On
+    data_word_1=note,      # Note number in lower 16 bits
+    data_word_2=(velocity_16bit & 0xFFFF) << 16  # Velocity in upper 16 bits
 )
 ```
 
-### MPE+ Performance Techniques
-Once MPE+ is enabled, you can perform expressive techniques:
+### 3.3 Control Change with 32-bit Value
 
 ```python
-# Send MPE+ compatible messages
-# Note on with initial pressure
-synth.send_midi_message([0x91, 60, 100])  # Channel 1 (note channel)
-
-# Apply per-note pitch bend (channel 1)
-synth.send_midi_message([0xE1, 0x00, 0x40])  # Center pitch bend on channel 1
-
-# Apply per-note pressure (channel 1)
-synth.send_midi_message([0xD1, 96])  # Channel pressure on channel 1
-
-# Apply per-note timbre (channel 1)
-synth.send_midi_message([0xB1, 74, 80])  # CC74 (timbre) on channel 1
-```
-
-### MPE+ Parameter Control
-Control MPE+ parameters with 32-bit resolution:
-
-```python
-# Set MPE+ specific parameters
-mpe_params = {
-    'pitch_range_semitones': 24,      # Pitch bend range per note
-    'pressure_sensitivity': 0.8,      # How much pressure affects timbre
-    'timbre_sensitivity': 0.6,        # How much CC74 affects timbre
-    'slide_time': 0.1                 # Time for smooth parameter transitions
-}
-
-for param, value in mpe_params.items():
-    channel.set_mpe_per_note_parameter(param, value, resolution='32bit')
-```
-
-## XG Effects with MIDI 2.0
-
-### XG Effects Overview
-The XG Effects system integrates with MIDI 2.0 to provide:
-
-- 32-bit parameter resolution for all XG effects
-- Per-note effect parameter control
-- Advanced XG effect types with MIDI 2.0 support
-- Profile-based effect configuration
-
-### Setting XG Effect Parameters
-Control XG effects with ultra-high resolution:
-
-```python
-from synth.effects.midi_2_effects_processor import XGMIDI2EffectsProcessor
-
-effects = XGMIDI2EffectsProcessor(sample_rate=48000)
-
-# Set reverb time with 32-bit precision
-effects.set_xg_parameter(
-    parameter_address=0x000001,  # REV TIME
-    value=3.456789,  # Precise value with many decimal places
-    resolution_bits=32
+# Send CC7 (Volume) with 32-bit precision
+packet = MIDI2ChannelVoicePacket(
+    UMPGroup(0), 0, 0xB,
+    (7 & 0x7F) << 9,         # Controller number at bits 15-9
+    2147483647                # 32-bit value (~50%)
 )
 
-# Set chorus rate with 32-bit precision
-effects.set_xg_parameter(
-    parameter_address=0x000105,  # CHO RATE
-    value=0.876543,
-    resolution_bits=32
+# Process through the synthesizer
+synth.process_midi_message(packet.to_bytes())
+```
+
+### 3.4 Pitch Bend with 32-bit Value
+
+```python
+# 32-bit pitch bend: 0=full down, 0x7FFFFFFF=center, 0xFFFFFFFF=full up
+packet = MIDI2ChannelVoicePacket(
+    UMPGroup(0), 0, 0xE,
+    0,                        # Unused
+    0x7FFFFFFF                # Center position
+)
+
+synth.process_midi_message(packet.to_bytes())
+
+# Full up
+packet = MIDI2ChannelVoicePacket(UMPGroup(0), 0, 0xE, 0, 0xFFFFFFFF)
+synth.process_midi_message(packet.to_bytes())
+```
+
+### 3.5 Channel Pressure with 32-bit Value
+
+```python
+packet = MIDI2ChannelVoicePacket(
+    UMPGroup(0), 0, 0xD,
+    0,                        # Unused
+    0x40000000                # ~25% pressure
+)
+synth.process_midi_message(packet.to_bytes())
+```
+
+### 3.6 Poly Pressure with 32-bit Value
+
+```python
+packet = MIDI2ChannelVoicePacket(
+    UMPGroup(0), 0, 0xA,
+    60,                       # Note number
+    0x60000000                # ~37.5% pressure
+)
+synth.process_midi_message(packet.to_bytes())
+```
+
+### 3.7 How Messages Flow Through the System
+
+```
+MIDI2ChannelVoicePacket
+    → .to_bytes()
+    → synth.process_midi_message(bytes)
+    → MIDIMessageProcessor.process_midi_message()
+    → RealtimeParser.parse_bytes()  (auto-detects UMP)
+    → MIDIMessage with is_midi2=True
+    → Channel control_change()/pitch_bend()/etc.
+```
+
+---
+
+## 4. Receiving MIDI 2.0 Messages
+
+When UMP bytes are processed through `RealtimeParser`, they become `MIDIMessage` objects with additional precision-specific data keys.
+
+### 4.1 Using RealtimeParser Directly
+
+```python
+from synth.io.midi.realtime import RealtimeParser
+from synth.io.midi.ump_packets import MIDI2ChannelVoicePacket, UMPGroup
+
+parser = RealtimeParser()
+
+# Create and parse a MIDI 2.0 message
+packet = MIDI2ChannelVoicePacket(UMPGroup(0), 0, 0x9, 60, (50000 << 16))
+messages = parser.parse_bytes(packet.to_bytes())
+
+for msg in messages:
+    # The is_midi2 flag identifies MIDI 2.0 sources
+    if msg.data.get("is_midi2"):
+        print(f"MIDI 2.0 {msg.type} on channel {msg.channel}")
+        print(f"  Note: {msg.data['note']}")
+        print(f"  16-bit velocity: {msg.data['velocity_16bit']}")
+```
+
+### 4.2 Detecting MIDI 2.0 Messages
+
+All MIDI 2.0-originated messages contain `"is_midi2": True` in their data dictionary:
+
+```python
+for msg in messages:
+    if msg.data.get("is_midi2"):
+        # This message came from a MIDI 2.0 source
+        handle_midi2_message(msg)
+    else:
+        # Standard MIDI 1.0 message
+        handle_midi1_message(msg)
+```
+
+### 4.3 Accessing Extended Precision Values
+
+| Message Type | MIDI 2.0 Key | Range | Example |
+|-------------|-------------|-------|---------|
+| `note_on` / `note_off` | `velocity_16bit` | 0-65535 | `msg.data["velocity_16bit"]` |
+| `control_change` | `value_32bit` | 0-4294967295 | `msg.data["value_32bit"]` |
+| `pitch_bend` | `pitch_32bit` | 0-4294967295 | `msg.data["pitch_32bit"]` |
+| `channel_pressure` | `pressure_32bit` | 0-4294967295 | `msg.data["pressure_32bit"]` |
+| `poly_pressure` | `pressure_32bit` | 0-4294967295 | `msg.data["pressure_32bit"]` |
+| `midi2_per_note_controller` | `value_24bit` | 0-16777215 | `msg.data["value_24bit"]` |
+
+**Example — inspecting all MIDI 2.0 data:**
+
+```python
+def dump_midi2_data(msg):
+    """Print all MIDI 2.0 extended data from a message."""
+    if not msg.data.get("is_midi2"):
+        return
+
+    for key in ("velocity_16bit", "value_32bit", "pitch_32bit",
+                 "pressure_32bit", "value_24bit"):
+        if key in msg.data:
+            print(f"  {key}: {msg.data[key]}")
+```
+
+### 4.4 MIDI 2.0 Through the Synthesizer
+
+When processing MIDI messages through `synth.process_midi_message()`, the system automatically detects UMP format and converts it. The `Channel` class internally stores both 7-bit and 32-bit values:
+
+```python
+# After sending a MIDI 2.0 CC message:
+channel = synth.channels[0]
+print(channel.controllers[7])           # 7-bit value (0-127)
+print(channel.controllers_32bit[7])     # 32-bit value (0-4294967295)
+```
+
+---
+
+## 5. Per-Note Controllers
+
+MIDI 2.0 introduces per-note controllers that carry MIDI controller values for a specific note with 24-bit precision (0-16777215).
+
+### 5.1 Creating Per-Note Controller Messages
+
+```python
+from synth.io.midi.ump_packets import PerNoteControllerUMP, UMPGroup
+
+# Per-note timbre (CC74) on note 60 at 50%
+pnc = PerNoteControllerUMP(
+    group=UMPGroup(0),
+    channel=0,
+    note=60,
+    controller_index=74,     # Timbre
+    value=8388607             # 50% in 24-bit range (0-16777215)
+)
+
+# Per-note slide (CC75) on note 62 at 25%
+pnc_slide = PerNoteControllerUMP(
+    UMPGroup(0), 0, 62, 75, 4194303
+)
+
+# Per-note lift (CC76) on note 64 at 75%
+pnc_lift = PerNoteControllerUMP(
+    UMPGroup(0), 0, 64, 76, 12582911
 )
 ```
 
-### Per-Note XG Effects
-Apply different effects to different notes:
+### 5.2 Controller Index Mapping
+
+| CC | Name | MPE Role | 24-bit Value Meaning |
+|----|------|----------|---------------------|
+| 74 | Timbre | Filter/brightness control | 0 = dark, 16777215 = bright |
+| 75 | Slide | Pitch glide amount | 0 = no slide, 16777215 = max slide |
+| 76 | Lift | Release envelope | 0 = short release, 16777215 = long release |
+
+### 5.3 Parsing Per-Note Controllers
+
+`RealtimeParser` converts `PerNoteControllerUMP` to `MIDIMessage` with type `"midi2_per_note_controller"`:
 
 ```python
-# Set per-note reverb send
-for note in [60, 62, 64, 65]:
-    # Higher notes get more reverb
-    reverb_send = 0.1 + (note - 60) * 0.03
-    effects.set_per_note_effect_parameter(
-        note=note,
-        effect_id=effects.system_reverb_id,
-        param_name='send_level',
-        value=reverb_send
-    )
+parser = RealtimeParser()
 
-# Set per-note chorus depth
-effects.set_per_note_effect_parameter(
+pnc = PerNoteControllerUMP(UMPGroup(0), 0, 60, 74, 8388607)
+messages = parser.parse_bytes(pnc.to_bytes())
+
+for msg in messages:
+    if msg.type == "midi2_per_note_controller":
+        note = msg.data["note"]             # 60
+        controller = msg.data["controller"]  # 74
+        value = msg.data["value"]            # 8388607 (24-bit)
+        value_24bit = msg.data["value_24bit"]  # 8388607
+
+        print(f"Note {note}: CC{controller} = {value_24bit}")
+```
+
+### 5.4 Processing Per-Note Controllers in MPE
+
+When MPE is enabled, per-note controllers are processed through the MPE system for expressive control:
+
+```python
+# Assuming synth has mpe_system with MPE enabled
+synth.mpe_system.process_per_note_controller(
+    channel=0,
+    note=60,
+    controller=74,      # Timbre
+    value_24bit=8388607  # 50%
+)
+```
+
+This will update the `MPENote` object's `.timbre` attribute (normalized to 0.0-1.0).
+
+### 5.5 Practical Use — Expressive Chord
+
+```python
+from synth.io.midi.ump_packets import PerNoteControllerUMP, UMPGroup
+
+# Process per-note controllers through the synth
+def send_per_note_controller(synth, channel, note, cc, value_24bit):
+    pnc = PerNoteControllerUMP(UMPGroup(0), channel, note, cc, value_24bit)
+    synth.process_midi_message(pnc.to_bytes())
+
+# C major chord with varying timbre per note
+notes = [60, 64, 67]
+for i, note in enumerate(notes):
+    # Each note gets different timbre
+    timbre = int((i + 1) * 4194303)  # 25%, 50%, 75%
+    send_per_note_controller(synth, 0, note, 74, timbre)
+```
+
+### 5.6 Per-Note Management
+
+MIDI 2.0 Per-Note Management messages (`PerNoteManagementUMP`, UMP type 0xF, stream status 0x1) let you **explicitly assign or remove notes** from MPE zones. This gives direct control over per-note behavior without relying on dynamic zone assignment.
+
+```python
+from synth.io.midi.ump_packets import PerNoteManagementUMP, UMPGroup
+
+# Assign note 72 to the MPE zone on channel 7
+pnm = PerNoteManagementUMP(
+    group=UMPGroup(0),
+    channel=7,
     note=72,
-    effect_id=effects.system_chorus_id,
-    param_name='depth',
-    value=0.75
+    assign=True,
+)
+
+# Process through the synthesizer's MPE system
+synth.mpe_system.process_per_note_management(channel=7, note=72, assign=True)
+
+# When assign=False, the note is removed from the zone
+synth.mpe_system.process_per_note_management(channel=7, note=72, assign=False)
+```
+
+**Use cases:**
+- **Assign**: Pre-assign notes to specific MPE member channels before they arrive, enabling one-note-per-channel expressive control.
+- **Remove**: Release a note from MPE management, returning it to standard channel behavior.
+
+**Data keys** (via `midi2_per_note_management` MIDIMessage):
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `note` | `int` | Note number |
+| `assign` | `bool` | `True` = assign, `False` = remove |
+| `midi_group` | `UMPGroup` | UMP group of the message |
+
+---
+
+## 6. MPE+ Extensions
+
+MPE+ is a MIDI 2.0 extension to standard MPE that provides 32-bit precision for pitch bend, controllers, and per-note processing.
+
+### 6.1 Enabling MPE+
+
+```python
+from synth.engines.systems.mpe_system import MPESystem
+
+mpe_system = MPESystem(synthesizer=synth, max_channels=32)
+
+# MPE is enabled by default
+print(mpe_system.mpe_enabled)        # True
+
+# Enable MPE+ for high-precision mode
+mpe_system.set_mpe_plus_enabled(True)
+print(mpe_system.mpe_plus_enabled)   # True
+```
+
+### 6.2 32-bit Pitch Bend in MPE+
+
+```python
+# Standard MPE (14-bit pitch bend)
+mpe_system.process_pitch_bend(0, 8192)   # Center
+
+# MPE+ (32-bit pitch bend) — finer granularity
+mpe_system.process_pitch_bend_32bit(0, 0x7FFFFFFF)  # Center
+mpe_system.process_pitch_bend_32bit(0, 0xFFFFFFFF)   # Maximum up
+mpe_system.process_pitch_bend_32bit(0, 0x00000000)   # Maximum down
+```
+
+The 32-bit value is internally normalized to a -1.0 to +1.0 range, then multiplied by the zone's pitch bend range in semitones.
+
+### 6.3 32-bit MPE Controllers
+
+```python
+# CC74 (timbre) with 32-bit precision
+mpe_system.process_mpe_controller_32bit(1, 74, 4294967295)  # Full timbre
+
+# CC75 (slide) with 32-bit precision
+mpe_system.process_mpe_controller_32bit(1, 75, 0)           # No slide
+
+# CC76 (lift) with 32-bit precision
+mpe_system.process_mpe_controller_32bit(1, 76, 2147483647)  # 50% lift
+```
+
+### 6.4 Per-Note Controller Integration
+
+MPE+ integrates with the per-note controller system for individual note expression:
+
+```python
+# Set per-note timbre on an active MPE note
+mpe_system.process_per_note_controller(
+    channel=1,           # MPE member channel
+    note=60,
+    controller=74,       # Timbre
+    value_24bit=8388607  # 50%
+)
+
+# Check the MPE note's timbre value
+notes = mpe_system.get_active_mpe_notes(channel=1)
+for note in notes:
+    if note.note_number == 60:
+        print(f"Timbre: {note.timbre}")  # ~0.5 (normalized from 24-bit)
+```
+
+### 6.5 MPE System State
+
+```python
+# Get overall MPE status
+info = mpe_system.get_mpe_info()
+print(f"MPE enabled: {info['enabled']}")
+print(f"Active zones: {info['zones']}")
+print(f"Active notes: {info['active_notes']}")
+print(f"MPE+ enabled: {mpe_system.mpe_plus_enabled}")
+
+# Get active notes for a specific channel
+notes = mpe_system.get_active_mpe_notes(channel=0)
+for mpe_note in notes:
+    print(f"Note {mpe_note.note_number}: "
+          f"pitch_bend={mpe_note.pitch_bend:.2f}, "
+          f"timbre={mpe_note.timbre:.2f}, "
+          f"slide={mpe_note.slide:.2f}, "
+          f"lift={mpe_note.lift:.2f}")
+```
+
+---
+
+## 7. Channel-Level 32-bit Control
+
+The `Channel` class stores both 7-bit (MIDI 1.0) and 32-bit (MIDI 2.0) values for controllers, pitch bend, and pressure.
+
+### 7.1 32-bit Controllers
+
+```python
+# Access the channel from the synthesizer
+channel = synth.channels[0]  # ModernXGSynthesizer
+
+# MIDI 2.0: pass is_32bit=True
+channel.control_change(7, 4294967295, is_32bit=True)    # Volume: 100%
+channel.control_change(10, 0x7FFFFFFF, is_32bit=True)   # Pan: center
+channel.control_change(11, 3221225472, is_32bit=True)   # Expression: ~75%
+
+# Both representations are stored
+print(f"7-bit volume:  {channel.controllers[7]}")          # 127
+print(f"32-bit volume: {channel.controllers_32bit[7]}")    # 4294967295
+
+# Normalize to float for modulation
+normalized = channel._normalize_32bit_value(channel.controllers_32bit[7])
+print(f"Normalized: {normalized:.3f}")  # 1.000
+```
+
+### 7.2 32-bit Pitch Bend
+
+```python
+# MIDI 2.0: pass pitch_32bit parameter
+channel.pitch_bend(0, 0, pitch_32bit=0x7FFFFFFF)  # Center
+channel.pitch_bend(0, 0, pitch_32bit=0)            # Full down
+channel.pitch_bend(0, 0, pitch_32bit=0xFFFFFFFF)   # Full up
+
+# Access the stored values
+print(channel.pitch_bend_value)    # 32-bit value
+print(channel.pitch_bend_32bit)    # Same 32-bit value
+```
+
+### 7.3 32-bit Channel Pressure
+
+```python
+# MIDI 2.0 channel pressure
+channel.set_channel_pressure_32bit(2147483647)
+print(f"7-bit pressure: {channel.channel_pressure}")        # ~63
+print(f"32-bit pressure: {channel.channel_pressure_32bit}") # 2147483647
+```
+
+### 7.4 32-bit Poly Pressure
+
+```python
+# MIDI 2.0 per-note pressure
+channel.key_pressure(60, 0, pressure_32bit=4294967295)
+print(channel.key_pressure_values[60])             # 127
+print(channel.key_pressure_32bit_values[60])       # 4294967295
+```
+
+### 7.5 Verification — Checking 32-bit State
+
+```python
+# Inspect all 32-bit controllers on a channel
+print("32-bit controllers:")
+for cc, value in channel.controllers_32bit.items():
+    normalized = channel._normalize_32bit_value(value)
+    print(f"  CC{cc:3d}: {value:10d} ({normalized:.3f})")
+
+print(f"Pitch bend (32-bit): {channel.pitch_bend_32bit}")
+print(f"Channel pressure (32-bit): {channel.channel_pressure_32bit}")
+```
+
+---
+
+## 8. Troubleshooting
+
+### 8.1 MIDI 2.0 Not Enabled
+
+**Symptom:** Higher precision values have no effect; everything behaves like MIDI 1.0.
+
+**Solution:** Ensure `midi_2_enabled=True` at construction time:
+
+```python
+synth = ModernXGSynthesizer(midi_2_enabled=True)
+print(f"MIDI 2.0 enabled: {synth.midi_2_enabled}")  # Must be True
+```
+
+### 8.2 UMP Bytes Not Being Recognized
+
+**Symptom:** `RealtimeParser.parse_bytes()` returns empty or unexpected messages from UMP bytes.
+
+**Solution:** Verify the bytes start with a valid UMP type nibble (0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, or 0xF):
+
+```python
+from synth.io.midi.ump_packets import UMPParser
+
+# Verify bytes are parseable
+packets = UMPParser.parse_packet_stream(your_bytes)
+if not packets:
+    print("Not valid UMP data")
+
+# Check first nibble
+first_byte = your_bytes[0]
+ump_type = (first_byte >> 4) & 0xF
+print(f"UMP type: 0x{ump_type:X}")
+```
+
+### 8.3 Per-Note Controllers Not Affecting Sound
+
+**Symptom:** Sending `PerNoteControllerUMP` messages doesn't change the audio output.
+
+**Solution:** Ensure MPE is enabled and the target note is active:
+
+```python
+# Verify MPE state
+print(f"MPE enabled: {synth.mpe_system.mpe_enabled}")
+print(f"Active MPE notes: {len(synth.mpe_system.get_active_mpe_notes())}")
+
+# Per-note controllers only affect notes currently managed by MPE
+# Send a note on first, then the per-note controller
+from synth.io.midi.ump_packets import MIDI1ToMIDI2Converter
+note_on = MIDI1ToMIDI2Converter.midi1_to_midi2_channel_voice(0x90, 60, 100)
+synth.process_midi_message(note_on.to_bytes())
+
+# Now send the per-note controller
+pnc = PerNoteControllerUMP(UMPGroup(0), 0, 60, 74, 8388607)
+synth.process_midi_message(pnc.to_bytes())
+```
+
+### 8.4 MIDI 2.0 Conversion Loses Precision
+
+**Symptom:** Round-trip conversion (MIDI 1.0 → 2.0 → 1.0) produces slightly different values.
+
+**Explanation:** This is expected. The conversion scales between ranges:
+
+- 7-bit (0-127) ↔ 16-bit (0-65535): uses integer scaling `* 65535 / 127`
+- 7-bit (0-127) ↔ 32-bit (0-4294967295): uses integer scaling `* 0xFFFFFFFF / 127`
+- 14-bit (0-16383) ↔ 32-bit (0-0xFFFFFFFF): uses integer scaling
+
+Rounding errors can occur: velocity 100 → 16-bit 33024 → 7-bit 99 (not 100). This is within acceptable tolerance.
+
+### 8.5 MPE+ Methods vs Standard MPE Methods
+
+**Symptom:** Calling `set_mpe_plus_enabled(True)` doesn't seem to change behavior.
+
+**Explanation:** MPE+ methods (`process_pitch_bend_32bit`, `process_mpe_controller_32bit`) are independent of the `mpe_plus_enabled` flag. The flag is for informational/configuration purposes. The 32-bit methods always work with 32-bit precision regardless of the flag state. Standard methods (`process_pitch_bend`, `process_mpe_controller`) always use 14-bit/7-bit values.
+
+### 8.6 Import Paths
+
+Ensure you use the correct import paths:
+
+```python
+# ✅ Correct imports
+from synth.io.midi.ump_packets import (
+    MIDI2ChannelVoicePacket,
+    MIDI1ChannelVoicePacket,
+    PerNoteControllerUMP,
+    SysExUMP,
+    UMPParser,
+    MIDI1ToMIDI2Converter,
+    UMPGroup,
+)
+from synth.io.midi.realtime import RealtimeParser
+from synth.io.midi.message import MIDIMessage
+from synth.engines.systems.mpe_system import MPESystem
+from synth.mpe.mpe_manager import MPEManager, MPENote
+from synth.processing.channel import Channel
+from synth.synthesizers.rendering import ModernXGSynthesizer
+from synth.synthesizers.realtime import Synthesizer
+
+# ❌ Incorrect — these modules do not exist
+# from synth.midi.ump_packets import ...   # Wrong
+# from synth.io.midi.advanced_parameter_control import ...  # Does not exist
+# from synth.io.midi.capability_discovery import ...        # Does not exist
+# from synth.io.midi.profile_configurator import ...        # Does not exist
+```
+
+### 8.7 Validation — Import Check
+
+Run this to verify your environment has all the MIDI 2.0 APIs:
+
+```bash
+python -c "
+from synth.io.midi.ump_packets import (
+    MIDI2ChannelVoicePacket, MIDI1ToMIDI2Converter,
+    PerNoteControllerUMP, UMPGroup, UMPParser,
+    MIDI1ChannelVoicePacket, SysExUMP, UMPMessageType,
+)
+from synth.io.midi.realtime import RealtimeParser
+from synth.io.midi.message import MIDIMessage
+from synth.engines.systems.mpe_system import MPESystem
+print('All MIDI 2.0 imports OK')
+"
+```
+
+---
+
+## 9. UMP Group Routing
+
+UMP Groups allow a single UMP stream to carry up to 16 independent groups of 16 MIDI channels, for a total of 256 logical channels. This is equivalent to having multiple MIDI ports over a single cable.
+
+### 9.1 How Groups Work
+
+Each UMP packet carries a 4-bit group identifier (0-15) in its header. The group is automatically extracted by `RealtimeParser` when parsing UMP data.
+
+```python
+# Group 0, channel 5 — standard first port
+packet_g0 = MIDI2ChannelVoicePacket(
+    UMPGroup(0), channel=5, message_type=0x9,
+    data_word_1=60, data_word_2=100 << 16,
+)
+
+# Group 1, channel 5 — second port
+packet_g1 = MIDI2ChannelVoicePacket(
+    UMPGroup(1), channel=5, message_type=0x9,
+    data_word_1=72, data_word_2=80 << 16,
 )
 ```
 
-### XG Effect Types
-The system supports numerous XG effect types with MIDI 2.0 resolution:
+### 9.2 MIDI Message Data
+
+Every UMP message parsed by `RealtimeParser` includes the group in its data dictionary as `midi_group`, while `channel` stays as the raw group-relative value (0-15):
 
 ```python
-# System Effects (applied globally)
-effects.set_xg_parameter(0x000000, 5, resolution_bits=32)  # Set reverb type to Hall 1
-effects.set_xg_parameter(0x000100, 2, resolution_bits=32)  # Set chorus type to Chorus 2
+parser = RealtimeParser()
 
-# Variation Effects (multi-function)
-effects.set_xg_parameter(0x000200, 15, resolution_bits=32)  # Set variation type
+# Parse a message from group 3, channel 7
+pnc = PerNoteControllerUMP(UMPGroup(3), channel=7, note=60, controller_index=74, value=8388607)
+messages = parser.parse_bytes(pnc.to_bytes())
 
-# Insertion Effects (per-part)
-insert_id = effects.create_effect(MIDI2EffectType.DELAY_STEREO_32BIT)
-effects.set_effect_parameter(insert_id, 'time', 0.5, resolution_bits=32)
-effects.set_effect_parameter(insert_id, 'feedback', 0.3, resolution_bits=32)
-effects.enable_effect(insert_id)
+for msg in messages:
+    print(f"Channel: {msg.channel}")          # 7 (raw within group)
+    print(f"Group: {msg.data['midi_group']}") # UMPGroup(3)
 ```
 
-## Profile Configuration
+### 9.3 Synthesizer Channel Mapping
 
-### Profile Negotiation
-MIDI 2.0 includes profile negotiation for optimal device compatibility:
+The synthesizer maps groups to its flat channel array:
+
+```
+synth_channel = midi_group × 16 + midi_channel
+```
+
+| UMP Group | MIDI Channel | Synth Channel | Result |
+|-----------|-------------|---------------|--------|
+| 0 | 0 | 0 | First channel, first group |
+| 0 | 15 | 15 | Last channel, first group |
+| 1 | 0 | 16 | First channel, second group |
+| 1 | 5 | 21 | Channel 5, second group |
+| 3 | 7 | 55 | Channel 7, group 3 |
+
+### 9.4 Enabling Multi-Group Support
+
+Configure the synthesizer with enough channels for your groups. Each group requires 16 consecutive channels:
 
 ```python
-from synth.midi.profile_configurator import ProfileConfigurationSystem
+# Two groups (32 channels)
+synth = ModernXGSynthesizer(max_channels=32, midi_2_enabled=True)
 
-profiler = ProfileConfigurationSystem()
-
-# Negotiate the best profile for your application
-negotiated_profile, capabilities = profiler.negotiate_profile(
-    port=0,
-    requested_profile=MIDIProfile.GENERAL_MIDI_2
-)
-
-print(f"Negotiated profile: {negotiated_profile}")
-print(f"Capabilities: {capabilities}")
+# Four groups (64 channels)
+synth = Synthesizer(max_channels=64, midi_2_enabled=True)
 ```
 
-### Capability Discovery
-Discover what features a device supports:
+The flat channel number is used only for direct synthesizer channel access. XG receive-channel routing and MPE zone management continue to use the raw group-relative channel (0-15) and are unaffected by group offset.
 
-```python
-# Discover device capabilities
-from synth.midi.capability_discovery import CapabilityDiscoverySystem
+---
 
-discoverer = CapabilityDiscoverySystem()
-device_id = "my_midi_device"
-capabilities = discoverer.discover_device_capabilities(device_id)
+### Conversion from MIDI 1.0 to MIDI 2.0
 
-print(f"Max polyphony: {capabilities.get('max_polyphony', 0)}")
-print(f"32-bit support: {capabilities.get('supports_32bit_resolution', False)}")
-print(f"Per-note controllers: {capabilities.get('supports_per_note_controllers', False)}")
-print(f"MPE support: {capabilities.get('supports_mpe', False)}")
-print(f"Supported message types: {capabilities.get('supported_message_types', set())}")
+| MIDI 1.0 | MIDI 2.0 Equivalent |
+|----------|---------------------|
+| `[0x90, 60, 100]` | `MIDI1ToMIDI2Converter.midi1_to_midi2_channel_voice(0x90, 60, 100).to_bytes()` |
+| `[0xB0, 7, 80]` | `MIDI1ToMIDI2Converter.midi1_to_midi2_channel_voice(0xB0, 7, 80).to_bytes()` |
+| `[0xE0, 0x00, 0x40]` | `MIDI1ToMIDI2Converter.midi1_to_midi2_channel_voice(0xE0, 0x00, 0x40).to_bytes()` |
 
-# Check for specific XG features
-if capabilities.get('xg_support', False):
-    print("XG features available")
-    print(f"XG effects: {capabilities.get('xg_effects_count', 0)}")
-    print(f"XG voices: {capabilities.get('xg_voices', 0)}")
-```
+### Range Comparison
 
-### Profile-Specific Behavior
-Configure your application based on the negotiated profile:
+| Parameter | MIDI 1.0 | MIDI 2.0 | Improvement |
+|-----------|----------|----------|-------------|
+| Velocity | 0-127 (7-bit) | 0-65535 (16-bit) | 512x |
+| Controller | 0-127 (7-bit) | 0-4294967295 (32-bit) | 33Mx |
+| Pitch Bend | 0-16383 (14-bit) | 0-4294967295 (32-bit) | 262Kx |
+| Pressure | 0-127 (7-bit) | 0-4294967295 (32-bit) | 33Mx |
+| Per-Note CC | N/A | 0-16777215 (24-bit) | New |
 
-```python
-if negotiated_profile == MIDIProfile.GENERAL_MIDI_2:
-    # Use GM2 features
-    use_32bit_parameters = True
-    enable_per_note_controllers = True
-    max_polyphony = 64
-elif negotiated_profile == MIDIProfile.XG_FULL:
-    # Use XG-specific features
-    use_32bit_parameters = True
-    enable_per_note_controllers = True
-    enable_xg_effects = True
-    max_polyphony = 128
-elif negotiated_profile == MIDIProfile.MPE_STANDARD:
-    # Configure for MPE
-    use_32bit_parameters = True
-    enable_mpe_mode = True
-    max_polyphony = 15  # MPE typically uses 15 note channels + 1 master
-```
+---
 
-## Best Practices
+## Copyright
 
-### Using 32-bit Parameters
-When working with 32-bit parameters, always specify the resolution:
-
-```python
-# Good: Explicitly specify 32-bit resolution
-controller.set_parameter_value('filter_cutoff', 0.7, resolution='32bit')
-
-# Good: Use the parameter resolution enum
-from synth.midi.types import ParameterResolution
-controller.set_parameter_value('resonance', 0.5, resolution=ParameterResolution.MIDI_2_32_BIT)
-```
-
-### Per-Note Control
-Take advantage of per-note controllers for expressive performance:
-
-```python
-# Set per-note expression for individual control
-for note in [60, 62, 64, 65, 67]:  # C, D, E, F, G
-    controller.set_per_note_parameter(note, 'expression', 0.8 + (note % 5) * 0.05)
-```
-
-### MPE+ Mode
-Use MPE+ for expressive polyphonic performance:
-
-```python
-# Enable MPE+ for expressive control
-channel.enable_mpe_plus(
-    master_channel=15,           # Channel 16 controls global parameters
-    first_note_channel=1,        # Channels 1-14 for note data
-    last_note_channel=14,
-    layout='horizontal'          # Horizontal ribbon layout
-)
-```
-
-### Profile Configuration
-Always negotiate profiles for optimal compatibility:
-
-```python
-# Negotiate the best profile for your needs
-negotiated_profile, capabilities = profile_configurator.negotiate_profile(
-    port=0, 
-    requested_profile=MIDIProfile.GENERAL_MIDI_2
-)
-```
-
-## Troubleshooting
-
-### Common Issues and Solutions
-
-#### Issue: 32-bit Parameters Not Working
-**Symptoms**: Parameters seem to behave like 7-bit values
-**Solution**: Verify that MIDI 2.0 mode is enabled and that you're sending UMP packets or using the 32-bit parameter methods:
-
-```python
-# Check if 32-bit support is enabled
-print(f"32-bit support: {synth.supports_32bit_parameters}")
-
-# Use the correct method with explicit resolution
-param_controller.set_parameter_value('filter_cutoff', 0.75, resolution='32bit')
-```
-
-#### Issue: Per-Note Controllers Not Responding
-**Symptoms**: Per-note parameters don't seem to affect individual notes
-**Solution**: Ensure that per-note controller support is enabled and that you're setting parameters for the correct notes:
-
-```python
-# Verify per-note support
-print(f"Per-note support: {synth.supports_per_note_controllers}")
-
-# Set per-note parameters correctly
-param_controller.set_per_note_parameter(note=60, param_name='expression', value=0.8)
-```
-
-#### Issue: MPE+ Not Working
-**Symptoms**: MPE+ features don't respond as expected
-**Solution**: Check that MPE+ mode is properly enabled and that you're sending messages on the correct channels:
-
-```python
-# Enable MPE+ with proper channel configuration
-channel.enable_mpe_plus(
-    master_channel=15,      # Usually channel 16 (0-indexed as 15)
-    first_note_channel=0,   # Usually channel 1 (0-indexed as 0)
-    last_note_channel=14    # Usually channel 15 (0-indexed as 14)
-)
-
-# Send messages on the correct channels
-synth.send_midi_message([0x90, 60, 100])  # Note on channel 1 (0-indexed)
-synth.send_midi_message([0xE0, 0x00, 0x40])  # Pitch bend on master channel (15)
-```
-
-#### Issue: XG Effects Not Processing MIDI 2.0
-**Symptoms**: XG effects don't respond to 32-bit parameters
-**Solution**: Ensure that XG mode is enabled and that you're using the XG-specific parameter methods:
-
-```python
-# Verify XG mode is enabled
-print(f"XG enabled: {synth.xg_enabled}")
-
-# Use XG-specific parameter setting
-effects.set_xg_parameter(0x000001, 3.0, resolution_bits=32)  # REV TIME
-```
-
-### Performance Tips
-
-1. **Use Parameter Caching**: For frequently changing parameters, consider caching to reduce computation overhead.
-
-2. **Batch Parameter Updates**: When updating multiple parameters, batch them together for better performance.
-
-3. **Optimize Per-Note Usage**: While per-note controllers are powerful, use them judiciously as they require more processing power.
-
-4. **Profile Appropriately**: Use the appropriate MIDI profile for your application to optimize resource usage.
-
-### Debugging MIDI 2.0 Messages
-
-To debug MIDI 2.0 messages, you can inspect the UMP packets:
-
-```python
-from synth.midi.ump_packets import UMPParser
-
-parser = UMPParser()
-raw_data = b'\x20\x00\x90\x3C\x40\x00\x00\x00'  # Example UMP packet
-packets = parser.parse_packet_stream(raw_data)
-
-for packet in packets:
-    print(f"UMP Type: {packet.ump_type:X}")
-    print(f"Group: {packet.group}")
-    print(f"Message Type: {packet.message_type:X}")
-    print(f"Channel: {packet.channel}")
-```
-
-This user guide provides comprehensive information on using the MIDI 2.0 features in the XG Synthesizer, from basic setup to advanced techniques. The implementation provides professional-grade MIDI 2.0 support with full backward compatibility to MIDI 1.0, XG, and GS formats.
+This user guide documents the MIDI 2.0 implementation in the XG Synthesizer. Features and APIs are subject to change as the implementation evolves.

@@ -39,14 +39,16 @@ class YamahaArpeggiatorSysexController:
     CMD_ARP_BULK_DUMP = 0x11  # Bulk Dump Request
     CMD_ARP_BULK_DATA = 0x12  # Bulk Data Transfer
 
-    def __init__(self, arpeggiator_engine):
+    def __init__(self, arpeggiator_engine, num_parts: int = 16):
         """
         Initialize SYSEX controller.
 
         Args:
             arpeggiator_engine: YamahaArpeggiatorEngine instance
+            num_parts: Number of parts (default 16)
         """
         self.arpeggiator_engine = arpeggiator_engine
+        self.num_parts = num_parts
         self.lock = threading.RLock()
 
         # SYSEX command routing table
@@ -318,7 +320,7 @@ class YamahaArpeggiatorSysexController:
                 return None
 
             parts_processed = 0
-            for part in range(16):
+            for part in range(self.num_parts):
                 part_offset = part * 16
                 part_data = data[part_offset : part_offset + 16]
 
@@ -326,7 +328,7 @@ class YamahaArpeggiatorSysexController:
                 if self._apply_bulk_part_settings(part, part_data):
                     parts_processed += 1
 
-            logger.info("Arpeggiator bulk settings loaded: %s/16 parts", parts_processed)
+            logger.info("Arpeggiator bulk settings loaded: %s/%s parts", parts_processed, self.num_parts)
             return {
                 "type": "bulk_operation",
                 "command": "bulk_data_complete",
@@ -451,10 +453,10 @@ class YamahaArpeggiatorSysexController:
 
     def create_arpeggiator_bulk_dump(self, device_id: int = 0x10) -> bytes:
         """Create complete arpeggiator settings bulk dump."""
-        # Collect settings for all 16 parts
+        # Collect settings for all parts
         bulk_data = bytearray()
 
-        for part in range(16):
+        for part in range(self.num_parts):
             # Get current settings for this part
             status = self.arpeggiator_engine.get_arpeggiator_status(part)
             if status:

@@ -130,6 +130,8 @@ class VoiceInfo:
     priority: int = 0
     effects_chain: list[str] | None = None
     modulation_data: dict[str, Any] | None = None
+    mpe_zone_id: int | None = None  # MPE zone if this is an MPE voice
+    mpe_note_number: int | None = None  # Original MPE note number
 
 
 class VoiceManager:
@@ -284,6 +286,8 @@ class VoiceManager:
         engine_type: str,
         engine_params: dict[str, Any] | None = None,
         modulation_data: dict[str, Any] | None = None,
+        mpe_zone_id: int | None = None,
+        mpe_note_number: int | None = None,
     ) -> int | None:
         """
         Allocate a voice for note playback.
@@ -294,6 +298,9 @@ class VoiceManager:
             velocity: MIDI velocity (0-127)
             engine_type: Synthesis engine type
             engine_params: Optional engine-specific parameters (e.g. bank, program)
+            modulation_data: Optional modulation data
+            mpe_zone_id: MPE zone ID if this is an MPE voice
+            mpe_note_number: Original MPE note number
 
         Returns:
             Voice ID or None if allocation failed
@@ -310,11 +317,21 @@ class VoiceManager:
             voice_id = self._allocate_free_voice()
             if voice_id is not None:
                 return self._initialize_voice(
-                    voice_id, channel, note, velocity, engine_type, engine_params, modulation_data
+                    voice_id,
+                    channel,
+                    note,
+                    velocity,
+                    engine_type,
+                    engine_params,
+                    modulation_data,
+                    mpe_zone_id,
+                    mpe_note_number,
                 )
 
             # No free voices, attempt stealing
-            stolen_voice_id = self._steal_voice(channel, note, velocity, engine_type, engine_params)
+            stolen_voice_id = self._steal_voice(
+                channel, note, velocity, engine_type, engine_params, mpe_zone_id
+            )
             if stolen_voice_id is not None:
                 return self._reallocate_voice(
                     stolen_voice_id,
@@ -324,6 +341,8 @@ class VoiceManager:
                     engine_type,
                     engine_params,
                     modulation_data,
+                    mpe_zone_id,
+                    mpe_note_number,
                 )
 
             # Allocation failed
@@ -345,6 +364,8 @@ class VoiceManager:
         engine_type: str,
         engine_params: dict[str, Any] | None = None,
         modulation_data: dict[str, Any] | None = None,
+        mpe_zone_id: int | None = None,
+        mpe_note_number: int | None = None,
     ) -> int:
         """Initialize a newly allocated voice"""
         voice_info = VoiceInfo(
@@ -358,6 +379,8 @@ class VoiceManager:
             state=VoiceState.ATTACK,
             start_time=time.time(),
             priority=self.voice_priorities.get(engine_type, 0),
+            mpe_zone_id=mpe_zone_id,
+            mpe_note_number=mpe_note_number,
         )
 
         self.active_voices[voice_id] = voice_info
@@ -382,6 +405,8 @@ class VoiceManager:
         engine_type: str,
         engine_params: dict[str, Any] | None = None,
         modulation_data: dict[str, Any] | None = None,
+        mpe_zone_id: int | None = None,
+        mpe_note_number: int | None = None,
     ) -> int:
         """Reallocate a stolen voice"""
         old_voice_info = self.active_voices[voice_id]
@@ -398,6 +423,8 @@ class VoiceManager:
             state=VoiceState.ATTACK,
             start_time=time.time(),
             priority=self.voice_priorities.get(engine_type, 0),
+            mpe_zone_id=mpe_zone_id,
+            mpe_note_number=mpe_note_number,
         )
 
         self.active_voices[voice_id] = new_voice_info
@@ -418,9 +445,22 @@ class VoiceManager:
         velocity: int,
         engine_type: str,
         engine_params: dict[str, Any] | None = None,
+        mpe_zone_id: int | None = None,
     ) -> int | None:
         """
         Attempt to steal a voice using the configured strategy.
+
+        MPE-aware stealing: non-MPE voices cannot steal MPE voices.
+        If the requesting voice has no MPE zone and MPE voices exist,
+        only non-MPE voices are eligible for stealing.
+
+        Args:
+            channel: MIDI channel
+            note: MIDI note number
+            velocity: MIDI velocity
+            engine_type: Synthesis engine type
+            engine_params: Optional engine-specific parameters
+            mpe_zone_id: MPE zone ID of the requesting voice (None if not MPE)
 
         Returns:
             Voice ID to steal or None
@@ -430,18 +470,33 @@ class VoiceManager:
 
         requesting_priority = self.voice_priorities.get(engine_type, 0)
 
-        if self.stealing_strategy == VoiceStealingStrategy.PRIORITY:
-            return self._steal_by_priority(requesting_priority)
-        elif self.stealing_strategy == VoiceStealingStrategy.OLDEST:
-            return self._steal_oldest()
-        elif self.stealing_strategy == VoiceStealingStrategy.QUIETEST:
-            return self._steal_quietest()
-        elif self.stealing_strategy == VoiceStealingStrategy.LOWEST:
-            return self._steal_lowest()
-        elif self.stealing_strategy == VoiceStealingStrategy.HIGHEST:
-            return self._steal_highest()
+        # MPE-aware stealing: determine eligible candidates
+        if mpe_zone_id is None:
+            # Non-MPE request: only non-MPE voices are eligible
+            candidates = {
+                vid: vi
+                for vid, vi in self.active_voices.items()
+                if vi.mpe_zone_id is None
+            }
         else:
-            return self._steal_oldest()  # Default fallback
+            # MPE request: all voices are eligible
+            candidates = self.active_voices
+
+        if not candidates:
+            return None
+
+        if self.stealing_strategy == VoiceStealingStrategy.PRIORITY:
+            return self._steal_by_priority(requesting_priority, candidates)
+        elif self.stealing_strategy == VoiceStealingStrategy.OLDEST:
+            return self._steal_oldest(candidates)
+        elif self.stealing_strategy == VoiceStealingStrategy.QUIETEST:
+            return self._steal_quietest(candidates)
+        elif self.stealing_strategy == VoiceStealingStrategy.LOWEST:
+            return self._steal_lowest(candidates)
+        elif self.stealing_strategy == VoiceStealingStrategy.HIGHEST:
+            return self._steal_highest(candidates)
+        else:
+            return self._steal_oldest(candidates)  # Default fallback
 
     def _get_voice_priority_score(self, voice_info: VoiceInfo) -> float:
         """Get combined voice priority score for stealing decisions.
@@ -472,7 +527,11 @@ class VoiceManager:
         # Higher engine priority = higher score = less likely to be stolen
         return voice_info.priority / 10.0 if voice_info.priority > 0 else 0.5
 
-    def _steal_by_priority(self, requesting_priority: int) -> int | None:
+    def _steal_by_priority(
+        self,
+        requesting_priority: int,
+        candidates: dict[int, VoiceInfo] | None = None,
+    ) -> int | None:
         """Steal voice with lowest combined priority score.
 
         Uses the combined score from _get_voice_priority_score(), which factors
@@ -484,14 +543,18 @@ class VoiceManager:
 
         Args:
             requesting_priority: Engine priority of the requesting voice
+            candidates: Voice candidates to consider (defaults to all active voices)
 
         Returns:
             Voice ID to steal, or None if no eligible candidate
         """
+        if candidates is None:
+            candidates = self.active_voices
+
         lowest_score = float("inf")
         candidate_voice = None
 
-        for voice_id, voice_info in self.active_voices.items():
+        for voice_id, voice_info in candidates.items():
             # Only steal voices with lower engine priority than requester
             if voice_info.priority >= requesting_priority:
                 continue
@@ -503,48 +566,100 @@ class VoiceManager:
 
         return candidate_voice
 
-    def _steal_oldest(self) -> int | None:
-        """Steal the oldest allocated voice"""
+    def _steal_oldest(
+        self,
+        candidates: dict[int, VoiceInfo] | None = None,
+    ) -> int | None:
+        """Steal the oldest allocated voice
+
+        Args:
+            candidates: Voice candidates to consider (defaults to all active voices)
+
+        Returns:
+            Voice ID to steal or None
+        """
+        if candidates is None:
+            candidates = self.active_voices
+
         oldest_time = float("inf")
         oldest_voice = None
 
-        for voice_id, voice_info in self.active_voices.items():
+        for voice_id, voice_info in candidates.items():
             if voice_info.start_time < oldest_time:
                 oldest_time = voice_info.start_time
                 oldest_voice = voice_id
 
         return oldest_voice
 
-    def _steal_quietest(self) -> int | None:
-        """Steal the voice with lowest velocity"""
+    def _steal_quietest(
+        self,
+        candidates: dict[int, VoiceInfo] | None = None,
+    ) -> int | None:
+        """Steal the voice with lowest velocity
+
+        Args:
+            candidates: Voice candidates to consider (defaults to all active voices)
+
+        Returns:
+            Voice ID to steal or None
+        """
+        if candidates is None:
+            candidates = self.active_voices
+
         lowest_velocity = float("inf")
         quietest_voice = None
 
-        for voice_id, voice_info in self.active_voices.items():
+        for voice_id, voice_info in candidates.items():
             if voice_info.velocity < lowest_velocity:
                 lowest_velocity = voice_info.velocity
                 quietest_voice = voice_id
 
         return quietest_voice
 
-    def _steal_lowest(self) -> int | None:
-        """Steal the voice with lowest note"""
+    def _steal_lowest(
+        self,
+        candidates: dict[int, VoiceInfo] | None = None,
+    ) -> int | None:
+        """Steal the voice with lowest note
+
+        Args:
+            candidates: Voice candidates to consider (defaults to all active voices)
+
+        Returns:
+            Voice ID to steal or None
+        """
+        if candidates is None:
+            candidates = self.active_voices
+
         lowest_note = float("inf")
         lowest_voice = None
 
-        for voice_id, voice_info in self.active_voices.items():
+        for voice_id, voice_info in candidates.items():
             if voice_info.note < lowest_note:
                 lowest_note = voice_info.note
                 lowest_voice = voice_id
 
         return lowest_voice
 
-    def _steal_highest(self) -> int | None:
-        """Steal the voice with highest note"""
+    def _steal_highest(
+        self,
+        candidates: dict[int, VoiceInfo] | None = None,
+    ) -> int | None:
+        """Steal the voice with highest note
+
+        Args:
+            candidates: Voice candidates to consider (defaults to all active voices)
+
+        Returns:
+            Voice ID to steal or None
+        """
+        if candidates is None:
+            candidates = self.active_voices
+
         highest_note = float("-inf")
         highest_voice = None
 
-        for voice_id, voice_info in self.active_voices.items():
+        for voice_id, voice_info in candidates.items():
             if voice_info.note > highest_note:
                 highest_note = voice_info.note
                 highest_voice = voice_id

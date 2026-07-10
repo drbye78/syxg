@@ -102,16 +102,18 @@ class XGSystemExclusiveController:
         0x3030: "drum_note_decay_offset",
     }
 
-    def __init__(self, device_id: int = 0x10, model_id: int = 0x4C):
+    def __init__(self, device_id: int = 0x10, model_id: int = 0x4C, num_parts: int = 16):
         """
         Initialize XG SYSEX Controller.
 
         Args:
             device_id: XG device ID (0x00-0x7F, default 0x10)
             model_id: XG model ID (default 0x4C for XG)
+            num_parts: Number of parts (default 16)
         """
         self.device_id = device_id
         self.model_id = model_id
+        self.num_parts = num_parts
         self.lock = threading.RLock()
 
         # Message processing state
@@ -169,7 +171,7 @@ class XGSystemExclusiveController:
         )
 
         # Multi-part defaults
-        for part in range(16):
+        for part in range(self.num_parts):
             self.parameters[f"voice_reserve_part_{part}"] = 8  # 8 voices default
             self.parameters[f"part_mode_part_{part}"] = 1  # Multi mode
             self.parameters[f"part_level_part_{part}"] = 1.0  # Full level
@@ -687,7 +689,7 @@ class XGSystemExclusiveController:
                 dump_data.extend([address >> 8, address & 0xFF, value & 0x7F])
 
         # Multi-part parameters (MSB 42-45)
-        for part in range(16):
+        for part in range(self.num_parts):
             for base_address in [0x2A00, 0x2B00, 0x2C00, 0x2D00]:  # Voice reserve, mode, level, pan
                 address = base_address + part
                 param_name = (
@@ -807,8 +809,8 @@ class XGSystemExclusiveController:
         """
         dump_data = [0x02]  # Multi-part parameters type
 
-        # Add parameters for all 16 parts (voice reserve, mode, level, pan)
-        for part in range(16):
+        # Add parameters for all parts (voice reserve, mode, level, pan)
+        for part in range(self.num_parts):
             # Voice reserve (MSB 42)
             reserve = self.parameters.get(f"voice_reserve_part_{part}", 8)
             dump_data.append(reserve & 0x7F)
@@ -889,11 +891,11 @@ class XGSystemExclusiveController:
             True if processed successfully
         """
         try:
-            # Expect 64 bytes (4 parameters × 16 parts)
-            if len(dump_data) < 64:
+            # Expect 4 parameters per part
+            if len(dump_data) < 4 * self.num_parts:
                 return False
 
-            for part in range(16):
+            for part in range(self.num_parts):
                 base_idx = part * 4
 
                 # Voice reserve

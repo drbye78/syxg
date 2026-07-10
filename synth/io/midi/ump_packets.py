@@ -23,11 +23,16 @@ class UMPMessageType(IntEnum):
     MIDI_2_CHANNEL = 0x2  # MIDI 2.0 Channel Voice Messages
     MIDI_1_CHANNEL = 0x1  # MIDI 1.0 Channel Voice Messages
     SYSEX = 0x3  # System Exclusive
-    SYS_COMMON = 0x4  # System Common Messages
-    SYS_RT = 0x5  # System Real-Time Messages
+    UTILITY = 0x4  # Utility Messages (32-bit)
+    SYSTEM = 0x5  # System Messages (System Common + System Real-Time, 32-bit)
     POWER = 0x6  # Power Messages
     EXTENDED = 0x7  # Extended Messages
-    UTILITY = 0x4  # Utility Messages (when in 32-bit format)
+    STREAM = 0xF  # Stream Messages (Per-Note Controller, Per-Note Management)
+
+
+# Stream message status values
+PER_NOTE_CONTROLLER = 0x0  # Per-Note Controller message
+PER_NOTE_MANAGEMENT = 0x1   # Per-Note Management message
 
 
 class UMPGroup(int):
@@ -242,7 +247,12 @@ class SysExUMP(UMPPacket):
             word = words[i]
             sys_ex_data += struct.pack(">I", word)
 
-        # Remove padding zeros
+        # Trim padding nulls: only remove trailing nulls that are UMP word-alignment
+        # padding beyond the actual data length, not legitimate null bytes in the data
+        padded_length = num_data_words * 4
+        if len(sys_ex_data) > padded_length:
+            sys_ex_data = sys_ex_data[:padded_length]
+        # Strip trailing nulls conservatively (only padding nulls at the end)
         sys_ex_data = sys_ex_data.rstrip(b"\x00")
 
         return cls(group, sys_ex_data, complete)
@@ -289,6 +299,134 @@ class UtilityUMP(UMPPacket):
         return cls(group, utility_type, data)
 
 
+class PerNoteControllerUMP(UMPPacket):
+    """Per-Note Controller UMP (64-bit Stream message, type 0xF, status 0x0)
+
+    UMP format:
+    - Word 0: bits 31-28=0xF, bits 27-24=group, bits 23-20=status(0x0),
+              bits 19-16=channel, bits 15-0=note
+    - Word 1: bits 31-24=controller_index, bits 23-0=value (24-bit)
+    """
+
+    def __init__(
+        self, group: UMPGroup, channel: int, note: int,
+        controller_index: int, value: int
+    ):
+        super().__init__(UMPMessageType.STREAM, group)
+        if not 0 <= channel <= 15:
+            raise ValueError("Channel must be between 0 and 15")
+        if not 0 <= note <= 0xFFFF:
+            raise ValueError("Note must be a 16-bit value")
+        if not 0 <= controller_index <= 0xFF:
+            raise ValueError("Controller index must be an 8-bit value")
+        if not 0 <= value <= 0xFFFFFF:
+            raise ValueError("Value must be a 24-bit value")
+
+        self.channel = channel
+        self.note = note
+        self.controller_index = controller_index
+        self.value = value
+
+    def to_words(self) -> list[int]:
+        header = (
+            (self.ump_type << 28)
+            | (self.group << 24)
+            | (PER_NOTE_CONTROLLER << 20)  # status = 0x0
+            | (self.channel << 16)
+            | (self.note & 0xFFFF)
+        )
+        word1 = (self.controller_index << 24) | (self.value & 0xFFFFFF)
+        return [header, word1]
+
+    def to_bytes(self) -> bytes:
+        words = self.to_words()
+        return struct.pack(">II", words[0], words[1])
+
+    @classmethod
+    def from_words(cls, words: list[int]) -> PerNoteControllerUMP | None:
+        if len(words) < 2:
+            return None
+
+        header = words[0]
+        ump_type = (header >> 28) & 0xF
+        if ump_type != UMPMessageType.STREAM:
+            return None
+
+        stream_status = (header >> 20) & 0xF
+        if stream_status != PER_NOTE_CONTROLLER:
+            return None
+
+        group = UMPGroup((header >> 24) & 0xF)
+        channel = (header >> 16) & 0xF
+        note = header & 0xFFFF
+        controller_index = (words[1] >> 24) & 0xFF
+        value = words[1] & 0xFFFFFF
+
+        return cls(group, channel, note, controller_index, value)
+
+
+class PerNoteManagementUMP(UMPPacket):
+    """Per-Note Management UMP (64-bit Stream message, type 0xF, status 0x1)
+    
+    Explicitly assigns or removes notes from MPE zones.
+    
+    UMP format:
+    - Word 0: bits 31-28=0xF, bits 27-24=group, bits 23-20=status(0x1),
+              bits 19-16=channel, bits 15-0=note
+    - Word 1: bit 31=assign(1=assign to zone, 0=remove from zone),
+              bits 30-0=reserved
+    """
+    
+    def __init__(
+        self, group: UMPGroup, channel: int, note: int, assign: bool = True
+    ):
+        super().__init__(UMPMessageType.STREAM, group)
+        if not 0 <= channel <= 15:
+            raise ValueError("Channel must be between 0 and 15")
+        if not 0 <= note <= 0xFFFF:
+            raise ValueError("Note must be a 16-bit value")
+        
+        self.channel = channel
+        self.note = note
+        self.assign = assign  # True=assign note, False=remove note
+    
+    def to_words(self) -> list[int]:
+        header = (
+            (self.ump_type << 28)
+            | (self.group << 24)
+            | (PER_NOTE_MANAGEMENT << 20)  # status = 0x1
+            | (self.channel << 16)
+            | (self.note & 0xFFFF)
+        )
+        word1 = (1 << 31) if self.assign else 0
+        return [header, word1]
+    
+    def to_bytes(self) -> bytes:
+        words = self.to_words()
+        return struct.pack(">II", words[0], words[1])
+    
+    @classmethod
+    def from_words(cls, words: list[int]) -> PerNoteManagementUMP | None:
+        if len(words) < 2:
+            return None
+        
+        header = words[0]
+        ump_type = (header >> 28) & 0xF
+        if ump_type != UMPMessageType.STREAM:
+            return None
+        
+        stream_status = (header >> 20) & 0xF
+        if stream_status != PER_NOTE_MANAGEMENT:
+            return None
+        
+        group = UMPGroup((header >> 24) & 0xF)
+        channel = (header >> 16) & 0xF
+        note = header & 0xFFFF
+        assign = bool((words[1] >> 31) & 1)
+        
+        return cls(group, channel, note, assign)
+
+
 class UMPParser:
     """Universal MIDI Packet Parser for MIDI 2.0"""
 
@@ -332,6 +470,19 @@ class UMPParser:
         elif ump_type == UMPMessageType.UTILITY:
             return UtilityUMP.from_words([header])
 
+        elif ump_type == UMPMessageType.STREAM:
+            # Stream messages are always 64-bit (2 words)
+            if len(packet_bytes) < 8:
+                return None
+            word1 = header
+            word2 = struct.unpack(">I", packet_bytes[4:8])[0]
+            stream_status = (header >> 20) & 0xF
+            if stream_status == PER_NOTE_CONTROLLER:
+                return PerNoteControllerUMP.from_words([word1, word2])
+            elif stream_status == PER_NOTE_MANAGEMENT:
+                return PerNoteManagementUMP.from_words([word1, word2])
+            return None
+
         else:
             # Unsupported or unknown UMP type
             return None
@@ -360,6 +511,8 @@ class UMPParser:
             elif ump_type == UMPMessageType.SYSEX:
                 num_data_words = ((header >> 16) & 0xFF) + 1
                 packet_size = (num_data_words + 1) * 4  # Header + data words
+            elif ump_type == UMPMessageType.STREAM:
+                packet_size = 8  # 64-bit packet
             else:
                 # Unknown packet type, skip 4 bytes and continue
                 offset += 4
@@ -385,7 +538,8 @@ class MIDI1ToMIDI2Converter:
 
     @staticmethod
     def midi1_to_midi2_channel_voice(
-        status_byte: int, data1: int, data2: int
+        status_byte: int, data1: int, data2: int,
+        group: UMPGroup = UMPGroup(0),
     ) -> MIDI2ChannelVoicePacket:
         """Convert MIDI 1.0 channel voice message to MIDI 2.0 format"""
         channel = status_byte & 0x0F
@@ -399,36 +553,41 @@ class MIDI1ToMIDI2Converter:
         # - Pitch bend: 32-bit signed (centered at 0x7FFFFFFF)
 
         if message_type == 0x8:  # Note Off
-            data_word_1 = (data1 & 0xFF) << 24  # Note number
-            data_word_2 = (data2 & 0xFF) << 24  # Release velocity
+            velocity_16bit = (data2 * 0xFFFF) // 127
+            data_word_1 = data1 & 0xFFFF  # Note number
+            data_word_2 = (velocity_16bit & 0xFFFF) << 16  # Release velocity (16-bit)
         elif message_type == 0x9:  # Note On
-            data_word_1 = (data1 & 0xFF) << 24  # Note number
-            data_word_2 = (data2 & 0xFF) << 24  # Velocity
+            velocity_16bit = (data2 * 0xFFFF) // 127
+            data_word_1 = data1 & 0xFFFF  # Note number
+            data_word_2 = (velocity_16bit & 0xFFFF) << 16  # Velocity (16-bit)
         elif message_type == 0xA:  # Poly Pressure
-            data_word_1 = (data1 & 0xFF) << 24  # Note number
-            data_word_2 = (data2 & 0xFF) << 24  # Pressure
+            pressure = (data2 & 0xFF) * 0xFFFFFFFF // 127
+            data_word_1 = data1 & 0xFFFF  # Note number
+            data_word_2 = pressure  # Pressure (32-bit)
         elif message_type == 0xB:  # Control Change
-            data_word_1 = (data1 & 0xFF) << 24  # Controller number
-            data_word_2 = (data2 & 0xFF) << 24  # Controller value
+            value = (data2 & 0xFF) * 0xFFFFFFFF // 127
+            data_word_1 = (data1 & 0x7F) << 9  # Controller number (7-bit at bits 15-9)
+            data_word_2 = value  # Controller value (32-bit)
         elif message_type == 0xC:  # Program Change
-            data_word_1 = (data1 & 0xFF) << 24  # Program number
+            data_word_1 = data1 & 0xFFFF  # Program number
             data_word_2 = 0  # Unused
         elif message_type == 0xD:  # Channel Pressure
-            data_word_1 = (data1 & 0xFF) << 24  # Pressure
-            data_word_2 = 0  # Unused
+            pressure = (data1 & 0xFF) * 0xFFFFFFFF // 127  # data1 has pressure value
+            data_word_1 = 0  # Unused
+            data_word_2 = pressure  # Pressure (32-bit)
         elif message_type == 0xE:  # Pitch Bend
             # MIDI 1.0 pitch bend is 14-bit (0-16383), centered at 8192
-            # MIDI 2.0 pitch bend is 32-bit, centered at 0x7FFFFFFF
+            # MIDI 2.0 pitch bend is 32-bit, maps 0→0, 8192→0x7FFFFFFF, 16383→0xFFFFFFFF
             pitch_14bit = (data2 << 7) | data1
-            pitch_32bit = ((pitch_14bit - 8192) * (0x7FFFFFFF // 8192)) + 0x7FFFFFFF
-            data_word_1 = pitch_32bit & 0xFFFFFFFF
-            data_word_2 = 0  # Unused
+            pitch_32bit = (pitch_14bit * 0xFFFFFFFF) // 16383
+            data_word_1 = 0  # Unused
+            data_word_2 = pitch_32bit  # Pitch bend (32-bit)
         else:
             # Unknown message type, use raw conversion
             data_word_1 = (data1 & 0xFF) << 24
             data_word_2 = (data2 & 0xFF) << 24
 
-        return MIDI2ChannelVoicePacket(UMPGroup(0), channel, message_type, data_word_1, data_word_2)
+        return MIDI2ChannelVoicePacket(group, channel, message_type, data_word_1, data_word_2)
 
     @staticmethod
     def midi2_to_midi1_channel_voice(packet: MIDI2ChannelVoicePacket) -> tuple[int, int, int]:
@@ -437,28 +596,29 @@ class MIDI1ToMIDI2Converter:
 
         # Extract data based on message type
         if packet.message_type == 0x8:  # Note Off
-            data1 = (packet.data_word_1 >> 24) & 0xFF  # Note number
-            data2 = (packet.data_word_2 >> 24) & 0xFF  # Release velocity
+            data1 = packet.data_word_1 & 0xFFFF  # Note number
+            velocity_16bit = (packet.data_word_2 >> 16) & 0xFFFF
+            data2 = (velocity_16bit * 127) // 0xFFFF  # Scale 16-bit velocity → 7-bit
         elif packet.message_type == 0x9:  # Note On
-            data1 = (packet.data_word_1 >> 24) & 0xFF  # Note number
-            data2 = (packet.data_word_2 >> 24) & 0xFF  # Velocity
+            data1 = packet.data_word_1 & 0xFFFF  # Note number
+            velocity_16bit = (packet.data_word_2 >> 16) & 0xFFFF
+            data2 = (velocity_16bit * 127) // 0xFFFF  # Scale 16-bit velocity → 7-bit
         elif packet.message_type == 0xA:  # Poly Pressure
-            data1 = (packet.data_word_1 >> 24) & 0xFF  # Note number
-            data2 = (packet.data_word_2 >> 24) & 0xFF  # Pressure
+            data1 = packet.data_word_1 & 0xFFFF  # Note number
+            data2 = (packet.data_word_2 * 127) // 0xFFFFFFFF  # Scale 32-bit → 7-bit
         elif packet.message_type == 0xB:  # Control Change
-            data1 = (packet.data_word_1 >> 24) & 0xFF  # Controller number
-            data2 = (packet.data_word_2 >> 24) & 0xFF  # Controller value
+            data1 = (packet.data_word_1 >> 9) & 0x7F  # Controller number (7-bit at bits 15-9)
+            data2 = (packet.data_word_2 * 127) // 0xFFFFFFFF  # Scale 32-bit → 7-bit
         elif packet.message_type == 0xC:  # Program Change
-            data1 = (packet.data_word_1 >> 24) & 0xFF  # Program number
+            data1 = packet.data_word_1 & 0xFFFF  # Program number
             data2 = 0  # Unused
         elif packet.message_type == 0xD:  # Channel Pressure
-            data1 = (packet.data_word_1 >> 24) & 0xFF  # Pressure
+            data1 = (packet.data_word_2 * 127) // 0xFFFFFFFF  # Pressure → data1 (first data byte)
             data2 = 0  # Unused
         elif packet.message_type == 0xE:  # Pitch Bend
-            # MIDI 2.0 pitch bend is 32-bit, centered at 0x7FFFFFFF
-            # MIDI 1.0 pitch bend is 14-bit (0-16383), centered at 8192
-            pitch_32bit = packet.data_word_1
-            pitch_14bit = ((pitch_32bit - 0x7FFFFFFF) * (8192 // 0x7FFFFFFF)) + 8192
+            # MIDI 2.0 pitch bend is 32-bit, maps 0→0, 0x7FFFFFFF→8192, 0xFFFFFFFF→16383
+            pitch_32bit = packet.data_word_2  # Read from data_word_2, not data_word_1!
+            pitch_14bit = (pitch_32bit * 16383) // 0xFFFFFFFF
             pitch_14bit = max(0, min(16383, pitch_14bit))  # Clamp to valid range
             data1 = pitch_14bit & 0x7F  # LSB
             data2 = (pitch_14bit >> 7) & 0x7F  # MSB

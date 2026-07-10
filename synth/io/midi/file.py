@@ -276,42 +276,65 @@ class FileParser:
 
         # Create appropriate MIDIMessage based on message type
         if message_type == 0x8:  # Note Off
-            note = (data_word_1 >> 24) & 0xFF
-            velocity = (data_word_2 >> 24) & 0xFF
+            note = data_word_1 & 0xFFFF
+            velocity = (data_word_2 >> 16) & 0xFFFF
             return MIDIMessage(
                 type="note_off",
                 channel=channel,
-                data={"note": note, "velocity": velocity},
+                data={"note": note, "velocity": velocity, "velocity_16bit": velocity},
                 timestamp=0.0,  # Will be set by caller
             )
         elif message_type == 0x9:  # Note On
-            note = (data_word_1 >> 24) & 0xFF
-            velocity = (data_word_2 >> 24) & 0xFF
+            note = data_word_1 & 0xFFFF
+            velocity = (data_word_2 >> 16) & 0xFFFF
             return MIDIMessage(
                 type="note_on",
                 channel=channel,
-                data={"note": note, "velocity": velocity},
+                data={"note": note, "velocity": velocity, "velocity_16bit": velocity},
+                timestamp=0.0,
+            )
+        elif message_type == 0xA:  # Poly Pressure
+            note = data_word_1 & 0xFFFF
+            pressure = data_word_2  # Full 32-bit
+            midi1_pressure = (pressure * 127) // 0xFFFFFFFF
+            return MIDIMessage(
+                type="poly_pressure",
+                channel=channel,
+                data={"note": note, "pressure": midi1_pressure, "pressure_32bit": pressure},
                 timestamp=0.0,
             )
         elif message_type == 0xB:  # Control Change
-            controller = (data_word_1 >> 24) & 0xFF
-            value = (data_word_2 >> 24) & 0xFF
+            controller = (data_word_1 >> 9) & 0x7F
+            value_32bit = data_word_2
+            value = (value_32bit * 127) // 0xFFFFFFFF
             return MIDIMessage(
                 type="control_change",
                 channel=channel,
-                data={"controller": controller, "value": value},
+                data={"controller": controller, "value": value, "value_32bit": value_32bit},
                 timestamp=0.0,
             )
         elif message_type == 0xC:  # Program Change
-            program = (data_word_1 >> 24) & 0xFF
+            program = data_word_1 & 0xFFFF
             return MIDIMessage(
                 type="program_change", channel=channel, data={"program": program}, timestamp=0.0
             )
+        elif message_type == 0xD:  # Channel Pressure
+            pressure = data_word_2  # Full 32-bit
+            midi1_pressure = (pressure * 127) // 0xFFFFFFFF
+            return MIDIMessage(
+                type="channel_pressure",
+                channel=channel,
+                data={"pressure": midi1_pressure, "pressure_32bit": pressure},
+                timestamp=0.0,
+            )
         elif message_type == 0xE:  # Pitch Bend
             # MIDI 2.0 pitch bend is 32-bit
-            pitch_value = data_word_1
+            pitch_value = data_word_2  # Full 32-bit pitch from data_word_2
             return MIDIMessage(
-                type="pitch_bend", channel=channel, data={"value": pitch_value}, timestamp=0.0
+                type="pitch_bend",
+                channel=channel,
+                data={"value": pitch_value, "pitch_32bit": pitch_value},
+                timestamp=0.0,
             )
         # Add more message types as needed
 

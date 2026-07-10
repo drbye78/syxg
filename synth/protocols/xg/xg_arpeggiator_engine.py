@@ -472,11 +472,12 @@ class YamahaArpeggiatorEngine:
     chord detection, pattern chaining, and rhythmic variations.
     """
 
-    def __init__(self):
+    def __init__(self, num_parts: int = 16):
         self.lock = threading.RLock()
+        self.num_parts = num_parts
 
-        # 16 arpeggiator instances (one per MIDI channel)
-        self.arpeggiators = [ArpeggiatorInstance(i, self) for i in range(16)]
+        # Arpeggiator instances (one per part)
+        self.arpeggiators = [ArpeggiatorInstance(i, self) for i in range(self.num_parts)]
 
         # Pattern library with extensive pattern collection
         self.patterns: dict[int, ArpeggiatorPattern] = {}

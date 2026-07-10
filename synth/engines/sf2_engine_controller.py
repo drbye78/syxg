@@ -41,16 +41,18 @@ class SF2PartModeIntegrator:
     # Default drum channel
     DRUM_CHANNEL = 9  # MIDI channel 10
 
-    def __init__(self, sf2_engine, xg_system=None):
+    def __init__(self, sf2_engine, xg_system=None, num_channels: int = 16):
         """
         Initialize part mode integrator.
 
         Args:
             sf2_engine: SF2Engine instance
             xg_system: XGSynthesizerSystem instance (optional)
+            num_channels: Number of MIDI channels (default 16)
         """
         self.sf2_engine = sf2_engine
         self.xg_system = xg_system
+        self.num_channels = num_channels
 
         # Thread safety
         self.lock = threading.RLock()
@@ -67,7 +69,7 @@ class SF2PartModeIntegrator:
 
     def _initialize_channel_modes(self):
         """Initialize channel mode states."""
-        for ch in range(16):
+        for ch in range(self.num_channels):
             self.channel_modes[ch] = {
                 "mode": "normal",  # 'normal', 'drum', 'single'
                 "bank_msb": 0,
@@ -80,7 +82,7 @@ class SF2PartModeIntegrator:
     def _initialize_drum_mappings(self):
         """Initialize drum kit mappings."""
         # Default: use SF2 drum bank for channel 10
-        for ch in range(16):
+        for ch in range(self.num_channels):
             self.drum_kit_mappings[ch] = {}
 
     def set_xg_system(self, xg_system):
@@ -325,7 +327,7 @@ class SF2PartModeIntegrator:
 
     def get_all_channels_info(self) -> list[dict[str, Any]]:
         """Get information for all channels."""
-        return [self.get_channel_info(ch) for ch in range(16)]
+        return [self.get_channel_info(ch) for ch in range(self.num_channels)]
 
     def reset(self):
         """Reset to defaults."""

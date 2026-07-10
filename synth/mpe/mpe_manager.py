@@ -62,16 +62,15 @@ class MPENote:
         pitch_ratio = 2.0 ** (self.pitch_bend / 12.0)
         self.adjusted_frequency = self.frequency * pitch_ratio
 
-    def update_pitch_bend(self, bend_value: int):
+    def update_pitch_bend(self, bend_value: int, bend_range: float = 48.0):
         """
         Update pitch bend for this note.
 
         Args:
             bend_value: 14-bit pitch bend value (0-16383, center=8192)
+            bend_range: Bend range in semitones (default ±48 for full MPE range)
         """
         # Convert 14-bit MIDI pitch bend to semitones
-        # Standard range is ±2 semitones, but MPE allows much more
-        bend_range = 48.0  # ±48 semitones for full MPE range
         normalized_bend = (bend_value - 8192) / 8192.0
         self.pitch_bend = normalized_bend * bend_range
         self._update_derived_values()
@@ -193,6 +192,28 @@ class MPEChannel:
         """Clear all active notes."""
         self.active_notes.clear()
 
+    def get_note_on_channel(self, channel: int) -> MPENote | None:
+        """Get the note assigned to a specific member channel."""
+        for n in self.active_notes.values():
+            if n.channel == channel:
+                return n
+        return None
+
+    def has_note_on_channel(self, channel: int) -> bool:
+        """Check if a member channel has an active note."""
+        return self.get_note_on_channel(channel) is not None
+
+    def find_available_member_channel(self) -> int | None:
+        """Find first member channel with no active note."""
+        for ch in self.member_channels:
+            if not self.has_note_on_channel(ch):
+                return ch
+        return None
+
+    def get_active_note_count_on_channel(self, channel: int) -> int:
+        """Count active notes on a specific channel."""
+        return sum(1 for n in self.active_notes.values() if n.channel == channel)
+
     def get_channel_info(self) -> dict[str, Any]:
         """Get channel configuration and status."""
         return {
@@ -287,6 +308,10 @@ class MPEManager:
         # Active notes registry
         self.active_notes: dict[tuple[int, int], MPENote] = {}  # (channel, note) -> MPENote
 
+        # RPN state tracking
+        self._rpn_msb = 0
+        self._rpn_lsb = 0
+
         # Thread safety
         self.lock = threading.RLock()
 
@@ -309,6 +334,10 @@ class MPEManager:
                 return zone
         return None
 
+    def _find_available_member_channel(self, zone: MPEZone) -> int | None:
+        """Find first available member channel in the zone."""
+        return zone.mpe_channel.find_available_member_channel()
+
     def process_note_on(self, channel: int, note: int, velocity: int) -> MPENote | None:
         """
         Process MPE note-on event.
@@ -329,13 +358,42 @@ class MPEManager:
             if not zone or not zone.enabled:
                 return None
 
-            # Create MPE note
-            mpe_note = MPENote(note, channel, velocity)
+            # Feature P2.1: One-note-per-member-channel enforcement
+            if zone.mpe_channel.is_member_channel(channel):
+                existing = zone.mpe_channel.get_note_on_channel(channel)
+                if existing is not None:
+                    self.process_note_off(channel, existing.note_number, 0)
+
+            # Feature P2.2: Dynamic member channel assignment on master channel
+            target_channel = channel
+            if zone.mpe_channel.is_master_channel(channel):
+                # Clear any stale notes on master channel (shouldn't normally exist)
+                for existing_note in list(zone.mpe_channel.get_active_notes()):
+                    if existing_note.channel == channel:
+                        zone.mpe_channel.remove_note(existing_note.note_number)
+                        self.active_notes.pop((channel, existing_note.note_number), None)
+
+                # Find available member channel
+                target_channel = self._find_available_member_channel(zone)
+                if target_channel is None:
+                    # All busy - steal oldest note across all member channels
+                    oldest_note: MPENote | None = None
+                    oldest_time = float("inf")
+                    for n in zone.mpe_channel.get_active_notes():
+                        if n.start_time < oldest_time:
+                            oldest_time = n.start_time
+                            oldest_note = n
+                    if oldest_note is not None:
+                        self.process_note_off(oldest_note.channel, oldest_note.note_number, 0)
+                        target_channel = oldest_note.channel
+
+            # Create MPE note on the target channel
+            mpe_note = MPENote(note, target_channel, velocity)
             mpe_note.note_on_time = 0.0  # Would be set by caller
 
             # Add to zone and registry
             zone.mpe_channel.add_note(mpe_note)
-            self.active_notes[(channel, note)] = mpe_note
+            self.active_notes[(target_channel, note)] = mpe_note
 
             return mpe_note
 
@@ -386,9 +444,14 @@ class MPEManager:
             if not zone or not zone.enabled:
                 return
 
-            # Apply pitch bend to all active notes on this channel
-            for note in zone.mpe_channel.get_active_notes():
-                note.update_pitch_bend(bend_value)
+            # Feature P2.3: Master channel routes to all member channels
+            if zone.mpe_channel.is_master_channel(channel):
+                for note in zone.mpe_channel.get_active_notes():
+                    note.update_pitch_bend(bend_value, zone.pitch_bend_range)
+            else:
+                for note in zone.mpe_channel.get_active_notes():
+                    if note.channel == channel:
+                        note.update_pitch_bend(bend_value, zone.pitch_bend_range)
 
     def process_timbre(self, channel: int, timbre_value: int):
         """
@@ -406,9 +469,14 @@ class MPEManager:
             if not zone or not zone.enabled:
                 return
 
-            # Apply timbre to all active notes on this channel
-            for note in zone.mpe_channel.get_active_notes():
-                note.update_timbre(timbre_value)
+            # Feature P2.3: Master channel routes to all member channels
+            if zone.mpe_channel.is_master_channel(channel):
+                for note in zone.mpe_channel.get_active_notes():
+                    note.update_timbre(timbre_value)
+            else:
+                for note in zone.mpe_channel.get_active_notes():
+                    if note.channel == channel:
+                        note.update_timbre(timbre_value)
 
     def process_pressure(self, channel: int, pressure_value: int):
         """
@@ -426,9 +494,14 @@ class MPEManager:
             if not zone or not zone.enabled:
                 return
 
-            # Apply pressure to all active notes on this channel
-            for note in zone.mpe_channel.get_active_notes():
-                note.update_pressure(pressure_value)
+            # Feature P2.3: Master channel routes to all member channels
+            if zone.mpe_channel.is_master_channel(channel):
+                for note in zone.mpe_channel.get_active_notes():
+                    note.update_pressure(pressure_value)
+            else:
+                for note in zone.mpe_channel.get_active_notes():
+                    if note.channel == channel:
+                        note.update_pressure(pressure_value)
 
     def process_poly_pressure(self, channel: int, note: int, pressure_value: int):
         """
@@ -443,9 +516,18 @@ class MPEManager:
             if not self.mpe_enabled:
                 return
 
-            note_key = (channel, note)
-            if note_key in self.active_notes:
-                self.active_notes[note_key].update_pressure(pressure_value)
+            zone = self.get_zone_for_channel(channel)
+            if not zone or not zone.enabled:
+                return
+
+            # Feature P2.3: Master channel routes to all member channel notes
+            if zone.mpe_channel.is_master_channel(channel):
+                for n in zone.mpe_channel.get_active_notes():
+                    n.update_pressure(pressure_value)
+            else:
+                note_key = (channel, note)
+                if note_key in self.active_notes:
+                    self.active_notes[note_key].update_pressure(pressure_value)
 
     def process_slide(self, channel: int, slide_value: int):
         """
@@ -463,9 +545,14 @@ class MPEManager:
             if not zone or not zone.enabled:
                 return
 
-            # Apply slide to all active notes on this channel
-            for note in zone.mpe_channel.get_active_notes():
-                note.update_slide(slide_value)
+            # Feature P2.3: Master channel routes to all member channels
+            if zone.mpe_channel.is_master_channel(channel):
+                for note in zone.mpe_channel.get_active_notes():
+                    note.update_slide(slide_value)
+            else:
+                for note in zone.mpe_channel.get_active_notes():
+                    if note.channel == channel:
+                        note.update_slide(slide_value)
 
     def process_lift(self, channel: int, lift_value: int):
         """
@@ -483,9 +570,14 @@ class MPEManager:
             if not zone or not zone.enabled:
                 return
 
-            # Apply lift to all active notes on this channel
-            for note in zone.mpe_channel.get_active_notes():
-                note.update_lift(lift_value)
+            # Feature P2.3: Master channel routes to all member channels
+            if zone.mpe_channel.is_master_channel(channel):
+                for note in zone.mpe_channel.get_active_notes():
+                    note.update_lift(lift_value)
+            else:
+                for note in zone.mpe_channel.get_active_notes():
+                    if note.channel == channel:
+                        note.update_lift(lift_value)
 
     def get_active_mpe_notes(self) -> list[MPENote]:
         """Get all currently active MPE notes."""
@@ -537,6 +629,41 @@ class MPEManager:
 
             for zone in self.zones:
                 zone.mpe_channel.clear_all_notes()
+
+    def handle_rpn(self, channel: int, controller: int, value: int) -> bool | None:
+        """
+        Handle RPN messages for MPE.
+
+        RPN uses: CC 101 (RPN MSB), CC 100 (RPN LSB), CC 6 (Data Entry MSB), CC 38 (Data Entry LSB)
+        RPN 0 = Pitch Bend Range
+
+        This method accumulates RPN state and triggers when Data Entry arrives.
+
+        Returns True if handled, False if not an RPN-related CC, None if still accumulating.
+        """
+        with self.lock:
+            if not self.mpe_enabled:
+                return False
+
+            # Track current RPN number
+            if controller == 101:  # RPN MSB
+                self._rpn_msb = value
+                return None
+            elif controller == 100:  # RPN LSB
+                self._rpn_lsb = value
+                return None
+            elif controller == 6:  # Data Entry MSB
+                rpn = (self._rpn_msb << 7) | self._rpn_lsb
+                if rpn == 0:  # Pitch Bend Range
+                    zone = self.get_zone_for_channel(channel)
+                    if zone and zone.mpe_channel.is_master_channel(channel):
+                        zone.pitch_bend_range = max(1, min(96, value))
+                        return True
+                return False
+            elif controller == 38:  # Data Entry LSB
+                return None  # Ignore LSB for pitch bend range (MSB only)
+
+            return False
 
     def get_mpe_info(self) -> dict[str, Any]:
         """Get comprehensive MPE system information."""

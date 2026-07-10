@@ -207,6 +207,11 @@ class MPEZone:
             "active_channels": len(self.active_channels),
         }
 
+    def set_custom_tuning_ratios(self, ratios: list[float]):
+        """Store custom tuning ratios and compute harmonic series for this zone."""
+        self.custom_tuning_ratios = ratios.copy()
+        self.harmonic_series = [ratios * (i + 1) for i in range(8)]
+
 
 class JupiterXMPEManager:
     """
@@ -357,7 +362,7 @@ class JupiterXMPEManager:
         active_count = len(self.active_notes[channel])
 
         if active_count == 0:
-            return 0
+            return len(self.active_notes[channel])
 
         # Use oldest note's voice position + 1 for proper voice assignment
         oldest_note = min(self.active_notes[channel].values(), key=lambda n: n.timestamp)

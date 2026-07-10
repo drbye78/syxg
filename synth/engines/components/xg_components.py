@@ -153,7 +153,7 @@ class XGStateManager:
         }
 
         # Drum kit cache
-        for ch in range(16):
+        for ch in range(self.components.max_channels):
             self.parameter_cache[f"drum_kit_ch{ch}"] = lambda c=ch: self.components.get_component(
                 "drum_setup"
             ).get_drum_kit_info(c)

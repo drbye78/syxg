@@ -519,8 +519,9 @@ class MotifEffectsProcessor:
     Effects system with multiple effect types and individual part processing.
     """
 
-    def __init__(self, sample_rate: int = 44100):
+    def __init__(self, sample_rate: int = 44100, num_parts: int = 16):
         self.sample_rate = sample_rate
+        self.num_parts = num_parts
 
         # Effect instances
         self.effects = {
@@ -540,7 +541,7 @@ class MotifEffectsProcessor:
 
     def _init_part_routing(self):
         """Initialize part routing to effects"""
-        for part in range(16):
+        for part in range(self.num_parts):
             self.part_routing[part] = {
                 "reverb_send": 40,
                 "chorus_send": 0,
