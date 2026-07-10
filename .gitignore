@@ -5,6 +5,8 @@
 .github/
 .agents/
 .opencode/
+.omo/
+.slim/
 .cgcignore
 
 # Byte-compiled / optimized / DLL files
