@@ -809,7 +809,7 @@ class UltraFastADSREnvelope:
 
         # Return buffer to pool if available
         if self.memory_pool and self.is_pooled:
-            self.memory_pool.return_mono_buffer(temp_buffer)
+            self.memory_pool.return_buffer(temp_buffer)
 
         return result[0] if len(result) > 0 else 0.0
 

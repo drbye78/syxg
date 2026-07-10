@@ -23,7 +23,7 @@ import yaml
 # Add the project directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from synth.midi import FileParser, MIDIMessage
+from synth.io.midi import FileParser, MIDIMessage
 from synth.xgml.constants import CONTROLLER_NAMES, PAN_POSITIONS, PROGRAM_NAMES, XGML_VERSION
 
 

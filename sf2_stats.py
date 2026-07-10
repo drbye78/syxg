@@ -59,7 +59,7 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
         List of preset information dictionaries, or None if file cannot be read
     """
     try:
-        from synth.sf2.sf2_file_loader import SF2FileLoader
+        from synth.io.sf2.sf2_file_loader import SF2FileLoader
     except ImportError as e:
         print(f"Error importing SF2 modules: {e}")
         return None
@@ -131,19 +131,14 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
             gen_start_global = bag_data[0][0]
             gen_end_global = bag_data[-1][0]
             mod_start_global = bag_data[0][1]
-            mod_end_global = bag_data[-1][1]
 
             # Get generator and modulator data
             gen_data = loader.get_generator_data_in_range(
                 "preset", gen_start_global, gen_end_global + 1
             )
-            mod_data = loader.get_modulator_data_in_range(
-                "preset", mod_start_global, mod_end_global + 1
-            )
 
             # Track unique instruments and their details
-            instrument_indices = set()
-            total_zones = 0
+            instrument_indices: set[int] = set()
             total_generators = 0
             total_modulators = 0
             sample_ids = set()
@@ -220,14 +215,10 @@ def scan_sf2_preset(sf2_file: Path) -> list[dict[str, Any]] | None:
                 inst_gen_start_global = inst_bag_data[0][0]
                 inst_gen_end_global = inst_bag_data[-1][0]
                 inst_mod_start_global = inst_bag_data[0][1]
-                inst_mod_end_global = inst_bag_data[-1][1]
 
-                # Get generator and modulator data
+                # Get generator data
                 inst_gen_data = loader.get_generator_data_in_range(
                     "instrument", inst_gen_start_global, inst_gen_end_global + 1
-                )
-                inst_mod_data = loader.get_modulator_data_in_range(
-                    "instrument", inst_mod_start_global, inst_mod_end_global + 1
                 )
 
                 # Process each instrument zone

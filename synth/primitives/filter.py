@@ -753,3 +753,258 @@ class UltraFastResonantFilter:
 
 # Backward compatibility alias
 ResonantFilter = UltraFastResonantFilter
+
+
+class BiquadFilter:
+    """
+    Standard biquad IIR filter with RBJ cookbook coefficient calculation.
+
+    Supports 6 filter types:
+      - lowpass_1p  (first-order lowpass)
+      - lowpass_2p  (second-order lowpass, resonant)
+      - highpass_1p (first-order highpass)
+      - highpass_2p (second-order highpass, resonant)
+      - bandpass    (second-order bandpass)
+      - notch       (second-order notch)
+
+    Uses Transposed Direct Form II for numerical stability.
+    Provides both single-sample process() and Numba-compiled process_block().
+    """
+
+    __slots__ = (
+        "a1",
+        "a2",
+        "b0",
+        "b1",
+        "b2",
+        "cutoff",
+        "filter_type",
+        "resonance",
+        "sample_rate",
+        "z1",
+        "z2",
+    )
+
+    def __init__(
+        self,
+        filter_type: str = "lowpass_2p",
+        cutoff: float = 1000.0,
+        resonance: float = 0.707,
+        sample_rate: float = 44100.0,
+    ):
+        self.filter_type = filter_type
+        self.cutoff = max(20.0, min(cutoff, sample_rate / 2))
+        self.resonance = max(0.001, min(resonance, 2.0))
+        self.sample_rate = sample_rate
+
+        # TDF-II state variables
+        self.z1 = 0.0
+        self.z2 = 0.0
+
+        self._update_coefficients()
+
+    def _update_coefficients(self) -> None:
+        """Calculate filter coefficients using RBJ cookbook formulas."""
+        ft = self.filter_type
+        fc = self.cutoff
+        q = self.resonance
+        fs = self.sample_rate
+
+        # Clamp cutoff to Nyquist
+        fc = min(fc, fs * 0.49)
+
+        if ft == "lowpass_1p":
+            # First-order lowpass: simple one-pole
+            t = math.exp(-2.0 * math.pi * fc / fs)
+            self.b0 = 1.0 - t
+            self.b1 = 0.0
+            self.b2 = 0.0
+            self.a1 = -t
+            self.a2 = 0.0
+
+        elif ft == "highpass_1p":
+            # First-order highpass
+            t = math.exp(-2.0 * math.pi * fc / fs)
+            self.b0 = (1.0 + t) * 0.5
+            self.b1 = -(1.0 + t) * 0.5
+            self.b2 = 0.0
+            self.a1 = -t
+            self.a2 = 0.0
+
+        else:
+            # Second-order biquad via RBJ cookbook
+            omega = 2.0 * math.pi * fc / fs
+            sin_omega = math.sin(omega)
+            cos_omega = math.cos(omega)
+            alpha = sin_omega / (2.0 * q)
+
+            if ft == "lowpass_2p":
+                b0 = (1.0 - cos_omega) * 0.5
+                b1 = 1.0 - cos_omega
+                b2 = (1.0 - cos_omega) * 0.5
+                a0 = 1.0 + alpha
+                a1 = -2.0 * cos_omega
+                a2 = 1.0 - alpha
+            elif ft == "highpass_2p":
+                b0 = (1.0 + cos_omega) * 0.5
+                b1 = -(1.0 + cos_omega)
+                b2 = (1.0 + cos_omega) * 0.5
+                a0 = 1.0 + alpha
+                a1 = -2.0 * cos_omega
+                a2 = 1.0 - alpha
+            elif ft == "bandpass":
+                b0 = q * alpha
+                b1 = 0.0
+                b2 = -q * alpha
+                a0 = 1.0 + alpha
+                a1 = -2.0 * cos_omega
+                a2 = 1.0 - alpha
+            elif ft == "notch":
+                b0 = 1.0
+                b1 = -2.0 * cos_omega
+                b2 = 1.0
+                a0 = 1.0 + alpha
+                a1 = -2.0 * cos_omega
+                a2 = 1.0 - alpha
+            else:
+                # Unknown type — default to lowpass_2p
+                b0 = (1.0 - cos_omega) * 0.5
+                b1 = 1.0 - cos_omega
+                b2 = (1.0 - cos_omega) * 0.5
+                a0 = 1.0 + alpha
+                a1 = -2.0 * cos_omega
+                a2 = 1.0 - alpha
+
+            # Normalize by a0
+            self.b0 = b0 / a0
+            self.b1 = b1 / a0
+            self.b2 = b2 / a0
+            self.a1 = a1 / a0
+            self.a2 = a2 / a0
+
+    def set_filter_type(self, filter_type: str) -> None:
+        """Change filter type and recalculate coefficients."""
+        self.filter_type = filter_type
+        self._update_coefficients()
+
+    def set_cutoff(self, cutoff: float) -> None:
+        """Change cutoff frequency and recalculate coefficients."""
+        self.cutoff = max(20.0, min(cutoff, self.sample_rate * 0.49))
+        self._update_coefficients()
+
+    def set_resonance(self, resonance: float) -> None:
+        """Change resonance (Q) and recalculate coefficients."""
+        self.resonance = max(0.001, min(resonance, 2.0))
+        self._update_coefficients()
+
+    def set_parameters(
+        self,
+        filter_type: str | None = None,
+        cutoff: float | None = None,
+        resonance: float | None = None,
+    ) -> None:
+        """Set multiple parameters and recalculate coefficients once."""
+        changed = False
+        if filter_type is not None:
+            self.filter_type = filter_type
+            changed = True
+        if cutoff is not None:
+            self.cutoff = max(20.0, min(cutoff, self.sample_rate * 0.49))
+            changed = True
+        if resonance is not None:
+            self.resonance = max(0.001, min(resonance, 2.0))
+            changed = True
+        if changed:
+            self._update_coefficients()
+
+    def process(self, sample: float) -> float:
+        """
+        Process a single sample through the biquad filter.
+
+        Uses Transposed Direct Form II (TDF-II) for numerical stability.
+        """
+        out = self.b0 * sample + self.z1
+        self.z1 = self.b1 * sample - self.a1 * out + self.z2
+        self.z2 = self.b2 * sample - self.a2 * out
+        return out
+
+    def process_block(
+        self,
+        samples_in: np.ndarray,
+        samples_out: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """
+        Process a block of samples through the filter using Numba JIT.
+
+        Args:
+            samples_in: Input buffer (float32 mono)
+            samples_out: Optional output buffer (reused if provided)
+
+        Returns:
+            Output buffer
+        """
+        if samples_out is None:
+            samples_out = samples_in  # in-place processing
+
+        num_samples = len(samples_in)
+        z = np.array([self.z1, self.z2], dtype=np.float64)
+
+        z_out = _numba_biquad_block(
+            samples_in,
+            samples_out,
+            self.b0,
+            self.b1,
+            self.b2,
+            self.a1,
+            self.a2,
+            z,
+            num_samples,
+        )
+
+        self.z1, self.z2 = float(z_out[0]), float(z_out[1])
+        return samples_out
+
+    def reset(self) -> None:
+        """Reset filter state (zero the delay buffers)."""
+        self.z1 = 0.0
+        self.z2 = 0.0
+
+
+@jit(nopython=True, fastmath=True, cache=True)
+def _numba_biquad_block(
+    samples_in: np.ndarray,
+    samples_out: np.ndarray,
+    b0: float,
+    b1: float,
+    b2: float,
+    a1: float,
+    a2: float,
+    z: np.ndarray,
+    num_samples: int,
+) -> np.ndarray:
+    """
+    Numba-compiled biquad processing via TDF-II.
+
+    Args:
+        samples_in: Input buffer
+        samples_out: Output buffer (may be same as input for in-place)
+        b0, b1, b2, a1, a2: Normalized filter coefficients
+        z: TDF-II state array [z1, z2]
+        num_samples: Number of samples to process
+
+    Returns:
+        Updated state array [z1, z2]
+    """
+    z1 = z[0]
+    z2 = z[1]
+
+    for i in range(num_samples):
+        x = samples_in[i]
+        y = b0 * x + z1
+        z1 = b1 * x - a1 * y + z2
+        z2 = b2 * x - a2 * y
+        samples_out[i] = y
+
+    z[0] = z1
+    z[1] = z2
+    return z

@@ -642,7 +642,7 @@ class UltraFastXGLFO:
         result = self.generate_block(temp_buffer)
 
         if self.memory_pool and self.is_pooled:
-            self.memory_pool.return_mono_buffer(temp_buffer)
+            self.memory_pool.return_buffer(temp_buffer)
 
         return float(result[0]) if len(result) > 0 else 0.0
 
@@ -897,8 +897,8 @@ class UltraFastXGLFO:
         """Cleanup when oscillator is destroyed."""
         # Return memory pool buffers
         if self.is_pooled and self.pool_buffer1 is not None and self.pool_buffer2 is not None:
-            self.memory_pool.return_mono_buffer(self.pool_buffer1)
-            self.memory_pool.return_mono_buffer(self.pool_buffer2)
+            self.memory_pool.return_buffer(self.pool_buffer1)
+            self.memory_pool.return_buffer(self.pool_buffer2)
 
 
 # Backward compatibility alias
