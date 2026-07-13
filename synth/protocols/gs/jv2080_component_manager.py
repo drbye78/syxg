@@ -171,6 +171,37 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# JV-2080 insert effect types → XG insertion processor types
+# JV-2080: 0=OFF, 1=EQ, 2=FILTER, 3=CHORUS, 4=FLANGER, 5=DISTORTION, 6=DELAY, 7=REVERB
+# XG Insertion Processor: 0=Distortion, 1=Overdrive, 2=Compressor,
+# 12=Flanger, 13=Chorus, 14=Delay LCR
+JV2080_INSERT_TO_XG: dict[int, int] = {
+    0: -1,   # OFF → no effect (bypass)
+    1: -1,   # EQ → no direct XG insert EQ
+    2: 4,    # FILTER → Envelope Filter
+    3: 13,   # CHORUS → XG Chorus
+    4: 12,   # FLANGER → XG Flanger
+    5: 0,    # DISTORTION → XG Distortion
+    6: 14,   # DELAY → XG Delay LCR
+    7: -1,   # REVERB → no XG insert reverb
+}
+
+# JV-2080 MFX types → XG variation types
+# XG has 84 variation types (0-83). Map common JV-2080 MFX types.
+JV2080_MFX_TO_XG_VARIATION: dict[int, int] = {
+    0: 0,    # STEREO EQ → Thru
+    4: 43,   # OVERDRIVE → XG Overdrive
+    5: 39,   # DISTORTION → XG Distortion
+    6: 25,   # PHASER → XG Phaser
+    8: 46,   # CHORUS → XG Chorus
+    9: 66,   # FLANGER → XG Flanger
+    10: 30,  # TREMOLO → XG Tremolo
+    11: 75,  # ROTARY → XG Rotary Speaker
+    12: 0,   # DELAY → XG Delay (type 0)
+    13: 6,   # PANNING DELAY → XG Panning Delay
+    19: 57,  # PITCH SHIFTER → XG Pitch Shift 1
+}
+
 
 class JV2080SystemParameters:
     """
@@ -659,35 +690,58 @@ class JV2080MFXController:
     def __init__(self):
         # MFX Types (40+ effects)
         self.mfx_types = {
-            # Spatial Effects
-            0: "STEREO EQ",
-            1: "SPECTRUM",
-            2: "ENHANCER",
+            # No Effect (0)
+            0: "THRU",
+            # EQ (1-2)
+            1: "STEREO EQ",
+            2: "SPECTRUM",
+            # Filter (3-5)
             3: "AUTO WAH",
-            # Distortion Effects
-            4: "OVERDRIVE",
-            5: "DISTORTION",
-            6: "PHASER",
-            7: "AUTO WAH",
-            # Modulation Effects
-            8: "CHORUS",
-            9: "FLANGER",
-            10: "TREMOLO",
-            11: "ROTARY",
-            # Delay/Reverb Effects
-            12: "DELAY",
-            13: "PANNING DELAY",
-            14: "REVERB",
-            15: "GATED REVERB",
-            # Filter Effects
-            16: "FILTER",
-            17: "STEP FILTER",
-            18: "LFO FILTER",
-            # Pitch Effects
-            19: "PITCH SHIFTER",
-            20: "CHORUS + REVERB",
-            21: "FLANGER + REVERB",
-            # And many more... (up to 40+)
+            4: "FILTER + LFO",
+            5: "FILTER + ENVELOPE",
+            # Overdrive/Distortion (6-9)
+            6: "OVERDRIVE",
+            7: "DISTORTION",
+            8: "HEAVY DISTORTION",
+            9: "METAL DISTORTION",
+            # Modulation (10-15)
+            10: "PHASER",
+            11: "PHASER + DELAY",
+            12: "STEP PHASER",
+            13: "CHORUS",
+            14: "HEXA CHORUS",
+            15: "FLANGER",
+            # Other Modulation (16-22)
+            16: "STEP FLANGER",
+            17: "TREMOLO",
+            18: "AUTO PAN",
+            19: "ROTARY SPEAKER",
+            20: "VIBRATO",
+            21: "SLICE",
+            22: "RING MODULATOR",
+            # Pitch (23-25)
+            23: "PITCH SHIFTER 1",
+            24: "PITCH SHIFTER 2",
+            25: "PITCH SHIFTER 3",
+            # Delay (26-32)
+            26: "DELAY 1",
+            27: "DELAY 2",
+            28: "DELAY 3",
+            29: "MULTI TAP DELAY",
+            30: "PANNING DELAY 1",
+            31: "PANNING DELAY 2",
+            32: "MODULATION DELAY",
+            # Reverb (33-37)
+            33: "REVERB",
+            34: "GATED REVERB",
+            35: "GATE REVERB + DELAY",
+            36: "REVERB + CHORUS",
+            37: "REVERB + DELAY",
+            # Series Effects (38-41)
+            38: "CHORUS + DELAY",
+            39: "FLANGER + DELAY",
+            40: "OVERDRIVE + CHORUS",
+            41: "OVERDRIVE + DELAY",
         }
 
         # Current MFX settings
@@ -846,8 +900,15 @@ class JV2080ComponentManager:
             # If NRPN controller not available, create placeholder
             self.nrpn_controller = None
 
+        # Effects coordinator (set externally by synthesizer for audio routing)
+        self.effects_coordinator = None  # type: Any
+
         # Thread safety
         self.lock = threading.RLock()
+
+    def set_effects_coordinator(self, coordinator: Any) -> None:
+        """Set the XG effects coordinator for audio routing."""
+        self.effects_coordinator = coordinator
 
     def get_component(self, name: str):
         """Get component by name"""
@@ -922,16 +983,47 @@ class JV2080ComponentManager:
         return False
 
     def _process_effects_parameter(self, effect_group: int, param_id: int, value: int) -> bool:
-        """Process effects parameter change"""
+        """Process effects parameter change, forwarding to coordinator when available."""
+        coordinator = self.effects_coordinator
+
         if effect_group == 0:  # MFX parameters
-            if param_id == 0:  # MFX type
+            if param_id == 0:
                 self.components["mfx"].set_mfx_type(value)
-            else:  # MFX parameters (1-16)
+            else:
                 self.components["mfx"].set_parameter(param_id - 1, value)
+
+            if coordinator:
+                if param_id == 0:
+                    # MFX type change → map to XG variation type
+                    xg_type = JV2080_MFX_TO_XG_VARIATION.get(value, value)
+                    coordinator.set_variation_effect_type(xg_type)
+                else:
+                    # MFX parameter change → forward to variation effects
+                    vfx = getattr(coordinator, "variation_effects", None)
+                    if vfx and hasattr(vfx, "set_parameter"):
+                        vfx.set_parameter(f"mfx_param_{param_id}", value)
             return True
+
         elif effect_group == 1:  # Insert effects
-            # Insert effect parameters would be handled here
-            pass
+            # Handle insert effect part assignment (param_id 0-15 = part number)
+            if 0 <= param_id < 16:
+                # param_id is the part number, value is the insert effect type
+                self.components["insert_fx"].set_part_assignment(param_id, value)
+
+                if coordinator:
+                    xg_type = JV2080_INSERT_TO_XG.get(value, -1)
+                    if xg_type >= 0:
+                        coordinator.set_channel_insertion_effect(param_id, 0, xg_type)
+                        coordinator.set_channel_insertion_bypass(param_id, 0, False)
+                    else:
+                        # OFF or unmapped type → bypass
+                        coordinator.set_channel_insertion_bypass(param_id, 0, True)
+                return True
+
+            # param_id 16+ could be insert effect parameters
+            # (future enhancement: map JV-2080 insert parameters to XG parameters)
+            return False
+
         return False
 
     def get_parameter_value(self, address: bytes) -> int | None:

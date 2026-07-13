@@ -190,6 +190,9 @@ class ConfigManager:
                         # Recursively process nested includes
                         included_config = self._merge_includes(included_config, include_path)
 
+                        # Remove 'includes' from child config to avoid overwriting parent's includes
+                        included_config.pop("includes", None)
+
                         # Merge with precedence (later overrides earlier)
                         merged_config = self._deep_merge(merged_config, included_config)
                     finally:
@@ -197,6 +200,10 @@ class ConfigManager:
                         self._include_stack.pop()
                 else:
                     logger.warning(f"Warning: Included file not found: {include_path}")
+
+        # Track top-level includes for read-back via get_includes()
+        if includes:
+            merged_config["includes"] = [includes] if isinstance(includes, str) else includes
 
         return merged_config
 

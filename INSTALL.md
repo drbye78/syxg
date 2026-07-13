@@ -41,7 +41,7 @@ sudo apt install portaudio19-dev -y
 # Clone and install XG Synthesizer
 git clone https://github.com/drbye78/syxg.git
 cd syxg
-pip3 install -e .
+uv pip install -e .
 ```
 
 ### CentOS/RHEL/Fedora
@@ -58,19 +58,19 @@ sudo dnf install ffmpeg ffmpeg-devel -y
 # Clone and install
 git clone https://github.com/drbye78/syxg.git
 cd syxg
-pip3 install -e .
+uv pip install -e .
 ```
 
 ### Arch Linux
 
 ```bash
 # Install Python and audio libraries
-sudo pacman -S python python-pip ffmpeg
+sudo pacman -S python python-uv ffmpeg
 
 # Clone and install
 git clone https://github.com/drbye78/syxg.git
 cd syxg
-pip install -e .
+uv pip install -e .
 ```
 
 ## 🍎 macOS Installation
@@ -90,7 +90,7 @@ brew install ffmpeg
 # Clone and install XG Synthesizer
 git clone https://github.com/drbye78/syxg.git
 cd syxg
-pip3 install -e .
+uv pip install -e .
 ```
 
 ### Using MacPorts
@@ -104,7 +104,7 @@ sudo port install python312 py312-pip ffmpeg
 # Clone and install
 git clone https://github.com/drbye78/syxg.git
 cd syxg
-pip-3.12 install -e .
+uv pip install -e .
 ```
 
 ## 🪟 Windows Installation
@@ -128,9 +128,10 @@ pip-3.12 install -e .
 4. **Install XG Synthesizer**
    ```cmd
    git clone https://github.com/drbye78/syxg.git
-   cd syxg
-   pip install -e .
-   ```
+    cd syxg
+    uv pip install -e .
+    ```
+
 
 ### Method 2: Using Anaconda/Miniconda
 
@@ -144,7 +145,7 @@ conda activate xg-synth
 # Clone and install
 git clone https://github.com/drbye78/syxg.git
 cd syxg
-pip install -e .
+uv pip install -e .
 ```
 
 ## 🐳 Docker Installation
@@ -189,10 +190,10 @@ git clone https://github.com/drbye78/syxg.git
 cd syxg
 
 # Install with development dependencies
-pip install -e ".[dev]"
+uv sync --group dev
 
 # Install with all optional dependencies
-pip install -e ".[dev,audio,performance,visualization]"
+uv sync --group dev --group audio --group performance --group visualization
 
 # Run tests to verify installation
 pytest
@@ -202,15 +203,15 @@ pytest
 
 ```bash
 # Audio processing (recommended)
-pip install -e ".[audio]"
+uv pip install -e ".[audio]"
 # Includes: pydub, librosa, soundfile, av
 
 # Performance optimization
-pip install -e ".[performance]"
+uv pip install -e ".[performance]"
 # Includes: numba
 
 # Visualization tools
-pip install -e ".[visualization]"
+uv pip install -e ".[visualization]"
 # Includes: matplotlib, seaborn
 ```
 
@@ -218,10 +219,10 @@ pip install -e ".[visualization]"
 
 ```bash
 # When available on PyPI
-pip install xg-synthesizer
+uv pip install xg-synthesizer
 
 # With optional dependencies
-pip install xg-synthesizer[audio,performance]
+uv pip install xg-synthesizer[audio,performance]
 ```
 
 ## ⚙️ Configuration
@@ -325,20 +326,20 @@ ls -la test_output.wav
 python --version
 python3 --version
 
-# Use specific Python version
-python3.12 -m pip install -e .
+# Install with uv
+uv pip install -e .
 ```
 
 #### Permission Errors
 ```bash
 # Install without root (Linux/macOS)
-pip install --user -e .
+uv pip install --user -e .
 
 # Or use virtual environment
-python -m venv xg_env
+uv venv xg_env
 source xg_env/bin/activate  # Linux/macOS
 # xg_env\Scripts\activate    # Windows
-pip install -e .
+uv pip install -e .
 ```
 
 #### Missing Audio Libraries

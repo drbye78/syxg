@@ -202,6 +202,176 @@ sections:
             velocity: 60
             duration: 240
 
+  main_c:
+    section_type: main_c
+    length_bars: 4
+    tracks:
+      rhythm_1:
+        mute: false
+        volume: 0.5
+        swing: 0.3
+        notes:
+          - tick: 0
+            note: 36
+            velocity: 55
+            duration: 90
+          - tick: 480
+            note: 38
+            velocity: 45
+            duration: 90
+          - tick: 960
+            note: 36
+            velocity: 55
+            duration: 90
+      bass:
+        mute: false
+        volume: 0.75
+        swing: 0.2
+        notes:
+          - tick: 0
+            note: 34
+            velocity: 75
+            duration: 120
+          - tick: 240
+            note: 36
+            velocity: 65
+            duration: 120
+          - tick: 480
+            note: 38
+            velocity: 75
+            duration: 120
+          - tick: 720
+            note: 41
+            velocity: 65
+            duration: 120
+          - tick: 960
+            note: 43
+            velocity: 75
+            duration: 120
+          - tick: 1200
+            note: 41
+            velocity: 65
+            duration: 120
+      chord_1:
+        mute: false
+        volume: 0.55
+        notes:
+          - tick: 0
+            note: 60
+            velocity: 45
+            duration: 240
+          - tick: 480
+            note: 62
+            velocity: 45
+            duration: 240
+          - tick: 960
+            note: 65
+            velocity: 45
+            duration: 240
+          - tick: 1440
+            note: 67
+            velocity: 45
+            duration: 240
+      pad:
+        mute: false
+        volume: 0.35
+        notes:
+          - tick: 0
+            note: 48
+            velocity: 35
+            duration: 1920
+
+  main_d:
+    section_type: main_d
+    length_bars: 4
+    tracks:
+      rhythm_1:
+        mute: false
+        volume: 0.65
+        swing: 0.3
+        notes:
+          - tick: 0
+            note: 36
+            velocity: 75
+            duration: 90
+          - tick: 480
+            note: 38
+            velocity: 65
+            duration: 90
+          - tick: 960
+            note: 36
+            velocity: 75
+            duration: 90
+          - tick: 1440
+            note: 38
+            velocity: 65
+            duration: 90
+      bass:
+        mute: false
+        volume: 0.95
+        swing: 0.2
+        notes:
+          - tick: 0
+            note: 34
+            velocity: 95
+            duration: 120
+          - tick: 240
+            note: 36
+            velocity: 85
+            duration: 120
+          - tick: 480
+            note: 38
+            velocity: 95
+            duration: 120
+          - tick: 720
+            note: 41
+            velocity: 85
+            duration: 120
+          - tick: 960
+            note: 43
+            velocity: 95
+            duration: 120
+          - tick: 1200
+            note: 41
+            velocity: 85
+            duration: 120
+          - tick: 1440
+            note: 38
+            velocity: 95
+            duration: 120
+          - tick: 1680
+            note: 34
+            velocity: 85
+            duration: 120
+      chord_1:
+        mute: false
+        volume: 0.75
+        notes:
+          - tick: 0
+            note: 60
+            velocity: 65
+            duration: 240
+          - tick: 480
+            note: 64
+            velocity: 65
+            duration: 240
+          - tick: 960
+            note: 67
+            velocity: 65
+            duration: 240
+          - tick: 1440
+            note: 72
+            velocity: 65
+            duration: 240
+      pad:
+        mute: false
+        volume: 0.45
+        notes:
+          - tick: 0
+            note: 48
+            velocity: 45
+            duration: 1920
+
   fill_in_aa:
     section_type: fill_in_aa
     length_bars: 1

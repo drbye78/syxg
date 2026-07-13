@@ -26,8 +26,7 @@ The Jupiter-X synthesizer represents the most advanced software synthesizer impl
 ```bash
 git clone https://github.com/drbye78/syxg.git
 cd syxg
-pip install -r requirements.txt
-python setup.py develop
+uv pip install -e .
 ```
 
 ### Docker Installation

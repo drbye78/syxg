@@ -21,6 +21,7 @@ from synth.style.auto_accompaniment import AutoAccompaniment, AutoAccompanimentC
 from synth.style.chord_detector import ChordDetector
 from synth.style.style_loader import StyleLoader
 from synth.style.style_player import StylePlayer
+from synth.style.style import StyleSectionType
 
 
 class TestAllStylesPlay:
@@ -184,7 +185,7 @@ class TestSectionTransitions:
         player.set_section_change_callback(on_change)
         player.start()
 
-        player.set_section("main_b")
+        player.set_section(StyleSectionType.MAIN_B)
         time.sleep(0.1)
 
         # Should have at least one change
@@ -231,7 +232,7 @@ class TestIntegration:
         assert player.is_playing
 
         # Change section
-        player.set_section("main_b")
+        player.set_section(StyleSectionType.MAIN_B)
         time.sleep(0.05)
 
         # Play chords
@@ -260,9 +261,9 @@ class TestIntegration:
     def test_scale_detection_integration(self):
         """Test scale detector with chord detection."""
         from synth.style.chord_detection_enhanced import EnhancedChordDetector
-        from synth.style.scale import ScaleDetector
+        from synth.style.scale import ScaleDetectionConfig, ScaleDetector
 
-        scale_detector = ScaleDetector()
+        scale_detector = ScaleDetector(ScaleDetectionConfig(update_interval=0))
         chord_detector = EnhancedChordDetector()
 
         # Play C major scale notes
@@ -356,10 +357,10 @@ class TestEdgeCases:
 
         # Rapid changes
         for _ in range(10):
-            player.set_section("main_a")
-            player.set_section("main_b")
-            player.set_section("main_c")
-            player.set_section("main_d")
+            player.set_section(StyleSectionType.MAIN_A)
+            player.set_section(StyleSectionType.MAIN_B)
+            player.set_section(StyleSectionType.MAIN_C)
+            player.set_section(StyleSectionType.MAIN_D)
 
         time.sleep(0.1)
         assert True  # Should not crash

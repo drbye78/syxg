@@ -156,5 +156,5 @@ profile_*.py
 temp*.py
 *.sf2
 .aider*
-
+third_party/
 

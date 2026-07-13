@@ -48,6 +48,57 @@ GS_TO_XG_REVERB = {0: 3, 1: 4, 2: 5, 3: 1, 4: 2, 5: 8, 6: 10, 7: 10}
 #                       0x4A=Flanger1, etc.
 GS_TO_XG_CHORUS = {0: 0x40, 1: 0x41, 2: 0x42, 3: 0x43, 4: 0x40, 5: 0x4A}
 
+# GS variation (MFX) → XG variation type mapping
+# GS addr 0x06 0x00 sets variation type (defined in the GS spec but rarely used)
+# XG has 84 variation types (0-83), GS uses a different numbering
+# Map common types: 0=Thru, others map to XG equivalents
+GS_TO_XG_VARIATION = {
+    # Core GS variation types (0-10, standard GS)
+    0: 0,    # THRU → XG No Effect
+    1: 7,    # DELAY LCR → XG Delay LCR
+    2: 10,   # ECHO → XG Echo
+    3: 46,   # CHORUS → XG Chorus
+    4: 66,   # FLANGER → XG Flanger
+    5: 39,   # DISTORTION → XG Distortion
+    6: 57,   # PITCH SHIFT → XG Pitch Shift 1
+    7: 25,   # PHASER → XG Phaser
+    8: 75,   # ROTARY SPEAKER → XG Rotary Speaker
+    9: 43,   # OVERDRIVE → XG Overdrive
+    10: 2,   # DELAY → XG Delay L,R
+    # Extended JV-2080 / SC-8850 MFX types (11-41)
+    11: 1,   # STEREO EQ → XG StereoEQ
+    12: 14,  # SPECTRUM → XG LoFi
+    13: 71,  # AUTO WAH → XG AutoWah
+    14: 72,  # FILTER + LFO → XG TouchWah
+    15: 73,  # FILTER + ENVELOPE → XG DynamicFilter
+    16: 41,  # HEAVY DISTORTION → XG HeavyDistortion
+    17: 42,  # METAL DISTORTION → XG MetalDistortion
+    18: 27,  # PHASER + DELAY → XG Phaser 2
+    19: 28,  # STEP PHASER → XG Phaser 3
+    20: 47,  # HEXA CHORUS → XG HexaChorus
+    21: 30,  # STEP FLANGER → XG Flanger 2
+    22: 60,  # TREMOLO → XG Tremolo
+    23: 61,  # AUTO PAN → XG AutoPan
+    24: 21,  # VIBRATO → XG Vibrato
+    25: 33,  # SLICE → XG LoFi 2
+    26: 34,  # RING MODULATOR → XG RingModulator
+    27: 55,  # PITCH SHIFTER 1 → XG PitchShift 2
+    28: 56,  # PITCH SHIFTER 2 → XG PitchShift 3
+    29: 58,  # PITCH SHIFTER 3 → XG PitchShift 4
+    30: 3,   # DELAY 1 → XG DelayLCR
+    31: 5,   # DELAY 2 → XG DelayStereo
+    32: 8,   # DELAY 3 → XG Echo
+    33: 9,   # MULTI TAP DELAY → XG CrossDelay
+    34: 11,  # PANNING DELAY 1 → XG PanDelayLCR
+    35: 12,  # PANNING DELAY 2 → XG PanDelayStereo
+    36: 13,  # MODULATION DELAY → XG ModulationDelay
+    37: 22,  # GATED REVERB → XG GateReverb
+    38: 23,  # GATE REVERB + DELAY → XG Reverb + Gate
+    39: 24,  # REVERB + CHORUS → XG Reverb + Chorus
+    40: 26,  # REVERB + DELAY → XG Reverb + Delay
+    41: 48,  # CHORUS + DELAY → XG Chorus + Delay
+}
+
 
 class GSAddress(IntEnum):
     """GS Address Space"""
@@ -117,6 +168,9 @@ class GSSysexHandler:
         # External references
         self.voice_manager = None
         self.effects_coordinator = None
+
+        # JV-2080 component manager (for drum key and part key forwarding)
+        self.jv2080_manager = None
 
         # GS mode state
         self.gs_enabled = False
@@ -193,6 +247,10 @@ class GSSysexHandler:
                     "key_group": -1,
                 }
             )
+
+        # Drum key editing (0x11 address — per-note config)
+        self.drum_key_params: dict[tuple[int, int], dict[str, int]] = {}
+        # Key: (drum_part, midi_note), Value: dict of param_name → value
 
         # Effects parameters
         self.reverb_params = {
@@ -287,6 +345,34 @@ class GSSysexHandler:
             0x05: ("send_to_reverb", 0, 127),
         }
 
+        # Drum key parameters (0x11 1n kk pp)
+        self.drum_key_param_map = {
+            0x00: ("pitch_offset", 0, 127),
+            0x01: ("level", 0, 127),
+            0x02: ("pan", 0, 127),
+            0x03: ("reverb_send", 0, 127),
+            0x04: ("chorus_send", 0, 127),
+            0x05: ("key_group", 0, 7),
+            0x06: ("mute_group", 0, 31),
+        }
+
+        # Part key parameters (0x02 0n xx — velocity range, key range, portamento, bend)
+        self.part_key_param_map = {
+            0x10: ("velocity_range_low", 1, 127),
+            0x11: ("velocity_range_high", 1, 127),
+            0x12: ("key_range_low", 0, 127),
+            0x13: ("key_range_high", 0, 127),
+            0x14: ("portamento_time", 0, 127),
+            0x15: ("bend_range", 0, 24),
+        }
+
+        # Common effects parameters (0x03 0x nn)
+        self.common_effects_map = {
+            0x00: ("chorus_to_reverb", 0, 127),
+            0x01: ("reverb_output", 0, 1),
+            0x02: ("chorus_output", 0, 1),
+        }
+
     def process_message(self, data: bytes) -> bytes | None:
         """
         Process incoming GS sysex message.
@@ -357,17 +443,28 @@ class GSSysexHandler:
             return self._handle_part_param(part_num, addr_mid, addr_low, data)
 
         elif addr_high == 0x02:
-            # Key parameters (rarely used)
-            return None
+            # Part key parameters (velocity range, portamento, bend range)
+            return self._handle_part_key_param(addr_mid, addr_low, data)
 
         elif 0x03 <= addr_high <= 0x06:
             # Effects parameters
             return self._handle_effects_param(addr_high, addr_mid, addr_low, data)
 
         elif 0x10 <= addr_high <= 0x1F:
-            # Drum part parameters
+            # Drum part parameters (0x10) or drum key parameters (0x11)
             drum_part = addr_high - 0x10
-            return self._handle_drum_param(drum_part, addr_mid, addr_low, data)
+            if addr_mid == 0x00 and addr_low <= len(self.drum_param_map):
+                # 0x10 drum part params
+                return self._handle_drum_param(drum_part, addr_mid, addr_low, data)
+            else:
+                # 0x11 drum key params: addr_mid = MIDI note, addr_low = param
+                return self._handle_drum_key_param(drum_part, addr_mid, addr_low, data)
+
+        elif addr_high == 0x40:
+            # GS EQ parameters (address 0x40 02 0n xx)
+            part_num = addr_low  # addr_low is the part number
+            param = addr_mid     # addr_mid is the parameter
+            return self._handle_eq_param(part_num, param, data)
 
         return None
 
@@ -417,6 +514,12 @@ class GSSysexHandler:
         # Update part state
         self.part_params[part][param_name] = value
 
+        # Forward effect sends to coordinator
+        if param_name == "reverb_send" and self.effects_coordinator:
+            self.effects_coordinator.set_effect_send_level(part, "reverb", value / 127.0)
+        if param_name == "chorus_send" and self.effects_coordinator:
+            self.effects_coordinator.set_effect_send_level(part, "chorus", value / 127.0)
+
         # Handle special cases
         if param_name == "program_num":
             # Bank MSB/LSB + Program = GM/GS bank selection
@@ -459,8 +562,13 @@ class GSSysexHandler:
         value = data[0] if data else 0
 
         if addr_high == 0x03:
-            # Common effect (rarely used)
-            pass
+            # Common effects — chorus/reverb routing parameters
+            # Mapping: 0x00=chorus_to_reverb, 0x01=reverb_output, 0x02=chorus_output
+            if param in self.common_effects_map:
+                param_name, _, _ = self.common_effects_map[param]
+                self._notify_param_change("common_effects", param_name, value)
+                if self.effects_coordinator:
+                    logger.info(f"GS common effect: {param_name} = {value}")
 
         elif addr_high == 0x04:
             # Chorus parameters
@@ -469,14 +577,17 @@ class GSSysexHandler:
                 self.chorus_params[param_name] = value
                 self._notify_param_change("chorus", param_name, value)
 
-                # Forward to effects coordinator with GS→XG type mapping
+                # Forward to effects coordinator with GS→XG mapping
                 if self.effects_coordinator:
-                    forwarded_value = value
+                    xg_name, scaled_value = self._scale_gs_param("chorus", param_name, value)
                     if param_name == "type":
-                        forwarded_value = GS_TO_XG_CHORUS.get(value, value)
-                    self.effects_coordinator.set_system_effect_parameter(
-                        "chorus", param_name, forwarded_value
-                    )
+                        self.effects_coordinator.set_system_effect_parameter(
+                            "chorus", xg_name, int(scaled_value)
+                        )
+                    else:
+                        self.effects_coordinator.set_system_effect_parameter(
+                            "chorus", xg_name, scaled_value
+                        )
 
         elif addr_high == 0x05:
             # Reverb parameters
@@ -485,24 +596,165 @@ class GSSysexHandler:
                 self.reverb_params[param_name] = value
                 self._notify_param_change("reverb", param_name, value)
 
-                # Forward to effects coordinator with GS→XG type mapping
+                # Forward to effects coordinator with GS→XG mapping
                 if self.effects_coordinator:
-                    forwarded_value = value
+                    xg_name, scaled_value = self._scale_gs_param("reverb", param_name, value)
                     if param_name == "type":
-                        forwarded_value = GS_TO_XG_REVERB.get(value, value)
-                    self.effects_coordinator.set_system_effect_parameter(
-                        "reverb", param_name, forwarded_value
-                    )
+                        self.effects_coordinator.set_system_effect_parameter(
+                            "reverb", xg_name, int(scaled_value)
+                        )
+                    else:
+                        self.effects_coordinator.set_system_effect_parameter(
+                            "reverb", xg_name, scaled_value
+                        )
 
         elif addr_high == 0x06:
             # Variation (MFX) parameters
-            self._notify_param_change("variation", f"param_{param}", value)
-            if self.effects_coordinator:
-                vfx = getattr(self.effects_coordinator, "variation_effects", None)
-                if vfx and hasattr(vfx, "set_parameter"):
-                    vfx.set_parameter(f"param_{param}", value)
+            if param == 0x00:
+                # Variation type - map GS→XG
+                mapped = GS_TO_XG_VARIATION.get(value, value)
+                self._notify_param_change("variation", "variation_type", mapped)
+                if self.effects_coordinator:
+                    self.effects_coordinator.set_variation_effect_type(mapped)
+            else:
+                # Forward other parameters (1-16)
+                self._notify_param_change("variation", f"param_{param}", value)
+                if self.effects_coordinator:
+                    vfx = getattr(self.effects_coordinator, "variation_effects", None)
+                    if vfx and hasattr(vfx, "set_parameter"):
+                        vfx.set_parameter(f"param_{param}", value)
 
         return None
+
+    def _handle_part_key_param(self, part_num: int, param: int, data: tuple) -> bytes | None:
+        """Handle GS part key parameters (address 0x02 0n xx).
+
+        Covers: velocity_range_low/High, key_range_low/High, portamento_time, bend_range.
+        """
+        if not (0 <= part_num < 16):
+            return None
+        if param not in self.part_key_param_map:
+            return None
+
+        value = data[0] if data else 0
+        param_name, min_val, max_val = self.part_key_param_map[param]
+
+        # Clamp to valid range
+        value = max(min_val, min(max_val, value))
+
+        # Store in part_params
+        if part_num < len(self.part_params):
+            if param_name in self.part_params[part_num]:
+                self.part_params[part_num][param_name] = value
+                self._notify_param_change(f"part_{part_num}_key", param_name, value)
+
+        # Forward to JV2080 manager if available
+        if self.jv2080_manager and hasattr(self.jv2080_manager, "set_part_key_param"):
+            try:
+                self.jv2080_manager.set_part_key_param(part_num, param_name, value)
+            except Exception:
+                pass
+
+        return None
+
+    def _handle_drum_key_param(self, drum_part: int, note: int, param: int, data: tuple) -> bytes | None:
+        """Handle GS drum key parameters (address 0x11 1n kk pp).
+
+        Per-note configuration: pitch_offset, level, pan, reverb_send, chorus_send, key_group, mute_group.
+        """
+        if not (0 <= drum_part < 4) or not (0 <= note < 128):
+            return None
+        if param not in self.drum_key_param_map:
+            return None
+
+        value = data[0] if data else 0
+        param_name, min_val, max_val = self.drum_key_param_map[param]
+
+        # Clamp to valid range
+        value = max(min_val, min(max_val, value))
+
+        # Store in drum_key_params
+        key = (drum_part, note)
+        if key not in self.drum_key_params:
+            self.drum_key_params[key] = {}
+        self.drum_key_params[key][param_name] = value
+
+        self._notify_param_change(f"drum_{drum_part}_key_{note}", param_name, value)
+
+        # Forward to JV2080 manager if available
+        if self.jv2080_manager and hasattr(self.jv2080_manager, "set_drum_key_param"):
+            try:
+                self.jv2080_manager.set_drum_key_param(drum_part, note, param_name, value)
+            except Exception:
+                pass
+
+        return None
+
+    def _handle_eq_param(self, part_num: int, param: int, data: tuple) -> bytes | None:
+        """Handle GS per-part EQ parameters (address 0x40 02 0n xx).
+
+        GS per-part EQ: low_gain (±12 dB) and high_gain (±12 dB).
+        """
+        if not (0 <= part_num < 16):
+            return None
+
+        value = data[0] if data else 0
+        eq_params = {
+            0x00: ("low_gain", value, (value - 64) / 64.0 * 12),  # 0x40 = 0 dB
+            0x01: ("high_gain", value, (value - 64) / 64.0 * 12),
+        }
+
+        if param not in eq_params:
+            return None
+
+        param_name, raw_value, gain_db = eq_params[param]
+        self._notify_param_change(f"part_{part_num}_eq", param_name, raw_value)
+
+        # Forward to effects coordinator per-channel EQ
+        if self.effects_coordinator and hasattr(self.effects_coordinator, "set_channel_eq_gain"):
+            band = param_name.replace("_gain", "")
+            try:
+                self.effects_coordinator.set_channel_eq_gain(part_num, band, gain_db)
+            except Exception:
+                pass
+
+        return None
+
+    def _scale_gs_param(self, effect: str, param_name: str, value: int) -> tuple[str, float]:
+        """Scale a GS parameter value to XG normalized float range.
+
+        Args:
+            effect: Effect type ("reverb" or "chorus")
+            param_name: GS parameter name
+            value: Raw GS value (0-127)
+
+        Returns:
+            Tuple of (xg_param_name, scaled_value)
+        """
+        if effect == "reverb":
+            if param_name == "type":
+                return "reverb_type", float(GS_TO_XG_REVERB.get(value, value))
+            elif param_name == "level":
+                return "level", value / 127.0
+            elif param_name == "time":
+                return "time", 0.1 + (value / 127.0) * 8.2
+            elif param_name == "feedback":
+                return "hf_damping", value / 127.0
+            elif param_name == "predelay":
+                return "pre_delay", (value / 127.0) * 0.05
+        elif effect == "chorus":
+            if param_name == "type":
+                return "chorus_type", float(GS_TO_XG_CHORUS.get(value, value))
+            elif param_name == "level":
+                return "level", value / 127.0
+            elif param_name == "rate":
+                return "rate", 0.125 + (value / 127.0) * 9.875
+            elif param_name == "depth":
+                return "depth", value / 127.0
+            elif param_name == "feedback":
+                return "feedback", (value / 127.0) * 0.5
+        # Fallback: pass through as-is
+        return param_name, float(value)
 
     def _handle_data_request(self, addr: tuple) -> bytes | None:
         """Handle GS Data Request (0x11) - generate parameter dump."""
@@ -666,6 +918,10 @@ class GSSysexHandler:
     def set_voice_manager(self, manager):
         """Set voice manager reference."""
         self.voice_manager = manager
+
+    def set_jv2080_manager(self, manager) -> None:
+        """Set reference to JV2080 component manager."""
+        self.jv2080_manager = manager
 
     def set_channel_parameter(self, channel: int, param: str, value: int) -> bool:
         """

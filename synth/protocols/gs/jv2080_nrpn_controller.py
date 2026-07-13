@@ -45,6 +45,11 @@ class JV2080NRPNController:
         # Thread safety
         self.lock = threading.RLock()
 
+        # Data Entry tracking for 14-bit NRPN values
+        self._last_data_entry_msb: dict[int, int] = {}
+        self._last_data_entry_lsb: dict[int, int] = {}
+        self._pending_nrpn: tuple[int, int] | None = None
+
     def _build_parameter_map(self) -> dict[tuple[int, int], dict[str, Any]]:
         """
         Build comprehensive NRPN parameter map.
@@ -395,12 +400,16 @@ class JV2080NRPNController:
                 self.current_lsb = value
                 self.active_nrpn = True
                 self.data_msb_received = False
+                # Both MSB and LSB known — set pending NRPN
+                self._pending_nrpn = (self.current_msb, value)
                 return True
 
             elif controller == 99:  # NRPN MSB
                 self.current_msb = value
                 self.active_nrpn = True
                 self.data_msb_received = False
+                # Reset pending — LSB not yet known
+                self._pending_nrpn = None
                 return True
 
             elif controller == 6:  # Data Entry MSB
@@ -415,6 +424,17 @@ class JV2080NRPNController:
                         self.active_nrpn = False
                         self.data_msb_received = False
                         return success
+
+            elif controller == 38:  # Data Entry LSB
+                # Combine with previously received MSB for 14-bit value
+                lsb = value
+                msb = self._last_data_entry_msb.get(0, 0)
+                full_14bit = (msb << 7) | lsb
+                # Process the NRPN with 14-bit value
+                if self._pending_nrpn is not None:
+                    nrpn_msb, nrpn_lsb = self._pending_nrpn
+                    self._process_nrpn_value(nrpn_msb, nrpn_lsb, full_14bit)
+                self._last_data_entry_lsb[0] = lsb
 
             elif controller == 96:  # Data Increment
                 if self.active_nrpn:
@@ -516,6 +536,37 @@ class JV2080NRPNController:
         else:
             logger.warning("Unimplemented NRPN parameter: %s", param_name)
             return False
+
+    def _process_nrpn_value(self, nrpn_msb: int, nrpn_lsb: int, value: int) -> bool:
+        """Process a resolved 14-bit NRPN value into the parameter system.
+
+        Args:
+            nrpn_msb: NRPN MSB (parameter category/part)
+            nrpn_lsb: NRPN LSB (parameter index)
+            value: 14-bit parameter value (0-16383)
+
+        Returns:
+            True if parameter was processed successfully
+        """
+        # Store current NRPN state
+        prev_msb = self.current_msb
+        prev_lsb = self.current_lsb
+        prev_active = self.active_nrpn
+
+        # Set NRPN context and process
+        self.current_msb = nrpn_msb
+        self.current_lsb = nrpn_lsb
+        self.active_nrpn = True
+        self.data_msb_received = True
+
+        result = self._process_nrpn_data(value)
+
+        # Restore prior state
+        self.current_msb = prev_msb
+        self.current_lsb = prev_lsb
+        self.active_nrpn = prev_active
+
+        return result
 
     def _set_system_parameter(self, param_name: str, value: int) -> bool:
         """Set system parameter via component manager."""

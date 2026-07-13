@@ -193,16 +193,16 @@ git clone https://github.com/drbye78/syxg.git
 cd syxg
 
 # Install core package (PyAV for audio I/O)
-pip install -e .
+uv pip install -e .
 
 # Install with workstation features (Vibexg)
-pip install -e ".[workstation]"
+uv pip install -e ".[workstation]"
 
 # Full installation with all features
-pip install -e ".[full]"
+uv pip install -e ".[full]"
 
 # Development installation
-pip install -e ".[dev,audio,visualization,workstation]"
+uv pip install -e ".[dev,audio,visualization,workstation]"
 ```
 
 ### Basic Usage
@@ -564,13 +564,13 @@ git clone https://github.com/drbye78/syxg.git
 cd syxg
 
 # Install development dependencies
-pip install -e ".[dev,audio,performance,workstation]"
+uv sync --group dev --group audio --group performance --group workstation
 
 # Run tests
 pytest tests/ -v
 
 # Run linting
-flake8 synth/ vibexg/
+ruff check synth/ vibexg/
 black synth/ vibexg/
 mypy synth/ vibexg/
 ```

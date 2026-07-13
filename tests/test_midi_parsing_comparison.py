@@ -9,22 +9,10 @@ import sys
 import os
 from typing import Any
 
-# Add parent directory to path to import synth modules
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import mido
 
-# Import only the specific classes we need to avoid full module import
-# which might hang due to rtmidi dependency
+from synth.io.midi.file import FileParser
 from synth.io.midi.message import MIDIMessage
-
-# Import FileParser by adding synth directory to path
-synth_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "synth")
-if synth_path not in sys.path:
-    sys.path.insert(0, synth_path)
-
-# Now import the midi.file module
-from midi.file import FileParser
 
 
 def parse_with_mido(filename: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:

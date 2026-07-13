@@ -43,11 +43,11 @@ git clone https://github.com/your-username/syxg.git
 cd syxg
 
 # Set up development environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install development dependencies
-pip install -e ".[dev,audio,performance,visualization]"
+uv sync --group dev --group audio --group performance --group visualization
 
 # Run tests to verify setup
 pytest
@@ -102,7 +102,7 @@ PYTEST_PLUGINS=pytest_cov,pytest_xdist
 Install pre-commit hooks to ensure code quality:
 
 ```bash
-pip install pre-commit
+uv pip install pre-commit
 pre-commit install
 
 # Run hooks manually

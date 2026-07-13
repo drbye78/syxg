@@ -56,7 +56,9 @@ from ..engines.engine_registry import XGEngineRegistry
 from ..engines.parameter_router import ParameterRouter
 from ..io.midi import MIDIMessage, RealtimeParser
 from ..processing.effects.effects_coordinator import XGEffectsCoordinator
+from ..processing.effects.pipeline_topology import PipelineTopology
 from ..processing.voice.voice_manager import VoiceManager
+from ..protocols.xg.part_engine_router import PartEngineRouter
 from ..protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
 from ..protocols.xg.xg_system import XGSystem
 from ..sampling.sample_manager import SampleManager
@@ -266,6 +268,13 @@ class Synthesizer:
         # Effects processing
         self.effects_coordinator = XGEffectsCoordinator(sample_rate, buffer_size)
 
+        # Configure output bus manager for multi-group routing
+        self.effects_coordinator.set_num_buses(4)
+        self.effects_coordinator.set_bus_topology(0, PipelineTopology.xg_standard())
+        self.effects_coordinator.set_bus_topology(1, PipelineTopology.xg_standard())
+        self.effects_coordinator.set_bus_topology(2, PipelineTopology.xg_standard())
+        self.effects_coordinator.set_bus_topology(3, PipelineTopology.xg_standard())
+
         # MIDI processing
         self.midi_parser = RealtimeParser()
 
@@ -297,6 +306,13 @@ class Synthesizer:
         # Registration Memory
         self.registration_memory: RegistrationMemory | None = None
         self._registration_enabled = False
+
+        # EFX Control Switch mapping (SC-8850)
+        # Maps CC number → (part_num, efx_parameter, depth)
+        self.efx_control_switches: dict[int, dict[str, Any]] = {
+            3: {"part": 0, "parameter": None, "depth": 0},
+            9: {"part": 0, "parameter": None, "depth": 0},
+        }
 
         # Audio output buffers
         self.output_buffer = np.zeros((buffer_size, 2), dtype=np.float32)
@@ -506,6 +522,13 @@ class Synthesizer:
 
         # Initialize XG parameters
         self.xg_system.initialize()
+
+        # PartEngineRouter — per-part engine routing with bank+program support
+        router = PartEngineRouter(num_parts=self.max_channels)
+        router.set_engine_registry(self.engine_registry)
+        self.engine_router = router
+        self.xg_system.engine_router = router
+        self.xg_synthesizer.engine_router = router
 
         # Connect production-grade XG/GS/GM synthesizer system
         self.xg_synthesizer.engine_registry = self.engine_registry
@@ -787,9 +810,24 @@ class Synthesizer:
                     empty_buffer.fill(0.0)
                     channel_list.append(empty_buffer)
 
-            # Process through effects chain (insertion → variation → system → master)
-            self.effects_coordinator.process_channels_to_stereo_zero_alloc(
-                channel_list, out, num_samples
+            # Route channels to their assigned output buses
+            bus_inputs: dict[int, list[np.ndarray]] = {}
+            for ch, buf in enumerate(channel_list):
+                if ch < self.max_channels:
+                    # Find bus for this channel from XG part
+                    bus_id = 0
+                    if hasattr(self, "xg_system"):
+                        for part in self.xg_system.parts.values():
+                            if part.channel == ch:
+                                bus_id = part.output_bus
+                                break
+                    if bus_id not in bus_inputs:
+                        bus_inputs[bus_id] = []
+                    bus_inputs[bus_id].append(buf)
+
+            # Process through multi-bus effects pipeline
+            self.effects_coordinator.process_buses_zero_alloc(
+                bus_inputs, num_samples, out
             )
 
     def _update_performance_stats(self):
@@ -847,6 +885,13 @@ class Synthesizer:
         except Exception:
             logger.warning("Failed to collect modulation values", exc_info=True)
 
+        # Add output bus routing info
+        if hasattr(self, "xg_system"):
+            for part_num, part in self.xg_system.parts.items():
+                if part.channel == channel:
+                    engine_params["output_bus"] = part.output_bus
+                    break
+
         self.voice_manager.allocate_voice(
             channel,
             note,
@@ -884,6 +929,11 @@ class Synthesizer:
     def control_change(self, channel: int, controller: int, value: int):
         """Handle control change event."""
         with self.lock:
+            # EFX Control Switches (CC#3, CC#9) — SC-8850 real-time EFX modulation
+            if controller in (3, 9):
+                self._handle_efx_control_switch(controller, channel, value)
+                return
+
             # Check if it's a control surface assignment
             param_update = self.control_surface.process_control_message(controller, value)
 
@@ -897,6 +947,84 @@ class Synthesizer:
             else:
                 # Handle standard MIDI CC
                 self.xg_system.handle_control_change(channel, controller, value)
+
+    def _handle_efx_control_switch(self, controller: int, channel: int, value: int) -> None:
+        """Handle EFX Control Switch CC message (SC-8850).
+
+        CC#3 = ECS 1, CC#9 = ECS 2.
+        Routes modulation to the assigned EFX parameter on the assigned part.
+
+        Args:
+            controller: CC number (3 or 9)
+            channel: MIDI channel
+            value: CC value (0-127)
+        """
+        if controller not in self.efx_control_switches:
+            return
+
+        switch = self.efx_control_switches[controller]
+        part = self._get_part_for_channel(channel)
+
+        # Normalize value to 0.0-1.0
+        normalized = value / 127.0
+
+        # Forward to effects coordinator if configured
+        if (
+            switch["parameter"] is not None
+            and hasattr(self, "effects_coordinator")
+            and self.effects_coordinator is not None
+        ):
+            try:
+                self.effects_coordinator.modulate_efx_parameter(
+                    part_num=part,
+                    parameter=switch["parameter"],
+                    depth=switch["depth"],
+                    value=normalized,
+                )
+            except Exception:
+                logger.warning(f"EFX modulation failed: CC#{controller}", exc_info=True)
+
+    def _get_part_for_channel(self, channel: int) -> int:
+        """Get the part number for a MIDI channel.
+
+        Args:
+            channel: MIDI channel (0-15)
+
+        Returns:
+            Part number
+        """
+        if hasattr(self.xg_system, "parts"):
+            for part_num, part in self.xg_system.parts.items():
+                if part.channel == channel:
+                    return part_num
+        return channel  # Default: part = channel
+
+    def set_efx_control_switch_mapping(
+        self,
+        cc_number: int,
+        part_num: int,
+        parameter: str,
+        depth: float = 1.0,
+    ) -> bool:
+        """Configure an EFX Control Switch mapping.
+
+        Args:
+            cc_number: CC number (3 or 9)
+            part_num: Target part number
+            parameter: EFX parameter name
+            depth: Modulation depth (0.0-1.0)
+
+        Returns:
+            True if mapping was set
+        """
+        if cc_number not in self.efx_control_switches:
+            return False
+        self.efx_control_switches[cc_number] = {
+            "part": part_num,
+            "parameter": parameter,
+            "depth": max(0.0, min(1.0, depth)),
+        }
+        return True
 
     def pitch_bend(self, channel: int, value: int):
         """Handle pitch bend event."""

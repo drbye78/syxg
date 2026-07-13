@@ -307,7 +307,7 @@ python -c "import sounddevice as sd; sd.play([0.1, 0.2, 0.1, -0.1], 44100); sd.w
 pip list | grep xg
 
 # Reinstall if needed
-pip install -e .
+uv pip install -e .
 ```
 
 #### 3. MIDI File Issues

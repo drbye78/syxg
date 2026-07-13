@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from typing import Self
 
+from .part_engine_router import PartEngineRouter
+
 
 class XGParameterType(Enum):
     """XG parameter types"""
@@ -73,6 +75,8 @@ class XGPart:
     rpn_lsb: int = 0
     data_entry_msb: int = 0
     data_entry_lsb: int = 0
+    engine_assignment: str = ""  # Explicit engine override (empty = use router)
+    output_bus: int = 0  # Output bus assignment (0=Master, 1=A, 2=B, 3=C)
 
 
 @dataclass(slots=True)
@@ -113,6 +117,7 @@ class XGSystem:
     def __init__(self):
         """Initialize XG system"""
         self.system_params = XGSystemParameters()
+        self.num_parts: int = 16
         self.parts: dict[int, XGPart] = {}
         self.drum_setup: dict[int, dict[str, Any]] = {}  # Note -> drum parameters
 
@@ -121,6 +126,9 @@ class XGSystem:
 
         # Thread safety
         self.lock = threading.RLock()
+
+        # PartEngineRouter for per-part engine routing
+        self.engine_router: PartEngineRouter | None = None
 
         # Callbacks for parameter changes
         self.parameter_change_callback: Callable[[str, Any, Any], None] | None = None
@@ -167,7 +175,7 @@ class XGSystem:
 
     def _init_default_parts(self):
         """Initialize default XG multi-part setup"""
-        for part_num in range(16):
+        for part_num in range(min(16, self.num_parts)):  # Support up to num_parts
             part = XGPart(
                 part_number=part_num,
                 channel=part_num,  # Default: part N on channel N
@@ -177,6 +185,7 @@ class XGSystem:
                 reverb_send=40,
                 chorus_send=0,
                 variation_send=0,
+                part_mode=XGMultiPartMode.DRUM if part_num == 9 else XGMultiPartMode.MULTI_TIMBRAL,
             )
             self.parts[part_num] = part
 
@@ -220,7 +229,7 @@ class XGSystem:
 
     def get_engine_for_channel(self, channel: int) -> str:
         """
-        Get synthesis engine type for a MIDI channel.
+        Get synthesis engine type for a MIDI channel, delegating to PartEngineRouter.
 
         Args:
             channel: MIDI channel (0-15)
@@ -229,25 +238,21 @@ class XGSystem:
             Engine type string ('xg', 'an', 'fdsp', etc.)
         """
         with self.lock:
-            # XG channel to engine mapping
-            if channel == 9:  # Channel 10 (0-indexed as 9) is drums
-                return "xg"  # Drum kits use XG engine
-
-            # Check if channel has a part assigned
+            # Find the part for this channel
             for part in self.parts.values():
                 if part.channel == channel:
-                    # Determine engine based on XG program
-                    program = (part.bank_select_msb << 7) | part.program_number
-
-                    # XG bank/program to engine mapping
-                    if part.bank_select_msb == 0:  # Normal XG voices
-                        return "xg"
-                    elif part.bank_select_msb == 64:  # SFX voices
-                        return "xg"
-                    elif part.bank_select_msb == 126:  # AN voices (S90 only)
-                        return "an"
-                    elif part.bank_select_msb == 127:  # FDSP voices
-                        return "fdsp"
+                    # Check explicit engine assignment first
+                    if part.engine_assignment:
+                        return part.engine_assignment
+                    # Delegate to router
+                    if self.engine_router is not None:
+                        part_data = {
+                            "bank_msb": part.bank_select_msb,
+                            "bank_lsb": part.bank_select_lsb,
+                            "program_num": part.program_number,
+                            "part_mode": part.part_mode.value if hasattr(part.part_mode, "value") else 0,
+                        }
+                        return self.engine_router.get_part_engine(channel, part_data)
 
             return "xg"  # Default to XG engine
 

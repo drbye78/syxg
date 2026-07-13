@@ -317,12 +317,18 @@ class SynthesisPartial(ABC):
         self._silence_buffer: np.ndarray | None = None
 
     def _get_silence(self, block_size: int) -> np.ndarray:
-        """Return a reusable zero-filled stereo buffer (avoids hot-path allocation).
+        """Return a reusable zero-filled stereo buffer.
 
         Intended for early-return silence paths in generate_samples().
+        Uses BufferPool when available to satisfy zero-alloc rule.
         """
         if self._silence_buffer is None or len(self._silence_buffer) != block_size:
-            self._silence_buffer = np.zeros((block_size, 2), dtype=np.float32)
+            if self._buffer_pool is not None:
+                buf = self._buffer_pool.get_stereo_buffer(block_size)
+                buf.fill(0.0)
+                self._silence_buffer = buf
+            else:
+                self._silence_buffer = np.zeros((block_size, 2), dtype=np.float32)
         else:
             self._silence_buffer.fill(0.0)
         return self._silence_buffer

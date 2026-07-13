@@ -32,7 +32,7 @@ class TestPhase1_EngineRegionInterfaces:
 
     def test_fdsp_engine_region_interface(self):
         """Test FDSP engine implements region interface"""
-        from synth.engines.fdsp import FDSPEngine
+        from synth.engines.fdsp import FDSPSynthesisEngine
 
         engine = FDSPSynthesisEngine(sample_rate=44100)
 

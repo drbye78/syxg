@@ -40,7 +40,7 @@ class TestPresetManager:
             filepath = pm.save_preset(preset)
 
             assert filepath.exists()
-            assert filepath.suffix == ".preset"
+            assert filepath.suffix == ".json"
 
     def test_load_preset(self):
         """Test preset loading."""

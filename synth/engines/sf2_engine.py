@@ -984,7 +984,7 @@ class SF2Engine(SynthesisEngine):
             # No preset found - return silence
             if _pool is not None:
                 return _pool.get_stereo_buffer(block_size)
-            # TODO: Use BufferPool when available (hot path allocation)
+            # No BufferPool available — fallback allocation (cold path, pool not configured)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Find matching regions for this note/velocity
@@ -997,7 +997,7 @@ class SF2Engine(SynthesisEngine):
             # No matching regions - return silence
             if _pool is not None:
                 return _pool.get_stereo_buffer(block_size)
-            # TODO: Use BufferPool when available (hot path allocation)
+            # No BufferPool available — fallback allocation (cold path, pool not configured)
             return np.zeros((block_size, 2), dtype=np.float32)
 
         # Create and initialize regions for all matching descriptors

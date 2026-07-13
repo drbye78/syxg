@@ -54,7 +54,7 @@ class TestAutoAccompanimentPlayback:
         assert accompaniment.mode == AccompanimentMode.OFF
         assert accompaniment.playback_state == StylePlaybackState.STOPPED
 
-    def test_start_with_section(self, accompaniment):
+    def test_start_with_section(self, accompaniment, sample_style):
         """Test starting with specific section."""
         accompaniment.start(section=sample_style.sections[StyleSectionType.MAIN_B])
 
@@ -137,7 +137,7 @@ class TestSectionChanges:
 
         assert accompaniment.current_section.section_type == StyleSectionType.MAIN_B
 
-    def test_next_main_section(self, accompaniment):
+    def test_next_main_section(self, accompaniment, sample_style):
         """Test advancing to next main section."""
         accompaniment.start(section=sample_style.sections[StyleSectionType.MAIN_A])
 
@@ -265,8 +265,8 @@ class TestFillTriggering:
         # Fill should be queued
         assert accompaniment._is_filling == True or accompaniment._fill_section is not None
 
-    def test_fill_with_section_change(self, accompaniment):
-        """Test fill before section change."""
+    def test_fill_with_section_change(self, accompaniment, sample_style):
+        """Test fill triggered with section change."""
         accompaniment.start(section=sample_style.sections[StyleSectionType.MAIN_A])
 
         # Trigger section change with fill

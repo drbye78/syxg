@@ -57,7 +57,7 @@ class XGMLConfigSystem:
         """
         try:
             # Parse XGML v3.0 configuration
-            from ..xgml.parser_v3 import XGMLParserV3
+            from ...xgml.parser_v3 import XGMLParserV3
 
             parser = XGMLParserV3()
             config = parser.parse_file(xgml_path)
@@ -87,7 +87,7 @@ class XGMLConfigSystem:
         """
         try:
             # Parse XGML v3.0 configuration
-            from ..xgml.parser_v3 import XGMLParserV3
+            from ...xgml.parser_v3 import XGMLParserV3
 
             parser = XGMLParserV3()
             config = parser.parse_string(xgml_string)
@@ -716,7 +716,7 @@ class XGMLConfigSystem:
             logger.info(f"🔄 Reloading configuration from: {path}")
 
             # Parse the new configuration
-            from ..xgml.parser_v3 import XGMLParserV3
+            from ...xgml.parser_v3 import XGMLParserV3
 
             parser = XGMLParserV3()
             config = parser.parse_file(str(path))

@@ -53,7 +53,7 @@ vst3_plugin/
 ### Dependencies
 ```bash
 # Install pybind11 (Python binding library)
-pip install pybind11
+uv pip install pybind11
 
 # System dependencies (Ubuntu/Debian)
 sudo apt-get install build-essential cmake libasound2-dev libjack-jackd2-dev \

@@ -22,6 +22,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from .part_engine_router import PartEngineRouter
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,6 +101,7 @@ class XGSynthesizerSystem:
         self.engine_registry = None
         self.effects_coordinator = None
         self.voice_manager = None
+        self.engine_router: PartEngineRouter | None = None
 
         logger.info(
             f"XGSynthesizerSystem: Initialized sample_rate={sample_rate}, device_id={device_id:02X}"
@@ -320,7 +323,7 @@ class XGSynthesizerSystem:
 
     def get_engine_for_part(self, part_num: int) -> str:
         """
-        Get synthesis engine for a part based on bank and mode.
+        Get synthesis engine for a part, delegating to PartEngineRouter.
 
         Args:
             part_num: Part number (0-15)
@@ -333,27 +336,18 @@ class XGSynthesizerSystem:
 
         part = self.parts[part_num]
 
-        # Check part mode first
-        part_mode = part["part_mode"]
-        if part_mode >= 1:  # Drum mode
+        # Delegate to PartEngineRouter if available
+        if self.engine_router is not None:
+            return self.engine_router.get_part_engine(part_num, part)
+
+        # Fallback: legacy bank-MSB routing
+        bank_msb = part.get("bank_msb", 0)
+        if part.get("part_mode", 0) >= 1:
             return "drum"
-
-        # Check bank
-        bank_msb = part["bank_msb"]
-
-        if bank_msb == self.BANK_NORMAL:
-            return "xg"  # Normal XG voices
-        elif bank_msb == self.BANK_SFX:
-            return "xg"  # SFX
-        elif bank_msb == self.BANK_AN:
-            return "an"  # Analog modeling
-        elif bank_msb == self.BANK_FDSP:
-            return "fdsp"  # FDSP
-
-        # GS drum: check if this is the GS drum channel
-        if self.mode.gs_enabled and part_num == 9:  # Channel 10
-            return "drum"
-
+        if bank_msb == 126:
+            return "an"
+        elif bank_msb == 127:
+            return "fdsp"
         return "xg"
 
     def _get_gs_drum_kit_for_note(self, note: int) -> int:

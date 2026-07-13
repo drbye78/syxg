@@ -371,7 +371,7 @@ class MIDIMessageProcessor:
             # MPE RPN handling - intercept RPN 0 (Pitch Bend Range) on MPE master channels
             if hasattr(self.synthesizer, "mpe_system") and self.synthesizer.mpe_system:
                 rpn_value = self.synthesizer.mpe_system.handle_rpn(midi_channel, controller, value)
-                if rpn_value is not None:
+                if rpn_value:
                     return  # RPN was handled
 
             # Check for MIDI 2.0 32-bit value

@@ -40,11 +40,8 @@ A professional real-time MIDI workstation emulator built around the XG Synthesiz
 ### Prerequisites
 
 ```bash
-# Install core requirements
-pip install -r requirements.txt
-
-# Install workstation-specific requirements (includes rtmidi for MIDI port support)
-pip install -r requirements_workstation.txt
+# Install core package with workstation extras
+uv pip install -e ".[workstation]"
 ```
 
 ### MIDI Port Support
@@ -52,7 +49,7 @@ pip install -r requirements_workstation.txt
 The workstation now uses the native `synth.midi` package for MIDI I/O operations. For physical MIDI port support, install rtmidi:
 
 ```bash
-pip install rtmidi
+uv pip install rtmidi
 ```
 
 **Note:** mido is no longer required - all MIDI functionality is now provided by the native `synth.midi` package.
@@ -511,7 +508,7 @@ synthesizer:
 
 1. Check available ports: `--list-ports`
 2. Verify exact port name (case-sensitive)
-3. Ensure mido is installed: `pip install mido`
+3. Ensure mido is installed: `uv pip install mido`
 4. Check MIDI device permissions (Linux: add user to `audio` group)
 
 #### High CPU Usage

@@ -4,7 +4,7 @@
 
 ```bash
 # Install
-pip install -e ".[dev,audio,workstation]"
+uv sync --group dev --group audio --group workstation
 
 # Single test
 pytest tests/test_voice_manager.py -v

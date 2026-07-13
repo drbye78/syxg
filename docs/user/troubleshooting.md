@@ -236,7 +236,7 @@ pip list | grep xg
 
 # Reinstall if needed
 pip uninstall xg-synthesizer
-pip install -e .
+uv pip install -e .
 ```
 
 **2. Python Path Issues**
@@ -273,12 +273,12 @@ pip list
 pip check
 
 # Update problematic packages
-pip install --upgrade numpy scipy
+uv pip install --upgrade numpy scipy
 
 # Install in isolated environment
 python -m venv clean_env
 source clean_env/bin/activate
-pip install -e .
+uv pip install -e .
 ```
 
 ### Version Compatibility
@@ -312,8 +312,8 @@ python -m venv xg_env
 source xg_env/bin/activate
 
 # Install with specific versions
-pip install numpy==1.21.0 scipy==1.7.0
-pip install -e .
+uv pip install numpy==1.21.0 scipy==1.7.0
+uv pip install -e .
 ```
 
 ## 🎼 MIDI File Problems

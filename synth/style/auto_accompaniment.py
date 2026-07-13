@@ -271,6 +271,12 @@ class AutoAccompaniment:
 
             target_section = section or self._get_section_by_name(self.config.default_main_section)
 
+            # Convert StyleSectionType enum to StyleSection object if needed
+            from .style import StyleSectionType as _SST
+
+            if isinstance(target_section, _SST):
+                target_section = self.style.get_section(target_section)
+
             self._running = True
             self._processing_thread = threading.Thread(target=self._processing_loop, daemon=True)
             self._processing_thread.start()
@@ -498,15 +504,16 @@ class AutoAccompaniment:
 
     def trigger_fill(self):
         """Trigger fill in before next section change"""
-        if not self._current_section or not self.config.auto_fill_enabled:
-            return
+        with self._lock:
+            if not self._current_section or not self.config.auto_fill_enabled:
+                return
 
-        current = self._current_section.section_type
-        if current.is_main:
-            fills = self.style.get_fill_for_main(current)
-            if fills:
-                self._fill_section = fills[0]
-                self._is_filling = True
+            current = self._current_section.section_type
+            if current.is_main:
+                fills = self.style.get_fill_for_main(current)
+                if fills:
+                    self._fill_section = fills[0]
+                    self._is_filling = True
 
     def trigger_section_change(self, target_section: str, use_fill: bool = True):
         """
@@ -516,55 +523,58 @@ class AutoAccompaniment:
             target_section: Target section name
             use_fill: Whether to play fill before changing
         """
-        if not self._current_section:
-            return
+        with self._lock:
+            if not self._current_section:
+                return
 
-        target = self._get_section_by_name(target_section)
-        if not target:
-            return
+            target = self._get_section_by_name(target_section)
+            if not target:
+                return
 
-        # If we're going to a main section and fill is enabled
-        if use_fill and target.section_type.is_main:
-            current = self._current_section.section_type
+            # If we're going to a main section and fill is enabled
+            if use_fill and target.section_type.is_main:
+                current = self._current_section.section_type
 
-            # Get the fill for current main section
-            if current.is_main:
-                fills = self.style.get_fill_for_main(current)
-                if fills:
-                    # Schedule fill then transition
-                    self._target_section = target
-                    self._fill_section = fills[0]
-                    self._is_filling = True
-                    return
-
-        # Direct transition
-        self._transition_to(target)
-
-    def set_main_section(self, section_name: str):
-        """Set main section directly"""
-        section = self._get_section_by_name(section_name)
-        if section:
-            self._transition_to(section)
-
-    def next_main_section(self):
-        """Advance to next main section"""
-        if not self._current_section:
-            return
-
-        current = self._current_section.section_type
-        if current.is_main:
-            next_main = self.style.get_next_main(current)
-            if next_main:
-                # Check if we should play fill first
-                if self.config.auto_fill_enabled:
+                # Get the fill for current main section
+                if current.is_main:
                     fills = self.style.get_fill_for_main(current)
                     if fills:
-                        self._target_section = self.style.get_section(next_main)
+                        # Schedule fill then transition
+                        self._target_section = target
                         self._fill_section = fills[0]
                         self._is_filling = True
                         return
 
-                self._transition_to(self.style.get_section(next_main))
+            # Direct transition
+            self._transition_to(target)
+
+    def set_main_section(self, section_name: str):
+        """Set main section immediately"""
+        with self._lock:
+            section = self._get_section_by_name(section_name)
+            if section:
+                self._transition_to(section, immediate=True)
+
+    def next_main_section(self):
+        """Advance to next main section"""
+        with self._lock:
+            if not self._current_section:
+                return
+
+            current = self._current_section.section_type
+            if current.is_main:
+                next_main = self.style.get_next_main(current)
+                if next_main:
+                    # Check if we should play fill first
+                    if self.config.auto_fill_enabled:
+                        fills = self.style.get_fill_for_main(current)
+                        if fills:
+                            self._target_section = self.style.get_section(next_main)
+                            self._fill_section = fills[0]
+                            self._is_filling = True
+                            return
+
+                    self._transition_to(self.style.get_section(next_main), immediate=True)
 
     def set_track_mute(self, track_type: Any, muted: bool):
         """Mute/unmute a track"""
@@ -666,7 +676,12 @@ class AutoAccompaniment:
 
     def _schedule_section_events(self, section: Any):
         """Schedule all note events for a section"""
-        from .style import TrackType
+        from .style import StyleSectionType, TrackType, StyleSection
+
+        # Guard: if section is a StyleSectionType enum instead of StyleSection, convert it.
+        # This prevents a race condition where _current_section reads a stale enum value.
+        if isinstance(section, StyleSectionType):
+            section = self.style.get_section(section)
 
         self._scheduled_events.clear()
 
@@ -800,16 +815,17 @@ class AutoAccompaniment:
 
     def _handle_chord_change(self, chord: Any):
         """Handle detected chord changes"""
-        if self.mode != AccompanimentMode.ON:
-            return
+        with self._lock:
+            if self.mode != AccompanimentMode.ON:
+                return
 
-        if self._current_section and self._is_filling:
-            self._is_filling = False
-            if self._target_section:
-                self._transition_to(self._target_section)
-                self._target_section = None
-            else:
-                self.next_main_section()
+            if self._current_section and self._is_filling:
+                self._is_filling = False
+                if self._target_section:
+                    self._transition_to(self._target_section, immediate=True)
+                    self._target_section = None
+                else:
+                    self.next_main_section()
 
     def _processing_loop(self):
         """Main processing loop with state machine handling"""

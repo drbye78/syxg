@@ -809,6 +809,7 @@ class UltraFastXGLFO:
         rate: float | None = None,
         depth: float | None = None,
         delay: float | None = None,
+        fade: float | None = None,
     ):
         """Update LFO parameters dynamically."""
         if waveform is not None:
@@ -821,6 +822,8 @@ class UltraFastXGLFO:
         if delay is not None:
             self.delay = max(0.0, min(5.0, delay))
             self.delay_samples = int(self.delay * self.sample_rate)
+        if fade is not None:
+            self.set_fade_in_time(fade)
 
         if any([rate is not None, delay is not None]):
             self.reset()

@@ -30,6 +30,7 @@ class TestSArt2Comprehensive:
             gs_enabled=True,
             mpe_enabled=False,
         )
+        synth.load_soundfont("tests/ref.sf2")
         yield synth
         synth.cleanup()
 

@@ -750,6 +750,7 @@ class ModernXGSynthesizer:
         """Initialize GS system with clean integration"""
         # GS Component Manager
         self.gs_components = JV2080ComponentManager()
+        self.gs_components.set_effects_coordinator(self.effects_coordinator)
 
         # GS MIDI Processor
         self.gs_midi_processor = GSMIDIProcessor(self.gs_components)
@@ -807,8 +808,8 @@ class ModernXGSynthesizer:
             ):
                 # Get the FM engine instance to pass to the plugin
                 fm_engine = self.engine_registry.get_engine("fm")
-                success = self.plugin_registry.load_plugin(
-                    "jupiter_x.fm_extensions.JupiterXFMPlugin", fm_engine
+                success = fm_engine.load_plugin(
+                    "jupiter_x.fm_extensions.JupiterXFMPlugin"
                 )
                 if success:
                     logger.info("✅ Jupiter-X FM plugin loaded successfully")
@@ -1743,10 +1744,21 @@ class ModernXGSynthesizer:
             mpe_note.voice_id = voice_id
             self._apply_mpe_to_voice(voice_id, mpe_note)
 
+            # Register voice in Channel for audio rendering
+            # (VoiceManager tracks polyphony; Channel generates audio)
+            if 0 <= ch < len(self.channels):
+                self.channels[ch].note_on(mpe_note.note_number, mpe_note.velocity)
+
     def _release_voice_mpe(self, voice_id):
         """Release voice by ID (MPE version)"""
         if hasattr(self, "voice_manager") and self.voice_manager:
+            # Look up voice info for channel/note before deallocating
+            voice_info = self.voice_manager.get_voice(voice_id)
             self.voice_manager.deallocate_voice(voice_id)
+
+            # Release in Channel for audio rendering cleanup
+            if voice_info and 0 <= voice_info.channel < len(self.channels):
+                self.channels[voice_info.channel].note_off(voice_info.note)
 
     def _update_channel_voices_mpe(self, channel: int):
         """Update all voices on channel with current MPE parameters"""
