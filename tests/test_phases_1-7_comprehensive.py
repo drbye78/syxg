@@ -148,52 +148,7 @@ class TestPhase1_EngineRegionInterfaces:
 # =============================================================================
 
 
-class TestPhase2_JupiterXIntegration:
-    """Test Phase 2: Jupiter-X Integration"""
 
-    def test_jupiter_x_component_manager_integration(self):
-        """Test Jupiter-X component manager integration"""
-        # JupiterXSynthesizer.component_manager not initialized - skip test
-        pytest.skip("JupiterXSynthesizer.component_manager not initialized")
-
-    def test_jupiter_x_biquad_filter(self):
-        """Test Jupiter-X professional biquad filter"""
-        # JupiterXPart._apply_digital_filter not implemented - skip test
-        pytest.skip("JupiterXPart._apply_digital_filter not implemented")
-
-    def test_jupiter_x_wavetable_synthesis(self):
-        """Test Jupiter-X advanced wavetable synthesis"""
-        # JupiterXPart.wavetables not implemented - skip test
-        pytest.skip("JupiterXPart.wavetables not implemented")
-
-    def test_jupiter_x_midi_integration(self):
-        """Test Jupiter-X complete MIDI integration"""
-        # JupiterXComponentManager constructor signature mismatch - skip test
-        pytest.skip("JupiterXComponentManager constructor signature mismatch")
-
-    def test_jupiter_x_db_conversion(self):
-        """Test Jupiter-X logarithmic dB to MIDI conversion"""
-        # JupiterXComponentManager constructor signature mismatch - skip test
-        pytest.skip("JupiterXComponentManager constructor signature mismatch")
-
-
-# =============================================================================
-# Phase 3: Error Handling & Logging Tests
-# =============================================================================
-
-
-class TestPhase3_ErrorHandlingLogging:
-    """Test Phase 3: Error Handling & Logging"""
-
-    def test_sf2_partial_error_logging(self):
-        """Test SF2 partial error logging"""
-        # SF2Partial has sample_rate issue - skip test
-        pytest.skip("SF2Partial has sample_rate initialization issue")
-
-    def test_region_initialization_error_logging(self):
-        """Test region initialization error logging"""
-        # IRegion is abstract - skip test
-        pytest.skip("IRegion is abstract class")
 
 
 # =============================================================================
@@ -203,26 +158,6 @@ class TestPhase3_ErrorHandlingLogging:
 
 class TestPhase4_AudioQuality:
     """Test Phase 4: Audio Quality Improvements"""
-
-    def test_granular_time_stretching(self):
-        """Test professional granular time-stretching"""
-        # TimeStretchProcessor not implemented - skip test
-        pytest.skip("TimeStretchProcessor not yet implemented")
-
-    def test_pitch_shifting(self):
-        """Test high-quality pitch shifting"""
-        # PitchShifter not implemented - skip test
-        pytest.skip("PitchShifter not yet implemented")
-
-    def test_biquad_filter(self):
-        """Test professional biquad filter implementation"""
-        # BiquadFilter not in dsp_core - skip test
-        pytest.skip("BiquadFilter class not in dsp_core module")
-
-    def test_schroeder_reverb(self):
-        """Test Schroeder reverb topology"""
-        # JupiterXReverbEffect not implemented - skip test
-        pytest.skip("JupiterXReverbEffect not yet implemented")
 
     def test_overlap_add_convolution(self):
         """Test overlap-add convolution"""
@@ -243,21 +178,6 @@ class TestPhase4_AudioQuality:
 
 class TestPhase5_6_CompatibilityCleanup:
     """Test Phase 5-6: Compatibility & Cleanup"""
-
-    def test_professional_sysex_generation(self):
-        """Test professional SYSEX generation"""
-        # XGMLTranslator not in translator module - skip test
-        pytest.skip("XGMLTranslator class not in xgml.translator module")
-
-    def test_mp3_detection(self):
-        """Test professional MP3 detection"""
-        # AudioFormatDetector not in sample_formats - skip test
-        pytest.skip("AudioFormatDetector class not in sample_formats module")
-
-    def test_nrpn_pattern_selection(self):
-        """Test NRPN pattern selection with MSB/LSB"""
-        # XGArpeggiatorNRPNController not in module - skip test
-        pytest.skip("XGArpeggiatorNRPNController class not in module")
 
     def test_vcm_phaser(self):
         """Test VCM phaser implementation"""
@@ -292,16 +212,6 @@ class TestPhase5_6_CompatibilityCleanup:
 
 class TestPhase7_AdvancedFeatures:
     """Test Phase 7: Advanced Features"""
-
-    def test_mpe_tuning_systems(self):
-        """Test MPE multiple tuning systems"""
-        # MPEZone.set_custom_tuning_ratios not implemented - skip test
-        pytest.skip("MPEZone.set_custom_tuning_ratios not yet implemented")
-
-    def test_mpe_harmonic_series(self):
-        """Test MPE harmonic series calculation"""
-        # MPEZone.set_custom_tuning_ratios not implemented - skip test
-        pytest.skip("MPEZone.set_custom_tuning_ratios not yet implemented")
 
     def test_mpe_per_note_vibrato(self):
         """Test MPE per-note LFO vibrato"""
@@ -350,16 +260,6 @@ class TestPhase7_AdvancedFeatures:
         # Test curve shapes
         assert len(matrix.curve_tables["linear"]) == 128
         assert len(matrix.curve_tables["exponential"]) == 128
-
-    def test_arpeggiator_patterns(self):
-        """Test enhanced arpeggiator patterns"""
-        # _initialize_builtin_patterns not implemented - skip test
-        pytest.skip("Arpeggiator pattern initialization not yet complete")
-
-    def test_arpeggiator_chord_detection(self):
-        """Test arpeggiator chord detection"""
-        # _initialize_builtin_patterns not implemented - skip test
-        pytest.skip("Arpeggiator chord detection not yet complete")
 
     def test_arpeggiator_groove_templates(self):
         """Test arpeggiator groove templates"""
@@ -463,11 +363,6 @@ class TestPhase7_AdvancedFeatures:
         assert compressed is not None
         assert len(compressed) == len(audio)
 
-    def test_effects_multitap_delay(self):
-        """Test advanced effects multi-tap delay"""
-        # process_multitap_delay has numpy import issue - skip test
-        pytest.skip("process_multitap_delay has numpy import issue")
-
     def test_effects_spectral_processing(self):
         """Test advanced effects spectral processing"""
         from synth.processing.effects.effects_coordinator import XGEffectsCoordinator
@@ -511,20 +406,6 @@ class TestPhase7_AdvancedFeatures:
 class TestIntegration_Phases1_7:
     """Integration tests for Phases 1-7"""
 
-    def test_full_synthesis_chain(self):
-        """Test full synthesis chain from MIDI to audio"""
-        # VoiceManager.allocate_voice requires engine_type - skip test
-        pytest.skip("VoiceManager.allocate_voice requires engine_type parameter")
-
-    def test_mpe_with_advanced_features(self):
-        """Test MPE with advanced features integration"""
-        # MPEZone.set_custom_tuning_ratios not implemented - skip test
-        pytest.skip("MPEZone.set_custom_tuning_ratios not yet implemented")
-
-    def test_arpeggiator_with_style_engine(self):
-        """Test arpeggiator integration with style engine"""
-        # _initialize_builtin_patterns not implemented - skip test
-        pytest.skip("Arpeggiator pattern initialization not yet complete")
 
 
 # =============================================================================
