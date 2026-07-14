@@ -307,7 +307,8 @@ class TestSF2InstrumentStructure:
             instrument = our_sf2._get_or_load_instrument(inst_idx)
 
             if instrument:
-                our_zone_count = len(instrument.zones)
+                # We store the global zone separately, so count it explicitly
+                our_zone_count = len(instrument.zones) + (1 if instrument.global_zone else 0)
                 baseline_zone_count = len(baseline_inst.bags) - 1 if baseline_inst.bags else 0
 
                 # Zone counts should match
@@ -538,8 +539,11 @@ class TestSF2ZoneStructure:
             instrument = our_sf2._get_or_load_instrument(inst_idx)
 
             if instrument and len(baseline_inst.bags) > 1:
+                # bag[0] in sf2utils is the global-zone bag. Our parser separates
+                # global zones, so we skip bag[0] only when a global zone exists.
+                bag_start = 0 if instrument.global_zone is None else 1
                 for zone_idx, (our_zone, baseline_bag) in enumerate(
-                    zip(instrument.zones[:5], baseline_inst.bags[1:6])
+                    zip(instrument.zones[:5], baseline_inst.bags[bag_start : bag_start + 5])
                 ):
                     our_vel_range = our_zone.velocity_range
 
@@ -645,8 +649,11 @@ class TestSF2GeneratorParameters:
             instrument = our_sf2._get_or_load_instrument(inst_idx)
 
             if instrument and len(baseline_inst.bags) > 1:
+                # bag[0] in sf2utils is the global-zone bag. Our parser separates
+                # global zones, so we skip bag[0] only when a global zone exists.
+                bag_start = 0 if instrument.global_zone is None else 1
                 for zone_idx, (our_zone, baseline_bag) in enumerate(
-                    zip(instrument.zones[:3], baseline_inst.bags[1:4])
+                    zip(instrument.zones[:3], baseline_inst.bags[bag_start : bag_start + 3])
                 ):
                     # Get attack from our implementation
                     our_attack_tc = our_zone.get_generator_value(9, -12000)  # volEnvAttack

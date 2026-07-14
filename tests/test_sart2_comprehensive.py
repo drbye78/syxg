@@ -183,6 +183,10 @@ class TestSArt2Comprehensive:
         # Set articulation
         synthesizer.set_channel_articulation(0, "legato")
 
+        # Set program to one that produces audio (Glockenspiel, prog 9)
+        program_change = bytes([0xC0, 9])
+        synthesizer.process_midi_message(program_change)
+
         # Send note and generate audio
         note_on = bytes([0x90, 60, 100])
         synthesizer.process_midi_message(note_on)

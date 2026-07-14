@@ -739,13 +739,20 @@ class SF2FileLoader:
                 sample_type,
             ) = struct.unpack("<IIIIIbbHH", header_data[20:46])
 
+            # SF2 spec stores loop points as absolute sample positions.
+            # Convert to sample-relative offsets (matching sf2utils convention
+            # and what downstream load_sample() expects, since sample data is
+            # loaded as a window from start..end with 0-based indexing).
+            rel_start_loop = max(0, start_loop - start)
+            rel_end_loop = max(0, end_loop - start)
+
             samples.append(
                 {
                     "name": sample_name,
                     "start": start,
                     "end": end,
-                    "start_loop": start_loop,
-                    "end_loop": end_loop,
+                    "start_loop": rel_start_loop,
+                    "end_loop": rel_end_loop,
                     "sample_rate": sample_rate,
                     "original_pitch": orig_pitch,
                     "pitch_correction": pitch_corr,
@@ -791,12 +798,17 @@ class SF2FileLoader:
             sample_type,
         ) = struct.unpack("<IIIIIbbHH", header_data[20:46])
 
+        # Convert absolute loop points to sample-relative offsets
+        # (see parse_sample_headers for rationale).
+        rel_start_loop = max(0, start_loop - start)
+        rel_end_loop = max(0, end_loop - start)
+
         return {
             "name": sample_name,
             "start": start,
             "end": end,
-            "start_loop": start_loop,
-            "end_loop": end_loop,
+            "start_loop": rel_start_loop,
+            "end_loop": rel_end_loop,
             "sample_rate": sample_rate,
             "original_pitch": orig_pitch,
             "pitch_correction": pitch_corr,

@@ -613,8 +613,12 @@ class SF2SoundFont:
             next_preset_bag = len(bag_data) if bag_data else preset_bag_index + 1
 
         # Get bag data for the specific range (preset_bag_index to next_preset_bag)
+        # get_bag_data_in_range has exclusive end, so next_preset_bag is the correct
+        # upper bound — bag_data[-1] is the sentinel/cap bag that serves as the
+        # upper boundary for the last zone. Adding +1 would pull the next preset's
+        # first bag, creating a spurious extra zone.
         bag_data = self.file_loader.get_bag_data_in_range(
-            "preset", preset_bag_index, next_preset_bag + 1
+            "preset", preset_bag_index, next_preset_bag
         )
         if not bag_data or len(bag_data) < 2:
             return zones
@@ -875,8 +879,12 @@ class SF2SoundFont:
             next_instrument_bag = len(bag_data) if bag_data else instrument_bag_index + 1
 
         # Get bag data for the specific range (instrument_bag_index to next_instrument_bag)
+        # get_bag_data_in_range has exclusive end, so next_instrument_bag is the correct
+        # upper bound — bag_data[-1] is the sentinel bag that provides the upper boundary
+        # for the last zone. Adding +1 would pull the next instrument's first bag,
+        # creating a spurious extra zone.
         bag_data = self.file_loader.get_bag_data_in_range(
-            "instrument", instrument_bag_index, next_instrument_bag + 1
+            "instrument", instrument_bag_index, next_instrument_bag
         )
         if not bag_data or len(bag_data) < 2:
             return zones

@@ -92,12 +92,12 @@ class SF2Zone:
             # Preset global zone: no instrument assigned
             self.is_global = self.instrument_index == -1
         else:  # instrument level
-            # Instrument global zone: no sample assigned and full ranges
-            self.is_global = (
-                self.sample_id == -1
-                and self.key_range == (0, 127)
-                and self.velocity_range == (0, 127)
-            )
+            # Instrument global zone: no sample assigned (SF2 spec §8.4.1)
+            # The global zone's generators inherit to all subsequent zones.
+            # Key/velocity range restrictions on the global zone still apply
+            # to inherited generators — they don't disqualify it from being global.
+            # https://www.synthfont.com/sfspec24.pdf section 8.4.1
+            self.is_global = self.sample_id == -1
 
         # Validate ranges
         self.key_range = (

@@ -529,31 +529,38 @@ class TestSF2Region:
         """Test SF2Region._build_partial_params_from_generators()."""
         params = sf2_region._build_partial_params_from_generators()
 
-        # Check all SF2 generator groups are included
-        assert "amp_attack" in params
-        assert "amp_decay" in params
-        assert "amp_sustain" in params
-        assert "amp_release" in params
+        # Check all SF2 generator groups are included (nested format)
+        assert "amp_envelope" in params
+        assert "attack" in params["amp_envelope"]
+        assert "decay" in params["amp_envelope"]
+        assert "sustain" in params["amp_envelope"]
+        assert "release" in params["amp_envelope"]
 
-        assert "mod_env_delay" in params
-        assert "mod_env_attack" in params
-        assert "mod_env_to_pitch" in params
+        assert "mod_envelope" in params
+        assert "delay" in params["mod_envelope"]
+        assert "attack" in params["mod_envelope"]
+        assert "to_pitch" in params["mod_envelope"]
 
-        assert "mod_lfo_delay" in params
-        assert "mod_lfo_rate" in params
-        assert "vib_lfo_delay" in params
-        assert "vib_lfo_rate" in params
+        assert "mod_lfo" in params
+        assert "delay" in params["mod_lfo"]
+        assert "frequency" in params["mod_lfo"]
+        assert "vib_lfo" in params
+        assert "delay" in params["vib_lfo"]
+        assert "frequency" in params["vib_lfo"]
 
-        assert "filter_cutoff" in params
-        assert "filter_resonance" in params
+        assert "filter" in params
+        assert "cutoff" in params["filter"]
+        assert "resonance" in params["filter"]
 
-        assert "reverb_send" in params
-        assert "chorus_send" in params
-        assert "pan" in params
+        assert "effects" in params
+        assert "reverb_send" in params["effects"]
+        assert "chorus_send" in params["effects"]
+        assert "pan" in params["effects"]
 
-        assert "coarse_tune" in params
-        assert "fine_tune" in params
-        assert "scale_tuning" in params
+        assert "pitch_modulation" in params
+        assert "coarse_tune" in params["pitch_modulation"]
+        assert "fine_tune" in params["pitch_modulation"]
+        assert "scale_tuning" in params["pitch_modulation"]
 
     def test_region_note_velocity_matching(self, sf2_region):
         """Test SF2Region._matches_note_velocity()."""
@@ -607,9 +614,9 @@ class TestSF2Region:
 
         samples = sf2_region.generate_samples(block_size=1024, modulation={})
 
-        # Should return numpy array
+        # Should return numpy array (block_size, 2) stereo
         assert isinstance(samples, np.ndarray)
-        assert len(samples) == 1024 * 2  # Stereo
+        assert samples.shape == (1024, 2)
         assert samples.dtype == np.float32
 
     def test_region_is_active(self, sf2_region):
@@ -796,7 +803,7 @@ class TestVoice:
             samples = voice.generate_samples(block_size=1024, modulation={})
 
             assert isinstance(samples, np.ndarray)
-            assert len(samples) == 1024 * 2
+            assert samples.shape == (1024, 2)
             assert samples.dtype == np.float32
         else:
             pytest.skip("Could not create voice")

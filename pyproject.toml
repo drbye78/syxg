@@ -78,6 +78,8 @@ dev = [
     "flake8>=7.0.0",
     "mypy>=1.11.0",
     "mido>=1.3.0",
+    "sf2utils>=1.0.0",
+    "audioop-lts>=0.2.2",  # sf2utils depends on audioop (removed from stdlib in 3.13+)
 ]
 
 # Real-time workstation (Vibexg)

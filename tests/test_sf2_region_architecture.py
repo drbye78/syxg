@@ -261,16 +261,33 @@ class TestSF2VoiceCreation:
         # Create voice factory
         factory = VoiceFactory(engine_registry=registry)
 
-        yield factory, sf2_engine
+        # Determine test programs — scan for bank=0 programs with actual sample IDs
+        # (skip silent shells like Concert Grand at program 0 in Timbres Of Heaven)
+        test_programs = [0]  # default fallback
+        progs = sf2_engine.soundfont_manager.get_available_programs()
+        if progs:
+            bank0_progs = sorted(set(p[1] for p in progs if p[0] == 0))
+            # Validate each has a region with sample_id
+            valid = []
+            for prog in bank0_progs[:30]:
+                voice = factory.create_voice(bank=0, program=prog, channel=0, sample_rate=44100)
+                if voice and any(
+                    rd.sample_id is not None
+                    for rd in voice.preset_info.region_descriptors
+                ):
+                    valid.append(prog)
+            test_programs = valid[:10] if valid else bank0_progs[:10]
+
+        yield factory, sf2_engine, test_programs
 
         # Cleanup
         sf2_engine.soundfont_manager.unload_all()
 
     def test_voice_created_with_preset_info(self, voice_factory):
         """Test that Voice is created with valid preset info."""
-        factory, sf2_engine = voice_factory
+        factory, sf2_engine, test_programs = voice_factory
 
-        for program in range(5):
+        for program in test_programs:
             voice = factory.create_voice(bank=0, program=program, channel=0, sample_rate=44100)
 
             if voice:
@@ -287,9 +304,9 @@ class TestSF2VoiceCreation:
 
     def test_voice_get_regions_for_note(self, voice_factory):
         """Test Voice.get_regions_for_note() returns valid regions."""
-        factory, sf2_engine = voice_factory
+        factory, sf2_engine, test_programs = voice_factory
 
-        for program in range(5):
+        for program in test_programs:
             voice = factory.create_voice(bank=0, program=program, channel=0, sample_rate=44100)
             if not voice:
                 continue

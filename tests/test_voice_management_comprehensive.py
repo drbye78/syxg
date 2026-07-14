@@ -44,6 +44,10 @@ class TestVoiceManagementComprehensive:
     @pytest.mark.unit
     def test_voice_allocation_strategies(self, synthesizer):
         """Test voice allocation strategies."""
+        # Set program to Glockenspiel (bank 0, prog 9 — first program with audio in ref.sf2)
+        program_change = bytes([0xC0, 9])
+        synthesizer.process_midi_message(program_change)
+
         # Send multiple notes to trigger voice allocation
         for note in [60, 64, 67, 72]:
             note_on = bytes([0x90, note, 100])
@@ -311,6 +315,11 @@ class TestVoiceManagementComprehensive:
     @pytest.mark.unit
     def test_voice_with_multiple_channels(self, synthesizer):
         """Test voice with multiple channels."""
+        # Set program on each channel to one with audio (program 9 — Glockenspiel)
+        for channel in range(4):
+            program_change = bytes([0xC0 + channel, 9])
+            synthesizer.process_midi_message(program_change)
+
         # Send notes on different channels
         for channel in range(4):
             note_on = bytes([0x90 + channel, 60, 100])
