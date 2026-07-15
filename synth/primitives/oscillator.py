@@ -814,8 +814,10 @@ class UltraFastXGLFO:
         """Update LFO parameters dynamically."""
         if waveform is not None:
             self.waveform = self._validate_waveform(waveform)
+            self.waveform_int = self._waveform_to_int(self.waveform)
         if rate is not None:
             self.rate = max(0.1, min(200.0, rate))
+            self.phase_step = self._calculate_phase_step()
             self._dirty = True
         if depth is not None:
             self.depth = max(0.0, min(1.0, depth))
@@ -851,8 +853,8 @@ class UltraFastXGLFO:
             block_size: New block size in samples
         """
         self.block_size = block_size
-        self.temp_phase_buffer = np.zeros(block_size, dtype=np.float64)
-        self.temp_modulated_depth = np.zeros(block_size, dtype=np.float64)
+        self.temp_phase_buffer = np.zeros(block_size, dtype=np.float32)
+        self.temp_modulated_depth = np.zeros(block_size, dtype=np.float32)
 
     def generate_block(
         self, output_buffer: np.ndarray, num_samples: int | None = None
@@ -871,7 +873,11 @@ class UltraFastXGLFO:
         Returns:
             The same output_buffer filled with LFO levels
         """
-        block_size = num_samples if num_samples is not None else len(output_buffer)
+        request_size = num_samples if num_samples is not None else len(output_buffer)
+        # Clamp to internal buffer capacity to prevent out-of-bounds access
+        block_size = min(request_size, self.block_size) if request_size > 0 else 0
+        if block_size <= 0:
+            return output_buffer
 
         # Use Numba-compiled function for ultra-fast processing with all parameters passed directly
         # This minimizes function call overhead and maximizes SIMD utilization

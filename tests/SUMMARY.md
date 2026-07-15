@@ -2,6 +2,22 @@
 
 *Last updated: 2026-07-14*
 
+## DSP Primitive Advanced Tests (added 2026-07-14)
+
+| File | Tests | What it validates |
+|------|-------|-------------------|
+| `test_buffer_pool.py` | 20 | XGBufferPool lifecycle, SIMD alignment (32-byte), pool exhaustion, fallback, context manager, stats tracking |
+| `test_panner_advanced.py` | 25 | Constant power law across 10 pan positions (<1% deviation), MIDI CC10 mapping, block processing, PannerPool |
+| `test_oscillator_advanced.py` | 67 | Waveform shape (sine THD, triangle linearity, square duty cycle), frequency accuracy (<5%), phase continuity across block boundaries, delay, fade-in, XG controller modulation, OscillatorPool |
+| `test_filter_advanced.py` | 31 | Spectral response (LPF/HPF/BPF attenuation via FFT), -3dB cutoff, resonance peak, self-oscillation stability, stereo width, BiquadFilter 6 types, FilterPool |
+| `test_dsp_pipeline.py` | 19 | Full chain integration (envelope → LFO → filter → panner), 4-voice polyphonic mix, 100-block real-time simulation, stereo routing |
+| `test_midi_render_features.py` | 18 | MIDI→audio effect verification: CC7 volume amplitude, CC10 pan stereo image, CC11 expression, CC64 sustain, pitch bend frequency shift (zero-crossing rate), CC1 vibrato detection, aftertouch, program change cross-correlation, polyphony, 32-bit precision |
+
+## Bugs Found & Fixed During DSP Testing
+
+- `buffer_pool.py`: Mono buffer shape `(size,1)` not `(size,)` — fixed reshape. SIMD alignment byte offset computed vs element index — fixed cast to `"B"`.
+- `oscillator.py`: `set_parameters()` didn't recalc `phase_step` on rate change — fixed. `generate_block()` didn't clamp to buffer capacity causing Numba segfault — fixed. `set_block_size()` float64→float32 mismatch — fixed.
+
 ## Statistics
 
 - **Total tests:** 1,923 (all passing)

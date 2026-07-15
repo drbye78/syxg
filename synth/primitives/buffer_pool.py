@@ -391,15 +391,21 @@ class XGBufferPool:
         # Allocate with SIMD alignment
         buffer = np.zeros(total_samples + self.SIMD_ALIGNMENT, dtype=np.float32)
 
-        # Find aligned offset
-        offset = (
-            self.SIMD_ALIGNMENT - (buffer.ctypes.data % self.SIMD_ALIGNMENT)
-        ) % self.SIMD_ALIGNMENT
+        # Find aligned byte offset
+        base_addr = buffer.ctypes.data
+        misalign = base_addr % self.SIMD_ALIGNMENT
+        byte_offset = (self.SIMD_ALIGNMENT - misalign) % self.SIMD_ALIGNMENT
+
+        # Cast memoryview to bytes so that indexing is byte-level
+        buffer_bytes = buffer.data.cast("B")
+        aligned_data = buffer_bytes[
+            byte_offset : byte_offset + total_samples * bytes_per_sample
+        ]
+
+        # Build the array with the correct shape for the channel count
         aligned_buffer = np.frombuffer(
-            buffer.data[offset : offset + total_samples * bytes_per_sample],
-            dtype=np.float32,
-            count=total_samples,
-        ).reshape(size, channels)
+            aligned_data, dtype=np.float32, count=total_samples
+        ).reshape((size,) if channels == 1 else (size, channels))
 
         return aligned_buffer
 
