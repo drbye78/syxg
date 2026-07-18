@@ -437,18 +437,18 @@ class GSSysexHandler:
             # System parameters
             return self._handle_system_param(addr_low, data)
 
-        elif 0x01 <= addr_high <= 0x10:
-            # Part parameters (01-10 = parts 1-16)
-            part_num = addr_high - 1
-            return self._handle_part_param(part_num, addr_mid, addr_low, data)
-
         elif addr_high == 0x02:
             # Part key parameters (velocity range, portamento, bend range)
             return self._handle_part_key_param(addr_mid, addr_low, data)
 
         elif 0x03 <= addr_high <= 0x06:
-            # Effects parameters
+            # Effects parameters (must be checked before the broad part range)
             return self._handle_effects_param(addr_high, addr_mid, addr_low, data)
+
+        elif 0x01 <= addr_high <= 0x10:
+            # Part parameters (01-10 = parts 1-16)
+            part_num = addr_high - 1
+            return self._handle_part_param(part_num, addr_mid, addr_low, data)
 
         elif 0x10 <= addr_high <= 0x1F:
             # Drum part parameters (0x10) or drum key parameters (0x11)
@@ -1062,4 +1062,6 @@ class GSSysexHandler:
         """Reset to GS defaults."""
         self._initialize_state()
         self.gs_enabled = True
+        if "gs_reset" in self._system_callbacks:
+            self._system_callbacks["gs_reset"]()
         logger.info("GSSysexHandler: Reset to defaults")

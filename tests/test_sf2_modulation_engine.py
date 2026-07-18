@@ -25,19 +25,19 @@ class TestSF2GeneratorProcessor:
     def test_set_generator_valid(self):
         """Test setting valid generator."""
         proc = sf2_modulation_engine.SF2GeneratorProcessor()
-        proc.set_generator(48, 12)  # coarseTune
-        assert proc.get_generator(48) == 12
+        proc.set_generator(51, 12)  # coarseTune (standard SF2 gen 51)
+        assert proc.get_generator(51) == 12
 
     def test_set_generator_clamp_range(self):
         """Test generator value is clamped to valid range."""
         proc = sf2_modulation_engine.SF2GeneratorProcessor()
 
         # Try to set value outside range
-        proc.set_generator(48, 200)  # coarseTune max is 120
-        assert proc.get_generator(48) <= 120
+        proc.set_generator(51, 200)  # coarseTune max is 120
+        assert proc.get_generator(51) <= 120
 
-        proc.set_generator(48, -200)  # coarseTune min is -120
-        assert proc.get_generator(48) >= -120
+        proc.set_generator(51, -200)  # coarseTune min is -120
+        assert proc.get_generator(51) >= -120
 
     def test_to_modern_synth_params_complete(self):
         """Test parameter conversion produces all expected params."""
@@ -64,11 +64,11 @@ class TestSF2GeneratorProcessor:
         """Test loop parameters are mapped to correct generators."""
         proc = sf2_modulation_engine.SF2GeneratorProcessor()
 
-        # Set loop generators (44-47)
-        proc.set_generator(44, 100)  # startloopAddrsCoarse
-        proc.set_generator(45, 5)  # startloopAddrsFine
-        proc.set_generator(46, 200)  # endloopAddrsCoarse
-        proc.set_generator(47, 10)  # endloopAddrsFine
+        # Set loop generators (standard SF2 gen 45, 2, 50, 3)
+        proc.set_generator(45, 100)  # startloopAddrsCoarseOffset
+        proc.set_generator(2, 5)  # startloopAddrsOffset (fine)
+        proc.set_generator(50, 200)  # endloopAddrsCoarseOffset
+        proc.set_generator(3, 10)  # endloopAddrsOffset (fine)
 
         params = proc.to_modern_synth_params()
 
@@ -81,10 +81,10 @@ class TestSF2GeneratorProcessor:
         """Test tuning parameters."""
         proc = sf2_modulation_engine.SF2GeneratorProcessor()
 
-        proc.set_generator(48, 12)  # coarseTune
-        proc.set_generator(49, -50)  # fineTune
-        proc.set_generator(52, 100)  # scaleTuning
-        proc.set_generator(54, 60)  # overridingRootKey
+        proc.set_generator(51, 12)  # coarseTune (standard SF2 gen 51)
+        proc.set_generator(52, -50)  # fineTune (standard SF2 gen 52)
+        proc.set_generator(56, 100)  # scaleTuning (standard SF2 gen 56)
+        proc.set_generator(58, 60)  # overridingRootKey (standard SF2 gen 58)
 
         params = proc.to_modern_synth_params()
 
@@ -98,12 +98,12 @@ class TestSF2GeneratorProcessor:
         proc = sf2_modulation_engine.SF2GeneratorProcessor()
 
         # -12000 = instant (0 seconds)
-        proc.set_generator(9, -12000)  # volEnvAttack
+        proc.set_generator(34, -12000)  # attackVolEnv (standard SF2 gen 34)
         params = proc.to_modern_synth_params()
         assert params["amp_attack"] == 0.0
 
         # 0 = small value (0.001s due to implementation)
-        proc.set_generator(9, 0)
+        proc.set_generator(34, 0)
         params = proc.to_modern_synth_params()
         # Should produce some positive value
         assert params["amp_attack"] > 0
@@ -112,9 +112,9 @@ class TestSF2GeneratorProcessor:
         """Test sample parameters."""
         proc = sf2_modulation_engine.SF2GeneratorProcessor()
 
-        proc.set_generator(50, 5)  # sampleID
-        proc.set_generator(51, 1)  # sampleModes (loop)
-        proc.set_generator(53, 3)  # exclusiveClass
+        proc.set_generator(53, 5)  # sampleID (standard SF2 gen 53)
+        proc.set_generator(54, 1)  # sampleModes (standard SF2 gen 54)
+        proc.set_generator(57, 3)  # exclusiveClass (standard SF2 gen 57)
 
         params = proc.to_modern_synth_params()
 
@@ -195,10 +195,10 @@ class TestSF2ZoneEngine:
 
     def test_zone_engine_inheritance(self):
         """Test generator inheritance from preset to instrument."""
-        # Preset has coarseTune = 5
-        preset_gens = {48: 5}
-        # Instrument has fineTune = -25
-        instrument_gens = {49: -25}
+        # Preset has coarseTune = 5 (standard SF2 gen 51)
+        preset_gens = {51: 5}
+        # Instrument has fineTune = -25 (standard SF2 gen 52)
+        instrument_gens = {52: -25}
 
         zone_engine = sf2_modulation_engine.SF2ZoneEngine(
             "test_zone", instrument_gens, [], preset_gens, []
@@ -223,7 +223,7 @@ class TestSF2ZoneEngine:
         """Test zone engine applies modulation."""
         # Set velocity-sensitive amp envelope
         instrument_gens = {
-            12: 500,  # volEnvSustain at max
+            37: 500,  # sustainVolEnv at max (standard SF2 gen 37)
         }
 
         zone_engine = sf2_modulation_engine.SF2ZoneEngine("test", instrument_gens, [], {}, [])
@@ -246,9 +246,9 @@ class TestCreateZoneEngine:
 
         zone_engine = engine.create_zone_engine(
             "factory_test",
-            {48: 12},  # instrument_generators
+            {51: 12},  # instrument_generators (coarseTune, standard SF2 gen 51)
             [],  # instrument_modulators
-            {49: -50},  # preset_generators
+            {52: -50},  # preset_generators (fineTune, standard SF2 gen 52)
             [],  # preset_modulators
         )
 
@@ -262,9 +262,9 @@ class TestCreateZoneEngine:
         """Test standalone create_zone_engine function."""
         zone_engine = sf2_modulation_engine.create_zone_engine(
             "standalone",
-            {50: 0},  # sampleID
+            {53: 0},  # sampleID (standard SF2 gen 53)
             [],
-            {48: 0},
+            {51: 0},  # coarseTune (standard SF2 gen 51)
             [],
         )
 

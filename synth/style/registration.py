@@ -110,7 +110,7 @@ class Registration:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Registration:
         freeze_mask = set()
-        for p_value in data.get("freeze_mask", []):
+        for p_value in data.get("freeze_mask") or []:
             try:
                 freeze_mask.add(RegistrationParameter(p_value))
             except ValueError:
@@ -292,7 +292,10 @@ class RegistrationMemory:
             if self._synthesizer:
                 self._apply_registration(reg, ignore_freeze)
             if self._on_recall_callback:
-                self._on_recall_callback(reg)
+                try:
+                    self._on_recall_callback(reg)
+                except Exception:
+                    pass
             self._notify_change()
             return True
 
@@ -366,7 +369,10 @@ class RegistrationMemory:
             reg = self._create_registration_from_current(target_slot, name, capture_all)
             result = self._banks[target_bank].set_registration(target_slot, reg)
             if result and self._on_store_callback:
-                self._on_store_callback(target_bank, target_slot, reg)
+                try:
+                    self._on_store_callback(target_bank, target_slot, reg)
+                except Exception:
+                    pass
             self._notify_change()
             return result
 
@@ -427,9 +433,9 @@ class RegistrationMemory:
                 return False
             temp = copy.deepcopy(reg1)
             temp.slot_id = slot2
-            reg2.slot_id = slot1
-            reg1.slot_id = slot2
-            bank1_obj.set_registration(slot1, reg2)
+            copy2 = copy.deepcopy(reg2)
+            copy2.slot_id = slot1
+            bank1_obj.set_registration(slot1, copy2)
             bank2_obj.set_registration(slot2, temp)
             self._notify_change()
             return True

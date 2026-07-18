@@ -61,17 +61,12 @@ class SF2Zone:
         # Handle special generators that affect zone properties
         if gen_type == 41:  # instrument (preset level only)
             self.instrument_index = gen_amount
-        elif gen_type == 42:  # keyRange
+        elif gen_type == 43:  # keyRange (SF2 spec gen 43)
             self.key_range = (gen_amount & 0xFF, (gen_amount >> 8) & 0xFF)
-        elif gen_type == 43:  # velRange
+        elif gen_type == 44:  # velRange (SF2 spec gen 44)
             self.velocity_range = (gen_amount & 0xFF, (gen_amount >> 8) & 0xFF)
-        elif gen_type == 53:  # sampleStartAddrCoarseOffset - used as sample ID in many SF2 files
-            # Generator 53 contains the actual sample index in the soundfont
+        elif gen_type == 53:  # sampleID (SF2 spec gen 53)
             self.sample_id = gen_amount
-        elif gen_type == 50:  # sampleID (instrument level) - fallback if 53 not present
-            # Generator 50 is a relative index, only use if 53 is not set
-            if self.sample_id == -1:
-                self.sample_id = gen_amount
 
     def add_modulator(self, modulator_data: dict[str, Any]) -> None:
         """
@@ -465,6 +460,12 @@ class SF2Sample:
         """Convert 16-bit sample data to float32 stereo interleaved."""
         samples = np.frombuffer(data, dtype=np.int16)
         if self.is_stereo:
+            # SF2 sample end offset can be off by one, producing an odd sample
+            # count that can't be reshaped to (-1, 2). Drop the last sample
+            # when this happens (SF2 spec §3.4: sample end is exclusive, but
+            # some authoring tools write it as inclusive).
+            if len(samples) % 2 == 1:
+                samples = samples[:-1]
             return samples.reshape(-1, 2).astype(np.float32) / 32768.0
         mono = samples.astype(np.float32) / 32768.0
         return np.column_stack([mono, mono])

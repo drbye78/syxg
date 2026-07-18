@@ -26,40 +26,42 @@ class TestSF2Generators:
             assert "range" in gen_info, f"Generator {gen_id} missing 'range'"
             assert len(gen_info["range"]) == 2, f"Generator {gen_id} range must be tuple"
 
-    def test_sampleid_at_index_50(self):
-        """Test sampleID generator is at correct index 50."""
-        assert 50 in sf2_constants.SF2_GENERATORS
-        assert sf2_constants.SF2_GENERATORS[50]["name"] == "sampleID"
-
-    def test_exclusiveclass_at_index_53(self):
-        """Test exclusiveClass generator is at correct index 53."""
+    def test_sampleid_at_index_53(self):
+        """Test sampleID generator is at correct index 53."""
         assert 53 in sf2_constants.SF2_GENERATORS
-        assert sf2_constants.SF2_GENERATORS[53]["name"] == "exclusiveClass"
+        assert sf2_constants.SF2_GENERATORS[53]["name"] == "sampleID"
+
+    def test_exclusiveclass_at_index_57(self):
+        """Test exclusiveClass generator is at correct index 57."""
+        assert 57 in sf2_constants.SF2_GENERATORS
+        assert sf2_constants.SF2_GENERATORS[57]["name"] == "exclusiveClass"
 
     def test_loop_generators_complete(self):
-        """Test loop generators 44-47 are defined correctly."""
-        assert 44 in sf2_constants.SF2_GENERATORS  # startloopAddrsCoarse
-        assert 45 in sf2_constants.SF2_GENERATORS  # startloopAddrsFine
-        assert 46 in sf2_constants.SF2_GENERATORS  # endloopAddrsCoarse
-        assert 47 in sf2_constants.SF2_GENERATORS  # endloopAddrsFine
+        """Test loop generators are defined correctly."""
+        # Coarse offset generators (standard SF2: gen 45, 50)
+        assert 45 in sf2_constants.SF2_GENERATORS  # startloopAddrsCoarseOffset
+        assert 50 in sf2_constants.SF2_GENERATORS  # endloopAddrsCoarseOffset
+        # Fine offset generators (standard SF2: gen 2, 3)
+        assert 2 in sf2_constants.SF2_GENERATORS  # startloopAddrsOffset
+        assert 3 in sf2_constants.SF2_GENERATORS  # endloopAddrsOffset
 
     def test_envelope_generators_complete(self):
-        """Test all envelope generators are defined."""
-        # Volume envelope
-        assert 8 in sf2_constants.SF2_GENERATORS  # volEnvDelay
-        assert 9 in sf2_constants.SF2_GENERATORS  # volEnvAttack
-        assert 10 in sf2_constants.SF2_GENERATORS  # volEnvHold
-        assert 11 in sf2_constants.SF2_GENERATORS  # volEnvDecay
-        assert 12 in sf2_constants.SF2_GENERATORS  # volEnvSustain
-        assert 13 in sf2_constants.SF2_GENERATORS  # volEnvRelease
+        """Test all envelope generators are defined with standard SF2 numbers."""
+        # Volume envelope (standard SF2 gen 33-38)
+        assert 33 in sf2_constants.SF2_GENERATORS  # delayVolEnv
+        assert 34 in sf2_constants.SF2_GENERATORS  # attackVolEnv
+        assert 35 in sf2_constants.SF2_GENERATORS  # holdVolEnv
+        assert 36 in sf2_constants.SF2_GENERATORS  # decayVolEnv
+        assert 37 in sf2_constants.SF2_GENERATORS  # sustainVolEnv
+        assert 38 in sf2_constants.SF2_GENERATORS  # releaseVolEnv
 
-        # Modulation envelope
-        assert 14 in sf2_constants.SF2_GENERATORS  # modEnvDelay
-        assert 15 in sf2_constants.SF2_GENERATORS  # modEnvAttack
-        assert 16 in sf2_constants.SF2_GENERATORS  # modEnvHold
-        assert 17 in sf2_constants.SF2_GENERATORS  # modEnvDecay
-        assert 18 in sf2_constants.SF2_GENERATORS  # modEnvSustain
-        assert 19 in sf2_constants.SF2_GENERATORS  # modEnvRelease
+        # Modulation envelope (standard SF2 gen 25-30)
+        assert 25 in sf2_constants.SF2_GENERATORS  # delayModEnv
+        assert 26 in sf2_constants.SF2_GENERATORS  # attackModEnv
+        assert 27 in sf2_constants.SF2_GENERATORS  # holdModEnv
+        assert 28 in sf2_constants.SF2_GENERATORS  # decayModEnv
+        assert 29 in sf2_constants.SF2_GENERATORS  # sustainModEnv
+        assert 30 in sf2_constants.SF2_GENERATORS  # releaseModEnv
 
 
 class TestConversionFunctions:

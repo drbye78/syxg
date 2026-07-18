@@ -127,6 +127,7 @@ class SF2Region(IRegion):
         "_hold2_pedal",
         "_hold_mod_env",
         "_hold_mod_env_tc",
+        "_initial_attenuation_db",
         "_is_drum_mode",
         "_key_range",
         "_keynum_to_mod_env_decay",
@@ -149,6 +150,7 @@ class SF2Region(IRegion):
         "_mod_env_to_pitch",
         "_mod_env_to_volume",
         "_mod_lfo",
+        "_modulators_warned",
         "_mod_lfo_buffer",
         "_mod_lfo_to_filter",
         "_mod_lfo_to_pan",
@@ -254,6 +256,7 @@ class SF2Region(IRegion):
         # SF2 generator parameters (merged from preset + instrument levels)
         self._generator_params: dict[int, int] = {}
         self._modulators: list[dict[str, Any]] = []
+        self._modulators_warned: bool = False
 
         # SF2 zone ranges
         self._key_range: tuple[int, int] = (0, 127)
@@ -267,6 +270,9 @@ class SF2Region(IRegion):
         self._sample_position: float = 0.0
         self._phase_step: float = 1.0
         self._base_phase_step: float = 1.0
+
+        # Initial attenuation (gen 48)
+        self._initial_attenuation_db: float = 0.0
 
         # Voice active state
         self._active: bool = False
@@ -513,7 +519,11 @@ class SF2Region(IRegion):
                 self._loop_mode = loop_info.get("mode", 0)
 
     def _load_sample_info(self) -> None:
-        """Load sample root key and tuning from SF2 sample header."""
+        """Load sample root key and tuning from SF2 sample header.
+
+        Supports overridingRootKey (gen 58): if set (>= 0), the root key
+        comes from the generator instead of the sample header (SF2.01 §8.1.3).
+        """
         if self.descriptor.sample_id is None:
             return
 
@@ -522,6 +532,11 @@ class SF2Region(IRegion):
             sample_info = self.soundfont_manager.get_sample_info(self.descriptor.sample_id)
             if sample_info:
                 self._root_key = sample_info.get("original_pitch", 60)
+
+        # Check for overridingRootKey (gen 58) — zone-level override wins
+        overriding_root = self._get_generator_value(58, -1)
+        if overriding_root >= 0:
+            self._root_key = overriding_root
 
     def _get_sf2_zone(self) -> Any | None:
         """
@@ -582,18 +597,18 @@ class SF2Region(IRegion):
 
         # Fall back to descriptor generator params
         if self.descriptor.generator_params:
-            # Map common generator types
+            # Map common generator types (SF2 spec gen numbers)
             gen_mapping = {
-                8: "amp_delay",
-                9: "amp_attack",
-                10: "amp_hold",
-                11: "amp_decay",
-                12: "amp_sustain",
-                13: "amp_release",
-                29: "filter_cutoff",
-                30: "filter_resonance",
-                48: "coarse_tune",
-                49: "fine_tune",
+                33: "amp_delay",      # delayVolEnv
+                34: "amp_attack",     # attackVolEnv
+                35: "amp_hold",       # holdVolEnv
+                36: "amp_decay",      # decayVolEnv
+                37: "amp_sustain",    # sustainVolEnv
+                38: "amp_release",    # releaseVolEnv
+                8: "filter_cutoff",   # initialFilterFc
+                9: "filter_resonance", # initialFilterQ
+                51: "coarse_tune",    # coarseTune
+                52: "fine_tune",      # fineTune
             }
 
             param_name = gen_mapping.get(gen_type)
@@ -624,72 +639,72 @@ class SF2Region(IRegion):
             "original_pitch": self._root_key,
             # Loop info (nested)
             "loop": {
-                "mode": self._get_generator_value(51, 0),  # sampleMode
+                "mode": self._get_generator_value(54, 0),  # sampleModes
                 "start": self._loop_start,
                 "end": self._loop_end,
             },
-            # Volume envelope (nested)
+            # Volume envelope (nested, SF2 gen 33-38)
             "amp_envelope": {
-                "delay": self._timecents_to_seconds(self._get_generator_value(8, -12000)),
-                "attack": self._timecents_to_seconds(self._get_generator_value(9, -12000)),
-                "hold": self._timecents_to_seconds(self._get_generator_value(10, -12000)),
-                "decay": self._timecents_to_seconds(self._get_generator_value(11, -12000)),
-                "sustain": self._get_generator_value(12, 0) / 1000.0,
-                "release": self._timecents_to_seconds(self._get_generator_value(13, -12000)),
+                "delay": self._timecents_to_seconds(self._get_generator_value(33, -12000)),
+                "attack": self._timecents_to_seconds(self._get_generator_value(34, -12000)),
+                "hold": self._timecents_to_seconds(self._get_generator_value(35, -12000)),
+                "decay": self._timecents_to_seconds(self._get_generator_value(36, -12000)),
+                "sustain": self._get_generator_value(37, 0) / 1000.0,
+                "release": self._timecents_to_seconds(self._get_generator_value(38, -12000)),
             },
-            # Modulation envelope (nested)
+            # Modulation envelope (nested, SF2 gen 25-30)
             "mod_envelope": {
-                "delay": self._timecents_to_seconds(self._get_generator_value(14, -12000)),
-                "attack": self._timecents_to_seconds(self._get_generator_value(15, -12000)),
-                "hold": self._timecents_to_seconds(self._get_generator_value(16, -12000)),
-                "decay": self._timecents_to_seconds(self._get_generator_value(17, -12000)),
-                "sustain": self._get_generator_value(18, 0) / 1000.0,
-                "release": self._timecents_to_seconds(self._get_generator_value(19, -12000)),
-                "to_pitch": self._get_generator_value(20, 0) / 100.0,
+                "delay": self._timecents_to_seconds(self._get_generator_value(25, -12000)),
+                "attack": self._timecents_to_seconds(self._get_generator_value(26, -12000)),
+                "hold": self._timecents_to_seconds(self._get_generator_value(27, -12000)),
+                "decay": self._timecents_to_seconds(self._get_generator_value(28, -12000)),
+                "sustain": self._get_generator_value(29, 0) / 1000.0,
+                "release": self._timecents_to_seconds(self._get_generator_value(30, -12000)),
+                "to_pitch": self._get_generator_value(7, 0) / 100.0,  # modEnvToPitch
             },
-            # Mod LFO (nested)
+            # Mod LFO (nested, SF2 gen 21-22)
             "mod_lfo": {
                 "delay": self._timecents_to_seconds(self._get_generator_value(21, -12000)),
                 "frequency": self._cents_to_frequency(self._get_generator_value(22, 0)),
-                "to_volume": self._get_generator_value(23, 0) / 960.0,
-                "to_filter": self._get_generator_value(24, 0) / 1200.0,
-                "to_pitch": self._get_generator_value(25, 0) / 1200.0,
+                "to_volume": self._get_generator_value(13, 0) / 960.0,  # modLfoToVolume
+                "to_filter": self._get_generator_value(10, 0) / 1200.0,  # modLfoToFilterFc
+                "to_pitch": self._get_generator_value(5, 0) / 1200.0,  # modLfoToPitch
             },
-            # Vib LFO (nested)
+            # Vib LFO (nested, SF2 gen 6)
             "vib_lfo": {
-                "delay": self._timecents_to_seconds(self._get_generator_value(26, -12000)),
-                "frequency": self._cents_to_frequency(self._get_generator_value(27, 0)),
-                "to_pitch": self._get_generator_value(28, 0) / 1200.0,
+                "delay": self._timecents_to_seconds(self._get_generator_value(23, -12000)),  # delayVibLFO
+                "frequency": self._cents_to_frequency(self._get_generator_value(24, 0)),  # freqVibLFO
+                "to_pitch": self._get_generator_value(6, 0) / 1200.0,  # vibLfoToPitch
             },
-            # Filter (nested)
+            # Filter (nested, SF2 gen 8-9)
             "filter": {
-                "cutoff": self._cents_to_frequency(self._get_generator_value(29, 13500)),
-                "resonance": self._get_generator_value(30, 0) / 10.0,
+                "cutoff": self._cents_to_frequency(self._get_generator_value(8, 13500)),
+                "resonance": self._get_generator_value(9, 0) / 10.0,
                 "type": "lowpass",
             },
-            # Effects (nested)
+            # Effects (nested, SF2 gen 15-17)
             "effects": {
-                "reverb_send": self._get_generator_value(32, 0) / 1000.0,
-                "chorus_send": self._get_generator_value(33, 0) / 1000.0,
-                "pan": self._get_generator_value(34, 0) / 500.0,
+                "reverb_send": self._get_generator_value(16, 0) / 1000.0,
+                "chorus_send": self._get_generator_value(15, 0) / 1000.0,
+                "pan": self._get_generator_value(17, 0) / 500.0,
             },
-            # Pitch modulation (nested)
+            # Pitch modulation (nested, SF2 gen 51-52, 56)
             "pitch_modulation": {
-                "coarse_tune": self._get_generator_value(48, 0),
-                "fine_tune": self._get_generator_value(49, 0) / 100.0,
-                "scale_tuning": self._get_generator_value(52, 100) / 100.0,
+                "coarse_tune": self._get_generator_value(51, 0),
+                "fine_tune": self._get_generator_value(52, 0) / 100.0,
+                "scale_tuning": self._get_generator_value(56, 100) / 100.0,
             },
-            # Key tracking (nested)
+            # Key tracking (nested, SF2 gen 31-32, 39-40)
             "key_tracking": {
-                "to_mod_env_hold": self._get_generator_value(35, 0),
-                "to_mod_env_decay": self._get_generator_value(36, 0),
-                "to_vol_env_hold": self._get_generator_value(37, 0),
-                "to_vol_env_decay": self._get_generator_value(38, 0),
+                "to_mod_env_hold": self._get_generator_value(31, 0),
+                "to_mod_env_decay": self._get_generator_value(32, 0),
+                "to_vol_env_hold": self._get_generator_value(39, 0),
+                "to_vol_env_decay": self._get_generator_value(40, 0),
             },
             # Sample settings (nested)
             "sample_settings": {
-                "mode": self._get_generator_value(51, 0),
-                "exclusive_class": self._get_generator_value(53, 0),
+                "mode": self._get_generator_value(54, 0),  # sampleModes
+                "exclusive_class": self._get_generator_value(57, 0),  # exclusiveClass
             },
             # Modulators list
             "modulators": self._modulators,
@@ -717,20 +732,12 @@ class SF2Region(IRegion):
         self._delay_mod_lfo = self._timecents_to_seconds(self._get_generator_value(21, -12000))
         self._freq_mod_lfo = self._cents_to_frequency(self._get_generator_value(22, 0))
 
-        self._delay_vib_lfo = self._timecents_to_seconds(self._get_generator_value(26, -12000))
-        self._freq_vib_lfo = self._cents_to_frequency(self._get_generator_value(27, 0))
+        self._delay_vib_lfo = self._timecents_to_seconds(self._get_generator_value(23, -12000))  # delayVibLFO
+        self._freq_vib_lfo = self._cents_to_frequency(self._get_generator_value(24, 0))  # freqVibLFO
 
-        # Get LFO waveform (gen 43) - default to sine
-        lfo_waveform = self._get_generator_value(43, 0)
+        # LFO waveform: gen 43 is keyRange (standard SF2), not lfo_waveform.
+        # Default to sine. Custom waveform selection belongs in XG, not SF2 gens.
         waveform_name = "sine"
-        if lfo_waveform == 1:
-            waveform_name = "triangle"
-        elif lfo_waveform == 2:
-            waveform_name = "square"
-        elif lfo_waveform == 3:
-            waveform_name = "sawtooth"
-        elif lfo_waveform == 4:
-            waveform_name = "sample_hold"
 
         # Create LFO objects (zero-allocation: created once)
         self._mod_lfo = UltraFastXGLFO(
@@ -747,12 +754,13 @@ class SF2Region(IRegion):
             waveform=waveform_name, rate=self._freq_vib_lfo, depth=1.0, delay=self._delay_vib_lfo
         )
 
-        # Load LFO modulation depths from generators (scaled)
-        self._vib_lfo_to_pitch = self._get_generator_value(28, 0) / 100.0
-        self._mod_lfo_to_pitch = self._get_generator_value(25, 0) / 100.0
-        self._mod_lfo_to_filter = self._get_generator_value(24, 0) / 1200.0
-        self._mod_lfo_to_volume = self._get_generator_value(23, 0) / 10.0
-        self._vib_lfo_to_pan = self._get_generator_value(37, 0) / 10.0
+        # Load LFO modulation depths from generators (SF2 spec gen numbers)
+        self._vib_lfo_to_pitch = self._get_generator_value(6, 0) / 100.0  # vibLfoToPitch
+        self._mod_lfo_to_pitch = self._get_generator_value(5, 0) / 100.0  # modLfoToPitch
+        self._mod_lfo_to_filter = self._get_generator_value(10, 0) / 1200.0  # modLfoToFilterFc
+        self._mod_lfo_to_volume = self._get_generator_value(13, 0) / 10.0  # modLfoToVolume
+        # vib_lfo_to_pan: NOT stored at gen 35 (gen 35 = holdVolEnv). Disabled.
+        self._vib_lfo_to_pan = 0.0
         self._mod_lfo_to_pan = self._get_generator_value(42, 0) / 10.0
 
     def _init_modulation_envelope(self) -> None:
@@ -763,53 +771,65 @@ class SF2Region(IRegion):
         self._mod_env_stage_time = 0.0
         self._mod_env_time_in_stage = 0.0
 
-        # Load modulation envelope parameters from generators
-        self._delay_mod_env = self._timecents_to_seconds(self._get_generator_value(14, -12000))
-        self._attack_mod_env = self._timecents_to_seconds(self._get_generator_value(15, -12000))
-        self._hold_mod_env_tc = self._get_generator_value(16, -12000)
-        self._decay_mod_env_tc = self._get_generator_value(17, -12000)
+        # Load modulation envelope parameters from generators (SF2 gen 25-30)
+        self._delay_mod_env = self._timecents_to_seconds(self._get_generator_value(25, -12000))  # delayModEnv
+        self._attack_mod_env = self._timecents_to_seconds(self._get_generator_value(26, -12000))  # attackModEnv
+        self._hold_mod_env_tc = self._get_generator_value(27, -12000)  # holdModEnv
+        self._decay_mod_env_tc = self._get_generator_value(28, -12000)  # decayModEnv
         self._hold_mod_env = self._timecents_to_seconds(self._hold_mod_env_tc)
         self._decay_mod_env = self._timecents_to_seconds(self._decay_mod_env_tc)
-        self._sustain_mod_env = self._get_generator_value(18, 0) / 1000.0
-        self._release_mod_env = self._timecents_to_seconds(self._get_generator_value(19, -12000))
+        self._sustain_mod_env = self._get_generator_value(29, 0) / 1000.0  # sustainModEnv
+        self._release_mod_env = self._timecents_to_seconds(self._get_generator_value(30, -12000))  # releaseModEnv
 
-        # Load modulation depths
-        self._mod_env_to_pitch = self._get_generator_value(20, 0) / 100.0
-        self._mod_env_to_filter = self._get_generator_value(44, 0) / 1200.0
-        self._mod_env_to_volume = 0.0  # Custom extension
-        self._mod_env_to_pan = 0.0  # Custom extension
+        # Load modulation depths (SF2 gen 7, 11)
+        self._mod_env_to_pitch = self._get_generator_value(7, 0) / 100.0  # modEnvToPitch
+        self._mod_env_to_filter = self._get_generator_value(11, 0) / 1200.0  # modEnvToFilterFc (gen 11)
+        # Mod env → volume/pan: reserved for SF2 modulator matrix processing.
+        # Currently always 0 since no standard SF2 generator maps to these.
+        # (When BUG-4 modulator processing is implemented, the modulation
+        #  matrix can write into these fields.)
+        self._mod_env_to_volume = 0.0
+        self._mod_env_to_pan = 0.0
 
         # Load key tracking for mod envelope
         self._keynum_to_mod_env_hold = self._get_generator_value(31, 0) / 100.0
         self._keynum_to_mod_env_decay = self._get_generator_value(32, 0) / 100.0
 
     def _init_pitch_envelope(self) -> None:
-        """Initialize pitch envelope (separate from mod envelope)."""
-        # Check if pitch envelope is active
-        self._pitch_env_active = (
-            self._get_generator_value(54, -12000) > -12000
-            or self._get_generator_value(55, -12000) > -12000
-        )
+        """Initialize pitch envelope (separate from mod envelope).
+
+        NOTE: The pitch envelope is a NON-STANDARD extension. Standard SF2
+        generators 54 (sampleModes), 52 (fineTune), and 58 (overridingRootKey)
+        were previously read here, causing false activation on any looping
+        soundfont. This has been fixed:
+        - Activation uses ONLY gen 55 (non-standard, no collision in spec)
+        - Stages use extended generator range 55-61 to avoid conflicts
+        - If pitch envelope is needed, set gen 55 > -12000 timecents
+          (e.g., the attack portion of the pitch envelope).
+        """
+        # Check if pitch envelope is active — ONLY gen 55 (non-standard extension)
+        self._pitch_env_active = self._get_generator_value(55, -12000) > -12000
 
         if self._pitch_env_active:
             self._pitch_env_stage = 0  # idle
             self._pitch_env_level = 0.0
             self._pitch_env_time_in_stage = 0.0
 
+            # Non-standard generators (55-61) — no collision with standard SF2
             self._pitch_env_delay = self._timecents_to_seconds(
-                self._get_generator_value(54, -12000)
+                self._get_generator_value(55, -12000)
             )
             self._pitch_env_attack = self._timecents_to_seconds(
-                self._get_generator_value(55, -12000)
+                self._get_generator_value(56, -12000)
             )
             self._pitch_env_decay = self._timecents_to_seconds(
                 self._get_generator_value(57, -12000)
             )
-            self._pitch_env_sustain = self._get_generator_value(58, 0) / 100.0
+            self._pitch_env_sustain = self._get_generator_value(59, 0) / 100.0
             self._pitch_env_release = self._timecents_to_seconds(
-                self._get_generator_value(59, -12000)
+                self._get_generator_value(60, -12000)
             )
-            self._pitch_env_depth = self._get_generator_value(52, 0) / 100.0
+            self._pitch_env_depth = self._get_generator_value(61, 0) / 100.0
 
     def _init_envelopes(self) -> None:
         """Initialize envelopes from SF2 generator parameters."""
@@ -819,45 +839,27 @@ class SF2Region(IRegion):
         note = self.current_note
         key_offset = (note - 60) / 60.0 if note > 0 else 0.0
 
-        # Amplitude envelope with key scaling
-        self._keynum_to_vol_env_hold = self._get_generator_value(37, 0) / 100.0
-        self._keynum_to_vol_env_decay = self._get_generator_value(38, 0) / 100.0
+        # Amplitude envelope with key scaling (SF2 gen 39-40)
+        self._keynum_to_vol_env_hold = self._get_generator_value(39, 0) / 100.0
+        self._keynum_to_vol_env_decay = self._get_generator_value(40, 0) / 100.0
 
         _key_scaled_hold = 1.0 + self._keynum_to_vol_env_hold * key_offset
         key_scaled_decay = 1.0 + self._keynum_to_vol_env_decay * key_offset
 
-        # Get timecents values - fix for incorrect defaults from descriptors storing seconds instead of timecents
-        gen8_val = self._get_generator_value(8, -12000)
-        gen9_val = self._get_generator_value(9, -12000)
-        gen10_val = self._get_generator_value(10, -12000)
-        gen11_val = self._get_generator_value(11, -12000)
-        gen12_val = self._get_generator_value(12, 1000)
-        gen13_val = self._get_generator_value(13, -12000)
+        # Get timecents values from SF2 volume envelope generators (33-38)
+        gen33_val = self._get_generator_value(33, -12000)  # delayVolEnv
+        gen34_val = self._get_generator_value(34, -12000)  # attackVolEnv
+        gen35_val = self._get_generator_value(35, -12000)  # holdVolEnv
+        gen36_val = self._get_generator_value(36, -12000)  # decayVolEnv
+        gen37_val = self._get_generator_value(37, 1000)    # sustainVolEnv (0-1000)
+        gen38_val = self._get_generator_value(38, -12000)  # releaseVolEnv
 
-        # Values from descriptor might be in wrong format (0.0 instead of -12000 for "instant")
-        # For time-related generators, if value is >= 0, treat as seconds to convert back to timecents
-        # SF2 timecents: -12000 = instant, -11999 = ~1ms, 0 = 1 second
-        if gen8_val >= 0:
-            gen8_val = -12000  # instant
-        if gen9_val >= 0:
-            gen9_val = -12000  # instant
-        if gen10_val >= 0:
-            gen10_val = -12000  # instant
-        if gen11_val >= 0:
-            gen11_val = -12000  # instant
-        if gen13_val >= 0:
-            gen13_val = -12000  # instant
-
-        # Sustain is in centibels (0-1000), default to full (1000) when unset
-        if gen12_val <= 0:
-            gen12_val = 1000
-
-        delay = self._timecents_to_seconds(gen8_val)
-        attack = self._timecents_to_seconds(gen9_val)
-        hold = self._timecents_to_seconds(gen10_val)
-        decay = self._timecents_to_seconds(gen11_val) * key_scaled_decay
-        sustain = gen12_val / 1000.0
-        release = self._timecents_to_seconds(gen13_val)
+        delay = self._timecents_to_seconds(gen33_val)
+        attack = self._timecents_to_seconds(gen34_val)
+        hold = self._timecents_to_seconds(gen35_val)
+        decay = self._timecents_to_seconds(gen36_val) * key_scaled_decay
+        sustain = gen37_val / 1000.0
+        release = self._timecents_to_seconds(gen38_val)
 
         amp_env = UltraFastADSREnvelope(
             delay=delay,
@@ -880,20 +882,17 @@ class SF2Region(IRegion):
         """Initialize filters from SF2 generator parameters."""
         from ...primitives.filter import UltraFastResonantFilter
 
-        cutoff = self._cents_to_frequency(self._get_generator_value(29, 13500))
-        resonance = self._get_generator_value(30, 0) / 10.0
+        cutoff = self._cents_to_frequency(self._get_generator_value(8, 13500))  # initialFilterFc
+        # SF2 initialFilterQ is in centibels (0.1 dB increments). Convert to Q factor.
+        # 0 centibels = 0 dB boost = Butterworth Q ≈ 0.707
+        # Formula: Q_factor = 0.707 * 10^(ceB / 200)
+        sf2_q_centibels = self._get_generator_value(9, 0)  # initialFilterQ
+        resonance = 0.707 * (10.0 ** (sf2_q_centibels / 200.0))
 
-        # Get filter type (gen 36) - default to lowpass
-        self._filter_type = self._get_generator_value(36, 0)
+        # Filter type: gen 36 is decayVolEnv (standard SF2), not filter_type.
+        # Default to lowpass. Custom filter type belongs in XG modulation matrix.
+        self._filter_type = 0
         filter_type_str = "lowpass"
-        if self._filter_type == 1:
-            filter_type_str = "highpass"
-        elif self._filter_type == 2:
-            filter_type_str = "bandpass"
-        elif self._filter_type == 3:
-            filter_type_str = "notch"
-        elif self._filter_type == 4:
-            filter_type_str = "peaking"
 
         filter_obj = UltraFastResonantFilter(
             cutoff=cutoff,
@@ -944,11 +943,11 @@ class SF2Region(IRegion):
             self._base_phase_step = 1.0
             return
 
-        # Calculate pitch ratio based on note and SF2 tuning
+        # Calculate pitch ratio based on note and SF2 tuning (gen 51-52, 56)
         note_diff = self.current_note - self._root_key
-        coarse_tune = self._get_generator_value(48, 0)
-        fine_tune = self._get_generator_value(49, 0) / 100.0
-        scale_tuning = self._get_generator_value(52, 100) / 100.0
+        coarse_tune = self._get_generator_value(51, 0)  # coarseTune
+        fine_tune = self._get_generator_value(52, 0) / 100.0  # fineTune
+        scale_tuning = self._get_generator_value(56, 100) / 100.0  # scaleTuning
 
         # Apply scale tuning
         total_semitones = (note_diff + coarse_tune + fine_tune) * scale_tuning
@@ -987,25 +986,32 @@ class SF2Region(IRegion):
 
         self._last_note = note
 
-        # Load velocity curve (gen 41)
+        # NOTE: gen 41 is the instrument index in standard SF2 (SF2.01 §8.1.3).
+        # The _generator_params dict already has the instrument index from the
+        # zone linking step.  Reading it here as "velocity_curve" is a non-
+        # standard repurposing that yields the instrument index, not a correct
+        # velocity response curve.  This field is not currently used in audio
+        # processing; it is captured for future velocity-sensitive mapping.
         self._velocity_curve = self._get_generator_value(41, 0)
 
-        # Check for drum mode / one-shot (gen 57)
-        sample_mode = self._get_generator_value(51, 0)
+        # Check for drum mode / one-shot (gen 54 sampleModes)
+        sample_mode = self._get_generator_value(54, 0)  # sampleModes
         self._is_drum_mode = bool(sample_mode & 4)
 
-        # Check for reverse playback (gen 57)
-        self._reverse_playback = self._get_generator_value(57, 0) == 1
+        # Reverse playback: gen 57 is exclusiveClass (standard SF2). Disabled.
 
-        # Initialize loop crossfade (gen 45)
-        self._loop_crossfade_samples = self._get_generator_value(45, 0)
+        # Loop crossfade: gen 45 is startloopAddrsCoarseOffset (standard SF2). Disabled.
+        self._loop_crossfade_samples = 0
 
-        # Load effects sends
-        self._reverb_send = self._get_generator_value(32, 0) / 1000.0
-        self._chorus_send = self._get_generator_value(33, 0) / 1000.0
+        # Load effects sends (SF2 gen 15-17)
+        self._reverb_send = self._get_generator_value(16, 0) / 1000.0  # reverbEffectsSend
+        self._chorus_send = self._get_generator_value(15, 0) / 1000.0  # chorusEffectsSend
 
-        # Load panning (gen 34)
-        self._pan_position = self._get_generator_value(34, 0) / 500.0
+        # Load panning (gen 17)
+        self._pan_position = self._get_generator_value(17, 0) / 500.0  # pan
+
+        # Load initial attenuation (gen 48) — centibels, 0-1000
+        self._initial_attenuation_db = self._get_generator_value(48, 0) / 10.0
 
         # Load stereo width (default 1.0 = normal)
         self._stereo_width = 1.0
@@ -1033,6 +1039,18 @@ class SF2Region(IRegion):
             self._mod_lfo.reset()
         if self._vib_lfo:
             self._vib_lfo.reset()
+
+        # Log a warning if modulators are present but not processed (BUG-4)
+        if self._modulators and not hasattr(self, '_modulators_warned'):
+            self._modulators_warned = True
+            logger.warning(
+                "SF2Region %s has %d modulator(s) that are parsed but NOT "
+                "applied during rendering (modulator matrix processing not "
+                "yet implemented). Only fixed generator→parameter mappings "
+                "are active.",
+                getattr(self, 'descriptor', None),
+                len(self._modulators),
+            )
 
         # Reset modulation values
         self._pitch_mod = 0.0
@@ -1371,7 +1389,7 @@ class SF2Region(IRegion):
         self._breath_mod = modulation.get("breath_controller", modulation.get("breath", 0.0))
         self._modwheel_mod = modulation.get("mod_wheel", modulation.get("modwheel", 0.0))
         self._foot_mod = modulation.get("foot_controller", modulation.get("foot", 0.0))
-        self._expression_mod = modulation.get("expression", 0.0)
+        self._expression_mod = modulation.get("expression", 1.0)
 
         # Apply controller effects to modulation depths
         if self._modwheel_mod != 0.0:
@@ -1603,8 +1621,10 @@ class SF2Region(IRegion):
 
         try:
             # Get base filter parameters
-            base_cutoff = self._cents_to_frequency(self._get_generator_value(29, 13500))
-            base_resonance = self._get_generator_value(30, 0) / 10.0
+            base_cutoff = self._cents_to_frequency(self._get_generator_value(8, 13500))  # initialFilterFc
+            # SF2 initialFilterQ is in centibels: convert to Q factor (Butterworth at 0 ceB)
+            sf2_q_centibels = self._get_generator_value(9, 0)  # initialFilterQ
+            base_resonance = 0.707 * (10.0 ** (sf2_q_centibels / 200.0))
 
             # Apply GS filter cutoff/resonance
             if self._gs_filter_cutoff >= 0.0:
@@ -1910,10 +1930,13 @@ class SF2Region(IRegion):
         # 8. Apply tremolo and auto-pan
         self._apply_tremolo_and_pan(output, block_size)
 
-        # 9. Apply final volume modulation (includes GS volume)
+        # 9. Apply final volume modulation (includes GS volume, initialAttenuation)
         volume_factor = self._volume_mod
         if self._gs_volume >= 0.0:
             volume_factor *= self._gs_volume
+        # Apply initialAttenuation (gen 48) — centibels to linear gain
+        if self._initial_attenuation_db > 0.0:
+            volume_factor *= 10.0 ** (-self._initial_attenuation_db / 20.0)
         if volume_factor != 1.0:
             output[:, :] *= volume_factor
 

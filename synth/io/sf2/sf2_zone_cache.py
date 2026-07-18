@@ -97,24 +97,25 @@ class AVLRangeTree:
         # Update height
         node.height = 1 + max(self._get_height(node.left), self._get_height(node.right))
 
-        # Balance the tree
+        # Balance the tree — check child balance factors, not key values,
+        # because key comparison is unreliable after prior rotations.
         balance = self._get_balance(node)
 
-        # Left Left Case
-        if balance > 1 and node.left and zone.key_range[0] < node.left.key_min:
+        # Left Left Case — left child is left-heavy or balanced
+        if balance > 1 and node.left and self._get_balance(node.left) >= 0:
             return self._right_rotate(node)
 
-        # Right Right Case
-        if balance < -1 and node.right and zone.key_range[0] > node.right.key_min:
-            return self._left_rotate(node)
-
-        # Left Right Case
-        if balance > 1 and node.left and zone.key_range[0] > node.left.key_min:
+        # Left Right Case — left child is right-heavy
+        if balance > 1 and node.left and self._get_balance(node.left) < 0:
             node.left = self._left_rotate(node.left)
             return self._right_rotate(node)
 
-        # Right Left Case
-        if balance < -1 and node.right and zone.key_range[0] < node.right.key_min:
+        # Right Right Case — right child is right-heavy or balanced
+        if balance < -1 and node.right and self._get_balance(node.right) <= 0:
+            return self._left_rotate(node)
+
+        # Right Left Case — right child is left-heavy
+        if balance < -1 and node.right and self._get_balance(node.right) > 0:
             node.right = self._right_rotate(node.right)
             return self._left_rotate(node)
 

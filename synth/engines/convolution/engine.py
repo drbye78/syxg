@@ -753,6 +753,17 @@ class ConvolutionReverbEngine(SynthesisEngine):
 
     # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
 
+    def get_impulse_response_name(self, bank: int, program: int) -> str:
+        """Get impulse response name for a bank/program."""
+        if self.current_preset is not None:
+            return self.current_preset.name
+        # Map bank/program to a built-in preset by index
+        preset_keys = list(self.presets.keys())
+        if preset_keys:
+            idx = (bank * 8 + program) % len(preset_keys)
+            return preset_keys[idx]
+        return "default"
+
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
         """
         Get convolution reverb preset information with proper region descriptors.

@@ -69,9 +69,21 @@ class RealtimeParser:
                 first_word = struct.unpack(">I", data[:4])[0]
                 ump_type = (first_word >> 28) & 0xF
 
-                # If it's a valid UMP message type, treat as UMP
-                if ump_type in [0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0xF]:
+                # UMP types 0x1-0x7: first byte is 0x10-0x7F, never a MIDI 1.0 status byte
+                if ump_type in [0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7]:
                     self.is_ump_mode = True
+                # UMP type 0xF (Stream): first byte is 0xF0-0xFF, overlaps SysEx.
+                # Validate stream_status and require 8+ bytes to avoid false positive.
+                elif ump_type == 0xF and len(data) >= 8:
+                    stream_status = (first_word >> 20) & 0xF
+                    if stream_status in [0x0, 0x1]:  # PerNoteController, PerNoteManagement
+                        self.is_ump_mode = True
+                    else:
+                        self.is_ump_mode = False
+                else:
+                    self.is_ump_mode = False
+
+                if self.is_ump_mode:
                     # Process as UMP packets
                     ump_packets = self.ump_parser.parse_packet_stream(data)
                     for packet in ump_packets:
@@ -79,8 +91,6 @@ class RealtimeParser:
                         if message:
                             messages.append(message)
                     return messages
-                else:
-                    self.is_ump_mode = False
             else:
                 self.is_ump_mode = False
 

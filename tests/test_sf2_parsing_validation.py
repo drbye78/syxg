@@ -506,15 +506,19 @@ class TestSF2ZoneStructure:
             instrument = our_sf2._get_or_load_instrument(inst_idx)
 
             if instrument and len(baseline_inst.bags) > 1:
+                # bag[0] in sf2utils is the global-zone bag. Our parser separates
+                # global zones, so we skip bag[0] only when a global zone exists.
+                bag_start = 0 if instrument.global_zone is None else 1
                 for zone_idx, (our_zone, baseline_bag) in enumerate(
-                    zip(instrument.zones[:5], baseline_inst.bags[1:6])  # Skip global zone
+                    zip(instrument.zones[:5], baseline_inst.bags[bag_start : bag_start + 5])
                 ):
                     our_key_range = our_zone.key_range
 
                     # Extract key range from baseline generators (gens is a dict: oper -> Generator)
+                    # sf2utils uses standard SF2 gen numbers: 43 = keyRange
                     baseline_key_range = (0, 127)
-                    if 42 in baseline_bag.gens:  # keyRange generator
-                        gen_amount = baseline_bag.gens[42].amount
+                    if 43 in baseline_bag.gens:  # keyRange generator
+                        gen_amount = baseline_bag.gens[43].amount
                         baseline_key_range = (gen_amount & 0xFF, (gen_amount >> 8) & 0xFF)
 
                     assert our_key_range == baseline_key_range, (
@@ -548,9 +552,10 @@ class TestSF2ZoneStructure:
                     our_vel_range = our_zone.velocity_range
 
                     # Extract velocity range from baseline generators
+                    # sf2utils uses standard SF2 gen numbers: 44 = velRange
                     baseline_vel_range = (0, 127)
-                    if 43 in baseline_bag.gens:  # velRange generator
-                        gen_amount = baseline_bag.gens[43].amount
+                    if 44 in baseline_bag.gens:  # velRange generator
+                        gen_amount = baseline_bag.gens[44].amount
                         baseline_vel_range = (gen_amount & 0xFF, (gen_amount >> 8) & 0xFF)
 
                     assert our_vel_range == baseline_vel_range, (
@@ -621,8 +626,11 @@ class TestSF2GeneratorParameters:
             instrument = our_sf2._get_or_load_instrument(inst_idx)
 
             if instrument and len(baseline_inst.bags) > 1:
+                # bag[0] in sf2utils is the global-zone bag. Our parser separates
+                # global zones, so we skip bag[0] only when a global zone exists.
+                bag_start = 0 if instrument.global_zone is None else 1
                 for zone_idx, (our_zone, baseline_bag) in enumerate(
-                    zip(instrument.zones[:5], baseline_inst.bags[1:6])
+                    zip(instrument.zones[:5], baseline_inst.bags[bag_start : bag_start + 5])
                 ):
                     our_sample_id = our_zone.sample_id
 

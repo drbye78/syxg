@@ -21,9 +21,9 @@ class TestSF2Zone:
         assert zone.velocity_range == (0, 127)
 
     def test_add_generator_sample_id(self):
-        """Test adding sampleID generator at index 50."""
+        """Test adding sampleID generator at index 53."""
         zone = sf2_data_model.SF2Zone("instrument")
-        zone.add_generator(50, 42)  # sampleID at gen 50
+        zone.add_generator(53, 42)  # sampleID at gen 53
         assert zone.sample_id == 42
 
     def test_add_generator_instrument_index(self):
@@ -37,7 +37,7 @@ class TestSF2Zone:
         zone = sf2_data_model.SF2Zone("preset")
         # Key range: low=36, high=96 (encoded as 36 | (96 << 8))
         encoded = 36 | (96 << 8)
-        zone.add_generator(42, encoded)
+        zone.add_generator(43, encoded)
         assert zone.key_range == (36, 96)
 
     def test_add_generator_vel_range(self):
@@ -45,7 +45,7 @@ class TestSF2Zone:
         zone = sf2_data_model.SF2Zone("instrument")
         # Velocity range: low=64, high=127 (encoded as 64 | (127 << 8))
         encoded = 64 | (127 << 8)
-        zone.add_generator(43, encoded)
+        zone.add_generator(44, encoded)
         assert zone.velocity_range == (64, 127)
 
     def test_add_generator_exclusive_class(self):

@@ -188,7 +188,7 @@ class TestEQRegression:
 class TestInsertionRegression:
     """Regression tests for ProductionXGInsertionEffectsProcessor."""
 
-    @pytest.mark.parametrize("effect_type", [0, 1, 2, 3, 4, 6, 7, 9, 10, 11, 15, 16, 17])
+    @pytest.mark.parametrize("effect_type", list(range(18)))
     def test_insertion_type_produces_finite_output(self, effect_type: int):
         from synth.processing.effects.insertion import ProductionXGInsertionEffectsProcessor
 
@@ -196,13 +196,7 @@ class TestInsertionRegression:
         proc.set_insertion_effect_type(0, effect_type)
         signal = _make_deterministic_mono()
 
-        for i in range(BLOCK_SIZE):
-            signal[i] = proc._apply_single_effect_to_samples(
-                np.array([signal[i]], dtype=np.float32),
-                1,
-                effect_type,
-                {},
-            )[0]
+        proc._apply_single_effect_to_samples(signal, BLOCK_SIZE, effect_type, {})
 
         assert np.all(np.isfinite(signal)), f"NaN/Inf in insertion type {effect_type}"
 
@@ -213,13 +207,7 @@ class TestInsertionRegression:
         proc.set_insertion_effect_type(0, 0)  # Thru
         signal = _make_deterministic_mono()
 
-        for i in range(BLOCK_SIZE):
-            signal[i] = proc._apply_single_effect_to_samples(
-                np.array([signal[i]], dtype=np.float32),
-                1,
-                0,
-                {},
-            )[0]
+        proc._apply_single_effect_to_samples(signal, BLOCK_SIZE, 0, {})
 
         assert np.all(np.isfinite(signal))
 
@@ -261,37 +249,44 @@ class TestSystemChainRegression:
 
 
 class TestVariationRegression:
-    """Regression tests for XGVariationEffectsProcessor."""
+    """Regression tests for XGVariationEffectsProcessor — all 4 sub-processor categories."""
 
-    def test_variation_chorus_produces_finite_output(self):
-        from synth.processing.effects.types import XGVariationType
+    @pytest.mark.parametrize(
+        "variation_type",
+        [
+            # Delays (0-9) — handled by DelayVariationProcessor
+            0,   # DELAY_LCR
+            2,   # DELAY_L_R
+            4,   # DELAY_L_R_STEREO
+            9,   # DELAY_PING_PONG_3
+            # Chorus/Modulation (10-31) — handled by ChorusModulationProcessor
+            10,  # CHORUS_1
+            16,  # FLANGER_1
+            22,  # TREMOLO
+            26,  # PHASER
+            31,  # REVERB_AUTOPAN
+            # Distortion/Dynamics (32-56) — handled by ProductionDistortionDynamicsProcessor
+            43,  # DISTORTION_LIGHT
+            49,  # CLIPPING_WARNING
+            53,  # COMPRESSOR_ELECTRONIC
+            # Special (57-83) — handled by SpecialVariationProcessor
+            58,  # ENHANCER_PEAKING
+            64,  # PITCH_SHIFT_UP_MINOR_THIRD
+            70,  # ERL_HALL_SMALL
+            78,  # GATE_REVERB_FAST_ATTACK
+        ],
+    )
+    def test_variation_type_produces_finite_output(self, variation_type: int):
         from synth.processing.effects.variation_effects import XGVariationEffectsProcessor
 
         proc = XGVariationEffectsProcessor(sample_rate=SAMPLE_RATE)
-        proc.set_variation_type(XGVariationType.CHORUS_1)
+        proc.set_variation_type(variation_type)
         signal = _make_deterministic_stereo()
 
         proc.apply_variation_effect_zero_alloc(signal, BLOCK_SIZE)
 
-        assert np.all(np.isfinite(signal))
-
-    def test_variation_delay_produces_finite_output(self):
-        from synth.processing.effects.types import XGVariationType
-        from synth.processing.effects.variation_effects import XGVariationEffectsProcessor
-
-        proc = XGVariationEffectsProcessor(sample_rate=SAMPLE_RATE)
-
-        # Test delay types
-        for var_type in [
-            XGVariationType.DELAY_LCR,
-            XGVariationType.DELAY_LR,
-            XGVariationType.DELAY_L_R,
-            XGVariationType.DELAY_MONO,
-        ]:
-            proc.set_variation_type(var_type)
-            signal = _make_deterministic_stereo()
-            proc.apply_variation_effect_zero_alloc(signal, BLOCK_SIZE)
-            assert np.all(np.isfinite(signal)), f"NaN/Inf in variation {var_type.name}"
+        assert np.all(np.isfinite(signal)), f"NaN/Inf in variation type {variation_type}"
+        assert signal.shape == (BLOCK_SIZE, 2)
 
 
 class TestEffectsCoordinatorRegression:

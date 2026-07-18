@@ -477,22 +477,22 @@ class XGSystemEffectsEnhancement:
         type_info = self.XG_REVERB_TYPES.get(type_value, {})
         if self._parameter_change_callback:
             self._parameter_change_callback("reverb_type", type_value)
-        # Set default reverb parameters from spec
-        if type_info:
-            for key, val in type_info.items():
-                if key in ("time", "hf_damp", "level"):
-                    self._parameter_change_callback(key, val)
+            # Set default reverb parameters from spec
+            if type_info:
+                for key, val in type_info.items():
+                    if key in ("time", "hf_damp", "level"):
+                        self._parameter_change_callback(key, val)
 
     def _apply_chorus_type_to_processor(self, type_value: int):
         """Apply chorus type settings to the processor."""
         type_info = self.XG_CHORUS_TYPES.get(type_value, {})
         if self._parameter_change_callback:
             self._parameter_change_callback("chorus_type", type_value)
-        # Set default chorus parameters from spec
-        if type_info:
-            for key, val in type_info.items():
-                if key in ("lfo_freq", "depth", "feedback"):
-                    self._parameter_change_callback(key, val)
+            # Set default chorus parameters from spec
+            if type_info:
+                for key, val in type_info.items():
+                    if key in ("lfo_freq", "depth", "feedback"):
+                        self._parameter_change_callback(key, val)
 
     def _apply_variation_type_to_processor(self, type_value: int):
         """Apply variation type settings to the processor."""

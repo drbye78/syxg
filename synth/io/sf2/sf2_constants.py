@@ -10,98 +10,93 @@ from __future__ import annotations
 from typing import Any
 
 # SF2 Generator Types (SF2.01 Specification Section 8.1)
+# Numbers verified against sf2utils reference library generator.py
 SF2_GENERATORS: dict[int, dict[str, Any]] = {
-    # Address Offsets (SF2 2.01 - deprecated in favor of coarse+fine)
+    # Address Offsets (sample start/end, fine+coarse)
     0: {"name": "startAddrsOffset", "default": 0, "range": (-32768, 32767)},
     1: {"name": "endAddrsOffset", "default": 0, "range": (-32768, 32767)},
     2: {"name": "startloopAddrsOffset", "default": 0, "range": (-32768, 32767)},
     3: {"name": "endloopAddrsOffset", "default": 0, "range": (-32768, 32767)},
-    4: {"name": "startAddrsFineOffset", "default": 0, "range": (-32768, 32767)},
-    5: {"name": "endAddrsFineOffset", "default": 0, "range": (-32768, 32767)},
-    6: {"name": "endAddrsCoarseOffset", "default": 0, "range": (-32768, 32767)},
-    # Volume Envelope
-    7: {"name": "startAddrsCoarseOffset", "default": 0, "range": (-32768, 32767)},
-    8: {"name": "volEnvDelay", "default": -12000, "range": (-12000, 5000)},
-    9: {"name": "volEnvAttack", "default": -12000, "range": (-12000, 8000)},
-    10: {"name": "volEnvHold", "default": -12000, "range": (-12000, 5000)},
-    11: {"name": "volEnvDecay", "default": -12000, "range": (-12000, 8000)},
-    12: {"name": "volEnvSustain", "default": 0, "range": (0, 1000)},
-    13: {"name": "volEnvRelease", "default": -12000, "range": (-12000, 8000)},
-    14: {"name": "modEnvDelay", "default": -12000, "range": (-12000, 5000)},
-    15: {"name": "modEnvAttack", "default": -12000, "range": (-12000, 8000)},
-    16: {"name": "modEnvHold", "default": -12000, "range": (-12000, 5000)},
-    17: {"name": "modEnvDecay", "default": -12000, "range": (-12000, 8000)},
-    18: {"name": "modEnvSustain", "default": -12000, "range": (-12000, 1000)},
-    19: {"name": "modEnvRelease", "default": -12000, "range": (-12000, 8000)},
-    # Modulation
-    20: {"name": "modEnvToPitch", "default": 0, "range": (-12000, 12000)},
-    21: {"name": "delayModLFO", "default": -12000, "range": (-12000, 5000)},
-    22: {"name": "freqModLFO", "default": 0, "range": (-16000, 4500)},
-    23: {"name": "modLfoToVol", "default": 0, "range": (-960, 960)},
-    24: {"name": "modLfoToFilterFc", "default": 0, "range": (-12000, 12000)},
-    25: {"name": "modLfoToPitch", "default": 0, "range": (-12000, 12000)},
-    26: {"name": "delayVibLFO", "default": -12000, "range": (-12000, 5000)},
-    27: {"name": "freqVibLFO", "default": 0, "range": (-16000, 4500)},
-    28: {"name": "vibLfoToPitch", "default": 0, "range": (-12000, 12000)},
+    4: {"name": "startAddrsCoarseOffset", "default": 0, "range": (-32768, 32767)},
+    # Modulation routing (LFO/envelope → pitch/filter/volume)
+    5: {"name": "modLfoToPitch", "default": 0, "range": (-12000, 12000)},
+    6: {"name": "vibLfoToPitch", "default": 0, "range": (-12000, 12000)},
+    7: {"name": "modEnvToPitch", "default": 0, "range": (-12000, 12000)},
     # Filter
-    29: {
+    8: {
         "name": "initialFilterFc",
         "default": -200,
         "range": (-200, 17800),
     },  # 100Hz to 20kHz in cents
-    30: {"name": "initialFilterQ", "default": 0, "range": (0, 960)},
-    # Effects
-    31: {
-        "name": "delayModLFO2",
-        "default": -12000,
-        "range": (-12000, 5000),
-    },  # Secondary mod LFO
-    32: {"name": "reverbEffectsSend", "default": 0, "range": (0, 1000)},
-    33: {"name": "chorusEffectsSend", "default": 0, "range": (0, 1000)},
-    34: {"name": "pan", "default": 0, "range": (-500, 500)},
-    # More modulation (secondary LFOs)
-    35: {"name": "delayModLFO3", "default": -12000, "range": (-12000, 5000)},
-    36: {"name": "freqModLFO2", "default": 0, "range": (-16000, 4500)},
-    37: {"name": "delayVibLFO2", "default": -12000, "range": (-12000, 5000)},
-    38: {"name": "freqVibLFO2", "default": 0, "range": (-16000, 4500)},
-    39: {"name": "modLfoToFilterFc2", "default": 0, "range": (-12000, 12000)},
-    40: {"name": "modEnvToFilter", "default": 0, "range": (-12000, 12000)},
+    9: {"name": "initialFilterQ", "default": 0, "range": (0, 960)},
+    # More modulation routing
+    10: {"name": "modLfoToFilterFc", "default": 0, "range": (-12000, 12000)},
+    11: {"name": "modEnvToFilterFc", "default": 0, "range": (-12000, 12000)},
+    # Address offsets (continued)
+    12: {"name": "endAddrsCoarseOffset", "default": 0, "range": (-32768, 32767)},
+    13: {"name": "modLfoToVolume", "default": 0, "range": (-960, 960)},
+    # Effects sends
+    15: {"name": "chorusEffectsSend", "default": 0, "range": (0, 1000)},
+    16: {"name": "reverbEffectsSend", "default": 0, "range": (0, 1000)},
+    17: {"name": "pan", "default": 0, "range": (-500, 500)},
+    # LFO delays/rates
+    21: {"name": "delayModLFO", "default": -12000, "range": (-12000, 5000)},
+    22: {"name": "freqModLFO", "default": 0, "range": (-16000, 4500)},
+    23: {"name": "delayVibLFO", "default": -12000, "range": (-12000, 5000)},
+    24: {"name": "freqVibLFO", "default": 0, "range": (-16000, 4500)},
+    # Modulation envelope
+    25: {"name": "delayModEnv", "default": -12000, "range": (-12000, 5000)},
+    26: {"name": "attackModEnv", "default": -12000, "range": (-12000, 8000)},
+    27: {"name": "holdModEnv", "default": -12000, "range": (-12000, 5000)},
+    28: {"name": "decayModEnv", "default": -12000, "range": (-12000, 8000)},
+    29: {"name": "sustainModEnv", "default": -12000, "range": (-12000, 1000)},
+    30: {"name": "releaseModEnv", "default": -12000, "range": (-12000, 8000)},
+    # Key number to modulation envelope hold/decay scaling (SF2.01 §8.1.3)
+    31: {"name": "keynumToModEnvHold", "default": 0, "range": (-1200, 1200)},
+    32: {"name": "keynumToModEnvDecay", "default": 0, "range": (-1200, 1200)},
+    # Volume envelope
+    33: {"name": "delayVolEnv", "default": -12000, "range": (-12000, 5000)},
+    34: {"name": "attackVolEnv", "default": -12000, "range": (-12000, 8000)},
+    35: {"name": "holdVolEnv", "default": -12000, "range": (-12000, 5000)},
+    36: {"name": "decayVolEnv", "default": -12000, "range": (-12000, 8000)},
+    37: {"name": "sustainVolEnv", "default": 0, "range": (0, 1000)},
+    38: {"name": "releaseVolEnv", "default": -12000, "range": (-12000, 8000)},
+    # Key-number to envelope scaling
+    39: {"name": "keynumToVolEnvHold", "default": 0, "range": (-12000, 12000)},
+    40: {"name": "keynumToVolEnvDecay", "default": 0, "range": (-12000, 12000)},
     # Instrument/Preset Linking
     41: {"name": "instrument", "default": -1, "range": (-1, 65535)},
+    # LFO → Pan modulation depth (non-standard but used by many soundfonts)
+    42: {"name": "modLfoToPan", "default": 0, "range": (-500, 500)},
     # Key/Velocity Ranges
-    42: {
+    43: {
         "name": "keyRange",
         "default": 0x7F007F00,
         "range": (0, 0x7FFFFFFF),
     },  # lo_key | (hi_key << 8) | (lo_vel << 16) | (hi_vel << 24)
-    43: {"name": "velRange", "default": 0x7F007F00, "range": (0, 0x7FFFFFFF)},
-    # Loop parameters (fine + coarse)
-    44: {"name": "startloopAddrsCoarse", "default": 0, "range": (-32768, 32767)},
-    45: {"name": "startloopAddrsFine", "default": 0, "range": (-32768, 32767)},
-    46: {"name": "endloopAddrsCoarse", "default": 0, "range": (-32768, 32767)},
-    47: {"name": "endloopAddrsFine", "default": 0, "range": (-32768, 32767)},
+    44: {"name": "velRange", "default": 0x7F007F00, "range": (0, 0x7FFFFFFF)},
+    # Loop address offsets (coarse)
+    45: {"name": "startloopAddrsCoarseOffset", "default": 0, "range": (-32768, 32767)},
+    # Initial attenuation
+    48: {"name": "initialAttenuation", "default": 0, "range": (0, 1000)},
+    # End loop coarse offset
+    50: {"name": "endloopAddrsCoarseOffset", "default": 0, "range": (-32768, 32767)},
     # Tuning
-    48: {"name": "coarseTune", "default": 0, "range": (-120, 120)},
-    49: {"name": "fineTune", "default": 0, "range": (-99, 99)},
-    50: {"name": "sampleID", "default": 0, "range": (0, 65535)},
-    51: {
+    51: {"name": "coarseTune", "default": 0, "range": (-120, 120)},
+    52: {"name": "fineTune", "default": 0, "range": (-99, 99)},
+    53: {"name": "sampleID", "default": 0, "range": (0, 65535)},
+    54: {
         "name": "sampleModes",
         "default": 0,
         "range": (0, 3),
     },  # 0=no loop, 1=loop, 2=reserved, 3=loop+playToEnd
-    52: {
+    56: {
         "name": "scaleTuning",
         "default": 100,
         "range": (0, 1200),
     },  # cents per semitone
-    53: {"name": "exclusiveClass", "default": 0, "range": (0, 127)},
-    54: {"name": "overridingRootKey", "default": -1, "range": (-1, 127)},
-    # Extended (for completeness - some of these may be duplicates or unused)
-    55: {
-        "name": "endAddrsCoarseOffset",
-        "default": 0,
-        "range": (-32768, 32767),
-    },  # duplicate of gen 6
+    57: {"name": "exclusiveClass", "default": 0, "range": (0, 127)},
+    58: {"name": "overridingRootKey", "default": -1, "range": (-1, 127)},
 }
 
 # SF2 Modulator Sources (SF2.01 Specification Section 8.2.1)
@@ -123,48 +118,50 @@ SF2_MODULATOR_SOURCES: dict[int, str] = {
 }
 
 # SF2 Modulator Destinations (SF2.01 Specification Section 8.2.2)
+# Numbers verified against sf2utils reference library generator.py
+# Entries that are also generator numbers use standard SF2 gen numbers.
+# Entries 45 (keynum) and 46 (velocity) are modulator-specific destinations.
 SF2_MODULATOR_DESTINATIONS: dict[int, str] = {
     0: "none",
-    7: "endAddrsCoarseOffset",
-    8: "volEnvDelay",
-    9: "volEnvAttack",
-    10: "volEnvHold",
-    11: "volEnvDecay",
-    12: "volEnvSustain",
-    13: "volEnvRelease",
-    14: "modEnvDelay",
-    15: "modEnvAttack",
-    16: "modEnvHold",
-    17: "modEnvDecay",
-    18: "modEnvSustain",
-    19: "modEnvRelease",
-    20: "modEnvToPitch",
+    5: "modLfoToPitch",
+    6: "vibLfoToPitch",
+    7: "modEnvToPitch",
+    8: "initialFilterFc",
+    9: "initialFilterQ",
+    10: "modLfoToFilterFc",
+    11: "modEnvToFilterFc",
+    12: "endAddrsCoarseOffset",
+    13: "modLfoToVolume",
+    15: "chorusEffectsSend",
+    16: "reverbEffectsSend",
+    17: "pan",
     21: "delayModLFO",
     22: "freqModLFO",
-    23: "modLfoToVol",
-    24: "modLfoToFilterFc",
-    25: "modLfoToPitch",
-    26: "delayVibLFO",
-    27: "freqVibLFO",
-    28: "vibLfoToPitch",
-    29: "initialFilterFc",
-    30: "initialFilterQ",
-    32: "reverbEffectsSend",
-    33: "chorusEffectsSend",
-    34: "pan",
+    23: "delayVibLFO",
+    24: "freqVibLFO",
+    25: "delayModEnv",
+    26: "attackModEnv",
+    27: "holdModEnv",
+    28: "decayModEnv",
+    29: "sustainModEnv",
+    30: "releaseModEnv",
+    33: "delayVolEnv",
+    34: "attackVolEnv",
+    35: "holdVolEnv",
+    36: "decayVolEnv",
+    37: "sustainVolEnv",
+    38: "releaseVolEnv",
     41: "instrument",
-    42: "keyRange",
-    43: "velRange",
-    44: "startloopAddrsCoarse",
-    45: "keynum",
-    46: "velocity",
-    47: "endloopAddrsCoarse",
-    48: "coarseTune",
-    49: "fineTune",
-    52: "scaleTuning",
-    53: "exclusiveClass",
-    54: "overridingRootKey",
-    55: "endAddrsCoarseOffset",
+    43: "keyRange",
+    44: "velRange",
+     45: "keynum",  # modulator-specific destination (not a generator)
+    46: "velocity",  # modulator-specific (not a generator)
+    50: "endloopAddrsCoarseOffset",
+    51: "coarseTune",
+    52: "fineTune",
+    56: "scaleTuning",
+    57: "exclusiveClass",
+    58: "overridingRootKey",
 }
 
 # SF2 Modulator Transform Types (SF2.01 Specification Section 8.2.3)

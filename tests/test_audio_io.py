@@ -67,6 +67,49 @@ class TestAudioConverterImport:
             assert isinstance(AudioConverter, type)
 
 
+class TestSampleCache:
+    """Tests for SampleCache (from sample_manager, LRU cache with memory management)."""
+
+    @pytest.mark.unit
+    def test_init(self) -> None:
+        """SampleCache initializes with configurable max memory."""
+        from synth.io.audio.sample_manager import SampleCache
+
+        cache = SampleCache(max_memory_mb=100)
+        assert cache is not None
+        assert cache.max_memory_bytes == 100 * 1024 * 1024
+        assert cache.current_memory_bytes == 0
+
+    @pytest.mark.unit
+    def test_get_misses(self) -> None:
+        """get() returns None for non-existent keys."""
+        from synth.io.audio.sample_manager import SampleCache
+
+        cache = SampleCache(max_memory_mb=100)
+        result = cache.get("nonexistent")
+        assert result is None
+
+    @pytest.mark.unit
+    def test_put_and_get(self) -> None:
+        """put() then get() returns the stored value."""
+        from synth.io.audio.sample_manager import SampleCache
+
+        cache = SampleCache(max_memory_mb=100)
+        cache.put("key1", "value1")
+        assert cache.get("key1") == "value1"
+
+    @pytest.mark.unit
+    def test_clear(self) -> None:
+        """clear() empties the cache."""
+        from synth.io.audio.sample_manager import SampleCache
+
+        cache = SampleCache(max_memory_mb=100)
+        cache.put("key1", "value1")
+        cache.clear()
+        assert cache.get("key1") is None
+        assert cache.current_memory_bytes == 0
+
+
 class TestSampleCacheManager:
     """Tests for SampleCacheManager (pure numpy/stdlib, always importable)."""
 
@@ -83,3 +126,35 @@ class TestSampleCacheManager:
         assert stats["cached_samples"] == 0
         assert stats["memory_used_mb"] == 0.0
         assert stats["memory_limit_mb"] == 128
+
+    @pytest.mark.unit
+    def test_cache_manager_get_stats(self) -> None:
+        """get_stats() returns a complete stats dictionary with expected keys."""
+        from synth.io.audio.sample_cache_manager import SampleCacheManager
+
+        mgr = SampleCacheManager(max_memory_mb=100)
+        stats = mgr.get_stats()
+        assert stats is not None
+        assert "cached_samples" in stats
+        assert "memory_used_mb" in stats
+        assert "memory_limit_mb" in stats
+        assert "cache_hits" in stats
+        assert "cache_misses" in stats
+        assert "hit_rate" in stats
+        assert "evictions" in stats
+
+    @pytest.mark.unit
+    def test_cache_manager_clear(self) -> None:
+        """clear_cache() empties all cached samples and resets memory."""
+        from synth.io.audio.sample_cache_manager import SampleCacheManager
+
+        mgr = SampleCacheManager(max_memory_mb=100)
+        # Add a sample to cache
+        import numpy as np
+
+        data = np.zeros((44100, 2), dtype=np.float32)
+        mgr._cache_sample(("test", 1), data, "test", 1)
+        assert len(mgr) == 1
+        mgr.clear_cache()
+        assert len(mgr) == 0
+        assert mgr.get_stats()["memory_used_mb"] == 0.0

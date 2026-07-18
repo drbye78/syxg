@@ -546,7 +546,7 @@ class XGSynthesizerSystem:
             self.xg_drum_setup.reset_all_channels_to_defaults()
             self.xg_part_mode.reset_to_defaults()
             self.xg_channel_params.reset_all_channels_to_xg_defaults()
-            self.xg_system_params.reset()
+            self.xg_system_params.reset_to_xg_defaults()
 
             # Reinitialize parts
             self._initialize_parts()

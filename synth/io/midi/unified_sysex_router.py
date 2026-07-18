@@ -72,8 +72,8 @@ class GSCommand(IntEnum):
 class SysexMessage:
     """Parsed sysex message container"""
 
-    manufacturer: int
-    device_id: int
+    manufacturer: int = 0
+    device_id: int = 0
     model_id: int = 0
     command: int = 0
     address: tuple[int, ...] = field(default_factory=tuple)
@@ -184,12 +184,11 @@ class UnifiedSysexRouter:
             GSCommand.GS_RESET: self._handle_gs_reset,
         }
 
-        # GM/GM2 handlers
+        # GM/GM2 handlers (sub-ID2: 0x01=GM1 On, 0x02=GM Off, 0x03=GM2 On)
         self._handlers[self.GM_NON_REALTIME] = {
             0x01: self._handle_gm_on,
-            0x02: self._handle_gm_on,
+            0x02: self._handle_gm_off,
             0x03: self._handle_gm2_on,
-            0x04: self._handle_gm_off,
         }
 
     def set_xg_components(self, components: Any):
@@ -305,10 +304,10 @@ class UnifiedSysexRouter:
             msg.is_valid = True
             return msg
 
-        # GM format: F0 7E [ch] [cmd] [data] F7
+        # GM format: F0 7E [ch] 09 [sub_id2] [data...] F7
         if manufacturer in (self.GM_NON_REALTIME, self.GM_REALTIME):
             msg.device_id = data[2]
-            msg.command = data[3]
+            msg.command = data[4]  # sub-ID2 (0x01=GM On, 0x02=GM Off, 0x03=GM2 On)
             if len(data) > 4:
                 msg.data = tuple(data[4:-1])
             msg.is_valid = True

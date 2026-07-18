@@ -522,6 +522,17 @@ class SF2SoundFont:
             if header:
                 start_loop = header.get("start_loop", header.get("start", 0))
                 end_loop = header.get("end_loop", header.get("end", 0))
+
+                # SF2 loop points are in 16-bit sample-word units, but the
+                # sample data numpy arrays use stereo-frame units. For stereo
+                # interleaved samples, one frame = two sample words, so divide
+                # by 2 to get frame-accurate loop points.
+                sample_type = header.get("sample_type", 1)
+                is_stereo = (sample_type & 0x7FFF) in (2, 4)
+                if is_stereo:
+                    start_loop //= 2
+                    end_loop //= 2
+
                 loop_length = max(0, end_loop - start_loop)
                 mode = 1 if loop_length > 0 else 0  # 1 = forward loop (heuristic)
                 return {
@@ -659,6 +670,16 @@ class SF2SoundFont:
             # Convert to local indices within our data arrays
             gen_start_local = gen_start - gen_start_global
             gen_end_local = gen_end - gen_start_global
+
+            # Last-zone fix: some SF2 files (notably Timbres Of Heaven)
+            # store the instrument generator (type 41) at the sentinel
+            # bag boundary.  The exclusive range [bag[N].gen_ndx,
+            # sentinel.gen_ndx) cuts it off.  Extend the last zone to
+            # consume any trailing generators in the fetched data.
+            is_last_zone = zone_idx == len(bag_data) - 2
+            if is_last_zone and gen_end_local < len(gen_data):
+                gen_end_local = len(gen_data)
+
             mod_start_local = mod_start - mod_start_global
             mod_end_local = mod_end - mod_start_global
 

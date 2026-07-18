@@ -78,6 +78,9 @@ class LearnTargetType(Enum):
     EFFECT_CHORUS = "effect_chorus"
     EFFECT_VARIATION = "effect_variation"
 
+    # Continuous parameters (alias for generic binding)
+    STYLE_INTENSITY = "style_intensity"
+
     # Advanced controls
     STYLE_OCTAVE = "style_octave"
     STYLE_TRANSPOSE = "style_transpose"

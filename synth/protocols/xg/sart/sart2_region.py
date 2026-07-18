@@ -563,6 +563,9 @@ class SArt2Region(IRegion):
           gs_volume / gs_pan
           gs_reverb_send / gs_chorus_send
         """
+        # Fast path: no articulation parameters to route (e.g. "normal" articulation)
+        if not params:
+            return
 
         # ---- Vibrato LFO (gs_vibrato_* keys) ----
         rate = params.get("rate")

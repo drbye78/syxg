@@ -661,6 +661,22 @@ class Channel:
         # Trigger note-on for the voice instance
         voice_instance.note_on(velocity)
 
+        # Enforce exclusiveClass (SF2 gen 57): if the new voice shares an
+        # exclusiveClass with any existing active voice, steal (release) the old one.
+        new_excl_classes = {
+            reg._exclusive_class
+            for reg in voice_instance.active_regions
+            if reg._exclusive_class > 0
+        }
+        if new_excl_classes:
+            for existing_id, existing_vi in list(self.active_voices.items()):
+                if existing_vi is voice_instance:
+                    continue
+                for reg in existing_vi.active_regions:
+                    if reg._exclusive_class in new_excl_classes:
+                        existing_vi.note_off(64)
+                        break
+
         # Store the active voice instance with unique ID
         self.active_voices[voice_id] = voice_instance
 
@@ -824,8 +840,8 @@ class Channel:
         Returns:
             7-bit value (0-127)
         """
-        # Map 32-bit range to 7-bit range
-        return int((value_32 / 4294967295.0) * 127.0)
+        # Map 32-bit range to 7-bit range (round to nearest, not truncate)
+        return round((value_32 / 4294967295.0) * 127.0)
 
     def _convert_7bit_to_32bit(self, value_7: int) -> int:
         """
@@ -1065,8 +1081,8 @@ class Channel:
             "brightness": self.controllers[72] / 127.0,
             "harmonic_content": self.controllers[71] / 127.0,
             "channel_aftertouch": self.channel_pressure / 127.0,
-            "volume": self.controllers[7] / 127.0,  # CC7 -> region _volume_mod
-            "volume_cc": self.controllers[7] / 127.0,  # Kept for backward compat
+            "volume": self.master_level,  # CC7 -> region _volume_mod (uses normalized master_level)
+            "volume_cc": self.master_level,  # Kept for backward compat
         }
 
         # Add 32-bit controller values if available
@@ -1219,7 +1235,7 @@ class Channel:
         """
         # Immediately silence all active voice instances
         for voice_instance in list(self.active_voices.values()):
-            voice_instance.all_notes_off()
+            voice_instance.reset()
 
         # Clear all voice tracking structures
         self.active_voices.clear()

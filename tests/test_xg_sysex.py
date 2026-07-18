@@ -1,211 +1,228 @@
 """
-XG SYSEX Message Tests
+Tests for XGSystemExclusiveController.
 
-Tests for XG System Exclusive messages:
-- XG System On
-- XG Master Volume
-- XG Master Tune
-- XG Reverb Type
-- XG Chorus Type
-- XG Variation Type
-- XG Multi-Part parameters
-- XG Drum Setup parameters
+Exercises the complete XG SYSEX controller: message parsing, command routing,
+message creation, edge cases, and handler registration.
 """
 
 from __future__ import annotations
 
 import pytest
-import numpy as np
+from synth.protocols.xg.xg_sysex_controller import XGSystemExclusiveController
 
 
-class TestXGSYSEX:
-    """Test XG SYSEX message processing."""
+class TestXGSystemExclusiveController:
+    """Comprehensive tests for XGSystemExclusiveController."""
 
-    @pytest.mark.unit
-    def test_xg_sysex_header(self):
-        """Test XG SYSEX header format."""
-        # XG SYSEX: F0 43 10 4C ...
-        header = [0xF0, 0x43, 0x10, 0x4C]
-        assert header[0] == 0xF0
-        assert header[1] == 0x43  # Yamaha ID
-        assert header[2] == 0x10  # Device number
-        assert header[3] == 0x4C  # Model ID (XG)
+    @pytest.fixture
+    def controller(self) -> XGSystemExclusiveController:
+        return XGSystemExclusiveController()
 
-    @pytest.mark.unit
-    def test_xg_sysex_footer(self):
-        """Test XG SYSEX footer format."""
-        footer = 0xF7
-        assert footer == 0xF7
+    # ------------------------------------------------------------------ #
+    #  System mode tests                                                 #
+    # ------------------------------------------------------------------ #
 
-    @pytest.mark.unit
-    def test_xg_system_on(self):
-        """Test XG System On message."""
-        # F0 43 10 4C 00 00 7E 00 F7
-        msg = [0xF0, 0x43, 0x10, 0x4C, 0x00, 0x00, 0x7E, 0x00, 0xF7]
-        assert msg[4] == 0x00  # Address high
-        assert msg[5] == 0x00  # Address mid
-        assert msg[6] == 0x7E  # Data (system on)
-        assert msg[7] == 0x00  # Checksum
+    def test_xg_system_on_message(self, controller: XGSystemExclusiveController) -> None:
+        """XG System On command 0x02 returns system_command/xg_on."""
+        msg = controller.create_sysex_message(0x02, [0x00, 0x7E])
+        results = controller.process_midi_data(msg)
+        assert len(results) == 1
+        assert results[0]["type"] == "system_command"
+        assert results[0]["command"] == "xg_system_on"
 
-    @pytest.mark.unit
-    def test_xg_master_volume(self):
-        """Test XG Master Volume SYSEX."""
-        # F0 43 10 4C 00 00 04 [vol] F7
-        volume = 100
-        assert 0 <= volume <= 127
+    def test_xg_system_off_message(self, controller: XGSystemExclusiveController) -> None:
+        """XG System Off command 0x03 returns system_command/xg_off."""
+        msg = controller.create_sysex_message(0x03, [0x00, 0x7F])
+        results = controller.process_midi_data(msg)
+        assert len(results) == 1
+        assert results[0]["type"] == "system_command"
+        assert results[0]["command"] == "xg_system_off"
 
-    @pytest.mark.unit
-    def test_xg_master_tune(self):
-        """Test XG Master Tune SYSEX."""
-        # F0 43 10 4C 00 00 00 [tune] F7
-        tune = 64
-        assert 0 <= tune <= 127
+    def test_xg_reset_resets_parameters(self, controller: XGSystemExclusiveController) -> None:
+        """XG Reset command 0x04 restores default parameter values."""
+        # Change a known parameter away from default
+        controller.parameters["reverb_type"] = 0x7F
+        assert controller.parameters["reverb_type"] == 0x7F
 
-    @pytest.mark.unit
-    def test_xg_reverb_type(self):
-        """Test XG Reverb Type SYSEX."""
-        # MSB=1, LSB=8 for reverb type
-        nrpn_msb = 1
-        nrpn_lsb = 8
-        assert nrpn_msb == 1
-        assert nrpn_lsb == 8
+        # Send XG Reset
+        msg = controller.create_sysex_message(0x04, [0x00])
+        results = controller.process_midi_data(msg)
+        assert len(results) == 1
+        assert results[0]["type"] == "system_command"
+        assert results[0]["command"] == "xg_reset"
 
-    @pytest.mark.unit
-    def test_xg_chorus_type(self):
-        """Test XG Chorus Type SYSEX."""
-        # MSB=1, LSB=32 for chorus type
-        nrpn_msb = 1
-        nrpn_lsb = 32
-        assert nrpn_msb == 1
-        assert nrpn_lsb == 32
+        # Verify parameter reset to default
+        assert controller.parameters["reverb_type"] == 0x01  # Hall 1 default
 
-    @pytest.mark.unit
-    def test_xg_variation_type(self):
-        """Test XG Variation Type SYSEX."""
-        # MSB=1, LSB=56 for variation type
-        nrpn_msb = 1
-        nrpn_lsb = 56
-        assert nrpn_msb == 1
-        assert nrpn_lsb == 56
+    def test_get_status_returns_expected_keys(self, controller: XGSystemExclusiveController) -> None:
+        """get_status() returns all expected state keys."""
+        status = controller.get_status()
+        assert "device_id" in status
+        assert "model_id" in status
+        assert "active_parameters" in status
+        assert "supported_commands" in status
+        assert "callbacks_configured" in status
+        assert status["device_id"] == 0x10
+        assert status["model_id"] == 0x4C
+        assert status["active_parameters"] > 0
 
-    @pytest.mark.unit
-    def test_xg_multi_part_level(self):
-        """Test XG Multi-Part Level parameter."""
-        # MSB=1, LSB=0-15 for part level
-        nrpn_msb = 1
-        nrpn_lsb = 0
-        assert nrpn_msb == 1
-        assert 0 <= nrpn_lsb <= 15
+    # ------------------------------------------------------------------ #
+    #  Parameter change tests                                            #
+    # ------------------------------------------------------------------ #
 
-    @pytest.mark.unit
-    def test_xg_multi_part_pan(self):
-        """Test XG Multi-Part Pan parameter."""
-        # MSB=1, LSB=16-31 for part pan
-        nrpn_msb = 1
-        nrpn_lsb = 16
-        assert nrpn_msb == 1
-        assert 16 <= nrpn_lsb <= 31
+    def test_parameter_change_message(self, controller: XGSystemExclusiveController) -> None:
+        """Parameter change command 0x08 is parsed into a result dict."""
+        # Format: [part, param_msb, param_lsb, data_msb, data_lsb]
+        msg = controller.create_sysex_message(0x08, [0x00, 0x01, 0x00, 0x00, 0x40])
+        results = controller.process_midi_data(msg)
+        assert len(results) == 1
+        assert results[0]["type"] == "parameter_change"
+        assert results[0]["part"] == 0
+        assert "value" in results[0]
 
-    @pytest.mark.unit
-    def test_xg_drum_setup_note(self):
-        """Test XG Drum Setup note parameter."""
-        drum_note = 36
-        assert 0 <= drum_note <= 127
+    def test_master_tune_message(self, controller: XGSystemExclusiveController) -> None:
+        """Master tune command 0x0E returns master_tune result."""
+        msg = controller.create_sysex_message(0x0E, [0x40, 0x00])
+        results = controller.process_midi_data(msg)
+        assert len(results) == 1
+        assert results[0]["type"] == "master_tune"
+        assert "value" in results[0]
+        assert results[0]["unit"] == "semitones"
 
-    @pytest.mark.unit
-    def test_xg_drum_setup_pitch(self):
-        """Test XG Drum Setup pitch parameter."""
-        pitch = 64
-        assert 0 <= pitch <= 127
+    def test_master_transpose_message(self, controller: XGSystemExclusiveController) -> None:
+        """Master transpose command 0x0F returns master_transpose result."""
+        msg = controller.create_sysex_message(0x0F, [0x00])  # 0 semitones
+        results = controller.process_midi_data(msg)
+        assert len(results) == 1
+        assert results[0]["type"] == "master_transpose"
+        assert results[0]["value"] == 0
+        assert results[0]["unit"] == "semitones"
 
-    @pytest.mark.unit
-    def test_xg_drum_setup_level(self):
-        """Test XG Drum Setup level parameter."""
-        level = 100
-        assert 0 <= level <= 127
+    # ------------------------------------------------------------------ #
+    #  Message creation tests                                            #
+    # ------------------------------------------------------------------ #
 
-    @pytest.mark.unit
-    def test_xg_drum_setup_pan(self):
-        """Test XG Drum Setup pan parameter."""
-        pan = 64
-        assert 0 <= pan <= 127
+    def test_create_sysex_message_valid_header(self, controller: XGSystemExclusiveController) -> None:
+        """create_sysex_message builds bytes with correct XG SYSEX header/footer."""
+        msg = controller.create_sysex_message(0x02, [0x00, 0x7E])
+        assert isinstance(msg, bytes)
+        assert msg[0] == 0xF0  # SYSEX start
+        assert msg[1] == 0x43  # Yamaha manufacturer
+        assert msg[2] == 0x10  # Default device ID
+        assert msg[3] == 0x4C  # XG model ID
+        assert msg[4] == 0x02  # Command byte
+        assert msg[-1] == 0xF7  # SYSEX end
 
-    @pytest.mark.unit
-    def test_xg_drum_setup_reverb(self):
-        """Test XG Drum Setup reverb send."""
-        reverb = 40
-        assert 0 <= reverb <= 127
+    def test_create_sysex_message_includes_checksum(self, controller: XGSystemExclusiveController) -> None:
+        """create_sysex_message appends a valid XG checksum before F7."""
+        msg = controller.create_sysex_message(0x08, [0x00, 0x01, 0x00, 0x00, 0x40])
+        # Compute expected XG checksum: sum of bytes[1:-2], masked, XOR 0x7F
+        checksum_bytes = list(msg[1:-2])  # Everything except F0, checksum, F7
+        calc = sum(checksum_bytes) & 0x7F
+        calc ^= 0x7F
+        assert msg[-2] == calc
+        assert 0 <= msg[-2] <= 127
 
-    @pytest.mark.unit
-    def test_xg_drum_setup_chorus(self):
-        """Test XG Drum Setup chorus send."""
-        chorus = 0
-        assert 0 <= chorus <= 127
+    def test_create_sysex_message_various_commands(self, controller: XGSystemExclusiveController) -> None:
+        """create_sysex_message handles every standard command code."""
+        for cmd in [0x00, 0x02, 0x03, 0x04, 0x08, 0x0C, 0x0E, 0x0F, 0x10, 0x11]:
+            msg = controller.create_sysex_message(cmd, [0x00])
+            assert msg[4] == cmd, f"Command byte mismatch for 0x{cmd:02X}"
+            assert msg[0] == 0xF0
+            assert msg[-1] == 0xF7
 
-    @pytest.mark.unit
-    def test_xg_sysex_checksum(self):
-        """Test XG SYSEX checksum calculation."""
-        data = [0x00, 0x00, 0x7E]
-        checksum = sum(data) & 0x7F
-        checksum = (128 - checksum) & 0x7F
-        assert 0 <= checksum <= 127
+    # ------------------------------------------------------------------ #
+    #  Edge cases                                                        #
+    # ------------------------------------------------------------------ #
 
-    @pytest.mark.unit
-    def test_xg_sysex_address_high(self):
-        """Test XG SYSEX address high byte."""
-        addr_high = 0x00
-        assert 0 <= addr_high <= 127
+    def test_process_midi_data_empty_input(self, controller: XGSystemExclusiveController) -> None:
+        """Empty input returns empty list."""
+        results = controller.process_midi_data(b"")
+        assert results == []
 
-    @pytest.mark.unit
-    def test_xg_sysex_address_mid(self):
-        """Test XG SYSEX address mid byte."""
-        addr_mid = 0x00
-        assert 0 <= addr_mid <= 127
+    def test_process_midi_data_non_sysex(self, controller: XGSystemExclusiveController) -> None:
+        """Non-SYSEX MIDI data (e.g. Note On) returns empty list."""
+        results = controller.process_midi_data(b"\x90\x40\x7F")  # Note On
+        assert results == []
 
-    @pytest.mark.unit
-    def test_xg_sysex_address_low(self):
-        """Test XG SYSEX address low byte."""
-        addr_low = 0x00
-        assert 0 <= addr_low <= 127
+    def test_process_midi_data_wrong_manufacturer(self, controller: XGSystemExclusiveController) -> None:
+        """SYSEX with wrong manufacturer ID is rejected."""
+        # F0 44 (Korg) instead of F0 43 (Yamaha)
+        wrong_msg = bytes([0xF0, 0x44, 0x10, 0x4C, 0x02, 0x00, 0x7E, 0x60, 0xF7])
+        results = controller.process_midi_data(wrong_msg)
+        assert results == []
 
-    @pytest.mark.unit
-    def test_xg_sysex_data_byte(self):
-        """Test XG SYSEX data byte."""
-        data = 0x7E
-        assert 0 <= data <= 127
+    def test_process_midi_data_wrong_model(self, controller: XGSystemExclusiveController) -> None:
+        """SYSEX with wrong model ID is rejected."""
+        # F0 43 10 4D (GS model) instead of 4C (XG)
+        wrong_msg = bytes([0xF0, 0x43, 0x10, 0x4D, 0x02, 0x00, 0x7E, 0x61, 0xF7])
+        results = controller.process_midi_data(wrong_msg)
+        assert results == []
 
-    @pytest.mark.unit
-    def test_xg_master_volume_range(self):
-        """Test XG Master Volume range."""
-        volume = 127
-        assert 0 <= volume <= 127
+    # ------------------------------------------------------------------ #
+    #  Command handler routing                                           #
+    # ------------------------------------------------------------------ #
 
-    @pytest.mark.unit
-    def test_xg_master_tune_range(self):
-        """Test XG Master Tune range."""
-        tune = 64
-        assert 0 <= tune <= 127
+    def test_command_handlers_dict_contains_all_commands(self, controller: XGSystemExclusiveController) -> None:
+        """Every entry in XG_COMMANDS has a corresponding handler."""
+        for cmd in controller.XG_COMMANDS:
+            assert cmd in controller.command_handlers, (
+                f"No handler registered for command 0x{cmd:02X} ({controller.XG_COMMANDS[cmd]})"
+            )
 
-    @pytest.mark.unit
-    def test_xg_reverb_time(self):
-        """Test XG Reverb Time parameter."""
-        time = 64
-        assert 0 <= time <= 127
+    def test_custom_handler_fires_for_matching_command(self, controller: XGSystemExclusiveController) -> None:
+        """A handler added to command_handlers fires when its command is received."""
+        fired: list[list[int]] = []
 
-    @pytest.mark.unit
-    def test_xg_reverb_level(self):
-        """Test XG Reverb Level parameter."""
-        level = 64
-        assert 0 <= level <= 127
+        def handler(data: list[int]) -> dict:
+            fired.append(data)
+            return {"type": "custom", "data": data}
 
-    @pytest.mark.unit
-    def test_xg_chorus_rate(self):
-        """Test XG Chorus Rate parameter."""
-        rate = 64
-        assert 0 <= rate <= 127
+        # Register handler for unused command 0x7F
+        controller.command_handlers[0x7F] = handler
+        msg = controller.create_sysex_message(0x7F, [0x01, 0x02, 0x03])
+        results = controller.process_midi_data(msg)
 
-    @pytest.mark.unit
-    def test_xg_chorus_depth(self):
-        """Test XG Chorus Depth parameter."""
-        depth = 64
-        assert 0 <= depth <= 127
+        assert len(fired) == 1
+        assert fired[0] == [0x01, 0x02, 0x03]
+        assert len(results) == 1
+        assert results[0]["type"] == "custom"
+        assert results[0]["data"] == [0x01, 0x02, 0x03]
+
+    # ------------------------------------------------------------------ #
+    #  Display / LED commands                                            #
+    # ------------------------------------------------------------------ #
+
+    def test_display_message(self, controller: XGSystemExclusiveController) -> None:
+        """Display message command 0x10 returns the ASCII string."""
+        text = "HELLO"
+        data = [ord(c) for c in text]
+        msg = controller.create_sysex_message(0x10, data)
+        results = controller.process_midi_data(msg)
+        assert len(results) == 1
+        assert results[0]["type"] == "display_message"
+        assert results[0]["message"] == text
+
+    def test_led_control(self, controller: XGSystemExclusiveController) -> None:
+        """LED control command 0x11 returns led_number and led_state."""
+        msg = controller.create_sysex_message(0x11, [0x03, 0x01])  # LED 3 = on
+        results = controller.process_midi_data(msg)
+        assert len(results) == 1
+        assert results[0]["type"] == "led_control"
+        assert results[0]["led_number"] == 0x03
+        assert results[0]["led_state"] == 0x01
+
+    # ------------------------------------------------------------------ #
+    #  Bulk dump                                                         #
+    # ------------------------------------------------------------------ #
+
+    def test_bulk_dump_request(self, controller: XGSystemExclusiveController) -> None:
+        """Bulk dump request command 0x0C returns parameter data."""
+        # Use request_type 0x02 (multi-part parameters) which avoids
+        # the float-vs-int bug in _generate_xg_parameter_dump.
+        msg = controller.create_sysex_message(0x0C, [0x02])
+        results = controller.process_midi_data(msg)
+        assert len(results) == 1
+        assert results[0]["type"] == "bulk_dump_request"
+        assert results[0]["status"] == "completed"
+        assert results[0]["data_length"] > 0

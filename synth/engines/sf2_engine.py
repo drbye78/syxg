@@ -632,41 +632,47 @@ class SF2Engine(SynthesisEngine):
                 return zone.get_generator_value(gen_type, default)
             return default
 
-        # Volume envelope (SF2 generator IDs)
-        params["amp_delay"] = self._timecents_to_seconds(get_gen(8, -12000))
-        params["amp_attack"] = self._timecents_to_seconds(get_gen(9, -12000))
-        params["amp_hold"] = self._timecents_to_seconds(get_gen(10, -12000))
-        params["amp_decay"] = self._timecents_to_seconds(get_gen(11, -12000))
-        params["amp_sustain"] = get_gen(12, 0) / 1000.0
-        params["amp_release"] = self._timecents_to_seconds(get_gen(13, -12000))
+        # Helper: only store if value differs from sentinel (avoids overriding caller defaults)
+        def maybe(key: str, gen_type: int, sentinel: int) -> None:
+            val = get_gen(gen_type, sentinel)
+            if val != sentinel:
+                params[key] = val
 
-        # Modulation envelope
-        params["mod_env_delay"] = self._timecents_to_seconds(get_gen(14, -12000))
-        params["mod_env_attack"] = self._timecents_to_seconds(get_gen(15, -12000))
-        params["mod_env_hold"] = self._timecents_to_seconds(get_gen(16, -12000))
-        params["mod_env_decay"] = self._timecents_to_seconds(get_gen(17, -12000))
-        params["mod_env_sustain"] = get_gen(18, 0) / 1000.0
-        params["mod_env_release"] = self._timecents_to_seconds(get_gen(19, -12000))
-        params["mod_env_to_pitch"] = get_gen(20, 0) / 1200.0
+        # Volume envelope - store RAW SF2 amounts (consumers do conversion)
+        maybe("amp_delay", 33, -12000)      # delayVolEnv timecents
+        maybe("amp_attack", 34, -12000)     # attackVolEnv timecents
+        maybe("amp_hold", 35, -12000)       # holdVolEnv timecents
+        maybe("amp_decay", 36, -12000)      # decayVolEnv timecents
+        maybe("amp_sustain", 37, -1)        # sustainVolEnv 0-1000 (use -1 sentinel since 0 is valid)
+        maybe("amp_release", 38, -12000)    # releaseVolEnv timecents
 
-        # LFO parameters
-        params["mod_lfo_delay"] = self._timecents_to_seconds(get_gen(21, -12000))
-        params["mod_lfo_rate"] = self._cents_to_frequency(get_gen(22, 0))
-        params["vib_lfo_delay"] = self._timecents_to_seconds(get_gen(26, -12000))
-        params["vib_lfo_rate"] = self._cents_to_frequency(get_gen(27, 0))
+        # Modulation envelope - store RAW SF2 amounts
+        maybe("mod_env_delay", 25, -12000)  # delayModEnv timecents
+        maybe("mod_env_attack", 26, -12000) # attackModEnv timecents
+        maybe("mod_env_hold", 27, -12000)   # holdModEnv timecents
+        maybe("mod_env_decay", 28, -12000)  # decayModEnv timecents
+        maybe("mod_env_sustain", 29, -1)    # sustainModEnv 0-1000 (sentinel -1)
+        maybe("mod_env_release", 30, -12000) # releaseModEnv timecents
+        maybe("mod_env_to_pitch", 7, 0)     # modEnvToPitch cents
 
-        # Filter
-        params["filter_cutoff"] = self._cents_to_frequency(get_gen(29, 13500))
-        params["filter_resonance"] = get_gen(30, 0) / 10.0
+        # LFO parameters - store RAW SF2 amounts
+        maybe("mod_lfo_delay", 21, -12000)  # delayModLFO timecents
+        maybe("mod_lfo_rate", 22, 0)        # freqModLFO cents
+        maybe("vib_lfo_delay", 23, -12000)  # delayVibLFO timecents
+        maybe("vib_lfo_rate", 24, 0)        # freqVibLFO cents
 
-        # Effects
-        params["reverb_send"] = get_gen(32, 0) / 1000.0
-        params["chorus_send"] = get_gen(33, 0) / 1000.0
-        params["pan"] = get_gen(34, 0) / 500.0
+        # Filter - store RAW SF2 amounts
+        maybe("filter_cutoff", 8, 13500)    # initialFilterFc cents
+        maybe("filter_resonance", 9, 0)     # initialFilterQ centibels
 
-        # Pitch
-        params["coarse_tune"] = get_gen(48, 0)
-        params["fine_tune"] = get_gen(49, 0) / 100.0
+        # Effects - store RAW SF2 amounts
+        maybe("reverb_send", 16, 0)         # reverbEffectsSend 0-1000
+        maybe("chorus_send", 15, 0)         # chorusEffectsSend 0-1000
+        maybe("pan", 17, 0)                 # pan -500 to +500
+
+        # Pitch - store RAW SF2 amounts
+        maybe("coarse_tune", 51, 0)         # coarseTune semitones
+        maybe("fine_tune", 52, 0)           # fineTune cents
 
         return params
 
@@ -752,45 +758,45 @@ class SF2Engine(SynthesisEngine):
 
         # Override with zone-specific values
         if hasattr(zone, "generators"):
-            # Volume envelope (correct SF2 generator IDs)
+            # Volume envelope (SF2 generator IDs 33-38)
             params["amp_delay"] = self._timecents_to_seconds(
-                zone.get_generator_value(8, -12000)
-            )  # volEnvDelay
+                zone.get_generator_value(33, -12000)
+            )  # delayVolEnv
             params["amp_attack"] = self._timecents_to_seconds(
-                zone.get_generator_value(9, -12000)
-            )  # volEnvAttack
+                zone.get_generator_value(34, -12000)
+            )  # attackVolEnv
             params["amp_hold"] = self._timecents_to_seconds(
-                zone.get_generator_value(10, -12000)
-            )  # volEnvHold
+                zone.get_generator_value(35, -12000)
+            )  # holdVolEnv
             params["amp_decay"] = self._timecents_to_seconds(
-                zone.get_generator_value(11, -12000)
-            )  # volEnvDecay
+                zone.get_generator_value(36, -12000)
+            )  # decayVolEnv
             params["amp_sustain"] = (
-                zone.get_generator_value(12, 0) / 1000.0
-            )  # volEnvSustain (0-1000 to 0.0-1.0)
+                zone.get_generator_value(37, 0) / 1000.0
+            )  # sustainVolEnv (0-1000 to 0.0-1.0)
             params["amp_release"] = self._timecents_to_seconds(
-                zone.get_generator_value(13, -12000)
-            )  # volEnvRelease
+                zone.get_generator_value(38, -12000)
+            )  # releaseVolEnv
 
-            # Filter (correct SF2 generator IDs)
+            # Filter (SF2 generator IDs 8-9)
             params["filter_cutoff"] = self._cents_to_frequency(
-                zone.get_generator_value(29, 13500)
+                zone.get_generator_value(8, 13500)
             )  # initialFilterFc
             params["filter_resonance"] = (
-                zone.get_generator_value(30, 0) / 10.0
+                zone.get_generator_value(9, 0) / 10.0
             )  # initialFilterQ (Q to resonance)
 
-            # Pitch modulation (correct SF2 generator IDs)
-            params["coarse_tune"] = zone.get_generator_value(48, 0)  # coarseTune
+            # Pitch modulation (SF2 generator IDs 51-52, 56)
+            params["coarse_tune"] = zone.get_generator_value(51, 0)  # coarseTune
             params["fine_tune"] = (
-                zone.get_generator_value(49, 0) / 100.0
+                zone.get_generator_value(52, 0) / 100.0
             )  # fineTune (cents to semitones)
-            params["scale_tuning"] = zone.get_generator_value(52, 100)  # scaleTuning
+            params["scale_tuning"] = zone.get_generator_value(56, 100)  # scaleTuning
 
-            # Effects sends (correct SF2 generator IDs)
-            params["reverb_send"] = zone.get_generator_value(32, 0) / 1000.0  # reverbEffectsSend
-            params["chorus_send"] = zone.get_generator_value(33, 0) / 1000.0  # chorusEffectsSend
-            params["pan"] = zone.get_generator_value(34, 0) / 500.0  # pan (-500/+500 to -1.0/+1.0)
+            # Effects sends (SF2 generator IDs 15-17)
+            params["reverb_send"] = zone.get_generator_value(16, 0) / 1000.0  # reverbEffectsSend
+            params["chorus_send"] = zone.get_generator_value(15, 0) / 1000.0  # chorusEffectsSend
+            params["pan"] = zone.get_generator_value(17, 0) / 500.0  # pan (-500/+500 to -1.0/+1.0)
 
         return params
 

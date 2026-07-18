@@ -233,7 +233,7 @@ class AudioProcessor:
         self.synthesizer.output_buffer.fill(0.0)
 
         active_voices = 0
-        for channel in self.synthesizer.channels:
+        for i, channel in enumerate(self.synthesizer.channels):
             if channel.is_active():
                 if self.synthesizer.buffer_pool is not None:
                     with self.synthesizer.buffer_pool.temporary_buffer(block_size, 2) as temp_buf:
@@ -254,6 +254,11 @@ class AudioProcessor:
                             else:
                                 channel_audio = channel_audio[:block_size]
 
+                        # Save to channel_buffers so _apply_xg_effects doesn't
+                        # regenerate audio (which would advance envelope state)
+                        if i < len(self.synthesizer.channel_buffers):
+                            self.synthesizer.channel_buffers[i][:block_size] = channel_audio
+
                         np.add(
                             self.synthesizer.output_buffer[:block_size],
                             channel_audio,
@@ -261,14 +266,29 @@ class AudioProcessor:
                         )
 
                         active_voices += channel.get_active_voice_count()
+                else:
+                    # No buffer pool — generate and copy manually
+                    channel_audio = channel.generate_samples(block_size)
+                    if i < len(self.synthesizer.channel_buffers):
+                        copy_len = min(channel_audio.shape[0], block_size)
+                        self.synthesizer.channel_buffers[i][:copy_len] = channel_audio[:copy_len]
+                    np.add(
+                        self.synthesizer.output_buffer[:block_size],
+                        channel_audio[:block_size],
+                        out=self.synthesizer.output_buffer[:block_size],
+                    )
+                    active_voices += channel.get_active_voice_count()
 
         # Update performance metrics
         if hasattr(self.synthesizer, "performance_monitor"):
             self.synthesizer.performance_monitor.update(active_voices=active_voices)
 
         # Apply XG effects if enabled
+        # NOTE: channel_buffers already populated above, so skip_generation=True
+        # prevents a second channel.generate_samples() call that would corrupt
+        # internal state (advancing envelopes past attack/sustain phase)
         if self.synthesizer.xg_enabled and active_voices > 0:
-            self._apply_xg_effects(block_size)
+            self._apply_xg_effects(block_size, skip_generation=True)
 
         # Apply master volume
         if hasattr(self.synthesizer, "master_volume") and self.synthesizer.master_volume != 1.0:

@@ -54,6 +54,14 @@ class FFTProcessor:
         self.output_buffer = np.zeros(fft_size)
         self.fft_buffer = np.zeros(fft_size, dtype=np.complex128)
 
+        # Spectral processing pipeline attributes (shared with SpectralSynthesizer)
+        self.sample_rate: int = 44100
+        self.spectral_filters: list[SpectralFilter] = []
+        self.freeze_spectrum = False
+        self.frozen_spectrum: np.ndarray | None = None
+        self.morph_position = 0.0
+        self.noise_amount = 0.0
+
     def forward(self, audio: np.ndarray) -> np.ndarray:
         """
         Perform forward FFT with windowing.
@@ -238,10 +246,9 @@ class FFTProcessor:
         # Calculate spectral centroid for dynamic processing
         freq_bins = np.fft.fftfreq(self.fft_size, 1.0 / self.sample_rate)
         pos_freq_mask = freq_bins > 0
-        if np.any(pos_freq_mask):
-            centroid = np.sum(freq_bins[pos_freq_mask] * magnitudes[pos_freq_mask]) / np.sum(
-                magnitudes[pos_freq_mask]
-            )
+        mag_sum = np.sum(magnitudes[pos_freq_mask])
+        if np.any(pos_freq_mask) and mag_sum > 0:
+            centroid = np.sum(freq_bins[pos_freq_mask] * magnitudes[pos_freq_mask]) / mag_sum
 
             # Apply frequency-dependent compression
             # Lower frequencies get more compression, higher frequencies get expansion
@@ -257,6 +264,79 @@ class FFTProcessor:
             spectrum *= dynamic_curve
 
         return spectrum
+
+    def _apply_harmonic_enhancement(self, spectrum: np.ndarray) -> np.ndarray:
+        """
+        Apply harmonic enhancement to spectrum.
+
+        Args:
+            spectrum: Input spectrum
+
+        Returns:
+            Enhanced spectrum
+        """
+        # Simple harmonic enhancement by boosting odd harmonics
+        enhanced = spectrum.copy()
+
+        # Get magnitude spectrum for analysis
+        magnitudes = np.abs(enhanced)
+
+        # Find fundamental frequency (simple peak detection)
+        mag_spectrum = magnitudes[: len(magnitudes) // 2]  # Positive frequencies only
+
+        if len(mag_spectrum) > 10:
+            # Find fundamental (strongest low-frequency component)
+            fundamental_idx = np.argmax(mag_spectrum[: len(mag_spectrum) // 4])
+
+            if fundamental_idx > 0:
+                # Enhance harmonics
+                for harmonic in range(2, 8):  # 2nd through 7th harmonics
+                    harmonic_idx = min(fundamental_idx * harmonic, len(mag_spectrum) - 1)
+
+                    # Boost odd harmonics more than even
+                    boost_factor = 1.5 if harmonic % 2 == 1 else 1.2
+
+                    # Apply enhancement
+                    enhanced[harmonic_idx] *= boost_factor
+                    enhanced[-harmonic_idx] *= boost_factor  # Negative frequency
+
+        return enhanced
+
+    def _apply_brightness_adjustment(self, spectrum: np.ndarray) -> np.ndarray:
+        """
+        Apply brightness adjustment to spectrum.
+
+        Args:
+            spectrum: Input spectrum
+
+        Returns:
+            Brightness-adjusted spectrum
+        """
+        # Simple brightness adjustment using frequency-dependent gain
+        adjusted = spectrum.copy()
+
+        # Create brightness filter (boost high frequencies)
+        freq_bins = np.fft.fftfreq(self.fft_size, 1.0 / 22050.0)
+        freq_response = 1.0 + (np.abs(freq_bins) / 10000.0) * 0.5  # Boost high freqs
+
+        # Apply brightness
+        adjusted *= freq_response
+
+        return adjusted
+
+    def _generate_noise_spectrum(self) -> np.ndarray:
+        """Generate random noise spectrum."""
+        # Create random complex spectrum with magnitude envelope
+        magnitudes = np.random.exponential(1.0, self.fft_size // 2 + 1)
+        phases = np.random.uniform(0, 2 * np.pi, self.fft_size // 2 + 1)
+
+        # Convert to complex
+        complex_spectrum = magnitudes * np.exp(1j * phases)
+
+        # Make symmetric for real-valued IFFT
+        full_spectrum = np.concatenate([complex_spectrum, np.conj(complex_spectrum[-2:0:-1])])
+
+        return full_spectrum
 
 
 class SpectralFilter:
@@ -584,6 +664,7 @@ class SpectralSynthesizer:
     def __init__(self, sample_rate: int = 44100, fft_size: int = 2048):
         self.sample_rate = sample_rate
         self.fft_size = fft_size
+        self.hop_size = fft_size // 4
 
         # Core components
         self.fft_processor = FFTProcessor(fft_size=fft_size)
@@ -614,28 +695,47 @@ class SpectralSynthesizer:
         - Zero-latency processing where possible
 
         Args:
-            input_block: Input audio block (hop_size samples)
+            input_block: Input audio block (any size; will be processed in
+                         hop_size chunks or zero-padded as needed)
 
         Returns:
-            Processed audio block (hop_size samples)
+            Processed audio block (same length as input_block)
         """
         # Ensure we have proper overlap-add buffering
         if not hasattr(self, "overlap_buffer"):
             self.overlap_buffer = np.zeros(self.fft_size)
             self.output_accumulator = np.zeros(self.fft_size)
 
+        # Handle input blocks that differ from hop_size
+        input_length = len(input_block)
+        if input_length < self.hop_size:
+            # Zero-pad smaller blocks
+            input_block = np.pad(input_block, (0, self.hop_size - input_length))
+        elif input_length > self.hop_size:
+            # Process larger blocks by running multiple iterations
+            output_parts = []
+            for start in range(0, input_length, self.hop_size):
+                chunk = input_block[start : start + self.hop_size]
+                if len(chunk) < self.hop_size:
+                    chunk = np.pad(chunk, (0, self.hop_size - len(chunk)))
+                output_parts.append(self._process_hop_block(chunk))
+            return np.concatenate(output_parts)[:input_length]
+
+        return self._process_hop_block(input_block)[:input_length]
+
+    def _process_hop_block(self, input_block: np.ndarray) -> np.ndarray:
+        """Process a single hop_size block through the FFT pipeline."""
         # Add input to overlap buffer
         self.overlap_buffer[: self.hop_size] += input_block
-        self.overlap_buffer[: -self.hop_size] = self.overlap_buffer[self.hop_size :]
 
         # Forward FFT
-        spectrum = self.forward(self.overlap_buffer)
+        spectrum = self.fft_processor.forward(self.overlap_buffer)
 
         # Apply spectral processing
         processed_spectrum = self._apply_spectral_processing(spectrum)
 
         # Inverse FFT
-        processed_time = self.inverse(processed_spectrum)
+        processed_time = self.fft_processor.inverse(processed_spectrum)
 
         # Overlap-add to output accumulator
         self.output_accumulator += processed_time
@@ -643,8 +743,10 @@ class SpectralSynthesizer:
         # Extract output block
         output_block = self.output_accumulator[: self.hop_size].copy()
 
-        # Shift output accumulator
-        self.output_accumulator[: -self.hop_size] = self.output_accumulator[self.hop_size :]
+        # Shift accumulator for next iteration
+        self.overlap_buffer[:-self.hop_size] = self.overlap_buffer[self.hop_size :]
+        self.overlap_buffer[-self.hop_size :] = 0.0
+        self.output_accumulator[:-self.hop_size] = self.output_accumulator[self.hop_size :]
         self.output_accumulator[-self.hop_size :] = 0.0
 
         return output_block
@@ -1060,8 +1162,8 @@ class SpectralEngine(SynthesisEngine):
         Returns:
             PresetInfo with region descriptors for spectral synthesis
         """
-        from .preset_info import PresetInfo
-        from .region_descriptor import RegionDescriptor
+        from ..preset_info import PresetInfo
+        from ..region_descriptor import RegionDescriptor
 
         # Spectral engine uses FFT-based synthesis with spectrum manipulation
         # Programs define spectral configurations and morphing settings

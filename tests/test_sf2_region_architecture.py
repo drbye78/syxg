@@ -505,12 +505,14 @@ class TestSF2GeneratorParameterCombination:
                     "Missing envelope parameters in generator_params"
                 )
 
-                # Verify parameters are reasonable
+                # Verify envelope parameters are raw int timecents
                 if "amp_attack" in params:
-                    assert params["amp_attack"] >= 0, "Negative amp_attack"
+                    assert isinstance(params["amp_attack"], int), "amp_attack should be raw int"
 
                 if "filter_cutoff" in params:
-                    assert params["filter_cutoff"] > 0, "Invalid filter_cutoff"
+                    assert isinstance(params["filter_cutoff"], int), (
+                        f"filter_cutoff should be raw int cents, got {type(params['filter_cutoff']).__name__}"
+                    )
 
                 return  # Test passed for first valid preset
 

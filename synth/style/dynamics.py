@@ -7,10 +7,10 @@ the intensity/energy of accompaniment playback.
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from threading import RLock
 from typing import Any
 
 
@@ -75,7 +75,7 @@ class StyleDynamics:
     """
 
     _dynamics_value: int = 64
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _lock: RLock = field(default_factory=RLock, repr=False)
 
     _curves: dict[DynamicsParameter, DynamicsCurve] = field(default_factory=dict)
     _callbacks: list[Callable[[int, dict[DynamicsParameter, float]], None]] = field(
@@ -145,8 +145,8 @@ class StyleDynamics:
         self,
         parameter: DynamicsParameter,
         curve: str,
-        min_value: float = None,
-        max_value: float = None,
+        min_value: float | None = None,
+        max_value: float | None = None,
     ):
         """Set dynamics curve for a parameter"""
         with self._lock:
@@ -159,7 +159,12 @@ class StyleDynamics:
                     curve,
                 )
             else:
-                self._curves[parameter] = DynamicsCurve(parameter, 0.0, 1.0, curve)
+                self._curves[parameter] = DynamicsCurve(
+                    parameter,
+                    min_value if min_value is not None else 0.0,
+                    max_value if max_value is not None else 1.0,
+                    curve,
+                )
 
     def get_parameter(self, parameter: DynamicsParameter) -> float:
         """Get current value for a specific parameter"""

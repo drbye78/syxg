@@ -224,6 +224,8 @@ class FileParser:
         from .ump_packets import (
             MIDI1ChannelVoicePacket,
             MIDI2ChannelVoicePacket,
+            PerNoteControllerUMP,
+            PerNoteManagementUMP,
             SysExUMP,
             UtilityUMP,
         )
@@ -234,6 +236,14 @@ class FileParser:
             if isinstance(packet, MIDI2ChannelVoicePacket):
                 # Convert MIDI 2.0 packet to MIDIMessage
                 msg = self._convert_midi2_packet_to_message(packet)
+                if msg:
+                    messages.append(msg)
+            elif isinstance(packet, PerNoteControllerUMP):
+                msg = self._convert_per_note_controller(packet)
+                if msg:
+                    messages.append(msg)
+            elif isinstance(packet, PerNoteManagementUMP):
+                msg = self._convert_per_note_management(packet)
                 if msg:
                     messages.append(msg)
             elif isinstance(packet, MIDI1ChannelVoicePacket):
@@ -401,6 +411,42 @@ class FileParser:
             MIDIMessage object or None
         """
         return MIDIMessage(type="sysex", data={"raw_data": list(packet.sys_ex_data)}, timestamp=0.0)
+
+    def _convert_per_note_controller(self, packet) -> MIDIMessage | None:
+        """
+        Convert Per-Note Controller UMP to MIDIMessage.
+
+        Per-Note Controllers carry MIDI controller values for a specific note
+        with 24-bit precision.
+        """
+        return MIDIMessage(
+            type="midi2_per_note_controller",
+            channel=packet.channel,
+            data={
+                "note": packet.note,
+                "controller": packet.controller_index,
+                "value": packet.value,
+                "value_24bit": packet.value,
+                "is_midi2": True,
+                "midi_group": packet.group,
+            },
+            timestamp=0.0,
+        )
+
+    def _convert_per_note_management(self, packet) -> MIDIMessage | None:
+        """
+        Convert Per-Note Management UMP to MIDIMessage.
+        """
+        return MIDIMessage(
+            type="midi2_per_note_management",
+            channel=packet.channel,
+            data={
+                "note": packet.note,
+                "flags": packet.flags,
+                "midi_group": packet.group,
+            },
+            timestamp=0.0,
+        )
 
     def _convert_utility_packet_to_message(self, packet) -> MIDIMessage | None:
         """

@@ -50,7 +50,8 @@ class MIDIMessageProcessor:
         """
         with self.lock:
             # Check if this looks like UMP data (starts with valid UMP message type)
-            if len(message_bytes) >= 4:
+            # Note: 0xF0 (SYSEX start byte) has top nibble 0xF, so check for it first
+            if len(message_bytes) >= 4 and message_bytes[0] != 0xF0:
                 first_word = struct.unpack(">I", message_bytes[:4])[0]
                 ump_type = (first_word >> 28) & 0xF
 
