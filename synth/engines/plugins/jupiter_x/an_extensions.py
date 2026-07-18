@@ -40,7 +40,7 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
     def __init__(self):
         metadata = PluginMetadata(
             name="Jupiter-X AN Extensions",
-            version="1.0.0",
+            version="1.1.0",
             description="Yamaha Motif AN physical modeling synthesis",
             author="Jupiter-X Development Team",
             plugin_type=PluginType.SYNTHESIS_FEATURE,

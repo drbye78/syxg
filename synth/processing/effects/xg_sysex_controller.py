@@ -479,7 +479,7 @@ class XGSYSEXController:
         version_data = [
             0x02,
             0x00,
-            0x00,  # Version 2.0.0
+            0x00,  # Version 1.1.0
             0x58,
             0x47,  # "XG" identifier
         ]

@@ -931,7 +931,7 @@ class JV2080ComponentManager:
                 "mfx": self.components["mfx"].get_mfx_info(),
                 "insert_effects": self.components["insert_fx"].get_insert_effects_info(),
                 "component_count": len(self.components),
-                "firmware_version": "1.0.0",
+                "firmware_version": "1.1.0",
             }
 
     def process_parameter_change(self, address: bytes, value: int) -> bool:

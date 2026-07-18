@@ -791,7 +791,7 @@ class XGSystem:
                 "backup_settings": getattr(self, "backup_settings", []),
                 "restore_settings": getattr(self, "restore_settings", []),
                 "update_settings": getattr(self, "update_settings", []),
-                "firmware_version": getattr(self, "firmware_version", "1.0.0"),
+                "firmware_version": getattr(self, "firmware_version", "1.1.0"),
                 "hardware_version": getattr(self, "hardware_version", "1.0"),
                 "serial_number": getattr(self, "serial_number", ""),
                 "model_name": getattr(self, "model_name", "XG Synthesizer"),

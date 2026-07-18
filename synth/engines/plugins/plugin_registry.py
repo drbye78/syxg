@@ -455,7 +455,7 @@ class PluginRegistry:
         return compatible_plugins
 
     def validate_plugin_compatibility(
-        self, plugin_name: str, engine_type: str, engine_version: str = "1.0.0"
+        self, plugin_name: str, engine_type: str, engine_version: str = "1.1.0"
     ) -> bool:
         """
         Validate plugin compatibility with an engine.

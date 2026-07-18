@@ -68,7 +68,7 @@ from .style_ots import OneTouchSettings, OTSPreset
 from .style_player import SectionTransition, StylePlayer
 from .style_track import StyleTrack, TrackType
 
-__version__ = "1.2.0"
+__version__ = "1.1.0"
 
 __all__ = [
     # Core

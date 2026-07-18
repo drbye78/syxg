@@ -46,7 +46,7 @@ from .types import (
 )
 
 # Version and Metadata
-__version__ = "2.0.0"
+__version__ = "1.1.0"
 __author__ = "XG Synthesis Core"
 __description__ = "Complete XG Effects Processing System"
 

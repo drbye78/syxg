@@ -48,7 +48,7 @@ from .modifiers import SF2SampleModifier
 from .nrpn import YamahaNRPNMapper, midi_note_to_frequency
 from .sart2_region import SArt2Region, SArt2RegionFactory
 
-__version__ = "3.1.0"
+__version__ = "1.1.0"
 
 __all__ = [
     "ARTICULATION_ALIASES",

@@ -1052,7 +1052,7 @@ class Synthesizer:
         """Get comprehensive system information."""
         with self.lock:
             return {
-                "version": "2.0.0",
+                "version": "1.1.0",
                 "sample_rate": self.sample_rate,
                 "buffer_size": self.buffer_size,
                 "engines_registered": len(self.engines),

@@ -731,7 +731,7 @@ class JupiterXSysExController:
         # Roland manufacturer ID: 00 00 41 (little endian)
         # Jupiter-X family code: 64 00
         # Jupiter-X model code: 00 00
-        # Version: 01 00 00 00 (1.0.0.0)
+        # Version: 01 01 00 00 (1.1.0.0)
         identity_reply = [
             0xF0,  # Start of SysEx
             0x7E,  # Universal SysEx (non-realtime)
@@ -760,7 +760,7 @@ class JupiterXSysExController:
             "manufacturer": "Roland",
             "family": "Jupiter-X",
             "model": "Jupiter-X",
-            "version": "1.0.0.0",
+            "version": "1.1.0.0",
         }
 
     def _handle_sds_sample_dump_header(self, data: bytes) -> dict[str, Any]:

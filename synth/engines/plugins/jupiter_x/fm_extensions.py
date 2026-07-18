@@ -42,7 +42,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         """Get plugin metadata for registration."""
         return PluginMetadata(
             name="Jupiter-X FM Extensions",
-            version="1.0.0",
+            version="1.1.0",
             description="Advanced FM synthesis features from Roland Jupiter-X",
             author="Jupiter-X Development Team",
             plugin_type=PluginType.SYNTHESIS_FEATURE,
@@ -74,7 +74,7 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         # Create metadata first before calling parent constructor
         metadata = PluginMetadata(
             name="Jupiter-X FM Extensions",
-            version="1.0.0",
+            version="1.1.0",
             description="Advanced FM synthesis features from Roland Jupiter-X",
             author="Jupiter-X Development Team",
             plugin_type=PluginType.SYNTHESIS_FEATURE,

@@ -41,7 +41,7 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
     def __init__(self):
         metadata = PluginMetadata(
             name="Jupiter-X Digital Extensions",
-            version="1.0.0",
+            version="1.1.0",
             description="Advanced wavetable synthesis from Roland Jupiter-X",
             author="Jupiter-X Development Team",
             plugin_type=PluginType.SYNTHESIS_FEATURE,

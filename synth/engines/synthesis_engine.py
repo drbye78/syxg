@@ -540,7 +540,7 @@ class EnginePluginManager:
                 "path": str(file_path),
                 "module_path": str(file_path),
                 "description": "",
-                "version": "1.0.0",
+                "version": "1.1.0",
                 "author": "Unknown",
                 "engines": [],
             }

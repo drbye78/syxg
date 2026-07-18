@@ -306,7 +306,7 @@ class JupiterXEngineIntegration(SynthesisEngine):
         # Engine metadata
         self.name = "Jupiter-X"
         self.description = "Roland Jupiter-X synthesizer with 4-engine architecture"
-        self.version = "1.0.0"
+        self.version = "1.1.0"
 
         # Capabilities
         self.capabilities = {

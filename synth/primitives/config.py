@@ -185,7 +185,7 @@ class SynthConfig:
         self.interface = InterfaceConfig()
 
         # Configuration metadata
-        self.version = "2.0.0"
+        self.version = "1.1.0"
         self.last_modified = None
         self.created = None
 

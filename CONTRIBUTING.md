@@ -438,7 +438,7 @@ Intermittent crackling/popping sounds
 Environment:
 - OS: Ubuntu 22.04
 - Python: 3.9.7
-- XG Synthesizer: 1.0.0
+- XG Synthesizer: 1.1.0
 - Audio: ALSA, 48kHz
 
 Additional info:

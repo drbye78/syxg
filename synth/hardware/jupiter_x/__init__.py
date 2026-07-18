@@ -46,7 +46,7 @@ from .synthesizer import JupiterXSynthesizer, JupiterXSynthesizerInterface
 from .sysex_controller import JupiterXSysExController
 from .unified_parameter_system import JupiterXUnifiedParameterSystem
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Jupiter-X Development Team"
 
 __all__ = [

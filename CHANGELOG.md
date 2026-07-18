@@ -2,7 +2,25 @@
 
 All notable changes to the XG Synthesizer project are documented here.
 
-## [Unreleased]
+## [1.1.0] — 2026-07-19
+
+### Added
+- SF2→JSONL sample library exporter (`sf2_to_jsonl.py`) for compact, diff-friendly sample packaging
+- New synthesis engines: additive, convolution, granular, spectral, wavetable, and FDSP (S90/S70)
+- Expanded test coverage across DSP, engines, and protocols
+- XGChannelParameterManager connected via Channel._xg_param_manager
+- 6 NRPN-derived values and 12 XG parameters flow through _collect_modulation_values()
+- SF2PartModeIntegrator for XG/GS part mode routing
+- Sysex handling in realtime.py → XGSynthesizerSystem.process_sysex()
+- Part mode change callback in XGSynthesizerSystem
+- S.Art2 SYSEX command system (8 sub-commands, 4 parsers, 3 builders, checksum)
+- S.Art2 compatibility mode routing (XG_ARTICULATION_MAP / GS_ARTICULATION_MAP)
+- ArticulationPreset with CATEGORY_ALIASES, velocity/key splits
+- SF2SampleModifier with 28 articulation methods (pitch, envelope, modulation, noise)
+- Scratch buffer system for zero-allocation DSP (Phase 3)
+- S.Art2 parameter routing through modulation dict (Phase 2)
+- 35 audio-quality DSP tests for modifiers (pitch accuracy, envelopes, boundaries)
+- Stereo width control via modulation dict (previously always 1.0)
 
 ### Fixed
 - Exponential (dB-based) ADSR envelope curves replacing linear ramps
@@ -34,23 +52,6 @@ All notable changes to the XG Synthesizer project are documented here.
 - 28 method-level imports moved to module top
 - 16 pre-existing ruff warnings fixed
 - Jupiter-X arpeggiator crash (empty __all__) fixed
-
-### Added
-- XGChannelParameterManager connected via Channel._xg_param_manager
-- 6 NRPN-derived values and 12 XG parameters flow through _collect_modulation_values()
-- SF2PartModeIntegrator for XG/GS part mode routing
-- Sysex handling in realtime.py → XGSynthesizerSystem.process_sysex()
-- Part mode change callback in XGSynthesizerSystem
-- S.Art2 SYSEX command system (8 sub-commands, 4 parsers, 3 builders, checksum)
-- S.Art2 compatibility mode routing (XG_ARTICULATION_MAP / GS_ARTICULATION_MAP)
-- ArticulationPreset with CATEGORY_ALIASES, velocity/key splits
-- SF2SampleModifier with 28 articulation methods (pitch, envelope, modulation, noise)
-- Scratch buffer system for zero-allocation DSP (Phase 3)
-- S.Art2 parameter routing through modulation dict (Phase 2)
-- 35 audio-quality DSP tests for modifiers (pitch accuracy, envelopes, boundaries)
-- Stereo width control via modulation dict (previously always 1.0)
-
-### Fixed
 - S.Art2 modifiers.py: linear-interpolation resampling replacing nearest-neighbour
 - S.Art2 modifiers.py: one-pole IIR filters replacing boxcar convolutions (5 methods)
 - S.Art2 modifiers.py: apply_bend AM bug → real pitch shift
@@ -61,6 +62,8 @@ All notable changes to the XG Synthesizer project are documented here.
 - S.Art2 sart2_region.py: _apply_note_on_articulation handles 17 articulations (5 categories)
 - S.Art2 sart2_region.py: _apply_articulation_to_modulation maps to all 12 gs_* keys
 - S.Art2 controllers.py: SYSEX COMMANDS dict, 3 new parsers, 3 builders, _find_nrpn
+
+## [Unreleased]
 
 ## [2026-04-14] — Modular Restructure
 
