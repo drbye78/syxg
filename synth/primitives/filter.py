@@ -391,12 +391,15 @@ class UltraFastResonantFilter:
             # Calculate effective parameters accounting for modulation
             stereo_width = self.modulated_stereo_width
 
-            # Account for stereo effects - only apply for stereo processing
+            # Account for stereo effects - only apply for stereo processing.
+            # Use a gentle, symmetric cutoff offset so the two channels stay
+            # close in level (a wide shift unbalances L/R and sounds like
+            # corruption). stereo_width is 0..1; map to a +/-12% cutoff spread.
             if stereo_width > 0.0:  # Only apply stereo effects when stereo width > 0
                 if channel == 0:  # Left channel
-                    stereo_factor = 1.0 - stereo_width * 0.5  # Reduce left channel frequency
+                    stereo_factor = 1.0 - stereo_width * 0.12  # Reduce left channel frequency
                 else:  # Right channel
-                    stereo_factor = 1.0 + stereo_width * 0.5  # Increase right channel frequency
+                    stereo_factor = 1.0 + stereo_width * 0.12  # Increase right channel frequency
             else:
                 stereo_factor = 1.0  # No stereo effect for mono
 

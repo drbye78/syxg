@@ -25,9 +25,9 @@ SF2_GENERATORS: dict[int, dict[str, Any]] = {
     # Filter
     8: {
         "name": "initialFilterFc",
-        "default": -200,
-        "range": (-200, 17800),
-    },  # 100Hz to 20kHz in cents
+        "default": 13500,
+        "range": (1500, 13500),
+    },  # SF2 spec: 1500..13500 cents (~19.7Hz..19.7kHz); default = open filter
     9: {"name": "initialFilterQ", "default": 0, "range": (0, 960)},
     # More modulation routing
     10: {"name": "modLfoToFilterFc", "default": 0, "range": (-12000, 12000)},
@@ -35,6 +35,7 @@ SF2_GENERATORS: dict[int, dict[str, Any]] = {
     # Address offsets (continued)
     12: {"name": "endAddrsCoarseOffset", "default": 0, "range": (-32768, 32767)},
     13: {"name": "modLfoToVolume", "default": 0, "range": (-960, 960)},
+    14: {"name": "vibLfoToVolume", "default": 0, "range": (-960, 960)},
     # Effects sends
     15: {"name": "chorusEffectsSend", "default": 0, "range": (0, 1000)},
     16: {"name": "reverbEffectsSend", "default": 0, "range": (0, 1000)},
@@ -49,7 +50,7 @@ SF2_GENERATORS: dict[int, dict[str, Any]] = {
     26: {"name": "attackModEnv", "default": -12000, "range": (-12000, 8000)},
     27: {"name": "holdModEnv", "default": -12000, "range": (-12000, 5000)},
     28: {"name": "decayModEnv", "default": -12000, "range": (-12000, 8000)},
-    29: {"name": "sustainModEnv", "default": -12000, "range": (-12000, 1000)},
+    29: {"name": "sustainModEnv", "default": 0, "range": (0, 1000)},
     30: {"name": "releaseModEnv", "default": -12000, "range": (-12000, 8000)},
     # Key number to modulation envelope hold/decay scaling (SF2.01 §8.1.3)
     31: {"name": "keynumToModEnvHold", "default": 0, "range": (-1200, 1200)},
@@ -62,8 +63,8 @@ SF2_GENERATORS: dict[int, dict[str, Any]] = {
     37: {"name": "sustainVolEnv", "default": 0, "range": (0, 1000)},
     38: {"name": "releaseVolEnv", "default": -12000, "range": (-12000, 8000)},
     # Key-number to envelope scaling
-    39: {"name": "keynumToVolEnvHold", "default": 0, "range": (-12000, 12000)},
-    40: {"name": "keynumToVolEnvDecay", "default": 0, "range": (-12000, 12000)},
+    39: {"name": "keynumToVolEnvHold", "default": 0, "range": (-1200, 1200)},
+    40: {"name": "keynumToVolEnvDecay", "default": 0, "range": (-1200, 1200)},
     # Instrument/Preset Linking
     41: {"name": "instrument", "default": -1, "range": (-1, 65535)},
     # LFO → Pan modulation depth (non-standard but used by many soundfonts)

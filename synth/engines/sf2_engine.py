@@ -783,8 +783,8 @@ class SF2Engine(SynthesisEngine):
                 zone.get_generator_value(8, 13500)
             )  # initialFilterFc
             params["filter_resonance"] = (
-                zone.get_generator_value(9, 0) / 10.0
-            )  # initialFilterQ (Q to resonance)
+                0.707 * (10.0 ** (zone.get_generator_value(9, 0) / 200.0))
+            )  # initialFilterQ (centibels -> Q factor, Butterworth at 0 cB)
 
             # Pitch modulation (SF2 generator IDs 51-52, 56)
             params["coarse_tune"] = zone.get_generator_value(51, 0)  # coarseTune

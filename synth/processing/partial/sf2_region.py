@@ -156,6 +156,7 @@ class SF2Region(IRegion):
         "_mod_lfo_to_pan",
         "_mod_lfo_to_pitch",
         "_mod_lfo_to_volume",
+        "_vib_lfo_to_volume",
         "_modulators",
         "_modwheel_mod",
         "_note_start_time",          # Voice stealing: note start timestamp
@@ -184,6 +185,7 @@ class SF2Region(IRegion):
         "_root_key",
         "_sample_data",
         "_sample_position",
+        "_effective_end",  # frame index where playback must stop (gen 1/12 end offset)
         "_sf2_instrument",
         "_sf2_preset",
         "_sf2_zone",
@@ -268,6 +270,7 @@ class SF2Region(IRegion):
         self._coarse_tune: int = 0
         self._fine_tune: float = 0.0
         self._sample_position: float = 0.0
+        self._effective_end: int = 0  # 0 = unset; set by _apply_address_offsets
         self._phase_step: float = 1.0
         self._base_phase_step: float = 1.0
 
@@ -306,6 +309,7 @@ class SF2Region(IRegion):
         # Volume modulation
         self._volume_mod: float = 1.0
         self._mod_lfo_to_volume: float = 0.0
+        self._vib_lfo_to_volume: float = 0.0
         self._mod_env_to_volume: float = 0.0
 
         # Pan
@@ -577,8 +581,60 @@ class SF2Region(IRegion):
         # Cache modulators
         self._modulators = self._sf2_zone.modulators.copy()
 
-        # Cache exclusive class
-        self._exclusive_class = self._generator_params.get(53, 0)  # exclusiveClass
+        # Cache exclusive class (SF2 gen 57)
+        self._exclusive_class = self._get_generator_value(57, 0)  # exclusiveClass
+
+        # Apply SF2 address-offset generators (0-4, 12, 45, 50) to loop/playback bounds
+        self._apply_address_offsets()
+
+    def _apply_address_offsets(self) -> None:
+        """
+        Apply SF2 address-offset generators to loop and playback bounds.
+
+        SF2.01 §8.1.3: fine offsets are in sample words; coarse offsets are
+        32768 sample words. Stereo samples store 2 words per frame, so word
+        offsets are divided by 2 to land on frame boundaries (matching the
+        stereo handling in ``get_sample_loop_info``). Mono samples use 1 word
+        per frame, so no division is applied.
+
+        Offsets are applied to the cached frame-space bounds (``_loop_start``,
+        ``_loop_end``, ``_sample_position``, ``_effective_end``) only. The
+        shared ``_sample_data`` array is never mutated, so concurrent voices
+        that share the same sample cache are unaffected.
+        """
+        if self._sample_data is None or len(self._sample_data) == 0:
+            return
+
+        # 1 word = 1 frame for mono; 2 words = 1 frame for stereo.
+        words_per_frame = 2 if self.descriptor.is_stereo else 1
+
+        def offset_frames(fine_gen: int, coarse_gen: int) -> int:
+            words = self._get_generator_value(fine_gen, 0) + 32768 * self._get_generator_value(
+                coarse_gen, 0
+            )
+            # Floor toward zero to stay within the source frame; clamp to >= 0.
+            frames = words // words_per_frame if words >= 0 else -((-words) // words_per_frame)
+            return frames
+
+        start_off = offset_frames(0, 4)  # gen0 startAddrsOffset + gen4 startAddrsCoarseOffset
+        end_off = offset_frames(1, 12)  # gen1 endAddrsOffset + gen12 endAddrsCoarseOffset
+        loop_start_off = offset_frames(2, 45)  # gen2 + gen45
+        loop_end_off = offset_frames(3, 50)  # gen3 + gen50
+
+        sample_length = len(self._sample_data)
+
+        # Playback start position (gen0/gen4)
+        self._sample_position = float(max(0, min(start_off, sample_length - 1)))
+
+        # Loop bounds (gen2/3 + gen45/50)
+        if self._loop_start > 0 or self._loop_end > 0:
+            self._loop_start = max(0, self._loop_start + loop_start_off)
+            self._loop_end = max(self._loop_start + 1, self._loop_end + loop_end_off)
+            self._loop_end = min(self._loop_end, sample_length - 1)
+
+        # Effective end-of-sample bound (gen1/gen12). The render path stops at
+        # len(mip_data) for one-shot regions, so record an explicit bound here.
+        self._effective_end = max(0, min(sample_length - 1, sample_length - 1 + end_off))
 
     def _get_generator_value(self, gen_type: int, default: int = 0) -> int:
         """
@@ -678,7 +734,7 @@ class SF2Region(IRegion):
             },
             # Filter (nested, SF2 gen 8-9)
             "filter": {
-                "cutoff": self._cents_to_frequency(self._get_generator_value(8, 13500)),
+                "cutoff": self._cents_to_frequency(self._get_filter_cutoff_cents()),
                 "resonance": self._get_generator_value(9, 0) / 10.0,
                 "type": "lowpass",
             },
@@ -721,8 +777,36 @@ class SF2Region(IRegion):
         return 2.0 ** (timecents / 1200.0)
 
     def _cents_to_frequency(self, cents: int) -> float:
-        """Convert SF2 cents to frequency in Hz."""
-        return 440.0 * (2.0 ** (cents / 1200.0))
+        """Convert SF2 absolute cents to frequency in Hz.
+
+        SF2 specifies pitch in absolute cents where 0 cents = C0 = 8.176 Hz
+        (MIDI note 0), NOT 440 Hz. Using 440 Hz as the base shifts every
+        computed frequency (notably the initialFilterFc lowpass cutoff) by
+        ~5 octaves, which silently mutes most instruments.
+        """
+        return 8.176 * (2.0 ** (cents / 1200.0))
+
+    # SF2 spec valid range for initialFilterFc (gen 8): 1500..13500 cents
+    # (~19.7 Hz .. ~19.7 kHz). Values outside this range are corrupt data and
+    # must be clamped, otherwise the lowpass collapses to sub-audio and the
+    # voice goes silent. The spec default is 13500 (open filter).
+    _SF2_FILTER_FC_MIN = 1500
+    _SF2_FILTER_FC_MAX = 13500
+
+    def _get_filter_cutoff_cents(self) -> int:
+        """Read initialFilterFc (gen 8), clamped to the valid SF2 range.
+
+        The SF2 spec range is 1500..13500 cents. Values below 1500 are corrupt
+        (e.g. a negative generator from a broken soundfont). Clamping such a
+        value to the 1500 minimum still yields a sub-audio lowpass (~19 Hz)
+        that mutes the voice, so for clearly-invalid values we fall back to the
+        spec default (13500 = open filter), which preserves the intended
+        bright timbre instead of silencing the note.
+        """
+        raw = self._get_generator_value(8, self._SF2_FILTER_FC_MAX)
+        if raw < self._SF2_FILTER_FC_MIN:
+            return self._SF2_FILTER_FC_MAX
+        return min(self._SF2_FILTER_FC_MAX, raw)
 
     def _init_lfos(self) -> None:
         """Initialize LFO objects from SF2 generators (zero-allocation)."""
@@ -758,7 +842,8 @@ class SF2Region(IRegion):
         self._vib_lfo_to_pitch = self._get_generator_value(6, 0) / 100.0  # vibLfoToPitch
         self._mod_lfo_to_pitch = self._get_generator_value(5, 0) / 100.0  # modLfoToPitch
         self._mod_lfo_to_filter = self._get_generator_value(10, 0) / 1200.0  # modLfoToFilterFc
-        self._mod_lfo_to_volume = self._get_generator_value(13, 0) / 10.0  # modLfoToVolume
+        self._mod_lfo_to_volume = self._get_generator_value(13, 0) / 960.0  # modLfoToVolume
+        self._vib_lfo_to_volume = self._get_generator_value(14, 0) / 960.0  # vibLfoToVolume
         # vib_lfo_to_pan: NOT stored at gen 35 (gen 35 = holdVolEnv). Disabled.
         self._vib_lfo_to_pan = 0.0
         self._mod_lfo_to_pan = self._get_generator_value(42, 0) / 10.0
@@ -882,7 +967,7 @@ class SF2Region(IRegion):
         """Initialize filters from SF2 generator parameters."""
         from ...primitives.filter import UltraFastResonantFilter
 
-        cutoff = self._cents_to_frequency(self._get_generator_value(8, 13500))  # initialFilterFc
+        cutoff = self._cents_to_frequency(self._get_filter_cutoff_cents())  # initialFilterFc
         # SF2 initialFilterQ is in centibels (0.1 dB increments). Convert to Q factor.
         # 0 centibels = 0 dB boost = Butterworth Q ≈ 0.707
         # Formula: Q_factor = 0.707 * 10^(ceB / 200)
@@ -901,10 +986,6 @@ class SF2Region(IRegion):
             sample_rate=self.sample_rate,
         )
         self._filters["filter"] = filter_obj
-
-        # Initialize VCF key tracking (gen 31)
-        vcf_key_track = self._get_generator_value(31, 0)  # -1200 to +1200 cents
-        self._filter_key_track = vcf_key_track / 100.0  # Convert to semitones
 
     def _allocate_buffers_for_block(self, block_size: int) -> None:
         """Allocate buffers for specific block size (zero-allocation)."""
@@ -974,6 +1055,7 @@ class SF2Region(IRegion):
 
         # Reset playback position
         self._sample_position = 0.0
+        self._effective_end = 0
         self._active = True
         self._note_start_time = time.time()
         self._calculate_phase_step()
@@ -1010,8 +1092,11 @@ class SF2Region(IRegion):
         # Load panning (gen 17)
         self._pan_position = self._get_generator_value(17, 0) / 500.0  # pan
 
-        # Load initial attenuation (gen 48) — centibels, 0-1000
-        self._initial_attenuation_db = self._get_generator_value(48, 0) / 10.0
+        # Load initial attenuation (gen 48) — centibels, valid SF2 range 0-1000
+        # (attenuation is always >= 0; negative values are invalid and clamped
+        # to 0 so a corrupt generator cannot become a gain boost).
+        _att_cB = max(0, min(1000, self._get_generator_value(48, 0)))
+        self._initial_attenuation_db = _att_cB / 10.0
 
         # Load stereo width (default 1.0 = normal)
         self._stereo_width = 1.0
@@ -1621,7 +1706,7 @@ class SF2Region(IRegion):
 
         try:
             # Get base filter parameters
-            base_cutoff = self._cents_to_frequency(self._get_generator_value(8, 13500))  # initialFilterFc
+            base_cutoff = self._cents_to_frequency(self._get_filter_cutoff_cents())  # initialFilterFc
             # SF2 initialFilterQ is in centibels: convert to Q factor (Butterworth at 0 ceB)
             sf2_q_centibels = self._get_generator_value(9, 0)  # initialFilterQ
             base_resonance = 0.707 * (10.0 ** (sf2_q_centibels / 200.0))
@@ -1691,6 +1776,11 @@ class SF2Region(IRegion):
         # Apply tremolo (mod LFO → volume)
         if self._mod_lfo_to_volume != 0.0 and self._mod_lfo_buffer is not None:
             tremolo = 1.0 + self._mod_lfo_buffer[:block_size] * self._mod_lfo_to_volume * 0.5
+            output[:, :] *= tremolo[:, np.newaxis]
+
+        # Apply tremolo (vib LFO → volume, SF2 gen 14)
+        if self._vib_lfo_to_volume != 0.0 and self._vib_lfo_buffer is not None:
+            tremolo = 1.0 + self._vib_lfo_buffer[:block_size] * self._vib_lfo_to_volume * 0.5
             output[:, :] *= tremolo[:, np.newaxis]
 
         # Apply tremolo depth from CC92
@@ -2011,6 +2101,15 @@ class SF2Region(IRegion):
         decimation_factor = 2**mip_level
         mip_sample_length = len(mip_data)
 
+        # Effective end-of-sample bound from gen1/gen12 address offsets (in mip space).
+        # Falls back to the full mip length when no end offset was applied.
+        effective_end_mip = (
+            self._effective_end // decimation_factor
+            if self._effective_end > 0
+            else mip_sample_length
+        )
+        effective_end_mip = max(1, min(effective_end_mip, mip_sample_length))
+
         pos = self._sample_position / decimation_factor
         loop_start_mip = self._loop_start / decimation_factor
         loop_end_mip = self._loop_end / decimation_factor
@@ -2023,7 +2122,7 @@ class SF2Region(IRegion):
                 output,
                 block_size,
                 mip_data,
-                mip_sample_length,
+                effective_end_mip,
                 pos,
                 loop_start_mip,
                 loop_end_mip,
@@ -2090,13 +2189,13 @@ class SF2Region(IRegion):
                     read_positions[in_loop] -= wraps * loop_length
 
         elif self._loop_mode == 0:
-            past_end = read_positions >= mip_sample_length
+            past_end = read_positions >= effective_end_mip
             if np.any(past_end):
-                read_positions[past_end] = mip_sample_length - 1
+                read_positions[past_end] = effective_end_mip - 1
                 self.state = RegionState.RELEASING
 
         # 5. Clamp positions to safe range
-        read_positions = np.clip(read_positions, 0, mip_sample_length - 1)
+        read_positions = np.clip(read_positions, 0, effective_end_mip - 1)
 
         # 6. Linear interpolation (vectorized over entire block)
         int_pos = np.floor(read_positions).astype(np.int64)

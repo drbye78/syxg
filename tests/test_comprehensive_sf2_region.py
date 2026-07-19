@@ -515,15 +515,19 @@ class TestSF2Region:
         assert abs(sf2_region._timecents_to_seconds(1200) - 2.0) < 0.01
 
     def test_region_cents_to_frequency(self, sf2_region):
-        """Test SF2Region._cents_to_frequency()."""
-        # 0 cents = 440 Hz
-        assert abs(sf2_region._cents_to_frequency(0) - 440.0) < 0.1
+        """Test SF2Region._cents_to_frequency().
 
-        # 1200 cents = 880 Hz (one octave up)
-        assert abs(sf2_region._cents_to_frequency(1200) - 880.0) < 0.1
+        SF2 absolute cents use base 8.176 Hz (0 cents = C0 / MIDI note 0),
+        not 440 Hz. One octave = 1200 cents.
+        """
+        # 0 cents = 8.176 Hz (C0)
+        assert abs(sf2_region._cents_to_frequency(0) - 8.176) < 0.01
 
-        # -1200 cents = 220 Hz (one octave down)
-        assert abs(sf2_region._cents_to_frequency(-1200) - 220.0) < 0.1
+        # 1200 cents = 16.352 Hz (one octave up from C0)
+        assert abs(sf2_region._cents_to_frequency(1200) - 16.352) < 0.01
+
+        # -1200 cents = 4.088 Hz (one octave down from C0)
+        assert abs(sf2_region._cents_to_frequency(-1200) - 4.088) < 0.01
 
     def test_region_builds_partial_params(self, sf2_region):
         """Test SF2Region._build_partial_params_from_generators()."""
