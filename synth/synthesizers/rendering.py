@@ -405,6 +405,7 @@ class ModernXGSynthesizer:
         gs_enabled: bool = True,
         mpe_enabled: bool = True,
         midi_2_enabled: bool = False,
+        acoustic_behavior: bool = True,
         device_id: int = 0x10,
         gs_mode: str = "auto",
         s90_mode: bool = False,
@@ -428,6 +429,7 @@ class ModernXGSynthesizer:
         self.gs_enabled = gs_enabled
         self.mpe_enabled = mpe_enabled
         self.midi_2_enabled = midi_2_enabled
+        self.acoustic_behavior_enabled = acoustic_behavior
         self.device_id = device_id
         self.gs_mode = gs_mode
         self.s90_mode = s90_mode  # S90/S70 compatibility flag
@@ -458,6 +460,10 @@ class ModernXGSynthesizer:
 
         # Set default block size
         self.block_size = 1024
+
+        # Effects pipeline + S.Art2 articulation enable flags (toggleable at runtime)
+        self.effects_enabled = True
+        self.sart2_enabled = True
 
         # Thread safety
         self.lock = threading.RLock()
@@ -576,6 +582,16 @@ class ModernXGSynthesizer:
         # Create channels
         self.channels = []
         self._create_channels()
+
+        # Register the acoustic behavior layer as a discoverable feature.
+        # SynthesisEngineRegistry has no register_feature method, so the
+        # feature is tracked in its own module-level registry.
+        try:
+            from ..engines.acoustic.engine import AcousticBehaviorFeature
+
+            AcousticBehaviorFeature().register(self.engine_registry)
+        except ImportError:  # pragma: no cover - optional layer
+            pass
 
         # Effects coordinator with GS integration
         self.effects_coordinator = XGEffectsCoordinator(
@@ -708,6 +724,8 @@ class ModernXGSynthesizer:
                     "effects_sends": {"reverb": 40, "chorus": 0, "variation": 0},
                 }
 
+            channel.set_acoustic_behavior_enabled(self.acoustic_behavior_enabled)
+
             self.channels.append(channel)
 
     def _init_xg_system(self):
@@ -808,9 +826,7 @@ class ModernXGSynthesizer:
             ):
                 # Get the FM engine instance to pass to the plugin
                 fm_engine = self.engine_registry.get_engine("fm")
-                success = fm_engine.load_plugin(
-                    "jupiter_x.fm_extensions.JupiterXFMPlugin"
-                )
+                success = fm_engine.load_plugin("jupiter_x.fm_extensions.JupiterXFMPlugin")
                 if success:
                     logger.info("✅ Jupiter-X FM plugin loaded successfully")
                 else:
@@ -1594,6 +1610,36 @@ class ModernXGSynthesizer:
         if hasattr(self, "mpe_system") and self.mpe_system:
             self.mpe_system.set_mpe_enabled(enabled)
 
+    def set_acoustic_behavior_enabled(self, enabled: bool) -> None:
+        """Globally enable/disable the acoustic behavior layer for all channels."""
+        self.acoustic_behavior_enabled = bool(enabled)
+        for ch in self.channels:
+            ch.set_acoustic_behavior_enabled(self.acoustic_behavior_enabled)
+
+    def set_sart2_enabled(self, enabled: bool) -> None:
+        """Globally enable/disable S.Art2 articulation processing on all engines.
+
+        S.Art2 is applied per-region by each synthesis engine via its
+        ``sart2_enabled`` flag. Toggling here flips that flag on every
+        registered engine so articulation modifiers (vibrato, trill, growl,
+        etc.) are bypassed when disabled.
+        """
+        self.sart2_enabled = bool(enabled)
+        for engine in self.engine_registry.get_registered_engines():
+            try:
+                engine.sart2_enabled = self.sart2_enabled
+            except Exception:  # pragma: no cover - defensive
+                pass
+
+    def set_effects_enabled(self, enabled: bool) -> None:
+        """Globally enable/disable the XG effects pipeline.
+
+        When disabled, the render path skips ``effects_coordinator`` processing
+        (system reverb/chorus, variation, insertion effects, master EQ), passing
+        the dry channel mix straight to the output buffer.
+        """
+        self.effects_enabled = bool(enabled)
+
     def reset_mpe(self):
         """Reset MPE system"""
         if hasattr(self, "mpe_system") and self.mpe_system:
@@ -1620,10 +1666,18 @@ class ModernXGSynthesizer:
         # Update gs_params dict for the audio bridge (read by _collect_modulation_values)
         params: dict[str, int] = {}
         for attr_name in (
-            "volume", "pan", "filter_cutoff", "filter_resonance",
-            "attack_time", "decay_time", "release_time",
-            "vibrato_rate", "vibrato_depth", "vibrato_delay",
-            "reverb_send", "chorus_send",
+            "volume",
+            "pan",
+            "filter_cutoff",
+            "filter_resonance",
+            "attack_time",
+            "decay_time",
+            "release_time",
+            "vibrato_rate",
+            "vibrato_depth",
+            "vibrato_delay",
+            "reverb_send",
+            "chorus_send",
         ):
             if hasattr(gs_part, attr_name):
                 params[attr_name] = getattr(gs_part, attr_name)

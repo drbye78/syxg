@@ -286,7 +286,10 @@ class Synthesizer:
 
         # XG/GS/GM Synthesizer System (production-grade)
         self.xg_synthesizer = XGSynthesizerSystem(
-            sample_rate=self.sample_rate, device_id=0x10, max_polyphony=128, num_parts=self.max_channels
+            sample_rate=self.sample_rate,
+            device_id=0x10,
+            max_polyphony=128,
+            num_parts=self.max_channels,
         )
 
         # Sequencing
@@ -782,12 +785,28 @@ class Synthesizer:
             active_voices = self.voice_manager.get_active_voices()
             channel_buffers = {}
 
+            # Acoustic behavior: advance shared vibrato phase per block for
+            # every channel that has an acoustic context (section coherence).
+            for voice_info in active_voices:
+                ch_obj = getattr(voice_info, "channel_obj", None)
+                if ch_obj is None and hasattr(voice_info, "channel"):
+                    ch_obj = self.voice_manager.get_channel(voice_info.channel)
+                if ch_obj is not None:
+                    ctx = ch_obj.get_acoustic_context()
+                    if ctx is not None:
+                        try:
+                            ctx.advance_vibrato(ctx.config.ensemble.vibrato_rate_hz, num_samples)
+                        except Exception:  # pragma: no cover - defensive
+                            pass
+
             for voice_info in active_voices:
                 channel = voice_info.channel
                 if channel not in channel_buffers:
                     # Lazy-resize pre-allocated per-channel buffer (zero allocation in hot path)
                     if self._channel_buffers[channel] is None or len(self._channel_buffers[channel]) < num_samples:  # type: ignore[arg-type]
-                        self._channel_buffers[channel] = np.zeros((num_samples, 2), dtype=np.float32)
+                        self._channel_buffers[channel] = np.zeros(
+                            (num_samples, 2), dtype=np.float32
+                        )
                     channel_buffer = self._channel_buffers[channel][:num_samples]
                     channel_buffer.fill(0.0)
                     channel_buffers[channel] = channel_buffer
@@ -826,9 +845,7 @@ class Synthesizer:
                     bus_inputs[bus_id].append(buf)
 
             # Process through multi-bus effects pipeline
-            self.effects_coordinator.process_buses_zero_alloc(
-                bus_inputs, num_samples, out
-            )
+            self.effects_coordinator.process_buses_zero_alloc(bus_inputs, num_samples, out)
 
     def _update_performance_stats(self):
         """Update performance statistics."""

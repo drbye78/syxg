@@ -154,6 +154,7 @@ profile_*.py
 *.*backup*
 *debug*.py
 temp*.py
+sf2_metadata.*
 *.sf2
 .aider*
 third_party/

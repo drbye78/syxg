@@ -351,6 +351,16 @@ class Channel:
 
         self.key_pressure_32bit_values: dict[int, int] = {}
         self.channel_pressure_32bit = 0
+
+        # Acoustic behavior context (SuperNATURAL-Acoustic alike cross-note state)
+        # Owned by the channel so it outlives individual voices. Lazily created
+        # to avoid import cost when the behavior layer is unused.
+        self._acoustic_context: Any | None = None
+
+        # Acoustic behavior layer enable flag (defaults to on; the layer is
+        # applied at the voice region-creation seam when this is True).
+        self.acoustic_behavior_enabled: bool = True
+
         self.pitch_bend_32bit = 2147483647  # Center position
         self.vibrato_rate = 0.0
         self.vibrato_depth = 0.0
@@ -371,6 +381,36 @@ class Channel:
 
         # XGChannelParameterManager reference for NRPN parameter access (MSB 3-31)
         self._xg_param_manager = None
+
+    def get_acoustic_context(self) -> Any | None:
+        """Lazily create and return the shared acoustic behavior context.
+
+        Returns None if the behavior layer is unavailable (import failure),
+        so callers must guard on the result.
+        """
+        if not self.acoustic_behavior_enabled:
+            return None
+        if self._acoustic_context is None:
+            try:
+                from ..engines.acoustic.channel_context import ChannelAcousticContext
+
+                self._acoustic_context = ChannelAcousticContext(
+                    sample_rate=self.sample_rate,
+                    channel_number=self.channel_number,
+                    buffer_pool=(
+                        getattr(self.synthesizer, "buffer_pool", None) if self.synthesizer else None
+                    ),
+                )
+            except Exception as exc:  # pragma: no cover - optional layer
+                logger.warning(f"Acoustic context unavailable: {exc}")
+                return None
+        return self._acoustic_context
+
+    def set_acoustic_behavior_enabled(self, enabled: bool) -> None:
+        """Enable/disable the acoustic behavior layer for this channel."""
+        self.acoustic_behavior_enabled = bool(enabled)
+        if not enabled:
+            self._acoustic_context = None
 
     def set_xg_parameter_manager(self, mgr):
         """Set XG parameter manager reference for NRPN parameter access.
@@ -462,6 +502,7 @@ class Channel:
             program=program,
             channel=self.channel_number,
             sample_rate=self.sample_rate,
+            channel_obj=self,
         )
 
         # Set current program for region-based playback
@@ -669,7 +710,7 @@ class Channel:
             if reg._exclusive_class > 0
         }
         if new_excl_classes:
-            for existing_id, existing_vi in list(self.active_voices.items()):
+            for _existing_id, existing_vi in list(self.active_voices.items()):
                 if existing_vi is voice_instance:
                     continue
                 for reg in existing_vi.active_regions:
@@ -684,6 +725,14 @@ class Channel:
         if transposed_note not in self.note_to_voice_ids:
             self.note_to_voice_ids[transposed_note] = []
         self.note_to_voice_ids[transposed_note].append(voice_id)
+
+        # Acoustic behavior: register note-on in shared cross-note context
+        ctx = self.get_acoustic_context()
+        if ctx is not None:
+            try:
+                ctx.note_on(transposed_note, velocity, voice_id, 0.0)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug(f"Acoustic context note_on failed: {exc}")
 
         return True
 
@@ -751,6 +800,15 @@ class Channel:
                 voice_instance.note_off(velocity)
                 # Mark for removal during cleanup (allows release phase to complete)
                 voice_instance._pending_removal = True
+
+        # Acoustic behavior: register note-off in shared cross-note context
+        ctx = self.get_acoustic_context()
+        if ctx is not None:
+            try:
+                for voice_id in voice_ids:
+                    ctx.note_off(transposed_note, voice_id, 0.0)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug(f"Acoustic context note_off failed: {exc}")
 
         # Fallback to legacy single voice if no voices found
         if not voice_ids:
@@ -829,6 +887,19 @@ class Channel:
             elif self.rpn_active:
                 self._handle_rpn_complete(value)
                 self.rpn_active = False
+
+        # Acoustic behavior: mirror continuous controllers into shared context
+        ctx = self.get_acoustic_context()
+        if ctx is not None:
+            try:
+                if controller == 64:  # Sustain pedal
+                    ctx.update_controller("sustain", 1.0 if value >= 64 else 0.0)
+                elif controller == 11:  # Expression
+                    ctx.update_controller("expression", value / 127.0)
+                elif controller == 71:  # Resonance (filter/body)
+                    ctx.update_controller("resonance", value / 127.0)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug(f"Acoustic context controller update failed: {exc}")
 
     def _convert_32bit_to_7bit(self, value_32: int) -> int:
         """
@@ -1165,6 +1236,10 @@ class Channel:
             except Exception:
                 pass
 
+        # Expose raw CC values for the acoustic behavior layer (cc_<n> keys, 0..1)
+        for _cc_idx in range(128):
+            modulation[f"cc_{_cc_idx}"] = self.controllers[_cc_idx] / 127.0
+
         # GS part parameters via GSSysexHandler (bridge from GS sysex → audio)
         if self.gs_params:
             if "volume" in self.gs_params:
@@ -1199,8 +1274,6 @@ class Channel:
                 modulation["gs_chorus_send"] = self.gs_params["chorus_send"] / 127.0
 
         return modulation
-
-
 
     def program_change(self, program: int):
         """

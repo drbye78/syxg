@@ -52,7 +52,14 @@ class VoiceFactory:
         # Optional cache of preset info for faster access
         self._preset_cache: dict[tuple[int, int], PresetInfo] = {}
 
-    def create_voice(self, bank: int, program: int, channel: int, sample_rate: int) -> Voice | None:
+    def create_voice(
+        self,
+        bank: int,
+        program: int,
+        channel: int,
+        sample_rate: int,
+        channel_obj: Any | None = None,
+    ) -> Voice | None:
         """
         Create Voice for preset.
 
@@ -64,6 +71,7 @@ class VoiceFactory:
             program: MIDI program number
             channel: MIDI channel number
             sample_rate: Audio sample rate
+            channel_obj: Optional Channel reference for acoustic behavior
 
         Returns:
             Voice instance or None if preset not found
@@ -87,6 +95,7 @@ class VoiceFactory:
                         channel=channel,
                         sample_rate=sample_rate,
                         buffer_pool=buffer_pool,
+                        channel_obj=channel_obj,
                     )
 
             except Exception as e:

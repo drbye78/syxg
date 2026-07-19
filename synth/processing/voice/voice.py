@@ -51,6 +51,7 @@ class Voice:
         "_reverb_send",
         "_round_robin_state",
         "channel",
+        "channel_obj",
         "engine",
         "preset_info",
         "sample_rate",
@@ -63,6 +64,7 @@ class Voice:
         channel: int,
         sample_rate: int,
         buffer_pool: Any | None = None,
+        channel_obj: Any | None = None,
     ):
         """
         Initialize Voice with preset definition.
@@ -73,12 +75,14 @@ class Voice:
             channel: MIDI channel number (0-15)
             sample_rate: Audio sample rate in Hz
             buffer_pool: Optional BufferPool for zero-allocation audio paths
+            channel_obj: Optional Channel reference for acoustic behavior context
         """
         self.preset_info = preset_info
         self.engine = engine
         self.channel = channel
         self.sample_rate = sample_rate
         self._buffer_pool = buffer_pool
+        self.channel_obj = channel_obj
 
         # Active region instances for current note
         self._active_instances: list[IRegion] = []
@@ -195,6 +199,32 @@ class Voice:
 
             # Optional: cache for reuse
             # self._region_cache[descriptor.region_id] = region
+
+            # Acoustic behavior: wrap with cross-note behavior layer when the
+            # owning channel has an active acoustic context.
+            if self.channel_obj is not None:
+                ctx = self.channel_obj.get_acoustic_context()
+                if ctx is not None:
+                    try:
+                        from ...engines.acoustic.acoustic_behavior_region import (
+                            AcousticBehaviorRegion,
+                        )
+                        from ...engines.acoustic.behavior_config import (
+                            BehaviorConfig,
+                            program_to_group,
+                        )
+
+                        group = program_to_group(self.channel_obj.program)
+                        cfg = BehaviorConfig.for_group(group)
+                        region = AcousticBehaviorRegion(
+                            region,
+                            ctx,
+                            group=group,
+                            config=cfg,
+                            sample_rate=self.sample_rate,
+                        )
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.debug(f"Acoustic wrap skipped: {exc}")
 
             return region
 

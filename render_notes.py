@@ -1,22 +1,30 @@
 #!/usr/bin/env python3
 """
-Test script for rendering notes to MP3 using XG Synthesizer.
+Render MIDI notes to an audio file using the XG Synthesizer.
 
-Renders several notes of a given instrument to an MP3 file with configurable:
+Renders a sequence of notes for a given instrument to an audio file with
+configurable:
 - SoundFont file (default: tests/ref.sf2)
-- MIDI bank (default: 0)
-- MIDI program number (default: 0)
+- MIDI bank / program (default: 0 / 0)
 - Number of notes (default: 10)
 - Optional XGML-based configuration
+- Synthesizer feature flags: XG, GS, MPE, MIDI 2.0, S90 mode, and the
+  acoustic behavior layer (SuperNATURAL-Acoustic alike cross-note modeling)
+
+Feature flags can be set on the command line or via a JSON config file
+(``--config path.json``). Command-line flags override the config file.
+By default the acoustic behavior layer is DISABLED; all other protocol
+features (XG, GS, MPE) keep their library defaults unless overridden.
 
 Each note has:
-- 3 seconds between note on and note off
-- 2 seconds after note off before next note starts
+- ``note-on-duration`` seconds between note-on and note-off
+- ``note-off-duration`` seconds of silence after note-off before the next note
 
 Notes are rendered sequentially with random note numbers and velocities.
 """
 
 import argparse
+import json
 import os
 import random
 import sys
@@ -25,35 +33,154 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from synth.io.audio.writer import AudioWriter
-from synth.synthesizers.rendering import ModernXGSynthesizer
 from synth.io.midi import MIDIMessage, midimessage_to_bytes
+from synth.synthesizers.rendering import ModernXGSynthesizer
 from synth.xgml import XGMLConfigParser, XGMLMIDIBridge
-
 
 DEFAULT_SOUNDFONT = "tests/ref.sf2"
 DEFAULT_MIDI_BANK = 0
 DEFAULT_MIDI_PROGRAM = 0
 DEFAULT_NUM_NOTES = 10
 
+# Feature defaults. Acoustic behavior is OFF by default per project policy;
+# protocol features fall back to the synthesizer's own defaults when not set.
+FEATURE_DEFAULTS = {
+    "xg": None,  # None => use ModernXGSynthesizer default (True)
+    "gs": None,
+    "mpe": None,
+    "midi2": None,
+    "acoustic": False,  # explicitly disabled by default
+    "s90": False,
+    "gs_mode": None,  # None => synthesizer default ("auto")
+    "effects": None,  # None => synthesizer default (enabled)
+    "sart2": None,  # None => synthesizer default (enabled)
+}
+
+
+class FeatureConfig:
+    """Resolved synthesizer feature toggles.
+
+    ``None`` means "use the synthesizer's built-in default" so we only pass
+    explicitly-configured values to the constructor.
+    """
+
+    def __init__(
+        self,
+        xg=None,
+        gs=None,
+        mpe=None,
+        midi2=None,
+        acoustic=False,
+        s90=False,
+        gs_mode=None,
+        effects=None,
+        sart2=None,
+    ):
+        self.xg = xg
+        self.gs = gs
+        self.mpe = mpe
+        self.midi2 = midi2
+        self.acoustic = acoustic
+        self.s90 = s90
+        self.gs_mode = gs_mode
+        self.effects = effects
+        self.sart2 = sart2
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "FeatureConfig":
+        return cls(
+            xg=data.get("xg", FEATURE_DEFAULTS["xg"]),
+            gs=data.get("gs", FEATURE_DEFAULTS["gs"]),
+            mpe=data.get("mpe", FEATURE_DEFAULTS["mpe"]),
+            midi2=data.get("midi2", FEATURE_DEFAULTS["midi2"]),
+            acoustic=data.get("acoustic", FEATURE_DEFAULTS["acoustic"]),
+            s90=data.get("s90", FEATURE_DEFAULTS["s90"]),
+            gs_mode=data.get("gs_mode", FEATURE_DEFAULTS["gs_mode"]),
+            effects=data.get("effects", FEATURE_DEFAULTS["effects"]),
+            sart2=data.get("sart2", FEATURE_DEFAULTS["sart2"]),
+        )
+
+    def merge_cli(self, cli: "FeatureConfig") -> "FeatureConfig":
+        """Return a new config with CLI-provided (non-None) values overriding."""
+        return FeatureConfig(
+            xg=cli.xg if cli.xg is not None else self.xg,
+            gs=cli.gs if cli.gs is not None else self.gs,
+            mpe=cli.mpe if cli.mpe is not None else self.mpe,
+            midi2=cli.midi2 if cli.midi2 is not None else self.midi2,
+            acoustic=cli.acoustic if cli.acoustic is not None else self.acoustic,
+            s90=cli.s90 if cli.s90 is not None else self.s90,
+            gs_mode=cli.gs_mode if cli.gs_mode is not None else self.gs_mode,
+            effects=cli.effects if cli.effects is not None else self.effects,
+            sart2=cli.sart2 if cli.sart2 is not None else self.sart2,
+        )
+
+    def describe(self) -> str:
+        parts = []
+        for name, val in (
+            ("XG", self.xg),
+            ("GS", self.gs),
+            ("MPE", self.mpe),
+            ("MIDI2", self.midi2),
+            ("Acoustic", self.acoustic),
+            ("S90", self.s90),
+            ("Effects", self.effects),
+            ("S.Art2", self.sart2),
+        ):
+            parts.append(f"{name}={'on' if val else ('off' if val is False else 'default')}")
+        if self.gs_mode is not None:
+            parts.append(f"gs_mode={self.gs_mode}")
+        return ", ".join(parts)
+
 
 class NoteRenderer:
-    """Renders MIDI notes to audio using XG Synthesizer."""
+    """Renders MIDI notes to audio using the XG Synthesizer."""
 
     def __init__(
         self,
         soundfont: str = DEFAULT_SOUNDFONT,
         sample_rate: int = 44100,
+        features: FeatureConfig | None = None,
+        seed: int | None = None,
     ):
         self.sample_rate = sample_rate
+        features = features or FeatureConfig()
 
-        self.synth = ModernXGSynthesizer(
-            sample_rate=sample_rate,
-            max_channels=16,
-            xg_enabled=False,
-            gs_enabled=False,
-            mpe_enabled=False,
-            device_id=0x10,
-        )
+        # Seed the RNG. When None, use an arbitrary seed so each run differs;
+        # when an int is given, the sequence is reproducible.
+        if seed is None:
+            seed = random.randrange(2**31 - 1)
+        self.seed = seed
+        random.seed(seed)
+
+        # Only pass explicitly-configured feature flags; leave the rest at the
+        # synthesizer's built-in defaults by not specifying them.
+        kwargs: dict = {
+            "sample_rate": sample_rate,
+            "max_channels": 16,
+            "device_id": 0x10,
+        }
+        if features.xg is not None:
+            kwargs["xg_enabled"] = features.xg
+        if features.gs is not None:
+            kwargs["gs_enabled"] = features.gs
+        if features.mpe is not None:
+            kwargs["mpe_enabled"] = features.mpe
+        if features.midi2 is not None:
+            kwargs["midi_2_enabled"] = features.midi2
+        if features.acoustic is not None:
+            kwargs["acoustic_behavior"] = features.acoustic
+        if features.s90:
+            kwargs["s90_mode"] = True
+        if features.gs_mode is not None:
+            kwargs["gs_mode"] = features.gs_mode
+
+        self.synth = ModernXGSynthesizer(**kwargs)
+
+        # Runtime toggles not exposed as constructor params.
+        if features.effects is not None:
+            self.synth.set_effects_enabled(features.effects)
+        if features.sart2 is not None:
+            self.synth.set_sart2_enabled(features.sart2)
 
         if os.path.exists(soundfont):
             self.synth.load_soundfont(soundfont, priority=0)
@@ -210,6 +337,8 @@ class NoteRenderer:
         xgml_config: str | None = None,
         note_on_duration: float = 3.0,
         note_off_duration: float = 2.0,
+        note_range: tuple[int, int] = (36, 96),
+        velocity_range: tuple[int, int] = (60, 127),
     ) -> bool:
         """Render notes to MP3 file using streaming mode."""
 
@@ -223,22 +352,77 @@ class NoteRenderer:
             num_notes=num_notes,
             note_on_duration=note_on_duration,
             note_off_duration=note_off_duration,
+            note_range=note_range,
+            velocity_range=velocity_range,
         )
+
+
+def _load_config_file(path: str) -> dict:
+    """Load a JSON feature/config file. Returns {} on missing/invalid."""
+    if not path:
+        return {}
+    if not os.path.exists(path):
+        print(f"Warning: config file not found: {path}")
+        return {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            print(f"Warning: config file {path} is not a JSON object; ignoring")
+            return {}
+        return data
+    except Exception as e:
+        print(f"Warning: could not parse config file {path}: {e}")
+        return {}
+
+
+def _build_feature_config(args: argparse.Namespace, config_data: dict) -> FeatureConfig:
+    """Merge config-file features with CLI flags (CLI wins)."""
+    file_cfg = FeatureConfig.from_dict(config_data.get("features", config_data))
+
+    cli = FeatureConfig(
+        xg=args.xg,
+        gs=args.gs,
+        mpe=args.mpe,
+        midi2=args.midi2,
+        acoustic=args.acoustic,
+        s90=args.s90,
+        gs_mode=args.gs_mode,
+        effects=args.effects,
+        sart2=args.sart2,
+    )
+    return file_cfg.merge_cli(cli)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Render notes to MP3 using XG Synthesizer",
+        description="Render notes to an audio file using the XG Synthesizer",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=f"""Examples:
+        epilog="""Examples:
     python render_notes.py output.mp3
     python render_notes.py output.mp3 --soundfont tests/ref.sf2 --bank 0 --program 0 --num-notes 10
-    python render_notes.py output.mp3 --xgml-config my_config.xgml
+    python render_notes.py output.mp3 --acoustic            # enable behavior modeling
+    python render_notes.py output.mp3 --no-xg --no-gs        # disable protocol layers
+    python render_notes.py output.mp3 --config my_config.json
     python render_notes.py output.mp3 --num-notes 5 --note-on-duration 2.0 --note-off-duration 1.0
+
+Config file (JSON) example:
+    {
+      "soundfont": "tests/ref.sf2",
+      "bank": 0,
+      "program": 0,
+      "num_notes": 10,
+      "note_on_duration": 3.0,
+      "note_off_duration": 2.0,
+      "features": {
+        "xg": true, "gs": true, "mpe": true,
+        "midi2": false, "acoustic": true, "s90": false, "gs_mode": "auto"
+      }
+    }
 """,
     )
 
-    parser.add_argument("output", help="Output MP3 file path")
+    parser.add_argument("output", help="Output audio file path")
     parser.add_argument(
         "--soundfont",
         default=DEFAULT_SOUNDFONT,
@@ -279,38 +463,156 @@ def main():
         help="Duration after note-off before next note in seconds (default: 2.0)",
     )
     parser.add_argument(
+        "--note-range",
+        type=int,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=None,
+        help="MIDI note range inclusive, e.g. --note-range 48 72 (default: 36 96)",
+    )
+    parser.add_argument(
+        "--velocity-range",
+        type=int,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=None,
+        help="MIDI velocity range inclusive, e.g. --velocity-range 80 127 (default: 60 127)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible note/velocity generation (default: arbitrary per run)",
+    )
+    parser.add_argument(
         "--sample-rate",
         type=int,
         default=44100,
         help="Audio sample rate in Hz (default: 44100)",
     )
+    parser.add_argument(
+        "--config",
+        help="JSON config file with render/feature settings (CLI flags override it)",
+    )
+
+    # --- Feature toggles (CLI) ---
+    # Store True/False/None: None means "not specified on CLI".
+    feat = parser.add_argument_group("synthesizer features")
+    feat.add_argument("--xg", dest="xg", action="store_true", default=None, help="Enable XG (default: library default)")
+    feat.add_argument("--no-xg", dest="xg", action="store_false", help="Disable XG")
+    feat.add_argument("--gs", dest="gs", action="store_true", default=None, help="Enable GS (default: library default)")
+    feat.add_argument("--no-gs", dest="gs", action="store_false", help="Disable GS")
+    feat.add_argument("--mpe", dest="mpe", action="store_true", default=None, help="Enable MPE (default: library default)")
+    feat.add_argument("--no-mpe", dest="mpe", action="store_false", help="Disable MPE")
+    feat.add_argument("--midi2", dest="midi2", action="store_true", default=None, help="Enable MIDI 2.0")
+    feat.add_argument("--no-midi2", dest="midi2", action="store_false", help="Disable MIDI 2.0 (default)")
+    feat.add_argument(
+        "--acoustic",
+        dest="acoustic",
+        action="store_true",
+        default=None,
+        help="Enable acoustic behavior layer (SuperNATURAL-Acoustic alike)",
+    )
+    feat.add_argument(
+        "--no-acoustic",
+        dest="acoustic",
+        action="store_false",
+        help="Disable acoustic behavior layer (default)",
+    )
+    feat.add_argument("--s90", dest="s90", action="store_true", default=None, help="Enable S90/S70 compatibility mode")
+    feat.add_argument(
+        "--gs-mode",
+        dest="gs_mode",
+        choices=["auto", "xg", "gs"],
+        default=None,
+        help="GS/XG mode selection (default: auto)",
+    )
+    feat.add_argument(
+        "--effects",
+        dest="effects",
+        action="store_true",
+        default=None,
+        help="Enable the XG effects pipeline (reverb, chorus, variation, insertion, master EQ)",
+    )
+    feat.add_argument(
+        "--no-effects",
+        dest="effects",
+        action="store_false",
+        help="Disable the XG effects pipeline (dry mix)",
+    )
+    feat.add_argument(
+        "--sart2",
+        dest="sart2",
+        action="store_true",
+        default=None,
+        help="Enable S.Art2 articulation processing",
+    )
+    feat.add_argument(
+        "--no-sart2",
+        dest="sart2",
+        action="store_false",
+        help="Disable S.Art2 articulation processing",
+    )
 
     args = parser.parse_args()
 
-    if not os.path.exists(args.soundfont):
-        print(f"Error: SoundFont file not found: {args.soundfont}")
+    # Load config file first; CLI flags override.
+    config_data = _load_config_file(args.config)
+    # Config file may also carry top-level render settings.
+    soundfont = config_data.get("soundfont", args.soundfont)
+    bank = config_data.get("bank", args.bank)
+    program = config_data.get("program", args.program)
+    num_notes = config_data.get("num_notes", args.num_notes)
+    note_on_duration = config_data.get("note_on_duration", args.note_on_duration)
+    note_off_duration = config_data.get("note_off_duration", args.note_off_duration)
+    xgml_config = args.xgml_config or config_data.get("xgml_config")
+
+    # Note/velocity ranges: config file value, overridden by CLI when given.
+    cfg_note_range = tuple(config_data["note_range"]) if "note_range" in config_data else None
+    cfg_velocity_range = (
+        tuple(config_data["velocity_range"]) if "velocity_range" in config_data else None
+    )
+    cfg_seed = config_data.get("seed", None)
+
+    note_range = args.note_range if args.note_range is not None else cfg_note_range
+    velocity_range = args.velocity_range if args.velocity_range is not None else cfg_velocity_range
+    seed = args.seed if args.seed is not None else cfg_seed
+
+    features = _build_feature_config(args, config_data)
+
+    if not os.path.exists(soundfont):
+        print(f"Error: SoundFont file not found: {soundfont}")
         return 1
 
-    print(f"Initializing Note Renderer...")
-    print(f"  SoundFont: {args.soundfont}")
-    print(f"  Bank: {args.bank}, Program: {args.program}")
-    print(f"  Notes to render: {args.num_notes}")
-    print(f"  Note on duration: {args.note_on_duration}s")
-    print(f"  Note off duration: {args.note_off_duration}s")
-    if args.xgml_config:
-        print(f"  XGML config: {args.xgml_config}")
+    print("Initializing Note Renderer...")
+    print(f"  SoundFont: {soundfont}")
+    print(f"  Bank: {bank}, Program: {program}")
+    print(f"  Notes to render: {num_notes}")
+    print(f"  Note on duration: {note_on_duration}s")
+    print(f"  Note off duration: {note_off_duration}s")
+    print(
+        f"  Note range: {note_range[0]}-{note_range[1]}, Velocity range: {velocity_range[0]}-{velocity_range[1]}"
+    )
+    print(f"  Seed: {seed} (arbitrary)" if seed is None else f"  Seed: {seed} (reproducible)")
+    print(f"  Features: {features.describe()}")
+    if xgml_config:
+        print(f"  XGML config: {xgml_config}")
     print()
 
-    renderer = NoteRenderer(soundfont=args.soundfont, sample_rate=args.sample_rate)
+    renderer = NoteRenderer(
+        soundfont=soundfont, sample_rate=args.sample_rate, features=features, seed=seed
+    )
 
     success = renderer.render_to_mp3(
         output_path=args.output,
-        num_notes=args.num_notes,
-        bank=args.bank,
-        program=args.program,
-        xgml_config=args.xgml_config,
-        note_on_duration=args.note_on_duration,
-        note_off_duration=args.note_off_duration,
+        num_notes=num_notes,
+        bank=bank,
+        program=program,
+        xgml_config=xgml_config,
+        note_on_duration=note_on_duration,
+        note_off_duration=note_off_duration,
+        note_range=note_range,
+        velocity_range=velocity_range,
     )
 
     return 0 if success else 1

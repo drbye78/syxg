@@ -348,15 +348,22 @@ class AudioProcessor:
                     if i < len(self.synthesizer.channel_buffers):
                         self.synthesizer.channel_buffers[i][:block_size].fill(0.0)
 
-        # Effects processing (unchanged)
+        # Effects processing (skipped when the pipeline is disabled)
         channel_audio_list = [
             self.synthesizer.channel_buffers[i][:block_size]
             for i in range(len(self.synthesizer.channels))
         ]
 
-        self.synthesizer.effects_coordinator.process_channels_to_stereo_zero_alloc(
-            channel_audio_list, self.synthesizer.output_buffer[:block_size], block_size
-        )
+        if getattr(self.synthesizer, "effects_enabled", True):
+            self.synthesizer.effects_coordinator.process_channels_to_stereo_zero_alloc(
+                channel_audio_list, self.synthesizer.output_buffer[:block_size], block_size
+            )
+        else:
+            # Dry mix: sum channel buffers into the stereo output buffer.
+            out = self.synthesizer.output_buffer[:block_size]
+            out.fill(0.0)
+            for ch_audio in channel_audio_list:
+                out[: ch_audio.shape[0]] += ch_audio
 
     def send_midi_message_block(self, messages: list[Any]):
         """
