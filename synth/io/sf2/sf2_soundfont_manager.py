@@ -423,7 +423,63 @@ class SF2SoundFontManager:
                     mip_map = self.sample_processor.mip_maps[sample_name]
                     return mip_map.get_level(mip_level)
 
+                # Build the mip-map lazily, preserving loop bounds in mip-space
+                # so the render path gets integer-aligned loop points.
+                loop_start = sample_info.get("start")
+                loop_end = sample_info.get("end")
+                mip_map = self.sample_processor.SampleMipMap(
+                    soundfont.get_sample_data(sample_id),
+                    sample_info.get("sample_rate", 44100),
+                    loop_start=loop_start,
+                    loop_end=loop_end,
+                )
+                self.sample_processor.mip_maps[sample_name] = mip_map
+                return mip_map.get_level(mip_level)
+
         return None
+
+    def get_mip_map_loop_info(
+        self, sample_id: int, mip_level: int
+    ) -> tuple[int | None, int | None]:
+        """
+        Get integer loop bounds (in mip-space frames) for a mip level.
+
+        Args:
+            sample_id: Sample ID
+            mip_level: Mip-map level
+
+        Returns:
+            (loop_start, loop_end) in mip-space frames, or (None, None)
+        """
+        with self._lock:
+            for filepath in self.file_order:
+                if filepath not in self.loaded_files:
+                    continue
+
+                soundfont = self.loaded_files[filepath]
+                sample_info = soundfont.get_sample_info(sample_id)
+                if sample_info is None:
+                    continue
+
+                sample_name = sample_info.get("name")
+                if not sample_name:
+                    continue
+
+                mip_map = self.sample_processor.mip_maps.get(sample_name)
+                if mip_map is None:
+                    return (None, None)
+
+                level = mip_map.get_level(mip_level)
+                if level is None:
+                    return (None, None)
+
+                mip_level_obj = mip_map.levels.get(mip_level)
+                if mip_level_obj is None:
+                    return (None, None)
+
+                return (mip_level_obj.loop_start, mip_level_obj.loop_end)
+
+        return (None, None)
 
     def get_sample_info(
         self, sample_id: int, soundfont_path: str | None = None

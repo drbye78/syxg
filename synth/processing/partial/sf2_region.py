@@ -138,6 +138,8 @@ class SF2Region(IRegion):
         "_legato_active",
         "_loop_crossfade_samples",
         "_loop_end",
+        "_base_loop_end",
+        "_base_loop_start",
         "_loop_mode",
         "_loop_start",
         "_mod_env_buffer",
@@ -248,6 +250,8 @@ class SF2Region(IRegion):
 
         self._loop_start: int = 0
         self._loop_end: int = 0
+        self._base_loop_start: int = 0
+        self._base_loop_end: int = 0
         self._loop_mode: int = 0
 
         # SF2 zone cache (lazy loaded from SF2 package)
@@ -520,6 +524,8 @@ class SF2Region(IRegion):
             if loop_info:
                 self._loop_start = loop_info.get("start", 0)
                 self._loop_end = loop_info.get("end", len(self._sample_data))
+                self._base_loop_start = self._loop_start
+                self._base_loop_end = self._loop_end
                 self._loop_mode = loop_info.get("mode", 0)
 
     def _load_sample_info(self) -> None:
@@ -2386,6 +2392,9 @@ class SF2Region(IRegion):
             return None
 
         if mip_level == 0:
+            # Restore base-level loop bounds (mip-space bounds only apply > 0).
+            self._loop_start = self._base_loop_start
+            self._loop_end = self._base_loop_end
             return self._sample_data
 
         if mip_level == self._cached_mip_level and self._cached_mip_data is not None:
@@ -2398,6 +2407,17 @@ class SF2Region(IRegion):
         if mip_data is not None:
             self._cached_mip_level = mip_level
             self._cached_mip_data = mip_data
+            # Use integer mip-space loop bounds (when available) instead of
+            # float-dividing the base-level loop points. This keeps the loop
+            # length integer in mip space and avoids fractional-loop wrap
+            # discontinuities.
+            if mip_level > 0 and hasattr(self.soundfont_manager, "get_mip_map_loop_info"):
+                mip_loop_start, mip_loop_end = self.soundfont_manager.get_mip_map_loop_info(
+                    self.descriptor.sample_id, mip_level
+                )
+                if mip_loop_start is not None and mip_loop_end is not None:
+                    self._loop_start = mip_loop_start
+                    self._loop_end = mip_loop_end
             return mip_data
 
         return None

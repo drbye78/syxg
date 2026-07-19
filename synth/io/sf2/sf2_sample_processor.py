@@ -39,6 +39,8 @@ class MipMapLevel:
         self.data = data
         self.sample_rate = sample_rate
         self.pitch_ratio = pitch_ratio
+        self.loop_start: int | None = None
+        self.loop_end: int | None = None
         self.memory_usage = data.nbytes if hasattr(data, "nbytes") else len(data) * 8
 
 
@@ -49,7 +51,14 @@ class SampleMipMap:
     Generates and manages multiple downsampled versions for different pitch ratios.
     """
 
-    def __init__(self, original_data: np.ndarray, original_sample_rate: float, max_levels: int = 8):
+    def __init__(
+        self,
+        original_data: np.ndarray,
+        original_sample_rate: float,
+        max_levels: int = 8,
+        loop_start: int | None = None,
+        loop_end: int | None = None,
+    ):
         """
         Initialize sample mip-map.
 
@@ -57,11 +66,15 @@ class SampleMipMap:
             original_data: Original sample data
             original_sample_rate: Original sample rate
             max_levels: Maximum number of mip levels to generate
+            loop_start: Loop start in base-level frames (optional)
+            loop_end: Loop end in base-level frames (optional)
         """
         self.original_data = original_data
         self.original_sample_rate = original_sample_rate
         self.levels: dict[int, MipMapLevel] = {}
         self.max_levels = max_levels
+        self.loop_start = loop_start
+        self.loop_end = loop_end
 
         # Generate mip-map levels on demand
         self._generate_base_level()
@@ -69,6 +82,8 @@ class SampleMipMap:
     def _generate_base_level(self) -> None:
         """Generate level 0 (original sample)."""
         level0 = MipMapLevel(0, self.original_data, self.original_sample_rate, 1.0)
+        level0.loop_start = self.loop_start
+        level0.loop_end = self.loop_end
         self.levels[0] = level0
 
     def get_level(self, level: int) -> np.ndarray | None:
@@ -116,18 +131,15 @@ class SampleMipMap:
             new_frames = frames // downsample_factor
             downsampled = np.zeros((new_frames, 2), dtype=current_data.dtype)
 
+            # Phase-centered decimation: the anti-aliasing filter is zero-phase
+            # (mode="same"), so the filtered value at each exact grid point is the
+            # correct phase-centered pick. No fractional interpolation is needed.
             for i in range(new_frames):
-                pos = i * downsample_factor
-                frac = pos - int(pos)
-                pos_i = int(pos)
-
-                s1_l = filtered_left[pos_i] if pos_i < len(filtered_left) else 0.0
-                s2_l = filtered_left[min(pos_i + 1, len(filtered_left) - 1)]
-                downsampled[i, 0] = s1_l + frac * (s2_l - s1_l)
-
-                s1_r = filtered_right[pos_i] if pos_i < len(filtered_right) else 0.0
-                s2_r = filtered_right[min(pos_i + 1, len(filtered_right) - 1)]
-                downsampled[i, 1] = s1_r + frac * (s2_r - s1_r)
+                pos_i = i * downsample_factor
+                if pos_i < len(filtered_left):
+                    downsampled[i, 0] = filtered_left[pos_i]
+                if pos_i < len(filtered_right):
+                    downsampled[i, 1] = filtered_right[pos_i]
         else:
             if len(current_data) < downsample_factor * 4:
                 return
@@ -138,18 +150,20 @@ class SampleMipMap:
             downsampled = np.zeros(new_length, dtype=current_data.dtype)
 
             for i in range(new_length):
-                start_pos = i * downsample_factor
-                frac = start_pos - int(start_pos)
-                pos_i = int(start_pos)
-
-                s1 = filtered_data[pos_i] if pos_i < len(filtered_data) else 0.0
-                s2 = filtered_data[min(pos_i + 1, len(filtered_data) - 1)]
-                downsampled[i] = s1 + frac * (s2 - s1)
+                pos_i = i * downsample_factor
+                if pos_i < len(filtered_data):
+                    downsampled[i] = filtered_data[pos_i]
 
         effective_sample_rate = self.original_sample_rate / downsample_factor
         pitch_ratio = 1.0 / downsample_factor
 
         mip_level = MipMapLevel(level, downsampled, effective_sample_rate, pitch_ratio)
+        # Preserve loop bounds in integer mip-space (eliminates fractional-loop
+        # discontinuity at the wrap point in the render path).
+        if self.loop_start is not None:
+            mip_level.loop_start = self.loop_start // downsample_factor
+        if self.loop_end is not None:
+            mip_level.loop_end = self.loop_end // downsample_factor
         self.levels[level] = mip_level
 
     def _apply_anti_aliasing_filter(self, data: np.ndarray, downsample_factor: int) -> np.ndarray:
@@ -185,19 +199,17 @@ class SampleMipMap:
         filter_kernel = sinc_kernel * hamming_window
         filter_kernel /= np.sum(filter_kernel)  # Renormalize after windowing
 
-        # Apply filter using convolution
-        filtered = np.convolve(data, filter_kernel, mode="same")
-
-        # Handle edge effects by using reflection
-        # (This is a simplified approach; production systems would use more sophisticated methods)
-        fade_length = min(100, len(filtered) // 10)
-        if fade_length > 0:
-            # Apply gentle fade-in/fade-out to reduce edge artifacts
-            fade_in = np.linspace(0.0, 1.0, fade_length)
-            fade_out = np.linspace(1.0, 0.0, fade_length)
-
-            filtered[:fade_length] *= fade_in
-            filtered[-fade_length:] *= fade_out
+        # Apply filter using convolution. Reflect-pad the edges so the zero-phase
+        # (mode="same") convolution has correct boundary response without
+        # attenuating the sample ends or loop seams. The previous implementation
+        # applied a linear fade to the first/last samples, which corrupted loop
+        # bodies and caused gain discontinuities when switching mip levels.
+        pad = filter_length // 2
+        if len(data) > pad:
+            padded = np.pad(data, pad, mode="reflect")
+            filtered = np.convolve(padded, filter_kernel, mode="valid")
+        else:
+            filtered = np.convolve(data, filter_kernel, mode="same")
 
         return filtered
 
