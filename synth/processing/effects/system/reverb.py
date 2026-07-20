@@ -238,12 +238,11 @@ class XGSystemReverbProcessor:
 
             # Full convolution of the extended input with the IR.
             full = fftconvolve(extended, ir, mode="full")
-            # The output sample at position k corresponds to input index k
-            # (causal convolution). The first `num_samples` outputs align with
-            # the current block's input; the trailing `hist_len` outputs belong
-            # to the next block and are carried forward via the history buffer,
-            # so the reverb tail is seamless.
-            out = full[:num_samples]
+            # The first `hist_len` samples of `full` depend only on the history
+            # buffer (previous block's input) — discard them.  The next
+            # `num_samples` samples are the current block's output; the
+            # remaining tail is carried forward via the history buffer.
+            out = full[hist_len:hist_len + num_samples]
             if hist_len > 0:
                 # Save the LAST `hist_len` INPUT samples so the next block's
                 # convolution includes the correct overlap. Storing the
@@ -352,10 +351,10 @@ class XGSystemReverbProcessor:
             # Default to Hall 1 for unknown types
             self._generate_xg_hall(1.8, 0.4, 0.6)
 
-        # Normalize
-        max_val = np.max(np.abs(self.current_ir))
-        if max_val > 0:
-            self.current_ir /= max_val
+        # Normalize to unit energy so convolution preserves signal level
+        energy = np.sqrt(np.sum(self.current_ir**2))
+        if energy > 0:
+            self.current_ir /= energy
 
         # Cache the impulse response
         if self.current_ir is not None:

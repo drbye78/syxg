@@ -542,6 +542,17 @@ class UltraFastADSREnvelope:
         self.soft_pedal = False
         self.hold_notes = False
 
+    def is_active(self) -> bool:
+        """Return True if the envelope is still producing audio.
+
+        The SF2 region's ``is_active()`` calls this method during the
+        RELEASING phase to determine when the release tail has finished.
+        Without it, the region would be deactivated on the very first
+        block after note-off, truncating the envelope to zero and
+        producing an audible pop.
+        """
+        return self.state != EnvelopeState.IDLE
+
     def update_parameters(
         self,
         delay=None,
