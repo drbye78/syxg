@@ -321,7 +321,7 @@ class XGMIDIController:
         self.nrpn_controller = XGNRPNController(effects_coordinator)
 
         # Channel-specific effect sends (working variables)
-        self.channel_reverb_sends = np.full(16, 0.4, dtype=np.float32)  # Default 40/127
+        self.channel_reverb_sends = np.full(16, 0.25, dtype=np.float32)  # Default 25/127
         self.channel_chorus_sends = np.full(16, 0.0, dtype=np.float32)  # Default 0/127
         self.channel_variation_sends = np.full(16, 0.0, dtype=np.float32)  # Default 0/127
 

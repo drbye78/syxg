@@ -38,6 +38,12 @@ class AudioProcessor:
         self._current_time: float = 0.0
         self._minimum_time_slice = 0.002  # Minimum time slice for processing (2ms)
 
+        # Block-boundary crossfade state — prevents clicks/pops at block edges
+        self._crossfade_len = 8  # 8 samples @ 44.1kHz ≈ 0.18ms (inaudible for attack)
+        self._prev_tail = np.zeros((self._crossfade_len, 2), dtype=np.float32)
+        self._fade_in = np.linspace(0.0, 1.0, self._crossfade_len, dtype=np.float32)
+        self._fade_out = np.linspace(1.0, 0.0, self._crossfade_len, dtype=np.float32)
+
     def generate_audio_block(self, block_size: int | None = None) -> np.ndarray:
         """
         Generate audio block with buffered MIDI message processing support.
@@ -209,6 +215,9 @@ class AudioProcessor:
                 out=self.synthesizer.output_buffer[:block_size],
             )
 
+        # Apply block-boundary crossfade to prevent clicks/pops
+        self._apply_block_boundary_crossfade(block_size)
+
         return self.synthesizer.output_buffer
 
     def _generate_audio_block_realtime(self, block_size: int) -> np.ndarray:
@@ -298,7 +307,29 @@ class AudioProcessor:
                 out=self.synthesizer.output_buffer[:block_size],
             )
 
+        # Apply block-boundary crossfade to prevent clicks/pops
+        self._apply_block_boundary_crossfade(block_size)
+
         return self.synthesizer.output_buffer
+
+    def _apply_block_boundary_crossfade(self, block_size: int) -> None:
+        """Apply overlap-add crossfade at block boundary to prevent clicks/pops.
+
+        Stores the last N samples of each generated block and crossfades them
+        with the first N samples of the next block, ensuring seamless sample
+        continuity across block boundaries. Prevents tiny discontinuities
+        at block edges from being amplified by downstream effects (reverb
+        convolution, which magnifies transients up to 187×).
+        """
+        out = self.synthesizer.output_buffer
+        cf = self._crossfade_len
+        if cf > 0 and cf <= block_size:
+            out[:cf] = (
+                out[:cf] * self._fade_in[:, np.newaxis]
+                + self._prev_tail[:cf] * self._fade_out[:, np.newaxis]
+            )
+            # Save tail for next block
+            self._prev_tail[:] = out[block_size - cf:block_size]
 
     def _process_buffered_midi_message(self, midi_message):
         """

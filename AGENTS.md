@@ -3,121 +3,116 @@
 ## Build / Lint / Test
 
 ```bash
-# Install
+# Install all (dev + audio + workstation)
 uv sync --group dev --group audio --group workstation
+
+# Run workstation
+python -m vibexg
 
 # Single test
 pytest tests/test_voice_manager.py -v
 
-# All tests
-pytest tests/ -v
-
-# Fast tests only
+# Fast tests only (skips @pytest.mark.slow)
 pytest tests/ -m "not slow"
 
-# Coverage
+# All tests (parallel by default via -n auto)
+pytest tests/ -v
+
+# Coverage (HTML report)
 pytest tests/ --cov=synth --cov-report=html
 
-# Lint (must pass before committing)
-black synth/ vibexg/
+# Lint / format / typecheck (must pass before commit)
 ruff check synth/ vibexg/
+black --check --diff synth/ vibexg/
 mypy synth/ vibexg/
 
-# Run workstation
-python -m vibexg
+# Auto-fix
+black synth/ vibexg/ && ruff check --fix synth/ vibexg/
+
+# Pre-commit hooks (configured in .pre-commit-config.yaml)
+pre-commit run --all-files
 ```
 
-## Code Style
+## Code Conventions
 
 - **Formatter**: Black, line length 100
-- **Linter**: Ruff + Flake8 (see `pyproject.toml` for rules)
-- **Type Checking**: MyPy strict mode
-- **Python**: 3.12+ required — use pattern matching, `Self`, `TypeAlias`
+- **Linter**: Ruff (select E, W, F, I, B, C4, UP, RUF in pyproject.toml)
+- **Type checking**: MyPy strict mode (no `Any` without justification, no implicit `Optional`)
+- **Python**: `>=3.12` required; `.python-version` may be higher (currently 3.14)
 
-### Imports & Formatting
-- `from __future__ import annotations` in every file
-- Standard library → third-party → local, each group separated by blank line
-- No unused imports (ruff F401)
-- No `print()` in production — use `logging` module
+### File-level
+- `from __future__ import annotations` at top of every `.py` file
+- Imports: stdlib → third-party → local, blank-line separated
+- No `print()` — use `logging`
 
-### Types
-- Strict mode: no `Any` without justification, no implicit `Optional`
-- Use `X | None` not `Optional[X]`
-- Dataclasses use `@dataclass(slots=True)`
-- Never suppress type errors with `as any`, `@ts-ignore`, etc.
+### Types & data classes
+- `X | None` (not `Optional[X]`)
+- `@dataclass(slots=True)` for new data classes
+- No `pickle` — use JSON
 
-### Naming
-- Classes: `PascalCase` (`ModernXGSynthesizer`, `SF2Engine`)
-- Functions/methods: `snake_case` (`render_block`, `parse_bytes`)
-- Constants: `UPPER_SNAKE_CASE` (`DEFAULT_SAMPLE_RATE`)
-- Private: leading underscore (`_handle_midi_message`)
-
-### Error Handling
-- No bare `except:` — always `except Exception:`
-- Use `logging.error/warning/info` — never `print()`
-- No debug prints left in code
-- Catch specific exceptions, not broad ones
+### Audio path rules
+- Pre-allocated buffers only — no `np.zeros()`/`np.empty()` in hot paths
+- Interleaved stereo: shape `(block_size, 2)`, dtype `np.float32`
+- Validate buffer shapes before `+=`
+- Numba: `@jit(nopython=True, fastmath=True, cache=True)`
 
 ### Threading
-- **Never** allocate memory in audio paths
-- Use `threading.Lock` for shared mutable state
-- Use `threading.Event` for interruptible waits (not bare `time.sleep`)
-- Use `threading.local()` for per-thread caches (not function attributes)
+- `threading.Event` for interruptible waits (not bare `time.sleep`)
+- `threading.local()` for per-thread caches
 - Daemon threads for background workers
-
-### Audio Path Rules
-- Pre-allocated buffers only — no `np.zeros()`, `np.empty()` in hot paths
-- Interleaved stereo: shape `(block_size, 2)`, dtype `np.float32`
-- Numba: `@jit(nopython=True, fastmath=True, cache=True)`
-- Process blocks, not individual samples
 
 ## Architecture
 
-### Two Synthesizer Entrypoints (NOT duplicates)
+### Two synthesizer entrypoints (NOT duplicates)
 
 | Class | File | Purpose |
 |-------|------|---------|
-| `ModernXGSynthesizer` | `synth/engine/modern_xg_synthesizer.py` | MIDI rendering — offline/batch |
+| `ModernXGSynthesizer` | `synth/synthesizers/rendering.py` | MIDI rendering — offline/batch |
 | `Synthesizer` | `synth/synthesizers/realtime.py` | Real-time workstation — vibexg TUI |
 
-### Key Directories
-- `synth/` — Core library (engines, effects, voice management)
-- `vibexg/` — Real-time workstation (CLI, TUI, MIDI I/O, managers)
-- `vst3_plugin/` — JUCE + pybind11 bridge
-- `tests/` — Test suite
+### Key directories
+- `synth/` — Core library (engines, processing, protocols, primitives). See `synth/AGENTS.md` for subpackage map.
+- `vibexg/` — Real-time workstation (XGWorkstation, CLI, TUI, MIDI I/O, managers)
+- `vst3_plugin/` — JUCE submodule + pybind11 bridge
+- `tests/` — Test suite (101+ files; pytest markers: `slow`, `integration`, `unit`)
 
-### Vibexg Module Structure
-- `workstation.py` — `XGWorkstation` main orchestrator
-- `midi_inputs.py` — MIDI input interfaces (keyboard, port, network, file)
-- `audio_outputs.py` — Audio output engines (sounddevice, file rendering)
+### CLI entry points (from pyproject.toml `[project.scripts]`)
+- `render-midi` → `render_midi:main` (uses ModernXGSynthesizer)
+- `vibexg` → `vibexg.cli:main` (real-time workstation)
+
+### Vibexg module map
+- `workstation.py` — `XGWorkstation` orchestrator
+- `midi_inputs.py` — MIDI input interfaces (keyboard, mido port, virtual, network, file, stdin)
+- `audio_outputs.py` — Audio output engines (sounddevice, file render)
+- `cli.py` / `tui.py` — Entrypoint and Rich-based TUI
 - `managers.py` — PresetManager, MIDILearnManager, StyleEngineIntegration
-- `types.py` — Dataclasses, enums, constants
-- `tui.py` — Rich-based TUI control surface
-- `cli.py` — Argument parsing, main entry point
-- `backends/network.py` — RTP-MIDI handler
 
-### Keyboard Input Pattern
-`KeyboardListener` (in `synth/utils/keyboard.py`) uses `tty.setraw()` which consumes ALL keystrokes. Command keys must flow through `set_command_callback()`, not `input()`. The `input()` loop and raw keyboard listener cannot coexist.
+### Keyboard input quirk
+`KeyboardListener` in `synth/utils/keyboard.py` uses `tty.setraw()` which consumes ALL keystrokes. Command keys must flow through `set_command_callback()`, not `input()`. The `input()` loop and raw keyboard listener cannot coexist.
 
-## Code Rules (Hard)
-
-1. **No duplicate method definitions** — second silently shadows first
-2. **No bare `except:`** — use `except Exception:`
-3. **No `print()`** — use `logging`
-4. **No memory allocation in audio paths** — use buffer pool
-5. **No debug prints** — remove before committing
-6. **Validate buffer shapes** before `+=` operations
-7. **Never use `pickle`** — use JSON for serialization (security risk)
+## Hard Rules (violations fail review)
+1. No duplicate method definitions (second silently shadows first)
+2. No bare `except:` — always `except Exception:`
+3. No memory allocation in audio paths — use BufferPool
+4. Validate buffer shapes before `+=` operations
+5. No `pickle` — JSON only
 
 ## Common Tasks
 
-### Adding a Synthesis Engine
-1. Create class in `synth/engine/` implementing `SynthesisEngine`
-2. Register in `ModernXGSynthesizer._register_engines()`
+### Add a synthesis engine
+1. Create class in `synth/engines/` implementing `SynthesisEngine`
+2. Register in `engine_registry.py` via `SynthesisEngineRegistry.register()`
 3. Add tests in `tests/`
 
-### Adding a MIDI Input Type
+### Add a MIDI input type
 1. Subclass `MIDIInputInterface` in `vibexg/midi_inputs.py`
 2. Implement `_start_interface()` / `_stop_interface()`
 3. Add case in `XGWorkstation._create_midi_interface()`
 4. Add to `InputInterfaceType` enum in `vibexg/types.py`
+
+## State of the repo
+- **Package manager**: `uv` (uv.lock committed)
+- **CI**: Not configured (`.github/workflows/` exists but empty)
+- **Environment**: Virtual env is `/.venv/` at repo root
+- **VST3 plugin**: Requires JUCE submodule (`git submodule update --init vst3_plugin/JUCE`)
+- **Configuration**: `config.yaml` (root) for synth engine; `vibexg_config.yaml` for workstation

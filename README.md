@@ -311,8 +311,8 @@ cmake --build . --config Release --target XGWorkstationVST3_AAX
 - **[API Reference](docs/api/overview.md)** - Complete API documentation
 - **[Vibexg Package](docs/api/vibexg.rst)** - Workstation API reference
 - **[Architecture](docs/architecture/overview.md)** - System design
-- **[Contributing](CONTRIBUTING.md)** - Development guidelines
-- **[Testing](tests/README.md)** - Test suite documentation
+- **[Contributing](docs/CONTRIBUTING.md)** - Development guidelines
+- **[Testing](docs/tests/README.md)** - Test suite documentation
 
 ### 🐍 **Python 3.12+ Features**
 
@@ -325,8 +325,8 @@ The XG Synthesizer requires **Python 3.12+** and leverages modern Python feature
 
 ### 🎓 **Examples & Tutorials**
 - **[Examples Directory](examples/)** - Working example scripts and configurations
-- **[Jazz Combo Example](examples/jazz_combo_example.md)** - XGML configuration tutorial
-- **[Electronic Music Example](examples/electronic_music_example.md)** - Modern production setup
+- **[Jazz Combo Example](examples/jazz_combo_example.yaml)** - XGML configuration tutorial
+- **[Electronic Music Example](examples/electronic_music_example.yaml)** - Modern production setup
 - **[SF2 Comprehensive Test](examples/sf2_comprehensive_test.py)** - SoundFont testing script
 
 ## 🎼 XGML Configuration Example
@@ -555,7 +555,7 @@ effects_configuration:
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guide](docs/CONTRIBUTING.md) for details.
 
 ### Development Setup
 ```bash

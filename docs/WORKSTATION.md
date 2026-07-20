@@ -609,4 +609,4 @@ MIT License - See LICENSE file for details.
 
 ## Contributing
 
-See CONTRIBUTING.md for guidelines on contributing to this project.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing to this project.

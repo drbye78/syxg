@@ -206,6 +206,7 @@ class SF2Region(IRegion):
         "_vib_lfo_buffer",
         "_vib_lfo_to_pan",
         "_vib_lfo_to_pitch",
+        "_vib_lfo_to_pitch_base",
         "_voice_priority",           # Voice stealing priority (lower = stolen first)
         "_volume_mod",
         "_xg_attack_time",
@@ -301,6 +302,7 @@ class SF2Region(IRegion):
         # Pitch modulation
         self._pitch_mod: float = 0.0
         self._vib_lfo_to_pitch: float = 0.0
+        self._vib_lfo_to_pitch_base: float = 0.0  # Clean value for modwheel modulation
         self._mod_lfo_to_pitch: float = 0.0
         self._mod_env_to_pitch: float = 0.0
 
@@ -846,6 +848,7 @@ class SF2Region(IRegion):
 
         # Load LFO modulation depths from generators (SF2 spec gen numbers)
         self._vib_lfo_to_pitch = self._get_generator_value(6, 0) / 100.0  # vibLfoToPitch
+        self._vib_lfo_to_pitch_base = self._vib_lfo_to_pitch  # Save clean value for modwheel
         self._mod_lfo_to_pitch = self._get_generator_value(5, 0) / 100.0  # modLfoToPitch
         self._mod_lfo_to_filter = self._get_generator_value(10, 0) / 1200.0  # modLfoToFilterFc
         self._mod_lfo_to_volume = self._get_generator_value(13, 0) / 960.0  # modLfoToVolume
@@ -1238,6 +1241,7 @@ class SF2Region(IRegion):
         elif controller == 4:  # Foot Controller
             self._foot_mod = normalized
             self._vib_lfo_to_pitch = normalized * 0.5
+            self._vib_lfo_to_pitch_base = self._vib_lfo_to_pitch
 
         elif controller == 5:  # Portamento Time
             self._portamento_time = self._calculate_portamento_time(value)
@@ -1450,6 +1454,7 @@ class SF2Region(IRegion):
         """
         # XG vibrato depth: ~0-5 semitones via exponential curve
         self._vib_lfo_to_pitch = 0.01 * (2.0 ** (normalized * 9.0)) - 0.01
+        self._vib_lfo_to_pitch_base = self._vib_lfo_to_pitch
 
     def _trigger_modulation_envelope(self) -> None:
         """Trigger modulation envelope attack."""
@@ -1484,8 +1489,12 @@ class SF2Region(IRegion):
 
         # Apply controller effects to modulation depths
         if self._modwheel_mod != 0.0:
-            self._vib_lfo_to_pitch *= 1.0 + self._modwheel_mod
+            # Compute from base to avoid compounding across blocks
+            self._vib_lfo_to_pitch = self._vib_lfo_to_pitch_base * (1.0 + self._modwheel_mod)
             self._filter_mod += self._modwheel_mod * 1.5
+        else:
+            # Reset to base when modwheel is zero (no compounding carry-over)
+            self._vib_lfo_to_pitch = self._vib_lfo_to_pitch_base
 
         if self._aftertouch_mod != 0.0:
             self._volume_mod *= 1.0 + self._aftertouch_mod * 0.5
@@ -1964,6 +1973,7 @@ class SF2Region(IRegion):
             self._vib_lfo.set_frequency(self._gs_vibrato_rate)
         if self._gs_vibrato_depth >= 0.0:
             self._vib_lfo_to_pitch = self._gs_vibrato_depth
+            self._vib_lfo_to_pitch_base = self._vib_lfo_to_pitch
         if self._gs_vibrato_delay >= 0.0 and self._vib_lfo:
             self._delay_vib_lfo = self._gs_vibrato_delay
             self._vib_lfo.delay = self._gs_vibrato_delay

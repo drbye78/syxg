@@ -17,6 +17,11 @@ Core synthesis engine, DSP primitives, and XG/GS protocol implementations. Does 
 | `synthesizers/` | Top-level orchestrators (ModernXGSynthesizer offline, Synthesizer realtime) |
 | `style/` | Auto-accompaniment .sty/.sff engine |
 | `sequencer/` | Pattern sequencer, groove quantization, MIDI file handler |
+| `xgml/` | XG Markup Language (config DSL parser, translator, schema) |
+| `types/` | Type definitions and parameter types |
+| `mpe/` | MIDI Polyphonic Expression |
+| `parsers/` | SFF2 parser for style files |
+| `utils/` | Keyboard input, progress reporting |
 
 ## WHERE TO LOOK
 | Task | Location |

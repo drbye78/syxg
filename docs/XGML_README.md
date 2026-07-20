@@ -718,7 +718,7 @@ python -c "import yaml; yaml.safe_load(open('xgml_schema.yaml'))"
 
 See the `examples/` directory for complete XGML examples:
 - `jazz_combo.xgdsl` - Multi-instrument jazz arrangement
-- `electronic_music_example.md` - Electronic music production
+- `electronic_music_example.yaml` - Electronic music production
 - `simple_piano.xgdsl` - Basic piano configuration
 
 ## 🎯 Use Cases

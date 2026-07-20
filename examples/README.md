@@ -46,8 +46,8 @@ python examples/sfz_demo.py
 
 | File | Description |
 |------|-------------|
-| `jazz_combo_example.md` | Complete jazz combo arrangement with full XG parameter control, written in XG DSL YAML format. |
-| `electronic_music_example.md` | Electronic music production example with advanced XG modulation and effects, written in XG DSL YAML format. |
+| `jazz_combo_example.yaml` | Complete jazz combo arrangement with full XG parameter control, written in XG DSL YAML format. |
+| `electronic_music_example.yaml` | Electronic music production example with advanced XG modulation and effects, written in XG DSL YAML format. |
 
 ### Style Files (`styles/`)
 

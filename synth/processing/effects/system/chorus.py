@@ -322,3 +322,7 @@ class XGSystemChorusProcessor:
             # Mix dry and wet signals
             stereo_mix[i, 0] = input_left * (1.0 - level) + delayed_left * level
             stereo_mix[i, 1] = input_right * (1.0 - level) + delayed_right * level
+
+        # Hard-clip to prevent extreme peaks from feedback buildup
+        # from polluting the mix
+        np.clip(stereo_mix[:num_samples], -0.99, 0.99, out=stereo_mix[:num_samples])

@@ -1,5 +1,7 @@
 # Test Suite Summary
 
+> **⚠️ Session artifact — may be stale.** This was generated during a single development session and is not automatically kept in sync. Verify against actual test files before relying on it for decisions.
+
 *Last updated: 2026-07-16*
 
 ## DSP Primitive Advanced Tests (added 2026-07-14)

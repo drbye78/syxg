@@ -85,7 +85,7 @@ class XGEffectsCoordinator:
         self.channel_pans: np.ndarray = np.zeros(max_channels, dtype=np.float32)
 
         self.reverb_sends: np.ndarray = np.full(
-            max_channels, 0.4, dtype=np.float32
+            max_channels, 0.25, dtype=np.float32
         )
         self.chorus_sends: np.ndarray = np.full(
             max_channels, 0.0, dtype=np.float32
@@ -551,10 +551,13 @@ class XGEffectsCoordinator:
                 left_data = channel_data[:num_samples, 0] * volume
                 right_data = channel_data[:num_samples, 1] * volume
 
-            dry_level = 1.0 - max(reverb_send, chorus_send, variation_send)
-            if dry_level > 0:
-                main_mix[:num_samples, 0] += left_data * dry_level
-                main_mix[:num_samples, 1] += right_data * dry_level
+            # Full dry signal at channel volume — sends are additive, not subtractive.
+            # In XG send/return architecture, the effect sends are POST-fader copies,
+            # not crossfade mix parameters. The send levels control how much of the
+            # channel signal goes to each effect bus; the dry stays at full volume.
+            dry_level = 1.0
+            main_mix[:num_samples, 0] += left_data
+            main_mix[:num_samples, 1] += right_data
             if reverb_send > 0:
                 reverb_accumulate[:num_samples, 0] += left_data * reverb_send
                 reverb_accumulate[:num_samples, 1] += right_data * reverb_send

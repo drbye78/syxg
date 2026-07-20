@@ -7,7 +7,7 @@ Welcome to the XG Synthesizer! This guide will help you get up and running quick
 Before you begin, make sure you have:
 
 1. **Python 3.11+** installed
-2. **XG Synthesizer** installed (see [Installation Guide](../../INSTALL.md))
+2. **XG Synthesizer** installed (see [Installation Guide](../INSTALL.md))
 3. **Basic MIDI file** for testing (or use our examples)
 
 ## 🎵 Your First Synthesis

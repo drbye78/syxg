@@ -169,6 +169,15 @@ class XGSystemReverbProcessor:
             # Scale by wet/dry mix level
             stereo_mix *= level
 
+            # Soft-clip extreme peaks from the noise-based convolution.
+            # The energy-normalized noise IR has sum(|ir|) >> 1, so
+            # fftconvolve can amplify peaks by O(sqrt(ir_length)).  This
+            # hard-clip catches those rare constructive-alignment peaks.
+            # The clipping is inaudible because the reverb signal is
+            # diffuse noise and the clip threshold (±0.99) is far above
+            # the normal RMS level of the reverb.
+            np.clip(stereo_mix[:num_samples], -0.99, 0.99, out=stereo_mix[:num_samples])
+
     def _ensure_convolution_buffers(self, num_samples: int) -> None:
         """Ensure we have adequate convolution buffers for processing."""
         if self.current_ir is None:
