@@ -161,13 +161,10 @@ class XGSystemReverbProcessor:
                 pre_delay_samples = int(self.params["pre_delay"] * self.sample_rate)
                 self._apply_pre_delay(stereo_mix, num_samples, pre_delay_samples)
 
-            # Apply convolution reverb
-            # For performance, we use a hybrid approach: direct convolution for short IRs,
-            # FFT convolution for longer ones
-            if len(self.current_ir) <= 256:
-                self._apply_direct_convolution(stereo_mix, num_samples)
-            else:
-                self._apply_fft_convolution(stereo_mix, num_samples)
+            # Apply convolution reverb using streaming overlap-add so the
+            # reverb tail is continuous across block boundaries (mode="same"
+            # per-block caused periodic clicks at every block edge).
+            self._apply_streaming_convolution(stereo_mix, num_samples)
 
             # Scale by wet/dry mix level
             stereo_mix *= level
@@ -177,22 +174,21 @@ class XGSystemReverbProcessor:
         if self.current_ir is None:
             return
 
-        # Only allocate if buffers don't exist yet (init path, not per-block)
+        ir_len = len(self.current_ir)
+        # History buffer holds the last (ir_len - 1) input samples so the
+        # convolution of the current block can include the tail from the
+        # previous block. Allocated once, reused across blocks.
         if len(self.convolution_buffers) == 0:
-            max_size = num_samples + self.max_ir_length - 1
+            hist_size = max(ir_len - 1, 1)
             self.convolution_buffers = [
-                np.zeros(max_size, dtype=np.float32) for _ in range(2)
+                np.zeros(hist_size, dtype=np.float32) for _ in range(2)
             ]
             self.buffer_positions = [0, 0]
-            # Pre-allocate output work buffers for direct convolution
-            self._conv_output_buffers = [
-                np.zeros(self.max_ir_length, dtype=np.float32) for _ in range(2)
-            ]
-        # If existing buffer is too small, resize (rare — only happens at startup)
-        elif self.convolution_buffers[0].shape[0] < num_samples + len(self.current_ir) - 1:
-            required_size = num_samples + len(self.current_ir) - 1
+        # If the IR changed size, resize the history buffers (rare).
+        elif self.convolution_buffers[0].shape[0] < ir_len - 1:
+            hist_size = max(ir_len - 1, 1)
             self.convolution_buffers = [
-                np.zeros(required_size, dtype=np.float32) for _ in range(2)
+                np.zeros(hist_size, dtype=np.float32) for _ in range(2)
             ]
             self.buffer_positions = [0, 0]
 
@@ -214,26 +210,57 @@ class XGSystemReverbProcessor:
             channel_data[delay_samples:] = channel_data[:-delay_samples]
             channel_data[:delay_samples] = temp
 
-    def _apply_direct_convolution(self, stereo_mix: np.ndarray, num_samples: int) -> None:
-        """Apply convolution using FFT convolution (no per-sample loops)."""
+    def _apply_streaming_convolution(self, stereo_mix: np.ndarray, num_samples: int) -> None:
+        """Streaming overlap-add convolution continuous across block boundaries.
+
+        Each block is convolved together with the tail of the previous block's
+        input (stored in ``self.convolution_buffers``). Only the ``num_samples``
+        output samples corresponding to the current block's input are kept; the
+        remainder (the part of the IR that extends past the block) is carried
+        forward via the history buffer, so the reverb tail is seamless.
+        """
         if self.current_ir is None:
             return
 
-        ir_segment = (
-            self.current_ir[:num_samples]
-            if len(self.current_ir) > num_samples
-            else self.current_ir
-        )
+        ir = self.current_ir
+        ir_len = len(ir)
+        hist_len = ir_len - 1
 
         for ch in range(2):
-            conv_result = fftconvolve(
-                stereo_mix[:num_samples, ch], ir_segment, mode="same"
-            )
-            stereo_mix[:num_samples, ch] = conv_result
+            history = self.convolution_buffers[ch]
+            block = stereo_mix[:num_samples, ch]
 
-    def _apply_fft_convolution(self, stereo_mix: np.ndarray, num_samples: int) -> None:
-        """Apply convolution using FFT (unified path)."""
-        self._apply_direct_convolution(stereo_mix, num_samples)
+            if hist_len > 0:
+                # Build the extended input: [history | current block]
+                extended = np.concatenate([history, block])
+            else:
+                extended = block
+
+            # Full convolution of the extended input with the IR.
+            full = fftconvolve(extended, ir, mode="full")
+            # The output sample at position k corresponds to input index k
+            # (causal convolution). The first `num_samples` outputs align with
+            # the current block's input; the trailing `hist_len` outputs belong
+            # to the next block and are carried forward via the history buffer,
+            # so the reverb tail is seamless.
+            out = full[:num_samples]
+            if hist_len > 0:
+                # Save the LAST `hist_len` INPUT samples so the next block's
+                # convolution includes the correct overlap. Storing the
+                # convolution output tail here would re-convolve already
+                # convolved audio and inject periodic full-scale spikes at
+                # every block boundary.
+                if num_samples >= hist_len:
+                    history[:hist_len] = block[-hist_len:]
+                else:
+                    # Block smaller than the history window: keep the most
+                    # recent `hist_len` input samples, which are the tail of
+                    # the existing history followed by the whole current block.
+                    keep_from_old = hist_len - num_samples
+                    history[:keep_from_old] = history[-keep_from_old:]
+                    history[keep_from_old:hist_len] = block
+
+            stereo_mix[:num_samples, ch] = out
 
     def _update_impulse_response(self) -> None:
         """Generate or retrieve impulse response based on current parameters."""

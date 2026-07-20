@@ -2407,17 +2407,12 @@ class SF2Region(IRegion):
         if mip_data is not None:
             self._cached_mip_level = mip_level
             self._cached_mip_data = mip_data
-            # Use integer mip-space loop bounds (when available) instead of
-            # float-dividing the base-level loop points. This keeps the loop
-            # length integer in mip space and avoids fractional-loop wrap
-            # discontinuities.
-            if mip_level > 0 and hasattr(self.soundfont_manager, "get_mip_map_loop_info"):
-                mip_loop_start, mip_loop_end = self.soundfont_manager.get_mip_map_loop_info(
-                    self.descriptor.sample_id, mip_level
-                )
-                if mip_loop_start is not None and mip_loop_end is not None:
-                    self._loop_start = mip_loop_start
-                    self._loop_end = mip_loop_end
+            # NOTE: loop bounds stay in BASE-level frames. The render path
+            # converts them to mip space via `loop_start / decimation_factor`.
+            # Do NOT overwrite them with mip-space integers here — that would
+            # double-divide and place the loop region in the wrong part of the
+            # (shorter) mip data, causing out-of-range reads and full-scale
+            # clicks on every mip level > 0.
             return mip_data
 
         return None
