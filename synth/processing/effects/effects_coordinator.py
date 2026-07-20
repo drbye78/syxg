@@ -66,6 +66,9 @@ class XGEffectsCoordinator:
 
         self.system_delay = SystemDelayEffect(sample_rate)
 
+        self._delay_out_l = np.zeros(block_size, dtype=np.float32)
+        self._delay_out_r = np.zeros(block_size, dtype=np.float32)
+
         self.insertion_effects: list[ProductionXGInsertionEffectsProcessor] = []
         for _ in range(max_channels):
             self.insertion_effects.append(
@@ -325,6 +328,8 @@ class XGEffectsCoordinator:
                         variation_output = bm.get_stereo(num_samples)
                         system_output = bm.get_stereo(num_samples)
                         temp_buffers = [bm.get_stereo(num_samples) for _ in range(4)]
+                        for tb in temp_buffers:
+                            tb.fill(0.0)
 
                     main_mix.fill(0.0)
                     reverb_accumulate.fill(0.0)
@@ -485,9 +490,13 @@ class XGEffectsCoordinator:
         delay_accumulate: np.ndarray, num_samples: int
     ) -> None:
         """Apply system delay effect to the mix."""
+        # Ensure pre-allocated buffers are large enough
+        if num_samples > len(self._delay_out_l):
+            self._delay_out_l = np.zeros(int(num_samples * 1.5), dtype=np.float32)
+            self._delay_out_r = np.zeros(int(num_samples * 1.5), dtype=np.float32)
+        delay_out_l = self._delay_out_l[:num_samples]
+        delay_out_r = self._delay_out_r[:num_samples]
         # Process delay sends through delay effect
-        delay_out_l = np.zeros(num_samples, dtype=np.float32)
-        delay_out_r = np.zeros(num_samples, dtype=np.float32)
         self.system_delay.process(
             delay_accumulate[:num_samples, 0],
             delay_accumulate[:num_samples, 1],
@@ -512,6 +521,10 @@ class XGEffectsCoordinator:
 
             if channel_data.ndim == 2:
                 np.copyto(working_buffer[:num_samples], channel_data[:num_samples])
+            else:
+                # Mono channel: copy same data to both stereo channels
+                working_buffer[:num_samples, 0] = channel_data[:num_samples]
+                working_buffer[:num_samples, 1] = channel_data[:num_samples]
 
             insertion_params = {"enabled": True}
             self.insertion_effects[ch_idx].apply_insertion_effect_to_channel_zero_alloc(

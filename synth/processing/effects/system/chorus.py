@@ -211,7 +211,7 @@ class XGSystemChorusProcessor:
 
         return {
             "sine": np.sin(phases),
-            "triangle": 2 * np.abs((phases / (2 * np.pi) * 4) % 4 - 2) - 1,
+            "triangle": 2 * np.abs(2 * (phases / (2 * np.pi) % 1) - 1) - 1,
             "square": np.sign(np.sin(phases)),
             "saw": 2 * (phases / (2 * np.pi) % 1) - 1,
         }
@@ -276,20 +276,28 @@ class XGSystemChorusProcessor:
             lfo_left = self._get_lfo_value(self.lfo_phase, lfo_waveform)
             lfo_right = self._get_lfo_value(self.lfo_phase_right, lfo_waveform)
 
-            # Calculate modulated delay times
-            mod_left = base_delay_samples + int(lfo_left * depth * max_modulation_samples)
-            mod_right = base_delay_samples + int(lfo_right * depth * max_modulation_samples)
+            # Calculate modulated delay times with fractional precision
+            mod_left_float = base_delay_samples + lfo_left * depth * max_modulation_samples
+            mod_right_float = base_delay_samples + lfo_right * depth * max_modulation_samples
+            mod_left = int(mod_left_float)
+            mod_right = int(mod_right_float)
+            frac_left = mod_left_float - mod_left
+            frac_right = mod_right_float - mod_right
 
             # Ensure valid delay range
             mod_left = max(1, min(mod_left, self.max_delay_samples - 1))
             mod_right = max(1, min(mod_right, self.max_delay_samples - 1))
 
-            # Read from delay lines
+            # Read from delay lines with linear interpolation
             read_pos_left = (self.left_write_pos - mod_left) % self.max_delay_samples
+            read_pos_left_prev = (read_pos_left - 1) % self.max_delay_samples
             read_pos_right = (self.right_write_pos - mod_right) % self.max_delay_samples
+            read_pos_right_prev = (read_pos_right - 1) % self.max_delay_samples
 
-            delayed_left = self.left_delay_line[read_pos_left]
-            delayed_right = self.right_delay_line[read_pos_right]
+            delayed_left = (self.left_delay_line[read_pos_left] * (1.0 - frac_left)
+                           + self.left_delay_line[read_pos_left_prev] * frac_left)
+            delayed_right = (self.right_delay_line[read_pos_right] * (1.0 - frac_right)
+                            + self.right_delay_line[read_pos_right_prev] * frac_right)
 
             # Get input samples
             input_left = stereo_mix[i, 0]

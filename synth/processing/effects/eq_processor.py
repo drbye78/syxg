@@ -42,6 +42,8 @@ class XGMultiBandEqualizer:
         self._filter_work_left: np.ndarray | None = None
         self._filter_work_right: np.ndarray | None = None
         self._eq_work_buffer: np.ndarray | None = None
+        # Pre-allocated output buffer for biquad chaining (zero-allocation hot path)
+        self._biquad_out: np.ndarray | None = None
 
     def _initialize_filters(self):
         self._filter_coeffs = {
@@ -145,28 +147,33 @@ class XGMultiBandEqualizer:
         if n > self._temp_input.shape[0]:
             self._temp_input = np.zeros(int(n * 1.5), dtype=np.float32)
             self._temp_output = np.zeros(int(n * 1.5), dtype=np.float32)
+        if self._biquad_out is None or len(self._biquad_out) < n:
+            self._biquad_out = np.empty((int(n * 1.5), 2), dtype=np.float32)
         out = buffer
         for band in ["low", "low_mid", "mid", "high_mid", "high"]:
-            out = self._apply_biquad_filter_vectorized(out, band)
+            out = self._apply_biquad_filter_vectorized(out, band, self._biquad_out[:n])
         if self.level != 1.0:
             out *= self.level
         return out
 
-    def _apply_biquad_filter_vectorized(self, buf: np.ndarray, band: str) -> np.ndarray:
+    def _apply_biquad_filter_vectorized(self, buf: np.ndarray, band: str, out: np.ndarray) -> np.ndarray:
         b0, b1, b2, a1, a2 = self._filter_coeffs[band]
         st = self._filter_states[band]
         left, right = buf[:, 0], buf[:, 1]
+        n = len(left)
         if SCIPY_AVAILABLE:
             lo, lf = signal.lfilter([b0, b1, b2], [1.0, a1, a2], left, zi=signal.lfiltic([b0, b1, b2], [1.0, a1, a2], [st[2], st[3]], [st[0], st[1]]))
             ro, rf = signal.lfilter([b0, b1, b2], [1.0, a1, a2], right, zi=signal.lfiltic([b0, b1, b2], [1.0, a1, a2], [st[6], st[7]], [st[4], st[5]]))
             st[:4] = [left[-1], left[-2] if len(left) > 1 else left[-1], lf[0], lf[1]]
             st[4:8] = [right[-1], right[-2] if len(right) > 1 else right[-1], rf[0], rf[1]]
+            out[:n, 0] = lo
+            out[:n, 1] = ro
         else:
-            if self._filter_work_left is None or len(self._filter_work_left) < len(left):
+            if self._filter_work_left is None or len(self._filter_work_left) < n:
                 self._filter_work_left = np.zeros_like(left)
                 self._filter_work_right = np.zeros_like(right)
-            lo = self._filter_work_left[:len(left)]
-            ro = self._filter_work_right[:len(right)]
+            lo = self._filter_work_left[:n]
+            ro = self._filter_work_right[:n]
             x = [st[0], st[1], st[4], st[5]]
             y = [st[2], st[3], st[6], st[7]]
             for ch, inp in enumerate([left, right]):
@@ -180,10 +187,9 @@ class XGMultiBandEqualizer:
                     ox[1], ox[0] = ox[0], inp[i]
                     oy[1], oy[0] = oy[0], y0
                 st[ch * 4:ch * 4 + 4] = [*ox, *oy]
-        output = np.empty((len(lo), 2), dtype=buf.dtype)
-        output[:, 0] = lo
-        output[:, 1] = ro
-        return output
+            out[:n, 0] = lo
+            out[:n, 1] = ro
+        return out[:n]
 
     def reset(self):
         for state in self._filter_states.values():
