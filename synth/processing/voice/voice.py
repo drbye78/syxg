@@ -124,8 +124,17 @@ class Voice:
         if not matching_descriptors:
             return []
 
-        # Apply round-robin selection
-        selected_descriptors = self._apply_round_robin(matching_descriptors, note, velocity)
+        # Strip non-playable descriptors (e.g. global setup zones with no
+        # sample data) before round-robin so the alternating/random selection
+        # never picks a zone that can never produce audio.
+        playable_descriptors = [
+            d for d in matching_descriptors if d.sample_id is not None
+        ]
+        if not playable_descriptors:
+            return []
+
+        # Apply round-robin selection (only on playable zones)
+        selected_descriptors = self._apply_round_robin(playable_descriptors, note, velocity)
 
         # Create region instances
         regions = []
