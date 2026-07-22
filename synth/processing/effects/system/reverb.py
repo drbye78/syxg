@@ -9,7 +9,6 @@ from scipy.signal import fftconvolve
 
 from ..types import XGReverbType
 
-
 # XG NRPN type (0x00-0x0C) to processor internal type mapping.
 # XG NRPN spec sends reverb type as 0x00-0x0C but the processor dispatch
 # uses internal type numbering (1-24 Hall/Room/Plate + 25-26 Stage).
@@ -55,6 +54,12 @@ class XGSystemReverbProcessor:
         self.sample_rate = sample_rate
         self.max_ir_length = max_ir_length
         self._rng = np.random.RandomState(seed)
+
+        # Pre-allocated concat buffer for streaming convolution (Bug 1 fix).
+        # Sized for maximum IR history + worst-case block (block_size ~= 2048).
+        self._concat_buffer = np.zeros(
+            max(max_ir_length + 8192, 65536), dtype=np.float32
+        )
 
         # XG reverb parameters with NRPN defaults
         self.params = {
@@ -107,7 +112,7 @@ class XGSystemReverbProcessor:
 
         Args:
             param: Parameter name ('time', 'level', 'pre_delay', 'hf_damping', 'density', 'reverb_type')
-            value: Parameter value
+            value: Parameter value (may be raw NRPN for reverb_type, which is mapped here once)
 
         Returns:
             True if parameter was updated and IR needs refresh
@@ -117,11 +122,23 @@ class XGSystemReverbProcessor:
                 return False
 
             old_value = self.params[param]
-            self.params[param] = value
+            stored = value
+
+            # Map XG NRPN reverb_type (0-12) → processor internal type (1-26) at
+            # the point of entry so that _update_impulse_response always sees the
+            # correct internal type. This avoids double-mapping on subsequent
+            # IR-affecting parameter changes.
+            if param == "reverb_type":
+                raw_val = int(value)
+                stored = (
+                    self._map_nrpn_to_processor_type(raw_val) if raw_val <= 12 else raw_val
+                )
+
+            self.params[param] = stored
 
             # Check if IR needs to be updated
             ir_affecting_params = {"reverb_type", "time", "hf_damping", "density", "pre_delay"}
-            if param in ir_affecting_params and abs(value - old_value) > 1e-6:
+            if param in ir_affecting_params and abs(stored - old_value) > 1e-6:
                 self.param_updated = True
                 return True
 
@@ -195,10 +212,16 @@ class XGSystemReverbProcessor:
             self.buffer_positions = [0, 0]
         # If the IR changed size, resize the history buffers (rare).
         elif self.convolution_buffers[0].shape[0] < ir_len - 1:
+            # Bug 3 fix: save old history before discarding buffers so the
+            # reverb tail from the previous block isn't lost.
             hist_size = max(ir_len - 1, 1)
+            old_bufs = list(self.convolution_buffers)
+            copy_len = min(old_bufs[0].shape[0], hist_size)
             self.convolution_buffers = [
                 np.zeros(hist_size, dtype=np.float32) for _ in range(2)
             ]
+            for ch in range(2):
+                self.convolution_buffers[ch][:copy_len] = old_bufs[ch][-copy_len:]
             self.buffer_positions = [0, 0]
 
     def _apply_pre_delay(
@@ -241,7 +264,13 @@ class XGSystemReverbProcessor:
 
             if hist_len > 0:
                 # Build the extended input: [history | current block]
-                extended = np.concatenate([history, block])
+                # Bug 1 fix: pre-allocated buffer + slice assignment instead of np.concatenate
+                needed = hist_len + num_samples
+                if needed > len(self._concat_buffer):
+                    self._concat_buffer = np.zeros(needed * 2, dtype=np.float32)
+                self._concat_buffer[:hist_len] = history[:hist_len]
+                self._concat_buffer[hist_len:needed] = block[:num_samples]
+                extended: np.ndarray = self._concat_buffer[:needed]
             else:
                 extended = block
 
@@ -272,14 +301,9 @@ class XGSystemReverbProcessor:
 
     def _update_impulse_response(self) -> None:
         """Generate or retrieve impulse response based on current parameters."""
-        # Map XG NRPN values (0-12) to processor internal types if needed.
-        # NRPN types 0x03-0x0C would otherwise map to wrong generator ranges
-        # (e.g., NRPN Room 1 = 0x03 would become Hall 3 without this mapping).
-        raw_type = self.params["reverb_type"]
-        if raw_type <= 12:
-            reverb_type = self._map_nrpn_to_processor_type(raw_type)
-        else:
-            reverb_type = raw_type
+        # reverb_type is already mapped from NRPN → internal type in set_parameter(),
+        # so self.params["reverb_type"] is always a valid processor internal type (0-26).
+        reverb_type = int(self.params["reverb_type"])
 
         # Create cache key from current parameters (mapped type ensures correctness)
         cache_key = (
@@ -432,7 +456,7 @@ class XGSystemReverbProcessor:
         for pos, gain in zip(early_positions, early_gains, strict=False):
             sample_pos = int(pos * self.sample_rate)
             if sample_pos < len(self.current_ir):
-                self.current_ir[sample_pos] += gain
+                self.current_ir[sample_pos] += gain * density
 
         # Vectorized smooth, bright late reverb
         start_idx = int(0.03 * self.sample_rate)

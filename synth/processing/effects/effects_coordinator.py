@@ -84,19 +84,11 @@ class XGEffectsCoordinator:
         self.channel_volumes: np.ndarray = np.ones(max_channels, dtype=np.float32)
         self.channel_pans: np.ndarray = np.zeros(max_channels, dtype=np.float32)
 
-        self.reverb_sends: np.ndarray = np.full(
-            max_channels, 0.25, dtype=np.float32
-        )
-        self.chorus_sends: np.ndarray = np.full(
-            max_channels, 0.0, dtype=np.float32
-        )
-        self.variation_sends: np.ndarray = np.full(
-            max_channels, 0.0, dtype=np.float32
-        )
+        self.reverb_sends: np.ndarray = np.full(max_channels, 0.25, dtype=np.float32)
+        self.chorus_sends: np.ndarray = np.full(max_channels, 0.0, dtype=np.float32)
+        self.variation_sends: np.ndarray = np.full(max_channels, 0.0, dtype=np.float32)
 
-        self.delay_sends: np.ndarray = np.full(
-            max_channels, 0.0, dtype=np.float32
-        )
+        self.delay_sends: np.ndarray = np.full(max_channels, 0.0, dtype=np.float32)
 
         self.effect_units_active: np.ndarray = np.ones(10, dtype=bool)
 
@@ -140,6 +132,7 @@ class XGEffectsCoordinator:
         self.jupiter_x_effects = self._initialize_jupiter_x_effects()
         # Jupiter-X VCM effects chain — authentic analog circuit modeling (lazy import to avoid circular dep)
         from ...hardware.jupiter_x.jupiter_x_vcm_effects import JupiterXVCMEffects
+
         self.vcm_chain = JupiterXVCMEffects(sample_rate, block_size, self.buffer_pool)
         # All VCM effects disabled by default; enabled individually via set_vcm_effect_enabled
 
@@ -156,11 +149,31 @@ class XGEffectsCoordinator:
 
     def _initialize_jupiter_x_effects(self):
         return {
-            "distortion": {"type": "distortion", "algorithm": "jupiter_ds", "params": {"drive": 0.5, "tone": 0.5, "level": 0.8}},
-            "phaser": {"type": "vcm_phaser", "algorithm": "jupiter_phaser", "params": {"rate": 0.5, "depth": 0.7, "manual": 0.5, "resonance": 0.3}},
-            "enhancer": {"type": "stereo_enhancer", "algorithm": "jupiter_enhancer", "params": {"enhance": 0.5, "clarity": 0.3, "depth": 0.5}},
-            "vcm_rotary": {"type": "rotary_speaker", "algorithm": "jupiter_rotary", "params": {"speed": 0.5, "drive": 0.3, "balance": 0.5}},
-            "overdrive": {"type": "overdrive", "algorithm": "jupiter_od", "params": {"gain": 0.5, "tone": 0.5, "level": 0.8}},
+            "distortion": {
+                "type": "distortion",
+                "algorithm": "jupiter_ds",
+                "params": {"drive": 0.5, "tone": 0.5, "level": 0.8},
+            },
+            "phaser": {
+                "type": "vcm_phaser",
+                "algorithm": "jupiter_phaser",
+                "params": {"rate": 0.5, "depth": 0.7, "manual": 0.5, "resonance": 0.3},
+            },
+            "enhancer": {
+                "type": "stereo_enhancer",
+                "algorithm": "jupiter_enhancer",
+                "params": {"enhance": 0.5, "clarity": 0.3, "depth": 0.5},
+            },
+            "vcm_rotary": {
+                "type": "rotary_speaker",
+                "algorithm": "jupiter_rotary",
+                "params": {"speed": 0.5, "drive": 0.3, "balance": 0.5},
+            },
+            "overdrive": {
+                "type": "overdrive",
+                "algorithm": "jupiter_od",
+                "params": {"gain": 0.5, "tone": 0.5, "level": 0.8},
+            },
         }
 
     def _apply_jupiter_x_vcm_chain(self, main_mix: np.ndarray, num_samples: int) -> None:
@@ -174,9 +187,13 @@ class XGEffectsCoordinator:
             return
         # Quick check: skip if no VCM effect is enabled
         vcm = self.vcm_chain
-        if not (vcm.vcm_distortion.enabled or vcm.vcm_phaser.enabled
-                or vcm.vcm_chorus.enabled or vcm.vcm_delay.enabled
-                or vcm.vcm_reverb.enabled):
+        if not (
+            vcm.vcm_distortion.enabled
+            or vcm.vcm_phaser.enabled
+            or vcm.vcm_chorus.enabled
+            or vcm.vcm_delay.enabled
+            or vcm.vcm_reverb.enabled
+        ):
             return
         # Process left channel
         left = main_mix[:num_samples, 0]
@@ -250,31 +267,31 @@ class XGEffectsCoordinator:
         self._preallocate_static_buffers()
 
     def _preallocate_static_buffers(self):
-        self._channel_result_buffers = [self.memory_pool.get_stereo_buffer(self.block_size) for _ in range(self.max_channels)]
+        self._channel_result_buffers = [
+            self.memory_pool.get_stereo_buffer(self.block_size) for _ in range(self.max_channels)
+        ]
         self._main_mix_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
         self._reverb_accumulate_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
         self._chorus_accumulate_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
         self._variation_output_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
         self._system_output_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
-        self._temp_working_buffers = [self.memory_pool.get_stereo_buffer(self.block_size) for _ in range(8)]
+        self._temp_working_buffers = [
+            self.memory_pool.get_stereo_buffer(self.block_size) for _ in range(8)
+        ]
         self._reverb_temp_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
         self._chorus_temp_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
         self._eq_work_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
         self._wet_dry_work_buffer = self.memory_pool.get_stereo_buffer(self.block_size)
 
-
     def process_channels_to_stereo_zero_alloc(
-        self, input_channels: list[np.ndarray],
-        output_stereo: np.ndarray, num_samples: int
+        self, input_channels: list[np.ndarray], output_stereo: np.ndarray, num_samples: int
     ) -> None:
         """Process channels through the single-bus pipeline.
 
         Compatibility shim that forwards to the multi-bus processing path
         using bus 0 (master bus). New code should use process_buses_zero_alloc.
         """
-        self.process_buses_zero_alloc(
-            {0: input_channels}, num_samples, output_stereo
-        )
+        self.process_buses_zero_alloc({0: input_channels}, num_samples, output_stereo)
 
     def process_buses_zero_alloc(
         self,
@@ -349,10 +366,17 @@ class XGEffectsCoordinator:
 
                     try:
                         self.process_pipeline(
-                            input_channels, bus_output, num_samples,
-                            processed_channels, main_mix, reverb_accumulate,
-                            chorus_accumulate, delay_accumulate,
-                            variation_output, system_output, temp_buffers,
+                            input_channels,
+                            bus_output,
+                            num_samples,
+                            processed_channels,
+                            main_mix,
+                            reverb_accumulate,
+                            chorus_accumulate,
+                            delay_accumulate,
+                            variation_output,
+                            system_output,
+                            temp_buffers,
                         )
                     finally:
                         self.pipeline = original_pipeline
@@ -392,13 +416,29 @@ class XGEffectsCoordinator:
         system_output is copied directly to output_stereo (passthrough).
         This preserves the signal chain even with all effects off.
         """
+        # --- Capture true dry signal for wet/dry mixing BEFORE any effects
+        # processing touches the buffers. This must happen prior to any
+        # stage so that the dry reference is the raw input, not the
+        # fully-processed (wet) output.
+        if self.wet_dry_mix < 1.0 and self.dry_signal_buffer is not None and input_channels:
+            self.dry_signal_buffer[:num_samples, :].fill(0.0)
+            nch = len(input_channels)
+            inv_nch = 1.0 / max(nch, 1)
+            for ch in input_channels:
+                if ch.ndim == 1:
+                    self.dry_signal_buffer[:num_samples, 0] += ch[:num_samples]
+                    self.dry_signal_buffer[:num_samples, 1] += ch[:num_samples]
+                else:
+                    self.dry_signal_buffer[:num_samples, 0] += ch[:num_samples, 0]
+                    self.dry_signal_buffer[:num_samples, 1] += ch[:num_samples, 1]
+            if nch > 1:
+                self.dry_signal_buffer[:num_samples] *= inv_nch
+
         # --- Passthrough: INSERTION stage copies input → processed_channels.
         # If the stage is skipped, do the copy here so MIX has data to work with.
         insertion_slot = self.pipeline.get_stage(EffectStageType.INSERTION)
         insertion_skipped = (
-            insertion_slot is None
-            or not insertion_slot.enabled
-            or insertion_slot.bypass
+            insertion_slot is None or not insertion_slot.enabled or insertion_slot.bypass
         )
         if insertion_skipped:
             for i, ch in enumerate(input_channels):
@@ -421,12 +461,13 @@ class XGEffectsCoordinator:
                 )
             elif stage == EffectStageType.MIX:
                 self._mix_channels_with_effect_sends_optimized(
-                    processed_channels, main_mix, reverb_accumulate,
-                    chorus_accumulate, num_samples
+                    processed_channels, main_mix, reverb_accumulate, chorus_accumulate, num_samples
                 )
                 # Also accumulate delay sends
-                if self.pipeline.get_stage(EffectStageType.SYSTEM_DELAY) and \
-                   self.pipeline.get_stage(EffectStageType.SYSTEM_DELAY).enabled:
+                if (
+                    self.pipeline.get_stage(EffectStageType.SYSTEM_DELAY)
+                    and self.pipeline.get_stage(EffectStageType.SYSTEM_DELAY).enabled
+                ):
                     self._accumulate_delay_sends_optimized(
                         processed_channels, delay_accumulate, num_samples
                     )
@@ -439,38 +480,42 @@ class XGEffectsCoordinator:
             elif stage == EffectStageType.SYSTEM_REVERB:
                 self._apply_system_effects_with_sends_optimized(
                     variation_output if self._get_variation_enabled() else main_mix,
-                    system_output, reverb_accumulate, chorus_accumulate,
-                    temp_buffers, num_samples
+                    system_output,
+                    reverb_accumulate,
+                    chorus_accumulate,
+                    temp_buffers,
+                    num_samples,
                 )
             elif stage == EffectStageType.SYSTEM_CHORUS:
                 # Chorus is handled inside _apply_system_effects_with_sends_optimized
                 # So this stage is a no-op when reverb is also present
                 # When reverb is bypassed, apply chorus independently
-                if not self.pipeline.get_stage(EffectStageType.SYSTEM_REVERB) or \
-                   not self.pipeline.get_stage(EffectStageType.SYSTEM_REVERB).enabled:
+                if (
+                    not self.pipeline.get_stage(EffectStageType.SYSTEM_REVERB)
+                    or not self.pipeline.get_stage(EffectStageType.SYSTEM_REVERB).enabled
+                ):
                     self._apply_system_effects_with_sends_optimized(
                         variation_output if self._get_variation_enabled() else main_mix,
-                        system_output, reverb_accumulate, chorus_accumulate,
-                        temp_buffers, num_samples
+                        system_output,
+                        reverb_accumulate,
+                        chorus_accumulate,
+                        temp_buffers,
+                        num_samples,
                     )
             elif stage == EffectStageType.SYSTEM_DELAY:
                 self._apply_system_delay_to_mix(
                     variation_output if self._get_variation_enabled() else main_mix,
-                    system_output, delay_accumulate, num_samples
+                    system_output,
+                    delay_accumulate,
+                    num_samples,
                 )
             elif stage == EffectStageType.MASTER:
-                self._apply_master_processing_optimized(
-                    system_output, num_samples, output_stereo
-                )
+                self._apply_master_processing_optimized(system_output, num_samples, output_stereo)
 
         # --- Passthrough: MASTER stage copies system_output → output_stereo.
         # If the stage is skipped, copy directly so the bus gets output.
         master_slot = self.pipeline.get_stage(EffectStageType.MASTER)
-        master_skipped = (
-            master_slot is None
-            or not master_slot.enabled
-            or master_slot.bypass
-        )
+        master_skipped = master_slot is None or not master_slot.enabled or master_slot.bypass
         if master_skipped:
             np.copyto(output_stereo[:num_samples], system_output[:num_samples])
 
@@ -511,8 +556,7 @@ class XGEffectsCoordinator:
         return self.bus_manager.set_bus_topology(bus_id, topology)
 
     def _accumulate_delay_sends_optimized(
-        self, processed_channels: list[np.ndarray],
-        delay_accumulate: np.ndarray, num_samples: int
+        self, processed_channels: list[np.ndarray], delay_accumulate: np.ndarray, num_samples: int
     ) -> None:
         """Accumulate per-channel delay sends into delay accumulate buffer."""
         for ch_idx, ch_buf in enumerate(processed_channels):
@@ -524,8 +568,11 @@ class XGEffectsCoordinator:
                         delay_accumulate[s, 1] += ch_buf[s, 1] * send
 
     def _apply_system_delay_to_mix(
-        self, input_mix: np.ndarray, output_mix: np.ndarray,
-        delay_accumulate: np.ndarray, num_samples: int
+        self,
+        input_mix: np.ndarray,
+        output_mix: np.ndarray,
+        delay_accumulate: np.ndarray,
+        num_samples: int,
     ) -> None:
         """Apply system delay effect to the mix."""
         # Ensure pre-allocated buffers are large enough
@@ -538,14 +585,22 @@ class XGEffectsCoordinator:
         self.system_delay.process(
             delay_accumulate[:num_samples, 0],
             delay_accumulate[:num_samples, 1],
-            delay_out_l, delay_out_r, num_samples
+            delay_out_l,
+            delay_out_r,
+            num_samples,
         )
         # Mix delay output into the output
         for s in range(num_samples):
             output_mix[s, 0] += delay_out_l[s]
             output_mix[s, 1] += delay_out_r[s]
 
-    def _apply_insertion_effects_to_channels_optimized(self, input_channels: list[np.ndarray], processed_channels: list[np.ndarray], temp_buffers: list[np.ndarray], num_samples: int) -> None:
+    def _apply_insertion_effects_to_channels_optimized(
+        self,
+        input_channels: list[np.ndarray],
+        processed_channels: list[np.ndarray],
+        temp_buffers: list[np.ndarray],
+        num_samples: int,
+    ) -> None:
         for ch_idx, channel_data in enumerate(input_channels):
             if ch_idx >= len(self.insertion_effects):
                 if channel_data.ndim == 1:
@@ -571,7 +626,14 @@ class XGEffectsCoordinator:
 
             np.copyto(processed_channels[ch_idx][:num_samples], working_buffer[:num_samples])
 
-    def _mix_channels_with_effect_sends_optimized(self, processed_channels: list[np.ndarray], main_mix: np.ndarray, reverb_accumulate: np.ndarray, chorus_accumulate: np.ndarray, num_samples: int) -> None:
+    def _mix_channels_with_effect_sends_optimized(
+        self,
+        processed_channels: list[np.ndarray],
+        main_mix: np.ndarray,
+        reverb_accumulate: np.ndarray,
+        chorus_accumulate: np.ndarray,
+        num_samples: int,
+    ) -> None:
         for ch_idx, channel_data in enumerate(processed_channels):
             if ch_idx >= self.max_channels:
                 continue
@@ -586,8 +648,8 @@ class XGEffectsCoordinator:
                 left_data = channel_data[:num_samples] * volume * (1.0 - pan) * 0.5
                 right_data = channel_data[:num_samples] * volume * (1.0 + pan) * 0.5
             else:
-                left_data = channel_data[:num_samples, 0] * volume
-                right_data = channel_data[:num_samples, 1] * volume
+                left_data = channel_data[:num_samples, 0] * volume * (1.0 - pan)
+                right_data = channel_data[:num_samples, 1] * volume * (1.0 + pan)
 
             # Full dry signal at channel volume — sends are additive, not subtractive.
             # In XG send/return architecture, the effect sends are POST-fader copies,
@@ -603,7 +665,13 @@ class XGEffectsCoordinator:
                 chorus_accumulate[:num_samples, 0] += left_data * chorus_send
                 chorus_accumulate[:num_samples, 1] += right_data * chorus_send
 
-    def _apply_variation_effects_to_mix_optimized(self, main_mix: np.ndarray, variation_output: np.ndarray, temp_buffers: list[np.ndarray], num_samples: int) -> None:
+    def _apply_variation_effects_to_mix_optimized(
+        self,
+        main_mix: np.ndarray,
+        variation_output: np.ndarray,
+        temp_buffers: list[np.ndarray],
+        num_samples: int,
+    ) -> None:
         if not self.effect_units_active[0]:
             np.copyto(variation_output[:num_samples], main_mix[:num_samples])
             return
@@ -613,7 +681,15 @@ class XGEffectsCoordinator:
             variation_output[:num_samples], num_samples
         )
 
-    def _apply_system_effects_with_sends_optimized(self, variation_output: np.ndarray, system_output: np.ndarray, reverb_accumulate: np.ndarray, chorus_accumulate: np.ndarray, temp_buffers: list[np.ndarray], num_samples: int) -> None:
+    def _apply_system_effects_with_sends_optimized(
+        self,
+        variation_output: np.ndarray,
+        system_output: np.ndarray,
+        reverb_accumulate: np.ndarray,
+        chorus_accumulate: np.ndarray,
+        temp_buffers: list[np.ndarray],
+        num_samples: int,
+    ) -> None:
         np.copyto(system_output[:num_samples], variation_output[:num_samples])
         use_gs_effects = self._should_use_gs_system_effects()
 
@@ -632,15 +708,25 @@ class XGEffectsCoordinator:
                 system_output[:num_samples] += chorus_wet[:num_samples]
 
     def _should_use_gs_system_effects(self) -> bool:
-        return bool(self.synthesizer and hasattr(self.synthesizer, "parameter_priority") and self.synthesizer.parameter_priority.is_gs_active())
+        return bool(
+            self.synthesizer
+            and hasattr(self.synthesizer, "parameter_priority")
+            and self.synthesizer.parameter_priority.is_gs_active()
+        )
 
-    def _apply_system_reverb_optimized(self, send: np.ndarray, buf: np.ndarray, n: int, gs: bool = False) -> np.ndarray | None:
+    def _apply_system_reverb_optimized(
+        self, send: np.ndarray, buf: np.ndarray, n: int, gs: bool = False
+    ) -> np.ndarray | None:
         return self._apply_system_processor(send, buf, n, self.system_effects.reverb_processor, gs)
 
-    def _apply_system_chorus_optimized(self, send: np.ndarray, buf: np.ndarray, n: int, gs: bool = False) -> np.ndarray | None:
+    def _apply_system_chorus_optimized(
+        self, send: np.ndarray, buf: np.ndarray, n: int, gs: bool = False
+    ) -> np.ndarray | None:
         return self._apply_system_processor(send, buf, n, self.system_effects.chorus_processor, gs)
 
-    def _apply_system_processor(self, send: np.ndarray, buf: np.ndarray, n: int, processor, use_gs: bool = False) -> np.ndarray | None:
+    def _apply_system_processor(
+        self, send: np.ndarray, buf: np.ndarray, n: int, processor, use_gs: bool = False
+    ) -> np.ndarray | None:
         try:
             np.copyto(buf[:n], send[:n])
             if use_gs and self.synthesizer and hasattr(self.synthesizer, "gs_components"):
@@ -663,16 +749,17 @@ class XGEffectsCoordinator:
         except Exception:
             return None
 
-    def _apply_master_processing_optimized(self, system_output: np.ndarray, num_samples: int, output_stereo: np.ndarray) -> None:
+    def _apply_master_processing_optimized(
+        self, system_output: np.ndarray, num_samples: int, output_stereo: np.ndarray
+    ) -> None:
         np.copyto(output_stereo[:num_samples], system_output[:num_samples])
-        if self.wet_dry_mix < 1.0 and self.dry_signal_buffer is not None:
-            np.copyto(self.dry_signal_buffer[:num_samples], output_stereo[:num_samples])
         if self.master_level != 1.0:
             output_stereo[:num_samples] *= self.master_level
         if self.wet_dry_mix < 1.0 and self.dry_signal_buffer is not None:
             wl, dl = self.wet_dry_mix, 1.0 - self.wet_dry_mix
-            self.dry_signal_buffer[:num_samples] *= dl
-            output_stereo[:num_samples] = output_stereo[:num_samples] * wl + self.dry_signal_buffer[:num_samples]
+            output_stereo[:num_samples] = (
+                output_stereo[:num_samples] * wl + self.dry_signal_buffer[:num_samples] * dl
+            )
         np.copyto(self._eq_work_buffer[:num_samples], output_stereo[:num_samples])
         eq = self.master_eq.process_buffer(self._eq_work_buffer[:num_samples])
         self._apply_stereo_enhancement(eq, num_samples)
@@ -681,17 +768,29 @@ class XGEffectsCoordinator:
             output_stereo[:cs, 0] = eq[:cs]
             output_stereo[:cs, 1] = eq[:cs]
         else:
-            cc = min(output_stereo.shape[1] if output_stereo.ndim > 1 else 1, eq.shape[1] if eq.ndim > 1 else 1)
+            cc = min(
+                output_stereo.shape[1] if output_stereo.ndim > 1 else 1,
+                eq.shape[1] if eq.ndim > 1 else 1,
+            )
             output_stereo[:cs, :cc] = eq[:cs, :cc]
         np.clip(output_stereo[:num_samples], -0.99, 0.99, out=output_stereo[:num_samples])
 
     def _apply_stereo_enhancement(self, stereo_buffer: np.ndarray, num_samples: int) -> None:
-        e = 0.1
-        mono = (stereo_buffer[:num_samples, 0] + stereo_buffer[:num_samples, 1]) * 0.5
-        stereo_buffer[:num_samples, 0] -= mono * e
-        stereo_buffer[:num_samples, 1] -= mono * e
+        """Mid-side stereo enhancement — preserves mono compatibility.
 
-    def _mix_channels_to_stereo_direct(self, input_channels: list[np.ndarray], output_stereo: np.ndarray, num_samples: int) -> None:
+        Widen the side (L-R) signal while keeping the mid (L+R) signal intact.
+        e = 0 = no effect; e = 1.0 = maximum width.
+        """
+        e = 0.1  # enhancement amount
+        mid = (stereo_buffer[:num_samples, 0] + stereo_buffer[:num_samples, 1]) * 0.5
+        side = (stereo_buffer[:num_samples, 0] - stereo_buffer[:num_samples, 1]) * 0.5
+        side *= 1.0 + e  # widen the side signal
+        stereo_buffer[:num_samples, 0] = mid + side
+        stereo_buffer[:num_samples, 1] = mid - side
+
+    def _mix_channels_to_stereo_direct(
+        self, input_channels: list[np.ndarray], output_stereo: np.ndarray, num_samples: int
+    ) -> None:
         output_stereo[:num_samples, :].fill(0.0)
         num_active_channels = min(len(input_channels), self.max_channels)
         mix_level = 1.0 / max(num_active_channels, 1)
@@ -713,11 +812,15 @@ class XGEffectsCoordinator:
 
     def set_channel_insertion_effect(self, channel: int, slot: int, effect_type: int) -> bool:
         with self.lock:
-            return 0 <= channel < len(self.insertion_effects) and self.insertion_effects[channel].set_insertion_effect_type(slot, effect_type)
+            return 0 <= channel < len(self.insertion_effects) and self.insertion_effects[
+                channel
+            ].set_insertion_effect_type(slot, effect_type)
 
     def set_channel_insertion_bypass(self, channel: int, slot: int, bypass: bool) -> bool:
         with self.lock:
-            return 0 <= channel < len(self.insertion_effects) and self.insertion_effects[channel].set_insertion_effect_bypass(slot, bypass)
+            return 0 <= channel < len(self.insertion_effects) and self.insertion_effects[
+                channel
+            ].set_insertion_effect_bypass(slot, bypass)
 
     def set_variation_effect_type(self, variation_type: int) -> bool:
         with self.lock:
@@ -734,7 +837,11 @@ class XGEffectsCoordinator:
             if not (0 <= channel < self.max_channels):
                 return False
             level = max(0.0, min(1.0, level))
-            sends = {"reverb": self.reverb_sends, "chorus": self.chorus_sends, "variation": self.variation_sends}
+            sends = {
+                "reverb": self.reverb_sends,
+                "chorus": self.chorus_sends,
+                "variation": self.variation_sends,
+            }
             t = sends.get(effect_type)
             if t is None:
                 return False
@@ -805,8 +912,10 @@ class XGEffectsCoordinator:
                 return False
 
     _EQ_BAND_SETTERS = {
-        "low": lambda eq, v: eq.set_low_gain(v), "low_mid": lambda eq, v: eq.set_low_mid_gain(v),
-        "mid": lambda eq, v: eq.set_mid_gain(v), "high_mid": lambda eq, v: eq.set_high_mid_gain(v),
+        "low": lambda eq, v: eq.set_low_gain(v),
+        "low_mid": lambda eq, v: eq.set_low_mid_gain(v),
+        "mid": lambda eq, v: eq.set_mid_gain(v),
+        "high_mid": lambda eq, v: eq.set_high_mid_gain(v),
         "high": lambda eq, v: eq.set_high_gain(v),
     }
 
@@ -869,15 +978,32 @@ class XGEffectsCoordinator:
 
     def get_processing_status(self) -> dict[str, Any]:
         with self.lock:
-            return {"processing_enabled": self.processing_enabled, "master_level": self.master_level, "wet_dry_mix": self.wet_dry_mix, "routing_mode": self.effect_routing_mode, "performance": self.processing_stats.copy(), "buffer_pool": self.buffer_pool.get_memory_stats(), "system_effects": self.system_effects.get_system_effects_status(), "variation_effects": self.variation_effects.get_variation_status(), "effect_units_active": self.effect_units_active.tolist()}
+            return {
+                "processing_enabled": self.processing_enabled,
+                "master_level": self.master_level,
+                "wet_dry_mix": self.wet_dry_mix,
+                "routing_mode": self.effect_routing_mode,
+                "performance": self.processing_stats.copy(),
+                "buffer_pool": self.buffer_pool.get_memory_stats(),
+                "system_effects": self.system_effects.get_system_effects_status(),
+                "variation_effects": self.variation_effects.get_variation_status(),
+                "effect_units_active": self.effect_units_active.tolist(),
+            }
 
     def reset_all_effects(self) -> None:
         _delay = int(2.0 * self.sample_rate)
         with self.lock:
-            self.system_effects = XGSystemEffectsProcessor(self.sample_rate, self.block_size, int(5.0 * self.sample_rate), int(0.05 * self.sample_rate))
+            self.system_effects = XGSystemEffectsProcessor(
+                self.sample_rate,
+                self.block_size,
+                int(5.0 * self.sample_rate),
+                int(0.05 * self.sample_rate),
+            )
             self.variation_effects = XGVariationEffectsProcessor(self.sample_rate, _delay)
             for i in range(len(self.insertion_effects)):
-                self.insertion_effects[i] = ProductionXGInsertionEffectsProcessor(self.sample_rate, _delay)
+                self.insertion_effects[i] = ProductionXGInsertionEffectsProcessor(
+                    self.sample_rate, _delay
+                )
             self.channel_volumes.fill(1.0)
             self.channel_pans.fill(0.0)
             self.reverb_sends.fill(0.4)
@@ -889,8 +1015,37 @@ class XGEffectsCoordinator:
 
     def get_current_state(self) -> dict[str, Any]:
         with self.lock:
-            rp, cp = self.system_effects.reverb_processor.params, self.system_effects.chorus_processor.params
-            return {"processing_enabled": self.processing_enabled, "master_level": self.master_level, "wet_dry_mix": self.wet_dry_mix, "reverb_params": {"type": rp.get("reverb_type", 1), "level": rp.get("level", 0.0), "time": rp.get("time", 0.5), "hf_damping": rp.get("hf_damping", 0.5), "density": rp.get("density", 0.8)}, "chorus_params": {"type": cp.get("chorus_type", 0), "level": cp.get("level", 0.0), "rate": cp.get("rate", 1.0), "depth": cp.get("depth", 0.5), "feedback": cp.get("feedback", 0.3)}, "variation_params": {"level": 0.0, "type": 0}, "equalizer_params": {"low_gain": 0.0, "mid_gain": 0.0, "high_gain": 0.0}, "effect_units_active": self.effect_units_active.tolist(), "channel_volumes": self.channel_volumes.tolist(), "channel_pans": self.channel_pans.tolist(), "reverb_sends": self.reverb_sends.tolist(), "chorus_sends": self.chorus_sends.tolist(), "variation_sends": self.variation_sends.tolist()}
+            rp, cp = (
+                self.system_effects.reverb_processor.params,
+                self.system_effects.chorus_processor.params,
+            )
+            return {
+                "processing_enabled": self.processing_enabled,
+                "master_level": self.master_level,
+                "wet_dry_mix": self.wet_dry_mix,
+                "reverb_params": {
+                    "type": rp.get("reverb_type", 1),
+                    "level": rp.get("level", 0.0),
+                    "time": rp.get("time", 0.5),
+                    "hf_damping": rp.get("hf_damping", 0.5),
+                    "density": rp.get("density", 0.8),
+                },
+                "chorus_params": {
+                    "type": cp.get("chorus_type", 0),
+                    "level": cp.get("level", 0.0),
+                    "rate": cp.get("rate", 1.0),
+                    "depth": cp.get("depth", 0.5),
+                    "feedback": cp.get("feedback", 0.3),
+                },
+                "variation_params": {"level": 0.0, "type": 0},
+                "equalizer_params": {"low_gain": 0.0, "mid_gain": 0.0, "high_gain": 0.0},
+                "effect_units_active": self.effect_units_active.tolist(),
+                "channel_volumes": self.channel_volumes.tolist(),
+                "channel_pans": self.channel_pans.tolist(),
+                "reverb_sends": self.reverb_sends.tolist(),
+                "chorus_sends": self.chorus_sends.tolist(),
+                "variation_sends": self.variation_sends.tolist(),
+            }
 
     def shutdown(self) -> None:
         with self.lock:
@@ -948,7 +1103,9 @@ class XGEffectsCoordinator:
             if hasattr(self, "vcm_effects"):
                 self.vcm_effects.clear()
 
-    def _process_vcm_overdrive(self, audio: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    def _process_vcm_overdrive(
+        self, audio: np.ndarray, params: dict[str, Any] | None = None
+    ) -> np.ndarray:
         p = params or {}
         d, t, l = p.get("drive", 0.5), p.get("tone", 0.5), p.get("level", 0.7)
         x = audio * (1.0 + d * 3.0)
@@ -957,7 +1114,9 @@ class XGEffectsCoordinator:
             proc = self._apply_simple_filter(proc, 1.0 - (0.5 - t) * 2.0, "lowpass")
         return proc * l
 
-    def _process_vcm_distortion(self, audio: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    def _process_vcm_distortion(
+        self, audio: np.ndarray, params: dict[str, Any] | None = None
+    ) -> np.ndarray:
         p = params or {}
         d, t, l = p.get("drive", 0.7), p.get("tone", 0.3), p.get("level", 0.6)
         x = audio * (1.0 + d * 5.0)
@@ -969,9 +1128,16 @@ class XGEffectsCoordinator:
             proc = self._apply_simple_filter(proc, 0.5 + t * 0.5, "highpass")
         return proc * l
 
-    def _process_vcm_phaser(self, audio: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    def _process_vcm_phaser(
+        self, audio: np.ndarray, params: dict[str, Any] | None = None
+    ) -> np.ndarray:
         p = params or {}
-        r, d, f, l = p.get("rate", 0.5), p.get("depth", 0.6), p.get("feedback", 0.3), p.get("level", 0.8)
+        r, d, f, l = (
+            p.get("rate", 0.5),
+            p.get("depth", 0.6),
+            p.get("feedback", 0.3),
+            p.get("level", 0.8),
+        )
         t = np.arange(len(audio)) / self.sample_rate
         ps = np.sin(2 * np.pi * (0.1 + r * 2.0) * t) * d * np.pi
         ps = ps[:, np.newaxis]  # (N,) → (N, 1) for stereo broadcast
@@ -981,9 +1147,16 @@ class XGEffectsCoordinator:
         m = p.get("mix", 1.0)
         return audio * (1.0 - m) + proc * m
 
-    def _process_vcm_equalizer(self, audio: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    def _process_vcm_equalizer(
+        self, audio: np.ndarray, params: dict[str, Any] | None = None
+    ) -> np.ndarray:
         p = params or {}
-        lg, mg, hg, lvl = p.get("low_gain", 0.0), p.get("mid_gain", 0.0), p.get("high_gain", 0.0), p.get("level", 1.0)
+        lg, mg, hg, lvl = (
+            p.get("low_gain", 0.0),
+            p.get("mid_gain", 0.0),
+            p.get("high_gain", 0.0),
+            p.get("level", 1.0),
+        )
         proc = audio.copy()
         if lg:
             proc = self._apply_simple_filter(proc, 0.1, "lowshelf", gain=10 ** (lg / 20.0))
@@ -993,7 +1166,9 @@ class XGEffectsCoordinator:
             proc = self._apply_simple_filter(proc, 0.25, "peaking", gain=10 ** (mg / 20.0))
         return proc * lvl
 
-    def _process_vcm_stereo_enhancer(self, audio: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    def _process_vcm_stereo_enhancer(
+        self, audio: np.ndarray, params: dict[str, Any] | None = None
+    ) -> np.ndarray:
         p = params or {}
         w, lvl = p.get("width", 0.5), p.get("level", 1.0)
         if audio.ndim == 1:
@@ -1003,7 +1178,9 @@ class XGEffectsCoordinator:
         d = (left - right) * w
         return np.column_stack([m + d, m - d]) * lvl
 
-    def _apply_simple_filter(self, audio: np.ndarray, freq: float, filter_type: str = "lowpass", gain: float = 1.0) -> np.ndarray:
+    def _apply_simple_filter(
+        self, audio: np.ndarray, freq: float, filter_type: str = "lowpass", gain: float = 1.0
+    ) -> np.ndarray:
         if filter_type in ("lowshelf", "highshelf", "peaking", "other"):
             return audio * gain
         alpha = freq
@@ -1019,43 +1196,63 @@ class XGEffectsCoordinator:
                 filtered[i] = alpha * (filtered[i - 1] + audio[i] - audio[i - 1])
         return filtered * gain
 
-    def process_multiband_compression(self, audio: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    def process_multiband_compression(
+        self, audio: np.ndarray, params: dict[str, Any] | None = None
+    ) -> np.ndarray:
         p = params or {}
-        lt, mt, ht = p.get("low_threshold", -20.0), p.get("mid_threshold", -20.0), p.get("high_threshold", -20.0)
+        lt, mt, ht = (
+            p.get("low_threshold", -20.0),
+            p.get("mid_threshold", -20.0),
+            p.get("high_threshold", -20.0),
+        )
         lr, mr, hr = p.get("low_ratio", 4.0), p.get("mid_ratio", 4.0), p.get("high_ratio", 4.0)
         lo = self._apply_simple_filter(audio.copy(), 0.2, "lowpass")
         hi = self._apply_simple_filter(audio.copy(), 0.6, "highpass")
         mi = audio - lo - hi
-        return self._apply_compression(lo, lt, lr) + self._apply_compression(mi, mt, mr) + self._apply_compression(hi, ht, hr)
+        return (
+            self._apply_compression(lo, lt, lr)
+            + self._apply_compression(mi, mt, mr)
+            + self._apply_compression(hi, ht, hr)
+        )
 
-    def _apply_compression(self, audio: np.ndarray, threshold_db: float, ratio: float) -> np.ndarray:
+    def _apply_compression(
+        self, audio: np.ndarray, threshold_db: float, ratio: float
+    ) -> np.ndarray:
         amp = np.abs(audio)
         db = 20 * np.log10(amp + 1e-10)
         cdb = np.where(db > threshold_db, threshold_db + (db - threshold_db) / ratio, db)
         return np.sign(audio) * (10 ** (cdb / 20.0))
 
-    def process_multitap_delay(self, audio: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    def process_multitap_delay(
+        self, audio: np.ndarray, params: dict[str, Any] | None = None
+    ) -> np.ndarray:
         p = params or {}
         tt, tl = p.get("tap_times", [100, 200, 300]), p.get("tap_levels", [0.5, 0.4, 0.3])
-        fb, md, mr = p.get("feedback", 0.3), p.get("modulation_depth", 0.0), p.get("modulation_rate", 0.5)
+        fb, md, mr = (
+            p.get("feedback", 0.3),
+            p.get("modulation_depth", 0.0),
+            p.get("modulation_rate", 0.5),
+        )
         output = audio.copy()
         needed = len(audio) * 2
         if self._delay_tap_buffer is None or len(self._delay_tap_buffer) < needed:
             self._delay_tap_buffer = np.zeros(needed, dtype=np.float32)
         buf = self._delay_tap_buffer[:needed]
-        buf[:len(audio)] = audio
-        buf[len(audio):] = 0.0
+        buf[: len(audio)] = audio
+        buf[len(audio) :] = 0.0
         for t, l in zip(tt, tl, strict=False):
             s = int(t * self.sample_rate / 1000.0)
             if s < len(buf):
-                output += buf[s:s + len(audio)] * l
+                output += buf[s : s + len(audio)] * l
         if fb:
             output += audio * fb
         if md:
             output *= 1.0 + np.sin(2 * np.pi * mr * np.arange(len(output)) / self.sample_rate) * md
         return output
 
-    def process_spectral_effect(self, audio: np.ndarray, params: dict[str, Any] | None = None) -> np.ndarray:
+    def process_spectral_effect(
+        self, audio: np.ndarray, params: dict[str, Any] | None = None
+    ) -> np.ndarray:
         p = params or {}
         t = p.get("effect_type", "spectral_enhance")
         sp = np.fft.rfft(audio)
@@ -1069,7 +1266,9 @@ class XGEffectsCoordinator:
             mag = np.where(mag > th, th + (mag - th) / r, mag)
         return np.fft.irfft(mag * np.exp(1j * ph), len(audio))
 
-    def process_parallel_chain(self, audio: np.ndarray, chain: list[tuple[str, dict[str, Any]]], mix: float = 0.5) -> np.ndarray:
+    def process_parallel_chain(
+        self, audio: np.ndarray, chain: list[tuple[str, dict[str, Any]]], mix: float = 0.5
+    ) -> np.ndarray:
         wet = audio.copy()
         for name, p in chain:
             wet = self.apply_effect(wet, name, p)
@@ -1077,7 +1276,12 @@ class XGEffectsCoordinator:
 
     def get_effects_status(self) -> dict[str, Any]:
         return {
-            "system_effects": {"reverb": self.system_effects.get("reverb", {}).get("type", "none"), "chorus": self.system_effects.get("chorus", {}).get("type", "none")},
+            "system_effects": {
+                "reverb": self.system_effects.get("reverb", {}).get("type", "none"),
+                "chorus": self.system_effects.get("chorus", {}).get("type", "none"),
+            },
             "variation_effects": self.variation_effects.get_variation_status(),
-            "insertion_effects": len(self.insertion_effects) if hasattr(self, "insertion_effects") else 0,
+            "insertion_effects": (
+                len(self.insertion_effects) if hasattr(self, "insertion_effects") else 0
+            ),
         }

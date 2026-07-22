@@ -242,6 +242,7 @@ class SpecialVariationProcessor:
             "delay_line_r": np.zeros(self.max_delay_samples, dtype=np.float32),
             "write_pos": 0,
             "read_pos_frac": 0.0,  # fractional read offset counter
+            "prev_read_pos": 0.0,  # previous read position for wrap detection
         })
         
         dl_l = state["delay_line_l"]
@@ -271,18 +272,18 @@ class SpecialVariationProcessor:
             shifted_l = dl_l[read_idx] * (1.0 - frac) + dl_l[next_idx] * frac
             shifted_r = dl_r[read_idx] * (1.0 - frac) + dl_r[next_idx] * frac
             
-            # Cross-fade at wrap point to avoid glitches
-            # Calculate position in the cross-fade window
-            wrap_distance = abs(abs_read_pos - self.max_delay_samples) if abs_read_pos >= base_delay else 0.0
-            fade_gain = 1.0
-            if wrap_distance < fade_size:
-                # Raised cosine cross-fade
-                fade_gain = 0.5 * (1.0 - np.cos(np.pi * wrap_distance / fade_size))
-                # When fading out (near wrap), cross-fade with dry signal
-                dry = stereo_mix[i, 0], stereo_mix[i, 1]
-                wet = shifted_l, shifted_r
-                shifted_l = wet[0] * fade_gain + dry[0] * (1.0 - fade_gain)
-                shifted_r = wet[1] * fade_gain + dry[1] * (1.0 - fade_gain)
+            # Detect read position wrap-around in the modulo buffer
+            prev_rp = state["prev_read_pos"]
+            if abs(read_pos - prev_rp) > self.max_delay_samples * 0.5:
+                # Wrap detected — compute distance from the wrap edge
+                wrap_dist = min(read_pos, self.max_delay_samples - read_pos)
+                if wrap_dist < fade_size:
+                    # Raised cosine cross-fade
+                    fade_gain = 0.5 * (1.0 - np.cos(np.pi * wrap_dist / fade_size))
+                    dry_l, dry_r = stereo_mix[i, 0], stereo_mix[i, 1]
+                    shifted_l = shifted_l * fade_gain + dry_l * (1.0 - fade_gain)
+                    shifted_r = shifted_r * fade_gain + dry_r * (1.0 - fade_gain)
+            state["prev_read_pos"] = read_pos
             
             # Dry/wet mix
             stereo_mix[i, 0] = stereo_mix[i, 0] * (1.0 - mix) + shifted_l * mix * level

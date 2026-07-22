@@ -120,6 +120,17 @@ class XGSystemChorusProcessor:
             "enabled": True,
         }
 
+        # Pre-allocate delay lines and initialize LFO state
+        self.left_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
+        self.right_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
+        self.left_write_pos = 0
+        self.right_write_pos = 0
+        self.lfo_phase = 0.0
+        self.lfo_phase_right = 0.0
+        self.lock = threading.RLock()
+        self._lfo_tables = self._generate_lfo_tables()
+        self.param_updated = False
+
         # Apply initial type settings
         self._apply_chorus_type_preset(XGChorusType.CHORUS_1.value)
 
@@ -134,32 +145,14 @@ class XGSystemChorusProcessor:
             preset = self.chorus_type_presets[chorus_type]
             for param, value in preset.items():
                 self.params[param] = value
-            self.param_updated = True
 
-        # Initialize delay lines on first call; zero existing on type change
-        if not hasattr(self, "left_delay_line"):
-            self.left_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
-            self.right_delay_line = np.zeros(self.max_delay_samples, dtype=np.float32)
-            self.left_write_pos = 0
-            self.right_write_pos = 0
-
-            # LFO state
-            self.lfo_phase = 0.0
-            self.lfo_phase_right = 0.0
-
-            # Thread safety
-            self.lock = threading.RLock()
-
-            # Pre-compute modulation tables for better performance
-            self._lfo_tables = self._generate_lfo_tables()
-        else:
-            # Zero existing delay lines instead of reallocating (avoids audio pop)
-            self.left_delay_line.fill(0.0)
-            self.right_delay_line.fill(0.0)
-            self.left_write_pos = 0
-            self.right_write_pos = 0
-            self.lfo_phase = 0.0
-            self.lfo_phase_right = 0.0
+        # Zero existing delay lines on type change instead of reallocating (avoids audio pop)
+        self.left_delay_line.fill(0.0)
+        self.right_delay_line.fill(0.0)
+        self.left_write_pos = 0
+        self.right_write_pos = 0
+        self.lfo_phase = 0.0
+        self.lfo_phase_right = 0.0
 
         self.param_updated = True
 

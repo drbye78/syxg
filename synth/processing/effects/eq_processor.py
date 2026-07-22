@@ -44,6 +44,8 @@ class XGMultiBandEqualizer:
         self._eq_work_buffer: np.ndarray | None = None
         # Pre-allocated output buffer for biquad chaining (zero-allocation hot path)
         self._biquad_out: np.ndarray | None = None
+        # Pre-allocated stereo work buffer for mono-to-stereo conversion
+        self._stereo_work = np.zeros((1024, 2), dtype=np.float32)
 
     def _initialize_filters(self):
         self._filter_coeffs = {
@@ -64,7 +66,8 @@ class XGMultiBandEqualizer:
         if A < 1e-6:
             A = 1e-6
         sA, aA = np.sqrt(A), A
-        t1 = 2 * sA * alpha
+        S = 1.0 if gain_db >= 0 else A
+        t1 = 2 * sA * alpha * S
         if band == "low":
             b0 = aA * ((aA + 1) + (aA - 1) * cos_omega + t1)
             b1 = -2 * aA * ((aA - 1) + (aA + 1) * cos_omega)
@@ -81,8 +84,7 @@ class XGMultiBandEqualizer:
             a2 = (aA + 1) + (aA - 1) * cos_omega - t1
         if abs(a0) < 1e-15:
             return np.array([1.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
-        s = np.sign(A)
-        return np.array([b0 * s / a0, b1 * s / a0, b2 * s / a0, a1 / a0, a2 / a0], dtype=np.float64)
+        return np.array([b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0], dtype=np.float64)
 
     def _create_parametric_coefficients(self, freq: float, gain_db: float, q: float) -> np.ndarray:
         A = 10 ** (gain_db / 40.0)
@@ -138,8 +140,12 @@ class XGMultiBandEqualizer:
         if self.bypass or not self.enabled:
             return buffer  # No copy needed — caller can write through
         if buffer.ndim == 1:
-            s = np.column_stack((buffer, buffer))
-            return self._process_stereo_buffer_vectorized(s)[:, 0]
+            n = len(buffer)
+            if n > self._stereo_work.shape[0]:
+                self._stereo_work = np.zeros((int(n * 1.5), 2), dtype=np.float32)
+            self._stereo_work[:n, 0] = buffer
+            self._stereo_work[:n, 1] = buffer
+            return self._process_stereo_buffer_vectorized(self._stereo_work[:n])[:, 0]
         return self._process_stereo_buffer_vectorized(buffer)
 
     def _process_stereo_buffer_vectorized(self, buffer: np.ndarray) -> np.ndarray:

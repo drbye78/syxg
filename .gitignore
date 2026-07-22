@@ -123,3 +123,6 @@ package-lock.json
 # Logs
 # ============================================================
 *.log
+
+# Deepwork progress files (local only)
+.slim/deepwork/

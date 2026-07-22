@@ -165,10 +165,10 @@ class DelayVariationProcessor:
 
             # Apply feedback with optional cross-feedback (using delay tap outputs)
             state["delay_line_l"][state["write_pos_l"]] = (
-                input_l + delayed_l * feedback + delayed_r * feedback * cross_feedback
+                input_l + delayed_l * feedback + delayed_r * cross_feedback
             )
             state["delay_line_r"][state["write_pos_r"]] = (
-                input_r + delayed_r * feedback + delayed_l * feedback * cross_feedback
+                input_r + delayed_r * feedback + delayed_l * cross_feedback
             )
 
             stereo_mix[i, 0] = input_l * (1.0 - level) + delayed_l * level
