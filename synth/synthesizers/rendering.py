@@ -757,7 +757,10 @@ class ModernXGSynthesizer:
                 for ch in range(min(16, self.max_channels)):
                     try:
                         mode_val = multi_part.get_part_mode(ch)
-                        is_drum = mode_val in (1, 2, 3)
+                        # XGMultiPartSetup uses its own constants (SINGLE=0, MULTI=1)
+                        # which are incompatible with XGSynthesizerSystem's (Normal=0, Drum=1-3).
+                        # Channel 9 (MIDI channel 10) is the only drum channel per XG spec.
+                        is_drum = (ch == 9)
                         mode_str = "drum" if is_drum else "normal"
                         self.channels[ch].xg_part_mode = mode_str
                     except Exception:
