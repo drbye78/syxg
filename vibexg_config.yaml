@@ -1,8 +1,10 @@
 # XG Synthesizer Workstation Configuration
 # =========================================
 #
-# This configuration file controls the real-time MIDI workstation behavior.
-# Copy this file to config.yaml and customize for your setup.
+# This configuration file controls the real-time MIDI workstation behaviour.
+# Copy this file to config.yaml and customise for your setup.
+#
+# All settings below can be overridden via CLI flags (run `vibexg --help`).
 
 # =============================================================================
 # Audio Settings
@@ -82,11 +84,21 @@ audio_output:
 # =============================================================================
 synthesizer:
   max_polyphony: 128            # Maximum simultaneous voices
+
+  # Protocol feature flags
   xg_enabled: true              # Yamaha XG compatibility
   gs_enabled: true              # Roland GS compatibility
   mpe_enabled: false            # MIDI Polyphonic Expression
+  midi_2_enabled: false         # MIDI 2.0 features
+  acoustic_behavior: false      # SuperNATURAL-Acoustic alike cross-note modeling
+  s90_mode: false               # S90/S70 compatibility mode
+  gs_mode: "auto"               # "auto", "xg", or "gs"
+
+  # S.Art2 articulation processing
+  sart2_enabled: true
 
   # SoundFont configuration
+  soundfont: "tests/ref.sf2"    # Default SoundFont for the SF2 engine
   soundfonts:
     # - path: "soundfonts/GM.sf2"
     #   priority: 0
@@ -97,21 +109,37 @@ synthesizer:
 # Effects Configuration
 # =============================================================================
 effects:
-  # Master effects
-  master_reverb:
-    enabled: true
-    type: hall                 # hall, room, plate, delay
+  # Master effects pipeline toggle
+  enabled: true                 # Set to false for dry mix
+
+  # Reverb
+  reverb_enabled: true
+  reverb:
+    type: hall                  # hall, room, plate, delay
     level: 0.3
 
-  master_chorus:
-    enabled: true
-    type: chorus1              # chorus1, chorus2, chorus3, celeste
+  # Chorus
+  chorus_enabled: true
+  chorus:
+    type: chorus1               # chorus1, chorus2, chorus3, celeste
     level: 0.2
 
+  # Variation
+  variation_enabled: true
+  variation:
+    type: flanger               # flanger, phaser, tremolo, auto_pan, rotary, delay
+
   # Insertion effects (per-part)
+  insertion_enabled: true
   insertion:
-    enabled: true
-    type: distortion           # distortion, overdrive, eq, phaser, etc.
+    type: distortion            # distortion, overdrive, eq, phaser, etc.
+
+  # Master EQ
+  master_eq_enabled: true
+  master_eq:
+    low_gain: 0.0               # dB
+    mid_gain: 0.0
+    high_gain: 0.0
 
 # =============================================================================
 # Style Engine (Auto-Accompaniment)

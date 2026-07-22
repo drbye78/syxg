@@ -1095,6 +1095,54 @@ class ModernXGSynthesizer:
         """
         return self.articulation_manager.get_available_articulations()
 
+    def get_engine_info(self) -> dict[str, Any]:
+        """
+        Get engine information and capabilities (SynthesisEngine protocol).
+
+        Returns:
+            Dict with name, type, capabilities, polyphony, and parameters
+        """
+        return {
+            "name": "Modern XG Synthesizer",
+            "type": "xg",
+            "capabilities": [
+                "awm_synthesis",
+                "xg_specification",
+                "gs_specification",
+                "gm_compatibility",
+                "mpe_support",
+                "multi_timbral",
+                "wave_rom",
+                "s90_s70_compatibility",
+                "articulation_control",
+                "registration_memory",
+                "pattern_sequencer",
+                "style_accompaniment",
+                "midi_learn",
+            ],
+            "formats": [],
+            "polyphony": 128,
+            "parameters": [
+                "sample_rate",
+                "max_channels",
+                "xg_enabled",
+                "gs_enabled",
+                "mpe_enabled",
+                "midi_2_enabled",
+                "device_id",
+            ],
+        }
+
+    def get_supported_formats(self) -> list[str]:
+        """
+        Get list of supported file formats (SynthesisEngine protocol).
+
+        Returns:
+            Empty list — ModernXGSynthesizer works with live MIDI input,
+            not file-based sample loading.
+        """
+        return []
+
     # ========== ARTICULATION PRESET MANAGEMENT ==========
 
     def load_articulation_preset(self, channel: int, bank: int, program: int) -> bool:
@@ -1639,6 +1687,59 @@ class ModernXGSynthesizer:
         the dry channel mix straight to the output buffer.
         """
         self.effects_enabled = bool(enabled)
+
+    def set_reverb_enabled(self, enabled: bool) -> None:
+        """Enable/disable system reverb."""
+        if hasattr(self, "effects_coordinator") and self.effects_coordinator:
+            self.effects_coordinator.set_effect_unit_activation(1, enabled)
+
+    def set_chorus_enabled(self, enabled: bool) -> None:
+        """Enable/disable system chorus."""
+        if hasattr(self, "effects_coordinator") and self.effects_coordinator:
+            self.effects_coordinator.set_effect_unit_activation(2, enabled)
+
+    def set_variation_enabled(self, enabled: bool) -> None:
+        """Enable/disable variation effect."""
+        if hasattr(self, "effects_coordinator") and self.effects_coordinator:
+            self.effects_coordinator.set_effect_unit_activation(0, enabled)
+
+    def set_insertion_enabled(self, enabled: bool) -> None:
+        """Enable/disable insertion effects stage.
+
+        Propagates to all bus topologies so the change takes effect during
+        multi-bus processing (which temporarily swaps the coordinator's pipeline
+        with the bus's own topology).
+        """
+        if hasattr(self, "effects_coordinator") and self.effects_coordinator:
+            from ..processing.effects.effect_slot import EffectStageType
+
+            self.effects_coordinator.pipeline.set_stage_enabled(EffectStageType.INSERTION, enabled)
+            # Propagate to all bus topologies
+            bus_mgr = self.effects_coordinator.bus_manager
+            if bus_mgr is not None:
+                for bus_id in list(bus_mgr.buses.keys()):
+                    topo = bus_mgr.get_bus_topology(bus_id)
+                    if topo is not None:
+                        topo.set_stage_enabled(EffectStageType.INSERTION, enabled)
+
+    def set_master_eq_enabled(self, enabled: bool) -> None:
+        """Enable/disable master EQ processing.
+
+        Propagates to all bus topologies so the change takes effect during
+        multi-bus processing (which temporarily swaps the coordinator's pipeline
+        with the bus's own topology).
+        """
+        if hasattr(self, "effects_coordinator") and self.effects_coordinator:
+            from ..processing.effects.effect_slot import EffectStageType
+
+            self.effects_coordinator.pipeline.set_stage_enabled(EffectStageType.MASTER, enabled)
+            # Propagate to all bus topologies
+            bus_mgr = self.effects_coordinator.bus_manager
+            if bus_mgr is not None:
+                for bus_id in list(bus_mgr.buses.keys()):
+                    topo = bus_mgr.get_bus_topology(bus_id)
+                    if topo is not None:
+                        topo.set_stage_enabled(EffectStageType.MASTER, enabled)
 
     def reset_mpe(self):
         """Reset MPE system"""

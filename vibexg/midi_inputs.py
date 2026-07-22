@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 from .backends.network import NetworkMIDIHandler
+from .midi_sink import CallbackSink, MidiMessageSink
 from .types import MIDIInputConfig
 
 
@@ -44,16 +45,23 @@ class MIDIInputInterface:
     the _start_interface() and _stop_interface() methods.
     """
 
-    def __init__(self, config: MIDIInputConfig, message_callback: Callable[[MIDIMessage], None]):
+    def __init__(
+        self,
+        config: MIDIInputConfig,
+        message_sink: MidiMessageSink | Callable[[MIDIMessage], None],
+    ):
         """
         Initialize the MIDI input interface.
 
         Args:
             config: Configuration for this input interface
-            message_callback: Function to call with received MIDIMessage objects
+            message_sink: MidiMessageSink or callback to receive MIDIMessage objects
         """
         self.config = config
-        self.message_callback = message_callback
+        if isinstance(message_sink, CallbackSink) or hasattr(message_sink, "send"):
+            self.message_sink: MidiMessageSink = message_sink
+        else:
+            self.message_sink = CallbackSink(message_sink)
         self.parser = RealtimeParser()
         self.running = False
         self.thread: threading.Thread | None = None
@@ -80,7 +88,7 @@ class MIDIInputInterface:
 
     def _send_message(self, message: MIDIMessage):
         """
-        Apply transformations and send message to callback.
+        Apply transformations and send message to sink.
 
         Args:
             message: MIDIMessage to process and send
@@ -100,7 +108,7 @@ class MIDIInputInterface:
                     0, min(127, message.velocity + self.config.velocity_offset)
                 )
 
-        self.message_callback(message)
+        self.message_sink.send(message)
 
 
 class MidoPortInput(MIDIInputInterface):
@@ -111,8 +119,10 @@ class MidoPortInput(MIDIInputInterface):
     the system via RtMidi.
     """
 
-    def __init__(self, config: MIDIInputConfig, message_callback: Callable[[MIDIMessage], None]):
-        super().__init__(config, message_callback)
+    def __init__(
+        self, config: MIDIInputConfig, message_sink: MidiMessageSink | Callable[[MIDIMessage], None]
+    ):
+        super().__init__(config, message_sink)
         self.port = None
 
     def _start_interface(self):
@@ -171,14 +181,19 @@ class VirtualPortInput(MIDIInputInterface):
         except Exception as e:
             logger.error(f"Failed to create virtual MIDI port: {e}")
 
-    def _virtual_port_callback(self, event, data=None):
+    def _virtual_port_callback(self, event):
         """Handle incoming MIDI messages on virtual port."""
-        if self.message_callback and hasattr(event, "data"):
-            try:
-                msg = MIDIMessage.from_bytes(bytes(event.data))
-                self.message_callback(msg)
-            except Exception as e:
-                logger.error(f"Virtual port MIDI parse error: {e}")
+        if not self.message_sink:
+            return
+        try:
+            raw_bytes = bytes(event[0]) if isinstance(event, (list, tuple)) else bytes(event)
+            if not raw_bytes:
+                return
+            results = self.parser.parse_bytes(raw_bytes)
+            for msg in results:
+                self.message_sink.send(msg)
+        except Exception as e:
+            logger.error(f"Virtual port MIDI parse error: {e}")
 
     def _stop_interface(self):
         if hasattr(self, "port") and self.port:
@@ -193,14 +208,16 @@ class NetworkMIDIInput(MIDIInputInterface):
     enabling wireless MIDI connections.
     """
 
-    def __init__(self, config: MIDIInputConfig, message_callback: Callable[[MIDIMessage], None]):
-        super().__init__(config, message_callback)
+    def __init__(
+        self, config: MIDIInputConfig, message_sink: MidiMessageSink | Callable[[MIDIMessage], None]
+    ):
+        super().__init__(config, message_sink)
         self.network_handler = NetworkMIDIHandler(
             host=config.options.get("host", "0.0.0.0"), port=config.options.get("port", 5004)
         )
 
     def _start_interface(self):
-        self.network_handler.start(self.message_callback)
+        self.network_handler.start(self.message_sink.send)
 
     def _stop_interface(self):
         self.network_handler.stop()
@@ -222,10 +239,10 @@ class KeyboardInput(MIDIInputInterface):
     def __init__(
         self,
         config: MIDIInputConfig,
-        message_callback: Callable[[MIDIMessage], None],
+        message_sink: MidiMessageSink | Callable[[MIDIMessage], None],
         command_callback: Callable[[str], None] | None = None,
     ):
-        super().__init__(config, message_callback)
+        super().__init__(config, message_sink)
         self.key_map = self._create_key_map()
         self.command_callback = command_callback
 
@@ -260,8 +277,9 @@ class KeyboardInput(MIDIInputInterface):
             self.keyboard_listener = KeyboardListener()
 
             def on_key_press(key: str):
-                if key.lower() in self.key_map:
-                    note = self.key_map[key.lower()]
+                k = key.lower()
+                if k in self.key_map:
+                    note = self.key_map[k]
                     msg = MIDIMessage(
                         type="note_on",
                         channel=0,
@@ -271,8 +289,9 @@ class KeyboardInput(MIDIInputInterface):
                     self._send_message(msg)
 
             def on_key_release(key: str):
-                if key.lower() in self.key_map:
-                    note = self.key_map[key.lower()]
+                k = key.lower()
+                if k in self.key_map:
+                    note = self.key_map[k]
                     msg = MIDIMessage(
                         type="note_off",
                         channel=0,
@@ -302,8 +321,10 @@ class FileMIDIInput(MIDIInputInterface):
     and looping.
     """
 
-    def __init__(self, config: MIDIInputConfig, message_callback: Callable[[MIDIMessage], None]):
-        super().__init__(config, message_callback)
+    def __init__(
+        self, config: MIDIInputConfig, message_sink: MidiMessageSink | Callable[[MIDIMessage], None]
+    ):
+        super().__init__(config, message_sink)
         self.file_path = config.options.get("file_path", "")
         self.tempo_multiplier = config.options.get("tempo", 1.0)
         self.loop = config.options.get("loop", False)

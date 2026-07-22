@@ -65,9 +65,9 @@ from ..sampling.sample_manager import SampleManager
 
 # Import available engines
 try:
-    from ..engines.fdsp import FDSPEngine
+    from ..engines.fdsp import FDSPSynthesisEngine
 except ImportError:
-    FDSPEngine = None
+    FDSPSynthesisEngine = None
 
 try:
     from ..engines.physical_modeling import ANEngine
@@ -227,6 +227,19 @@ class Synthesizer:
         enable_audio_output: bool = False,
         max_channels: int = 16,
         midi_2_enabled: bool = False,
+        xg_enabled: bool = True,
+        gs_enabled: bool = True,
+        mpe_enabled: bool = False,
+        acoustic_behavior: bool = False,
+        s90_mode: bool = False,
+        gs_mode: str | None = None,
+        effects_enabled: bool | None = None,
+        sart2_enabled: bool | None = None,
+        reverb_enabled: bool | None = None,
+        chorus_enabled: bool | None = None,
+        variation_enabled: bool | None = None,
+        insertion_enabled: bool | None = None,
+        master_eq_enabled: bool | None = None,
     ):
         """
         Initialize the synthesizer.
@@ -237,12 +250,38 @@ class Synthesizer:
             enable_audio_output: Enable real-time audio output via sounddevice
             max_channels: Maximum MIDI channels/parts (default 16, up to 32 for multi-port)
             midi_2_enabled: Enable MIDI 2.0 features
+            xg_enabled: Enable XG protocol features
+            gs_enabled: Enable GS protocol features
+            mpe_enabled: Enable MIDI Polyphonic Expression
+            acoustic_behavior: Enable acoustic behavior modeling (SuperNATURAL-like)
+            s90_mode: Enable S90/S70 compatibility mode
+            gs_mode: GS/XG mode ("auto", "xg", "gs", or None for default)
+            effects_enabled: Master effects pipeline toggle (None = library default)
+            sart2_enabled: S.Art2 articulation processing (None = library default)
+            reverb_enabled: System reverb (None = inherit from effects_enabled)
+            chorus_enabled: System chorus (None = inherit)
+            variation_enabled: Variation effect (None = inherit)
+            insertion_enabled: Insertion effects (None = inherit)
+            master_eq_enabled: Master EQ (None = inherit)
         """
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
         self.enable_audio_output = enable_audio_output
         self.max_channels = max_channels
         self.midi_2_enabled = midi_2_enabled
+        self.xg_enabled = xg_enabled
+        self.gs_enabled = gs_enabled
+        self.mpe_enabled = mpe_enabled
+        self.acoustic_behavior = acoustic_behavior
+        self.s90_mode = s90_mode
+        self.gs_mode = gs_mode
+        self._effects_enabled = effects_enabled
+        self._sart2_enabled = sart2_enabled
+        self._reverb_enabled = reverb_enabled
+        self._chorus_enabled = chorus_enabled
+        self._variation_enabled = variation_enabled
+        self._insertion_enabled = insertion_enabled
+        self._master_eq_enabled = master_eq_enabled
         self.audio_output = None
 
         # Core components
@@ -356,6 +395,9 @@ class Synthesizer:
         # Initialize XG system
         self._initialize_xg_system()
 
+        # Initialize ModernXGSynthesizer as the default audio generator
+        self._initialize_xg_synth()
+
         # Setup S90/S70 compatibility
         self._initialize_s90_s70_compatibility()
 
@@ -369,9 +411,9 @@ class Synthesizer:
         engines_registered = 0
 
         # FDSP Engine (S90/S70 vocal synthesis)
-        if FDSPEngine is not None:
+        if FDSPSynthesisEngine is not None:
             try:
-                fdsp_engine = FDSPEngine(sample_rate=self.sample_rate)
+                fdsp_engine = FDSPSynthesisEngine(sample_rate=self.sample_rate)
                 self.engine_registry.register_engine(fdsp_engine, "fdsp", priority=10)
                 self.engines["fdsp"] = fdsp_engine
                 engines_registered += 1
@@ -480,6 +522,65 @@ class Synthesizer:
 
         logger.info(f"Registered {engines_registered} synthesis engines")
 
+    def load_soundfont(self, sf2_path: str, priority: int = 0) -> bool:
+        """Load a SoundFont file into the SF2 engine and ModernXGSynthesizer.
+
+        Args:
+            sf2_path: Path to the .sf2 file
+            priority: Loading priority (higher = loaded first)
+
+        Returns:
+            True if loaded successfully
+        """
+        # Load into ModernXGSynthesizer (primary audio generator)
+        xg_loaded = False
+        if self.xg_synth is not None:
+            try:
+                xg_loaded = bool(self.xg_synth.load_soundfont(sf2_path, priority))
+            except Exception as e:
+                logger.warning(
+                    "ModernXGSynthesizer failed to load soundfont '%s': %s", sf2_path, e
+                )
+
+        # Also load into SF2 engine (legacy path for non-xg voices)
+        sf2_loaded = False
+        sf2 = self.engines.get("sf2")
+        if sf2 is not None:
+            try:
+                sf2_loaded = sf2.load_soundfont(sf2_path, priority)
+            except Exception as e:
+                logger.error("Failed to load SoundFont '%s' into SF2 engine: %s", sf2_path, e)
+
+        return xg_loaded or sf2_loaded
+
+    def set_effects_enabled(self, enabled: bool) -> None:
+        """Toggle the master effects pipeline."""
+        self._effects_enabled = enabled
+
+    def set_sart2_enabled(self, enabled: bool) -> None:
+        """Toggle S.Art2 articulation processing."""
+        self._sart2_enabled = enabled
+
+    def set_reverb_enabled(self, enabled: bool) -> None:
+        """Toggle system reverb."""
+        self._reverb_enabled = enabled
+
+    def set_chorus_enabled(self, enabled: bool) -> None:
+        """Toggle system chorus."""
+        self._chorus_enabled = enabled
+
+    def set_variation_enabled(self, enabled: bool) -> None:
+        """Toggle variation effect."""
+        self._variation_enabled = enabled
+
+    def set_insertion_enabled(self, enabled: bool) -> None:
+        """Toggle insertion effects."""
+        self._insertion_enabled = enabled
+
+    def set_master_eq_enabled(self, enabled: bool) -> None:
+        """Toggle master EQ."""
+        self._master_eq_enabled = enabled
+
     def _initialize_effects(self):
         """Initialize the effects processing system."""
 
@@ -550,6 +651,42 @@ class Synthesizer:
                     ch.set_xg_parameter_manager(self.xg_channel_params)
 
         logger.info("XG system initialized")
+
+    def _initialize_xg_synth(self):
+        """Initialize ModernXGSynthesizer as the default audio generator."""
+        self.xg_synth: Any = None
+        if ModernXGSynthesizer is not None:
+            try:
+                self.xg_synth = ModernXGSynthesizer(
+                    sample_rate=self.sample_rate,
+                    max_channels=self.max_channels,
+                    xg_enabled=self.xg_enabled,
+                    gs_enabled=self.gs_enabled,
+                    mpe_enabled=self.mpe_enabled,
+                    midi_2_enabled=self.midi_2_enabled,
+                    acoustic_behavior=self.acoustic_behavior,
+                    s90_mode=self.s90_mode,
+                    gs_mode=self.gs_mode or "auto",
+                )
+                # Apply runtime toggles
+                if self._effects_enabled is not None:
+                    self.xg_synth.set_effects_enabled(self._effects_enabled)
+                if self._sart2_enabled is not None:
+                    self.xg_synth.set_sart2_enabled(self._sart2_enabled)
+                if self._reverb_enabled is not None:
+                    self.xg_synth.set_reverb_enabled(self._reverb_enabled)
+                if self._chorus_enabled is not None:
+                    self.xg_synth.set_chorus_enabled(self._chorus_enabled)
+                if self._variation_enabled is not None:
+                    self.xg_synth.set_variation_enabled(self._variation_enabled)
+                if self._insertion_enabled is not None:
+                    self.xg_synth.set_insertion_enabled(self._insertion_enabled)
+                if self._master_eq_enabled is not None:
+                    self.xg_synth.set_master_eq_enabled(self._master_eq_enabled)
+                logger.info("ModernXGSynthesizer initialized as default audio generator")
+            except Exception as e:
+                logger.warning("Failed to initialize ModernXGSynthesizer: %s", e)
+                self.xg_synth = None
 
     def _initialize_s90_s70_compatibility(self):
         """Initialize S90/S70 compatibility features."""
@@ -713,6 +850,21 @@ class Synthesizer:
         if engine is None:
             return None
 
+        # "xg" voices are handled by ModernXGSynthesizer at block level
+        if engine_type == "xg":
+            return None
+
+        # Safety check: some registered engines are high-level orchestrators
+        # without per-voice generate_samples()
+        if not hasattr(engine, "generate_samples"):
+            logger.debug(
+                "Engine '%s' has no generate_samples(), skipping voice (channel=%s, note=%s)",
+                engine_type,
+                voice_info.channel,
+                voice_info.note,
+            )
+            return None
+
         note = voice_info.note
         velocity = voice_info.velocity
         modulation = voice_info.modulation_data or {}
@@ -764,12 +916,13 @@ class Synthesizer:
 
         This is the unified render entry point that orchestrates:
         1. Clear output buffer
-        2. Render channel audio via VectorizedChannelRenderer
-        3. Apply insertion effects per channel
-        4. Accumulate send levels to reverb/chorus buses
-        5. Apply system effects to bus returns
-        6. Apply master EQ + compressor
-        7. Write to output buffer
+        2. Generate audio from ModernXGSynthesizer (handles all xg voices)
+        3. Render channel audio from non-xg voices via per-voice path
+        4. Apply insertion effects per channel
+        5. Accumulate send levels to reverb/chorus buses
+        6. Apply system effects to bus returns
+        7. Apply master EQ + compressor
+        8. Write to output buffer
 
         Args:
             out: Output buffer (num_samples, 2) - modified in-place
@@ -780,17 +933,26 @@ class Synthesizer:
             # Step 1: Clear output buffer
             out.fill(0.0)
 
-            # Step 2: Collect channel audio from all active channels
-            # For now, use the existing voice manager path
+            # Step 2: Generate audio from ModernXGSynthesizer
+            # This covers all "xg" engine voices with full effects processing
+            xg_audio: np.ndarray | None = None
+            if self.xg_synth is not None:
+                try:
+                    xg_audio = self.xg_synth.generate_audio_block(num_samples)
+                    if xg_audio is not None and len(xg_audio) > 0:
+                        xg_len = min(len(xg_audio), num_samples)
+                        out[:xg_len] += xg_audio[:xg_len]
+                except Exception:
+                    logger.warning("ModernXGSynthesizer audio generation failed", exc_info=True)
+
+            # Step 3: Collect channel audio from non-xg active voices
             active_voices = self.voice_manager.get_active_voices()
-            channel_buffers = {}
+            channel_buffers: dict[int, np.ndarray] = {}
 
             # Acoustic behavior: advance shared vibrato phase per block for
             # every channel that has an acoustic context (section coherence).
             for voice_info in active_voices:
                 ch_obj = getattr(voice_info, "channel_obj", None)
-                if ch_obj is None and hasattr(voice_info, "channel"):
-                    ch_obj = self.voice_manager.get_channel(voice_info.channel)
                 if ch_obj is not None:
                     ctx = ch_obj.get_acoustic_context()
                     if ctx is not None:
@@ -800,6 +962,9 @@ class Synthesizer:
                             pass
 
             for voice_info in active_voices:
+                # Skip xg-engine voices — handled by ModernXGSynthesizer above
+                if voice_info.engine_type == "xg":
+                    continue
                 channel = voice_info.channel
                 if channel not in channel_buffers:
                     # Lazy-resize pre-allocated per-channel buffer (zero allocation in hot path)
@@ -815,7 +980,7 @@ class Synthesizer:
                 if voice_audio is not None:
                     channel_buffers[channel] += voice_audio[:num_samples]
 
-            # Step 3-5: Process through effects coordinator
+            # Step 4-6: Process through effects coordinator
             # Convert channel dict to list for effects coordinator
             channel_list = []
             for ch in range(self.max_channels):
@@ -845,6 +1010,7 @@ class Synthesizer:
                     bus_inputs[bus_id].append(buf)
 
             # Process through multi-bus effects pipeline
+            # This ADDS non-xg audio to out (already has xg_synth audio mixed in)
             self.effects_coordinator.process_buses_zero_alloc(bus_inputs, num_samples, out)
 
     def _update_performance_stats(self):
@@ -872,6 +1038,14 @@ class Synthesizer:
 
             # Normal voice triggering
             self._trigger_voice(channel, note, velocity)
+
+            # Forward to ModernXGSynthesizer for audio generation
+            if self.xg_synth is not None:
+                try:
+                    msg = bytes([0x90 | channel, note, velocity])
+                    self.xg_synth.process_midi_message(msg)
+                except Exception:
+                    logger.warning("Failed to forward note_on to ModernXGSynthesizer", exc_info=True)
 
     def _trigger_voice(self, channel: int, note: int, velocity: int):
         """Internal method to trigger a voice."""
@@ -942,6 +1116,14 @@ class Synthesizer:
                         return
 
             self._trigger_voice_off(channel, note)
+
+            # Forward to ModernXGSynthesizer for audio generation
+            if self.xg_synth is not None:
+                try:
+                    msg = bytes([0x80 | channel, note, 0])
+                    self.xg_synth.process_midi_message(msg)
+                except Exception:
+                    logger.warning("Failed to forward note_off to ModernXGSynthesizer", exc_info=True)
 
     def control_change(self, channel: int, controller: int, value: int):
         """Handle control change event."""

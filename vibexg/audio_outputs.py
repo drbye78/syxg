@@ -78,7 +78,7 @@ class SoundDeviceOutput(AudioOutputEngine):
         try:
             import sounddevice as sd
         except ImportError:
-            logger.error("sounddevice not available for audio output")
+            logger.warning("sounddevice not available for audio output (install python-sounddevice or use --audio-output none)")
             return
 
         try:
@@ -115,8 +115,12 @@ class SoundDeviceOutput(AudioOutputEngine):
         if status:
             logger.warning(f"Audio callback status: {status}")
 
-        # Render audio block
-        self.synthesizer.render_block(outdata)
+        # Render audio block — catch exceptions to prevent CFFI stderr traceback output
+        try:
+            self.synthesizer.render_block(outdata)
+        except Exception as e:
+            logger.error(f"Audio callback error: {e}")
+            outdata.fill(0.0)  # Silence on error to avoid corrupt audio
 
 
 class FileAudioOutput(AudioOutputEngine):

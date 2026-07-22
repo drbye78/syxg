@@ -10,7 +10,6 @@ This module provides:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import math
@@ -18,9 +17,11 @@ import time
 from pathlib import Path
 from typing import Any
 
+from synth.io.midi import MIDIMessage
 from synth.synthesizers.realtime import Synthesizer
 
 from .types import PresetData
+from .utils import midimessage_to_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,10 @@ class PresetManager:
         preset.modified_at = time.time()
 
         if filename is None:
-            safe_name = hashlib.md5(preset.name.encode()).hexdigest()[:12]
+            safe_name = "".join(
+                c if c.isalnum() or c in " _-" else "_" for c in preset.name
+            ).strip()
+            safe_name = safe_name[:64] or "unnamed"
             filename = f"{safe_name}.json"
 
         filepath = self.preset_dir / filename
@@ -192,7 +196,7 @@ class PresetManager:
         if filename is None:
             filename = f"{preset.name.replace(' ', '_')}.json"
 
-        filepath = Path(filename)
+        filepath = self.preset_dir / filename
 
         # Convert to dict and make timestamps readable
         data = self._preset_to_dict(preset)
@@ -383,21 +387,85 @@ class MIDILearnManager:
             elif section == "master":
                 self._set_master_param(param_name, value)
 
-    def _set_filter_param(self, param_name: str, value: int, channel: int):
-        """Set filter parameter."""
-        logger.debug(f"Filter {param_name} = {value} on channel {channel}")
+    def _send_cc(self, cc_number: int, value: int, channel: int) -> None:
+        """Send a MIDI CC message to the synthesizer.
 
-    def _set_amplitude_param(self, param_name: str, value: int, channel: int):
-        """Set amplitude parameter."""
-        logger.debug(f"Amplitude {param_name} = {value} on channel {channel}")
+        Args:
+            cc_number: MIDI CC number (0-127)
+            value: CC value (0-127)
+            channel: MIDI channel (0-15)
+        """
+        msg = MIDIMessage(
+            type="control_change",
+            channel=channel,
+            data={"controller": cc_number, "value": value},
+            timestamp=0,
+        )
+        self.synthesizer.midi_parser.parse_bytes(midimessage_to_bytes(msg))
 
-    def _set_effects_param(self, param_name: str, value: int, channel: int):
-        """Set effects parameter."""
-        logger.debug(f"Effects {param_name} = {value} on channel {channel}")
+    def _set_filter_param(self, param_name: str, value: int, channel: int) -> None:
+        """Set filter parameter via MIDI CC.
 
-    def _set_master_param(self, param_name: str, value: int):
-        """Set master parameter."""
-        logger.debug(f"Master {param_name} = {value}")
+        Maps common filter parameters to XG/general MIDI CCs.
+        """
+        cc_map: dict[str, int] = {
+            "cutoff": 74,  # Cutoff Frequency
+            "resonance": 71,  # Resonance/Timbre
+            "attack": 73,  # Attack Time
+            "decay": 75,  # Decay Time
+            "release": 72,  # Release Time
+        }
+        cc = cc_map.get(param_name)
+        if cc is not None:
+            self._send_cc(cc, value, channel)
+            logger.debug("Filter %s -> CC%d=%d on ch%d", param_name, cc, value, channel)
+        else:
+            logger.debug("Unknown filter param: %s", param_name)
+
+    def _set_amplitude_param(self, param_name: str, value: int, channel: int) -> None:
+        """Set amplitude/volume parameter via MIDI CC."""
+        cc_map: dict[str, int] = {
+            "volume": 7,  # Channel Volume
+            "expression": 11,  # Expression
+            "pan": 10,  # Panpot
+            "velocity": 12,  # (not standard CC, but usable)
+        }
+        cc = cc_map.get(param_name)
+        if cc is not None:
+            self._send_cc(cc, value, channel)
+            logger.debug("Amplitude %s -> CC%d=%d on ch%d", param_name, cc, value, channel)
+        else:
+            logger.debug("Unknown amplitude param: %s", param_name)
+
+    def _set_effects_param(self, param_name: str, value: int, channel: int) -> None:
+        """Set effects parameter via MIDI CC."""
+        cc_map: dict[str, int] = {
+            "reverb": 91,  # Reverb Send Level
+            "chorus": 93,  # Chorus Send Level
+            "delay": 94,  # Delay/Variation Send Level
+            "sustain": 64,  # Hold/Sustain
+            "modulation": 1,  # Modulation Wheel
+        }
+        cc = cc_map.get(param_name)
+        if cc is not None:
+            self._send_cc(cc, value, channel)
+            logger.debug("Effects %s -> CC%d=%d on ch%d", param_name, cc, value, channel)
+        else:
+            logger.debug("Unknown effects param: %s", param_name)
+
+    def _set_master_param(self, param_name: str, value: int) -> None:
+        """Set master parameter. Sends CC on all channels."""
+        cc_map: dict[str, int] = {
+            "volume": 7,
+            "pan": 10,
+        }
+        cc = cc_map.get(param_name)
+        if cc is not None:
+            for ch in range(16):
+                self._send_cc(cc, value, ch)
+            logger.debug("Master %s -> CC%d=%d on all channels", param_name, cc, value)
+        else:
+            logger.debug("Unknown master param: %s", param_name)
 
     def get_mappings(self) -> dict[int, dict[str, Any]]:
         """

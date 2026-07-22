@@ -8,6 +8,7 @@
 .omo/
 .slim/
 .cgcignore
+.ignore
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -54,10 +54,25 @@ class KeyboardListener:
             pass
 
     def _dispatch_press(self, char: str):
-        for cb in self._press_callbacks:
-            cb(char)
-        if self._command_callback:
-            self._command_callback(char)
+        """Route Ctrl+letter to command callback, regular keys to press callbacks.
+
+        - Ctrl+letter (ASCII 1-26) → command callback only (decoded to letter)
+        - Letter keys (a-z, A-Z) → press callbacks only (MIDI notes)
+        - Non-letter keys (+, -, etc.) → both press callbacks and command callback
+        """
+        code = ord(char) if len(char) == 1 else 0
+        if 1 <= code <= 26:  # Ctrl+A through Ctrl+Z (ASCII 1-26)
+            # Convert Ctrl+letter back to the letter for command dispatch
+            letter = chr(code + 96)
+            if self._command_callback:
+                self._command_callback(letter)
+        else:
+            # Send to press callbacks (MIDI notes)
+            for cb in self._press_callbacks:
+                cb(char)
+            # Non-letter keys go to command callback too (+, -, etc.)
+            if self._command_callback and not char.isalpha():
+                self._command_callback(char)
 
     def _dispatch_release(self, char: str):
         for cb in self._release_callbacks:

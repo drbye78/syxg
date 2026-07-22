@@ -331,6 +331,11 @@ class XGEffectsCoordinator:
                         for tb in temp_buffers:
                             tb.fill(0.0)
 
+                    # Zero recycled buffers to prevent stale data from the
+                    # buffer pool leaking into the output when stages are
+                    # skipped (e.g. insertion disabled).
+                    for pc in processed_channels:
+                        pc.fill(0.0)
                     main_mix.fill(0.0)
                     reverb_accumulate.fill(0.0)
                     chorus_accumulate.fill(0.0)
@@ -381,7 +386,29 @@ class XGEffectsCoordinator:
 
         Dispatches each enabled stage in order, matching the existing
         zero-alloc processing methods exactly.
+
+        When INSERTION is disabled, input channels are copied directly to
+        processed_channels (passthrough).  When MASTER is disabled,
+        system_output is copied directly to output_stereo (passthrough).
+        This preserves the signal chain even with all effects off.
         """
+        # --- Passthrough: INSERTION stage copies input → processed_channels.
+        # If the stage is skipped, do the copy here so MIX has data to work with.
+        insertion_slot = self.pipeline.get_stage(EffectStageType.INSERTION)
+        insertion_skipped = (
+            insertion_slot is None
+            or not insertion_slot.enabled
+            or insertion_slot.bypass
+        )
+        if insertion_skipped:
+            for i, ch in enumerate(input_channels):
+                if i < len(processed_channels):
+                    if ch.ndim == 1:
+                        processed_channels[i][:num_samples, 0] = ch[:num_samples]
+                        processed_channels[i][:num_samples, 1] = ch[:num_samples]
+                    else:
+                        np.copyto(processed_channels[i][:num_samples], ch[:num_samples])
+
         for slot in self.pipeline.stages:
             if not slot.enabled or slot.bypass:
                 continue
@@ -435,6 +462,17 @@ class XGEffectsCoordinator:
                 self._apply_master_processing_optimized(
                     system_output, num_samples, output_stereo
                 )
+
+        # --- Passthrough: MASTER stage copies system_output → output_stereo.
+        # If the stage is skipped, copy directly so the bus gets output.
+        master_slot = self.pipeline.get_stage(EffectStageType.MASTER)
+        master_skipped = (
+            master_slot is None
+            or not master_slot.enabled
+            or master_slot.bypass
+        )
+        if master_skipped:
+            np.copyto(output_stereo[:num_samples], system_output[:num_samples])
 
     def _get_variation_enabled(self) -> bool:
         """Check if variation effects are in the pipeline and enabled."""
@@ -526,7 +564,7 @@ class XGEffectsCoordinator:
                 working_buffer[:num_samples, 0] = channel_data[:num_samples]
                 working_buffer[:num_samples, 1] = channel_data[:num_samples]
 
-            insertion_params = {"enabled": True}
+            insertion_params: dict[str, Any] = {}
             self.insertion_effects[ch_idx].apply_insertion_effect_to_channel_zero_alloc(
                 working_buffer, channel_data, insertion_params, num_samples, ch_idx
             )
@@ -936,6 +974,7 @@ class XGEffectsCoordinator:
         r, d, f, l = p.get("rate", 0.5), p.get("depth", 0.6), p.get("feedback", 0.3), p.get("level", 0.8)
         t = np.arange(len(audio)) / self.sample_rate
         ps = np.sin(2 * np.pi * (0.1 + r * 2.0) * t) * d * np.pi
+        ps = ps[:, np.newaxis]  # (N,) → (N, 1) for stereo broadcast
         proc = audio * np.cos(ps) + audio * np.sin(ps) * 0.5
         proc += proc * f
         proc *= l

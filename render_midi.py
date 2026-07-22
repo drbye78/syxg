@@ -9,8 +9,11 @@ XGML provides a high-level YAML interface for XG synthesizer control with human-
 parameter names and semantic abstractions instead of numerical MIDI values.
 """
 
+from __future__ import annotations
+
 import argparse
 import glob
+import json
 import os
 import sys
 import threading
@@ -26,6 +29,126 @@ from synth.primitives.config_manager import ConfigManager
 from synth.synthesizers.rendering import ModernXGSynthesizer
 from synth.utils.keyboard import KeyboardListener
 
+# Feature defaults. Acoustic behavior is OFF by default per project policy;
+# protocol features fall back to the synthesizer's own defaults when not set.
+FEATURE_DEFAULTS: dict = {
+    "xg": None,  # None => use ModernXGSynthesizer default (True)
+    "gs": None,
+    "mpe": None,
+    "midi2": None,
+    "acoustic": False,  # explicitly disabled by default
+    "s90": False,
+    "gs_mode": None,  # None => synthesizer default ("auto")
+    "effects": None,  # None => synthesizer default (enabled)
+    "sart2": None,  # None => synthesizer default (enabled)
+    # Per-component effect toggles (None = use global effects toggle behavior)
+    "reverb": None,
+    "chorus": None,
+    "variation": None,
+    "insertion": None,
+    "master_eq": None,
+}
+
+
+class FeatureConfig:
+    """Resolved synthesizer feature toggles.
+
+    ``None`` means "use the synthesizer's built-in default" so we only pass
+    explicitly-configured values to the constructor.
+    """
+
+    def __init__(
+        self,
+        xg=None,
+        gs=None,
+        mpe=None,
+        midi2=None,
+        acoustic=False,
+        s90=False,
+        gs_mode=None,
+        effects=None,
+        sart2=None,
+        reverb=None,
+        chorus=None,
+        variation=None,
+        insertion=None,
+        master_eq=None,
+    ):
+        self.xg = xg
+        self.gs = gs
+        self.mpe = mpe
+        self.midi2 = midi2
+        self.acoustic = acoustic
+        self.s90 = s90
+        self.gs_mode = gs_mode
+        self.effects = effects
+        self.sart2 = sart2
+        self.reverb = reverb
+        self.chorus = chorus
+        self.variation = variation
+        self.insertion = insertion
+        self.master_eq = master_eq
+
+    @classmethod
+    def from_dict(cls, data: dict) -> FeatureConfig:
+        return cls(
+            xg=data.get("xg", FEATURE_DEFAULTS["xg"]),
+            gs=data.get("gs", FEATURE_DEFAULTS["gs"]),
+            mpe=data.get("mpe", FEATURE_DEFAULTS["mpe"]),
+            midi2=data.get("midi2", FEATURE_DEFAULTS["midi2"]),
+            acoustic=data.get("acoustic", FEATURE_DEFAULTS["acoustic"]),
+            s90=data.get("s90", FEATURE_DEFAULTS["s90"]),
+            gs_mode=data.get("gs_mode", FEATURE_DEFAULTS["gs_mode"]),
+            effects=data.get("effects", FEATURE_DEFAULTS["effects"]),
+            sart2=data.get("sart2", FEATURE_DEFAULTS["sart2"]),
+            reverb=data.get("reverb", FEATURE_DEFAULTS["reverb"]),
+            chorus=data.get("chorus", FEATURE_DEFAULTS["chorus"]),
+            variation=data.get("variation", FEATURE_DEFAULTS["variation"]),
+            insertion=data.get("insertion", FEATURE_DEFAULTS["insertion"]),
+            master_eq=data.get("master_eq", FEATURE_DEFAULTS["master_eq"]),
+        )
+
+    def merge_cli(self, cli: FeatureConfig) -> FeatureConfig:
+        """Return a new config with CLI-provided (non-None) values overriding."""
+        return FeatureConfig(
+            xg=cli.xg if cli.xg is not None else self.xg,
+            gs=cli.gs if cli.gs is not None else self.gs,
+            mpe=cli.mpe if cli.mpe is not None else self.mpe,
+            midi2=cli.midi2 if cli.midi2 is not None else self.midi2,
+            acoustic=cli.acoustic if cli.acoustic is not None else self.acoustic,
+            s90=cli.s90 if cli.s90 is not None else self.s90,
+            gs_mode=cli.gs_mode if cli.gs_mode is not None else self.gs_mode,
+            effects=cli.effects if cli.effects is not None else self.effects,
+            sart2=cli.sart2 if cli.sart2 is not None else self.sart2,
+            reverb=cli.reverb if cli.reverb is not None else self.reverb,
+            chorus=cli.chorus if cli.chorus is not None else self.chorus,
+            variation=cli.variation if cli.variation is not None else self.variation,
+            insertion=cli.insertion if cli.insertion is not None else self.insertion,
+            master_eq=cli.master_eq if cli.master_eq is not None else self.master_eq,
+        )
+
+    def describe(self) -> str:
+        parts = []
+        for name, val in (
+            ("XG", self.xg),
+            ("GS", self.gs),
+            ("MPE", self.mpe),
+            ("MIDI2", self.midi2),
+            ("Acoustic", self.acoustic),
+            ("S90", self.s90),
+            ("Effects", self.effects),
+            ("S.Art2", self.sart2),
+            ("Reverb", self.reverb),
+            ("Chorus", self.chorus),
+            ("Variation", self.variation),
+            ("Insertion", self.insertion),
+            ("MasterEQ", self.master_eq),
+        ):
+            parts.append(f"{name}={'on' if val else ('off' if val is False else 'default')}")
+        if self.gs_mode is not None:
+            parts.append(f"gs_mode={self.gs_mode}")
+        return ", ".join(parts)
+
 
 def parse_arguments():
     """Parse command-line arguments"""
@@ -39,14 +162,15 @@ XGML (XG Markup Language) provides high-level YAML interface for XG synthesizer 
 with human-readable parameter names and semantic abstractions.
 
 Examples:
-   render_midi.py input.mid                    # MIDI: Output input.ogg
-   render_midi.py input.xgml                   # XGML: Output input.ogg
-   render_midi.py input.mid output.wav         # Output: output.wav
-   render_midi.py --format mp3 input.xgml      # Output: input.mp3
-   render_midi.py --volume 0.8 *.mid *.xgml    # Convert multiple files
-   render_midi.py --recursive *.mid output/    # Recurse subdirectories
-   render_midi.py --keyboard-abort input.xgml  # XGML with abort control
-        """,
+   render_midi.py input.mid                         # Output: input.mp3
+   render_midi.py -o output.wav input.mid            # Output: output.wav
+   render_midi.py --format ogg input.xgml            # Output: input.ogg
+   render_midi.py --volume 0.8 *.mid                 # Convert multiple files
+   render_midi.py --recursive *.mid output/           # Recurse subdirectories
+   render_midi.py --keyboard-abort input.xgml         # XGML with abort control
+   render_midi.py --no-reverb --no-chorus input.mid   # Render without reverb/chorus
+   render_midi.py --feature-config features.json *.mid # Load feature config from JSON
+""",
     )
 
     parser.add_argument(
@@ -55,16 +179,27 @@ Examples:
         help="Input MIDI/XGML file(s) or patterns to convert (supports wildcards)",
     )
     parser.add_argument(
-        "output", nargs="?", default=None, help="Output file or directory (optional)"
+        "-o", "--output",
+        default=None,
+        help="Output file or directory (optional; if omitted, uses input name with new extension)",
     )
     parser.add_argument(
-        "-c", "--config", help="Path to YAML configuration file", default="config.yaml"
+        "-c", "--config",
+        help="Path to YAML configuration file",
+        default="config.yaml",
+    )
+    parser.add_argument(
+        "--feature-config",
+        default=None,
+        help="JSON feature configuration file (CLI flags override file values)",
     )
     parser.add_argument(
         "--sf2",
-        action="append",
+        nargs="+",
+        action="extend",
         dest="sf2_files",
-        help="SoundFont (.sf2) file paths (can be specified multiple times). "
+        help="SoundFont (.sf2) file paths. Accepts one or more paths per use, "
+        "e.g. --sf2 font1.sf2 font2.sf2 or --sf2 a.sf2 --sf2 b.sf2. "
         "For advanced options (priority, blacklist, remap), use config.yaml",
     )
     parser.add_argument(
@@ -99,20 +234,140 @@ Examples:
         help="Output audio format",
     )
     parser.add_argument(
-        "--render-log-level",
-        type=int,
-        choices=[0, 1, 2],
-        default=0,
-        help="Audio rendering logging level: 0=no logging, 1=log combined channel audio before effects, 2=log each channel renderer output",
-    )
-    parser.add_argument(
         "--synth",
         choices=["modern", "optimized"],
         default="modern",
-        help="XG synthesizer engine: modern=ModernXGSynthesizer, optimized=LEGACY (moved to legacy/)",
+        help="[DEPRECATED] Both options use ModernXGSynthesizer. "
+        "'optimized' prints a migration warning.",
     )
 
+    # --- Feature toggles (CLI) ---
+    feat = parser.add_argument_group("synthesizer features")
+    feat.add_argument(
+        "--xg", dest="xg", action="store_true", default=None, help="Enable XG (default: library default)"
+    )
+    feat.add_argument("--no-xg", dest="xg", action="store_false", help="Disable XG")
+    feat.add_argument(
+        "--gs", dest="gs", action="store_true", default=None, help="Enable GS (default: library default)"
+    )
+    feat.add_argument("--no-gs", dest="gs", action="store_false", help="Disable GS")
+    feat.add_argument(
+        "--mpe", dest="mpe", action="store_true", default=None, help="Enable MPE (default: library default)"
+    )
+    feat.add_argument("--no-mpe", dest="mpe", action="store_false", help="Disable MPE")
+    feat.add_argument(
+        "--midi2", dest="midi2", action="store_true", default=None, help="Enable MIDI 2.0"
+    )
+    feat.add_argument("--no-midi2", dest="midi2", action="store_false", help="Disable MIDI 2.0 (default)")
+    feat.add_argument(
+        "--acoustic",
+        dest="acoustic",
+        action="store_true",
+        default=None,
+        help="Enable acoustic behavior layer (SuperNATURAL-Acoustic alike)",
+    )
+    feat.add_argument(
+        "--no-acoustic",
+        dest="acoustic",
+        action="store_false",
+        help="Disable acoustic behavior layer (default)",
+    )
+    feat.add_argument(
+        "--s90", dest="s90", action="store_true", default=None, help="Enable S90/S70 compatibility mode"
+    )
+    feat.add_argument(
+        "--gs-mode",
+        dest="gs_mode",
+        choices=["auto", "xg", "gs"],
+        default=None,
+        help="GS/XG mode selection (default: auto)",
+    )
+    feat.add_argument(
+        "--effects",
+        dest="effects",
+        action="store_true",
+        default=None,
+        help="Enable the XG effects pipeline (reverb, chorus, variation, insertion, master EQ)",
+    )
+    feat.add_argument(
+        "--no-effects",
+        dest="effects",
+        action="store_false",
+        help="Disable the XG effects pipeline (dry mix)",
+    )
+    feat.add_argument(
+        "--sart2",
+        dest="sart2",
+        action="store_true",
+        default=None,
+        help="Enable S.Art2 articulation processing",
+    )
+    feat.add_argument(
+        "--no-sart2",
+        dest="sart2",
+        action="store_false",
+        help="Disable S.Art2 articulation processing",
+    )
+
+    # Per-component effect pipeline toggles
+    for flag, dest, desc in [
+        ("--reverb", "reverb", "System reverb"),
+        ("--chorus", "chorus", "System chorus"),
+        ("--variation", "variation", "Variation effect"),
+        ("--insertion", "insertion", "Insertion effects"),
+        ("--master-eq", "master_eq", "Master EQ"),
+    ]:
+        feat.add_argument(flag, dest=dest, action="store_true", default=None, help=f"Enable {desc}")
+        feat.add_argument(
+            f"--no-{dest.replace('_', '-')}",
+            dest=dest,
+            action="store_false",
+            help=f"Disable {desc}",
+        )
+
     return parser.parse_args()
+
+
+def _load_config_file(path: str | None) -> dict:
+    """Load a JSON feature/config file. Returns {} on missing/invalid."""
+    if not path:
+        return {}
+    if not os.path.exists(path):
+        print(f"Warning: config file not found: {path}")
+        return {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            print(f"Warning: config file {path} is not a JSON object; ignoring")
+            return {}
+        return data
+    except Exception as e:
+        print(f"Warning: could not parse config file {path}: {e}")
+        return {}
+
+
+def _build_feature_config(args: argparse.Namespace, config_data: dict) -> FeatureConfig:
+    """Merge config-file features with CLI flags (CLI wins)."""
+    file_cfg = FeatureConfig.from_dict(config_data.get("features", config_data))
+
+    cli = FeatureConfig(
+        xg=args.xg,
+        gs=args.gs,
+        mpe=args.mpe,
+        midi2=args.midi2,
+        acoustic=args.acoustic,
+        s90=args.s90,
+        gs_mode=args.gs_mode,
+        effects=args.effects,
+        sart2=args.sart2,
+        reverb=args.reverb,
+        chorus=args.chorus,
+        variation=args.variation,
+        insertion=args.insertion,
+        master_eq=args.master_eq,
+    )
+    return file_cfg.merge_cli(cli)
 
 
 def expand_file_patterns(patterns: list[str], recursive: bool = False) -> list[str]:
@@ -221,12 +476,13 @@ def main():
     config_manager.load()
 
     # Get configuration values from ConfigManager
-    sample_rate = args.sample_rate or config_manager.get_sample_rate()
-    chunk_size_ms = args.chunk_size_ms or (
+    # (use 'is not None' to avoid falsy-value bugs like --volume 0.0)
+    sample_rate = args.sample_rate if args.sample_rate is not None else config_manager.get_sample_rate()
+    chunk_size_ms = args.chunk_size_ms if args.chunk_size_ms is not None else (
         config_manager.get_block_size() / config_manager.get_sample_rate() * 1000
     )
-    max_polyphony = args.max_polyphony or config_manager.get_polyphony()
-    master_volume = args.master_volume or config_manager.get_volume()
+    max_polyphony = args.max_polyphony if args.max_polyphony is not None else config_manager.get_polyphony()
+    master_volume = args.master_volume if args.master_volume is not None else config_manager.get_volume()
 
     # Process SoundFont configurations
     # Priority: command line --sf2 > config.yaml soundfonts > config.yaml sf2_path
@@ -256,17 +512,15 @@ def main():
                 {"path": legacy_path, "priority": 0, "blacklist": [], "remap": {}}
             )
 
-    # Extract just the paths for synthesizers that need them
-    sf2_files = [c["path"] for c in soundfont_configs if c.get("path")]
-
-    synth_choice = args.synth
-
     format = args.format
     tempo = args.tempo
     silent = args.silent
     keyboard_abort = args.keyboard_abort
     recursive = args.recursive
-    render_log_level = args.render_log_level
+
+    # Load feature config from JSON file (if provided)
+    feature_config_data = _load_config_file(args.feature_config)
+    features = _build_feature_config(args, feature_config_data)
 
     # Expand file patterns to get actual MIDI files
     input_files = expand_file_patterns(args.input_files, recursive)
@@ -286,52 +540,76 @@ def main():
     # Initialize synthesizer
     synth_start = time.time()
 
-    if synth_choice == "optimized":
+    if args.synth == "optimized":
         print(
-            "Warning: OptimizedXGSynthesizer has been moved to legacy package. Using ModernXGSynthesizer instead."
-        )
-        synthesizer = ModernXGSynthesizer(
-            sample_rate=sample_rate,
-            max_channels=max_polyphony,
-            xg_enabled=True,
-            gs_enabled=True,
-            mpe_enabled=True,
-            device_id=0x10,
-        )
-        if not silent:
-            print("Using ModernXGSynthesizer (legacy OptimizedXGSynthesizer not available)")
-    else:  # modern
-        synthesizer = ModernXGSynthesizer(
-            sample_rate=sample_rate,
-            max_channels=max_polyphony,  # ModernXGSynthesizer uses max_channels instead of max_polyphony
-            xg_enabled=True,
-            gs_enabled=True,
-            mpe_enabled=True,
-            device_id=0x10,
+            "Warning: OptimizedXGSynthesizer has been moved to legacy package. "
+            "Using ModernXGSynthesizer instead."
         )
 
-        # Load SoundFonts with their configurations (including blacklist/remap from config)
-        for sf_config in soundfont_configs:
-            sf_path = sf_config.get("path")
-            if sf_path and os.path.exists(sf_path):
-                priority = sf_config.get("priority", 0)
-                success = synthesizer.load_soundfont(sf_path, priority=priority)
-                if success:
-                    # Apply blacklisting if specified in config
-                    for bank, prog in sf_config.get("blacklist", []):
-                        synthesizer.blacklist_program(bank, prog)
+    # Build feature-enabled kwargs for the synthesizer
+    kwargs: dict = {
+        "sample_rate": sample_rate,
+        "max_channels": 16,  # Bug fix: 16 MIDI channels, not max_polyphony
+        "device_id": 0x10,
+    }
+    if features.xg is not None:
+        kwargs["xg_enabled"] = features.xg
+    if features.gs is not None:
+        kwargs["gs_enabled"] = features.gs
+    if features.mpe is not None:
+        kwargs["mpe_enabled"] = features.mpe
+    if features.midi2 is not None:
+        kwargs["midi_2_enabled"] = features.midi2
+    if features.acoustic is not None:
+        kwargs["acoustic_behavior"] = features.acoustic
+    if features.s90:
+        kwargs["s90_mode"] = True
+    if features.gs_mode is not None:
+        kwargs["gs_mode"] = features.gs_mode
 
-                    # Apply remapping if specified in config
-                    for (from_bank, from_prog), (to_bank, to_prog) in sf_config.get(
-                        "remap", {}
-                    ).items():
-                        synthesizer.remap_program(from_bank, from_prog, to_bank, to_prog)
+    synthesizer = ModernXGSynthesizer(**kwargs)
 
-        # Apply full configuration from config.yaml
-        synthesizer.configure_from_config(config_manager)
+    # Load SoundFonts with their configurations (including blacklist/remap from config)
+    for sf_config in soundfont_configs:
+        sf_path = sf_config.get("path")
+        if sf_path and os.path.exists(sf_path):
+            priority = sf_config.get("priority", 0)
+            success = synthesizer.load_soundfont(sf_path, priority=priority)
+            if success:
+                # Apply blacklisting if specified in config
+                for bank, prog in sf_config.get("blacklist", []):
+                    synthesizer.blacklist_program(bank, prog)
 
-        if not silent:
-            print("Using ModernXGSynthesizer engine (refactored modular architecture)")
+                # Apply remapping if specified in config
+                for (from_bank, from_prog), (to_bank, to_prog) in sf_config.get(
+                    "remap", {}
+                ).items():
+                    synthesizer.remap_program(from_bank, from_prog, to_bank, to_prog)
+
+    # Apply full configuration from config.yaml
+    synthesizer.configure_from_config(config_manager)
+
+    # Apply runtime feature toggles (not exposed as constructor params)
+    if features.effects is not None:
+        synthesizer.set_effects_enabled(features.effects)
+    if features.sart2 is not None:
+        synthesizer.set_sart2_enabled(features.sart2)
+
+    # Per-component effect pipeline toggles
+    for comp_flag, setter in (
+        ("reverb", synthesizer.set_reverb_enabled),
+        ("chorus", synthesizer.set_chorus_enabled),
+        ("variation", synthesizer.set_variation_enabled),
+        ("insertion", synthesizer.set_insertion_enabled),
+        ("master_eq", synthesizer.set_master_eq_enabled),
+    ):
+        val = getattr(features, comp_flag, None)
+        if val is not None:
+            setter(val)
+
+    if not silent:
+        print("Using ModernXGSynthesizer engine (refactored modular architecture)")
+        print(f"  Features: {features.describe()}")
 
     # Initialize audio writer
     audio_writer = AudioWriter(sample_rate, chunk_size_ms)
@@ -344,9 +622,6 @@ def main():
         output_path = Path(args.output)
         if output_path.is_dir() or (not output_path.suffix and multiple_files):
             output_path.mkdir(parents=True, exist_ok=True)
-    elif multiple_files:
-        # Multiple files with no output specified -> use current directory
-        Path(".").mkdir(parents=True, exist_ok=True)
 
     # Set up timeout mechanism (always active, regardless of keyboard abort)
     abort_event = threading.Event()

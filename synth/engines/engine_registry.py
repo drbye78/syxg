@@ -34,13 +34,12 @@ PROFESSIONAL SYNTHESIS ENGINES (Medium Priority):
 from __future__ import annotations
 
 import logging
-
-
 from typing import Any
 
 from ..synthesizers.rendering import ModernXGSynthesizer
 from .additive import AdditiveEngine
 from .convolution import ConvolutionReverbEngine
+from .fdsp import FDSPSynthesisEngine
 from .fm_engine import FMEngine
 from .granular import GranularEngine
 from .physical_engine import PhysicalEngine
@@ -238,6 +237,46 @@ class XGEngineRegistry:
         except Exception as e:
             logger.warning(f"Spectral Engine registration failed: {e}")
 
+    def register_engine(
+        self,
+        engine: Any,
+        engine_type: str,
+        priority: int = 0,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Register an engine by delegating to the inner SynthesisEngineRegistry.
+
+        Args:
+            engine: Engine instance
+            engine_type: Unique engine type identifier
+            priority: Engine priority (higher = preferred)
+            metadata: Additional metadata for XGML integration
+        """
+        self.registry.register_engine(engine, engine_type, priority, metadata)
+
+    def get_engine_for_program(self, bank: int, program: int) -> str | None:
+        """
+        Determine the best synthesis engine for a given bank/program.
+
+        Args:
+            bank: Combined bank number (bank_msb << 7 | bank_lsb)
+            program: Program number (0-127)
+
+        Returns:
+            Engine type string or None
+        """
+        bank_msb = (bank >> 7) & 0x7F
+
+        # Explicit bank-to-engine routing (S90/S70 preset banks)
+        if bank_msb == 121:
+            return "fdsp"  # Formant Dynamic Synthesis Processor
+        elif bank_msb == 126:
+            return "an"  # Analog Physical Modeling
+
+        # Default: ModernXGSynthesizer handles all GM/XG melody banks
+        return "xg"
+
     def get_engine_for_file(self, file_path: str) -> str | None:
         """
         Get appropriate engine for a file based on extension and content.
@@ -427,7 +466,7 @@ class XGEngineRegistry:
         formats = set()
         for engine_info in self.get_registered_engines().values():
             formats.update(engine_info.get("formats", []))
-        return sorted(list(formats))
+        return sorted(formats)
 
     def _get_priority_distribution(
         self, registered_engines: dict[str, dict[str, Any]]

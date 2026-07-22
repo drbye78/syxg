@@ -71,13 +71,13 @@ class PartEngineRouter:
             except Exception:
                 logger.warning("Engine registry lookup failed", exc_info=True)
 
-        # Fallback: bank-MSB-based (same as old get_engine_for_channel)
+        # Fallback: bank-MSB-based routing
         bank_msb = part_data.get("bank_msb", 0)
-        if bank_msb == 126:
-            return "an"
-        elif bank_msb == 127:
-            return "fdsp"
-        return "xg"
+        if bank_msb == 121:
+            return "fdsp"  # Formant Dynamic Synthesis Processor (S90/S70)
+        elif bank_msb == 126:
+            return "an"  # Analog Physical Modeling (S90/S70)
+        return "xg"  # Default: ModernXGSynthesizer
 
     def is_drum_part(self, part_data: dict[str, Any]) -> bool:
         """Check if a part is in drum mode.

@@ -54,6 +54,12 @@ FEATURE_DEFAULTS = {
     "gs_mode": None,  # None => synthesizer default ("auto")
     "effects": None,  # None => synthesizer default (enabled)
     "sart2": None,  # None => synthesizer default (enabled)
+    # Per-component effect toggles (None = use global effects toggle behavior)
+    "reverb": None,
+    "chorus": None,
+    "variation": None,
+    "insertion": None,
+    "master_eq": None,
 }
 
 
@@ -75,6 +81,11 @@ class FeatureConfig:
         gs_mode=None,
         effects=None,
         sart2=None,
+        reverb=None,
+        chorus=None,
+        variation=None,
+        insertion=None,
+        master_eq=None,
     ):
         self.xg = xg
         self.gs = gs
@@ -85,6 +96,11 @@ class FeatureConfig:
         self.gs_mode = gs_mode
         self.effects = effects
         self.sart2 = sart2
+        self.reverb = reverb
+        self.chorus = chorus
+        self.variation = variation
+        self.insertion = insertion
+        self.master_eq = master_eq
 
     @classmethod
     def from_dict(cls, data: dict) -> "FeatureConfig":
@@ -98,6 +114,11 @@ class FeatureConfig:
             gs_mode=data.get("gs_mode", FEATURE_DEFAULTS["gs_mode"]),
             effects=data.get("effects", FEATURE_DEFAULTS["effects"]),
             sart2=data.get("sart2", FEATURE_DEFAULTS["sart2"]),
+            reverb=data.get("reverb", FEATURE_DEFAULTS["reverb"]),
+            chorus=data.get("chorus", FEATURE_DEFAULTS["chorus"]),
+            variation=data.get("variation", FEATURE_DEFAULTS["variation"]),
+            insertion=data.get("insertion", FEATURE_DEFAULTS["insertion"]),
+            master_eq=data.get("master_eq", FEATURE_DEFAULTS["master_eq"]),
         )
 
     def merge_cli(self, cli: "FeatureConfig") -> "FeatureConfig":
@@ -112,6 +133,11 @@ class FeatureConfig:
             gs_mode=cli.gs_mode if cli.gs_mode is not None else self.gs_mode,
             effects=cli.effects if cli.effects is not None else self.effects,
             sart2=cli.sart2 if cli.sart2 is not None else self.sart2,
+            reverb=cli.reverb if cli.reverb is not None else self.reverb,
+            chorus=cli.chorus if cli.chorus is not None else self.chorus,
+            variation=cli.variation if cli.variation is not None else self.variation,
+            insertion=cli.insertion if cli.insertion is not None else self.insertion,
+            master_eq=cli.master_eq if cli.master_eq is not None else self.master_eq,
         )
 
     def describe(self) -> str:
@@ -125,6 +151,11 @@ class FeatureConfig:
             ("S90", self.s90),
             ("Effects", self.effects),
             ("S.Art2", self.sart2),
+            ("Reverb", self.reverb),
+            ("Chorus", self.chorus),
+            ("Variation", self.variation),
+            ("Insertion", self.insertion),
+            ("MasterEQ", self.master_eq),
         ):
             parts.append(f"{name}={'on' if val else ('off' if val is False else 'default')}")
         if self.gs_mode is not None:
@@ -181,6 +212,20 @@ class NoteRenderer:
             self.synth.set_effects_enabled(features.effects)
         if features.sart2 is not None:
             self.synth.set_sart2_enabled(features.sart2)
+
+        # Per-component effect pipeline toggles.
+        # When a per-component flag is set (True/False), it overrides the
+        # effect component regardless of the global --effects toggle.
+        for comp_flag, setter in (
+            ("reverb", self.synth.set_reverb_enabled),
+            ("chorus", self.synth.set_chorus_enabled),
+            ("variation", self.synth.set_variation_enabled),
+            ("insertion", self.synth.set_insertion_enabled),
+            ("master_eq", self.synth.set_master_eq_enabled),
+        ):
+            val = getattr(features, comp_flag, None)
+            if val is not None:
+                setter(val)
 
         if os.path.exists(soundfont):
             self.synth.load_soundfont(soundfont, priority=0)
@@ -390,6 +435,11 @@ def _build_feature_config(args: argparse.Namespace, config_data: dict) -> Featur
         gs_mode=args.gs_mode,
         effects=args.effects,
         sart2=args.sart2,
+        reverb=args.reverb,
+        chorus=args.chorus,
+        variation=args.variation,
+        insertion=args.insertion,
+        master_eq=args.master_eq,
     )
     return file_cfg.merge_cli(cli)
 
@@ -416,7 +466,9 @@ Config file (JSON) example:
       "note_off_duration": 2.0,
       "features": {
         "xg": true, "gs": true, "mpe": true,
-        "midi2": false, "acoustic": true, "s90": false, "gs_mode": "auto"
+        "midi2": false, "acoustic": true, "s90": false, "gs_mode": "auto",
+        "reverb": true, "chorus": false, "variation": true,
+        "insertion": false, "master_eq": true
       }
     }
 """,
@@ -553,6 +605,23 @@ Config file (JSON) example:
         action="store_false",
         help="Disable S.Art2 articulation processing",
     )
+
+    # --- Per-component effect pipeline toggles ---
+    # When None, each component inherits the global --effects/--no-effects setting.
+    for flag, dest, desc in [
+        ("--reverb", "reverb", "System reverb"),
+        ("--chorus", "chorus", "System chorus"),
+        ("--variation", "variation", "Variation effect"),
+        ("--insertion", "insertion", "Insertion effects"),
+        ("--master-eq", "master_eq", "Master EQ"),
+    ]:
+        feat.add_argument(flag, dest=dest, action="store_true", default=None, help=f"Enable {desc}")
+        feat.add_argument(
+            f"--no-{dest.replace('_', '-')}",
+            dest=dest,
+            action="store_false",
+            help=f"Disable {desc}",
+        )
 
     args = parser.parse_args()
 

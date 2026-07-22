@@ -35,6 +35,10 @@ class RealtimeParser:
     with proper running status handling and system exclusive processing.
     Supports all standard MIDI message types for complete synthesizer compatibility.
     Includes support for MIDI 2.0 Universal MIDI Packet (UMP) format.
+
+    Thread-safe: maintains an internal event queue drained by get_pending_events()
+    so the caller can feed bytes from one thread (e.g. MIDI input) and process
+    parsed events from another (e.g. audio processing loop).
     """
 
     def __init__(self):
@@ -45,6 +49,9 @@ class RealtimeParser:
         self.pending_message: dict[str, Any] | None = None  # For multi-byte messages
         self.lock = threading.RLock()
 
+        # Event queue: parse_bytes() fills, get_pending_events() drains
+        self._event_queue: list[MIDIMessage] = []
+
         # UMP-specific state
         self.ump_parser = UMPParser()
         self.ump_buffer: bytes = b""
@@ -54,6 +61,10 @@ class RealtimeParser:
         """
         Parse raw MIDI bytes into structured messages.
         Supports both MIDI 1.0 and MIDI 2.0 UMP formats.
+
+        Parsed messages are stored in an internal event queue that can be
+        drained via get_pending_events() from another thread (e.g. audio
+        processing loop).
 
         Args:
             data: Raw MIDI byte data
@@ -90,6 +101,7 @@ class RealtimeParser:
                         message = self._convert_ump_to_midimessage(packet)
                         if message:
                             messages.append(message)
+                    self._event_queue.extend(messages)
                     return messages
             else:
                 self.is_ump_mode = False
@@ -104,7 +116,23 @@ class RealtimeParser:
                 # Clear any pending state after processing
                 self.pending_message = None
 
+            self._event_queue.extend(messages)
             return messages
+
+    def get_pending_events(self) -> list[MIDIMessage]:
+        """
+        Drain the internal event queue.
+
+        Returns all parsed MIDI messages accumulated since the last call.
+        Thread-safe; can be called from a different thread than parse_bytes().
+
+        Returns:
+            List of pending MIDIMessage objects (may be empty)
+        """
+        with self.lock:
+            events = self._event_queue
+            self._event_queue = []
+            return events
 
     def _convert_ump_to_midimessage(self, packet: UMPPacket) -> MIDIMessage | None:
         """
@@ -176,7 +204,13 @@ class RealtimeParser:
             return MIDIMessage(
                 type="note_off",
                 channel=channel,
-                data={"note": note, "velocity": velocity, "velocity_16bit": velocity, "is_midi2": True, "midi_group": packet.group},
+                data={
+                    "note": note,
+                    "velocity": velocity,
+                    "velocity_16bit": velocity,
+                    "is_midi2": True,
+                    "midi_group": packet.group,
+                },
                 timestamp=time.time(),
             )
         elif message_type == 0x9:  # Note On
@@ -185,7 +219,13 @@ class RealtimeParser:
             return MIDIMessage(
                 type="note_on",
                 channel=channel,
-                data={"note": note, "velocity": velocity, "velocity_16bit": velocity, "is_midi2": True, "midi_group": packet.group},
+                data={
+                    "note": note,
+                    "velocity": velocity,
+                    "velocity_16bit": velocity,
+                    "is_midi2": True,
+                    "midi_group": packet.group,
+                },
                 timestamp=time.time(),
             )
         elif message_type == 0xA:  # Poly Pressure
@@ -195,7 +235,13 @@ class RealtimeParser:
             return MIDIMessage(
                 type="poly_pressure",
                 channel=channel,
-                data={"note": note, "pressure": midi1_pressure, "pressure_32bit": pressure, "is_midi2": True, "midi_group": packet.group},
+                data={
+                    "note": note,
+                    "pressure": midi1_pressure,
+                    "pressure_32bit": pressure,
+                    "is_midi2": True,
+                    "midi_group": packet.group,
+                },
                 timestamp=time.time(),
             )
         elif message_type == 0xB:  # Control Change
@@ -205,7 +251,13 @@ class RealtimeParser:
             return MIDIMessage(
                 type="control_change",
                 channel=channel,
-                data={"controller": controller, "value": value, "value_32bit": value_32bit, "is_midi2": True, "midi_group": packet.group},
+                data={
+                    "controller": controller,
+                    "value": value,
+                    "value_32bit": value_32bit,
+                    "is_midi2": True,
+                    "midi_group": packet.group,
+                },
                 timestamp=time.time(),
             )
         elif message_type == 0xC:  # Program Change
@@ -222,7 +274,12 @@ class RealtimeParser:
             return MIDIMessage(
                 type="channel_pressure",
                 channel=channel,
-                data={"pressure": midi1_pressure, "pressure_32bit": pressure, "is_midi2": True, "midi_group": packet.group},
+                data={
+                    "pressure": midi1_pressure,
+                    "pressure_32bit": pressure,
+                    "is_midi2": True,
+                    "midi_group": packet.group,
+                },
                 timestamp=time.time(),
             )
         elif message_type == 0xE:  # Pitch Bend
@@ -231,7 +288,12 @@ class RealtimeParser:
             return MIDIMessage(
                 type="pitch_bend",
                 channel=channel,
-                data={"value": pitch_value, "pitch_32bit": pitch_value, "is_midi2": True, "midi_group": packet.group},
+                data={
+                    "value": pitch_value,
+                    "pitch_32bit": pitch_value,
+                    "is_midi2": True,
+                    "midi_group": packet.group,
+                },
                 timestamp=time.time(),
             )
         # Add more message types as needed
@@ -279,7 +341,11 @@ class RealtimeParser:
             return MIDIMessage(
                 type="control_change",
                 channel=channel,
-                data={"controller": packet.data1, "value": packet.data2, "midi_group": packet.group},
+                data={
+                    "controller": packet.data1,
+                    "value": packet.data2,
+                    "midi_group": packet.group,
+                },
                 timestamp=time.time(),
             )
         elif message_type == 0xC:  # Program Change
@@ -307,9 +373,7 @@ class RealtimeParser:
 
         return None
 
-    def _convert_per_note_controller(
-        self, packet: PerNoteControllerUMP
-    ) -> MIDIMessage | None:
+    def _convert_per_note_controller(self, packet: PerNoteControllerUMP) -> MIDIMessage | None:
         """
         Convert Per-Note Controller UMP to MIDIMessage.
 
@@ -318,7 +382,7 @@ class RealtimeParser:
         CC75 (slide), CC76 (lift), etc.
         """
         controller = packet.controller_index  # Actual MIDI CC number (0-127)
-        value_24bit = packet.value            # 24-bit value (0-16777215)
+        value_24bit = packet.value  # 24-bit value (0-16777215)
         note = packet.note
 
         return MIDIMessage(
@@ -335,13 +399,11 @@ class RealtimeParser:
             timestamp=time.time(),
         )
 
-    def _convert_per_note_management(
-        self, packet: PerNoteManagementUMP
-    ) -> MIDIMessage | None:
+    def _convert_per_note_management(self, packet: PerNoteManagementUMP) -> MIDIMessage | None:
         """
         Convert Per-Note Management UMP to MIDIMessage.
-        
-        Per-Note Management messages explicitly assign or remove 
+
+        Per-Note Management messages explicitly assign or remove
         notes from MPE zones.
         """
         return MIDIMessage(

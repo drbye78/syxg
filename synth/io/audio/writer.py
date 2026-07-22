@@ -141,7 +141,6 @@ class AvWriter:
         if self._write_count % 100 == 0:
             logger.info(
                 f"DEBUG: AudioWriter wrote {self._write_count} blocks, packets_written={packets_written}",
-                file=sys.stderr,
             )
 
     def _get_codec(self, format_name: str) -> str:

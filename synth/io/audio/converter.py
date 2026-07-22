@@ -9,7 +9,6 @@ Separated from frontend CLI interface for better modularity.
 from __future__ import annotations
 
 import logging
-import sys
 import threading
 import time
 
@@ -168,7 +167,6 @@ class AudioConverter:
             midi_messages, duration = self.parse_audio_file(input_file)
             logger.info(
                 f"DEBUG: Parsed {len(midi_messages) if midi_messages else 0} messages, duration={duration}",
-                file=sys.stderr,
             )
 
             if midi_messages is None or duration is None:

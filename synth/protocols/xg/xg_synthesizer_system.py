@@ -344,11 +344,11 @@ class XGSynthesizerSystem:
         bank_msb = part.get("bank_msb", 0)
         if part.get("part_mode", 0) >= 1:
             return "drum"
-        if bank_msb == 126:
-            return "an"
-        elif bank_msb == 127:
-            return "fdsp"
-        return "xg"
+        if bank_msb == 121:
+            return "fdsp"  # Formant Dynamic Synthesis Processor
+        elif bank_msb == 126:
+            return "an"  # Analog Physical Modeling
+        return "xg"  # Default: ModernXGSynthesizer
 
     def _get_gs_drum_kit_for_note(self, note: int) -> int:
         """

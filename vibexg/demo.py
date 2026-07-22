@@ -38,6 +38,7 @@ class DemoMode:
         self.synthesizer = synthesizer
         self.running = False
         self.thread: threading.Thread | None = None
+        self._stop_event: threading.Event = threading.Event()
 
     def start(self, pattern: str = "scale"):
         """
@@ -47,6 +48,7 @@ class DemoMode:
             pattern: Pattern to play ("scale", "chords", or "arpeggio")
         """
         self.running = True
+        self._stop_event.clear()
         self.thread = threading.Thread(target=self._demo_thread, args=(pattern,), daemon=True)
         self.thread.start()
         logger.info(f"Demo mode started: {pattern}")
@@ -54,6 +56,7 @@ class DemoMode:
     def stop(self):
         """Stop demo mode."""
         self.running = False
+        self._stop_event.set()
         if self.thread:
             self.thread.join(timeout=2.0)
 
@@ -117,21 +120,25 @@ class DemoMode:
         scale_notes = [60, 62, 64, 65, 67, 69, 71, 72]  # C4 to C5
 
         for note in scale_notes:
-            if not self.running:
+            if not self.running or self._stop_event.is_set():
                 break
             self._send_note_on(note, 80)
-            time.sleep(0.3)
+            if self._stop_event.wait(0.3):
+                break
             self._send_note_off(note, 64)
-            time.sleep(0.1)
+            if self._stop_event.wait(0.1):
+                break
 
         # Play descending
         for note in reversed(scale_notes):
-            if not self.running:
+            if not self.running or self._stop_event.is_set():
                 break
             self._send_note_on(note, 80)
-            time.sleep(0.3)
+            if self._stop_event.wait(0.3):
+                break
             self._send_note_off(note, 64)
-            time.sleep(0.1)
+            if self._stop_event.wait(0.1):
+                break
 
         logger.info("Demo scale complete")
 
@@ -145,20 +152,22 @@ class DemoMode:
         ]
 
         for chord in chords:
-            if not self.running:
+            if not self.running or self._stop_event.is_set():
                 break
 
             # Play chord
             for note in chord:
                 self._send_note_on(note, 70)
 
-            time.sleep(0.5)
+            if self._stop_event.wait(0.5):
+                break
 
             # Release chord
             for note in chord:
                 self._send_note_off(note, 64)
 
-            time.sleep(0.2)
+            if self._stop_event.wait(0.2):
+                break
 
         logger.info("Demo chords complete")
 
@@ -169,11 +178,12 @@ class DemoMode:
 
         for _ in range(2):  # Repeat twice
             for interval in pattern:
-                if not self.running:
+                if not self.running or self._stop_event.is_set():
                     break
                 note = root + interval
                 self._send_note_on(note, 75)
-                time.sleep(0.15)
+                if self._stop_event.wait(0.15):
+                    break
                 self._send_note_off(note, 64)
 
         logger.info("Demo arpeggio complete")

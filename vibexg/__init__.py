@@ -19,6 +19,8 @@ License: MIT
 
 from __future__ import annotations
 
+import importlib
+
 __version__ = "1.1.0"
 __author__ = "Roger"
 
@@ -31,6 +33,7 @@ __all__ = [
     "AudioOutputConfig",
     "AudioOutputEngine",
     "AudioOutputType",
+    "CallbackSink",
     "DemoMode",
     "FileAudioOutput",
     "FileMIDIInput",
@@ -39,16 +42,22 @@ __all__ = [
     "MIDIInputConfig",
     "MIDIInputInterface",
     "MIDILearnManager",
+    "Metronome",
+    "MidiMessageSink",
     "MidoPortInput",
     "NetworkMIDIHandler",
     "NetworkMIDIInput",
     "PresetData",
     "PresetManager",
+    "Recorder",
+    "RecordingSink",
     "SoundDeviceOutput",
     "StdinMIDIInput",
     "StyleEngineIntegration",
     "TUIControlSurface",
+    "ThreadManager",
     "VirtualPortInput",
+    "WorkstationConfig",
     "WorkstationState",
     "XGWorkstation",
     "__author__",
@@ -90,6 +99,13 @@ _import_map = {
     "FileAudioOutput": ".audio_outputs",
     "TUIControlSurface": ".tui",
     "DemoMode": ".demo",
+    "CallbackSink": ".midi_sink",
+    "MidiMessageSink": ".midi_sink",
+    "RecordingSink": ".midi_sink",
+    "Recorder": ".recorder",
+    "Metronome": ".metronome",
+    "ThreadManager": ".threading",
+    "WorkstationConfig": ".config",
     "parse_arguments": ".cli",
     "parse_input_spec": ".cli",
     "parse_output_spec": ".cli",
@@ -103,6 +119,6 @@ _import_map = {
 
 def __getattr__(name: str):
     if name in _import_map:
-        module = __import__(_import_map[name], globals(), locals(), [name], 1)
+        module = importlib.import_module(_import_map[name], package=__name__)
         return getattr(module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

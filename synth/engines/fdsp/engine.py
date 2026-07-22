@@ -598,6 +598,15 @@ class FDSPEngine:
             "available_phonemes": self.vocal_database.get_phoneme_names(),
         }
 
+    def get_supported_formats(self) -> list[str]:
+        """
+        Get list of supported file formats (SynthesisEngineRegistry protocol).
+
+        Returns:
+            Empty list — FDSP operates on live vocal synthesis, not file loading.
+        """
+        return []
+
     # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
 
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
@@ -643,8 +652,6 @@ class FDSPEngine:
             name=preset_name,
             engine_type=self.get_engine_type(),
             region_descriptors=[descriptor],
-
-
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
@@ -810,6 +817,15 @@ class FDSPSynthesisEngine(SynthesisEngine):
             ],
         }
 
+    def get_supported_formats(self) -> list[str]:
+        """
+        Get list of supported file formats (SynthesisEngineRegistry protocol).
+
+        Returns:
+            Empty list — FDSP operates on live vocal synthesis, not file loading.
+        """
+        return []
+
     # ========== REGION-BASED ARCHITECTURE IMPLEMENTATION ==========
 
     def get_preset_info(self, bank: int, program: int) -> PresetInfo | None:
@@ -848,8 +864,6 @@ class FDSPSynthesisEngine(SynthesisEngine):
             name=preset_name,
             engine_type="fdsp",
             region_descriptors=[descriptor],
-
-
         )
 
     def get_all_region_descriptors(self, bank: int, program: int) -> list[RegionDescriptor]:
