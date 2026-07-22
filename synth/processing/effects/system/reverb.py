@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from collections import OrderedDict
 
 import numpy as np
 from scipy.signal import fftconvolve
@@ -76,7 +77,8 @@ class XGSystemReverbProcessor:
         self.current_ir: np.ndarray | None = None
         self.convolution_buffers: list[np.ndarray] = []
         self.buffer_positions: list[int] = []
-        self.ir_cache: dict[tuple[int, float, float, float, float], np.ndarray] = {}
+        self.ir_cache: OrderedDict = OrderedDict()
+        self._ir_cache_max = 64
         # Pre-allocated output work buffers (avoids np.zeros in hot path)
         self._conv_output_buffers: list[np.ndarray] = []
 
@@ -305,6 +307,9 @@ class XGSystemReverbProcessor:
         # so self.params["reverb_type"] is always a valid processor internal type (0-26).
         reverb_type = int(self.params["reverb_type"])
 
+        # Per-type seed variation for distinct IRs across reverb types
+        self._rng = np.random.RandomState(42 + reverb_type)
+
         # Create cache key from current parameters (mapped type ensures correctness)
         cache_key = (
             reverb_type,
@@ -316,6 +321,7 @@ class XGSystemReverbProcessor:
 
         if cache_key in self.ir_cache:
             self.current_ir = self.ir_cache[cache_key]
+            self.ir_cache.move_to_end(cache_key)
             return
 
         # Generate new impulse response
@@ -392,6 +398,9 @@ class XGSystemReverbProcessor:
         # Cache the impulse response
         if self.current_ir is not None:
             self.ir_cache[cache_key] = self.current_ir
+            self.ir_cache.move_to_end(cache_key)
+            if len(self.ir_cache) > self._ir_cache_max:
+                self.ir_cache.popitem(last=False)
 
     def _generate_xg_hall(self, time: float, density: float, hf_damping: float) -> None:
         """Generate XG hall-type impulse response with specific characteristics."""
@@ -399,12 +408,15 @@ class XGSystemReverbProcessor:
         ir_length = min(int(self.sample_rate * time * 1.5), self.max_ir_length)
         self.current_ir = np.zeros(ir_length, dtype=np.float32)
 
+        # Size factor scales early reflection positions by room size (density proxy)
+        size_factor: float = 0.7 + density * 0.7
+
         # XG Hall early reflections pattern (more complex than basic hall)
         early_positions = [0.018, 0.032, 0.048, 0.072, 0.105, 0.155, 0.220, 0.310, 0.420, 0.550]
         early_gains = [1.0, 0.85, -0.65, 0.45, -0.35, 0.25, -0.18, 0.12, -0.08, 0.05]
 
         for pos, gain in zip(early_positions, early_gains, strict=False):
-            sample_pos = int(pos * self.sample_rate)
+            sample_pos = int(pos * size_factor * self.sample_rate)
             if sample_pos < len(self.current_ir):
                 self.current_ir[sample_pos] += gain * density
 

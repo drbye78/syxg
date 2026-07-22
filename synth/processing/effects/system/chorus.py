@@ -244,7 +244,7 @@ class XGSystemChorusProcessor:
         """Process a block of samples through chorus modulation."""
         rate = self.params["rate"]
         depth = self.params["depth"]
-        feedback = self.params["feedback"] * 0.5  # Scale feedback
+        feedback = self.params["feedback"]
         level = self.params["level"]
         delay = self.params["delay"]
         cross_feedback = self.params["cross_feedback"] * 0.5
