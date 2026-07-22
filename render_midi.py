@@ -337,15 +337,73 @@ Examples:
     return parser.parse_args()
 
 
+def _classify_sysex_mode_change(raw: list[int]) -> str | None:
+    """Detect synth-mode-change SysEx messages and return the mode name.
+
+    Recognised SysEx patterns:
+      Yamaha XG (manufacturer 0x43, sub-status 0x4C):
+        F0 43 xx 4C 03 00 F7  → GM Mode On
+        F0 43 xx 4C 03 01 F7  → GM2 Mode On
+        F0 43 xx 4C 02 00 F7  → XG On
+        F0 43 xx 4C 02 01 F7  → XG Off (revert to GS/GM)
+        F0 43 xx 4C 04 F7     → XG Reset
+      Roland GS (manufacturer 0x41, model 0x42):
+        F0 41 xx 42 12 00 00 yy F7  → GS Reset (yy = checksum)
+      Universal MIDI SysEx (manufacturer 0x7E):
+        F0 7E 7F 09 01 F7  → GM System On
+        F0 7E 7F 09 02 F7  → GM System Off
+        F0 7E 7F 09 03 F7  → GM2 System On
+
+    Returns:
+        Mode name string (e.g. "XG On", "GM System On", "GS Reset") or None.
+    """
+    if len(raw) < 3 or raw[0] != 0xF0 or raw[-1] != 0xF7:
+        return None
+
+    # Yamaha XG: F0 43 [dev] 4C <cmd> <data...> F7
+    if len(raw) >= 5 and raw[1] == 0x43 and raw[3] == 0x4C:
+        cmd = raw[4]
+        if cmd == 0x03 and len(raw) >= 7 and raw[5] == 0x00:
+            return "GM Mode On"
+        if cmd == 0x03 and len(raw) >= 7 and raw[5] == 0x01:
+            return "GM2 Mode On"
+        if cmd == 0x02 and len(raw) >= 7 and raw[5] == 0x00:
+            return "XG On"
+        if cmd == 0x02 and len(raw) >= 7 and raw[5] == 0x01:
+            return "XG Off"
+        if cmd == 0x04:
+            return "XG Reset"
+
+    # Roland GS: F0 41 [dev] 42 12 00 00 [chk] F7  (GS Reset)
+    if len(raw) >= 8 and raw[1] == 0x41 and raw[3] == 0x42 and raw[4] == 0x12:
+        if raw[5] == 0x00 and raw[6] == 0x00:
+            return "GS Reset"
+
+    # Universal MIDI: F0 7E 7F 09 <sub> F7
+    if len(raw) == 6 and raw[1] == 0x7E and raw[2] == 0x7F and raw[3] == 0x09:
+        sub = raw[4]
+        if sub == 0x01:
+            return "GM System On"
+        if sub == 0x02:
+            return "GM System Off"
+        if sub == 0x03:
+            return "GM2 System On"
+
+    return None
+
+
 def trace_voice_assignments(
     synthesizer: ModernXGSynthesizer,
     midi_messages: list,
 ) -> None:
-    """Trace program-change messages and print voice assignment details.
+    """Trace program-change and synth-mode SysEx messages.
 
-    Scans the message list for bank-select (CC0/CC32) and program-change
-    events, feeds them through the synthesizer one-by-one, then queries the
-    channel state for the assigned voice name and engine type.
+    Scans the message list for:
+      - Bank-select (CC0/CC32) and program-change events
+      - SysEx messages that switch synth mode (GM, GS, XG, GM2)
+
+    Feeds messages through the synthesizer to resolve voice names, then
+    prints a unified timeline of voice assignments and mode changes.
 
     Args:
         synthesizer: Initialised (reset) synthesizer instance.
@@ -357,11 +415,20 @@ def trace_voice_assignments(
     bank_msb: dict[int, int] = {}
     bank_lsb: dict[int, int] = {}
 
-    # Collect trace entries: (timestamp, channel, bank_msb, bank_lsb, program)
-    trace_entries: list[tuple[float, int, int, int, int]] = []
+    # Collect trace entries: (timestamp, "voice", channel, bank_msb, bank_lsb, program)
+    # and mode entries:      (timestamp, "mode", mode_name)
+    events: list[tuple] = []
 
     for msg in midi_messages:
         ch = msg.channel if msg.channel is not None else 0
+        timestamp = msg.timestamp if msg.timestamp is not None else 0.0
+
+        # Detect synth-mode SysEx changes
+        raw = midimessage_to_bytes(msg)
+        if raw:
+            mode_name = _classify_sysex_mode_change(raw)
+            if mode_name is not None:
+                events.append((timestamp, "mode", mode_name))
 
         if msg.type == "control_change":
             ctrl = msg.controller or 0
@@ -375,28 +442,30 @@ def trace_voice_assignments(
             program = msg.program or 0
             msb = bank_msb.get(ch, 0)
             lsb = bank_lsb.get(ch, 0)
-            timestamp = msg.timestamp if msg.timestamp is not None else 0.0
-            trace_entries.append((timestamp, ch, msb, lsb, program))
+            events.append((timestamp, "voice", ch, msb, lsb, program))
 
-    if not trace_entries:
-        print("  No program-change messages found.")
+    if not events:
+        print("  No program-change or mode-change messages found.")
         return
 
+    # Sort events by timestamp; stable sort preserves message order within same time
+    events.sort(key=lambda e: e[0])
+
+    # Separate voice entries for synth replay (need original indices for replay)
+    voice_entries = [e for e in events if e[1] == "voice"]
+
     # Replay messages through the synth to resolve voice names.
-    # Process incrementally: feed all messages up to each program-change,
-    # then query the channel for its resolved voice info.
     synth = synthesizer
     synth.reset()
 
     msg_idx = 0
-    results: list[dict] = []
+    voice_results: list[dict] = []
 
-    for entry_idx, (timestamp, ch, msb, lsb, program) in enumerate(trace_entries):
+    for entry_idx, (_, _tag, ch, msb, lsb, program) in enumerate(voice_entries):
         # Find the index of the program-change message that produced this entry
         prog_idx = 0
         count = 0
         for i, m in enumerate(midi_messages):
-            mc = m.channel if m.channel is not None else 0
             if m.type == "program_change":
                 if count == entry_idx:
                     prog_idx = i
@@ -422,8 +491,8 @@ def trace_voice_assignments(
             engine_type = "?"
         part_mode = getattr(ch_obj, "xg_part_mode", "normal")
 
-        results.append({
-            "time": timestamp,
+        voice_results.append({
+            "time": events.index((_, _tag, ch, msb, lsb, program)),
             "part": ch,
             "bank_msb": msb,
             "bank_lsb": lsb,
@@ -433,7 +502,12 @@ def trace_voice_assignments(
             "voice_name": preset_name,
         })
 
-    # Print trace table
+    # Build a lookup from event-list index → voice result
+    voice_by_idx: dict[int, dict] = {}
+    for vr in voice_results:
+        voice_by_idx[vr["time"]] = vr
+
+    # Print unified trace table
     header = (
         f"{'Time':>10s}  {'Part':>4s}  {'MSB':>3s}  {'LSB':>3s}  {'Prog':>4s}  "
         f"{'Mode':<8s}  {'Engine':<6s}  {'Voice Name'}"
@@ -441,15 +515,27 @@ def trace_voice_assignments(
     print(header)
     print("-" * len(header))
 
-    for r in results:
-        t = r["time"]
-        mins = int(t) // 60
-        secs = t - mins * 60
-        print(
-            f"{mins:5d}:{secs:05.2f}  {r['part']:4d}  {r['bank_msb']:3d}  "
-            f"{r['bank_lsb']:3d}  {r['program']:4d}  {r['part_mode']:<8s}  "
-            f"{r['engine']:<6s}  {r['voice_name']}"
-        )
+    for idx, event in enumerate(events):
+        timestamp = event[0]
+        t_mins = int(timestamp) // 60
+        t_secs = timestamp - t_mins * 60
+
+        if event[1] == "mode":
+            # Mode change row
+            print(
+                f"{t_mins:5d}:{t_secs:05.2f}  {'---':>4s}  {'---':>3s}  {'---':>3s}  "
+                f"{'---':>4s}  {' ':8s}  {' ':6s}  >>> {event[2]} <<<"
+            )
+        else:
+            # Voice assignment row
+            vr = voice_by_idx.get(idx)
+            if vr is None:
+                continue
+            print(
+                f"{t_mins:5d}:{t_secs:05.2f}  {vr['part']:4d}  {vr['bank_msb']:3d}  "
+                f"{vr['bank_lsb']:3d}  {vr['program']:4d}  {vr['part_mode']:<8s}  "
+                f"{vr['engine']:<6s}  {vr['voice_name']}"
+            )
 
 
 def _load_config_file(path: str | None) -> dict:
