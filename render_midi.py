@@ -325,7 +325,131 @@ Examples:
             help=f"Disable {desc}",
         )
 
+    # --- Tracing ---
+    trace = parser.add_argument_group("voice tracing")
+    trace.add_argument(
+        "--trace-voices",
+        action="store_true",
+        default=False,
+        help="Trace program-change messages and print voice assignment details",
+    )
+
     return parser.parse_args()
+
+
+def trace_voice_assignments(
+    synthesizer: ModernXGSynthesizer,
+    midi_messages: list,
+) -> None:
+    """Trace program-change messages and print voice assignment details.
+
+    Scans the message list for bank-select (CC0/CC32) and program-change
+    events, feeds them through the synthesizer one-by-one, then queries the
+    channel state for the assigned voice name and engine type.
+
+    Args:
+        synthesizer: Initialised (reset) synthesizer instance.
+        midi_messages: Parsed MIDIMessage list from the file.
+    """
+    from synth.io.midi import midimessage_to_bytes
+
+    # Per-channel running bank select state
+    bank_msb: dict[int, int] = {}
+    bank_lsb: dict[int, int] = {}
+
+    # Collect trace entries: (timestamp, channel, bank_msb, bank_lsb, program)
+    trace_entries: list[tuple[float, int, int, int, int]] = []
+
+    for msg in midi_messages:
+        ch = msg.channel if msg.channel is not None else 0
+
+        if msg.type == "control_change":
+            ctrl = msg.controller or 0
+            val = msg.value or 0
+            if ctrl == 0:
+                bank_msb[ch] = val
+            elif ctrl == 32:
+                bank_lsb[ch] = val
+
+        elif msg.type == "program_change":
+            program = msg.program or 0
+            msb = bank_msb.get(ch, 0)
+            lsb = bank_lsb.get(ch, 0)
+            timestamp = msg.timestamp if msg.timestamp is not None else 0.0
+            trace_entries.append((timestamp, ch, msb, lsb, program))
+
+    if not trace_entries:
+        print("  No program-change messages found.")
+        return
+
+    # Replay messages through the synth to resolve voice names.
+    # Process incrementally: feed all messages up to each program-change,
+    # then query the channel for its resolved voice info.
+    synth = synthesizer
+    synth.reset()
+
+    msg_idx = 0
+    results: list[dict] = []
+
+    for entry_idx, (timestamp, ch, msb, lsb, program) in enumerate(trace_entries):
+        # Find the index of the program-change message that produced this entry
+        prog_idx = 0
+        count = 0
+        for i, m in enumerate(midi_messages):
+            mc = m.channel if m.channel is not None else 0
+            if m.type == "program_change":
+                if count == entry_idx:
+                    prog_idx = i
+                    break
+                count += 1
+
+        # Feed all messages up to and including this program-change
+        while msg_idx <= prog_idx:
+            msg = midi_messages[msg_idx]
+            raw = midimessage_to_bytes(msg)
+            if raw:
+                synth.process_midi_message(raw)
+            msg_idx += 1
+
+        # Query channel state after the program change
+        ch_obj = synth.channels[ch]
+        voice = getattr(ch_obj, "current_voice", None)
+        if voice is not None:
+            preset_name = voice.get_preset_name()
+            engine_type = voice.get_engine_type()
+        else:
+            preset_name = "(none)"
+            engine_type = "?"
+        part_mode = getattr(ch_obj, "xg_part_mode", "normal")
+
+        results.append({
+            "time": timestamp,
+            "part": ch,
+            "bank_msb": msb,
+            "bank_lsb": lsb,
+            "program": program,
+            "part_mode": part_mode,
+            "engine": engine_type,
+            "voice_name": preset_name,
+        })
+
+    # Print trace table
+    header = (
+        f"{'Time':>10s}  {'Part':>4s}  {'MSB':>3s}  {'LSB':>3s}  {'Prog':>4s}  "
+        f"{'Mode':<8s}  {'Engine':<6s}  {'Voice Name'}"
+    )
+    print(header)
+    print("-" * len(header))
+
+    for r in results:
+        t = r["time"]
+        mins = int(t) // 60
+        secs = t - mins * 60
+        print(
+            f"{mins:5d}:{secs:05.2f}  {r['part']:4d}  {r['bank_msb']:3d}  "
+            f"{r['bank_lsb']:3d}  {r['program']:4d}  {r['part_mode']:<8s}  "
+            f"{r['engine']:<6s}  {r['voice_name']}"
+        )
 
 
 def _load_config_file(path: str | None) -> dict:
@@ -652,6 +776,23 @@ def main():
                 continue
 
             output_file = get_output_path(input_file, args.output, format, multiple_files)
+
+            # Trace voice assignments if requested
+            if args.trace_voices:
+                # Parse the file to get MIDI messages
+                file_ext = input_file.lower().split(".")[-1]
+                if file_ext in ("mid", "midi"):
+                    from synth.io.midi import FileParser
+
+                    parser = FileParser()
+                    midi_msgs = parser.parse_file(input_file)
+                    if midi_msgs:
+                        print(f"\n--- Voice Assignments: {input_file} ---")
+                        trace_voice_assignments(synthesizer, midi_msgs)
+                    else:
+                        print(f"  No MIDI messages in {input_file}")
+                else:
+                    print(f"  Voice tracing only supported for MIDI files (skipped {input_file})")
 
             if converter.convert_audio_to_audio_buffered(
                 input_file=input_file,
