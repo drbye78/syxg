@@ -717,7 +717,7 @@ class ModernXGSynthesizer:
             if self.xg_enabled:
                 channel.xg_config = {
                     "voice_reserve": 8,
-                    "part_mode": 0,  # Normal
+                    "part_mode": 1 if channel_num == 9 else 0,  # Normal (1=Drum for ch9)
                     "part_level": 100,
                     "part_pan": 64,
                     "drum_kit": 0,
@@ -749,6 +749,19 @@ class ModernXGSynthesizer:
         if hasattr(self, "channels") and self.channels:
             for ch in self.channels:
                 ch.set_xg_parameter_manager(self.xg_channel_params)
+
+        # Sync drum channel mode from XG system to channel state
+        if hasattr(self, "channels") and self.channels:
+            multi_part = self.xg_components.get_component("multi_part")
+            if multi_part and hasattr(multi_part, "get_part_mode"):
+                for ch in range(min(16, self.max_channels)):
+                    try:
+                        mode_val = multi_part.get_part_mode(ch)
+                        is_drum = mode_val in (1, 2, 3)
+                        mode_str = "drum" if is_drum else "normal"
+                        self.channels[ch].xg_part_mode = mode_str
+                    except Exception:
+                        pass
 
         # Register GS parameter callback for real-time part param updates
         self._gs_part_params: dict[int, dict[str, int]] = {

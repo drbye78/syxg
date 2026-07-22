@@ -510,6 +510,12 @@ class XGMultiPartSetup:
             self.part_level = [127] * self.num_parts
             self.part_pan = [64] * self.num_parts
 
+            # Part 9 (MIDI channel 10, 0-indexed) defaults to drum mode per XG spec.
+            # INTENT_DRUM: explicit assignment ensures part 9 stays in drum mode
+            # even if future changes alter the bulk-init value of PART_MODE_MULTI.
+            if self.num_parts > 9:
+                self.part_mode[9] = self.PART_MODE_MULTI  # Drum mode (value=1)
+
             self._validate_voice_allocation()
 
         logger.info("🎹 XG MULTI-PART SETUP: Reset to XG defaults")

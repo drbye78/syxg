@@ -508,9 +508,12 @@ class MIDIMessageProcessor:
             part_mode = xg_config["part_mode"]
             if part_mode == 0:  # Normal mode - polyphonic
                 xg_metadata["part_mode"] = "normal"
-            elif part_mode == 1:  # Single mode - monophonic
-                xg_metadata["part_mode"] = "single"
-                xg_metadata["monophonic"] = True
+            elif part_mode == 1:  # Drum (ch9) or Single (others)
+                if channel == 9:
+                    xg_metadata["part_mode"] = "drum"
+                else:
+                    xg_metadata["part_mode"] = "single"
+                    xg_metadata["monophonic"] = True
             elif part_mode == 2:  # Layer mode - allow layering
                 xg_metadata["part_mode"] = "layer"
                 xg_metadata["layered"] = True
