@@ -114,6 +114,20 @@ class SF2SoundFontManager:
                     # Insert into order based on priority
                     self._insert_file_by_priority(filepath, priority)
 
+                    # Auto-detect SF2 GM drum presets at bank 128 and remap to XG/GS bank 127
+                    programs = soundfont.get_available_programs()
+                    drum_count = 0
+                    for bank, program, _name in programs:
+                        if bank == 128:
+                            self.remap_program(127, program, 128, program)
+                            drum_count += 1
+                    if drum_count:
+                        logger.info(
+                            "SF2: Remapped %d drum preset(s) bank 128→127 for '%s'",
+                            drum_count,
+                            soundfont.name,
+                        )
+
                     logger.info(
                         "SF2: Loaded '%s' in %.2fs", soundfont.name, self.load_times[filepath]
                     )

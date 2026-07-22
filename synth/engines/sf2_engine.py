@@ -393,8 +393,14 @@ class SF2Engine(SynthesisEngine):
             if not soundfont:
                 continue
 
-            # Get or load preset
-            preset = soundfont._get_or_load_preset(bank, program)
+            # Get or load preset, applying bank remapping if configured
+            remapped_bank = bank
+            remapped_program = program
+            key = (bank, program)
+            if key in self.soundfont_manager.file_remapping:
+                remapped_bank, remapped_program = self.soundfont_manager.file_remapping[key]
+
+            preset = soundfont._get_or_load_preset(remapped_bank, remapped_program)
             if not preset:
                 continue
 
