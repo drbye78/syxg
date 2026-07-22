@@ -773,7 +773,15 @@ class XGEffectsCoordinator:
                 eq.shape[1] if eq.ndim > 1 else 1,
             )
             output_stereo[:cs, :cc] = eq[:cs, :cc]
-        np.clip(output_stereo[:num_samples], -0.99, 0.99, out=output_stereo[:num_samples])
+        # Soft-saturate with gain-compensated tanh: preserves linear-region
+        # amplitude while gently rolling off overshoots. The constant 1.5
+        # provides ~3.5 dB headroom before saturation becomes significant.
+        # Only signals approaching the clip threshold (typically reverb+wet
+        # sums) see meaningful attenuation — regular signals pass through
+        # with < 1 dB loss.
+        saturated = output_stereo[:num_samples]
+        saturated = np.tanh(saturated / 1.5) * 1.5
+        np.clip(saturated, -0.99, 0.99, out=output_stereo[:num_samples])
 
     def _apply_stereo_enhancement(self, stereo_buffer: np.ndarray, num_samples: int) -> None:
         """Mid-side stereo enhancement — preserves mono compatibility.
