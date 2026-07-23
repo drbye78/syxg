@@ -91,6 +91,9 @@ class XGEffectsCoordinator:
         self.delay_sends: np.ndarray = np.full(max_channels, 0.0, dtype=np.float32)
 
         self.effect_units_active: np.ndarray = np.ones(10, dtype=bool)
+        # XG spec: reverb (unit 1) and chorus (unit 2) are active by default;
+        # variation/MFX (unit 0) is OFF until explicitly enabled via SysEx.
+        self.effect_units_active[0] = False
 
         self.dry_signal_buffer: np.ndarray | None = None
 
