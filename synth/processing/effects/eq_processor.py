@@ -55,7 +55,9 @@ class XGMultiBandEqualizer:
             "high_mid": self._create_parametric_coefficients(self.BAND_FREQUENCIES["high_mid"], self.high_mid_gain_db, self.q_factor),
             "high": self._create_shelving_coefficients("high", self.BAND_FREQUENCIES["high"], self.high_gain_db),
         }
-        self._filter_states = {band: np.zeros(8, dtype=np.float64) for band in self._filter_coeffs}
+        self._filter_states = {
+            band: np.full(4, np.nan, dtype=np.float64) for band in self._filter_coeffs
+        }
 
     def _create_shelving_coefficients(self, band: str, freq: float, gain_db: float) -> np.ndarray:
         A = 10 ** (gain_db / 40.0)
@@ -66,22 +68,28 @@ class XGMultiBandEqualizer:
         if A < 1e-6:
             A = 1e-6
         sA, aA = np.sqrt(A), A
-        S = 1.0 if gain_db >= 0 else A
-        t1 = 2 * sA * alpha * S
+        # Shelf filter alpha uses the RBJ shelf-slope formula (S=1 for boost,
+        # S=A for cut). This differs from the parametric `sin/(2*Q)` alpha
+        # — using the parametric alpha pushes poles dangerously close to the
+        # unit circle, producing near-unstable transients.
+        S = 1.0 if A >= 1.0 else A
+        alpha = sin_omega / 2 * np.sqrt((A + 1.0 / A) * (1.0 / S - 1.0) + 2)
+        # (common factor t = 2*sqrt(A)*alpha)
+        t = 2 * sA * alpha
         if band == "low":
-            b0 = aA * ((aA + 1) + (aA - 1) * cos_omega + t1)
-            b1 = -2 * aA * ((aA - 1) + (aA + 1) * cos_omega)
-            b2 = aA * ((aA + 1) + (aA - 1) * cos_omega - t1)
-            a0 = (aA + 1) - (aA - 1) * cos_omega + t1
-            a1 = 2 * ((aA - 1) - (aA + 1) * cos_omega)
-            a2 = (aA + 1) - (aA - 1) * cos_omega - t1
-        else:
-            b0 = aA * ((aA + 1) - (aA - 1) * cos_omega + t1)
+            b0 = aA * ((aA + 1) - (aA - 1) * cos_omega + t)
             b1 = 2 * aA * ((aA - 1) - (aA + 1) * cos_omega)
-            b2 = aA * ((aA + 1) - (aA - 1) * cos_omega - t1)
-            a0 = (aA + 1) + (aA - 1) * cos_omega + t1
-            a1 = -2 * ((aA - 1) - (aA + 1) * cos_omega)
-            a2 = (aA + 1) + (aA - 1) * cos_omega - t1
+            b2 = aA * ((aA + 1) - (aA - 1) * cos_omega - t)
+            a0 = (aA + 1) + (aA - 1) * cos_omega + t
+            a1 = -2 * ((aA - 1) + (aA + 1) * cos_omega)
+            a2 = (aA + 1) + (aA - 1) * cos_omega - t
+        else:
+            b0 = aA * ((aA + 1) + (aA - 1) * cos_omega + t)
+            b1 = -2 * aA * ((aA - 1) + (aA + 1) * cos_omega)
+            b2 = aA * ((aA + 1) + (aA - 1) * cos_omega - t)
+            a0 = (aA + 1) - (aA - 1) * cos_omega + t
+            a1 = 2 * ((aA - 1) - (aA + 1) * cos_omega)
+            a2 = (aA + 1) - (aA - 1) * cos_omega - t
         if abs(a0) < 1e-15:
             return np.array([1.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
         return np.array([b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0], dtype=np.float64)
@@ -156,7 +164,20 @@ class XGMultiBandEqualizer:
         if self._biquad_out is None or len(self._biquad_out) < n:
             self._biquad_out = np.empty((int(n * 1.5), 2), dtype=np.float32)
         out = buffer
+        # Skip bands at 0 dB gain — shelving filters do not produce unity
+        # response at 0 dB due to RBJ formula sign asymmetry between
+        # numerator and denominator (particularly high-shelf).  Bypassing
+        # at 0 dB also avoids unnecessary biquad processing.
+        gains = {
+            "low": self.low_gain_db,
+            "low_mid": self.low_mid_gain_db,
+            "mid": self.mid_gain_db,
+            "high_mid": self.high_mid_gain_db,
+            "high": self.high_gain_db,
+        }
         for band in ["low", "low_mid", "mid", "high_mid", "high"]:
+            if gains.get(band, 0.0) == 0.0:
+                continue
             out = self._apply_biquad_filter_vectorized(out, band, self._biquad_out[:n])
         if self.level != 1.0:
             out *= self.level
@@ -168,10 +189,18 @@ class XGMultiBandEqualizer:
         left, right = buf[:, 0], buf[:, 1]
         n = len(left)
         if SCIPY_AVAILABLE:
-            lo, lf = signal.lfilter([b0, b1, b2], [1.0, a1, a2], left, zi=signal.lfiltic([b0, b1, b2], [1.0, a1, a2], [st[2], st[3]], [st[0], st[1]]))
-            ro, rf = signal.lfilter([b0, b1, b2], [1.0, a1, a2], right, zi=signal.lfiltic([b0, b1, b2], [1.0, a1, a2], [st[6], st[7]], [st[4], st[5]]))
-            st[:4] = [left[-1], left[-2] if len(left) > 1 else left[-1], lf[0], lf[1]]
-            st[4:8] = [right[-1], right[-2] if len(right) > 1 else right[-1], rf[0], rf[1]]
+            # Pass raw lfilter state (zf) directly as zi on next call — no
+            # lfiltic conversion. On first call (NaN state), use zero initial
+            # conditions. Thereafter, st holds the zf from the previous block.
+            zi_l = st[:2].copy()
+            zi_r = st[2:4].copy()
+            if np.any(np.isnan(zi_l)):
+                zi_l = np.zeros(2, dtype=np.float64)
+                zi_r = np.zeros(2, dtype=np.float64)
+            lo, lf = signal.lfilter([b0, b1, b2], [1.0, a1, a2], left, zi=zi_l)
+            ro, rf = signal.lfilter([b0, b1, b2], [1.0, a1, a2], right, zi=zi_r)
+            st[:2] = lf
+            st[2:4] = rf
             out[:n, 0] = lo
             out[:n, 1] = ro
         else:
@@ -180,10 +209,11 @@ class XGMultiBandEqualizer:
                 self._filter_work_right = np.zeros_like(right)
             lo = self._filter_work_left[:n]
             ro = self._filter_work_right[:n]
-            x = [st[0], st[1], st[4], st[5]]
-            y = [st[2], st[3], st[6], st[7]]
             for ch, inp in enumerate([left, right]):
-                ox, oy = x[ch * 2:ch * 2 + 2], y[ch * 2:ch * 2 + 2]
+                ox = [st[ch * 2], st[ch * 2 + 1]]
+                oy = [0.0, 0.0]
+                if np.any(np.isnan(st)):
+                    ox = [0.0, 0.0]
                 for i in range(len(inp)):
                     y0 = b0 * inp[i] + b1 * ox[0] + b2 * ox[1] - a1 * oy[0] - a2 * oy[1]
                     if ch == 0:
@@ -192,14 +222,14 @@ class XGMultiBandEqualizer:
                         ro[i] = y0
                     ox[1], ox[0] = ox[0], inp[i]
                     oy[1], oy[0] = oy[0], y0
-                st[ch * 4:ch * 4 + 4] = [*ox, *oy]
+                    st[ch * 2:ch * 2 + 2] = [*ox, *oy]
             out[:n, 0] = lo
             out[:n, 1] = ro
         return out[:n]
 
     def reset(self):
         for state in self._filter_states.values():
-            state.fill(0.0)
+            state[:] = np.nan
 
     def get_frequency_response(self, frequencies: np.ndarray) -> np.ndarray:
         resp = np.ones(len(frequencies), dtype=complex)
