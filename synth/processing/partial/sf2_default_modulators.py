@@ -27,19 +27,19 @@ NONE = 0x0000
 
 # Modulation sources: index 2 (Velocity) with various flag combinations
 # Bit 7=bipolar, bit 8=direction(invert), bit 9=type(concave)
-VELOCITY = 0x0502  # bipolar + concave = 0x0500, index 2 = 0x0002
 KEYNUM = 0x0003  # index 3, unipolar
-PITCH_WHEEL = 0x020E  # index 0x0E (14), bipolar
+PITCH_WHEEL = 0x008E  # index 0x0E (14), bipolar
 
 # Unipolar sources (range [0, 1])
-NOTEON_VELOCITY = 0x0002  # index 2, unipolar (used for attenuation mod)
+NOTEON_VELOCITY = 0x0002  # index 2, unipolar, positive direction
+NOTEON_VELOCITY_INV = 0x0102  # index 2, unipolar, inverted (1 - vel/127)
 
-# MIDI CC sources — controller number × 128, with flag bits layered
-CC1_MODWHEEL = 0x0081  # CC1 (128 + 1 = 0x81 = 129)
-CC7_VOLUME = 0x0087  # CC7 = 0x87 = 135
-CC10_PAN = 0x008A  # CC10 = 0x8A = 138
-CC11_EXPRESSION = 0x008B  # CC11 = 0x8B = 139
-CC64_SUSTAIN = 0x00C0  # CC64 = 0xC0 = 192
+# MIDI CC sources -- controller number in bits 0-6, flag bits 7-14
+CC1_MODWHEEL = 0x0081  # CC1, bipolar (bit 7=1), not inverted
+CC7_VOLUME = 0x0107  # CC7, unipolar, inverted (bit 8=1)
+CC10_PAN = 0x008A  # CC10, bipolar (bit 7=1), not inverted
+CC11_EXPRESSION = 0x010B  # CC11, unipolar, inverted (bit 8=1)
+CC64_SUSTAIN = 0x0140  # CC64, unipolar, inverted (bit 8=1)
 CC91_REVERB = 0x00DB  # CC91 = 0xDB = 219
 CC93_CHORUS = 0x00DD  # CC93 = 0xDD = 221
 
@@ -99,37 +99,30 @@ TRANSFORM_BIPOLAR_TO_UNIPOLAR = 2
 # ones within the same destination. File-sourced modulators override defaults.
 
 DEFAULT_MODULATORS: list[dict] = [
-    # ── Velocity → Attenuation (medium: ID 1, SF2 ID 001) ─────────────
-    # Attenuates louder notes less (inverted velocity → initialAttenuation)
+    # ── Velocity → Attenuation (SF2 IDs 001-002) ───────────────────────
+    # Inverted unipolar velocity: quieter notes get more attenuation.
+    # Single linear modulator replaces the spec's two-modulator pattern
+    # because the second (concave, amt -960) cancels out after max(0, …) clamping.
     {
-        "src_operator": NOTEON_VELOCITY,
+        "src_operator": NOTEON_VELOCITY_INV,
         "dest_operator": GEN_INITIAL_ATTENUATION,
-        "mod_amount": 960,  # 960 centibels = 96 dB
+        "mod_amount": 960,  # 960 centibels = 96 dB at velocity 0
         "amt_src_operator": NONE,
         "mod_trans_operator": TRANSFORM_LINEAR,
     },
-    # Velocity → Attenuation (medium: ID 2, SF2 ID 002)
-    # Secondary source uses velocity concavity
+    # ── Velocity → Filter Cutoff (SF2 IDs 003-004) ─────────────────────
+    # Higher velocity = higher cutoff (brighter). Uses inverted velocity.
     {
-        "src_operator": NOTEON_VELOCITY,
-        "dest_operator": GEN_INITIAL_ATTENUATION,
-        "mod_amount": -960,
-        "amt_src_operator": NONE,
-        "mod_trans_operator": TRANSFORM_BIPOLAR_TO_UNIPOLAR,
-    },
-    # ── Velocity → Filter Cutoff (medium: ID 3, SF2 ID 003) ───────────
-    # Higher velocity = higher cutoff (brighter)
-    {
-        "src_operator": NOTEON_VELOCITY,
+        "src_operator": NOTEON_VELOCITY_INV,
         "dest_operator": GEN_INITIAL_FILTER_FC,
-        "mod_amount": -2400,  # -2400 cents = -2 octaves base offset
+        "mod_amount": -2400,  # base offset
         "amt_src_operator": NONE,
         "mod_trans_operator": TRANSFORM_LINEAR,
     },
     {
-        "src_operator": NOTEON_VELOCITY,
+        "src_operator": NOTEON_VELOCITY_INV,
         "dest_operator": GEN_INITIAL_FILTER_FC,
-        "mod_amount": 2400,
+        "mod_amount": 2400,   # combined gives 1200·v net (0 at vel=0, 1200 at vel=127)
         "amt_src_operator": NONE,
         "mod_trans_operator": TRANSFORM_BIPOLAR_TO_UNIPOLAR,
     },
@@ -158,49 +151,44 @@ DEFAULT_MODULATORS: list[dict] = [
         "amt_src_operator": NONE,
         "mod_trans_operator": TRANSFORM_LINEAR,
     },
-    # ── CC7 (Volume) → Attenuation (medium: ID 7, SF2 ID 007) ─────────
+    # ── CC7 (Volume) → Attenuation (SF2 ID 007) ────────────────────────
+    # Inverted unipolar: CC7=0 (off) adds 960 cB attenuation, CC7=127 adds none.
     {
         "src_operator": CC7_VOLUME,
         "dest_operator": GEN_INITIAL_ATTENUATION,
         "mod_amount": 960,
         "amt_src_operator": NONE,
-        "mod_trans_operator": TRANSFORM_BIPOLAR_TO_UNIPOLAR,
+        "mod_trans_operator": TRANSFORM_LINEAR,
     },
-    # ── CC10 (Pan) → Pan Position (medium: ID 8, SF2 ID 008) ──────────
-    # Each entry offsets pan by ±500 (1000 units = full left-to-right)
+    # ── CC10 (Pan) → Pan Position (SF2 ID 008) ─────────────────────────
+    # Bipolar CC10 source: centre=0, left=-500, right=+500 (SF2 pan units).
     {
         "src_operator": CC10_PAN,
         "dest_operator": GEN_PAN,
-        "mod_amount": 500,  # +500 = 1000 units / 500 = full right
+        "mod_amount": 500,
         "amt_src_operator": NONE,
         "mod_trans_operator": TRANSFORM_LINEAR,
     },
-    {
-        "src_operator": CC10_PAN,
-        "dest_operator": GEN_PAN,
-        "mod_amount": -500,
-        "amt_src_operator": NONE,
-        "mod_trans_operator": TRANSFORM_BIPOLAR_TO_UNIPOLAR,
-    },
-    # ── CC11 (Expression) → Attenuation (medium: ID 9, SF2 ID 009) ────
+    # ── CC11 (Expression) → Attenuation (SF2 ID 009) ───────────────────
+    # Inverted unipolar: CC11=0 adds 960 cB, CC11=127 adds none.
     {
         "src_operator": CC11_EXPRESSION,
         "dest_operator": GEN_INITIAL_ATTENUATION,
         "mod_amount": 960,
         "amt_src_operator": NONE,
-        "mod_trans_operator": TRANSFORM_BIPOLAR_TO_UNIPOLAR,
+        "mod_trans_operator": TRANSFORM_LINEAR,
     },
-    # ── CC64 (Sustain) → Release Time Override (medium: ID 10, SF2 ID 010)
-    # When sustain is off (0), release time is forced to minimum (sharp cutoff)
-    # This is a compound modulator: the mod_env → vol_env_release path
+    # ── CC64 (Sustain) → Release Time Override (SF2 ID 010) ────────────
+    # Inverted unipolar: pedal off (CC64=0) forces minimum release (sharp cutoff).
+    # Pedal on (CC64=127) leaves release unchanged.
     {
         "src_operator": CC64_SUSTAIN,
         "dest_operator": GEN_RELEASE_VOL_ENV,
-        "mod_amount": -12000,  # minimum release time when off
+        "mod_amount": -12000,
         "amt_src_operator": NONE,
         "mod_trans_operator": TRANSFORM_ABSOLUTE,
     },
-    # ── CC91 (Reverb Send) → Reverb Effects Send (medium: ID 11, SF2 ID 011)
+    # ── CC91 (Reverb Send) → Reverb Effects Send (SF2 ID 011) ──────────
     {
         "src_operator": CC91_REVERB,
         "dest_operator": GEN_REVERB_EFFECTS_SEND,
@@ -208,7 +196,7 @@ DEFAULT_MODULATORS: list[dict] = [
         "amt_src_operator": NONE,
         "mod_trans_operator": TRANSFORM_LINEAR,
     },
-    # ── CC93 (Chorus Send) → Chorus Effects Send (medium: ID 12, SF2 ID 012)
+    # ── CC93 (Chorus Send) → Chorus Effects Send (SF2 ID 012) ──────────
     {
         "src_operator": CC93_CHORUS,
         "dest_operator": GEN_CHORUS_EFFECTS_SEND,
@@ -216,18 +204,14 @@ DEFAULT_MODULATORS: list[dict] = [
         "amt_src_operator": NONE,
         "mod_trans_operator": TRANSFORM_LINEAR,
     },
-    # ── Pitch Wheel → Pitch (medium: ID 13, SF2 ID 013) ───────────────
-    {
-        "src_operator": PITCH_WHEEL,
-        "dest_operator": GEN_COARSE_TUNE,  # Pitch bend as coarse tune offset
-        "mod_amount": 12700,  # 12700 cents ≈ 10.5 octaves span
-        "amt_src_operator": NONE,
-        "mod_trans_operator": TRANSFORM_LINEAR,
-    },
+    # ── Pitch Wheel → Pitch (SF2 ID 013) ───────────────────────────────
+    # Bipolar pitch wheel source: -1 … +1 → fineTune offset.
+    # Default range = 200 cents (2 semitones). Override via Pitch Wheel
+    # Sensitivity RPN at the channel level.
     {
         "src_operator": PITCH_WHEEL,
         "dest_operator": GEN_FINE_TUNE,
-        "mod_amount": 12700,
+        "mod_amount": 200,  # 200 cents = 2 semitones default bend range
         "amt_src_operator": NONE,
         "mod_trans_operator": TRANSFORM_LINEAR,
     },

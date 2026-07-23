@@ -24,7 +24,6 @@ from ...engines.region_descriptor import RegionDescriptor
 from ...processing.partial.region import IRegion, RegionState
 from .sf2_modulator_evaluator import (
     SF2ModulatorEvaluator,
-    apply_modulation_to_params,
 )
 
 logger = logging.getLogger(__name__)
@@ -2050,9 +2049,12 @@ class SF2Region(IRegion):
                     "mod_wheel": 1,
                     "breath_controller": 2,
                     "foot_controller": 4,
-                    "expression": 11,
                     "volume": 7,
                     "pan": 10,
+                    "expression": 11,
+                    "sustain": 64,
+                    "reverb_send": 91,
+                    "chorus_send": 93,
                 }.items():
                     val = modulation.get(key)
                     if val is not None:
@@ -2070,58 +2072,122 @@ class SF2Region(IRegion):
                             cc_state[int(key.split("_")[1])] = float(val)
                         except (ValueError, IndexError):
                             pass
-                # Pitch bend
+
+                # Default values for CCs that should be at max when not
+                # explicitly present (CC7=volume, CC11=expression).
+                for cc_num, default in {7: 127.0, 11: 127.0, 91: 0.0, 93: 0.0}.items():
+                    if cc_num not in cc_state:
+                        cc_state[cc_num] = default
+                # Pitch bend — normalise to [-1, +1] for the evaluator.
+                # The modulation system may provide raw 14-bit or already
+                # normalised; normalise here for a consistent interface.
                 if "pitch" in modulation:
-                    cc_state["pitch"] = float(modulation["pitch"])
+                    pw = float(modulation["pitch"])
+                    if pw < -1.5 or pw > 1.5:
+                        pw = (pw - 8192) / 8192.0  # raw 14-bit → [-1, +1]
+                    cc_state["pitch"] = max(-1.0, min(1.0, pw))
+
+                # Sustain pedal: also read from the region's pedal state
+                # in case the modulation dict doesn't carry CC64 explicitly.
+                cc_state[64] = 127.0 if self._sustain_pedal else 0.0
 
             # Evaluate modulators
             mod_values = self._mod_evaluator.evaluate(
                 cc_state, self.current_velocity, self.current_note
             )
             if mod_values:
-                # Convert integer-gen → string-keyed params for apply_modulation_to_params
-                gen_to_name = {
-                    8: "initial_filter_fc",
-                    9: "initial_filter_q",
-                    48: "initial_attenuation",
-                    51: "coarse_tune",
-                    52: "fine_tune",
-                    17: "pan",
-                    16: "reverb_send",
-                    15: "chorus_send",
-                    6: "vib_lfo_to_pitch",
-                    5: "mod_lfo_to_pitch",
-                    13: "mod_lfo_to_volume",
-                    11: "mod_lfo_to_filter_fc",
-                    38: "release_vol_env",
-                    22: "freq_mod_lfo",
-                    24: "freq_vib_lfo",
-                    34: "attack_vol_env",
-                    35: "hold_vol_env",
-                    36: "decay_vol_env",
-                    37: "sustain_vol_env",
-                    33: "delay_vol_env",
-                }
-                string_params = {
-                    gen_to_name[k]: v
-                    for k, v in self._generator_params.items()
-                    if k in gen_to_name
-                }
-                apply_modulation_to_params(string_params, mod_values, self.current_note)
+                # Apply each modulated destination directly to the rendering
+                # state.  Do NOT mutate _generator_params — these are base
+                # (pre-modulator) values and mutating them causes per-block
+                # compounding (the write-back plus next block's evaluation
+                # accumulates the same modulation repeatedly).
 
-                # Recalculate pitch if coarse/fine tune modified
-                if 51 in mod_values or 52 in mod_values:
-                    if 51 in mod_values:
-                        self._generator_params[51] = int(string_params.get("coarse_tune", 0))
-                    if 52 in mod_values:
-                        self._generator_params[52] = int(string_params.get("fine_tune", 0))
-                    self._calculate_phase_step()
+                # ── Filter ──────────────────────────────────────────────
+                if 8 in mod_values:  # initialFilterFc (cents)
+                    self._filter_mod += mod_values[8] / 1200.0  # cents → octaves
 
-                # Update attenuation for volume stage — don't re-init envelopes
-                # every block; let the gain stage (step 9) pick up _initial_attenuation_db
-                if 48 in mod_values:
-                    att_cb = max(0, int(string_params.get("initial_attenuation", 0)))
-                    self._initial_attenuation_db = att_cb / 10.0  # centibels → dB
+                if 9 in mod_values:  # initialFilterQ (centibels)
+                    self._generator_params[9] = max(
+                        0, int(self._get_generator_value(9, 0)) + int(mod_values[9])
+                    )
+
+                # ── Attenuation ─────────────────────────────────────────
+                if 48 in mod_values:  # initialAttenuation (centibels)
+                    att_cb = max(0, self._get_generator_value(48, 0) + mod_values[48])
+                    self._initial_attenuation_db = att_cb / 10.0
+
+                # ── Pitch (fine tune + coarse tune offset) ──────────────
+                pitch_offset_semitones: float = 0.0
+                if 51 in mod_values:  # coarseTune (semitones)
+                    pitch_offset_semitones += float(mod_values[51])
+                if 52 in mod_values:  # fineTune (cents → semitones)
+                    pitch_offset_semitones += float(mod_values[52]) / 100.0
+
+                if pitch_offset_semitones != 0.0:
+                    note_diff = self.current_note - self._root_key
+                    coarse_tune = self._get_generator_value(51, 0)
+                    fine_tune = self._get_generator_value(52, 0) / 100.0
+                    scale_tuning = self._get_generator_value(56, 100) / 100.0
+                    total_semitones = (
+                        note_diff + coarse_tune + fine_tune + pitch_offset_semitones
+                    ) * scale_tuning
+                    self._phase_step = 2.0 ** (total_semitones / 12.0)
+                else:
+                    self._phase_step = self._base_phase_step
+
+                # ── Pan ─────────────────────────────────────────────────
+                if 17 in mod_values:  # pan (SF2 units: -500 … +500)
+                    self._pan_position = max(-1.0, min(1.0, int(mod_values[17]) / 500.0))
+
+                # ── Effect sends ────────────────────────────────────────
+                if 16 in mod_values:  # reverbEffectsSend (SF2: 0-1000 -> 0.0-1.0)
+                    rv = max(0, min(1000, self._get_generator_value(16, 0) + int(mod_values[16])))
+                    self._reverb_send = rv / 1000.0
+
+                if 15 in mod_values:  # chorusEffectsSend
+                    ch = max(0, min(1000, self._get_generator_value(15, 0) + int(mod_values[15])))
+                    self._chorus_send = ch / 1000.0
+
+                # ── Vibrato / Mod LFO depths ────────────────────────────
+                if 6 in mod_values:  # vibLfoToPitch (cents)
+                    vp = max(0, self._get_generator_value(6, 0) + int(mod_values[6]))
+                    self._vib_lfo_to_pitch = vp / 100.0
+
+                if 5 in mod_values:  # modLfoToPitch (cents)
+                    mp = max(0, self._get_generator_value(5, 0) + int(mod_values[5]))
+                    self._mod_lfo_to_pitch = mp / 100.0
+
+                if 13 in mod_values:  # modLfoToVolume (SF2: 0-960 cB)
+                    mv = max(0, self._get_generator_value(13, 0) + int(mod_values[13]))
+                    self._mod_lfo_to_volume = mv / 960.0
+
+                if 10 in mod_values:  # modLfoToFilterFc (cents)
+                    mlf = self._get_generator_value(10, 0) + int(mod_values[10])
+                    self._mod_lfo_to_filter = mlf / 1200.0
+
+                # ── LFO Frequencies ─────────────────────────────────────
+                if 22 in mod_values:  # freqModLFO (absolute cents → Hz)
+                    fml = max(0, self._get_generator_value(22, 0) + int(mod_values[22]))
+                    self._freq_mod_lfo = self._cents_to_frequency(fml)
+                    if self._mod_lfo:
+                        self._mod_lfo.set_frequency(self._freq_mod_lfo)
+
+                if 24 in mod_values:  # freqVibLFO
+                    fvl = max(0, self._get_generator_value(24, 0) + int(mod_values[24]))
+                    self._freq_vib_lfo = self._cents_to_frequency(fvl)
+                    if self._vib_lfo:
+                        self._vib_lfo.set_frequency(self._freq_vib_lfo)
+
+                # ── Release override (sustain pedal via modulator) ──────
+                if 38 in mod_values:  # releaseVolEnv (timecents)
+                    rel_timecents = self._get_generator_value(38, -12000) + int(mod_values[38])
+                    if "amp_env" in self._envelopes:
+                        env = self._envelopes["amp_env"]
+                        rel_secs = self._timecents_to_seconds(max(-12000, rel_timecents))
+                        if hasattr(env, "release"):
+                            env.release = rel_secs
+                        if hasattr(env, "_recalculate_increments"):
+                            env._recalculate_increments()
 
         # 2. Generate LFO signals (zero-allocation)
         self._generate_lfo_signals(block_size)

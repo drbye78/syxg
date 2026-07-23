@@ -1,52 +1,27 @@
-"""SF2 Modulator Evaluator — per-zone modulation matrix processor.
+"""SF2 Modulator Evaluator -- per-zone modulation matrix processor.
 
 Evaluates SF2 file-sourced + default modulators against current
 controller/key/velocity state, producing modulation values for each
 affected generator. Designed as a standalone lightweght object owned
-by SF2Region — one instance per region, updated per-block.
+by SF2Region -- one instance per region, updated per-block.
 
 Architecture:
     SF2Region.note_on()
-      → creates SF2ModulatorEvaluator(merged_modulators)
+      -> creates SF2ModulatorEvaluator(merged_modulators)
     SF2Region.generate_samples()
-      → evaluator.evaluate(controllers, velocity, keynum)
-      → returns {gen_type: modulation_value}
-      → applied to pitch, filter, attenuation, vibrato, etc.
+      -> evaluator.evaluate(controllers, velocity, keynum)
+      -> returns {gen_type: modulation_value}
+      -> applied to pitch, filter, attenuation, vibrato, etc.
 """
 
 from __future__ import annotations
 
-from typing import Any
-
-import numpy as np
-
 from .sf2_default_modulators import (
     DEFAULT_MODULATORS,
     NONE,
-    TRANSFORM_LINEAR,
     TRANSFORM_ABSOLUTE,
     TRANSFORM_BIPOLAR_TO_UNIPOLAR,
-    # Destinations
-    GEN_COARSE_TUNE,
-    GEN_FINE_TUNE,
-    GEN_INITIAL_ATTENUATION,
-    GEN_INITIAL_FILTER_FC,
-    GEN_INITIAL_FILTER_Q,
-    GEN_VIB_LFO_TO_PITCH,
-    GEN_MOD_LFO_TO_PITCH,
-    GEN_MOD_LFO_TO_VOLUME,
-    GEN_MOD_LFO_TO_FILTER_FC,
-    GEN_PAN,
-    GEN_REVERB_EFFECTS_SEND,
-    GEN_CHORUS_EFFECTS_SEND,
-    GEN_RELEASE_VOL_ENV,
-    GEN_FREQ_MOD_LFO,
-    GEN_FREQ_VIB_LFO,
-    GEN_DECAY_VOL_ENV,
-    GEN_SUSTAIN_VOL_ENV,
-    GEN_ATTACK_VOL_ENV,
-    GEN_HOLD_VOL_ENV,
-    GEN_DELAY_VOL_ENV,
+    TRANSFORM_LINEAR,
 )
 
 
@@ -67,8 +42,8 @@ class SF2ModulatorEvaluator:
     """
 
     __slots__ = (
-        "_modulators",
         "_cc_cache",
+        "_modulators",
     )
 
     def __init__(self, zone_modulators: list[dict] | None = None) -> None:
@@ -193,7 +168,14 @@ class SF2ModulatorEvaluator:
             normalised = raw
 
         if invert:
-            normalised = -normalised
+            # SF2 spec: Direction flag reverses the source range.
+            # For bipolar sources this means negation (-value).
+            # For unipolar sources this means 1.0 - value
+            # (reversed within [0, 1]).
+            if is_bipolar:
+                normalised = -normalised
+            else:
+                normalised = 1.0 - normalised
 
         return normalised
 
@@ -212,9 +194,9 @@ class SF2ModulatorEvaluator:
         elif index == 3:
             # Key number — MIDI note 0..127
             return keynum / 127.0
-        elif index >= 4 and index <= 126:
-            # MIDI CC controller — CC number = index * 128 + sub
-            controller_num = index & 0x7F
+        elif index <= 126:
+            # MIDI CC controller — CC number = index (already bits 0-6)
+            controller_num = index
             return self._cc_cache.get(controller_num, 0.0)
         elif index == 0x0E:
             # Pitch wheel
@@ -247,12 +229,17 @@ class SF2ModulatorEvaluator:
                     val = val / 127.0
                 self._cc_cache[cc] = val
 
-        # — pitch wheel (SF2 source index 14) —
+        # -- pitch wheel (SF2 source index 14) --
+        # Expected: normalized [-1, +1] where 0 = centre.
+        # Raw MIDI 14-bit values (0-16383, centre 8192) are detected
+        # by range and remapped.
         if isinstance(controllers.get("pitch"), (int, float)):
             pw = controllers["pitch"]
-            if abs(pw) > 1.0:
+            if pw < -1.5 or pw > 1.5:
+                # Raw 14-bit MIDI pitch bend (0-16383)
                 pw = (pw - 8192) / 8192.0
-            self._cc_cache[0x0E] = (pw + 1.0) * 0.5  # [-1,+1] → [0,1]
+            # Normalised [-1, +1] -> unipolar [0, 1]
+            self._cc_cache[0x0E] = max(0.0, min(1.0, (pw + 1.0) * 0.5))
 
         # — channel pressure (SF2 source index 13) —
         if isinstance(controllers.get("channel_aftertouch"), (int, float)):
@@ -282,102 +269,3 @@ class SF2ModulatorEvaluator:
             return (value + 1.0) * 0.5
         else:
             return value
-
-
-# ── Generator modulation → SF2Region parameter application ────────────
-
-def apply_modulation_to_params(
-    params: dict[str, Any],
-    modulation: dict[int, float],
-    note: int,
-) -> dict[str, Any]:
-    """Apply per-generator modulation values to SF2 region parameters.
-
-    Args:
-        params: Param dict with SF2 generator values in their native units:
-            initial_filter_fc (cents), initial_filter_q (centibels),
-            initial_attenuation (centibels), coarse_tune (semitones),
-            fine_tune (cents), pan (SF2 units), reverb_send (SF2 units),
-            chorus_send (SF2 units), vib_lfo_to_pitch (cents),
-            mod_lfo_to_pitch (cents), mod_lfo_to_volume (dB),
-            mod_lfo_to_filter_fc (cents), release_vol_env (timecents),
-            freq_mod_lfo (cents→Hz mapping), freq_vib_lfo (cents→Hz mapping).
-
-        modulation: Gen → offset dict from SF2ModulatorEvaluator.evaluate().
-            Units match SF2 generator conventions.
-
-        note: MIDI note number for key→filter tracking calc.
-
-    Returns:
-        Modified params dict (same object, mutated in place).
-    """
-    # ── Filter ──
-    if GEN_INITIAL_FILTER_FC in modulation:
-        fc_cents = params.get("initial_filter_fc", 13500)
-        params["initial_filter_fc"] = max(0, fc_cents + modulation[GEN_INITIAL_FILTER_FC])
-
-    if GEN_INITIAL_FILTER_Q in modulation:
-        q_ceb = params.get("initial_filter_q", 0)
-        params["initial_filter_q"] = max(0, q_ceb + modulation[GEN_INITIAL_FILTER_Q])
-
-    # ── Attenuation ──
-    if GEN_INITIAL_ATTENUATION in modulation:
-        att_ceb = params.get("initial_attenuation", 0)
-        params["initial_attenuation"] = max(0, att_ceb + modulation[GEN_INITIAL_ATTENUATION])
-
-    # ── Pitch ──
-    if GEN_COARSE_TUNE in modulation:
-        ct = params.get("coarse_tune", 0)
-        params["coarse_tune"] = ct + int(modulation[GEN_COARSE_TUNE])
-
-    if GEN_FINE_TUNE in modulation:
-        ft = params.get("fine_tune", 0)
-        params["fine_tune"] = ft + int(modulation[GEN_FINE_TUNE])
-
-    # ── Vibrato / Mod LFO ──
-    if GEN_VIB_LFO_TO_PITCH in modulation:
-        vp = params.get("vib_lfo_to_pitch", 0)
-        params["vib_lfo_to_pitch"] = max(0, vp + int(modulation[GEN_VIB_LFO_TO_PITCH]))
-
-    if GEN_MOD_LFO_TO_PITCH in modulation:
-        mp = params.get("mod_lfo_to_pitch", 0)
-        params["mod_lfo_to_pitch"] = max(0, mp + int(modulation[GEN_MOD_LFO_TO_PITCH]))
-
-    if GEN_MOD_LFO_TO_VOLUME in modulation:
-        mv = params.get("mod_lfo_to_volume", 0)
-        params["mod_lfo_to_volume"] = mv + modulation[GEN_MOD_LFO_TO_VOLUME]
-
-    if GEN_MOD_LFO_TO_FILTER_FC in modulation:
-        mlf = params.get("mod_lfo_to_filter_fc", 0)
-        params["mod_lfo_to_filter_fc"] = mlf + int(modulation[GEN_MOD_LFO_TO_FILTER_FC])
-
-    # ── Pan ──
-    if GEN_PAN in modulation:
-        pan_val = params.get("pan", 0)
-        params["pan"] = max(-500, min(500, pan_val + int(modulation[GEN_PAN])))
-
-    # ── Effect sends ──
-    if GEN_REVERB_EFFECTS_SEND in modulation:
-        rv = params.get("reverb_effects_send", 0)
-        params["reverb_effects_send"] = max(0, min(1000, rv + int(modulation[GEN_REVERB_EFFECTS_SEND])))
-
-    if GEN_CHORUS_EFFECTS_SEND in modulation:
-        ch = params.get("chorus_effects_send", 0)
-        params["chorus_effects_send"] = max(0, min(1000, ch + int(modulation[GEN_CHORUS_EFFECTS_SEND])))
-
-    # ── Release override (sustain pedal) ──
-    if GEN_RELEASE_VOL_ENV in modulation:
-        rel = params.get("release_vol_env", 0)
-        # SF2 uses timecents. Negative values = faster release.
-        params["release_vol_env"] = max(-12000, min(rel, rel + int(modulation[GEN_RELEASE_VOL_ENV])))
-
-    # ── LFO Frequencies ──
-    if GEN_FREQ_MOD_LFO in modulation:
-        fml = params.get("freq_mod_lfo", 0)
-        params["freq_mod_lfo"] = max(0, fml + int(modulation[GEN_FREQ_MOD_LFO]))
-
-    if GEN_FREQ_VIB_LFO in modulation:
-        fvl = params.get("freq_vib_lfo", 0)
-        params["freq_vib_lfo"] = max(0, fvl + int(modulation[GEN_FREQ_VIB_LFO]))
-
-    return params
