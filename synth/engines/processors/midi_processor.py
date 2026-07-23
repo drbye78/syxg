@@ -366,7 +366,10 @@ class MIDIMessageProcessor:
                 applied = self.synthesizer.xg_components.get_component(
                     "controllers"
                 ).apply_controller_value(target_channel.channel_number, controller, value)
-                # Always forward CC to channel regardless of XG slot match
+                # Forward XG controller assignment results to channel state
+                if applied:
+                    for dest, val in applied.items():
+                        target_channel.update_xg_controller_value(dest, val)
 
             # MPE RPN handling - intercept RPN 0 (Pitch Bend Range) on MPE master channels
             if hasattr(self.synthesizer, "mpe_system") and self.synthesizer.mpe_system:

@@ -514,7 +514,7 @@ class UltraFastADSREnvelope:
         if self.attack > 0:
             attack_samples_raw = int(self.attack * self.sample_rate)
             attack_samples = max(1, int(attack_samples_raw / key_factor))
-            self.attack_increment = np.float32(1.0 - math.exp(-4.0 / attack_samples))
+            self.attack_increment = np.float32(1.0 - math.exp(-5.0 / attack_samples))
         else:
             self.attack_increment = np.float32(1.0)  # instant attack
 
@@ -522,7 +522,7 @@ class UltraFastADSREnvelope:
         if self.decay > 0:
             decay_samples_raw = int(self.decay * self.sample_rate)
             decay_samples = max(1, int(decay_samples_raw / key_factor))
-            self.decay_decrement = np.float32(1.0 - math.exp(-4.0 / decay_samples))
+            self.decay_decrement = np.float32(1.0 - math.exp(-5.0 / decay_samples))
         else:
             self.decay_decrement = np.float32(1.0)  # instant decay
 
@@ -530,7 +530,7 @@ class UltraFastADSREnvelope:
         if self.release > 0:
             release_samples_raw = int(self.release * self.sample_rate)
             release_samples = max(1, int(release_samples_raw / key_factor))
-            self.release_decrement = np.float32(1.0 - math.exp(-4.0 / release_samples))
+            self.release_decrement = np.float32(1.0 - math.exp(-5.0 / release_samples))
         else:
             self.release_decrement = np.float32(1.0)  # instant release
 

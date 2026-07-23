@@ -336,6 +336,9 @@ class Channel:
         self.data_msb = 0
         self.data_msb_received = False
 
+        # XG controller assignment values (processed by apply_controller_value)
+        self._xg_controller_values: dict[str, float] = {}
+
         # XG channel state (updated from message metadata)
         self.xg_pan_left_gain = 1.0
         self.xg_pan_right_gain = 1.0
@@ -1159,6 +1162,7 @@ class Channel:
         # Add 32-bit controller values if available
         for controller, value_32bit in self.controllers_32bit.items():
             if controller == 1:  # Mod wheel
+                modulation["mod_wheel"] = value_32bit
                 modulation["mod_wheel"] = self._normalize_32bit_value(value_32bit)
             elif controller == 2:  # Breath controller
                 modulation["breath_controller"] = self._normalize_32bit_value(value_32bit)
@@ -1273,6 +1277,24 @@ class Channel:
             if "chorus_send" in self.gs_params:
                 modulation["gs_chorus_send"] = self.gs_params["chorus_send"] / 127.0
 
+        # XG controller assignment values — processed values from apply_controller_value()
+        # Prefer these over raw CC values when XG processing is active (curves, ranges applied)
+        if self._xg_controller_values:
+            xg_map = {
+                "modulation_wheel": "mod_wheel",
+                "foot_controller": "foot_controller",
+                "breath_controller": "breath_controller",
+            }
+            for xg_dest, mod_key in xg_map.items():
+                if xg_dest in self._xg_controller_values:
+                    modulation[mod_key] = float(self._xg_controller_values[xg_dest])
+
+            # general_controller_1-4: add as additional modulation keys
+            for i in range(1, 5):
+                key = f"general_controller_{i}"
+                if key in self._xg_controller_values:
+                    modulation[f"xg_gc{i}"] = float(self._xg_controller_values[key])
+
         return modulation
 
     def program_change(self, program: int):
@@ -1299,6 +1321,15 @@ class Channel:
         if self.current_voice:
             for note in range(128):
                 self.current_voice.note_off(note)
+
+    def update_xg_controller_value(self, destination: str, value: float) -> None:
+        """Store XG controller assignment result for modulation collection.
+
+        Called by MIDI processor when an XG controller slot matches a CC
+        and produces a destination→value mapping. These processed values
+        are included in the modulation dict alongside raw CC values.
+        """
+        self._xg_controller_values[destination] = value
 
     def all_sound_off(self):
         """
