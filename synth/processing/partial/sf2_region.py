@@ -101,6 +101,8 @@ class SF2Region(IRegion):
         "_filter_key_track",
         "_filter_mod",
         "_filter_type",
+        "_filter_work_left",
+        "_filter_work_right",
         "_fine_tune",
         "_foot_mod",
         "_freq_mod_lfo",
@@ -165,6 +167,7 @@ class SF2Region(IRegion):
         "_pan_position",
         "_phase_step",
         "_pitch_env_active",
+        "_read_positions",
         "_pitch_env_attack",
         "_pitch_env_buffer",
         "_pitch_env_decay",
@@ -298,6 +301,9 @@ class SF2Region(IRegion):
         self._vib_lfo_buffer: np.ndarray | None = None
         self._mod_env_buffer: np.ndarray | None = None
         self._pitch_env_buffer: np.ndarray | None = None
+        self._read_positions: np.ndarray | None = None
+        self._filter_work_left: np.ndarray | None = None
+        self._filter_work_right: np.ndarray | None = None
 
         # Pitch modulation
         self._pitch_mod: float = 0.0
@@ -1603,12 +1609,10 @@ class SF2Region(IRegion):
                 self._mod_env_level = 0.0
                 self._mod_env_stage = 0  # idle
             else:
-                release_progress = (
-                    stage_time / self._release_mod_env if self._release_mod_env > 0 else 1.0
-                )
-                # Release from current level, not sustain level
-                release_start_level = self._mod_env_level if self._mod_env_level > 0.001 else 0.001
-                self._mod_env_level = release_start_level * (1.0 - release_progress)
+                # Exponential decay: level *= exp(-dt / tau)
+                tau = self._release_mod_env if self._release_mod_env > 0.001 else 0.001
+                decay_factor = np.exp(-delta_time / tau)
+                self._mod_env_level *= decay_factor
 
     def _generate_pitch_envelope(self, block_size: int) -> None:
         """Generate pitch envelope buffer for this block.
@@ -1765,11 +1769,17 @@ class SF2Region(IRegion):
                     filter_obj.set_parameters(cutoff=sub_cutoff, resonance=base_resonance)
 
                     # Process this sub-block (2D interleaved format)
-                    left = output[start:end, 0].copy()
-                    right = output[start:end, 1].copy()
+                    sub_len = end - start
+                    if self._filter_work_left is None or len(self._filter_work_left) < sub_len:
+                        self._filter_work_left = np.empty(sub_len, dtype=np.float32)
+                        self._filter_work_right = np.empty(sub_len, dtype=np.float32)
+                    left = self._filter_work_left[:sub_len]
+                    right = self._filter_work_right[:sub_len]
+                    np.copyto(left, output[start:end, 0])
+                    np.copyto(right, output[start:end, 1])
                     filtered_left, filtered_right = filter_obj.process_block(left, right)
-                    output[start:end, 0] = filtered_left
-                    output[start:end, 1] = filtered_right
+                    np.copyto(output[start:end, 0], filtered_left)
+                    np.copyto(output[start:end, 1], filtered_right)
             else:
                 # No LFO modulation, constant filter per block
                 modulated_cutoff = base_cutoff * (2.0**filter_mod_total)
@@ -1777,11 +1787,16 @@ class SF2Region(IRegion):
                 filter_obj.set_parameters(cutoff=modulated_cutoff, resonance=base_resonance)
 
                 # Process (2D interleaved format)
-                left = output[:, 0].copy()
-                right = output[:, 1].copy()
+                if self._filter_work_left is None or len(self._filter_work_left) < block_size:
+                    self._filter_work_left = np.empty(block_size, dtype=np.float32)
+                    self._filter_work_right = np.empty(block_size, dtype=np.float32)
+                left = self._filter_work_left[:block_size]
+                right = self._filter_work_right[:block_size]
+                np.copyto(left, output[:, 0])
+                np.copyto(right, output[:, 1])
                 filtered_left, filtered_right = filter_obj.process_block(left, right)
-                output[:, 0] = filtered_left
-                output[:, 1] = filtered_right
+                np.copyto(output[:, 0], filtered_left)
+                np.copyto(output[:, 1], filtered_right)
 
         except Exception:
             pass  # Skip filter on error
@@ -2182,7 +2197,9 @@ class SF2Region(IRegion):
         # 3. Build cumulative read positions
         cumsum = np.cumsum(phase_steps)
         # TODO: Use BufferPool when available (requires float64 pool)
-        read_positions = np.empty(block_size, dtype=np.float64)
+        if self._read_positions is None or len(self._read_positions) < block_size:
+            self._read_positions = np.empty(block_size, dtype=np.float64)
+        read_positions = self._read_positions[:block_size]
         read_positions[0] = pos
         if block_size > 1:
             read_positions[1:] = pos + cumsum[:-1]

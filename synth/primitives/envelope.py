@@ -503,24 +503,33 @@ class UltraFastADSREnvelope:
         - Attack: fast start, slows as it approaches peak
         - Decay: fast initial drop, tapering tail toward sustain
         - Release: fast initial drop, tapering tail toward zero
+
+        Key scaling (key_factor >= 1.0 for notes above middle C) reduces
+        the effective envelope times so higher notes sound brighter/crisper.
         """
+        # Default to 1.0 (no scaling) when key_factor hasn't been set yet
+        key_factor = float(getattr(self, "key_factor", 1.0))
+
         # Exponential attack coefficient: converge toward 1.0
         if self.attack > 0:
-            attack_samples = max(1, int(self.attack * self.sample_rate))
+            attack_samples_raw = int(self.attack * self.sample_rate)
+            attack_samples = max(1, int(attack_samples_raw / key_factor))
             self.attack_increment = np.float32(1.0 - math.exp(-4.0 / attack_samples))
         else:
             self.attack_increment = np.float32(1.0)  # instant attack
 
         # Exponential decay coefficient: converge toward sustain level
         if self.decay > 0:
-            decay_samples = max(1, int(self.decay * self.sample_rate))
+            decay_samples_raw = int(self.decay * self.sample_rate)
+            decay_samples = max(1, int(decay_samples_raw / key_factor))
             self.decay_decrement = np.float32(1.0 - math.exp(-4.0 / decay_samples))
         else:
             self.decay_decrement = np.float32(1.0)  # instant decay
 
         # Exponential release coefficient: converge toward zero
         if self.release > 0:
-            release_samples = max(1, int(self.release * self.sample_rate))
+            release_samples_raw = int(self.release * self.sample_rate)
+            release_samples = max(1, int(release_samples_raw / key_factor))
             self.release_decrement = np.float32(1.0 - math.exp(-4.0 / release_samples))
         else:
             self.release_decrement = np.float32(1.0)  # instant release
@@ -601,6 +610,9 @@ class UltraFastADSREnvelope:
             self.key_factor = 1.0 + note_factor * self.key_scaling
         else:
             self.key_factor = 1.0
+
+        # Recalculate envelope increments to reflect key scaling
+        self._recalculate_increments()
 
         # Apply soft pedal
         if soft_pedal:
