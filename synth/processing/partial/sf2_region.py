@@ -906,6 +906,12 @@ class SF2Region(IRegion):
         - Stages use extended generator range 55-61 to avoid conflicts
         - If pitch envelope is needed, set gen 55 > -12000 timecents
           (e.g., the attack portion of the pitch envelope).
+
+        NOTE: Non-standard pitch envelope uses gens 55-61 which COLLIDE with
+        standard SF2 generators 56 (scaleTuning) and 57 (exclusiveClass).
+        When gen 55 > -12000 (pitch env active), these standard gens are
+        reinterpreted as pitch env attack/decay times. Gen 55 defaults to
+        -12000 (inactive) per SF2 spec, so collision is harmless in practice.
         """
         # Check if pitch envelope is active — ONLY gen 55 (non-standard extension)
         self._pitch_env_active = self._get_generator_value(55, -12000) > -12000
@@ -957,6 +963,8 @@ class SF2Region(IRegion):
         delay = self._timecents_to_seconds(gen33_val)
         attack = self._timecents_to_seconds(gen34_val)
         hold = self._timecents_to_seconds(gen35_val)
+        if _key_scaled_hold != 1.0:
+            hold *= _key_scaled_hold
         decay = self._timecents_to_seconds(gen36_val) * key_scaled_decay
         sustain = gen37_val / 1000.0
         release = self._timecents_to_seconds(gen38_val)
@@ -1492,6 +1500,39 @@ class SF2Region(IRegion):
         self._modwheel_mod = modulation.get("mod_wheel", modulation.get("modwheel", 0.0))
         self._foot_mod = modulation.get("foot_controller", modulation.get("foot", 0.0))
         self._expression_mod = modulation.get("expression", 1.0)
+
+        # Effect sends from modulation dict
+        reverb_send = modulation.get("reverb_send")
+        if reverb_send is not None:
+            self._reverb_send = max(0.0, min(1.0, float(reverb_send)))
+        chorus_send = modulation.get("chorus_send")
+        if chorus_send is not None:
+            self._chorus_send = max(0.0, min(1.0, float(chorus_send)))
+
+        # XG harmonic content (CC71): modify filter resonance
+        harmon_content = modulation.get("harmon_content")
+        if harmon_content is not None:
+            normalized = float(harmon_content)
+            if hasattr(self, "_filter_resonance"):
+                self._filter_resonance = 0.5 + normalized * 1.5
+            self._mod_env_to_filter = normalized * 0.5
+
+        # XG brightness (CC72): modify filter cutoff
+        brightness = modulation.get("brightness")
+        if brightness is not None:
+            self._filter_mod = float(brightness) * 1.5
+
+        # XG NRPN filter parameters — apply to filter similarly to GS filter path
+        xg_cutoff = modulation.get("xg_filter_cutoff")
+        if xg_cutoff is not None:
+            v = float(xg_cutoff)
+            self._xg_filter_cutoff = v
+            self._filter_mod = (v - 0.5) * 4.0
+
+        xg_resonance = modulation.get("xg_filter_resonance")
+        if xg_resonance is not None:
+            # Apply XG filter resonance via GS path (same rendering code)
+            self._gs_filter_resonance = float(xg_resonance)
 
         # Apply controller effects to modulation depths
         if self._modwheel_mod != 0.0:

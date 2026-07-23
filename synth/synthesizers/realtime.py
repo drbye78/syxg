@@ -1147,6 +1147,15 @@ class Synthesizer:
                 # Handle standard MIDI CC
                 self.xg_system.handle_control_change(channel, controller, value)
 
+            # Forward CC to ModernXGSynthesizer for Channel state updates
+            # (mirrors note_on/note_off pattern at lines ~1042-1048)
+            if self.xg_synth is not None:
+                try:
+                    midi_bytes = bytes([0xB0 | channel, controller, value])
+                    self.xg_synth.process_midi_message(midi_bytes)
+                except Exception:
+                    pass
+
     def _handle_efx_control_switch(self, controller: int, channel: int, value: int) -> None:
         """Handle EFX Control Switch CC message (SC-8850).
 

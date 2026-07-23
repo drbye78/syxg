@@ -270,6 +270,23 @@ class Voice:
             except Exception as e:
                 logger.error(f"Region note_on failed: {e}")
 
+        # Exclusive class enforcement: release existing active instances
+        # whose exclusive class matches any newly activated region
+        new_exclusive_classes: set[int] = set()
+        for r in activated:
+            ec = getattr(r, "_exclusive_class", 0)
+            if ec != 0:
+                new_exclusive_classes.add(ec)
+
+        if new_exclusive_classes:
+            for r in self._active_instances:
+                ec = getattr(r, "_exclusive_class", 0)
+                if ec in new_exclusive_classes:
+                    try:
+                        r.note_off()
+                    except Exception:
+                        pass
+
         self._active_instances = activated
         return activated
 
