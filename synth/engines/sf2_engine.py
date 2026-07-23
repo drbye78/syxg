@@ -466,6 +466,17 @@ class SF2Engine(SynthesisEngine):
                                     preset_zone, inst_zone
                                 )
 
+                                # SF2 spec: instrument global zone generators are
+                                # inherited by all subsequent non-global zones.
+                                # Merge them as defaults (per-zone params override).
+                                if instrument.global_zone:
+                                    global_params = self._extract_generator_params(
+                                        instrument.global_zone
+                                    )
+                                    merged = global_params.copy()
+                                    merged.update(combined_params)
+                                    combined_params = merged
+
                                 descriptor = RegionDescriptor(
                                     region_id=descriptor_idx,
                                     engine_type="sf2",
