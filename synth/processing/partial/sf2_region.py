@@ -22,6 +22,10 @@ import numpy as np
 
 from ...engines.region_descriptor import RegionDescriptor
 from ...processing.partial.region import IRegion, RegionState
+from .sf2_modulator_evaluator import (
+    SF2ModulatorEvaluator,
+    apply_modulation_to_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +166,7 @@ class SF2Region(IRegion):
         "_mod_lfo_to_volume",
         "_vib_lfo_to_volume",
         "_modulators",
+        "_mod_evaluator",
         "_modwheel_mod",
         "_note_start_time",          # Voice stealing: note start timestamp
         "_pan_position",
@@ -267,6 +272,7 @@ class SF2Region(IRegion):
         self._generator_params: dict[int, int] = {}
         self._modulators: list[dict[str, Any]] = []
         self._modulators_warned: bool = False
+        self._mod_evaluator: SF2ModulatorEvaluator | None = None
 
         # SF2 zone ranges
         self._key_range: tuple[int, int] = (0, 127)
@@ -1148,17 +1154,10 @@ class SF2Region(IRegion):
         if self._vib_lfo:
             self._vib_lfo.reset()
 
-        # Log a warning if modulators are present but not processed (BUG-4)
-        if self._modulators and not hasattr(self, '_modulators_warned'):
-            self._modulators_warned = True
-            logger.warning(
-                "SF2Region %s has %d modulator(s) that are parsed but NOT "
-                "applied during rendering (modulator matrix processing not "
-                "yet implemented). Only fixed generator→parameter mappings "
-                "are active.",
-                getattr(self, 'descriptor', None),
-                len(self._modulators),
-            )
+        # Initialize SF2 modulator evaluator for this note
+        # Merges default modulators (SF2 §8.4.11) with zone-specific modulators
+        self._mod_evaluator = SF2ModulatorEvaluator(self._modulators)
+        self._modulators_warned = True  # suppress historic BUG-4 warning
 
         # Reset modulation values
         self._pitch_mod = 0.0
@@ -2040,6 +2039,89 @@ class SF2Region(IRegion):
             self._reverb_send = self._gs_reverb_send
         if self._gs_chorus_send >= 0.0:
             self._chorus_send = self._gs_chorus_send
+
+        # 1c. Evaluate SF2 modulators against current controller state
+        if self._mod_evaluator is not None:
+            # Build controller state dict from the region's modulation inputs
+            cc_state: dict[int, float] = {}
+            if modulation:
+                # Map known modulation keys to CC numbers
+                for key, cc_num in {
+                    "mod_wheel": 1,
+                    "breath_controller": 2,
+                    "foot_controller": 4,
+                    "expression": 11,
+                    "volume": 7,
+                    "pan": 10,
+                }.items():
+                    val = modulation.get(key)
+                    if val is not None:
+                        cc_state[cc_num] = float(val)
+                # Channel aftertouch (special index — not a CC number)
+                at_val = modulation.get(
+                    "channel_aftertouch", modulation.get("aftertouch", 0.0)
+                )
+                if at_val:
+                    cc_state["channel_aftertouch"] = float(at_val)
+                # Include raw CC values from modulation dict
+                for key, val in modulation.items():
+                    if key.startswith("cc_") and isinstance(val, (int, float)):
+                        try:
+                            cc_state[int(key.split("_")[1])] = float(val)
+                        except (ValueError, IndexError):
+                            pass
+                # Pitch bend
+                if "pitch" in modulation:
+                    cc_state["pitch"] = float(modulation["pitch"])
+
+            # Evaluate modulators
+            mod_values = self._mod_evaluator.evaluate(
+                cc_state, self.current_velocity, self.current_note
+            )
+            if mod_values:
+                # Convert integer-gen → string-keyed params for apply_modulation_to_params
+                gen_to_name = {
+                    8: "initial_filter_fc",
+                    9: "initial_filter_q",
+                    48: "initial_attenuation",
+                    51: "coarse_tune",
+                    52: "fine_tune",
+                    17: "pan",
+                    16: "reverb_send",
+                    15: "chorus_send",
+                    6: "vib_lfo_to_pitch",
+                    5: "mod_lfo_to_pitch",
+                    13: "mod_lfo_to_volume",
+                    11: "mod_lfo_to_filter_fc",
+                    38: "release_vol_env",
+                    22: "freq_mod_lfo",
+                    24: "freq_vib_lfo",
+                    34: "attack_vol_env",
+                    35: "hold_vol_env",
+                    36: "decay_vol_env",
+                    37: "sustain_vol_env",
+                    33: "delay_vol_env",
+                }
+                string_params = {
+                    gen_to_name[k]: v
+                    for k, v in self._generator_params.items()
+                    if k in gen_to_name
+                }
+                apply_modulation_to_params(string_params, mod_values, self.current_note)
+
+                # Recalculate pitch if coarse/fine tune modified
+                if 51 in mod_values or 52 in mod_values:
+                    if 51 in mod_values:
+                        self._generator_params[51] = int(string_params.get("coarse_tune", 0))
+                    if 52 in mod_values:
+                        self._generator_params[52] = int(string_params.get("fine_tune", 0))
+                    self._calculate_phase_step()
+
+                # Update attenuation for volume stage — don't re-init envelopes
+                # every block; let the gain stage (step 9) pick up _initial_attenuation_db
+                if 48 in mod_values:
+                    att_cb = max(0, int(string_params.get("initial_attenuation", 0)))
+                    self._initial_attenuation_db = att_cb / 10.0  # centibels → dB
 
         # 2. Generate LFO signals (zero-allocation)
         self._generate_lfo_signals(block_size)
