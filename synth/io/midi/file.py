@@ -489,6 +489,7 @@ class FileParser:
         messages = []
         offset = 0
         ticks_accumulated = 0
+        seconds_accumulated = 0.0
         current_tempo = self.tempo
         running_status = 0
 
@@ -497,8 +498,13 @@ class FileParser:
             delta_ticks, offset = self._read_variable_length(track_data, offset)
             ticks_accumulated += delta_ticks
 
-            # Convert ticks to seconds
-            time_seconds = self._ticks_to_seconds(ticks_accumulated, current_tempo)
+            # Convert delta ticks to seconds at the CURRENT tempo and add
+            # to accumulated time.  Using delta_ticks (not ticks_accumulated)
+            # prevents old ticks from being re-converted at wrong tempos when
+            # the tempo changes mid-track.
+            delta_seconds = self._ticks_to_seconds(delta_ticks, current_tempo)
+            seconds_accumulated += delta_seconds
+            time_seconds = seconds_accumulated
 
             # Read event
             if offset >= len(track_data):
