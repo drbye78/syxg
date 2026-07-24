@@ -305,6 +305,10 @@ class Channel:
         self.master_level = 1.0
         self.pan = 0.0
         self.transpose = 0
+        # Channel-level portamento state. _portamento_last_note is the most
+        # recent note_on transposed note; it serves as the source for
+        # portamento on the next note_on when CC84 isn't explicit.
+        self._portamento_last_note: int = -1
 
         # Controller state (support both MIDI 1.0 and MIDI 2.0)
         self.controllers = [0] * 128  # MIDI 1.0 controllers (7-bit)
@@ -702,8 +706,22 @@ class Channel:
             )
             return False
 
-        # Trigger note-on for the voice instance
+        # Trigger note-on for the voice instance. Pre-populate the voice
+        # instance with channel-level portamento state so regions can
+        # configure themselves before the modulation dict arrives.
+        # _portamento_last_note is read BEFORE we update it to the new note
+        # so it can serve as the source for the portamento glide.
+        voice_instance._pre_portamento_active = self.controllers[65] >= 64
+        voice_instance._pre_portamento_time = self._calculate_portamento_time(self.controllers[5])
+        voice_instance._pre_portamento_last_note = (
+            self._portamento_last_note if self._portamento_last_note >= 0 else None
+        )
         voice_instance.note_on(velocity)
+
+        # Track the last note for channel-level portamento. Update AFTER
+        # note_on so the pre-state read sees the previous note as the
+        # portamento source.
+        self._portamento_last_note = transposed_note
 
         # Enforce exclusiveClass (SF2 gen 57): if the new voice shares an
         # exclusiveClass with any existing active voice, steal (release) the old one.
@@ -857,9 +875,29 @@ class Channel:
                 self.pan = self._normalize_32bit_pan(value)
             else:
                 self.pan = (value - 64) / 64.0  # Convert to -1.0 to 1.0
-        elif controller == 84:  # Portamento Control
-            # Handle portamento control if needed
-            pass
+        elif controller == 84:  # Portamento Control (source note)
+            # Forward to active regions so portamento can use the specified source
+            for _vi in self.active_voices.values():
+                for region in getattr(_vi, "active_regions", []):
+                    if hasattr(region, "control_change"):
+                        try:
+                            region.control_change(controller, value)
+                        except Exception:
+                            pass
+
+        # Forward portamento CCs (5=time, 65=on/off) and tremolo depth
+        # (CC92) to active regions. These are channel-level effects that
+        # regions implement directly; the channel stores the raw values
+        # for modulation dict exposure but must also fan them out so the
+        # region can act on the current block.
+        if controller in (5, 65, 92):
+            for _vi in self.active_voices.values():
+                for region in getattr(_vi, "active_regions", []):
+                    if hasattr(region, "control_change"):
+                        try:
+                            region.control_change(controller, value)
+                        except Exception:
+                            pass
 
         # Handle NRPN/RPN sequences
         elif controller == 98:  # NRPN LSB
@@ -1157,6 +1195,14 @@ class Channel:
             "channel_aftertouch": self.channel_pressure / 127.0,
             "volume": self.master_level,  # CC7 -> region _volume_mod (uses normalized master_level)
             "volume_cc": self.master_level,  # Kept for backward compat
+            # Portamento (CC5 time, CC65 on/off) — exposed so newly created
+            # regions can pick up the current channel state.
+            "portamento_active": 1.0 if self.controllers[65] >= 64 else 0.0,
+            "portamento_time": self._calculate_portamento_time(self.controllers[5]),
+            "portamento_source": float(self.controllers[84]),  # 0-127 = source note 0-127
+            # Last note on this channel (used as portamento source for the
+            # next note_on if no explicit CC84 source was given).
+            "_portamento_last_note": getattr(self, "_portamento_last_note", -1),
         }
 
         # Add 32-bit controller values if available
@@ -1356,6 +1402,13 @@ class Channel:
         self.channel_pressure = 0
         self.key_pressure_values.clear()
         self.pitch_bend_value = 8192
+
+    @staticmethod
+    def _calculate_portamento_time(value: int) -> float:
+        """Convert CC5 (0-127) to portamento time in seconds (piecewise linear)."""
+        if value < 64:
+            return value / 64.0
+        return 1.0 + (value - 64) / 63.0 * 7.0
 
     def generate_samples(
         self, block_size: int, output_buffer: np.ndarray | None = None

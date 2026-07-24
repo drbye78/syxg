@@ -43,6 +43,9 @@ class VoiceInstance:
     __slots__ = [
         "_output_buffer",
         "_pending_removal",
+        "_pre_portamento_active",
+        "_pre_portamento_last_note",
+        "_pre_portamento_time",
         "active_regions",
         "aftertouch",
         "articulation",
@@ -176,9 +179,40 @@ class VoiceInstance:
         """
         self.velocity = velocity
 
+        # Pre-fetch portamento state injected by the channel so regions can
+        # configure portamento at note_on time. The channel sets these
+        # attributes (channel_object reference + portamento state) when it
+        # creates the voice instance.
+        portamento_active = getattr(self, "_pre_portamento_active", False)
+        portamento_time = getattr(self, "_pre_portamento_time", 0.0)
+        last_note = getattr(self, "_pre_portamento_last_note", None)
+
         self.active_regions.clear()
         for region in self.regions:
             try:
+                # Only SF2Region implements portamento directly. For wrappers
+                # (AcousticBehaviorRegion, S.Art2) the wrapped SF2Region is
+                # reachable via .base_region. Set the state on whichever is
+                # the SF2Region (or None, in which case we skip).
+                target_region: IRegion | None = None
+                if type(region).__name__ == "SF2Region":
+                    target_region = region
+                elif (
+                    hasattr(region, "base_region")
+                    and type(region.base_region).__name__ == "SF2Region"
+                ):
+                    target_region = region.base_region
+
+                if target_region is not None:
+                    if hasattr(target_region, "_channel_index"):
+                        try:
+                            target_region._channel_index = self.channel
+                        except (AttributeError, TypeError):
+                            pass
+                    target_region._portamento_active = portamento_active
+                    target_region._portamento_time = portamento_time
+                    if last_note is not None:
+                        target_region._portamento_source_candidate = last_note
                 # Skip regions without sample_id (global zones)
                 if region.descriptor.sample_id is None:
                     continue

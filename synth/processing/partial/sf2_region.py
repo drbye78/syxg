@@ -167,7 +167,7 @@ class SF2Region(IRegion):
         "_modulators",
         "_mod_evaluator",
         "_modwheel_mod",
-        "_note_start_time",          # Voice stealing: note start timestamp
+        "_note_start_time",  # Voice stealing: note start timestamp
         "_pan_position",
         "_phase_step",
         "_pitch_env_active",
@@ -186,6 +186,7 @@ class SF2Region(IRegion):
         "_portamento_active",
         "_portamento_glide_phase",
         "_portamento_note",
+        "_portamento_source_candidate",
         "_portamento_target",
         "_portamento_time",
         "_release_mod_env",
@@ -202,7 +203,7 @@ class SF2Region(IRegion):
         "_soft_pedal",
         "_soft_pedal_depth",
         "_sostenuto_pedal",
-        "_stereo_width",             # Stereo width (0.0=mono, 1.0=full, 2.0=wide)
+        "_stereo_width",  # Stereo width (0.0=mono, 1.0=full, 2.0=wide)
         "_sound_controller_1",
         "_sustain_mod_env",
         "_sustain_pedal",
@@ -214,7 +215,7 @@ class SF2Region(IRegion):
         "_vib_lfo_to_pan",
         "_vib_lfo_to_pitch",
         "_vib_lfo_to_pitch_base",
-        "_voice_priority",           # Voice stealing priority (lower = stolen first)
+        "_voice_priority",  # Voice stealing priority (lower = stolen first)
         "_volume_mod",
         "_xg_attack_time",
         "_xg_decay_time",
@@ -410,6 +411,7 @@ class SF2Region(IRegion):
         self._portamento_note: int | None = None
         self._portamento_target: int | None = None
         self._portamento_glide_phase: float = 0.0
+        self._portamento_source_candidate: int | None = None
 
         # Pedals
         self._sustain_pedal: bool = False
@@ -482,6 +484,7 @@ class SF2Region(IRegion):
 
             self._init_envelopes()
             self._init_filters()
+            self._init_lfos()
             self._allocate_buffers()
 
             self._initialized = True
@@ -674,16 +677,16 @@ class SF2Region(IRegion):
         if self.descriptor.generator_params:
             # Map common generator types (SF2 spec gen numbers)
             gen_mapping = {
-                33: "amp_delay",      # delayVolEnv
-                34: "amp_attack",     # attackVolEnv
-                35: "amp_hold",       # holdVolEnv
-                36: "amp_decay",      # decayVolEnv
-                37: "amp_sustain",    # sustainVolEnv
-                38: "amp_release",    # releaseVolEnv
-                8: "filter_cutoff",   # initialFilterFc
-                9: "filter_resonance", # initialFilterQ
-                51: "coarse_tune",    # coarseTune
-                52: "fine_tune",      # fineTune
+                33: "amp_delay",  # delayVolEnv
+                34: "amp_attack",  # attackVolEnv
+                35: "amp_hold",  # holdVolEnv
+                36: "amp_decay",  # decayVolEnv
+                37: "amp_sustain",  # sustainVolEnv
+                38: "amp_release",  # releaseVolEnv
+                8: "filter_cutoff",  # initialFilterFc
+                9: "filter_resonance",  # initialFilterQ
+                51: "coarse_tune",  # coarseTune
+                52: "fine_tune",  # fineTune
             }
 
             param_name = gen_mapping.get(gen_type)
@@ -747,8 +750,12 @@ class SF2Region(IRegion):
             },
             # Vib LFO (nested, SF2 gen 6)
             "vib_lfo": {
-                "delay": self._timecents_to_seconds(self._get_generator_value(23, -12000)),  # delayVibLFO
-                "frequency": self._cents_to_frequency(self._get_generator_value(24, 0)),  # freqVibLFO
+                "delay": self._timecents_to_seconds(
+                    self._get_generator_value(23, -12000)
+                ),  # delayVibLFO
+                "frequency": self._cents_to_frequency(
+                    self._get_generator_value(24, 0)
+                ),  # freqVibLFO
                 "to_pitch": self._get_generator_value(6, 0) / 1200.0,  # vibLfoToPitch
             },
             # Filter (nested, SF2 gen 8-9)
@@ -835,8 +842,12 @@ class SF2Region(IRegion):
         self._delay_mod_lfo = self._timecents_to_seconds(self._get_generator_value(21, -12000))
         self._freq_mod_lfo = self._cents_to_frequency(self._get_generator_value(22, 0))
 
-        self._delay_vib_lfo = self._timecents_to_seconds(self._get_generator_value(23, -12000))  # delayVibLFO
-        self._freq_vib_lfo = self._cents_to_frequency(self._get_generator_value(24, 0))  # freqVibLFO
+        self._delay_vib_lfo = self._timecents_to_seconds(
+            self._get_generator_value(23, -12000)
+        )  # delayVibLFO
+        self._freq_vib_lfo = self._cents_to_frequency(
+            self._get_generator_value(24, 0)
+        )  # freqVibLFO
 
         # LFO waveform: gen 43 is keyRange (standard SF2), not lfo_waveform.
         # Default to sine. Custom waveform selection belongs in XG, not SF2 gens.
@@ -877,18 +888,26 @@ class SF2Region(IRegion):
         self._mod_env_time_in_stage = 0.0
 
         # Load modulation envelope parameters from generators (SF2 gen 25-30)
-        self._delay_mod_env = self._timecents_to_seconds(self._get_generator_value(25, -12000))  # delayModEnv
-        self._attack_mod_env = self._timecents_to_seconds(self._get_generator_value(26, -12000))  # attackModEnv
+        self._delay_mod_env = self._timecents_to_seconds(
+            self._get_generator_value(25, -12000)
+        )  # delayModEnv
+        self._attack_mod_env = self._timecents_to_seconds(
+            self._get_generator_value(26, -12000)
+        )  # attackModEnv
         self._hold_mod_env_tc = self._get_generator_value(27, -12000)  # holdModEnv
         self._decay_mod_env_tc = self._get_generator_value(28, -12000)  # decayModEnv
         self._hold_mod_env = self._timecents_to_seconds(self._hold_mod_env_tc)
         self._decay_mod_env = self._timecents_to_seconds(self._decay_mod_env_tc)
         self._sustain_mod_env = self._get_generator_value(29, 0) / 1000.0  # sustainModEnv
-        self._release_mod_env = self._timecents_to_seconds(self._get_generator_value(30, -12000))  # releaseModEnv
+        self._release_mod_env = self._timecents_to_seconds(
+            self._get_generator_value(30, -12000)
+        )  # releaseModEnv
 
         # Load modulation depths (SF2 gen 7, 11)
         self._mod_env_to_pitch = self._get_generator_value(7, 0) / 100.0  # modEnvToPitch
-        self._mod_env_to_filter = self._get_generator_value(11, 0) / 1200.0  # modEnvToFilterFc (gen 11)
+        self._mod_env_to_filter = (
+            self._get_generator_value(11, 0) / 1200.0
+        )  # modEnvToFilterFc (gen 11)
         # Mod env → volume/pan: reserved for SF2 modulator matrix processing.
         # Currently always 0 since no standard SF2 generator maps to these.
         # (When BUG-4 modulator processing is implemented, the modulation
@@ -962,7 +981,7 @@ class SF2Region(IRegion):
         gen34_val = self._get_generator_value(34, -12000)  # attackVolEnv
         gen35_val = self._get_generator_value(35, -12000)  # holdVolEnv
         gen36_val = self._get_generator_value(36, -12000)  # decayVolEnv
-        gen37_val = self._get_generator_value(37, 1000)    # sustainVolEnv (0-1000)
+        gen37_val = self._get_generator_value(37, 1000)  # sustainVolEnv (0-1000)
         gen38_val = self._get_generator_value(38, -12000)  # releaseVolEnv
 
         delay = self._timecents_to_seconds(gen33_val)
@@ -1088,11 +1107,26 @@ class SF2Region(IRegion):
         self._note_start_time = time.time()
         self._calculate_phase_step()
 
-        # Handle portamento (CC5, CC65)
-        if self._portamento_active and self._last_note is not None:
-            self._portamento_note = self._last_note
-            self._portamento_target = note
-            self._portamento_glide_phase = 0.0
+        # Handle portamento (CC5, CC65). The source note comes from the
+        # channel's last-note tracker, exposed via the modulation dict or
+        # the voice_instance's pre-populated _portamento_source_candidate.
+        if self._portamento_active:
+            source_note: int | None = None
+            mod = getattr(self, "_modulation_state", None) or {}
+            ch_source = mod.get("_portamento_last_note")
+            if ch_source is not None and ch_source >= 0:
+                source_note = int(ch_source)
+            # Voice instance pre-populates this at voice creation time so
+            # portamento works on the very first block before the modulation
+            # dict is delivered.
+            if source_note is None:
+                pre = getattr(self, "_portamento_source_candidate", None)
+                if pre is not None and pre >= 0 and pre != note:
+                    source_note = int(pre)
+            if source_note is not None and source_note != note:
+                self._portamento_note = source_note
+                self._portamento_target = note
+                self._portamento_glide_phase = 0.0
 
         self._last_note = note
 
@@ -1541,6 +1575,19 @@ class SF2Region(IRegion):
             # Reset to base when modwheel is zero (no compounding carry-over)
             self._vib_lfo_to_pitch = self._vib_lfo_to_pitch_base
 
+        # Portamento state (channel-level CC5/CC65/CC84). The channel exposes
+        # the current state in the modulation dict so newly created regions
+        # pick it up before the first note_on completes. CC5 = time (sec),
+        # CC65 = on/off threshold 64, CC84 = source note (0-127).
+        pa = modulation.get("portamento_active")
+        if pa is not None:
+            self._portamento_active = bool(pa >= 0.5)
+        pt = modulation.get("portamento_time")
+        if pt is not None:
+            self._portamento_time = float(pt)
+        # portamento_source (CC84) is consumed at note_on via the
+        # region-level _last_note mechanism.
+
         if self._aftertouch_mod != 0.0:
             self._volume_mod *= 1.0 + self._aftertouch_mod * 0.5
             self._filter_mod += self._aftertouch_mod * 2.0
@@ -1571,14 +1618,10 @@ class SF2Region(IRegion):
         self._allocate_buffers_for_block(block_size)
 
         if self._mod_lfo:
-            result = self._mod_lfo.generate_block(block_size)
-            if isinstance(result, np.ndarray):
-                self._mod_lfo_buffer[:block_size] = result[:block_size]
+            self._mod_lfo.generate_block(self._mod_lfo_buffer[:block_size], block_size)
 
         if self._vib_lfo:
-            result = self._vib_lfo.generate_block(block_size)
-            if isinstance(result, np.ndarray):
-                self._vib_lfo_buffer[:block_size] = result[:block_size]
+            self._vib_lfo.generate_block(self._vib_lfo_buffer[:block_size], block_size)
 
     def _generate_modulation_envelope_block(self, block_size: int) -> np.ndarray:
         """Generate modulation envelope block sample-by-sample (zero-allocation)."""
@@ -1764,7 +1807,9 @@ class SF2Region(IRegion):
 
         try:
             # Get base filter parameters
-            base_cutoff = self._cents_to_frequency(self._get_filter_cutoff_cents())  # initialFilterFc
+            base_cutoff = self._cents_to_frequency(
+                self._get_filter_cutoff_cents()
+            )  # initialFilterFc
             # SF2 initialFilterQ is in centibels: convert to Q factor (Butterworth at 0 ceB)
             sf2_q_centibels = self._get_generator_value(9, 0)  # initialFilterQ
             base_resonance = 0.707 * (10.0 ** (sf2_q_centibels / 200.0))
@@ -2018,16 +2063,33 @@ class SF2Region(IRegion):
                 self._work_buffer = np.zeros(block_size, dtype=np.float32)
         output = self._output_buffer
 
-        # 1. Apply global modulation from modulation matrix
+        # 1. Apply GS vibrato parameters to vibrato LFO BEFORE the controller
+        # depth multiplier so _vib_lfo_to_pitch_base reflects the current GS
+        # setting when _apply_global_modulation reads it.
+        self._gs_filter_cutoff = modulation.get("gs_filter_cutoff", -1.0)  # -1 = unset
+        self._gs_filter_resonance = modulation.get("gs_filter_resonance", -1.0)
+        self._gs_amp_attack = modulation.get("gs_amp_attack", -1.0)
+        self._gs_amp_decay = modulation.get("gs_amp_decay", -1.0)
+        self._gs_amp_release = modulation.get("gs_amp_release", -1.0)
+        self._gs_vibrato_rate = modulation.get("gs_vibrato_rate", -1.0)
+        self._gs_vibrato_depth = modulation.get("gs_vibrato_depth", -1.0)
+        self._gs_vibrato_delay = modulation.get("gs_vibrato_delay", -1.0)
+        self._gs_volume = modulation.get("gs_volume", -1.0)
+        raw_pan = modulation.get("gs_pan", -2.0)
+        self._gs_pan = max(-1.0, min(1.0, raw_pan)) if raw_pan >= -1.5 else -2.0
+        self._gs_reverb_send = modulation.get("gs_reverb_send", -1.0)
+        self._gs_chorus_send = modulation.get("gs_chorus_send", -1.0)
+
+        if self._gs_vibrato_depth >= 0.0:
+            self._vib_lfo_to_pitch_base = self._gs_vibrato_depth
+
+        # 2. Apply global modulation from modulation matrix
         self._apply_global_modulation(modulation)
 
-        # 1a. Apply GS vibrato parameters to vibrato LFO
+        # 2a. Apply GS vibrato parameters to vibrato LFO state (rate/delay)
         if self._gs_vibrato_rate >= 0.0 and self._vib_lfo:
             self._freq_vib_lfo = self._gs_vibrato_rate
             self._vib_lfo.set_frequency(self._gs_vibrato_rate)
-        if self._gs_vibrato_depth >= 0.0:
-            self._vib_lfo_to_pitch = self._gs_vibrato_depth
-            self._vib_lfo_to_pitch_base = self._vib_lfo_to_pitch
         if self._gs_vibrato_delay >= 0.0 and self._vib_lfo:
             self._delay_vib_lfo = self._gs_vibrato_delay
             self._vib_lfo.delay = self._gs_vibrato_delay
@@ -2060,9 +2122,7 @@ class SF2Region(IRegion):
                     if val is not None:
                         cc_state[cc_num] = float(val)
                 # Channel aftertouch (special index — not a CC number)
-                at_val = modulation.get(
-                    "channel_aftertouch", modulation.get("aftertouch", 0.0)
-                )
+                at_val = modulation.get("channel_aftertouch", modulation.get("aftertouch", 0.0))
                 if at_val:
                     cc_state["channel_aftertouch"] = float(at_val)
                 # Include raw CC values from modulation dict
@@ -2149,21 +2209,27 @@ class SF2Region(IRegion):
                     self._chorus_send = ch / 1000.0
 
                 # ── Vibrato / Mod LFO depths ────────────────────────────
+                # NOTE: These add to the current depth, not replace it. The
+                # GS/XG path sets the depth coefficient (e.g. gs_vibrato_depth
+                # via the modulation dict) before this evaluator runs; the
+                # modulator's contribution is the additional CC1/modulation
+                # amount on top of that base. Using max(base+mod, 0) preserves
+                # both signals.
                 if 6 in mod_values:  # vibLfoToPitch (cents)
-                    vp = max(0, self._get_generator_value(6, 0) + int(mod_values[6]))
-                    self._vib_lfo_to_pitch = vp / 100.0
+                    add = max(0, int(mod_values[6]))
+                    self._vib_lfo_to_pitch = max(0.0, self._vib_lfo_to_pitch + add / 100.0)
 
                 if 5 in mod_values:  # modLfoToPitch (cents)
-                    mp = max(0, self._get_generator_value(5, 0) + int(mod_values[5]))
-                    self._mod_lfo_to_pitch = mp / 100.0
+                    add = max(0, int(mod_values[5]))
+                    self._mod_lfo_to_pitch = max(0.0, self._mod_lfo_to_pitch + add / 100.0)
 
                 if 13 in mod_values:  # modLfoToVolume (SF2: 0-960 cB)
-                    mv = max(0, self._get_generator_value(13, 0) + int(mod_values[13]))
-                    self._mod_lfo_to_volume = mv / 960.0
+                    add = max(0, int(mod_values[13]))
+                    self._mod_lfo_to_volume = max(0.0, self._mod_lfo_to_volume + add / 960.0)
 
                 if 10 in mod_values:  # modLfoToFilterFc (cents)
-                    mlf = self._get_generator_value(10, 0) + int(mod_values[10])
-                    self._mod_lfo_to_filter = mlf / 1200.0
+                    add = max(0, int(mod_values[10]))
+                    self._mod_lfo_to_filter = max(0.0, self._mod_lfo_to_filter + add / 1200.0)
 
                 # ── LFO Frequencies ─────────────────────────────────────
                 if 22 in mod_values:  # freqModLFO (absolute cents → Hz)
