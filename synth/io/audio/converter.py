@@ -57,7 +57,13 @@ class AudioConverter:
                 # Calculate duration from message timestamps
                 if all_messages:
                     timestamps = [msg.timestamp or 0.0 for msg in all_messages]
-                    duration = max(timestamps) - min(timestamps) + 1.0
+                    min_ts = min(timestamps)
+                    # Normalize all timestamps to start at zero
+                    if min_ts > 0:
+                        for msg in all_messages:
+                            if msg.timestamp is not None:
+                                msg.timestamp -= min_ts
+                    duration = max(timestamps) - min_ts + 1.0
                     # Add 1 second padding for release tails
                 else:
                     duration = 10.0  # Default duration
