@@ -36,7 +36,9 @@ class AudioConverter:
         self.synthesizer = synthesizer
         self.audio_writer = audio_writer
 
-    def parse_audio_file(self, file_path: str) -> tuple[list | None, float | None]:
+    def parse_audio_file(
+        self, file_path: str, skip_silence: bool = False
+    ) -> tuple[list | None, float | None]:
         """
         Parse audio file (MIDI or XGML) and return MIDI messages and duration.
 
@@ -63,7 +65,11 @@ class AudioConverter:
                         for msg in all_messages:
                             if msg.timestamp is not None:
                                 msg.timestamp -= min_ts
-                    duration = max(timestamps) - min_ts + 1.0
+                    # Fast-forward through silent leading/trailing messages
+                    if skip_silence:
+                        all_messages, _ = _fast_forward_silence_events(all_messages)
+                    timestamps = [msg.timestamp or 0.0 for msg in all_messages]
+                    duration = max(timestamps) + 1.0
                     # Add 1 second padding for release tails
                 else:
                     duration = 10.0  # Default duration
@@ -133,6 +139,39 @@ class AudioConverter:
         else:
             logger.info(f"Unsupported file format: {file_path}")
             return None, None
+
+    def _fast_forward_silence_events(
+        self, messages: list
+    ) -> tuple[list, float]:
+        """Compact inaudible leading/trailing messages to track boundaries."""
+        if not messages:
+            return messages, 0.0
+        _AUDIBLE = {
+            "note_on", "note_off", "program_change", "control_change",
+            "pitch_bend", "channel_pressure", "poly_pressure",
+        }
+        first_idx = next(
+            (i for i, m in enumerate(messages) if m.type in _AUDIBLE), None
+        )
+        if first_idx is None:
+            return messages, 0.0
+        last_idx = next(
+            (i for i in range(len(messages) - 1, -1, -1)
+             if messages[i].type in _AUDIBLE), first_idx
+        )
+        first_ts = messages[first_idx].timestamp or 0.0
+        last_ts = messages[last_idx].timestamp or 0.0
+        for i in range(first_idx):
+            if messages[i].timestamp is not None:
+                messages[i].timestamp = 0.0
+        for i in range(last_idx + 1, len(messages)):
+            if messages[i].timestamp is not None:
+                messages[i].timestamp = last_ts
+        if first_ts > 0:
+            for msg in messages[first_idx:]:
+                if msg.timestamp is not None:
+                    msg.timestamp -= first_ts
+        return messages, first_ts + max(0.0, (messages[-1].timestamp or 0.0) - last_ts)
 
     def convert_audio_to_audio_buffered(
         self,

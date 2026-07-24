@@ -233,13 +233,6 @@ Examples:
         default="mp3",
         help="Output audio format",
     )
-    parser.add_argument(
-        "--synth",
-        choices=["modern", "optimized"],
-        default="modern",
-        help="[DEPRECATED] Both options use ModernXGSynthesizer. "
-        "'optimized' prints a migration warning.",
-    )
 
     # --- Feature toggles (CLI) ---
     feat = parser.add_argument_group("synthesizer features")
@@ -332,6 +325,16 @@ Examples:
         action="store_true",
         default=False,
         help="Trace program-change messages and print voice assignment details",
+    )
+
+    trim = parser.add_argument_group("silence trimming")
+    trim.add_argument(
+        "--skip-silence",
+        action="store_true",
+        default=False,
+        help="Fast-forward through inaudible messages (meta events, sysex) "
+        "at the start and end of the MIDI track. Messages are still "
+        "processed but do not consume time in the output.",
     )
 
     return parser.parse_args()
@@ -580,6 +583,55 @@ def _build_feature_config(args: argparse.Namespace, config_data: dict) -> Featur
     return file_cfg.merge_cli(cli)
 
 
+def _fast_forward_silence(
+    messages: list,
+) -> tuple[list, float]:
+    """Fast-forward through inaudible messages at track boundaries.
+
+    Meta events (tempo, time signature, track name, etc.) and SysEx
+    messages do not produce audio. This function compacts their
+    timestamps to the time of the first/last audible event so they
+    are still processed but do not add dead air to the output.
+
+    Returns:
+        Tuple of (adjusted_messages, silence_skipped_seconds).
+    """
+    if not messages:
+        return messages, 0.0
+
+    _AUDIBLE = {
+        "note_on", "note_off", "program_change", "control_change",
+        "pitch_bend", "channel_pressure", "poly_pressure",
+    }
+
+    first_idx = next((i for i, m in enumerate(messages) if m.type in _AUDIBLE), None)
+    if first_idx is None:
+        return messages, 0.0
+    last_idx = next((i for i in range(len(messages) - 1, -1, -1)
+                     if messages[i].type in _AUDIBLE), first_idx)
+
+    first_ts = messages[first_idx].timestamp or 0.0
+    last_ts = messages[last_idx].timestamp or 0.0
+    end_ts = messages[-1].timestamp or 0.0
+    skipped = first_ts + max(0.0, end_ts - last_ts)
+
+    # Compact leading silence to time 0
+    for i in range(first_idx):
+        if messages[i].timestamp is not None:
+            messages[i].timestamp = 0.0
+    # Compact trailing silence to the last audible moment
+    for i in range(last_idx + 1, len(messages)):
+        if messages[i].timestamp is not None:
+            messages[i].timestamp = last_ts
+    # Shift so first audible event is at time 0
+    if first_ts > 0:
+        for msg in messages[first_idx:]:
+            if msg.timestamp is not None:
+                msg.timestamp -= first_ts
+
+    return messages, skipped
+
+
 def expand_file_patterns(patterns: list[str], recursive: bool = False) -> list[str]:
     """Expand file patterns and optionally recurse into subdirectories for MIDI and XGML files."""
     audio_files = []
@@ -749,12 +801,6 @@ def main():
 
     # Initialize synthesizer
     synth_start = time.time()
-
-    if args.synth == "optimized":
-        print(
-            "Warning: OptimizedXGSynthesizer has been moved to legacy package. "
-            "Using ModernXGSynthesizer instead."
-        )
 
     # Build feature-enabled kwargs for the synthesizer
     kwargs: dict = {
