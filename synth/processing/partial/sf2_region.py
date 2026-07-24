@@ -194,6 +194,7 @@ class SF2Region(IRegion):
         "_reverse_playback",
         "_root_key",
         "_sample_data",
+        "_sample_original_rate",
         "_sample_position",
         "_effective_end",  # frame index where playback must stop (gen 1/12 end offset)
         "_sf2_instrument",
@@ -281,6 +282,7 @@ class SF2Region(IRegion):
 
         # Playback state
         self._root_key: int = 60
+        self._sample_original_rate: int = 44100  # sample's original recording rate
         self._coarse_tune: int = 0
         self._fine_tune: float = 0.0
         self._sample_position: float = 0.0
@@ -549,6 +551,8 @@ class SF2Region(IRegion):
 
         Supports overridingRootKey (gen 58): if set (>= 0), the root key
         comes from the generator instead of the sample header (SF2.01 §8.1.3).
+        Also stores the sample's original recording rate for phase-step
+        compensation when it differs from the render rate.
         """
         if self.descriptor.sample_id is None:
             return
@@ -558,6 +562,7 @@ class SF2Region(IRegion):
             sample_info = self.soundfont_manager.get_sample_info(self.descriptor.sample_id)
             if sample_info:
                 self._root_key = sample_info.get("original_pitch", 60)
+                self._sample_original_rate = sample_info.get("sample_rate", self.sample_rate)
 
         # Check for overridingRootKey (gen 58) — zone-level override wins
         overriding_root = self._get_generator_value(58, -1)
@@ -1079,7 +1084,12 @@ class SF2Region(IRegion):
 
         # Apply scale tuning
         total_semitones = (note_diff + coarse_tune + fine_tune) * scale_tuning
-        self._base_phase_step = 2.0 ** (total_semitones / 12.0)
+        pitch_ratio = 2.0 ** (total_semitones / 12.0)
+        # Compensate for the sample's original recording rate vs render rate.
+        # Samples recorded at e.g. 22050 Hz must be read at half speed (0.5x)
+        # to produce the correct pitch when rendered at 44100 Hz.
+        rate_ratio = self._sample_original_rate / self.sample_rate
+        self._base_phase_step = pitch_ratio * rate_ratio
         self._phase_step = self._base_phase_step
 
     def note_on(self, velocity: int, note: int) -> bool:
