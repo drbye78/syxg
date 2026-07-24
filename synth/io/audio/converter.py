@@ -143,35 +143,58 @@ class AudioConverter:
     def _fast_forward_silence_events(
         self, messages: list
     ) -> tuple[list, float]:
-        """Compact inaudible leading/trailing messages to track boundaries."""
+        """Compact inaudible leading/trailing messages to track boundaries.
+
+        Leading: fast-forwards to the first note-on event.  All
+        messages before it (meta, sysex, program changes, CCs) are
+        still processed but compacted to time 0 so they do not add
+        dead air.
+
+        Trailing: only meta events and sysex are compacted after the
+        last audible event.  CC changes, program changes, and pitch
+        bend resets keep their timing — they can affect the release
+        tail (e.g. sustain pedal off, reverb send changes).
+        """
         if not messages:
             return messages, 0.0
+
+        # ── leading silence → first note_on ──────────────────────
+        first_idx = next(
+            (i for i, m in enumerate(messages) if m.type == "note_on"), None
+        )
+        if first_idx is None:
+            return messages, 0.0
+        first_ts = messages[first_idx].timestamp or 0.0
+        for i in range(first_idx):
+            if messages[i].timestamp is not None:
+                messages[i].timestamp = 0.0
+
+        # ── trailing silence → meta-only compaction ──────────────
         _AUDIBLE = {
             "note_on", "note_off", "program_change", "control_change",
             "pitch_bend", "channel_pressure", "poly_pressure",
         }
-        first_idx = next(
-            (i for i, m in enumerate(messages) if m.type in _AUDIBLE), None
-        )
-        if first_idx is None:
-            return messages, 0.0
         last_idx = next(
             (i for i in range(len(messages) - 1, -1, -1)
              if messages[i].type in _AUDIBLE), first_idx
         )
-        first_ts = messages[first_idx].timestamp or 0.0
         last_ts = messages[last_idx].timestamp or 0.0
-        for i in range(first_idx):
-            if messages[i].timestamp is not None:
-                messages[i].timestamp = 0.0
+
+        # Compress only meta/sysex events after the last audible event.
+        # CCs, program changes, pitch bends keep their original timing
+        # because they may affect the release tail or subsequent state.
+        _META_ONLY = {"meta", "sysex"}
         for i in range(last_idx + 1, len(messages)):
-            if messages[i].timestamp is not None:
+            if messages[i].timestamp is not None and messages[i].type in _META_ONLY:
                 messages[i].timestamp = last_ts
+
+        # Shift everything so the first note-on is at time 0
         if first_ts > 0:
             for msg in messages[first_idx:]:
                 if msg.timestamp is not None:
                     msg.timestamp -= first_ts
-        return messages, first_ts + max(0.0, (messages[-1].timestamp or 0.0) - last_ts)
+
+        return messages, first_ts
 
     def convert_audio_to_audio_buffered(
         self,
