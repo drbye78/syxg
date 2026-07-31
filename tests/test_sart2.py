@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from synth.engines.region_descriptor import RegionDescriptor
-from synth.protocols.xg.sart.articulation_controller import ArticulationController
+from synth.protocols.xg.sart.controllers import ArticulationController
 from synth.protocols.xg.sart.nrpn import YamahaNRPNMapper
 from synth.protocols.xg.sart.sart2_region import SArt2Region, SArt2RegionFactory
 

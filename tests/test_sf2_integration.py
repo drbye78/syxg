@@ -237,14 +237,14 @@ class TestSF2Integration:
 
         region = SF2Region(descriptor, 44100, sf2_manager)
 
-        # 0 cents = 440 Hz
-        assert abs(region._cents_to_frequency(0) - 440.0) < 0.1
+        # SF2 spec: 0 absolute cents = C0 = 8.176 Hz (MIDI note 0)
+        assert abs(region._cents_to_frequency(0) - 8.176) < 0.1
 
-        # 1200 cents = 880 Hz (one octave up)
-        assert abs(region._cents_to_frequency(1200) - 880.0) < 0.1
+        # 1200 cents = one octave up from C0 = 16.352 Hz
+        assert abs(region._cents_to_frequency(1200) - 16.352) < 0.1
 
-        # -1200 cents = 220 Hz (one octave down)
-        assert abs(region._cents_to_frequency(-1200) - 220.0) < 0.1
+        # -1200 cents = one octave down from C0 = 4.088 Hz
+        assert abs(region._cents_to_frequency(-1200) - 4.088) < 0.1
 
     def test_sf2_region_matches_note_velocity(self, sf2_manager):
         """Test SF2Region note/velocity matching."""

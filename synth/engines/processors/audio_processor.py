@@ -142,10 +142,17 @@ class AudioProcessor:
                 # Process the MIDI message (same as real-time processing)
                 self._process_buffered_midi_message(message)
 
-            # Determine the segment length until the next MIDI message
-            # Process the entire requested block in one go for simplicity
-            # This avoids buffer size mismatches from segment processing
-            segment_length = block_size - block_offset
+            # Determine segment length: up to the next MIDI message timestamp,
+            # or the end of the block if no more messages.
+            remaining = block_size - block_offset
+            if at_index < len(self._message_sequence):
+                next_ts = self._message_sequence[at_index].timestamp
+                samples_to_next = max(
+                    1, int((next_ts - at_time) * self.synthesizer.sample_rate)
+                )
+                segment_length = min(samples_to_next, remaining)
+            else:
+                segment_length = remaining
 
             for i, channel in enumerate(self.synthesizer.channels):
                 if channel.is_active():

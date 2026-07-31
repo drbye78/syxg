@@ -188,9 +188,8 @@ juce::String PythonIntegration::getSynthesizerStatus() const
     {
         GilLock gil;
 
-        // Get status from synthesizer
-        // Placeholder - actual method will depend on XG synthesizer API
-        auto status = xgSynthesizer.attr("get_status")();
+            // Use get_synthesizer_info() which exists on ModernXGSynthesizer
+            py::object status = xgSynthesizer.attr("get_synthesizer_info")();
         return juce::String(py::str(status));
     }
     catch (const std::exception& e)
@@ -243,16 +242,9 @@ bool PythonIntegration::setParameter(const juce::String& parameterName, float va
         }
         else
         {
-            // Unknown parameter - try generic set_parameter if it exists
-            try
-            {
-                xgSynthesizer.attr("set_parameter")(parameterName.toStdString(), value);
-            }
-            catch (const std::exception&)
-            {
-                DBG("Unknown parameter: " + parameterName);
-                return false;
-            }
+            // Unknown parameter — log and skip gracefully
+            DBG("Unknown parameter: " + parameterName);
+            return false;
         }
 
         return true;
@@ -272,11 +264,10 @@ float PythonIntegration::getParameter(const juce::String& parameterName) const
     try
     {
         GilLock gil;
-
-        // Get parameter from synthesizer
-        // Placeholder - actual method will depend on XG synthesizer API
-        auto value = xgSynthesizer.attr("get_parameter")(parameterName.toStdString());
-        return py::float_(value);
+        // getParameter: return 0.0 for unknown parameters (no generic getter exists).
+        // Specific parameters are handled via named methods in setParameter.
+        (void)parameterName;
+        return 0.0f;
     }
     catch (const std::exception& e)
     {
@@ -317,11 +308,11 @@ bool PythonIntegration::saveXGMLConfig(const juce::String& configPath)
     {
         GilLock gil;
 
-        // Save XGML configuration
-        // Placeholder - actual method will depend on XG synthesizer API
-        xgSynthesizer.attr("save_xgml_config")(configPath.toStdString());
-
-        return true;
+        // save_xgml_config is not implemented on ModernXGSynthesizer.
+        // XGML config persistence requires a separate XGML module integration.
+        DBG("save_xgml_config not implemented — XGML persistence deferred");
+        (void)configPath;
+        return false;
     }
     catch (const std::exception& e)
     {
@@ -380,7 +371,7 @@ bool PythonIntegration::createXGSynthesizer(double sampleRate)
     {
         GilLock gil;
 
-        py::module xgModule = py::module::import("engine.modern_xg_synthesizer");
+        py::module xgModule = py::module::import("synth.synthesizers.rendering");
         auto synthesizerClass = xgModule.attr("ModernXGSynthesizer");
 
         xgSynthesizer = synthesizerClass(
@@ -408,7 +399,7 @@ bool PythonIntegration::createPatternSequencer()
         GilLock gil;
 
         // Import and create pattern sequencer
-        py::module sequencerModule = py::module::import("sequencer.pattern_sequencer");
+        py::module sequencerModule = py::module::import("synth.sequencer.pattern_sequencer");
         auto sequencerClass = sequencerModule.attr("PatternSequencer");
 
         // Create sequencer instance
@@ -433,8 +424,8 @@ bool PythonIntegration::testIntegration()
         // Test basic functionality
         if (xgSynthesizer)
         {
-            // Try to call a basic method
-            auto info = xgSynthesizer.attr("get_synthesizer_info")();
+            // Verify ModernXGSynthesizer API via get_synthesizer_info()
+            py::object info = xgSynthesizer.attr("get_synthesizer_info")();
             DBG("Synthesizer info retrieved successfully");
         }
 
@@ -462,7 +453,7 @@ bool PythonIntegration::setPartParameter(int part, const juce::String& parameter
     try
     {
         GilLock gil;
-        xgSynthesizer.attr("set_channel_parameter")(part, parameterName.toStdString(), value);
+        xgSynthesizer.attr("set_gs_part_parameter")(part, parameterName.toStdString(), value);
         return true;
     }
     catch (const std::exception& e)

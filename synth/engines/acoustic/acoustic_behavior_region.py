@@ -1,13 +1,14 @@
 """Acoustic behavior wrapper region (SuperNATURAL-Acoustic alike).
 
 Wraps ANY base IRegion (SF2/SFZ sampler) and adds MIDI-driven single-note
-AND cross-note (multi-voice) dynamics, reusing the S.Art2 modifier set.
+AND cross-note (multi-voice) dynamics, using the ArticulationEngine for
+modular, stereo-native articulation processing.
 
 Pipeline per block (on the stereo ``(block_size, 2)`` buffer):
 
     base.generate_samples()            # raw sampler output
       -> velocity_timbre               # [A] single-note brightness/body
-      -> sart_bridge.apply(articulation)  # reuse S.Art2 per-channel
+      -> art_engine.apply(articulation)   # modular articulation DSP
       -> performance_noise             # [A] key-off / hammer / breath
       -> sympathetic_resonance         # [B] shared bus fed by all voices
       -> damper_resonance              # [B] pedal-up coupling
@@ -26,9 +27,9 @@ from typing import Any
 import numpy as np
 
 from ...processing.partial.region import IRegion, RegionState
+from ...engines.articulation import ArticulationEngine, ArticulationContext
 from .behavior_config import BehaviorConfig, InstrumentGroup
 from .channel_context import ChannelAcousticContext
-from .sart_bridge import SArt2Bridge
 from .voice_state import VoiceBehaviorState
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ class AcousticBehaviorRegion(IRegion):
     """Wraps a base sampler region with acoustic behavior modeling."""
 
     __slots__ = [
-        "_bridge",
+        "_art_engine",
         "_dsp",
         "_state",
         "base_region",
@@ -60,7 +61,7 @@ class AcousticBehaviorRegion(IRegion):
         self.context = context
         self.group = group
         self.config = config or context.config
-        self._bridge = SArt2Bridge(sample_rate)
+        self._art_engine = ArticulationEngine(sample_rate)
         self._state: VoiceBehaviorState | None = None
         self._dsp: dict[str, Any] = {}
 
@@ -107,7 +108,14 @@ class AcousticBehaviorRegion(IRegion):
         phrase = self.context.get_phrase_state()
         detune = self.context.claim_detune_offset(id(self))
         self._state = VoiceBehaviorState(voice_id=id(self), note=note, velocity=velocity)
-        self._state.classify(phrase, detune_offset=detune, legato=self.config.legato_enabled)
+        held_pitches = [h.note for h in self.context.held_notes.values()]
+        self._state.classify(
+            phrase,
+            detune_offset=detune,
+            legato=self.config.legato_enabled,
+            instrument_group=self.group,
+            held_note_pitches=held_pitches if held_pitches else None,
+        )
 
         ok = self.base_region.note_on(velocity, note)
         if not ok:
@@ -166,12 +174,20 @@ class AcousticBehaviorRegion(IRegion):
             vt = self._get_dsp("velocity_timbre")
             buf = vt.process(buf, state.velocity, self.group)
 
-        # 3. Reuse S.Art2 articulation per-channel (stereo-safe)
+        # 3. Apply articulation via ArticulationEngine (stereo-native, context-aware)
         articulation = str(modulation.get("articulation", "normal"))
-        if articulation not in ("normal", ""):
+        if articulation not in ("normal", "") and self._state is not None:
             art_params = modulation.get("articulation_params")
-            art_params = art_params if isinstance(art_params, dict) else None
-            buf = self._bridge.apply(buf, articulation, params=art_params)
+            art_params = art_params if isinstance(art_params, dict) else {}
+            art_ctx = ArticulationContext(
+                note=self._state.note,
+                velocity=self._state.velocity,
+                instrument_group=self.group,
+                sample_rate=self.sample_rate,
+                channel_context=self.context,
+                voice_state=self._state,
+            )
+            self._art_engine.apply(buf, articulation, art_ctx)
 
         # 3b. [A] Mallet velocity-to-decay tilt (harder hits decay faster)
         if (

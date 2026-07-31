@@ -393,8 +393,9 @@ class XGChannelParameters:
         param_key = self._lsb_to_parameter_key(msb, lsb)
         if param_key and param_key in self.parameters:
             # Convert 14-bit value to 7-bit for storage
-            seven_bit_value = value >> 7
-            self.parameters[param_key] = seven_bit_value
+            # Store 14-bit value normalized as float 0.0-1.0
+            normalized_value = value / 16383.0
+            self.parameters[param_key] = normalized_value
             return True
         return False
 

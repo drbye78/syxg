@@ -138,7 +138,28 @@ class SF2SampleModifier:
         if articulation in self._custom_handlers:
             return self._custom_handlers[articulation](sample, params)
 
-        # Apply specific articulation
+        # Check alias table (Phase B) — maps articulation names to
+        # existing apply_* methods with default parameter overrides.
+        from .mappings import NRPN_ARTICULATION_ALIASES
+
+        alias = NRPN_ARTICULATION_ALIASES.get(articulation)
+        if alias is not None:
+            if "chain" in alias:
+                # Multi-step chain — apply each step in sequence
+                for step in alias["chain"]:
+                    method_name = f"apply_{step['method']}"
+                    if hasattr(self, method_name):
+                        merged = {**step.get("params", {}), **params}
+                        sample = getattr(self, method_name)(sample, merged)
+                return sample
+            else:
+                # Single alias
+                method_name = f"apply_{alias['method']}"
+                if hasattr(self, method_name):
+                    merged = {**alias.get("params", {}), **params}
+                    return getattr(self, method_name)(sample, merged)
+
+        # Apply specific articulation (existing hasattr dispatch)
         method_name = f"apply_{articulation}"
         if hasattr(self, method_name):
             method = getattr(self, method_name)

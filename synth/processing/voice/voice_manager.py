@@ -278,6 +278,14 @@ class VoiceManager:
         self.voice_deallocated_callback: Callable[[int], None] | None = None
         self.voice_stolen_callback: Callable[[VoiceInfo, VoiceInfo], None] | None = None
 
+        # Per-part voice reserve limits (set by XG multi-part setup)
+        # dict[int, int] mapping part_num → max_voices
+        self._voice_reserve: dict[int, int] = {}
+
+    def set_voice_reserve(self, reserve: dict[int, int]) -> None:
+        """Set per-part voice reserve limits from XG multi-part setup."""
+        self._voice_reserve = dict(reserve)
+
     def allocate_voice(
         self,
         channel: int,
@@ -306,6 +314,21 @@ class VoiceManager:
             Voice ID or None if allocation failed
         """
         with self.lock:
+            # Check voice reserve limit for this part
+            reserve_limit = self._voice_reserve.get(channel)
+            if reserve_limit is not None:
+                part_voices = self._count_active_for_part(channel)
+                if part_voices >= reserve_limit:
+                    # Try to steal from this part first
+                    stolen = self._steal_voice_for_part(channel)
+                    if stolen is None:
+                        self.allocation_stats["allocation_failures"] += 1
+                        return None
+                    return self._reallocate_voice(
+                        stolen, channel, note, velocity, engine_type,
+                        engine_params, modulation_data, mpe_zone_id, mpe_note_number
+                    )
+
             # Check if voice already exists for this note/channel
             existing_voice = self.find_voice(channel, note)
             if existing_voice is not None:
@@ -665,6 +688,24 @@ class VoiceManager:
                 highest_voice = voice_id
 
         return highest_voice
+
+    def _count_active_for_part(self, part: int) -> int:
+        """Count active voices for a specific part/channel."""
+        count = 0
+        for voice_info in self.active_voices.values():
+            if voice_info.channel == part and voice_info.state != "RELEASED":
+                count += 1
+        return count
+
+    def _steal_voice_for_part(self, part: int) -> int | None:
+        """Steal a voice from a specific part, preferring oldest."""
+        candidates = {}
+        for voice_id, voice_info in self.active_voices.items():
+            if voice_info.channel == part:
+                candidates[voice_id] = voice_info
+        if not candidates:
+            return None
+        return self._steal_oldest(candidates)
 
     def deallocate_voice(self, voice_id: int) -> bool:
         """

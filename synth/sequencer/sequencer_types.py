@@ -45,6 +45,15 @@ class RecordingMode(Enum):
     REPLACE = 3
 
 
+class NotePlayState(Enum):
+    """Runtime playback states for scheduled notes"""
+
+    PENDING = 0  # Scheduled, not yet triggered
+    ACTIVE = 1  # Note-on fired, waiting for note-off time
+    RELEASED = 2  # Note-off fired, awaiting cleanup
+    CANCELLED = 3  # Removed before triggering
+
+
 @dataclass(slots=True)
 class NoteEvent:
     """Represents a MIDI note event in the sequencer"""
@@ -67,6 +76,23 @@ class NoteEvent:
     def get_end_time(self) -> float:
         """Get the end time of this note"""
         return self.time + self.duration
+
+
+@dataclass(slots=True)
+class SequencedNote:
+    """Runtime wrapper for a note event tracked by the NoteSequencer.
+
+    Stores scheduling state that is only meaningful during active playback:
+    trigger times, note-off times, and the current play state. The source
+    NoteEvent is preserved untouched so it can be re-used for looping or
+    serialization.
+    """
+
+    event: NoteEvent  # The source note data (time/duration in beats)
+    trigger_time: float  # Absolute wall-clock time to fire note-on (seconds)
+    note_off_time: float | None = None  # When to fire note-off; None until triggered
+    state: NotePlayState = NotePlayState.PENDING
+    seq_id: int = 0  # Unique ID assigned by NoteSequencer for cancellation/lookup
 
 
 @dataclass(slots=True)

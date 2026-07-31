@@ -556,8 +556,8 @@ class DrumManager:
             }
 
             if parameter in param_map:
-                # Use channel 9 (drum channel) for drum parameters
-                drum_channel = 9
+                # Determine drum channel from part mode, not hardcoded to 9
+                drum_channel = self._resolve_drum_channel(address)
                 param_name = param_map[parameter]
 
                 # Convert value based on parameter type
@@ -729,3 +729,11 @@ class DrumManager:
             raise ValueError(f"Channel {channel} is out of range (0-{self.num_channels - 1})")
 
         self.drum_kits[channel] = kit_name
+
+    def _resolve_drum_channel(self, address: int) -> int:
+        """Determine drum channel from part mode, not hardcoded to 9."""
+        for part_num in range(self.num_channels):
+            part = getattr(self, "_parts", {}).get(part_num, {})
+            if part.get("part_mode", 0) >= 1 or part.get("bank_msb", 0) == 127:
+                return part_num
+        return 9

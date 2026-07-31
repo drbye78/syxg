@@ -236,6 +236,23 @@ class VoiceInstance:
 
         self.release_triggered = True
 
+    def retrigger_envelope(self) -> None:
+        """Retrigger attack phase on all active regions without destroying the voice.
+
+        Used by note-level articulations (double_tongue, triple_tongue) that
+        re-articulate a sustained note. Calls note_on() on active regions to
+        reset their envelope state machines to ATTACK phase while preserving
+        the voice identity and modulation state.
+
+        Does NOT clear active_regions — the same regions are retriggered in-place.
+        Does NOT change velocity or note — the existing pitch/velocity are preserved.
+        """
+        for region in list(self.active_regions):
+            try:
+                region.note_on(self.velocity, self.note)
+            except Exception as e:
+                logger.error(f"VoiceInstance retrigger_envelope failed: {e}")
+
     # ========== S.Art2 ARTICULATION CONTROL ==========
 
     def set_articulation(self, articulation: str, **parameters) -> None:

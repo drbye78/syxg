@@ -168,7 +168,7 @@ XG SPECIFICATION COMPLIANCE:
 SF2 STANDARD IMPLEMENTATION:
 - FULL SF2 2.04 SPECIFICATION: Complete feature set implementation
 - FILE FORMAT SUPPORT: Standard .sf2 file loading and parsing
-- GENERATOR SUPPORT: All 60+ SF2 generators implemented
+- GENERATOR SUPPORT: 24 core SF2 generators extracted; remaining generators handled in SF2Region
 - MODULATOR SUPPORT: Complete modulation matrix implementation
 
 PROFESSIONAL AUDIO FEATURES:
@@ -334,7 +334,9 @@ class SF2Engine(SynthesisEngine):
         Returns:
             SF2Region instance
         """
-        return SF2Region(descriptor, sample_rate, self.soundfont_manager)
+        region = SF2Region(descriptor, sample_rate, self.soundfont_manager)
+        region._soundfont_path = getattr(self, "sf2_file_path", None)
+        return region
 
     def create_partial(self, partial_params: dict, sample_rate: int) -> SF2Region:
         """

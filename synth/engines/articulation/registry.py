@@ -1,0 +1,450 @@
+"""ARTICULATION_REGISTRY — data-driven dispatch for all 289 articulation names.
+
+Maps each NRPN articulation name to (ProcessorClass | Sentinel, params).
+Sentinels: VOICE_LEVEL, DYNAMICS, STUB — handle non-DSP entries.
+"""
+
+from __future__ import annotations
+
+from .processors.pitch import PitchModProcessor
+from .processors.envelope import EnvelopeProcessor
+from .processors.amplitude import AmplitudeModProcessor
+from .processors.filter_proc import FilterProcessor
+from .processors.noise import NoiseProcessor
+from .processors.transient import TransientProcessor
+from .processors.formant import FormantProcessor
+from .processors.rotary import RotaryProcessor
+from .processors.standalone import HarmonicsProcessor, PedalProcessor, CompositeProcessor
+
+# ── Sentinel objects for non-DSP dispatch ──
+VOICE_LEVEL = object()  # Routed to VoiceLevelFeatures
+DYNAMICS = object()     # Routed to CC7/CC11
+STUB = object()         # NRPN compatibility only, logged, no audio effect
+NOTE_LEVEL = object()   # Routed to ArticulationNoteSequencer (grace, agoge, raking, double/triple tongue)
+
+# ── Registry ──
+ARTICULATION_REGISTRY: dict[str, tuple[type | object, dict]] = {
+    # === Pitch-based (PitchModProcessor) ===
+    "vibrato":         (PitchModProcessor, {"type": "vibrato", "rate": 5.0, "depth": 0.5}),
+    "wide_vibrato":    (PitchModProcessor, {"type": "vibrato", "rate": 5.0, "depth": 0.8}),
+    "trill":           (PitchModProcessor, {"type": "trill", "rate": 8.0, "interval": 2}),
+    "glissando":       (PitchModProcessor, {"type": "glissando", "amount": 12}),
+    "bend":            (PitchModProcessor, {"type": "bend", "amount": 1.0}),
+    "hammer_on":       (PitchModProcessor, {"type": "hammer_on", "amount": 2}),
+    "pull_off":        (PitchModProcessor, {"type": "pull_off", "amount": -2}),
+    "scoop":           (PitchModProcessor, {"type": "scoop", "amount": -2.0, "curve": "exponential"}),
+    "fall":            (PitchModProcessor, {"type": "fall", "amount": -7.0, "curve": "exponential"}),
+    "doit":            (PitchModProcessor, {"type": "doit", "amount": 3.0, "curve": "exponential"}),
+    "rip":             (PitchModProcessor, {"type": "rip", "amount": 12.0}),
+    "smear":           (PitchModProcessor, {"type": "smear", "amount": 2.0}),
+    "flip":            (PitchModProcessor, {"type": "flip", "amount": 1.0}),
+    "portamento":      (PitchModProcessor, {"type": "portamento", "speed": 0.05}),
+    "bend_ethnic":     (PitchModProcessor, {"type": "ethnic_bend", "amount": 0.5, "speed": 0.3}),
+    "up_bend":         (PitchModProcessor, {"type": "bend", "amount": 2.0}),
+    "down_bend":       (PitchModProcessor, {"type": "bend", "amount": -2.0}),
+    "shake":           (PitchModProcessor, {"type": "vibrato", "rate": 10.0, "depth": 0.6}),
+    "straight":        (PitchModProcessor, {"type": "vibrato", "rate": 0.0, "depth": 0.0}),
+
+    # === Envelope (EnvelopeProcessor) ===
+    "pizzicato":       (EnvelopeProcessor, {"type": "pizzicato", "decay": 8.0}),
+    "staccato":        (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.05}),
+    "marcato":         (EnvelopeProcessor, {"type": "marcato", "accent": 1.3, "decay": 0.1}),
+    "swell":           (EnvelopeProcessor, {"type": "swell", "attack": 0.1, "release": 0.2}),
+    "crescendo":       (EnvelopeProcessor, {"type": "crescendo", "ramp": "up"}),
+    "diminuendo":      (EnvelopeProcessor, {"type": "crescendo", "ramp": "down"}),
+    "dead_note":       (EnvelopeProcessor, {"type": "dead_note", "decay": 0.01}),
+    "legato":          (EnvelopeProcessor, {"type": "legato", "transition_time": 0.05}),
+    "spiccato":        (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.02}),
+    "accented":        (EnvelopeProcessor, {"type": "marcato", "accent": 1.2}),
+    "tenuto_ethnic":   (EnvelopeProcessor, {"type": "tenuto", "hold": 0.8}),
+    "detache":         (EnvelopeProcessor, {"type": "detache", "separation": 0.02}),
+
+    # === Amplitude modulation (AmplitudeModProcessor) ===
+    "tremolo":         (AmplitudeModProcessor, {"type": "tremolo", "rate": 6.0, "depth": 0.5}),
+    "flutter":         (AmplitudeModProcessor, {"type": "flutter", "rate": 12.0, "depth": 0.15}),
+    "growl":           (AmplitudeModProcessor, {"type": "growl", "rate": 25.0, "depth": 0.25}),
+
+    # === Filter (FilterProcessor) ===
+    "soft_pedal":      (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.6, "level": 0.7}),
+    "sub_bass":        (FilterProcessor, {"type": "sub_osc", "sub_freq": 40.0, "sub_osc_mix": 0.3}),
+    "palm_mute_gtr":   (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.3, "level": 0.6}),
+    "con_sordino":     (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.5, "level": 0.8}),
+    "sul_tasto":       (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.4}),
+    "sul_ponticello":  (FilterProcessor, {"type": "highpass", "cutoff_ratio": 0.3}),
+    "senza_sordino":   (FilterProcessor, {"type": "bypass"}),
+    "Organ_soft":      (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.5, "level": 0.8}),
+    "Organ_loud":      (FilterProcessor, {"type": "highpass", "cutoff_ratio": 1.2, "level": 1.1}),
+
+    # === Noise (NoiseProcessor) ===
+    "fret_noise":      (NoiseProcessor, {"type": "fret_noise", "level": 0.15}),
+    "rim_shot":        (NoiseProcessor, {"type": "rim_shot", "level": 0.3}),
+    "open_rim":        (NoiseProcessor, {"type": "open_rim", "level": 0.25}),
+    "breath":          (NoiseProcessor, {"type": "breath", "level": 0.15}),
+    "tongue_slap":     (NoiseProcessor, {"type": "tongue_slap", "level": 0.3}),
+    "key_off_noise":   (NoiseProcessor, {"type": "key_off", "level": 0.05}),
+    "damper_noise":    (NoiseProcessor, {"type": "damper", "level": 0.03}),
+    "hammer_noise":    (NoiseProcessor, {"type": "hammer", "level": 0.04}),
+    "body_hit_gtr":    (NoiseProcessor, {"type": "body_hit", "level": 0.3}),
+    "click_organ":     (NoiseProcessor, {"type": "organ_click", "level": 0.2}),
+
+    # === Transient (TransientProcessor) ===
+    "flam":            (TransientProcessor, {}),
+    "drag":            (TransientProcessor, {}),
+    "ruff":            (TransientProcessor, {}),
+    "diddle":          (TransientProcessor, {}),
+
+    # === Rotary (RotaryProcessor) ===
+    "leslie_slow":     (RotaryProcessor, {"speed": "slow"}),
+    "leslie_fast":     (RotaryProcessor, {"speed": "fast"}),
+    "rotary_organ":    (RotaryProcessor, {"speed": "medium"}),
+
+    # === Harmonics ===
+    "harmonics":       (HarmonicsProcessor, {"partial": 2}),
+
+    # === Pedal ===
+    "sustain_pedal":   (PedalProcessor, {"type": "sustain", "level": 0.8, "release_rate": 0.5}),
+
+    # === Composite ===
+    "tremolo_sordino": (CompositeProcessor, {"chain": [
+        (AmplitudeModProcessor, {"type": "tremolo", "rate": 6.0, "depth": 0.3}),
+        (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.5}),
+    ]}),
+
+    # === Dynamics (CC7/CC11 routing) ===
+    "normal":          (DYNAMICS, {}),
+    "ppp":  (DYNAMICS, {"level": 0.05}), "pp":   (DYNAMICS, {"level": 0.15}),
+    "p":    (DYNAMICS, {"level": 0.30}), "mp":   (DYNAMICS, {"level": 0.45}),
+    "mf":   (DYNAMICS, {"level": 0.60}), "f":    (DYNAMICS, {"level": 0.75}),
+    "ff":   (DYNAMICS, {"level": 0.88}), "fff":  (DYNAMICS, {"level": 1.00}),
+    "sfz":  (DYNAMICS, {"level": 1.0, "accent": 1.5}),
+    "rfz":  (DYNAMICS, {"level": 1.0, "accent": 1.3}),
+
+    # === Voice-level features ===
+    "trig_synth":      (VOICE_LEVEL, {"feature": "trigger_mode", "mode": "trig"}),
+    "gate_synth":      (VOICE_LEVEL, {"feature": "trigger_mode", "mode": "gate"}),
+    "tie_synth":       (VOICE_LEVEL, {"feature": "trigger_mode", "mode": "tie"}),
+    "legato_synth":    (VOICE_LEVEL, {"feature": "trigger_mode", "mode": "legato"}),
+    "glide":           (VOICE_LEVEL, {"feature": "glide", "time": 0.05}),
+    "lfo_sync":        (VOICE_LEVEL, {"feature": "lfo_sync", "enabled": True}),
+    "lfo_free":        (VOICE_LEVEL, {"feature": "lfo_sync", "enabled": False}),
+    "filter_sweep":    (VOICE_LEVEL, {"feature": "filter_envelope", "depth": 0.8, "polarity": "+"}),
+    "filter_snap":     (VOICE_LEVEL, {"feature": "filter_envelope", "depth": 1.0, "attack_fast": True}),
+
+    # === STUB — NRPN compatibility only ===
+    "sitar_attack":    (STUB, {"reason": "requires sitar sample library"}),
+    "sitar_pluck":     (STUB, {"reason": "requires sitar sample library"}),
+    "sitar_bend":      (STUB, {"reason": "requires sitar sample library"}),
+    "tabla_tom":       (STUB, {"reason": "requires tabla sample library"}),
+    "tabla_ti":        (STUB, {"reason": "requires tabla sample library"}),
+    "tabla_na":        (STUB, {"reason": "requires tabla sample library"}),
+    "tabla_ke":        (STUB, {"reason": "requires tabla sample library"}),
+    "didgeridoo_drone":(STUB, {"reason": "requires didgeridoo sample library"}),
+    "didgeridoo_rit":  (STUB, {"reason": "requires didgeridoo sample library"}),
+    "berimbau_roll":   (STUB, {"reason": "requires berimbau sample library"}),
+    "berimbau_clic":   (STUB, {"reason": "requires berimbau sample library"}),
+    "kalimba_pluck":   (STUB, {"reason": "requires kalimba sample library"}),
+    "kora_pluck":      (STUB, {"reason": "requires kora sample library"}),
+    "guzheng_ply":     (STUB, {"reason": "requires guzheng sample library"}),
+    "guzheng_gliss":   (STUB, {"reason": "requires guzheng sample library"}),
+    "tanpura_drone":   (STUB, {"reason": "requires tanpura sample library"}),
+    "dholak_roll":     (STUB, {"reason": "requires dholak sample library"}),
+    "dholak_tak":      (STUB, {"reason": "requires dholak sample library"}),
+    "drawbar_organ":   (STUB, {"reason": "requires harmonic synthesis engine"}),
+    "percussive_organ":(STUB, {"reason": "requires harmonic synthesis engine"}),
+    "click_organ":     (NoiseProcessor, {"type": "organ_click", "level": 0.2}),
+    "chorus_organ":    (STUB, {"reason": "requires organ effects engine"}),
+    "reverb_organ":    (STUB, {"reason": "requires organ effects engine"}),
+    "Organ_full":      (STUB, {"reason": "requires organ register preset"}),
+    "Organ_gospel":    (STUB, {"reason": "requires organ register preset"}),
+    "Organ_jazzy":     (STUB, {"reason": "requires organ register preset"}),
+    "Organ_rock":      (STUB, {"reason": "requires organ register preset"}),
+    "grace":           (NOTE_LEVEL, {"type": "grace"}),
+    "grace_ethnic":    (NOTE_LEVEL, {"type": "grace"}),
+    "double_tongue":   (NOTE_LEVEL, {"type": "double_tongue"}),
+    "triple_tongue":   (NOTE_LEVEL, {"type": "triple_tongue"}),
+    "agoge":           (NOTE_LEVEL, {"type": "agoge"}),
+    "raking":          (NOTE_LEVEL, {"type": "raking"}),
+    "pedal_point":     (STUB, {"reason": "requires voice manager support"}),
+    "duplex_scale":    (STUB, {"reason": "requires piano physical modeling"}),
+    "string_resonance":(STUB, {"reason": "requires piano physical modeling"}),
+    "sostenuto_pedal": (STUB, {"reason": "requires sostenuto state machine"}),
+    "una_corda":       (STUB, {"reason": "requires una corda sample layer"}),
+    "tre_corde":       (STUB, {"reason": "requires tre corde sample layer"}),
+    "key_off_early":   (STUB, {"reason": "requires note-duration state machine"}),
+    "key_off_late":    (STUB, {"reason": "requires note-duration state machine"}),
+    "arpeggio_up":     (STUB, {"reason": "requires arpeggiator integration"}),
+    "arpeggio_down":   (STUB, {"reason": "requires arpeggiator integration"}),
+    # === Processor-mapped (Phase A MSB 5/6 entries + remaining gaps) ===
+    "bend_ethnic":     (PitchModProcessor, {"type": "ethnic_bend", "amount": 0.5, "speed": 0.3}),
+    "wide_vibrato":    (PitchModProcessor, {"type": "vibrato", "rate": 5.0, "depth": 0.8}),
+    "vibrato_gtr":     (PitchModProcessor, {"type": "vibrato", "rate": 5.5, "depth": 0.6}),
+    "vibrato_ethnic":  (PitchModProcessor, {"type": "vibrato", "rate": 4.0, "depth": 0.4}),
+    "vibrato_vocal":   (PitchModProcessor, {"type": "vibrato", "rate": 5.5, "depth": 0.35}),
+    "vibrato_organ":   (PitchModProcessor, {"type": "vibrato", "rate": 5.0, "depth": 0.5}),
+    "vibrato_pizz":    (PitchModProcessor, {"type": "vibrato", "rate": 4.0, "depth": 0.3}),
+    "tremolo_gtr":     (AmplitudeModProcessor, {"type": "tremolo", "rate": 8.0, "depth": 0.4}),
+    "tremolo_bass":    (AmplitudeModProcessor, {"type": "tremolo", "rate": 5.0, "depth": 0.3}),
+    "tremolo_ethnic":  (AmplitudeModProcessor, {"type": "tremolo", "rate": 7.0, "depth": 0.4}),
+    "tremolando":      (AmplitudeModProcessor, {"type": "tremolo", "rate": 12.0, "depth": 0.3}),
+    "buzz_roll":       (AmplitudeModProcessor, {"type": "tremolo", "rate": 25.0, "depth": 0.8}),
+    "press_roll":      (AmplitudeModProcessor, {"type": "tremolo", "rate": 30.0, "depth": 0.6}),
+    "flutter_wind":    (AmplitudeModProcessor, {"type": "flutter", "rate": 15.0, "depth": 0.12}),
+    "growl_wind":      (AmplitudeModProcessor, {"type": "growl", "rate": 30.0, "depth": 0.2}),
+    "growl_vocal":     (AmplitudeModProcessor, {"type": "growl", "rate": 35.0, "depth": 0.3}),
+    "lip_trill":       (PitchModProcessor, {"type": "trill", "rate": 10.0, "interval": 1}),
+    "trill_vocal":     (PitchModProcessor, {"type": "trill", "rate": 6.0, "interval": 2}),
+    "trill_ethnic":    (PitchModProcessor, {"type": "trill", "rate": 7.0, "interval": 1}),
+    "mordent_vocal":   (PitchModProcessor, {"type": "trill", "rate": 12.0, "interval": 1}),
+    "mordent_ethnic":  (PitchModProcessor, {"type": "trill", "rate": 10.0, "interval": 1}),
+    "turn_vocal":      (PitchModProcessor, {"type": "trill", "rate": 8.0, "interval": 2}),
+    "turn_ethnic":     (PitchModProcessor, {"type": "trill", "rate": 6.0, "interval": 2}),
+    "glissando_vocal": (PitchModProcessor, {"type": "glissando", "amount": 8}),
+    "glissando_bass":  (PitchModProcessor, {"type": "glissando", "amount": 5}),
+    "gliss_ethnic":    (PitchModProcessor, {"type": "glissando", "amount": 7}),
+    "slide_up_gtr":    (PitchModProcessor, {"type": "glissando", "amount": 5}),
+    "slide_down_gtr":  (PitchModProcessor, {"type": "glissando", "amount": -5}),
+    "slide_ethnic":    (PitchModProcessor, {"type": "glissando", "amount": 3}),
+    "slide_bass":      (PitchModProcessor, {"type": "glissando", "amount": 3}),
+    "gliss_pizz":      (PitchModProcessor, {"type": "glissando", "amount": 7}),
+    "bend_gtr":        (PitchModProcessor, {"type": "bend", "amount": 2.0}),
+    "bend_release_gtr":(PitchModProcessor, {"type": "bend", "amount": 2.0}),
+    "pre_bend":        (PitchModProcessor, {"type": "bend", "amount": 1.0}),
+    "up_bend":         (PitchModProcessor, {"type": "bend", "amount": 2.0}),
+    "down_bend":       (PitchModProcessor, {"type": "bend", "amount": -2.0}),
+    "hammer_on_gtr":   (PitchModProcessor, {"type": "hammer_on", "amount": 3}),
+    "pull_off_gtr":    (PitchModProcessor, {"type": "pull_off", "amount": -3}),
+    "tapping_gtr":     (PitchModProcessor, {"type": "hammer_on", "amount": 2}),
+    "scoop_wind":      (PitchModProcessor, {"type": "scoop", "amount": -3.0, "curve": "exponential"}),
+    "rip_wind":        (PitchModProcessor, {"type": "rip", "amount": 12.0}),
+    "smear_wind":      (PitchModProcessor, {"type": "smear", "amount": 3.0}),
+    "flip_wind":       (PitchModProcessor, {"type": "flip", "amount": 1.5}),
+    "scoop_brass":     (PitchModProcessor, {"type": "scoop", "amount": -3.0, "curve": "exponential"}),
+    "drop_brass":      (PitchModProcessor, {"type": "fall", "amount": -5.0, "curve": "exponential"}),
+    "doit_brass":      (PitchModProcessor, {"type": "doit", "amount": 5.0, "curve": "exponential"}),
+    "fall_brass":      (PitchModProcessor, {"type": "fall", "amount": -8.0, "curve": "exponential"}),
+    "scoop_vocal":     (PitchModProcessor, {"type": "scoop", "amount": -1.5, "curve": "exponential"}),
+    "fall_vocal":      (PitchModProcessor, {"type": "fall", "amount": -4.0, "curve": "exponential"}),
+    "shake_brass":     (PitchModProcessor, {"type": "vibrato", "rate": 12.0, "depth": 0.5}),
+    "straight":        (PitchModProcessor, {"type": "vibrato", "rate": 0.0, "depth": 0.0}),
+    "portamento_fast": (PitchModProcessor, {"type": "portamento", "speed": 0.02}),
+    "portamento_slow": (PitchModProcessor, {"type": "portamento", "speed": 0.15}),
+    "portamento_strings":(PitchModProcessor, {"type": "portamento", "speed": 0.08}),
+    "portamento_piano":(PitchModProcessor, {"type": "portamento", "speed": 0.03}),
+    "portamento_vocal":(PitchModProcessor, {"type": "portamento", "speed": 0.06}),
+    "pizzicato_strings": (EnvelopeProcessor, {"type": "pizzicato", "decay": 6.0}),
+    "pizzicato_bass":    (EnvelopeProcessor, {"type": "pizzicato", "decay": 10.0}),
+    "pizzicato_snap":    (EnvelopeProcessor, {"type": "pizzicato", "decay": 15.0}),
+    "pizzicato_left":    (EnvelopeProcessor, {"type": "pizzicato", "decay": 7.0}),
+    "pizzicato_right":   (EnvelopeProcessor, {"type": "pizzicato", "decay": 7.0}),
+    "pizzicato_chord":   (EnvelopeProcessor, {"type": "pizzicato", "decay": 5.0}),
+    "barto_k":           (EnvelopeProcessor, {"type": "pizzicato", "decay": 12.0}),
+    "gyro_pizz":         (EnvelopeProcessor, {"type": "pizzicato", "decay": 5.0}),
+    "harmonic_pizz":     (EnvelopeProcessor, {"type": "pizzicato", "decay": 8.0}),
+    "muted_pizz":        (EnvelopeProcessor, {"type": "pizzicato", "decay": 5.0}),
+    "vibrato_pizz":      (EnvelopeProcessor, {"type": "pizzicato", "decay": 6.0}),
+    "thumb_pizz":        (EnvelopeProcessor, {"type": "pizzicato", "decay": 4.0}),
+    "slap_pizz":         (EnvelopeProcessor, {"type": "pizzicato", "decay": 3.0}),
+    "pop_pizz":          (EnvelopeProcessor, {"type": "pizzicato", "decay": 3.0}),
+    "tap_pizz":          (EnvelopeProcessor, {"type": "pizzicato", "decay": 2.0}),
+    "scratch_pizz":      (EnvelopeProcessor, {"type": "pizzicato", "decay": 2.0}),
+    "mute_staccato":     (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.03}),
+    "staccato_synth":    (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.04}),
+    "staccato_ethnic":   (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.06}),
+    "sautille":          (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.015}),
+    "ricochet":          (EnvelopeProcessor, {"type": "ricochet", "bounces": 4, "decay": 0.8}),
+    "martele":           (EnvelopeProcessor, {"type": "marcato", "accent": 1.5}),
+    "marcato_ethnic":    (EnvelopeProcessor, {"type": "marcato", "accent": 1.2, "decay": 0.08}),
+    "accent_ethnic":     (EnvelopeProcessor, {"type": "marcato", "accent": 1.15}),
+    "accent_synth":      (EnvelopeProcessor, {"type": "marcato", "accent": 1.4}),
+    "dead_stroke":       (EnvelopeProcessor, {"type": "dead_note", "decay": 0.005}),
+    "choke_perc":        (EnvelopeProcessor, {"type": "dead_note", "decay": 0.005}),
+    "closed_perc":       (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.02}),
+    "open_perc":         (EnvelopeProcessor, {"type": "swell", "attack": 0.01, "release": 0.1}),
+    "sustain_perc":      (EnvelopeProcessor, {"type": "tenuto", "hold": 0.8}),
+    "synth_attack":      (EnvelopeProcessor, {"type": "swell", "attack": 0.02}),
+    "synth_decay":       (EnvelopeProcessor, {"type": "pizzicato", "decay": 4.0}),
+    "synth_sustain":     (EnvelopeProcessor, {"type": "tenuto", "hold": 0.9}),
+    "synth_release":     (EnvelopeProcessor, {"type": "swell", "release": 0.3}),
+    "ethnic_attack":     (TransientProcessor, {"type": "ethnic_attack"}),
+    "ethnic_decay":      (TransientProcessor, {"type": "ethnic_decay"}),
+    "perc_attack":       (TransientProcessor, {"type": "perc_attack"}),
+    "perc_decay":        (TransientProcessor, {"type": "perc_decay"}),
+    "bounce":            (TransientProcessor, {"type": "bounce"}),
+    "muted_brass":       (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.4, "level": 0.7}),
+    "cup_mute":          (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.5}),
+    "harmon_mute":       (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.4}),
+    "stopped":           (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.3, "level": 0.6}),
+    "mute_gtr":          (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.2, "level": 0.4}),
+    "mute_perc":         (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.1, "level": 0.3}),
+    "muted_bass":        (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.3, "level": 0.5}),
+    "sul_ponticello_strings": (FilterProcessor, {"type": "highpass", "cutoff_ratio": 0.3}),
+    "col_legno":         (FilterProcessor, {"type": "highpass", "cutoff_ratio": 1.2, "level": 0.7}),
+    "col_legno_strings": (FilterProcessor, {"type": "highpass", "cutoff_ratio": 1.2, "level": 0.7}),
+    "flautando":         (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.3}),
+    "sul_g":             (FilterProcessor, {"type": "highpass", "cutoff_ratio": 1.3}),
+    "punto":             (FilterProcessor, {"type": "highpass", "cutoff_ratio": 1.1}),
+    "bow_up":            (PitchModProcessor, {"type": "vibrato", "rate": 3.0, "depth": 0.3}),
+    "bow_down":          (PitchModProcessor, {"type": "vibrato", "rate": 4.0, "depth": 0.25}),
+    "bow_up_strings":    (PitchModProcessor, {"type": "vibrato", "rate": 3.0, "depth": 0.3}),
+    "bow_down_strings":  (PitchModProcessor, {"type": "vibrato", "rate": 4.0, "depth": 0.25}),
+    "breath_ethnic":     (NoiseProcessor, {"type": "breath", "level": 0.12}),
+    "vocal_breath":      (NoiseProcessor, {"type": "breath", "level": 0.2}),
+    "shakuhachi_breath": (NoiseProcessor, {"type": "breath", "level": 0.25}),
+    "tongue_slap_wind":  (NoiseProcessor, {"type": "tongue_slap", "level": 0.25}),
+    "fret_noise_bass":   (NoiseProcessor, {"type": "fret_noise", "level": 0.2}),
+    "cut_noise":         (NoiseProcessor, {"type": "fret_noise", "level": 0.1}),
+    "string_noise":      (NoiseProcessor, {"type": "fret_noise", "level": 0.08}),
+    "reed_squeak":       (NoiseProcessor, {"type": "fret_noise", "level": 0.12}),
+    "wind_breath_noise": (NoiseProcessor, {"type": "breath", "level": 0.1}),
+    "wind_key_noise":    (NoiseProcessor, {"type": "organ_click", "level": 0.15}),
+    "harmonics_natural": (HarmonicsProcessor, {"partial": 2, "harmonic_type": "natural"}),
+    "harmonics_artificial":(HarmonicsProcessor, {"partial": 3, "harmonic_type": "artificial"}),
+    "harmonics_pinch":   (HarmonicsProcessor, {"partial": 4, "harmonic_type": "pinch"}),
+    "harmonics_strings": (HarmonicsProcessor, {"partial": 2, "harmonic_type": "natural"}),
+    "harmonic_bass":     (HarmonicsProcessor, {"partial": 2, "harmonic_type": "natural"}),
+    "harmonic_ethnic":   (HarmonicsProcessor, {"partial": 3, "harmonic_type": "natural"}),
+    "harmonic_tap":      (HarmonicsProcessor, {"partial": 3, "harmonic_type": "tap"}),
+    "semi_tone_harm":    (HarmonicsProcessor, {"partial": 2, "detune_cents": 50}),
+    "falsetto":          (FormantProcessor, {"register": "falsetto", "breathiness": 0.2, "mix": 0.5}),
+    "chest_voice":       (FormantProcessor, {"register": "chest_voice", "mix": 0.5}),
+    "head_voice":        (FormantProcessor, {"register": "head_voice", "mix": 0.5}),
+    "mixed_voice":       (FormantProcessor, {"register": "mixed_voice", "mix": 0.5}),
+    "whisper":           (FormantProcessor, {"register": "whisper", "breathiness": 0.8, "mix": 0.5}),
+    "shout":             (FormantProcessor, {"register": "shout", "drive": 0.3, "mix": 0.5}),
+    "scream":            (FormantProcessor, {"register": "scream", "drive": 0.6, "mix": 0.5}),
+    "straight_tone":     (FormantProcessor, {"register": "straight_tone", "mix": 0.5}),
+    "vocal_attack":      (FormantProcessor, {"register": "vocal_attack", "mix": 0.5}),
+    "vocal_fry":         (FormantProcessor, {"register": "vocal_fry", "mix": 0.5}),
+    "growl_vocal":       (FormantProcessor, {"register": "vocal_fry", "mix": 0.4}),
+    "pedal_up":          (PedalProcessor, {"type": "pedal_up"}),
+    "pedal_down":        (PedalProcessor, {"type": "pedal_down", "level": 0.9}),
+    "soft_lift":         (PedalProcessor, {"type": "pedal_up"}),
+    "sustain_lift":      (PedalProcessor, {"type": "pedal_up"}),
+    "legato_pedal":      (CompositeProcessor, {"chain": [
+        (EnvelopeProcessor, {"type": "legato", "transition_time": 0.05}),
+        (PedalProcessor, {"type": "sustain", "level": 0.8}),
+    ]}),
+    "cross_stick":       (TransientProcessor, {"type": "cross_stick"}),
+    "flip_wind":         (PitchModProcessor, {"type": "flip", "amount": 1.5}),
+    "sax_subtone":       (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.4, "level": 0.7}),
+    "flute_overblow":    (FilterProcessor, {"type": "highpass", "cutoff_ratio": 1.3}),
+    "clarinet_legato":   (EnvelopeProcessor, {"type": "legato", "transition_time": 0.05}),
+    "flute_legato":      (EnvelopeProcessor, {"type": "legato", "transition_time": 0.03}),
+    "oboe_legato":       (EnvelopeProcessor, {"type": "legato", "transition_time": 0.04}),
+    "bassoon_legato":    (EnvelopeProcessor, {"type": "legato", "transition_time": 0.06}),
+    "clarinet_portamento":(PitchModProcessor, {"type": "portamento", "speed": 0.05}),
+    "flute_portamento":  (PitchModProcessor, {"type": "portamento", "speed": 0.03}),
+    "clarinet_gliss_up": (PitchModProcessor, {"type": "glissando", "amount": 12}),
+    "clarinet_gliss_down":(PitchModProcessor, {"type": "glissando", "amount": -12}),
+    "flute_gliss_up":    (PitchModProcessor, {"type": "glissando", "amount": 12}),
+    "flute_gliss_down":  (PitchModProcessor, {"type": "glissando", "amount": -12}),
+    "violin_spiccato":   (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.02}),
+    "cello_spiccato":    (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.03}),
+    "violin_tremolo":    (AmplitudeModProcessor, {"type": "tremolo", "rate": 10.0, "depth": 0.4}),
+    "cello_tremolo":     (AmplitudeModProcessor, {"type": "tremolo", "rate": 8.0, "depth": 0.4}),
+    "violin_pizzicato":  (EnvelopeProcessor, {"type": "pizzicato", "decay": 6.0}),
+    "cello_pizzicato":   (EnvelopeProcessor, {"type": "pizzicato", "decay": 8.0}),
+    "violin_portamento": (PitchModProcessor, {"type": "portamento", "speed": 0.05}),
+    "cello_portamento":  (PitchModProcessor, {"type": "portamento", "speed": 0.08}),
+    "string_vibrato_narrow":(PitchModProcessor, {"type": "vibrato", "rate": 5.0, "depth": 0.3}),
+    "string_vibrato_wide":(PitchModProcessor, {"type": "vibrato", "rate": 6.0, "depth": 0.7}),
+    "portato":           (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.06}),
+    "jeté":              (EnvelopeProcessor, {"type": "staccato", "fade_time": 0.01}),
+    "slap_bass":         (CompositeProcessor, {"chain": [
+        (TransientProcessor, {"type": "flam", "delay_ms": 5}),
+        (EnvelopeProcessor, {"type": "dead_note", "decay": 0.02}),
+    ]}),
+    "pop_bass":          (CompositeProcessor, {"chain": [
+        (TransientProcessor, {"type": "flam", "delay_ms": 3}),
+        (EnvelopeProcessor, {"type": "dead_note", "decay": 0.02}),
+    ]}),
+    "slap_gtr":          (CompositeProcessor, {"chain": [
+        (TransientProcessor, {"type": "flam", "delay_ms": 5}),
+        (EnvelopeProcessor, {"type": "dead_note", "decay": 0.01}),
+    ]}),
+    "pop_gtr":           (CompositeProcessor, {"chain": [
+        (TransientProcessor, {"type": "flam", "delay_ms": 3}),
+        (EnvelopeProcessor, {"type": "dead_note", "decay": 0.01}),
+    ]}),
+    "slap_perc":         (TransientProcessor, {"type": "flam", "delay_ms": 3}),
+    "pop_perc":          (TransientProcessor, {"type": "flam", "delay_ms": 2}),
+    "tap_perc":          (TransientProcessor, {"type": "perc_attack"}),
+    "tap_bass":          (TransientProcessor, {"type": "diddle"}),
+    "finger_style":      (EnvelopeProcessor, {"type": "pizzicato", "decay": 4.0}),
+    "pick_style":        (EnvelopeProcessor, {"type": "marcato", "accent": 1.1}),
+    "open_string":       (EnvelopeProcessor, {"type": "tenuto", "hold": 0.9}),
+    "neck_position":     (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.5}),
+    "bridge_position":   (FilterProcessor, {"type": "highpass", "cutoff_ratio": 1.2}),
+    "percussive_ethnic": (TransientProcessor, {"type": "ethnic_attack"}),
+    "shakuhachi_flip":   (PitchModProcessor, {"type": "flip", "amount": 2.0}),
+    # === FX sound design ===
+    "fx_sweep_up":      (FilterProcessor, {"type": "highpass", "cutoff_ratio": 0.1}),
+    "fx_sweep_down":    (FilterProcessor, {"type": "lowpass", "cutoff_ratio": 0.05}),
+    "fx_noise":         (NoiseProcessor, {"type": "fret_noise", "level": 0.3}),
+    "fx_hit":           (TransientProcessor, {"type": "flam", "delay_ms": 2}),
+    "fx_rise":          (EnvelopeProcessor, {"type": "swell", "attack": 0.3}),
+    "fx_fall":          (EnvelopeProcessor, {"type": "dead_note", "decay": 0.02}),
+    "fx_boom":          (TransientProcessor, {"type": "flam", "delay_ms": 1}),
+    "fx_crash":         (NoiseProcessor, {"type": "rim_shot", "level": 0.5}),
+    "fx_slam":          (TransientProcessor, {"type": "flam", "delay_ms": 1}),
+    "fx_scrape":        (NoiseProcessor, {"type": "fret_noise", "level": 0.2}),
+    "fx_click":         (NoiseProcessor, {"type": "organ_click", "level": 0.3}),
+    "fx_pop":           (TransientProcessor, {"type": "flam", "delay_ms": 2}),
+    # === Routing only (parameter routing at note-on, no sample DSP) ===
+    "key_off":          (VOICE_LEVEL, {"feature": "trigger_mode", "mode": "normal"}),
+}
+
+
+def populate_fallback_aliases() -> None:
+    """Populate registry entries for NRPN names that map to existing entries.
+
+    This fills the gap for all names in the NRPN map that don't have
+    explicit registry entries, routing them through the Phase B alias table.
+    """
+    from synth.protocols.xg.sart.mappings import (
+        NRPN_ARTICULATION_MAP,
+        NRPN_ARTICULATION_ALIASES,
+    )
+
+    for name in NRPN_ARTICULATION_MAP.values():
+        if name not in ARTICULATION_REGISTRY and name in NRPN_ARTICULATION_ALIASES:
+            alias = NRPN_ARTICULATION_ALIASES[name]
+            # Map alias (method name → processor type)
+            method_to_proc = {
+                "vibrato": PitchModProcessor,
+                "trill": PitchModProcessor,
+                "glissando": PitchModProcessor,
+                "bend": PitchModProcessor,
+                "hammer_on": PitchModProcessor,
+                "pull_off": PitchModProcessor,
+                "ethnic_bend": PitchModProcessor,
+                "pizzicato": EnvelopeProcessor,
+                "staccato": EnvelopeProcessor,
+                "marcato": EnvelopeProcessor,
+                "swell": EnvelopeProcessor,
+                "legato": EnvelopeProcessor,
+                "tremolo": AmplitudeModProcessor,
+                "flutter": AmplitudeModProcessor,
+                "growl": AmplitudeModProcessor,
+                "soft_pedal": FilterProcessor,
+                "sub_bass": FilterProcessor,
+                "palm_mute": FilterProcessor,
+                "fret_noise": NoiseProcessor,
+                "organ_click": NoiseProcessor,
+                "open_rim": NoiseProcessor,
+                "harmonics": HarmonicsProcessor,
+                "sustain_pedal": PedalProcessor,
+            }
+            if "method" in alias:
+                proc = method_to_proc.get(alias["method"])
+                if proc:
+                    ARTICULATION_REGISTRY[name] = (proc, alias.get("params", {}))
+            elif "chain" in alias:
+                ARTICULATION_REGISTRY[name] = (
+                    CompositeProcessor,
+                    {"chain": [
+                        (method_to_proc.get(s["method"], FilterProcessor), s.get("params", {}))
+                        for s in alias["chain"]
+                        if s["method"] in method_to_proc
+                    ]},
+                )

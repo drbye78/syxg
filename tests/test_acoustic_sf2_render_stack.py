@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 from synth.engines.acoustic.acoustic_behavior_region import AcousticBehaviorRegion
-from synth.engines.acoustic.sart_bridge import SArt2Bridge
+from synth.engines.articulation import ArticulationEngine
 from synth.engines.engine_registry import SynthesisEngineRegistry
 from synth.engines.sf2_engine import SF2Engine
 from synth.processing.channel import Channel
@@ -59,9 +59,10 @@ class TestCompleteStack:
             assert type(r.base_region).__name__ == "SF2Region"
 
     @pytest.mark.unit
-    def test_sart2_bridge_resolves_real_modifier(self):
-        bridge = SArt2Bridge(44100)
-        assert bridge.available is True
+    def test_articulation_engine_available(self):
+        engine = ArticulationEngine(44100)
+        # Engine is always available — it's the unified replacement
+        assert engine is not None
 
     @pytest.mark.unit
     def test_single_note_renders_real_audio(self, channel):

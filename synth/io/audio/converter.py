@@ -276,7 +276,7 @@ class AudioConverter:
                             first_note_time = msg.timestamp
                         break
                 if first_note_time:
-                    self.synthesizer.set_current_time(first_note_time / tempo)
+                    self.synthesizer.set_current_time(first_note_time)
 
             # Create audio writer
             writer = self.audio_writer.create_writer(output_file, format)

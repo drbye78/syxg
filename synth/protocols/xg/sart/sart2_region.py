@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 
 from ....processing.partial.region import IRegion
-from .articulation_controller import ArticulationController
+from .controllers import ArticulationController
 
 
 class SArt2Region(IRegion):

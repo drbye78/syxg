@@ -39,7 +39,7 @@ class SF2Region(IRegion):
     - SF2 generator inheritance (preset + instrument levels)
     - SF2 modulation matrix integration
     - Mip-map sample anti-aliasing
-    - All 60+ SF2 generators supported
+    - 60+ SF2 generators consumed (24 from engine extraction, remainder via direct generator access)
 
     Attributes:
         descriptor: Region metadata with SF2 parameters
@@ -103,6 +103,7 @@ class SF2Region(IRegion):
         "_expression_mod",
         "_filter_key_track",
         "_filter_mod",
+        "_filter_sub_blocks",
         "_filter_type",
         "_filter_work_left",
         "_filter_work_right",
@@ -157,7 +158,6 @@ class SF2Region(IRegion):
         "_mod_env_to_pitch",
         "_mod_env_to_volume",
         "_mod_lfo",
-        "_modulators_warned",
         "_mod_lfo_buffer",
         "_mod_lfo_to_filter",
         "_mod_lfo_to_pan",
@@ -209,7 +209,8 @@ class SF2Region(IRegion):
         "_sustain_mod_env",
         "_sustain_pedal",
         "_tremolo_depth",
-        "_velocity_curve",
+        "_instrument_index",
+        "_param_updates",
         "_velocity_range",
         "_vib_lfo",
         "_vib_lfo_buffer",
@@ -225,6 +226,8 @@ class SF2Region(IRegion):
         "_xg_vibrato_delay",
         "_xg_vibrato_depth",
         "_xg_vibrato_rate",
+        "_cc_state",
+        "_soundfont_path",
         "soundfont_manager",
         "synth",
     ]
@@ -251,6 +254,13 @@ class SF2Region(IRegion):
         self.synth = synth
         self.soundfont_manager = soundfont_manager
 
+        # Store soundfont path for multi-SF2 sample ID disambiguation
+        self._soundfont_path: str | None = None
+
+        # Pre-allocated CC state dict (Phase 2 — zero allocation on audio thread).
+        # Reused across blocks via .clear() instead of creating a new dict each time.
+        self._cc_state: dict[int, float] = {}
+
         # SF2-specific state (lazy loaded)
         self._sample_data: np.ndarray | None = None
 
@@ -272,7 +282,6 @@ class SF2Region(IRegion):
         # SF2 generator parameters (merged from preset + instrument levels)
         self._generator_params: dict[int, int] = {}
         self._modulators: list[dict[str, Any]] = []
-        self._modulators_warned: bool = False
         self._mod_evaluator: SF2ModulatorEvaluator | None = None
 
         # SF2 zone ranges
@@ -307,6 +316,9 @@ class SF2Region(IRegion):
         self._vib_lfo = None
         self._mod_lfo_buffer: np.ndarray | None = None
         self._vib_lfo_buffer: np.ndarray | None = None
+
+        # Filter sub-block count for modulation (configurable, was hardcoded 4)
+        self._filter_sub_blocks: int = 4
         self._mod_env_buffer: np.ndarray | None = None
         self._pitch_env_buffer: np.ndarray | None = None
         self._read_positions: np.ndarray | None = None
@@ -384,7 +396,10 @@ class SF2Region(IRegion):
         self._filter_type: int = 0
 
         # Velocity processing
-        self._velocity_curve: int = 0
+        self._instrument_index: int = 0
+
+        # Lock-free parameter updates (SPSC — MIDI thread writes, audio reads)
+        self._param_updates: list = []  # list of (controller, value) tuples
 
         # Pitch envelope
         self._pitch_env_active: bool = False
@@ -508,9 +523,12 @@ class SF2Region(IRegion):
             return None
 
         try:
-            # Use SF2SoundFontManager's optimized sample loading
-            # This includes mip-map anti-aliasing
-            sample_data = self.soundfont_manager.get_sample_data(self.descriptor.sample_id)
+            # Use SF2SoundFontManager's optimized sample loading.
+            # Pass soundfont_path for multi-SF2 sample ID disambiguation.
+            sample_data = self.soundfont_manager.get_sample_data(
+                self.descriptor.sample_id,
+                soundfont_path=self._soundfont_path,
+            )
 
             if sample_data is not None:
                 self._sample_data = np.asarray(sample_data, dtype=np.float32)
@@ -538,7 +556,9 @@ class SF2Region(IRegion):
 
         # Get loop info from SF2SoundFontManager
         if hasattr(self.soundfont_manager, "get_sample_loop_info"):
-            loop_info = self.soundfont_manager.get_sample_loop_info(self.descriptor.sample_id)
+            loop_info = self.soundfont_manager.get_sample_loop_info(
+                self.descriptor.sample_id, soundfont_path=self._soundfont_path
+            )
             if loop_info:
                 self._loop_start = loop_info.get("start", 0)
                 self._loop_end = loop_info.get("end", len(self._sample_data))
@@ -559,7 +579,9 @@ class SF2Region(IRegion):
 
         # Get sample info from SF2SoundFontManager
         if hasattr(self.soundfont_manager, "get_sample_info"):
-            sample_info = self.soundfont_manager.get_sample_info(self.descriptor.sample_id)
+            sample_info = self.soundfont_manager.get_sample_info(
+                self.descriptor.sample_id, soundfont_path=self._soundfont_path
+            )
             if sample_info:
                 self._root_key = sample_info.get("original_pitch", 60)
                 self._sample_original_rate = sample_info.get("sample_rate", self.sample_rate)
@@ -1110,12 +1132,34 @@ class SF2Region(IRegion):
         if not super().note_on(velocity, note):
             return False
 
+        # Pre-load sample data at note-on time (non-audio-thread) instead of
+        # lazily in generate_samples(). This fixes the real-time safety
+        # violation where the audio thread was doing file I/O and memory
+        # allocation.
+        if self._sample_data is None:
+            loaded = self._load_sample_data()
+            if loaded is None:
+                return False
+
         # Reset playback position
         self._sample_position = 0.0
         self._effective_end = 0
         self._active = True
         self._note_start_time = time.time()
         self._calculate_phase_step()
+
+        # Apply GS amp envelope time scaling once at note-on (not every block).
+        # Moved from generate_samples() step 5a to fix compounding multiply bug.
+        if "amp_env" in self._envelopes:
+            env = self._envelopes["amp_env"]
+            if self._gs_amp_attack >= 0.0 and hasattr(env, "attack"):
+                env.attack *= self._gs_amp_attack
+            if self._gs_amp_decay >= 0.0 and hasattr(env, "decay"):
+                env.decay *= self._gs_amp_decay
+            if self._gs_amp_release >= 0.0 and hasattr(env, "release"):
+                env.release *= self._gs_amp_release
+            if hasattr(env, "_recalculate_increments"):
+                env._recalculate_increments()
 
         # Handle portamento (CC5, CC65). The source note comes from the
         # channel's last-note tracker, exposed via the modulation dict or
@@ -1141,12 +1185,8 @@ class SF2Region(IRegion):
         self._last_note = note
 
         # NOTE: gen 41 is the instrument index in standard SF2 (SF2.01 §8.1.3).
-        # The _generator_params dict already has the instrument index from the
-        # zone linking step.  Reading it here as "velocity_curve" is a non-
-        # standard repurposing that yields the instrument index, not a correct
-        # velocity response curve.  This field is not currently used in audio
-        # processing; it is captured for future velocity-sensitive mapping.
-        self._velocity_curve = self._get_generator_value(41, 0)
+        # Stored as _instrument_index for clarity — not a velocity response curve.
+        self._instrument_index = self._get_generator_value(41, 0)
 
         # Check for drum mode / one-shot (gen 54 sampleModes)
         sample_mode = self._get_generator_value(54, 0)  # sampleModes
@@ -1198,9 +1238,7 @@ class SF2Region(IRegion):
             self._vib_lfo.reset()
 
         # Initialize SF2 modulator evaluator for this note
-        # Merges default modulators (SF2 §8.4.11) with zone-specific modulators
         self._mod_evaluator = SF2ModulatorEvaluator(self._modulators)
-        self._modulators_warned = True  # suppress historic BUG-4 warning
 
         # Reset modulation values
         self._pitch_mod = 0.0
@@ -1272,141 +1310,102 @@ class SF2Region(IRegion):
         return True
 
     def control_change(self, controller: int, value: int) -> None:
+        """Handle MIDI control change — lock-free SPSC via param queue.
+
+        MIDI thread pushes (controller, value) pairs. Audio thread drains them
+        at block boundaries via _drain_param_updates(). This eliminates the
+        race condition where the audio thread reads partially-updated state.
         """
-        Handle MIDI control change message.
+        self._param_updates.append((controller, value))
 
-        NOTE: This runs on the MIDI thread. The audio thread reads these fields.
-        All field writes are atomic on x86-64 (aligned <= 64-bit). Compound
-        assignments (*=, +=) are NOT atomic but the race window is small.
-        A proper fix would use atomic operations or a spinlock.
+    def _drain_param_updates(self) -> None:
+        """Process queued MIDI CC updates at block boundary (audio thread).
 
-        Args:
-            controller: CC number (0-127)
-            value: CC value (0-127)
+        Drains the SPSC queue populated by control_change() on the MIDI thread.
+        This eliminates the race condition between MIDI and audio threads.
         """
-        normalized = value / 127.0
+        while self._param_updates:
+            controller, value = self._param_updates.pop(0)
+            normalized = value / 127.0
 
-        if controller == 1:  # Modulation Wheel
-            self._modwheel_mod = normalized
-            # Modulation applied per-block in _apply_global_modulation
-
-        elif controller == 2:  # Breath Controller
-            self._breath_mod = normalized
-            self._filter_mod = normalized * 1.0
-
-        elif controller == 4:  # Foot Controller
-            self._foot_mod = normalized
-            self._vib_lfo_to_pitch = normalized * 0.5
-            self._vib_lfo_to_pitch_base = self._vib_lfo_to_pitch
-
-        elif controller == 5:  # Portamento Time
-            self._portamento_time = self._calculate_portamento_time(value)
-
-        elif controller == 7:  # Volume (handled by channel pre-gain)
-            pass
-
-        elif controller == 8:  # Balance
-            self._balance = (value - 64) / 64.0
-
-        elif controller == 10:  # Pan
-            self._pan_position = (value - 64) / 64.0
-
-        elif controller == 11:  # Expression
-            self._expression_mod = normalized
-
-        elif controller == 64:  # Sustain
-            self._sustain_pedal = value >= 64
-            if not self._sustain_pedal:
-                self._handle_sustain_release()
-
-        elif controller == 65:  # Portamento On/Off
-            self._portamento_active = value >= 64
-
-        elif controller == 66:  # Sostenuto
-            if value >= 64 and not self._sostenuto_pedal:
-                self._sostenuto_pedal = True
-                self._held_by_sostenuto = True
-            elif value < 64:
-                self._sostenuto_pedal = False
-                self._handle_sostenuto_release()
-
-        elif controller == 67:  # Soft Pedal
-            self._soft_pedal = value >= 64
-
-        elif controller == 68:  # Legato
-            self._legato_active = value >= 64
-
-        elif controller == 69:  # Hold 2
-            if value >= 64 and not self._hold2_pedal:
-                self._hold2_pedal = True
-                self._held_by_hold2 = True
-            elif value < 64:
-                self._hold2_pedal = False
-                self._handle_hold2_release()
-
-        elif controller == 70:  # Sound Controller 1 (Variation)
-            self._sound_controller_1 = normalized
-            self._filter_mod = (normalized - 0.5) * 1.0
-
-        elif controller == 71:  # Harmonic Content (FIX - was swapped)
-            self._apply_harmonic_content(normalized)
-
-        elif controller == 72:  # Brightness (FIX - was swapped)
-            self._apply_brightness(normalized)
-
-        elif controller == 73:  # Release Time
-            self._xg_release_time = normalized
-            self._apply_xg_release_time(normalized)
-
-        elif controller == 74:  # Attack Time
-            self._xg_attack_time = normalized
-            self._apply_xg_attack_time(normalized)
-
-        elif controller == 75:  # Filter Cutoff
-            self._xg_filter_cutoff = normalized
-            self._apply_xg_filter_cutoff(normalized)
-
-        elif controller == 76:  # Decay Time
-            self._xg_decay_time = normalized
-            self._apply_xg_decay_time(normalized)
-
-        elif controller == 77:  # Vibrato Rate
-            self._xg_vibrato_rate = normalized
-            self._apply_xg_vibrato_rate(normalized)
-
-        elif controller == 78:  # Vibrato Depth
-            self._xg_vibrato_depth = normalized
-            self._apply_xg_vibrato_depth(normalized)
-
-        elif controller == 79:  # Vibrato Delay
-            self._xg_vibrato_delay = normalized
-            self._delay_vib_lfo = normalized * 2.0
-            # Update LFO delay without resetting phase
-            if self._vib_lfo:
-                self._vib_lfo.delay = self._delay_vib_lfo
-                self._vib_lfo.delay_samples = int(self._delay_vib_lfo * self.sample_rate)
-
-        elif controller == 80:  # GP Button 1
-            self._gp_button_1 = normalized
-
-        elif controller == 81:  # GP Button 2
-            self._gp_button_2 = normalized
-
-        elif controller == 82:  # GP Button 3
-            self._gp_button_3 = normalized
-
-        elif controller == 83:  # GP Button 4
-            self._gp_button_4 = normalized
-
-        elif controller == 91:  # Reverb Send
-            self._reverb_send = normalized
-
-        elif controller == 92:  # Tremolo Depth
-            self._tremolo_depth = normalized
-            self._mod_lfo_to_volume = normalized
-
-        elif controller == 93:  # Chorus Send
-            self._chorus_send = normalized
+            if controller == 1:
+                self._modwheel_mod = normalized
+            elif controller == 2:
+                self._breath_mod = normalized
+                self._filter_mod = normalized * 1.0
+            elif controller == 4:
+                self._foot_mod = normalized
+                self._vib_lfo_to_pitch = normalized * 0.5
+                self._vib_lfo_to_pitch_base = self._vib_lfo_to_pitch
+            elif controller == 5:
+                self._portamento_time = self._calculate_portamento_time(value)
+            elif controller == 7:
+                pass  # Volume — handled by channel pre-gain
+            elif controller == 8:
+                self._balance = (value - 64) / 64.0
+            elif controller == 10:
+                self._pan_position = (value - 64) / 64.0
+            elif controller == 11:
+                self._expression_mod = normalized
+            elif controller == 64:
+                self._sustain_pedal = value >= 64
+                if not self._sustain_pedal:
+                    self._handle_sustain_release()
+            elif controller == 65:
+                self._portamento_active = value >= 64
+            elif controller == 66:
+                if value >= 64 and not self._sostenuto_pedal:
+                    self._sostenuto_pedal = True
+                    self._held_by_sostenuto = True
+                elif value < 64:
+                    self._sostenuto_pedal = False
+                    self._handle_sostenuto_release()
+            elif controller == 67:
+                self._soft_pedal = value >= 64
+            elif controller == 68:
+                self._legato_active = value >= 64
+            elif controller == 69:
+                if value >= 64 and not self._hold2_pedal:
+                    self._hold2_pedal = True
+                    self._held_by_hold2 = True
+                elif value < 64:
+                    self._hold2_pedal = False
+                    self._handle_hold2_release()
+            elif controller == 71:
+                self._apply_harmonic_content(normalized)
+            elif controller == 72:
+                self._apply_brightness(normalized)
+            elif controller == 73:
+                self._xg_release_time = normalized
+                self._apply_xg_release_time(normalized)
+            elif controller == 74:
+                self._xg_attack_time = normalized
+                self._apply_xg_attack_time(normalized)
+            elif controller == 75:
+                self._xg_filter_cutoff = normalized
+                self._apply_xg_filter_cutoff(normalized)
+            elif controller == 76:
+                self._xg_decay_time = normalized
+                self._apply_xg_decay_time(normalized)
+            elif controller == 77:
+                self._xg_vibrato_rate = normalized
+                self._apply_xg_vibrato_rate(normalized)
+            elif controller == 78:
+                self._xg_vibrato_depth = normalized
+                self._apply_xg_vibrato_depth(normalized)
+            elif controller == 79:
+                self._xg_vibrato_delay = normalized
+                self._delay_vib_lfo = normalized * 2.0
+                if self._vib_lfo:
+                    self._vib_lfo.delay = self._delay_vib_lfo
+                    self._vib_lfo.delay_samples = int(self._delay_vib_lfo * self.sample_rate)
+            elif controller == 91:
+                self._reverb_send = normalized
+            elif controller == 92:
+                self._tremolo_depth = normalized
+                self._mod_lfo_to_volume = normalized
+            elif controller == 93:
+                self._chorus_send = normalized
 
     def _calculate_portamento_time(self, value: int) -> float:
         """Calculate portamento time from CC value."""
@@ -1847,7 +1846,7 @@ class SF2Region(IRegion):
                 # block-constant modulation (stepping artifacts) and per-sample modulation
                 # (which would require per-sample filter parameter updates, causing zipper noise).
                 # 4 sub-blocks capture the LFO envelope shape with minimal overhead.
-                sub_blocks = 4
+                sub_blocks = self._filter_sub_blocks
                 sub_size = block_size // sub_blocks
                 for sb in range(sub_blocks):
                     start = sb * sub_size
@@ -2037,14 +2036,13 @@ class SF2Region(IRegion):
         if not self._active:
             return self._silence_buffer[:block_size]
 
-        # Initialize if needed
+        # Drain queued MIDI CC updates at block boundary (Phase 3 — lock-free sync)
+        self._drain_param_updates()
+
+        # Sample must be pre-loaded at note_on — no I/O on audio thread
         if self._sample_data is None:
-            loaded_data = self._load_sample_data()
-            if loaded_data is not None:
-                self._sample_data = loaded_data
-            else:
-                self._active = False
-                return self._silence_buffer[:block_size]
+            self._active = False
+            return self._silence_buffer[:block_size]
 
         if not self._initialized:
             if not self.initialize():
@@ -2111,12 +2109,15 @@ class SF2Region(IRegion):
         if self._gs_chorus_send >= 0.0:
             self._chorus_send = self._gs_chorus_send
 
-        # 1c. Evaluate SF2 modulators against current controller state
+         # 1c. Evaluate SF2 modulators against current controller state
         if self._mod_evaluator is not None:
-            # Build controller state dict from the region's modulation inputs
-            cc_state: dict[int, float] = {}
+            # Reuse pre-allocated dict (Phase 2 — zero allocation).
+            self._cc_state.clear()
+            self._cc_state[7] = 127.0   # volume default
+            self._cc_state[11] = 127.0  # expression default
+            self._cc_state[64] = 127.0 if self._sustain_pedal else 0.0
+
             if modulation:
-                # Map known modulation keys to CC numbers
                 for key, cc_num in {
                     "mod_wheel": 1,
                     "breath_controller": 2,
@@ -2124,46 +2125,22 @@ class SF2Region(IRegion):
                     "volume": 7,
                     "pan": 10,
                     "expression": 11,
-                    "sustain": 64,
                     "reverb_send": 91,
                     "chorus_send": 93,
                 }.items():
                     val = modulation.get(key)
                     if val is not None:
-                        cc_state[cc_num] = float(val)
-                # Channel aftertouch (special index — not a CC number)
-                at_val = modulation.get("channel_aftertouch", modulation.get("aftertouch", 0.0))
-                if at_val:
-                    cc_state["channel_aftertouch"] = float(at_val)
-                # Include raw CC values from modulation dict
-                for key, val in modulation.items():
-                    if key.startswith("cc_") and isinstance(val, (int, float)):
-                        try:
-                            cc_state[int(key.split("_")[1])] = float(val)
-                        except (ValueError, IndexError):
-                            pass
+                        self._cc_state[cc_num] = float(val)
 
-                # Default values for CCs that should be at max when not
-                # explicitly present (CC7=volume, CC11=expression).
-                for cc_num, default in {7: 127.0, 11: 127.0, 91: 0.0, 93: 0.0}.items():
-                    if cc_num not in cc_state:
-                        cc_state[cc_num] = default
-                # Pitch bend — normalise to [-1, +1] for the evaluator.
-                # The modulation system may provide raw 14-bit or already
-                # normalised; normalise here for a consistent interface.
                 if "pitch" in modulation:
                     pw = float(modulation["pitch"])
                     if pw < -1.5 or pw > 1.5:
-                        pw = (pw - 8192) / 8192.0  # raw 14-bit → [-1, +1]
-                    cc_state["pitch"] = max(-1.0, min(1.0, pw))
+                        pw = (pw - 8192) / 8192.0
+                    self._cc_state[0] = max(-1.0, min(1.0, pw))
 
-                # Sustain pedal: also read from the region's pedal state
-                # in case the modulation dict doesn't carry CC64 explicitly.
-                cc_state[64] = 127.0 if self._sustain_pedal else 0.0
-
-            # Evaluate modulators
+            # Evaluate modulators — uses the pre-allocated _cc_state array
             mod_values = self._mod_evaluator.evaluate(
-                cc_state, self.current_velocity, self.current_note
+                self._cc_state, self.current_velocity, self.current_note
             )
             if mod_values:
                 # Apply each modulated destination directly to the rendering
@@ -2201,7 +2178,7 @@ class SF2Region(IRegion):
                     total_semitones = (
                         note_diff + coarse_tune + fine_tune + pitch_offset_semitones
                     ) * scale_tuning
-                    self._phase_step = 2.0 ** (total_semitones / 12.0)
+                    self._phase_step = self._base_phase_step * 2.0 ** (total_semitones / 12.0)
                 else:
                     self._phase_step = self._base_phase_step
 
@@ -2279,19 +2256,6 @@ class SF2Region(IRegion):
 
         # 5. Generate wavetable samples with per-sample pitch modulation
         self._generate_samples_with_mipmap_and_modulation(output, block_size, sample_delta_time)
-
-        # 5a. Apply GS amp envelope time multipliers
-        if "amp_env" in self._envelopes:
-            env = self._envelopes["amp_env"]
-            if self._gs_amp_attack >= 0.0 and hasattr(env, "attack"):
-                env.attack *= self._gs_amp_attack
-            if self._gs_amp_decay >= 0.0 and hasattr(env, "decay"):
-                env.decay *= self._gs_amp_decay
-            if self._gs_amp_release >= 0.0 and hasattr(env, "release"):
-                env.release *= self._gs_amp_release
-            # Recalculate increments if Numba JIT path
-            if hasattr(env, "_recalculate_increments"):
-                env._recalculate_increments()
 
         # 6. Apply amplitude envelope
         if "amp_env" in self._envelopes:
@@ -2489,27 +2453,55 @@ class SF2Region(IRegion):
         elif self._loop_mode == 0:
             past_end = read_positions >= effective_end_mip
             if np.any(past_end):
-                read_positions[past_end] = effective_end_mip - 1
+                # Prevent DC click: transition to RELEASING without clamping.
+                # The release envelope provides a natural fade-out instead of
+                # freezing on the last sample frame.
                 self.state = RegionState.RELEASING
 
         # 5. Clamp positions to safe range
         read_positions = np.clip(read_positions, 0, effective_end_mip - 1)
 
-        # 6. Linear interpolation (vectorized over entire block)
+        # 6. Cubic Hermite spline interpolation (vectorized over entire block).
+        # Uses 4-point interpolation for higher quality than linear.
+        # Falls back to linear when mip_sample_length < 4.
         int_pos = np.floor(read_positions).astype(np.int64)
         frac = read_positions - int_pos
-        i0 = np.clip(int_pos, 0, mip_sample_length - 1)
-        i1 = np.clip(int_pos + 1, 0, mip_sample_length - 1)
-        if mip_sample_length > 0:
-            s1 = mip_data[i0]  # (block_size, 2)
-            s2 = mip_data[i1]  # (block_size, 2)
-            sample = s1 + frac[:, np.newaxis] * (s2 - s1)
+        if mip_sample_length >= 4:
+            # 4-point cubic Hermite: i-1, i, i+1, i+2
+            i0 = np.clip(int_pos - 1, 0, mip_sample_length - 1)
+            i1 = np.clip(int_pos, 0, mip_sample_length - 1)
+            i2 = np.clip(int_pos + 1, 0, mip_sample_length - 1)
+            i3 = np.clip(int_pos + 2, 0, mip_sample_length - 1)
+            p0 = mip_data[i0]
+            p1 = mip_data[i1]
+            p2 = mip_data[i2]
+            p3 = mip_data[i3]
+            # Cubic Hermite basis
+            t = frac[:, np.newaxis]
+            t2 = t * t
+            t3 = t2 * t
+            h00 = 2.0 * t3 - 3.0 * t2 + 1.0
+            h10 = t3 - 2.0 * t2 + t
+            h01 = -2.0 * t3 + 3.0 * t2
+            h11 = t3 - t2
+            # Tangent estimation (Catmull-Rom)
+            m0 = (p2 - i0) * 0.5 if mip_sample_length >= 3 else (p2 - p1)
+            m1 = (i3 - p1) * 0.5 if mip_sample_length >= 3 else (p2 - p1)
+            sample = h00 * p1 + h10 * m0 + h01 * p2 + h11 * m1
         else:
-            sample = (
-                self._buffer_pool.get_stereo_buffer(block_size)
-                if self._buffer_pool is not None
-                else np.zeros((block_size, 2), dtype=np.float32)
-            )
+            # Fallback: linear interpolation for short samples
+            i0 = np.clip(int_pos, 0, mip_sample_length - 1)
+            i1 = np.clip(int_pos + 1, 0, mip_sample_length - 1)
+            if mip_sample_length > 0:
+                s1 = mip_data[i0]
+                s2 = mip_data[i1]
+                sample = s1 + frac[:, np.newaxis] * (s2 - s1)
+            else:
+                sample = (
+                    self._buffer_pool.get_stereo_buffer(block_size)
+                    if self._buffer_pool is not None
+                    else np.zeros((block_size, 2), dtype=np.float32)
+                )
 
         # 7. Loop crossfade (vectorized) — fade-out at loop end, fade-in at start
         if crossfade_len > 0 and loop_end_mip > loop_start_mip:
@@ -2648,11 +2640,14 @@ class SF2Region(IRegion):
         self._sample_position = pos * decimation_factor
 
     def _select_mip_map_level(self) -> int:
-        """
-        Select appropriate mip-map level based on pitch ratio.
+        """Select appropriate mip-map level based on pitch ratio.
 
         Mip-maps are pre-computed lower-resolution versions of samples
         used to prevent aliasing when playing back at higher pitches.
+
+        NOTE: effective activation threshold is phase_step >= 2.0
+        because int(log2(x)) = 0 for 1.0 < x < 2.0.
+        Level 1 begins at phase_step >= 2.0 (one octave up).
 
         Returns:
             Mip-map level (0 = full resolution, 1 = half, 2 = quarter, etc.)
@@ -2807,7 +2802,9 @@ class SF2Region(IRegion):
                 env = self._envelopes["amp_env"]
                 if hasattr(env, "is_active"):
                     return env.is_active()
-            return False
+            # Default to True — a RELEASING voice should not be killed
+            # prematurely if the envelope doesn't expose is_active().
+            return True
 
         return self.state in (RegionState.ACTIVE, RegionState.INITIALIZED)
 

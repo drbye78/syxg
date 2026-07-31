@@ -205,8 +205,8 @@ class SF2ModulatorEvaluator:
             # Channel pressure (aftertouch)
             return self._cc_cache.get(0x0D, 0.0)
         elif index == 0x0B:
-            # Poly pressure (per-note aftertouch) — not tracked per-note
-            return 0.0
+            # Poly pressure (per-note aftertouch) — read from modulation state
+            return self._modulation.get("per_note_pressure", 0.0)
         elif index == 128:
             # Link — secondary source, handled by amt_src_operator
             return 0.0

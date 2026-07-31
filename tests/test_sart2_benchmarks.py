@@ -13,7 +13,7 @@ import pytest
 
 from synth.engines.region_descriptor import RegionDescriptor
 from synth.processing.partial.region import IRegion
-from synth.protocols.xg.sart.articulation_controller import ArticulationController
+from synth.protocols.xg.sart.controllers import ArticulationController
 from synth.protocols.xg.sart.articulation_preset import ArticulationPreset, ArticulationPresetManager
 from synth.protocols.xg.sart.sart2_region import SArt2Region
 

@@ -23,7 +23,7 @@ The XG Synthesizer project aims to provide:
 ### 🎵 **Advanced Synthesis Engines**
 
 #### SF2/SoundFont 2.0 Engine
-- **Full SF2 Specification** - Complete SoundFont 2.0 format support
+- **Core SF2 Specification** — 24 generators extracted at engine level, remainder via direct generator access
 - **Velocity Layers** - Multi-velocity zone mapping with crossfading
 - **Loop Support** - Loop start/end points with crossfade loops
 - **Envelope Generators** - AHDSR envelopes per sample
@@ -56,13 +56,12 @@ The XG Synthesizer project aims to provide:
 
 ### 🎻 **Yamaha S.Art2 Articulation**
 
-- **275+ Articulations** - Comprehensive articulation library
-- **30 Articulation Presets** - Ready-to-use articulation configurations
-- **Real-time Switching** - Seamless articulation transitions
-- **Velocity Layers** - Dynamic articulation response (0-127)
-- **Expression Control** - Nuanced performance expression
-- **Crossfade Zones** - Smooth articulation blending
-- **Release Samples** - Natural note decay articulations
+- **275+ Substantive Articulations** — 254 sample-level DSP, 10 voice-level, 11 dynamics (317 registry entries total)
+- **12 Modular DSP Processors** — PitchMod, Envelope, AmplitudeMod, Filter, Noise, Transient, Formant, Rotary, Harmonics, Pedal, Composite
+- **Auto-Detection Engine** — Legato, interval glissando, velocity switching, duration-based release
+- **Voice-Level Features** — Trigger modes (trig/gate/tie/legato), glide/portamento, LFO sync, filter envelope routing
+- **ART Button System** — 3-slot per-voice assignable articulation triggers
+- **Note-Level Sequencing** — Grace notes, agoge (chord staggering), raking, double/triple tongue
 
 ### 🎛️ **Professional Effects Processing**
 
@@ -104,7 +103,7 @@ Per-channel processing including:
 |-----------------|----------------|--------|
 | **Basic Messages** | Note On/Off, Control Change, Program Change | ✅ Complete |
 | **Channel Messages** | Poly Pressure, Channel Pressure, Pitch Bend | ✅ Complete |
-| **System Exclusive** | XG SysEx, Parameter Changes | ✅ Complete |
+| **System Exclusive** | XG SysEx, Parameter Changes (spec-correct address format) | ✅ Complete |
 | **NRPN Support** | Non-Registered Parameter Numbers | ✅ Complete |
 | **RPN Support** | Registered Parameter Numbers | ✅ Complete |
 | **Bank Select** | MSB/LSB Bank Selection | ✅ Complete |
@@ -156,13 +155,8 @@ Per-channel processing including:
 ### 🎛️ **VST3/AAX Plugin**
 
 - **Native Plugin Format**: VST3 and AAX (Pro Tools) support
-- **DAW Integration**: Works with Ableton Live, Logic Pro, FL Studio, Pro Tools, Reaper
-- **Full Parameter Automation**: Automate all synthesizer parameters via DAW
-- **Pattern Sequencer**: Grid-based pattern editing and real-time playback
-- **Python Integration**: pybind11 bridge to XG synthesizer engine
-- **Professional UI**: JUCE-based interface with real-time controls and status display
-- **Cross-Platform**: Windows, macOS, Linux support
-- **MIDI I/O**: Full MIDI input/output support within DAW
+- **Python Integration**: pybind11 bridge to XG synthesizer engine (proof-of-concept — Python-in-DAW has inherent real-time limitations)
+- **Note**: The VST3 plugin embeds a Python interpreter. While functional for experimentation, this architecture is not suitable for production low-latency audio due to the Python GIL. See `vst3_plugin/README.md` for details.
 
 ### 🎚️ **Advanced Control Systems**
 
@@ -476,10 +470,12 @@ effects_configuration:
 | **SpectralEngine** | Spectral | 32+ | FFT processing, morphing |
 
 ### **Yamaha S.Art2 Articulation**
-- **ArticulationController**: Real-time articulation switching
-- **ArticulationPreset**: 30 pre-configured articulation setups
-- **ArticulationMapping**: Velocity-based articulation zones
-- **Modifiers**: Dynamic articulation response curves
+- **ArticulationEngine**: Unified, data-driven, stereo-native processing with 12 modular DSP processors
+- **AutoDetectionEngine**: Playing-style inference (legato, interval glissando, velocity, duration)
+- **VoiceFeatureController**: Trigger modes, glide/portamento, LFO sync, filter envelope routing
+- **ArtButtonManager**: 3-slot per-voice assignable articulation triggers
+- **ArticulationNoteSequencer**: Grace notes, agoge, raking, double/triple tongue
+- **Registry**: 317-entry data-driven dispatch (254 DSP, 10 voice-level, 11 dynamics, 42 STUB)
 
 ### **Vibexg Workstation**
 - **XGWorkstation**: Main orchestrator class
@@ -515,21 +511,11 @@ effects_configuration:
 ## 📊 Performance
 
 | Metric | Value | Notes |
-|--------|-------|-------|
-| **Latency** | <5ms | End-to-end audio processing |
+|---|---|---|
+| **Latency** | <5ms | Target; Python RT audio has inherent scheduling variability |
 | **Polyphony** | 256+ | Depends on engine and sample memory |
-| **CPU Usage** | Optimized | Vectorized SIMD processing |
+| **CPU Usage** | Optimized | Vectorized DSP, zero-allocation hot paths, pre-loaded samples |
 | **Memory** | Efficient | Sample caching and buffer pooling |
-| **Real-time** | ✅ | Suitable for live performance |
-
-### Benchmarks (M1 Mac, 44.1kHz, 512 buffer)
-
-| Task | CPU Usage | Latency |
-|------|-----------|---------|
-| SF2 Playback (64 voices) | 15% | 3.2ms |
-| FM-X Synthesis (32 voices) | 12% | 2.8ms |
-| Full Mix (128 voices + FX) | 45% | 4.5ms |
-| Vibexg Live (TUI + Audio) | 25% | 3.5ms |
 
 ## 🔧 System Requirements
 

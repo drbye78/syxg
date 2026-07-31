@@ -103,16 +103,19 @@ class XGSynthesizerSystem:
         self.voice_manager = None
         self.engine_router: PartEngineRouter | None = None
 
+        # Part-to-channel assignment table (supports XG part remapping)
+        self._channel_to_part: dict[int, int] = {}
+
         logger.info(
             f"XGSynthesizerSystem: Initialized sample_rate={sample_rate}, device_id={device_id:02X}"
         )
 
     def _initialize_components(self):
         """Initialize all XG/GS components."""
-        # Import unified sysex router
-        from ...io.midi.unified_sysex_router import UnifiedSysexRouter
+        # Import spec-correct XG SysEx parser
+        from ...io.midi.xg_sysex_parser import XGSysexParser
 
-        self.sysex_router = UnifiedSysexRouter(self.device_id)
+        self.sysex_router = XGSysexParser(self.device_id)
 
         # Import XG-specific components
         # Import GS components
@@ -351,37 +354,20 @@ class XGSynthesizerSystem:
         return "xg"  # Default: ModernXGSynthesizer
 
     def _get_gs_drum_kit_for_note(self, note: int) -> int:
-        """
-        Get GS drum kit number for a MIDI note.
-
-        GS drum kits are typically organized by note number:
-        - Standard Kit 1 (0): Notes 35-50 (Kick, Snare, Toms)
-        - Standard Kit 2 (1): Notes 51-60 (Hi-hats, cymbals)
-        - Other kits for special mappings
-
-        Args:
-            note: MIDI note number
-
-        Returns:
-            Drum kit number (0-127)
-        """
-        # Standard GM/GS drum mapping
-        if 35 <= note <= 50:  # Kick, Snare, Toms
-            return 0  # Standard Kit 1
-        elif 51 <= note <= 60:  # Hi-hats, cymbals
-            return 0  # Standard Kit 1
-        elif 61 <= note <= 70:  # Percussion
-            return 0  # Standard Kit 1
-        elif 71 <= note <= 80:  # More percussion
-            return 0  # Standard Kit 1
-        elif 81 <= note <= 90:  # Effects
-            return 0  # Standard Kit 1
-        elif 91 <= note <= 100:  # More effects
-            return 0  # Standard Kit 1
-        elif 101 <= note <= 127:  # Extended range
-            return 0  # Standard Kit 1
-        else:
-            return 0  # Default to Standard Kit 1
+        """Map MIDI note to GS drum kit variation based on note range."""
+        if 35 <= note <= 40:   # Kick drums
+            return 0
+        elif 41 <= note <= 47:  # Snares
+            return 1
+        elif 48 <= note <= 53:  # Toms
+            return 2
+        elif 54 <= note <= 63:  # Cymbals / Hi-hats
+            return 3
+        elif 64 <= note <= 75:  # Percussion
+            return 4
+        elif 76 <= note <= 87:  # High percussion
+            return 5
+        return 0
 
     def get_drum_mapping(
         self, part_num: int, note: int, velocity: int = 64
@@ -595,19 +581,11 @@ class XGSynthesizerSystem:
     # ========== MIDI Event Handlers ==========
 
     def handle_note_on(self, channel: int, note: int, velocity: int) -> tuple[int, dict | None]:
-        """
-        Handle note on with drum mapping.
-
-        Returns:
-            Tuple of (mapped_note, drum_params)
-        """
-        # Find part for channel
-        part_num = channel  # Direct mapping for now
-
+        """Handle note on with drum mapping and part-to-channel assignment."""
+        # Look up part from channel assignment table (not channel=part directly)
+        part_num = getattr(self, "_channel_to_part", {}).get(channel, channel)
         if part_num >= 16:
             part_num = channel % 16
-
-        # Check for drum mapping
         return self.get_drum_mapping(part_num, note, velocity)
 
     def handle_program_change(self, channel: int, program: int):

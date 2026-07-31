@@ -65,28 +65,3 @@ __all__ = [
     "get_nrpn_for_articulation",
     "midi_note_to_frequency",
 ]
-
-# Deprecated imports (for backward compatibility during transition)
-# These will be removed in a future version
-_DEPRECATED = {
-    "SuperArticulation2Synthesizer": "Use ModernXGSynthesizer from synth.synthesizers.rendering instead",
-    "SynthConfig": "Use ModernXGSynthesizer configuration instead",
-    "VoiceManager": "Use VoiceManager from synth.processing.voice.voice_manager instead",
-    "VoiceState": "Use Voice from synth.processing.voice.voice instead",
-    "NoteEvent": "Use NoteEvent from synth.processing.voice.voice_instance instead",
-}
-
-
-def __getattr__(name):
-    """Handle deprecated imports with helpful error messages."""
-    if name in _DEPRECATED:
-        import warnings
-
-        warnings.warn(
-            f"{name} is deprecated and will be removed in a future version. {_DEPRECATED[name]}",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        # Return None or raise ImportError
-        raise ImportError(f"{name} has been moved. {_DEPRECATED[name]}")
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
