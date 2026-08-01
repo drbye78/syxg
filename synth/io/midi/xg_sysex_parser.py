@@ -292,3 +292,60 @@ class XGSysexParser:
 
         for cb in self._parameter_callbacks:
             cb(msg)
+
+    # ── Compatibility stubs for XGSynthesizerSystem initialization ──
+
+    def set_xg_components(self, components) -> None:
+        """Store XG component reference (compatibility with XGSynthesizerSystem)."""
+        self.xg_components = components
+
+    def set_gs_components(self, components) -> None:
+        """Store GS component reference (compatibility with XGSynthesizerSystem)."""
+        self.gs_components = components
+
+    def register_system_callback(self, event: str, callback) -> None:
+        """Register callback for system events (compatibility wrapper)."""
+        self.on_system_message(event, callback)
+
+    def enable_xg(self) -> None:
+        """Enable XG mode (compatibility — handled by synthesizer system)."""
+        pass
+
+    def enable_gs(self) -> None:
+        """Enable GS mode (compatibility — handled by synthesizer system)."""
+        pass
+
+    def set_effects_coordinator(self, coordinator) -> None:
+        """Store effects coordinator reference."""
+        self.effects_coordinator = coordinator
+
+    def process_message(self, data: bytes) -> bool:
+        """Process a raw SysEx message. Returns True if valid."""
+        msg = self.parse(data)
+        if msg.is_valid:
+            self.dispatch(msg)
+        return msg.is_valid
+
+    def get_status(self) -> dict:
+        """Return parser status (compatibility with XGSynthesizerSystem)."""
+        return {"device_id": self.device_id}
+
+    def create_xg_message(self, command: int, data: list[int]) -> bytes:
+        """Build XG SysEx using spec-correct address format.
+        
+        Maps the old 'command' values to spec-correct addresses:
+        0x02 = XG System On (0x00, 0x00, 0x7F)
+        0x03 = XG System Off (0x00, 0x00, 0x7E)
+        0x04 = XG Reset (0x00, 0x00, 0x7D)
+        """
+        cmd_map = {
+            0x02: (0x00, 0x00, 0x7F),   # XG System On
+            0x03: (0x00, 0x00, 0x7E),   # XG System Off
+            0x04: (0x00, 0x00, 0x7D),   # All Parameter Reset
+        }
+        addr = cmd_map.get(command, (0x00, 0x00, 0x00))
+        return self.build_xg(addr, bytes(data))
+
+    def create_gs_message(self, command: int, address: tuple, data: list[int]) -> bytes:
+        """Build GS SysEx message (compatibility — uses XG parser format)."""
+        return self.build_xg(address, bytes(data))

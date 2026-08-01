@@ -461,10 +461,17 @@ class GSSysexHandler:
                 return self._handle_drum_key_param(drum_part, addr_mid, addr_low, data)
 
         elif addr_high == 0x40:
-            # GS EQ parameters (address 0x40 02 0n xx)
-            part_num = addr_low  # addr_low is the part number
-            param = addr_mid     # addr_mid is the parameter
-            return self._handle_eq_param(part_num, param, data)
+            # GS Temporary Area (0x40 00 00 – 0x40 0F 7F)
+            # Currently implements:
+            #   0x40 02 — EQ low gain (addr_mid=0x02, addr_low=part)
+            #   0x40 03 — EQ high gain (addr_mid=0x03, addr_low=part)
+            # Remaining sub-ranges (0x40 00-01, 0x40 04-0F) are not implemented.
+            if addr_mid in (0x02, 0x03):
+                part_num = addr_low
+                return self._handle_eq_param(part_num, addr_mid, data)
+            else:
+                logger.debug(f"GS Temporary Area not implemented: 0x40 {addr_mid:02X} {addr_low:02X}")
+                return None
 
         return None
 
@@ -878,11 +885,10 @@ class GSSysexHandler:
 
         msg.extend(data)
 
-        # Calculate checksum
-        checksum = self._calculate_checksum(msg[1:])
+        # Calculate checksum over address + data only (Roland spec)
+        checksum = self._calculate_checksum(msg[5:])
         msg.append(checksum)
         msg.append(0xF7)
-
         return bytes(msg)
 
     @staticmethod
@@ -915,9 +921,31 @@ class GSSysexHandler:
         """Set effects coordinator reference."""
         self.effects_coordinator = coordinator
 
-    def set_voice_manager(self, manager):
-        """Set voice manager reference."""
-        self.voice_manager = manager
+    def set_synthesizer(self, synth):
+        """Set synthesizer reference and wire parameter change routing.
+
+        Replaces the unused voice_manager reference (Phase 3 — GS wiring).
+        When set, GS parameter changes are forwarded to the synthesizer.
+        """
+        self.synthesizer = synth
+        # Wire parameter change notifications to the synthesizer
+        self.register_parameter_callback(self._route_to_synthesizer)
+
+    def _route_to_synthesizer(self, section: str, param: str, value: Any):
+        """Route GS parameter changes to the synthesizer's audio pipeline."""
+        if self.synthesizer is None:
+            return
+        try:
+            if section == "master" and param == "volume":
+                self.synthesizer.set_master_volume(int(value))
+            elif section == "part" and param == "volume":
+                self.synthesizer.set_channel_volume(int(value))
+            elif section == "effects" and param == "reverb_type":
+                self.synthesizer.set_xg_reverb_type(int(value))
+            elif section == "effects" and param == "chorus_type":
+                self.synthesizer.set_xg_chorus_type(int(value))
+        except Exception as e:
+            logger.debug(f"GS param routing error: {e}")
 
     def set_jv2080_manager(self, manager) -> None:
         """Set reference to JV2080 component manager."""
@@ -1052,7 +1080,7 @@ class GSSysexHandler:
 
         msg.extend(data)
 
-        checksum = self._calculate_checksum(msg[1:])
+        checksum = self._calculate_checksum(msg[5:])
         msg.append(checksum)
         msg.append(0xF7)
 

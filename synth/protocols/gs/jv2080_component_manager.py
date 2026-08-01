@@ -938,10 +938,16 @@ class JV2080ComponentManager:
         """
         Process parameter change via NRPN or SysEx address.
 
-        JV-2080 uses address-based parameter changes:
-        - System: 0x00-0x0F
-        - Parts: 0x10-0x2F (16 parts * 16 params)
-        - Effects: 0x30-0x3F
+        Simplified JV-2080 parameter routing:
+          - System:    0x00
+          - Parts:     0x10-0x2F (16 parts)
+          - Effects:   0x30-0x3F
+
+        Note: This is a simplified address space. Real JV-2080 uses:
+          0x00 — System, 0x10 — Temporary Patch, 0x20 — Temporary Rhythm,
+          0x30 — Temporary Performance, 0x40 — Patch Common.
+        Effects coordinator bridging and Jupiter-X per-part engine instances
+        provide the actual synthesis connections.
 
         Returns True if parameter was processed.
         """

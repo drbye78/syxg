@@ -24,12 +24,16 @@ class GSMIDIProcessor:
         self._init_routing()
 
     def _init_routing(self):
-        """Initialize fast routing tables"""
-        # GS SYSEX commands (Roland ID 0x41)
+        """Initialize GS address-based routing.
+
+        Real GS SysEx format: F0 41 [dev] 42 [addr_H] [addr_M] [addr_L] [data...] [cksum] F7
+        Route by address high byte (data[4] in the raw message), not an invented command code.
+        """
         self.sysex_routes = {
-            0x42: self._process_gs_reset,  # GS Reset
-            0x40: self._process_gs_data_set,  # Data Set
-            0x41: self._process_gs_data_request,  # Data Request
+            0x12: self._process_gs_reset,       # addr_H=0x12: System Mode (includes GS reset)
+            0x40: self._process_gs_data_set,     # addr_H=0x40: Temporary Area (part/effects params)
+            0x10: self._process_gs_data_set,     # addr_H=0x10: Patch Area
+            0x00: self._process_gs_data_set,     # addr_H=0x00: System Area
         }
 
     def process_message(self, message_bytes: bytes) -> bool:
@@ -60,8 +64,8 @@ class GSMIDIProcessor:
         if data[3] != 0x42:
             return False
 
-        command = data[4]
-        handler = self.sysex_routes.get(command)
+        addr_high = data[4]
+        handler = self.sysex_routes.get(addr_high)
 
         if handler:
             return handler(data)

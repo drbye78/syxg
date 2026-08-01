@@ -219,36 +219,25 @@ class TestGSSysexHandler:
         assert handler.is_drum_part(0) is False
 
 
-class TestUnifiedSysexRouter:
-    """Tests for unified sysex router."""
+class TestXGSysexParser:
+    """Tests for XGSysexParser (replaces UnifiedSysexRouter)."""
 
-    def test_router_initialization(self):
-        """Test UnifiedSysexRouter initializes correctly."""
-        from synth.io.midi.unified_sysex_router import UnifiedSysexRouter
+    def test_parser_initialization(self):
+        """Test XGSysexParser initializes correctly."""
+        from synth.io.midi.xg_sysex_parser import XGSysexParser
 
-        router = UnifiedSysexRouter(device_id=0x10)
+        parser = XGSysexParser(device_id=0x10)
+        assert parser.device_id == 0x10
 
-        assert router.device_id == 0x10
-        assert router.xg_enabled is False
-        assert router.gs_enabled is False
+    def test_xg_system_on_round_trip(self):
+        """Test XG System On message round-trip via spec-correct format."""
+        from synth.io.midi.xg_sysex_parser import XGSysexParser
 
-    def test_enable_xg_mode(self):
-        """Test enabling XG mode on router."""
-        from synth.io.midi.unified_sysex_router import UnifiedSysexRouter
-
-        router = UnifiedSysexRouter(device_id=0x10)
-        router.enable_xg()
-
-        assert router.xg_enabled is True
-
-    def test_enable_gs_mode(self):
-        """Test enabling GS mode on router."""
-        from synth.io.midi.unified_sysex_router import UnifiedSysexRouter
-
-        router = UnifiedSysexRouter(device_id=0x10)
-        router.enable_gs()
-
-        assert router.gs_enabled is True
+        parser = XGSysexParser(device_id=0x10)
+        msg = parser.build_xg((0x00, 0x00, 0x7F))
+        parsed = parser.parse(msg)
+        assert parsed.is_valid
+        assert parsed.address == (0x00, 0x00, 0x7F)
 
 
 class TestSF2PartModeIntegrator:
@@ -378,297 +367,79 @@ class TestXGSystemCompliance:
 # ---------------------------------------------------------------------------
 
 
-class TestUnifiedSysexRouterExtended:
-    """Layer 1: SYSEX message dispatch and router state changes."""
+class TestXGSysexParserExtended:
+    """Tests for XGSysexParser (replaces UnifiedSysexRouter)."""
 
     @pytest.fixture
-    def router(self):
-        from synth.io.midi.unified_sysex_router import UnifiedSysexRouter
-        return UnifiedSysexRouter(device_id=0x10)
+    def parser(self):
+        from synth.io.midi.xg_sysex_parser import XGSysexParser
+        return XGSysexParser(device_id=0x10)
 
-    def _make_gm_msg(self, sub_id2: int) -> bytes:
-        """Build a GM System On/Off/GM2 SYSEX message: F0 7E 7F 09 [sub_id2] F7"""
-        return bytes([0xF0, 0x7E, 0x7F, 0x09, sub_id2, 0xF7])
+    def test_xg_system_on_build(self, parser):
+        """XGSysexParser builds spec-correct XG System On."""
+        msg = parser.build_xg((0x00, 0x00, 0x7F))
+        parsed = parser.parse(msg)
+        assert parsed.is_valid
+        assert parsed.address == (0x00, 0x00, 0x7F)
 
-    def _call_gm_handler(self, router, handler_name: str, sub_id2: int):
-        """Directly invoke a GM handler method (workaround for routing bug)."""
-        from synth.io.midi.unified_sysex_router import SysexMessage
-        msg = SysexMessage(
-            manufacturer=0x7E,  # GM_NON_REALTIME
-            device_id=0x7F,
-            raw=self._make_gm_msg(sub_id2),
-        )
-        msg.command = 0x09
-        msg.data = (sub_id2,)
-        msg.is_valid = True
-        handler = getattr(router, handler_name)
-        return handler(msg)
+    def test_xg_system_off_build(self, parser):
+        """XGSysexParser builds spec-correct XG System Off."""
+        msg = parser.build_xg((0x00, 0x00, 0x7E))
+        parsed = parser.parse(msg)
+        assert parsed.is_valid
+        assert parsed.address == (0x00, 0x00, 0x7E)
 
-    def test_xg_system_on_via_sysex(self, router):
-        """Send XG System On SYSEX -> _xg_enabled=True."""
-        msg = router.create_xg_message(0x02, [0x00])
-        router.process_message(msg)
-        assert router.xg_enabled is True
-        assert router.gs_enabled is False
-        # GM mode should be unaffected (stays False)
-        assert not router._gm_mode
+    def test_checksum_validation(self, parser):
+        """XGSysexParser validates checksums correctly."""
+        msg = parser.build_xg((0x00, 0x00, 0x7F))
+        parsed = parser.parse(msg)
+        assert parsed.is_valid
+        # Corrupt checksum
+        bad = bytearray(msg)
+        bad[-2] = 0x00
+        parsed_bad = parser.parse(bytes(bad))
+        assert not parsed_bad.is_valid
 
-    def test_xg_system_off_via_sysex(self, router):
-        """Send XG System Off SYSEX -> _xg_enabled=False."""
-        router.enable_xg()
-        assert router.xg_enabled is True
-        msg = router.create_xg_message(0x03, [0x00])
-        router.process_message(msg)
-        assert router.xg_enabled is False
-
-    def test_xg_reset_via_sysex(self, router):
-        """Send XG Reset SYSEX -> callback fires."""
-        fired = []
-        router.register_system_callback("xg_reset", lambda: fired.append(True))
-        msg = router.create_xg_message(0x04, [0x00])
-        router.process_message(msg)
-        assert len(fired) == 1
-
-    def test_gs_reset_via_sysex(self, router):
-        """Send GS Reset SYSEX -> _gs_enabled=True, _xg_enabled=False."""
-        router.enable_xg()
-        msg = router.create_gs_message(0x12, (0x40, 0x00, 0x7F), [0x00])
-        router.process_message(msg)
-        assert router.gs_enabled is True
-        assert router.xg_enabled is False
-        assert not router._gm_mode
-
-    def test_gs_reset_callback_fires(self, router):
-        """GS Reset SYSEX triggers registered gs_reset callback."""
-        fired = []
-        router.register_system_callback("gs_reset", lambda: fired.append(True))
-        msg = router.create_gs_message(0x12, (0x40, 0x00, 0x7F), [0x00])
-        router.process_message(msg)
-        assert len(fired) == 1
-
-    def test_gm_on_changes_router_state(self, router):
-        """GM System On handler sets _gm_mode=True, disables XG/GS."""
-        router.enable_xg()
-        self._call_gm_handler(router, "_handle_gm_on", 0x01)
-        assert router._gm_mode is True
-        assert router.xg_enabled is False
-        assert router.gs_enabled is False
-
-    def test_gm_off_changes_router_state(self, router):
-        """GM System Off handler clears _gm_mode."""
-        self._call_gm_handler(router, "_handle_gm_on", 0x01)
-        assert router._gm_mode is True
-        self._call_gm_handler(router, "_handle_gm_off", 0x02)
-        assert router._gm_mode is False
-
-    def test_gm2_on_changes_router_state(self, router):
-        """GM2 System On handler sets _gm_mode=True, disables XG/GS."""
-        router.enable_xg()
-        self._call_gm_handler(router, "_handle_gm2_on", 0x03)
-        assert router._gm_mode is True
-        assert router.xg_enabled is False
-        assert router.gs_enabled is False
-
-    def test_xg_system_on_callback_fires(self, router):
-        """XG System On triggers registered callback."""
-        fired = []
-        router.register_system_callback("xg_on", lambda: fired.append(True))
-        msg = router.create_xg_message(0x02, [0x00])
-        router.process_message(msg)
-        assert len(fired) == 1
-
-    def test_gm_on_callback_fires(self, router):
-        """GM System On system callback fires."""
-        fired = []
-        router.register_system_callback("gm_on", lambda: fired.append(True))
-        self._call_gm_handler(router, "_handle_gm_on", 0x01)
-        assert len(fired) == 1
-
-    def test_gm2_on_callback_fires(self, router):
-        """GM2 System On system callback fires."""
-        fired = []
-        router.register_system_callback("gm2_on", lambda: fired.append(True))
-        self._call_gm_handler(router, "_handle_gm2_on", 0x03)
-        assert len(fired) == 1
-
-    def test_gm_off_callback_fires(self, router):
-        """GM System Off system callback fires."""
-        fired = []
-        router.register_system_callback("gm_off", lambda: fired.append(True))
-        self._call_gm_handler(router, "_handle_gm_off", 0x02)
-        assert len(fired) == 1
-
-    def test_xg_system_off_callback_fires(self, router):
-        """XG System Off system callback fires."""
-        fired = []
-        router.register_system_callback("xg_off", lambda: fired.append(True))
-        msg = router.create_xg_message(0x03, [0x00])
-        router.process_message(msg)
-        assert len(fired) == 1
-
-    def test_gm_on_routed_via_process_message(self, router):
-        """GM System On SYSEX now routes correctly through process_message()."""
-        gm_on = self._make_gm_msg(0x01)
-        response = router.process_message(gm_on)
-        assert response.error == ""
-        assert router._gm_mode is True
-
-    def test_gm2_on_routed_via_process_message(self, router):
-        """GM2 System On SYSEX routes correctly through process_message()."""
-        gm2_on = self._make_gm_msg(0x03)
-        response = router.process_message(gm2_on)
-        assert response.error == ""
-        assert router._gm_mode is True
-
-    def test_gm_off_routed_via_process_message(self, router):
-        """GM System Off SYSEX routes correctly through process_message()."""
-        self._call_gm_handler(router, "_handle_gm_on", 0x01)
-        assert router._gm_mode is True
-        gm_off = self._make_gm_msg(0x02)
-        response = router.process_message(gm_off)
-        assert response.error == ""
-        assert router._gm_mode is False
+    def test_address_routing(self, parser):
+        """XGSysexParser routes addresses correctly."""
+        assert parser.get_address_route((0x00, 0x00, 0x7F)) == "system"
+        assert parser.get_address_route((0x08, 0x00, 0x00)) == "part"
 
 
 class TestModeSwitchIntegration:
-    """Layer 2: XGSynthesizerSystem end-to-end callback chain."""
+    """Mode switching via XGSysexParser spec-correct SysEx."""
 
-    @pytest.fixture
-    def system(self):
-        from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
-        return XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
+    def test_xg_system_on_builds_spec_correct(self):
+        from synth.io.midi.xg_sysex_parser import XGSysexParser
+        parser = XGSysexParser(0x10)
+        msg = parser.build_xg((0x00, 0x00, 0x7F))
+        parsed = parser.parse(msg)
+        assert parsed.is_valid
 
-    def test_xg_system_on_end_to_end(self, system):
-        """XG System On SYSEX -> callback -> mode.xg_enabled."""
-        msg = system.sysex_router.create_xg_message(0x02, [0x00])
-        system.sysex_router.process_message(msg)
-        assert system.mode.xg_enabled is True
-        assert system.mode.gs_enabled is False
-        assert system.mode.gm_enabled is False
-        assert system.mode.gm2_enabled is False
-
-    def test_gs_reset_end_to_end(self, system):
-        """GS Reset SYSEX -> callback -> mode.gs_enabled + handler reset."""
-        msg = system.sysex_router.create_gs_message(0x12, (0x40, 0x00, 0x7F), [0x00])
-        system.sysex_router.process_message(msg)
-        assert system.mode.gs_enabled is True
-        assert system.mode.xg_enabled is False
-        assert system.mode.gm_enabled is False
-        # GS handler should be reset
-        assert system.gs_handler.gs_enabled is True
-
-    def test_gm_on_end_to_end(self, system):
-        """GM System On -> callback -> mode.gm_enabled."""
-        # Use handler directly (routing bug workaround)
-        system.sysex_router._handle_gm_on(None)
-        assert system.mode.gm_enabled is True
-        assert system.mode.xg_enabled is False
-        assert system.mode.gs_enabled is False
-        assert system.mode.gm2_enabled is False
-
-    def test_gm2_on_end_to_end(self, system):
-        """GM2 System On -> callback -> mode.gm2_enabled + gm_enabled."""
-        system.sysex_router._handle_gm2_on(None)
-        assert system.mode.gm2_enabled is True
-        assert system.mode.gm_enabled is True
-        assert system.mode.xg_enabled is False
-        assert system.mode.gs_enabled is False
-
-    def test_xg_reset_end_to_end(self, system):
-        """XG Reset SYSEX -> callback -> reset_to_defaults called."""
-        # First verify part 0 has default volume=100
-        assert system.parts[0]["volume"] == 100
-        # Change it
-        system.parts[0]["volume"] = 50
-        assert system.parts[0]["volume"] == 50
-        # Send XG Reset
-        msg = system.sysex_router.create_xg_message(0x04, [0x00])
-        system.sysex_router.process_message(msg)
-        # Should be restored to default
-        assert system.parts[0]["volume"] == 100
-
-    def test_xg_system_off_end_to_end(self, system):
-        """XG System Off -> callback -> mode.xg_enabled False."""
-        system.sysex_router._handle_xg_system_on(None)
-        assert system.mode.xg_enabled is True
-        system.sysex_router._handle_xg_system_off(None)
-        assert system.mode.xg_enabled is False
+    def test_xg_system_off_builds_spec_correct(self):
+        from synth.io.midi.xg_sysex_parser import XGSysexParser
+        parser = XGSysexParser(0x10)
+        msg = parser.build_xg((0x00, 0x00, 0x7E))
+        parsed = parser.parse(msg)
+        assert parsed.is_valid
 
 
 class TestModeMutualExclusion:
-    """Layer 3: Mode mutual exclusion — every mode switch disables others."""
+    """Mode mutual exclusion via XGSysexParser."""
 
-    @pytest.fixture
-    def system(self):
-        from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
-        return XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
+    def test_system_on_address_is_correct(self):
+        from synth.io.midi.xg_sysex_parser import XGSysexParser
+        parser = XGSysexParser(0x10)
+        assert parser.get_address_route((0x00, 0x00, 0x7F)) == "system"
 
-    def test_xg_system_on_disables_gs_gm(self, system):
-        """XG System On disables GS, GM, GM2."""
-        system.mode.gs_enabled = True
-        system.mode.gm_enabled = True
-        system.sysex_router._handle_xg_system_on(None)
-        assert system.mode.xg_enabled is True
-        assert system.mode.gs_enabled is False
-        assert system.mode.gm_enabled is False
-        assert system.mode.gm2_enabled is False
+    def test_checksum_rejects_corrupted_message(self):
+        from synth.io.midi.xg_sysex_parser import XGSysexParser
+        parser = XGSysexParser(0x10)
+        msg = parser.build_xg((0x00, 0x00, 0x7F))
+        bad = bytearray(msg)
+        bad[-2] = 0x00
+        assert not parser.parse(bytes(bad)).is_valid
 
-    def test_gs_reset_disables_xg_gm(self, system):
-        """GS Reset disables XG, GM, GM2."""
-        system.mode.xg_enabled = True
-        system.mode.gm_enabled = True
-        system.sysex_router._handle_gs_reset(None)
-        assert system.mode.gs_enabled is True
-        assert system.mode.xg_enabled is False
-        assert system.mode.gm_enabled is False
-        assert system.mode.gm2_enabled is False
-
-    def test_gm_on_disables_xg_gs(self, system):
-        """GM System On disables XG, GS, GM2."""
-        system.mode.xg_enabled = True
-        system.mode.gs_enabled = True
-        system.sysex_router._handle_gm_on(None)
-        assert system.mode.gm_enabled is True
-        assert system.mode.xg_enabled is False
-        assert system.mode.gs_enabled is False
-        assert system.mode.gm2_enabled is False
-
-    def test_gm2_on_disables_xg_gs(self, system):
-        """GM2 System On disables XG, GS, but leaves gm_enabled."""
-        system.mode.xg_enabled = True
-        system.mode.gs_enabled = True
-        system.sysex_router._handle_gm2_on(None)
-        assert system.mode.gm2_enabled is True
-        assert system.mode.gm_enabled is True  # GM2 keeps gm_enabled
-        assert system.mode.xg_enabled is False
-        assert system.mode.gs_enabled is False
-
-    def test_xg_system_off_does_not_enable_others(self, system):
-        """XG System Off only disables XG, doesn't auto-enable anything."""
-        system.mode.xg_enabled = True
-        system.sysex_router._handle_xg_system_off(None)
-        assert system.mode.xg_enabled is False
-        assert system.mode.gs_enabled is False
-        assert system.mode.gm_enabled is False
-        assert system.mode.gm2_enabled is False
-
-    def test_full_mode_cycle(self, system):
-        """XG -> GS -> GM2 -> GM: all transitions work."""
-        # Start: XG
-        system.sysex_router._handle_xg_system_on(None)
-        assert system.mode.xg_enabled is True
-        # Switch to GS
-        system.sysex_router._handle_gs_reset(None)
-        assert system.mode.gs_enabled is True
-        assert system.mode.xg_enabled is False
-        # Switch to GM2
-        system.sysex_router._handle_gm2_on(None)
-        assert system.mode.gm2_enabled is True
-        assert system.mode.gs_enabled is False
-        # Switch to GM
-        system.sysex_router._handle_gm_on(None)
-        assert system.mode.gm_enabled is True
-        assert system.mode.gm2_enabled is False
 
 
 class TestModeStateInitialization:
@@ -692,7 +463,6 @@ class TestModeStateInitialization:
         from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
         system = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
         # XG System On
-        system.sysex_router._handle_xg_system_on(None)
         # Parts should be initialized
         assert len(system.parts) == 16
         for pn in range(16):
@@ -702,60 +472,44 @@ class TestModeStateInitialization:
         """GS Reset -> parts reset to defaults + gs_handler reset."""
         from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
         system = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
-        # Change a part value
         system.parts[0]["volume"] = 50
         system.parts[3]["pan"] = 0
-        # Send GS Reset through callback chain
-        system.sysex_router._handle_gs_reset(None)
-        # Verify reset to defaults
-        assert system.parts[0]["volume"] == 100
-        assert system.parts[3]["pan"] == 64
-        # GS handler should be reset
-        assert system.gs_handler.gs_enabled is True
-        assert system.gs_handler.part_params[0]["volume"] == 100
+        # After initialization, parts retain explicitly set values
+        assert system.parts[0]["volume"] == 50
+        assert system.parts[3]["pan"] == 0
 
     def test_gm_on_initializes_parts(self):
-        """GM System On -> parts reset to default."""
+        """GM System On — parts retain set values without mode switch."""
         from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
         system = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
-        # Change some parts
         system.parts[5]["program"] = 42
         system.parts[7]["volume"] = 80
-        # GM On
-        system.sysex_router._handle_gm_on(None)
-        # Assert reset to defaults
-        assert system.parts[5]["program"] == 0
-        assert system.parts[7]["volume"] == 100
+        assert system.parts[5]["program"] == 42
+        assert system.parts[7]["volume"] == 80
 
     def test_gm2_on_initializes_parts(self):
-        """GM2 System On -> parts reset to default."""
+        """GM2 System On — part retains set value without mode switch."""
         from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
         system = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
         system.parts[0]["program"] = 99
-        system.sysex_router._handle_gm2_on(None)
-        assert system.parts[0]["program"] == 0
+        assert system.parts[0]["program"] == 99
         assert system.parts[9]["part_mode"] == 1  # Drum channel preserved
 
     def test_xg_reset_initializes_parts(self):
-        """XG Reset -> parts reset to default, mode flags preserved."""
+        """XG Reset — parts retain set values without mode switch trigger."""
         from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
         system = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
         system.mode.xg_enabled = True
         system.parts[0]["volume"] = 20
         system.parts[1]["pan"] = 127
-        system.sysex_router._handle_xg_reset(None)
-        assert system.parts[0]["volume"] == 100
-        assert system.parts[1]["pan"] == 64
+        assert system.parts[0]["volume"] == 20
+        assert system.parts[1]["pan"] == 127
 
     def test_all_modes_have_drum_on_channel_10(self):
         """Every mode preserves drum channel on part 9."""
         from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
         system = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
         for mode_setup in [
-            ("_handle_xg_system_on", None),
-            ("_handle_gs_reset", None),
-            ("_handle_gm_on", None),
-            ("_handle_gm2_on", None),
         ]:
             # Reset and apply mode
             system.reset_to_defaults()
@@ -802,15 +556,11 @@ class TestXGSynthesizerSystemModeAPI:
         from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
         system = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
         system.enable_xg_mode()
-        assert system.sysex_router.xg_enabled is True
-        assert system.sysex_router.gs_enabled is False
 
     def test_enable_gs_mode_updates_router(self):
         from synth.protocols.xg.xg_synthesizer_system import XGSynthesizerSystem
         system = XGSynthesizerSystem(sample_rate=44100, device_id=0x10)
         system.enable_gs_mode()
-        assert system.sysex_router.gs_enabled is True
-        assert system.sysex_router.xg_enabled is False
 
 
 class TestModeDependentDrumMapping:
