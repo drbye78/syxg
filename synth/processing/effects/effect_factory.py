@@ -6,8 +6,12 @@ import logging
 import threading
 from typing import Any
 
+from .effects_registry import XGEffectRegistry
 from .insertion import ProductionXGInsertionEffectsProcessor
+from .system_chorus import XGSystemChorusProcessor
+from .system_reverb import XGSystemReverbProcessor
 from .types import XGEffectCategory
+from .variation_effects import XGVariationEffectsProcessor
 
 logger = logging.getLogger(__name__)
 

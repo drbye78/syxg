@@ -59,7 +59,7 @@ The SF2 (SoundFont 2.0) Engine is the flagship synthesis engine of the XG Synthe
 - ✅ **Instruments**: Full instrument support
 - ✅ **Samples**: 16/24-bit mono/stereo sample support
 - ✅ **Zones**: Preset and instrument zones
-- ✅ **Generators**: All 60+ SF2 generators
+- ✅ **Generators**: 24 core generators extracted; remainder via direct region access
 - ✅ **Modulators**: Complete modulator matrix
 
 #### **Advanced Features**
@@ -69,16 +69,9 @@ The SF2 (SoundFont 2.0) Engine is the flagship synthesis engine of the XG Synthe
 - ✅ **Loop Points**: Forward/backward/alternating loops
 - ✅ **Sample Linking**: Stereo sample pair support
 
-### **SF2 Compliance Score: 98%**
+### **SF2 Generator Support**
 
-| Feature Category | Compliance | Status |
-|------------------|------------|--------|
-| **File Format** | 100% | ✅ Complete |
-| **Zone Processing** | 100% | ✅ Complete |
-| **Generator Support** | 100% | ✅ Complete |
-| **Modulator Support** | 100% | ✅ Complete |
-| **Sample Playback** | 95% | ⚠️ Minor gaps |
-| **Real-time Control** | 100% | ✅ Complete |
+24 core SF2 generators are extracted in `sf2_engine.py._extract_generator_params()`. Remaining generators are accessed directly via `SF2Region._get_generator_value()`. See `docs/sf2/real-time-safety.md` for details on real-time safety and interpolation quality.
 
 ## 🔧 **Zone Inheritance System**
 

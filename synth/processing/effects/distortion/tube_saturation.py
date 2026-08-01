@@ -57,8 +57,8 @@ class TubeSaturationProcessor:
             elif output_voltage < -self.plate_voltage:
                 output_voltage = -self.plate_voltage
 
-            # Add even harmonics (tube characteristic)
-            harmonic_content = 0.1 * math.sin(output_voltage * math.pi * 2)
+            # Add even harmonics (tube characteristic — 2nd harmonic)
+            harmonic_content = 0.05 * (output_voltage * output_voltage)
             output_voltage += harmonic_content
 
             # Tone control (simple high-frequency rolloff)

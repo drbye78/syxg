@@ -77,6 +77,8 @@ class ProductionFlangerProcessor:
             delay_samples = max(
                 self.min_delay * 0.5, min(delay_samples, self.max_delay * 1.5)
             )
+            # Safety: ensure delay doesn't exceed buffer capacity
+            delay_samples = min(delay_samples, self.buffer_size - 4)
 
             # ---- Interpolated read from delay line -----------------------------
             delay_int = int(delay_samples)

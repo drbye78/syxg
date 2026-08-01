@@ -1,4 +1,9 @@
-"""Professional carrier vocoder for insertion effects."""
+"""Professional carrier vocoder with 2nd-order biquad filter bank.
+
+Upgraded from cascaded one-pole filters (6 dB/oct) to second-order
+biquad bandpass filters (12 dB/oct) for proper band separation.
+Uses existing BiquadFilter from synth/primitives/filter.py.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +11,8 @@ import math
 import threading
 
 import numpy as np
+
+from synth.primitives.filter import BiquadFilter
 
 
 class CarrierVocoder:

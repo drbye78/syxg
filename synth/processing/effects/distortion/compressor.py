@@ -84,8 +84,8 @@ class ProfessionalCompressor:
             else:
                 control_db = 20.0 * math.log10(abs(control_signal))
 
-            # Get envelope in dB
-            envelope_db = self.envelope_follower.process_sample(control_signal)
+            # Get envelope in dB — use control_db (dB), not control_signal (linear)
+            envelope_db = self.envelope_follower.process_sample(control_db)
 
             # Compressor gain calculation
             if envelope_db > self.threshold + self.knee / 2:

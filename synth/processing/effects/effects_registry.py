@@ -100,6 +100,36 @@ class XGEffectRegistry:
         self._initialize_insertion_effects()
         self._initialize_eq_effects()
 
+        # Validate all registered effects have implementations
+        errors = self._validate_all_registered()
+        if errors:
+            for err in errors:
+                logger.warning(f"Effect registration validation: {err}")
+
+    def _validate_all_registered(self) -> list[str]:
+        """Validate all registered effects. Returns list of error strings."""
+        errors = []
+        for (category, effect_type), metadata in self._effects.items():
+            if metadata.processor_class is None and category != XGEffectCategory.SYSTEM:
+                errors.append(
+                    f"Effect '{metadata.name}' (cat={category.name}, type={effect_type}) "
+                    f"has no processor_class assigned"
+                )
+        return errors
+
+    def get_variation_type_enum(self) -> dict[int, str]:
+        """Generate variation effect enum mapping from registry entries.
+        
+        Returns dict mapping effect_type → enum_name suitable for IntEnum.
+        This eliminates name mismatches between registry, enum, and implementation.
+        """
+        result = {}
+        for (category, effect_type), metadata in self._effects.items():
+            if category == XGEffectCategory.VARIATION:
+                enum_name = metadata.name.upper().replace(" ", "_").replace("/", "_").replace("-", "_")
+                result[effect_type] = enum_name
+        return result
+
     def _register_effect(self, effect: XGEffectMetadata) -> None:
         key = (effect.category, effect.effect_type)
         self._effects[key] = effect

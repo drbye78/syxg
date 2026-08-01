@@ -7,6 +7,12 @@ This section provides comprehensive API documentation for the XG Synthesizer, in
 The XG Synthesizer API is organized into several key modules:
 
 - **`synth.engines`** - Core synthesis engines (SF2, SFZ, FM, physical, spectral) and main synthesizer
+- **`synth.engines.articulation`** - Unified articulation engine: 12 DSP processors, data-driven registry (317 entries)
+- **`synth.engines.auto_detect`** - Playing-style inference: legato, interval glissando, velocity, duration
+- **`synth.engines.voice_features`** - Voice-level synthesis features: trigger modes, glide, LFO sync, filter envelope
+- **`synth.engines.art_buttons`** - ART button system: 3-slot per-voice assignable articulation triggers
+- **`synth.engines.note_sequencing`** - Note-level articulations: grace, agoge, raking, double/triple tongue
+- **`synth.sequencer`** - MIDI event sequencing and pattern engine
 - **`synth.xgml`** - XGML configuration language parser and translator
 - **`synth.processing`** - Audio effects processing, voice management, channel processing
 - **`synth.protocols`** - MIDI protocol handling (XG, GS, MIDI 2.0, NRPN/SysEx)
