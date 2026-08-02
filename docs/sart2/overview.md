@@ -31,10 +31,12 @@ SynthesisEngine.create_region()
 
 | Subsystem | Location | Purpose |
 |---|---|---|
-| **AutoDetectionEngine** | `synth/engines/auto_detect/` | Playing-style inference: legato, interval glissando, velocity switching, duration release |
+| **AutoDetectionEngine** | `synth/engines/auto_detect/` | 7 gesture types: legato, glissando, velocity, duration, sforzando, repetition, crescendo |
 | **VoiceFeatureController** | `synth/engines/voice_features/` | Trigger modes (trig/gate/tie/legato), glide/portamento, LFO sync, filter envelope |
 | **ArtButtonManager** | `synth/engines/art_buttons/` | 3-slot per-voice assignable articulation triggers |
 | **ArticulationNoteSequencer** | `synth/engines/note_sequencing/` | Grace notes, agoge, raking, double/triple tongue |
+| **ContinuousArticulation** | `synth/engines/acoustic/` | 5D morphing: staccato/legato, sul tasto/ponticello, pp/ff, normal/marcato, vibrato |
+| **PhraseAnalyzer** | `synth/engines/acoustic/` | Boundary detection, apex anticipation, rubato timing, dynamic contour |
 
 ## Import Path
 
