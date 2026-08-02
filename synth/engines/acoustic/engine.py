@@ -31,7 +31,7 @@ class AcousticBehaviorFeature:
     name: str = ACOUSTIC_BEHAVIOR_FEATURE
     version: str = "1.1.0"
     description: str = (
-        "SuperNATURAL-Acoustic alike cross-note behavior: velocity timbre, "
+        "Behavioral Synthesis cross-note behavior: velocity timbre, "
         "performance noise, sympathetic/damper resonance, ensemble detune."
     )
     wraps_regions: bool = True

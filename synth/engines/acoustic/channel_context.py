@@ -1,6 +1,6 @@
 """Shared per-channel acoustic context for cross-note behavior modeling.
 
-This is the architectural foundation of the SuperNATURAL-Acoustic alike
+This is the architectural foundation of the Behavioral Synthesis
 engine. It owns ALL collective state that outlives individual voices:
 
 - the set of currently-held notes (for register/phrase context)

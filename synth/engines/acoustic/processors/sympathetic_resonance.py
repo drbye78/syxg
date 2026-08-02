@@ -4,7 +4,7 @@ A shared bus owned by the ChannelAcousticContext. Every active voice FEEDS
 the bank with its pitch energy; the bank rings at the instrument's natural
 resonant modes and is MIXED back into every voice. This is what makes a
 piano/strings sound "alive" when other notes are held — the core
-SuperNATURAL cross-note authenticity.
+Behavioral Synthesis cross-note authenticity.
 """
 
 from __future__ import annotations

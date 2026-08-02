@@ -1,4 +1,4 @@
-"""Behavior configuration for the SuperNATURAL-Acoustic alike engine.
+"""Behavior configuration for the Behavioral Synthesis engine.
 
 Defines per-instrument-group behavior parameters and the higher-level
 ensemble/scene configuration (solo vs section) that drives cross-note

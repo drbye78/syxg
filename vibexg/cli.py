@@ -202,7 +202,7 @@ Examples:
         dest="acoustic",
         action="store_true",
         default=None,
-        help="Enable acoustic behavior modeling (SuperNATURAL-like)",
+        help="Enable acoustic behavior modeling (Behavioral Synthesis-like)",
     )
     sfx.add_argument(
         "--no-acoustic",

@@ -1,4 +1,4 @@
-"""SuperNATURAL-Acoustic alike behavior-modeling engine.
+"""Behavioral Synthesis behavior-modeling engine.
 
 Wraps a sampler engine (SF2/SFZ) as the base and adds real-time behavior
 modeling driven by MIDI, covering both single-note dynamics and cross-note

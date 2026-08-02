@@ -1,7 +1,7 @@
 """[A] Single-note velocity-driven timbre shaping.
 
 Maps MIDI velocity to spectral brightness/body so a soft note sounds
-rounder and a hard note brighter — the core SuperNATURAL single-note
+rounder and a hard note brighter — the core Behavioral Synthesis single-note
 behavior. Uses a pre-allocated resonant lowpass per channel (stereo).
 """
 

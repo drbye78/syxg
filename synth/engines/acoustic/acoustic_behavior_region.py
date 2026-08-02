@@ -1,4 +1,4 @@
-"""Acoustic behavior wrapper region (SuperNATURAL-Acoustic alike).
+"""Acoustic behavior wrapper region (Behavioral Synthesis).
 
 Wraps ANY base IRegion (SF2/SFZ sampler) and adds MIDI-driven single-note
 AND cross-note (multi-voice) dynamics, using the ArticulationEngine for
