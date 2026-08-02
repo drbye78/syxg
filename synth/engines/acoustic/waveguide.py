@@ -435,34 +435,33 @@ def flute_block(
         # Bore pressure at embouchure
         bore_p = bore_delay[w_ptr]
 
-        # Jet displacement: driven by bore pressure feedback + turbulence
-        # The jet flips to whichever side has lower pressure
-        jet_forcing = bore_p * 0.4
+        # Jet displacement: bore pressure feedback
+        jet_forcing = bore_p * 0.15
 
-        # Stochastic turbulence from LCG (models jet instability)
+        # Stochastic turbulence (inline LCG — Numba compatible)
         turb, seed = _flute_lcg(seed)
-        jet_forcing += turb * 0.02 * air_pressure
+        jet_forcing += turb * 0.005 * air_pressure
 
-        # Jet mass-spring-damper
-        jet_stiffness = 0.05  # Low stiffness — jet is flexible
-        jet_damping = 0.002
-        jet_accel = jet_forcing * 0.5 - jet_stiffness * jet - jet_damping * jet_vel
+        # Jet mass-spring-damper (stabilized for bounded oscillation)
+        jet = max(-1.0, min(1.0, jet))
+        jet_stiffness = 0.05
+        jet_damping = 0.003
+        jet_accel = jet_forcing * 0.3 - jet_stiffness * jet - jet_damping * jet_vel
         jet_vel += jet_accel
         jet += jet_vel
+        jet = max(-1.0, min(1.0, jet))  # Prevent runaway
 
-        # Jet position determines flow direction
-        # Positive displacement → flow into bore, negative → flow outside
-        edge_position = 0.01 * embouchure_distance  # Further edge = more stable jet
-        if abs(jet) > edge_position:
-            flow = (jet / abs(jet)) * abs(jet - edge_position * (1.0 if jet > 0 else -1.0)) * air_pressure * 0.25
+        # Edge detection: jet must exceed edge position to produce tone
+        edge_pos = 0.02 * embouchure_distance
+        if abs(jet) > edge_pos:
+            flow = (jet / abs(jet)) * abs(jet - edge_pos) * air_pressure * 0.15
         else:
-            flow = 0.0  # Jet centered — no net flow into bore
+            flow = 0.0
 
-        # Open-hole bore: lower reflection than closed pipe
-        bore_reflection = 0.90  # Open hole radiates more energy
-        bore_delay[w_ptr] = -bore_reflection * (bore_p + flow * 0.15)
+        # Open-hole bore with increased damping
+        bore_delay[w_ptr] = -0.88 * (bore_p + flow * 0.08)
 
-        out[i] += bore_p * 0.08
+        out[i] += bore_p * 0.06
         w_ptr = (w_ptr + 1) % N
 
     return out, w_ptr, jet, jet_vel, seed
