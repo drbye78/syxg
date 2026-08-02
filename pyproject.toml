@@ -8,7 +8,7 @@ dynamic = ["version"]
 authors = [
     {name = "Roger", email = "roger@syxg.dev"},
 ]
-description = "Professional XG (eXtended General MIDI) synthesizer and real-time workstation with Vibexg live performance interface, Yamaha S.Art2 articulation, comprehensive effects processing (62+ types), SF2/SFZ sample playback, FM-X synthesis, VST3/AAX plugin support, and vectorized audio processing"
+description = "Professional XG (eXtended General MIDI) synthesizer and real-time workstation with Vibexg live performance interface, Yamaha S.Art2 articulation, comprehensive effects processing (62+ types), SF2/SFZ sample playback, FM-X synthesis, and vectorized audio processing"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"

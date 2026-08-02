@@ -13,7 +13,7 @@ The XG Synthesizer project aims to provide:
 
 1. **Complete XG Specification Implementation** - Full Yamaha XG compatibility with GS extension support
 2. **Professional Audio Quality** - Studio-grade synthesis and effects processing
-3. **Real-Time Performance** - Low-latency (<5ms) suitable for live performance
+3. **Real-Time Performance** - Suitable for live performance and interactive use
 4. **Multiple Interface Options** - Library, CLI, and workstation interfaces
 5. **Extensible Architecture** - Plugin system for custom engines and effects
 6. **Cross-Platform Support** - Windows, macOS, and Linux compatibility
@@ -163,9 +163,9 @@ Per-channel processing including:
 - **Metronome**: Built-in click track with tempo sync
 - **File Rendering**: Render directly to WAV, FLAC, OGG, MP3, AAC, M4A
 
-### 🎛️ **VST3/AAX Plugin**
+### 🎛️ **VST3 Plugin**
 
-- **Native Plugin Format**: VST3 and AAX (Pro Tools — requires proprietary Avid AAX SDK, not included)
+- **Native Plugin Format**: VST3 (Pro Tools AAX available with proprietary Avid SDK, not distributed)
 - **Python Integration**: pybind11 bridge to XG synthesizer engine (proof-of-concept — Python-in-DAW has inherent real-time limitations)
 - **Note**: The VST3 plugin embeds a Python interpreter. While functional for experimentation, this architecture is not suitable for production low-latency audio due to the Python GIL. See `vst3_plugin/README.md` for details.
 
@@ -262,7 +262,7 @@ render-midi --config my_config.xgdsl input.mid output.wav
 midi-to-xgml input.mid > config.xgdsl
 ```
 
-#### As a VST3/AAX Plugin
+#### As a VST3 Plugin
 ```bash
 # Build VST3 plugin (requires CMake, pybind11, JUCE)
 cd vst3_plugin
@@ -277,9 +277,7 @@ sudo make install  # Linux/macOS
 # - macOS: ~/Library/Audio/Plug-Ins/VST3/
 # - Linux: ~/.vst3/
 
-# Build AAX plugin for Pro Tools (requires AAX SDK)
-cmake .. -DBUILD_AAX=ON -DAAX_SDK_ROOT="/path/to/aax/sdk"
-cmake --build . --config Release --target XGWorkstationVST3_AAX
+# (AAX build omitted — requires proprietary Avid SDK)
 ```
 
 **Usage in DAW:**
@@ -307,7 +305,7 @@ cmake --build . --config Release --target XGWorkstationVST3_AAX
 - **[Spectral Processing](docs/engines/spectral-engine.md)** - FFT-based effects
 
 ### 🎛️ **Plugin Documentation**
-- **[VST3 Plugin](vst3_plugin/README.md)** - VST3/AAX plugin build and usage
+- **[VST3 Plugin](vst3_plugin/README.md)** - VST3 plugin build and usage
 
 ### 🎛️ **Effects Documentation**
 - **[System Effects](docs/xg_synthesizer_guide.md)** - Reverb, Chorus, Delay (see XG Synthesizer Guide)
@@ -496,8 +494,8 @@ effects_configuration:
 - **TUI**: Rich-based text user interface
 - **Demo**: Built-in test patterns (scale, chords, arpeggio)
 
-### **VST3/AAX Plugin**
-- **PluginProcessor**: Main VST3/AAX audio processing and MIDI handling
+### **VST3 Plugin**
+- **PluginProcessor**: Main VST3 audio processing and MIDI handling
 - **PythonIntegration**: pybind11 bridge between C++ plugin and Python XG synthesizer
 - **XGParameterManager**: VST3 parameter management and DAW automation
 - **PluginEditor**: JUCE-based user interface with real-time controls
@@ -523,7 +521,7 @@ effects_configuration:
 
 | Metric | Value | Notes |
 |---|---|---|
-| **Latency** | <5ms | Target; Python RT audio has inherent scheduling variability |
+| **Latency** | Variable | Depends on platform and block size; Python RT audio has inherent scheduling variability |
 | **Polyphony** | 256+ | Depends on engine and sample memory |
 | **CPU Usage** | Optimized | Vectorized DSP, zero-allocation hot paths, pre-loaded samples |
 | **Memory** | Efficient | Sample caching and buffer pooling |
@@ -609,4 +607,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**🎹 Transform your MIDI files into professional audio with the power of modern synthesis engines, Yamaha S.Art2 articulation, comprehensive effects processing, Vibexg real-time workstation, and VST3/AAX plugin integration.**
+**🎹 Transform your MIDI files into professional audio with the power of modern synthesis engines, Yamaha S.Art2 articulation, comprehensive effects processing, Vibexg real-time workstation, and VST3 plugin integration.**
