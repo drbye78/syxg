@@ -50,7 +50,7 @@ class XGMultiPartSetup:
     MAX_VOICES_PER_PART = 128
     TOTAL_VOICES_AVAILABLE = 128  # Total voices in synthesizer
 
-    def __init__(self, num_parts: int = 16):
+    def __init__(self, num_parts: int = 16, state: Any = None):
         """
         Initialize XG Multi-Part Setup.
 
