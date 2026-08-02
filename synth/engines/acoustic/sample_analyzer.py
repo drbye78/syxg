@@ -300,3 +300,34 @@ class NoteModalCache:
             decay = lo_modes[i].decay_rate * (1.0 - t) + hi_modes[i].decay_rate * t
             result.append(ModalParameter(frequency=freq, amplitude=amp, decay_rate=decay))
         return result
+
+    def preload_from_samples(
+        self, samples: dict[int, np.ndarray], sr: int, num_modes: int = 12
+    ) -> int:
+        """Pre-compute modal parameters for all samples at load time.
+
+        Called during SF2 loading. Analyzes each sample's sustain portion
+        and caches the modal parameters by note number. This eliminates
+        all analysis from the audio thread.
+
+        Args:
+            samples: dict of {note_number: sample_data}
+            sr: Sample rate
+            num_modes: Number of modal frequencies to extract
+
+        Returns:
+            Number of notes successfully cached.
+        """
+        segmenter = SampleSegmenter(sr)
+        analyzer = ModalAnalyzer(sr, num_modes)
+        count = 0
+        for note, sample in samples.items():
+            try:
+                seg = segmenter.segment(sample, note)
+                modes = analyzer.analyze(seg.sustain, note)
+                if modes:
+                    self.store(note, modes)
+                    count += 1
+            except Exception:
+                pass
+        return count
