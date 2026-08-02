@@ -73,6 +73,11 @@ class BehavioralVoiceState:
     # Damper
     damper_position: float = 0.0  # 0.0=fully open, 1.0=fully damped
 
+    # Release sample (PCM key-off overlay)
+    release_data: np.ndarray | None = None
+    release_position: int = 0
+    release_active: bool = False
+
 
 @dataclass(slots=True)
 class _ModalOscillator:
@@ -107,11 +112,12 @@ class BehavioralVoice:
         modes: list[ModalParameter],
         attack_length: int = 0,
         crossfade_length: int = 1323,  # ~30ms at 44.1kHz
+        release_data: np.ndarray | None = None,
     ) -> None:
-        """Initialize voice with PCM attack and modal parameters.
+        """Initialize voice with PCM attack, modal parameters, and optional release sample.
 
         Phase-locks oscillators to PCM signal at crossfade start for
-        seamless transition.
+        seamless transition. Release sample is overlayed during note_off.
         """
         sr = self.state.sample_rate
         self.state.note = note
@@ -160,6 +166,11 @@ class BehavioralVoice:
                 self._energy_scale = 1.0
         else:
             self._energy_scale = 1.0
+
+        # Store release sample for key-off overlay
+        self.state.release_data = release_data
+        self.state.release_position = 0
+        self.state.release_active = False
 
         # Clear output buffer
         self._output = None
@@ -233,8 +244,25 @@ class BehavioralVoice:
                 sample = self._render_model_sample(i, block_size)
 
             elif state.phase == VoicePhase.RELEASE:
-                # Behavioral release with damper
-                sample = self._render_model_sample(i, block_size)
+                # Behavioral release with damper + PCM key-off sample overlay
+                model_sample = self._render_model_sample(i, block_size)
+                pcm_release = 0.0
+                if state.release_active and state.release_data is not None:
+                    if state.release_position < len(state.release_data):
+                        # Crossfade model decay with PCM release over first 50ms
+                        rpos = state.release_position
+                        crossfade_duration = int(0.050 * state.sample_rate)
+                        if rpos < crossfade_duration:
+                            t = rpos / crossfade_duration
+                            pcm_release = float(state.release_data[rpos])
+                            model_sample = model_sample * (1.0 - t) + pcm_release * t
+                        else:
+                            pcm_release = float(state.release_data[rpos])
+                            model_sample = pcm_release
+                        state.release_position += 1
+                    else:
+                        state.release_active = False
+                sample = model_sample
                 # Damper reduces excitation, oscillators decay naturally
                 damping = 1.0 - state.damper_position * 0.99
                 if damping < 0.01:
@@ -275,8 +303,11 @@ class BehavioralVoice:
         return float(sample)
 
     def note_off(self) -> None:
-        """Transition to release phase."""
+        """Transition to release phase with PCM key-off sample overlay."""
         self.state.phase = VoicePhase.RELEASE
+        if self.state.release_data is not None:
+            self.state.release_active = True
+            self.state.release_position = 0
 
     def set_damper(self, position: float) -> None:
         """Set continuous damper position (0.0=open, 1.0=fully damped)."""
