@@ -36,6 +36,87 @@ class InstrumentGroup(StrEnum):
 
 
 @dataclass(slots=True)
+class InstrumentModalProfile:
+    """Per-instrument modal parameters for behavioral synthesis.
+
+    Extends the 18 InstrumentGroups with instrument-specific physical
+    properties needed for modal resonance and excitation modeling.
+    """
+
+    group: InstrumentGroup
+    sub_category: str = ""        # "violin", "cello", "trumpet", "flute", etc.
+    body_modes: list[float] = field(default_factory=list)    # Primary body resonance freqs (Hz)
+    body_q: list[float] = field(default_factory=list)         # Q factors per mode
+    excitation_type: str = "bow"  # "bow", "breath", "hammer", "pluck", "strike"
+    num_modes: int = 12           # Number of modal resonators
+    inharmonicity: float = 0.0    # 0.0=harmonic, 1.0=very inharmonic (piano)
+    radiation_pattern: str = "dipole"  # "dipole", "monopole", "plane"
+
+
+# Default modal profiles for behavioral synthesis instruments
+_BEHAVIORAL_PROFILES: dict[InstrumentGroup, InstrumentModalProfile] = {
+    InstrumentGroup.BOWED_STRINGS: InstrumentModalProfile(
+        group=InstrumentGroup.BOWED_STRINGS,
+        sub_category="violin",
+        body_modes=[280.0, 520.0, 980.0, 1500.0],
+        body_q=[15.0, 18.0, 12.0, 8.0],
+        excitation_type="bow",
+        num_modes=16,
+        inharmonicity=0.001,
+        radiation_pattern="dipole",
+    ),
+    InstrumentGroup.ACOUSTIC_PIANO: InstrumentModalProfile(
+        group=InstrumentGroup.ACOUSTIC_PIANO,
+        sub_category="grand_piano",
+        body_modes=[65.0, 120.0, 200.0, 320.0, 500.0, 800.0],
+        body_q=[20.0, 18.0, 15.0, 12.0, 10.0, 8.0],
+        excitation_type="hammer",
+        num_modes=40,
+        inharmonicity=0.3,
+        radiation_pattern="dipole",
+    ),
+    InstrumentGroup.ACOUSTIC_GUITAR: InstrumentModalProfile(
+        group=InstrumentGroup.ACOUSTIC_GUITAR,
+        sub_category="acoustic_guitar",
+        body_modes=[100.0, 200.0, 400.0, 700.0],
+        body_q=[20.0, 15.0, 10.0, 8.0],
+        excitation_type="pluck",
+        num_modes=20,
+        inharmonicity=0.01,
+        radiation_pattern="monopole",
+    ),
+    InstrumentGroup.BRASS: InstrumentModalProfile(
+        group=InstrumentGroup.BRASS,
+        sub_category="trumpet",
+        body_modes=[250.0, 500.0, 900.0, 1400.0],
+        body_q=[12.0, 10.0, 8.0, 6.0],
+        excitation_type="breath",
+        num_modes=16,
+        inharmonicity=0.01,
+        radiation_pattern="monopole",
+    ),
+    InstrumentGroup.REEDS_WOODWINDS: InstrumentModalProfile(
+        group=InstrumentGroup.REEDS_WOODWINDS,
+        sub_category="clarinet",
+        body_modes=[200.0, 400.0, 800.0, 1200.0],
+        body_q=[10.0, 8.0, 6.0, 5.0],
+        excitation_type="breath",
+        num_modes=16,
+        inharmonicity=0.005,
+        radiation_pattern="plane",
+    ),
+}
+
+
+def get_modal_profile(group: InstrumentGroup) -> InstrumentModalProfile:
+    """Return the behavioral modal profile for an instrument group."""
+    return _BEHAVIORAL_PROFILES.get(
+        group,
+        InstrumentModalProfile(group=group, num_modes=12),
+    )
+
+
+@dataclass(slots=True)
 class EnsembleConfig:
     """Scene-level configuration above a single instrument group.
 
