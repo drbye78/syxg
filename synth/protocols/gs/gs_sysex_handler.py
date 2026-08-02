@@ -354,6 +354,10 @@ class GSSysexHandler:
             0x04: ("chorus_send", 0, 127),
             0x05: ("key_group", 0, 7),
             0x06: ("mute_group", 0, 31),
+            # SC-8850 Composite Noise parameters
+            0x07: ("noise_pitch", 0, 127),
+            0x08: ("noise_level", 0, 127),
+            0x09: ("noise_pan", 0, 127),
         }
 
         # Part key parameters (0x02 0n xx — velocity range, key range, portamento, bend)
@@ -952,20 +956,44 @@ class GSSysexHandler:
         self.jv2080_manager = manager
 
     def set_channel_parameter(self, channel: int, param: str, value: int) -> bool:
-        """
-        Set a channel parameter.
+        """Set a channel parameter."""
+        if 0 <= channel < 16 and param == "volume":
+            self.part_params[channel]["volume"] = max(0, min(127, value))
+            return True
+        return False
 
-        Args:
-            channel: MIDI channel (0-15)
-            param: Parameter name
-            value: Parameter value
+    def handle_gs_cc(self, channel: int, controller: int, value: int) -> bool:
+        """Handle MIDI CC message in GS mode (filling gap: no GS CC handler existed).
 
-        Returns:
-            True if successful
+        Routes standard CCs through the GS parameter system.
         """
-        # This is a stub implementation for test compatibility
-        # In a full implementation, this would set the actual parameter
-        return True
+        gs_cc_map = {
+            1: ("part", "modulation"),
+            7: ("part", "volume"),
+            10: ("part", "pan"),
+            11: ("part", "expression"),
+            64: ("part", "sustain"),
+            65: ("part", "portamento"),
+            67: ("part", "soft_pedal"),
+            91: ("part", "reverb_send"),
+            93: ("part", "chorus_send"),
+            120: ("system", "all_sound_off"),
+            121: ("system", "reset_all_controllers"),
+            123: ("system", "all_notes_off"),
+        }
+        if controller not in gs_cc_map:
+            return False
+        scope, param = gs_cc_map[controller]
+        if scope == "part":
+            self._notify_param_change("part", param, value)
+            if hasattr(self, "synthesizer") and self.synthesizer:
+                try:
+                    if param == "volume":
+                        self.synthesizer.set_master_volume(value)
+                except Exception:
+                    pass
+            return True
+        return False
 
     def get_channel_parameter(self, channel: int, param: str) -> int:
         """

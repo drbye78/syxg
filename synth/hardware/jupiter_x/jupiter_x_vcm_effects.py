@@ -1,9 +1,13 @@
 """
-Jupiter-X VCM Effects - Virtual Circuit Modeling for Authentic Analog Processing
+Jupiter-X VCM-Inspired Digital Effects
 
-Provides Jupiter-X style VCM (Virtual Circuit Modeling) effects that accurately
-replicate the analog circuit behavior of classic effects processors, including
-distortion, phaser, chorus, delay, and reverb algorithms.
+Provides Jupiter-X style effects using nonlinear saturation stages
+(tanh-based soft clipping, asymmetric bias, polynomial overdrive) and
+conventional DSP (all-pass phaser, modulated delay chorus, Schroeder reverb).
+
+NOTE: Uses digital approximations of analog circuit behavior. Not bit-accurate
+to Roland VCM hardware, which uses proprietary component-level models.
+Saturation stages provide tube-like warmth through asymmetric transfer curves.
 """
 
 from __future__ import annotations
@@ -15,10 +19,11 @@ import numpy as np
 
 class JupiterXVCMEffects:
     """
-    Jupiter-X VCM Effects processor with authentic analog circuit modeling.
+    Jupiter-X VCM-inspired effects processor with nonlinear saturation stages.
 
-    Provides hardware-accurate modeling of classic analog effects circuits
-    with the same sound characteristics as the original Jupiter-X synthesizer.
+    Uses tanh-based soft clipping with asymmetric bias for tube-like warmth,
+    polynomial overdrive for guitar-style distortion, and standard digital
+    DSP for modulation and time-based effects.
     """
 
     def __init__(self, sample_rate: int = 44100, max_block_size: int = 8192, buffer_pool=None):
