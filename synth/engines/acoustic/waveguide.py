@@ -511,6 +511,103 @@ class FluteWaveguide:
 
 
 # ============================================================================
+# Recorder — Fipple Edge-Tone (Flute without Turbulence)
+# ============================================================================
+
+
+@njit(cache=True)
+def recorder_block(
+    bore_delay: np.ndarray,
+    w_ptr: int,
+    jet_state: float,
+    jet_velocity: float,
+    air_pressure: float,
+    n_samples: int,
+    out: np.ndarray,
+) -> tuple[np.ndarray, int, float, float]:
+    """Recorder fipple waveguide — flute without stochastic turbulence.
+
+    The fipple ensures the air stream always hits the edge, producing
+    a purer, more stable tone than flute. Deterministic oscillation
+    (no LCG noise needed). Lower air pressure, softer tone.
+
+    Args:
+        bore_delay: Open-hole bore delay line.
+        w_ptr: Write position.
+        jet_state: Jet displacement.
+        jet_velocity: Jet displacement velocity.
+        air_pressure: Normalized blowing pressure (0.0-1.0).
+        n_samples: Samples.
+        out: Output buffer.
+
+    Returns:
+        (out, w_ptr, jet_state, jet_velocity)
+    """
+    N = len(bore_delay)
+    jet = max(-0.3, min(0.3, jet_state))  # Clamp to prevent runaway
+    jet_vel = jet_velocity
+
+    for i in range(n_samples):
+        bore_p = bore_delay[w_ptr]
+
+        # Fipple: constant edge forcing ensures deterministic oscillation
+        jet_forcing = bore_p * 0.35 + 0.003
+        jet = max(-0.5, min(0.5, jet))
+        stiffness = 0.04; damping = 0.0025
+        accel = jet_forcing * 0.45 - stiffness * jet - damping * jet_vel
+        jet_vel += accel; jet += jet_vel
+        jet = max(-0.5, min(0.5, jet))
+        if abs(jet) > 0.01:
+            flow = (jet / abs(jet)) * abs(jet - 0.01) * air_pressure * 0.3
+        else:
+            flow = 0.0
+        bore_delay[w_ptr] = -0.89 * (bore_p + flow * 0.1)
+        out[i] += bore_p * 0.06
+        w_ptr = (w_ptr + 1) % N
+
+    return out, w_ptr, jet, jet_vel
+
+
+class RecorderWaveguide:
+    """Stateful recorder — fipple edge-tone waveguide."""
+
+    def __init__(self, sample_rate: int = 44100):
+        self.sample_rate = sample_rate
+        self._bore: np.ndarray | None = None
+        self._w_ptr: int = 0
+        self._jet_state: float = 0.0
+        self._jet_velocity: float = 0.0
+        self._note: int = 60
+        self.air_pressure: float = 0.3  # Lower than flute — recorder is softer
+
+    def set_note(self, note: int) -> None:
+        self._note = note
+        f0 = 440.0 * (2.0 ** ((note - 69) / 12.0))
+        N = max(4, int(self.sample_rate / (2.0 * f0)))
+        self._bore = np.zeros(N, dtype=np.float32)
+        self._w_ptr = 0
+        self._jet_state = 0.0
+        self._jet_velocity = 0.0
+
+    def render(self, block_size: int) -> np.ndarray:
+        if self._bore is None:
+            self.set_note(self._note)
+        out = np.zeros(block_size, dtype=np.float32)
+        if self._bore is not None and len(self._bore) >= 4:
+            out, self._w_ptr, self._jet_state, self._jet_velocity = recorder_block(
+                self._bore, self._w_ptr, self._jet_state, self._jet_velocity,
+                self.air_pressure, block_size, out,
+            )
+        return out
+
+    def reset(self) -> None:
+        self._bore = None
+        self._w_ptr = 0
+        self._jet_state = 0.0
+        self._jet_velocity = 0.0
+
+
+# ============================================================================
 # Oboe — Double-Reed Nonlinear Oscillator with Conical Bore
 # ============================================================================
 
