@@ -679,6 +679,31 @@ class JV2080MultiPartSetup:
             }
 
 
+# ── JV-2080 MFX per-type parameter definitions ──
+# Each entry: (param_name, min_val, max_val, default_val)
+_JV2080_MFX_PARAMS: dict[int, list[tuple[str, int, int, int]]] = {
+    0: [("level", 0, 127, 127)],  # THRU
+    1: [  # Stereo EQ
+        ("low_gain", 0, 30, 15), ("low_freq", 0, 4, 0),
+        ("mid1_gain", 0, 30, 15), ("mid1_freq", 0, 127, 64), ("mid1_q", 0, 7, 3),
+        ("mid2_gain", 0, 30, 15), ("mid2_freq", 0, 127, 64), ("mid2_q", 0, 7, 3),
+        ("high_gain", 0, 30, 15), ("high_freq", 0, 4, 2),
+        ("level", 0, 127, 127),
+    ],
+    3: [("type", 0, 4, 0), ("slope", 0, 5, 0), ("cutoff", 0, 127, 127), ("resonance", 0, 127, 0), ("level", 0, 127, 127)],  # Filter
+    6: [("drive", 0, 127, 64), ("tone", 0, 127, 64), ("amp_type", 0, 3, 0), ("level", 0, 127, 127)],  # Overdrive
+    10: [("rate", 0, 127, 64), ("depth", 0, 127, 64), ("manual", 0, 127, 64), ("resonance", 0, 127, 64), ("mix", 0, 127, 64), ("level", 0, 127, 127)],  # Phaser
+    17: [("rate", 0, 127, 64), ("depth", 0, 127, 64), ("balance", 0, 100, 50), ("waveform", 0, 1, 0), ("level", 0, 127, 127)],  # Auto Wah
+    21: [("rate", 0, 127, 64), ("depth", 0, 127, 64), ("mod_type", 0, 1, 0), ("level", 0, 127, 127)],  # Tremolo
+    23: [("coarse", 0, 24, 12), ("fine", 0, 100, 50), ("delay", 0, 127, 64), ("feedback", 0, 127, 64), ("pan", 0, 127, 64), ("level", 0, 127, 127)],  # Pitch Shifter
+    26: [("delay_l", 0, 127, 64), ("delay_r", 0, 127, 64), ("feedback", 0, 127, 64), ("damping", 0, 127, 64), ("pan", 0, 127, 64), ("level", 0, 127, 127)],  # Stereo Delay
+    27: [("delay_l", 0, 127, 64), ("delay_c", 0, 127, 64), ("delay_r", 0, 127, 64), ("feedback", 0, 127, 64), ("level", 0, 127, 127)],  # Modulation Delay
+    30: [("delay", 0, 127, 64), ("feedback", 0, 127, 64), ("damping", 0, 127, 64), ("pan", 0, 127, 64), ("level", 0, 127, 127)],  # 3-Tap Delay
+    33: [("type", 0, 5, 0), ("time", 0, 127, 64), ("pre_delay", 0, 127, 0), ("damping", 0, 127, 64), ("diffusion", 0, 127, 64), ("level", 0, 127, 127)],  # Reverb
+    40: [("od_drive", 0, 127, 64), ("od_tone", 0, 127, 64), ("delay_time", 0, 127, 64), ("delay_fb", 0, 127, 64), ("delay_level", 0, 127, 100), ("level", 0, 127, 127)],  # OD→Delay
+}
+
+
 class JV2080MFXController:
     """
     JV-2080 MFX (Multi-Effects) Controller
@@ -755,16 +780,15 @@ class JV2080MFXController:
         self.mfx_to_reverb = 0  # 0-127
 
     def _get_default_parameters(self, mfx_type: int) -> dict[int, int]:
-        """Get default parameters for MFX type"""
-        # This would have extensive parameter definitions for each MFX type
-        # For now, return basic parameters
-        return {
-            0: 64,  # Parameter 1
-            1: 64,  # Parameter 2
-            2: 64,  # Parameter 3
-            3: 64,  # Parameter 4
-            # Up to 16 parameters per effect
-        }
+        """Get default parameters for MFX type per JV-2080 specification.
+
+        Each MFX type has its own parameter names, ranges, and defaults.
+        Unrecognized types fall back to generic defaults.
+        """
+        params = _JV2080_MFX_PARAMS.get(mfx_type)
+        if params is None:
+            return {0: 64, 1: 64, 2: 64, 3: 64}
+        return {i: p[3] for i, p in enumerate(params)}
 
     def set_mfx_type(self, mfx_type: int):
         """Set MFX type"""

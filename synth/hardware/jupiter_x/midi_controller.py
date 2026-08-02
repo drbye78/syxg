@@ -67,7 +67,42 @@ class JupiterXMIDIController:
                         "value": value,
                     }
 
+                # Jupiter-X CC → parameter dispatch
+                channel = message_bytes[0] & 0x0F
+                cc_result = self._handle_cc(channel, controller, value)
+                if cc_result is not None:
+                    return {"status": "processed", "type": "cc", "controller": controller}
+
             return None
+
+    # Jupiter-X CC → parameter mapping
+    _JUPITER_X_CC_MAP = {
+        1: "modulation_wheel",
+        7: "volume",
+        10: "pan",
+        11: "expression",
+        64: "sustain",
+        65: "portamento",
+        67: "soft_pedal",
+        71: "filter_resonance",
+        74: "filter_cutoff",
+        73: "attack_time",
+        72: "release_time",
+        75: "decay_time",
+        91: "reverb_send",
+        93: "chorus_send",
+    }
+
+    def _handle_cc(self, channel: int, controller: int, value: int) -> dict | None:
+        """Handle Jupiter-X CC message via component manager."""
+        param = self._JUPITER_X_CC_MAP.get(controller)
+        if param is None:
+            return None
+        try:
+            self.component_manager.set_part_parameter(channel, param, value / 127.0)
+        except Exception:
+            pass
+        return {"channel": channel, "param": param, "value": value}
 
     def get_midi_status(self) -> dict[str, Any]:
         """Get comprehensive MIDI processing status."""
