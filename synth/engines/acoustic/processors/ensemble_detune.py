@@ -11,6 +11,8 @@ import math
 
 import numpy as np
 
+import numpy as np
+
 from ..behavior_config import InstrumentGroup
 
 
@@ -41,23 +43,49 @@ class EnsembleDetuneProcessor:
         left = buf[:, 0]
         right = buf[:, 1]
         out = np.empty_like(buf)
-        phase_l = self._phase_l
-        phase_r = self._phase_r
-        for i in range(n):
-            phase_l += ratio
-            phase_r += ratio
-            i0 = int(phase_l)
-            f = phase_l - i0
-            i0 = min(max(i0, 0), n - 1)
-            i1 = min(i0 + 1, n - 1)
-            out[i, 0] = left[i0] * (1.0 - f) + left[i1] * f
-            i0 = int(phase_r)
-            f = phase_r - i0
-            i0 = min(max(i0, 0), n - 1)
-            i1 = min(i0 + 1, n - 1)
-            out[i, 1] = right[i0] * (1.0 - f) + right[i1] * f
-        self._phase_l = phase_l - (n - 1)
-        self._phase_r = phase_r - (n - 1)
+        # Cubic Hermite spline interpolation — replaces linear to fix aliasing
+        # Use 4-point interpolation for smoother pitch shifting
+        if n >= 4:
+            # Pre-compute read positions for entire block
+            positions = np.arange(n) * ratio + self._phase_l
+            int_pos = np.floor(positions).astype(np.int64)
+            frac = positions - int_pos
+
+            # 4-point cubic: i-1, i, i+1, i+2
+            i0 = np.clip(int_pos - 1, 0, n - 1)
+            i1 = np.clip(int_pos, 0, n - 1)
+            i2 = np.clip(int_pos + 1, 0, n - 1)
+            i3 = np.clip(int_pos + 2, 0, n - 1)
+
+            t = frac
+            t2 = t * t
+            t3 = t2 * t
+            # Cubic Hermite basis functions
+            h00 = 2.0 * t3 - 3.0 * t2 + 1.0
+            h10 = t3 - 2.0 * t2 + t
+            h01 = -2.0 * t3 + 3.0 * t2
+            h11 = t3 - t2
+
+            # Tangent estimation (Catmull-Rom)
+            m0 = (left[i1] - left[i0]) * 0.5
+            m1 = (left[i3] - left[i2]) * 0.5
+            out[:, 0] = h00 * left[i1] + h10 * m0 + h01 * left[i2] + h11 * m1
+
+            m0 = (right[i1] - right[i0]) * 0.5
+            m1 = (right[i3] - right[i2]) * 0.5
+            out[:, 1] = h00 * right[i1] + h10 * m0 + h01 * right[i2] + h11 * m1
+        else:
+            # Fallback: linear for very short blocks
+            positions = np.arange(n) * ratio + self._phase_l
+            int_pos = np.floor(positions).astype(np.int64)
+            frac = positions - int_pos
+            i0 = np.clip(int_pos, 0, n - 1)
+            i1 = np.clip(int_pos + 1, 0, n - 1)
+            out[:, 0] = left[i0] * (1.0 - frac) + left[i1] * frac
+            out[:, 1] = right[i0] * (1.0 - frac) + right[i1] * frac
+
+        self._phase_l = self._phase_l + n * ratio - (n - 1)
+        self._phase_r = self._phase_r + n * ratio - (n - 1)
         return out
 
     def reset(self) -> None:
