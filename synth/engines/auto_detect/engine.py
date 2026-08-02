@@ -54,6 +54,9 @@ class DetectionResult:
     articulation: str | None = None
     attack_skip: bool = False
     release_variant: str | None = None
+    repetition_count: int = 0       # How many times this note was repeated
+    phrase_trend: float = 0.0       # -1.0 (decresc) to 1.0 (cresc)
+    is_sforzando: bool = False      # Hard attack with expected rapid damping
 
 
 class AutoDetectionEngine:
@@ -68,12 +71,14 @@ class AutoDetectionEngine:
     """
 
     def __init__(self, sample_rate: int = 44100):
-        """Initialize auto-detection engine.
-
-        Args:
-            sample_rate: Audio sample rate in Hz (reserved for future features).
-        """
+        """Initialize auto-detection engine."""
         self.sample_rate = sample_rate
+        # Expressive gesture state (per-channel, set externally)
+        self._last_velocity: int = 64
+        self._velocity_ema: float = 64.0  # Exponential moving average for crescendo
+        self._last_note: int = 60
+        self._last_note_time: float = 0.0
+        self._note_history: list[tuple[int, int, float]] = []  # (note, velocity, time)
 
     def on_note_on(
         self,
@@ -85,21 +90,13 @@ class AutoDetectionEngine:
     ) -> DetectionResult:
         """Analyze a note-on event and return articulation overrides.
 
-        Called by VoiceManager before creating a voice for this note.
         Detection order (first match wins):
-        1. Interval glissando — wide legato interval → glissando
-        2. Legato — any held notes → skip attack
-        3. Velocity switch — velocity matches preset split
-
-        Args:
-            note: MIDI note number (0–127).
-            velocity: MIDI velocity (0–127).
-            instrument_group: Instrument group for threshold selection.
-            held_notes: Currently held note numbers on this channel.
-            active_preset: Optional ArticulationPreset for velocity splits.
-
-        Returns:
-            DetectionResult with articulation overrides.
+        1. Sforzando — velocity > 110 with sudden drop expected
+        2. Interval glissando — wide legato interval → glissando
+        3. Legato — any held notes → skip attack
+        4. Repetition — same note within 500ms
+        5. Velocity switch — velocity matches preset split
+        6. Crescendo/Decrescendo — velocity trend over phrase
         """
         result = DetectionResult()
 
@@ -130,6 +127,39 @@ class AutoDetectionEngine:
                         f"Auto-detect velocity switch: vel={velocity} → {art}"
                     )
                     break
+
+        # 4. Sforzando detection: velocity > 110 → hard attack, expect rapid damping
+        if velocity > 110:
+            result.articulation = "sforzando"
+            result.is_sforzando = True
+            logger.debug(f"Auto-detect sforzando: vel={velocity}")
+
+        # 5. Repetition detection: same note within 500ms → reduced attack
+        import time
+        now = time.monotonic()
+        if self._note_history:
+            same_note_hits = sum(1 for n, v, t in self._note_history[-4:]
+                                 if n == note and now - t < 0.5)
+            if same_note_hits > 0:
+                result.repetition_count = same_note_hits + 1
+                logger.debug(f"Auto-detect repetition: count={result.repetition_count}")
+
+        # Update phrase tracking (crescendo/decrescendo)
+        self._velocity_ema = 0.7 * self._velocity_ema + 0.3 * velocity
+        self._last_velocity = velocity
+        self._last_note = note
+        self._last_note_time = now
+        self._note_history.append((note, velocity, now))
+        if len(self._note_history) > 8:
+            self._note_history.pop(0)
+
+        # Track phrase velocity trend for crescendo/decrescendo detection
+        if velocity - self._velocity_ema > 15:  # Rising
+            result.phrase_trend = 1.0  # Crescendo
+        elif self._velocity_ema - velocity > 15:  # Falling
+            result.phrase_trend = -1.0  # Decrescendo
+        else:
+            result.phrase_trend = 0.0
 
         return result
 
