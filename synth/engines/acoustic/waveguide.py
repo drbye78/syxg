@@ -508,3 +508,170 @@ class FluteWaveguide:
         self._w_ptr = 0
         self._jet_state = 0.0
         self._jet_velocity = 0.0
+
+
+# ============================================================================
+# Oboe — Double-Reed Nonlinear Oscillator with Conical Bore
+# ============================================================================
+
+
+@njit(cache=True)
+def oboe_block(
+    bore_delay: np.ndarray,
+    w_ptr: int,
+    reed_gap: float,
+    reed_vel: float,
+    mouth_pressure: float,
+    reed_stiffness: float,
+    n_samples: int,
+    out: np.ndarray,
+) -> tuple[np.ndarray, int, float, float]:
+    """Oboe double-reed waveguide — one block of audio.
+
+    Double-reed: two cane reeds beating against each other through a
+    small opening. Higher pressure needed to open than single-reed
+    (clarinet). The beating produces a brighter, more nasal tone.
+
+    Args:
+        bore_delay: Conical bore delay line.
+        w_ptr: Write position.
+        reed_gap: Current gap between the two reeds.
+        reed_vel: Reed gap velocity.
+        mouth_pressure: Normalized mouth pressure (0.0-1.0).
+        reed_stiffness: Reed material stiffness (0.0-1.0, higher=harder reed).
+        n_samples: Number of samples.
+        out: Output buffer.
+
+    Returns:
+        (out, w_ptr, reed_gap, reed_vel) — updated state.
+    """
+    N = len(bore_delay)
+    gap = reed_gap
+    vel = reed_vel
+    stiffness = 0.15 + reed_stiffness * 0.7  # Double reed is stiffer than single
+    damping = 0.002
+    min_gap = 0.002  # Minimum aperture (reeds never fully close — leak)
+
+    for i in range(n_samples):
+        bore_p = bore_delay[w_ptr]
+        dp = mouth_pressure - bore_p * 0.6
+
+        # Double-reed: higher threshold to open, rapid closure
+        spring = stiffness * max(0.0, gap - min_gap)
+        damping_force = damping * vel
+        accel = dp * 0.2 - spring - damping_force
+        vel += accel
+        gap += vel
+        gap = max(min_gap, min(0.5, gap))
+
+        # Flow through reed aperture (nonlinear)
+        aperture = (gap - min_gap) / 0.5
+        if aperture > 0.0:
+            flow = aperture * abs(dp) ** 0.5
+            if dp < 0.0:
+                flow = -flow
+        else:
+            flow = 0.0
+
+        # Conical bore (oboe is conical, like saxophone but narrower)
+        bore_delay[w_ptr] = -0.91 * (bore_p + flow * 0.15)
+        out[i] += bore_p * 0.06
+        w_ptr = (w_ptr + 1) % N
+
+    return out, w_ptr, gap, vel
+
+
+# ============================================================================
+# Saxophone (reuses clarinet_block — single-reed, conical bore)
+# ============================================================================
+
+
+class SaxophoneWaveguide:
+    """Stateful saxophone — single-reed with conical bore.
+
+    Reuses clarinet_block with conical bore geometry. The only difference
+    from clarinet is the bore shape: saxophone has an expanding
+    (conical) bore vs. clarinet's straight (cylindrical) bore.
+
+    Conical bore produces even overtones; cylindrical bore suppresses
+    even overtones. This is why saxophone sounds different from clarinet
+    even though both use single reeds.
+    """
+
+    def __init__(self, sample_rate: int = 44100):
+        self.sample_rate = sample_rate
+        self._bore: np.ndarray | None = None
+        self._w_ptr: int = 0
+        self._reed: float = 0.0
+        self._note: int = 60
+        self.mouth_pressure: float = 0.45
+        self.lip_tension: float = 0.5
+
+    def set_note(self, note: int) -> None:
+        """Set fundamental frequency and allocate conical bore delay line."""
+        self._note = note
+        f0 = 440.0 * (2.0 ** ((note - 69) / 12.0))
+        N = max(4, int(self.sample_rate / (2.0 * f0)))
+        self._bore = np.zeros(N, dtype=np.float32)
+        self._w_ptr = 0
+        self._reed = 0.0
+
+    def render(self, block_size: int) -> np.ndarray:
+        """Render one block of saxophone audio (single-reed + conical bore)."""
+        if self._bore is None:
+            self.set_note(self._note)
+        out = np.zeros(block_size, dtype=np.float32)
+        if self._bore is not None and len(self._bore) >= 4:
+            out, self._w_ptr, self._reed = clarinet_block(
+                self._bore, self._w_ptr, self._reed,
+                self.mouth_pressure, self.lip_tension,
+                block_size, out,
+            )
+        return out
+
+    def reset(self) -> None:
+        self._bore = None
+        self._w_ptr = 0
+        self._reed = 0.0
+
+
+class OboeWaveguide:
+    """Stateful oboe — double-reed with conical bore."""
+
+    def __init__(self, sample_rate: int = 44100):
+        self.sample_rate = sample_rate
+        self._bore: np.ndarray | None = None
+        self._w_ptr: int = 0
+        self._reed_gap: float = 0.0
+        self._reed_vel: float = 0.0
+        self._note: int = 60
+        self.mouth_pressure: float = 0.5
+        self.reed_stiffness: float = 0.5
+
+    def set_note(self, note: int) -> None:
+        """Set fundamental frequency and allocate conical bore delay line."""
+        self._note = note
+        f0 = 440.0 * (2.0 ** ((note - 69) / 12.0))
+        N = max(4, int(self.sample_rate / (2.0 * f0)))
+        self._bore = np.zeros(N, dtype=np.float32)
+        self._w_ptr = 0
+        self._reed_gap = 0.0
+        self._reed_vel = 0.0
+
+    def render(self, block_size: int) -> np.ndarray:
+        """Render one block of oboe audio (double-reed + conical bore)."""
+        if self._bore is None:
+            self.set_note(self._note)
+        out = np.zeros(block_size, dtype=np.float32)
+        if self._bore is not None and len(self._bore) >= 4:
+            out, self._w_ptr, self._reed_gap, self._reed_vel = oboe_block(
+                self._bore, self._w_ptr, self._reed_gap, self._reed_vel,
+                self.mouth_pressure, self.reed_stiffness, block_size, out,
+            )
+        return out
+
+    def reset(self) -> None:
+        self._bore = None
+        self._w_ptr = 0
+        self._reed_gap = 0.0
+        self._reed_vel = 0.0
