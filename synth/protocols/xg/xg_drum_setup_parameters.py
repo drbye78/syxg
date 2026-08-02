@@ -102,7 +102,7 @@ class XGDrumSetupParameters:
         127: "Custom Kit",
     }
 
-    def __init__(self, num_channels: int = 16):
+    def __init__(self, num_channels: int = 16, state: Any = None):
         """
         Initialize XG Drum Setup Parameters.
 
@@ -110,7 +110,7 @@ class XGDrumSetupParameters:
             num_channels: Number of MIDI channels (default 16)
         """
         self.num_channels = num_channels
-        self.lock = threading.RLock()
+        self.lock = state.lock if state is not None else threading.RLock()
 
         # Current drum kit selections per channel
         self.drum_kit_selections = [0] * num_channels  # Default to Standard Kit 1

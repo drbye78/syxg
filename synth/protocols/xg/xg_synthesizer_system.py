@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .part_engine_router import PartEngineRouter
+from .xg_state import XGState
 
 logger = logging.getLogger(__name__)
 
@@ -129,14 +130,15 @@ class XGSynthesizerSystem:
         from ...protocols.xg.xg_multi_part_setup import XGMultiPartSetup
         from ...protocols.xg.xg_system_parameters import XGSystemEffectParameters
 
-        # Initialize XG components
+        # Initialize XG components with shared XGState (single lock for all)
         n = self.num_parts
-        self.xg_multi_part = XGMultiPartSetup(n)
-        self.xg_drum_setup = XGDrumSetupParameters(n)
+        self._xg_state = XGState()
+        self.xg_multi_part = XGMultiPartSetup(n, self._xg_state)
+        self.xg_drum_setup = XGDrumSetupParameters(n, self._xg_state)
         self.xg_part_mode = XGPartModeController(n)
-        self.xg_channel_params = XGChannelParameterManager(n)
+        self.xg_channel_params = XGChannelParameterManager(n, self._xg_state)
         self.xg_system_params = XGSystemEffectParameters()
-        self.xg_controllers = XGControllerAssignments(n)
+        self.xg_controllers = XGControllerAssignments(n, self._xg_state)
         self.xg_effects = XGSystemEffectsEnhancement(self.sample_rate)
         self.xg_micro_tuning = XGMicroTuning(n)
 

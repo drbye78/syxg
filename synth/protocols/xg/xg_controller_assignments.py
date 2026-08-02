@@ -66,7 +66,7 @@ class XGControllerAssignments:
         5: "Reverse Exponential",
     }
 
-    def __init__(self, num_channels: int = 16):
+    def __init__(self, num_channels: int = 16, state: Any = None):
         """
         Initialize XG Controller Assignments.
 
@@ -74,7 +74,7 @@ class XGControllerAssignments:
             num_channels: Number of MIDI channels (default 16)
         """
         self.num_channels = num_channels
-        self.lock = threading.RLock()
+        self.lock = state.lock if state is not None else threading.RLock()
 
         # Controller assignments per channel: channel -> assignment_slot -> controller_number
         self.controller_assignments = {}

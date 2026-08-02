@@ -58,7 +58,7 @@ class XGMultiPartSetup:
             num_parts: Number of XG parts (default 16)
         """
         self.num_parts = num_parts
-        self.lock = threading.RLock()
+        self.lock = state.lock if state is not None else threading.RLock()
 
         # Voice reserve per part (MSB 42)
         self.voice_reserve = [8] * num_parts  # Default 8 voices per part

@@ -645,9 +645,14 @@ class XGChannelParameterManager:
         12: "AMB",
     }
 
-    def __init__(self, num_channels: int = 16):
+    def __init__(self, num_channels: int = 16, state: Any = None):
         self.num_channels = num_channels
-        self.lock = threading.RLock()
+        # Use shared XGState lock when available, otherwise module-local lock
+        if state is not None:
+            self._state = state
+            self.lock = state.lock
+        else:
+            self.lock = threading.RLock()
 
         # Initialize channel parameters for all channels
         self.channels = {}
