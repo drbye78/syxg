@@ -436,32 +436,31 @@ def flute_block(
         bore_p = bore_delay[w_ptr]
 
         # Jet displacement: bore pressure feedback
-        jet_forcing = bore_p * 0.15
+        jet_forcing = bore_p * 0.28
 
         # Stochastic turbulence (inline LCG — Numba compatible)
         turb, seed = _flute_lcg(seed)
-        jet_forcing += turb * 0.005 * air_pressure
+        jet_forcing += turb * 0.01 * air_pressure
 
         # Jet mass-spring-damper (stabilized for bounded oscillation)
         jet = max(-1.0, min(1.0, jet))
         jet_stiffness = 0.05
-        jet_damping = 0.003
-        jet_accel = jet_forcing * 0.3 - jet_stiffness * jet - jet_damping * jet_vel
+        jet_damping = 0.0025
+        jet_accel = jet_forcing * 0.4 - jet_stiffness * jet - jet_damping * jet_vel
         jet_vel += jet_accel
         jet += jet_vel
         jet = max(-1.0, min(1.0, jet))  # Prevent runaway
 
         # Edge detection: jet must exceed edge position to produce tone
-        edge_pos = 0.02 * embouchure_distance
+        edge_pos = 0.015 * embouchure_distance
         if abs(jet) > edge_pos:
-            flow = (jet / abs(jet)) * abs(jet - edge_pos) * air_pressure * 0.15
+            flow = (jet / abs(jet)) * abs(jet - edge_pos) * air_pressure * 0.2
         else:
             flow = 0.0
 
         # Open-hole bore with increased damping
-        bore_delay[w_ptr] = -0.88 * (bore_p + flow * 0.08)
-
-        out[i] += bore_p * 0.06
+        bore_delay[w_ptr] = -0.89 * (bore_p + flow * 0.1)
+        out[i] += bore_p * 0.07
         w_ptr = (w_ptr + 1) % N
 
     return out, w_ptr, jet, jet_vel, seed
