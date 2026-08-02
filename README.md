@@ -5,7 +5,7 @@
 [![Build Status](https://img.shields.io/badge/build-passing-green.svg)](#)
 [![Documentation](https://img.shields.io/badge/docs-complete-blue.svg)](#)
 
-A **professional XG (eXtended General MIDI) synthesizer and real-time workstation** implemented in Python, featuring advanced synthesis engines, Yamaha S.Art2 articulation, Vibexg live performance interface, comprehensive effects processing, and vectorized audio processing.
+A **multi-engine Python MIDI synthesizer** featuring behavioral hybrid synthesis (7 Numba-JIT waveguide instruments), S.Art2 articulation with auto-detection, comprehensive XG/GS protocol support, 84 variation effects, a real-time workstation with TUI, and a VST3 plugin.
 
 ## 📋 Project Goals
 
@@ -50,9 +50,20 @@ The XG Synthesizer project aims to provide:
 #### Additional Engines
 - **Additive** - Harmonic synthesis with custom spectra
 - **Wavetable** - Dynamic wavetable synthesis with morphing
-- **Physical Modeling** - Waveguide and modal synthesis
+- **Behavioral Synthesis** - Hybrid PCM+Model: SF2 attack + physical model sustain
 - **Granular** - Advanced granular processing
 - **Spectral** - FFT-based spectral processing and morphing
+
+#### 🎻 Behavioral Synthesis Engine (7 Waveguide Instruments)
+- **Hybrid Voice** — 4-phase state machine (ATTACK→CROSSFADE→SUSTAIN→RELEASE) with phase-locked, energy-matched transitions
+- **7 Numba-JIT Waveguides** — Bowed string (stick-slip), Brass (lip), Flute (air jet), Recorder (fipple), Clarinet (single-reed), Saxophone (single-reed conical), Oboe (double-reed)
+- **Modal Resonator** — Damped harmonic oscillator bank via velocity Verlet integration for piano, guitar, mallets
+- **Spectral Sustain** — Pink noise shaped by attack spectrum for universal instrument fallback
+- **Continuous Articulation** — 5D morphing: staccato/legato, sul tasto/ponticello, pp/ff, normal/marcato, vibrato
+- **Phrase Analysis** — Boundary detection, apex anticipation, rubato timing, dynamic contour tracking
+- **Velocity Crossfade** — Multi-layer sample blending with equal-power sin/cos transitions
+- **Formant-Preserving Shift** — Phase vocoder with spectral envelope separation for natural pitch shifting
+- **Note-Aware Resonance** — Only undamped held notes contribute to sympathetic resonance
 
 ### 🎻 **Yamaha S.Art2 Articulation**
 
