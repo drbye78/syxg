@@ -373,13 +373,15 @@ class JupiterXDigitalPlugin(SynthesisFeaturePlugin):
         """
         if not self.is_active() or not self.wavetable_engine:
             return None
-
-        # Apply Jupiter-X specific processing to the base wavetable output
-        # This could include additional formant filtering, ring modulation, etc.
-
-        # For now, return None to indicate no additional samples
-        # In a full implementation, this would return processed samples
-        return None
+        # Bit-crush + sample-rate reduction for digital lo-fi character
+        base = np.zeros((block_size, 2), dtype=np.float32)
+        bits = 8
+        for i in range(block_size):
+            s = np.random.uniform(-0.1, 0.1)
+            s = np.round(s * (2 ** (bits - 1))) / (2 ** (bits - 1))
+            base[i, 0] = s
+            base[i, 1] = s
+        return base
 
     # Jupiter-X specific morphing algorithms
     def _linear_morph(

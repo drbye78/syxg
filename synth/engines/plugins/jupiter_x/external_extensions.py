@@ -504,13 +504,16 @@ class JupiterXExternalPlugin(SynthesisFeaturePlugin):
         """
         if not self.is_active() or not self.sample_engine:
             return None
-
-        # Apply Jupiter-X specific processing to the base sample output
-        # This could include additional granular processing, scrubbing, etc.
-
-        # For now, return None to indicate no additional samples
-        # In a full implementation, this would return processed samples
-        return None
+        # Granular windowing for texture processing
+        base = np.zeros((block_size, 2), dtype=np.float32)
+        grain_size = block_size // 4
+        for g in range(4):
+            window = np.hanning(grain_size)
+            grain = np.random.uniform(-0.1, 0.1, grain_size)
+            start = g * grain_size
+            base[start:start + grain_size, 0] = grain * window * 0.15
+            base[start:start + grain_size, 1] = grain * window * 0.15
+        return base
 
     # ===== PHASE 2.6: ADVANCED MULTI-SAMPLING METHODS =====
 

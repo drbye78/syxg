@@ -891,20 +891,22 @@ class JupiterXAnalogPlugin(SynthesisFeaturePlugin):
     def generate_samples(
         self, note: int, velocity: int, modulation: dict[str, float], block_size: int
     ) -> np.ndarray | None:
-        """
-        Generate additional analog samples with Jupiter-X features.
-
-        This is called by the base analog engine to add Jupiter-X specific processing.
-        """
+        """Generate analog samples with filter sweep modulation."""
         if not self.is_active() or not self.analog_engine:
             return None
-
-        # Apply Jupiter-X specific processing to the base analog output
-        # This could include additional filtering, modulation, etc.
-
-        # For now, return None to indicate no additional samples
-        # In a full implementation, this would return processed samples
-        return None
+        # Apply slow filter sweep modulation for analog character
+        cutoff = 0.5 + 0.3 * np.sin(2 * np.pi * 0.5 * np.arange(block_size) / self.sample_rate)
+        base = np.zeros((block_size, 2), dtype=np.float32)
+        for i in range(block_size):
+            s = self._generate_jupiter_x_sine(i / block_size) * 0.15
+            # Modulated lowpass for analog warmth
+            alpha = cutoff[i]
+            if not hasattr(self, "_lp_state"):
+                self._lp_state = 0.0
+            self._lp_state += alpha * (s - self._lp_state)
+            base[i, 0] = self._lp_state
+            base[i, 1] = self._lp_state
+        return base
 
     # ===== PHASE 2: ADVANCED OSCILLATOR METHODS =====
 

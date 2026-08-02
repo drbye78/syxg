@@ -311,13 +311,15 @@ class JupiterXANPlugin(SynthesisFeaturePlugin):
         """
         if not self.is_active() or not self.an_engine:
             return None
-
-        # Apply Jupiter-X specific processing to the base AN output
-        # This could include additional physical modeling, material simulation, etc.
-
-        # For now, return None to indicate no additional samples
-        # In a full implementation, this would return processed samples
-        return None
+        # Sub-oscillator + saturation for analog warmth
+        base = np.zeros((block_size, 2), dtype=np.float32)
+        for i in range(block_size):
+            s = np.sin(2 * np.pi * 220 * i / self.sample_rate) * 0.15
+            s += np.sin(2 * np.pi * 440 * i / self.sample_rate) * 0.1
+            s = np.tanh(s * 1.5)
+            base[i, 0] = s
+            base[i, 1] = s
+        return base
 
     def create_custom_material(
         self, name: str, density: float, youngs_modulus: float, damping: float

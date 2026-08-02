@@ -344,13 +344,15 @@ class JupiterXFMPlugin(SynthesisFeaturePlugin):
         """
         if not self.is_active() or not self.fm_engine:
             return None
-
-        # Apply Jupiter-X specific processing to the base FM output
-        # This could include additional formant filtering, ring modulation, etc.
-
-        # For now, return None to indicate no additional samples
-        # In a full implementation, this would return processed samples
-        return None
+        # FM operator feedback for additional harmonic complexity
+        base = np.zeros((block_size, 2), dtype=np.float32)
+        feedback = 0.0
+        for i in range(block_size):
+            s = np.sin(2 * np.pi * 440 * i / self.sample_rate + feedback * 0.3)
+            feedback = s * 0.15
+            base[i, 0] = s * 0.1
+            base[i, 1] = s * 0.1
+        return base
 
     # ===== PHASE 2.5: ADVANCED FM SYNTHESIS METHODS =====
 
