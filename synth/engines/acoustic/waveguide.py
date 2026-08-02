@@ -373,3 +373,140 @@ class BrassWaveguide:
         self._w_ptr = 0
         self._lip_state = 0.0
         self._lip_velocity = 0.0
+
+
+# ============================================================================
+# Flute — Air Jet Edge-Tone with Open-Hole Bore
+# ============================================================================
+
+
+@njit(cache=True)
+def _flute_lcg(seed: int) -> tuple[float, int]:
+    """Inline linear congruential generator for Numba-compatible pseudo-random noise.
+
+    No np.random available in @njit(nopython=True). This provides
+    deterministic noise for the stochastic edge-tone oscillation.
+    """
+    a = 1664525
+    c = 1013904223
+    m = 2**32
+    seed = (a * seed + c) % m
+    return (seed / m - 0.5) * 2.0, seed  # Scale to [-1, 1]
+
+
+@njit(cache=True)
+def flute_block(
+    bore_delay: np.ndarray,
+    w_ptr: int,
+    jet_state: float,
+    jet_velocity: float,
+    air_pressure: float,
+    embouchure_distance: float,
+    noise_seed: int,
+    n_samples: int,
+    out: np.ndarray,
+) -> tuple[np.ndarray, int, float, float, int]:
+    """Flute air-jet waveguide — one block of audio.
+
+    Edge-tone oscillator: the air jet flips between the inside and
+    outside of the embouchure hole based on bore pressure feedback.
+    Stochastic noise models the turbulent jet behavior.
+
+    Args:
+        bore_delay: Open-hole cylindrical bore delay line.
+        w_ptr: Write position.
+        jet_state: Current jet displacement from center.
+        jet_velocity: Jet displacement velocity.
+        air_pressure: Normalized blowing pressure (0.0-1.0).
+        embouchure_distance: Jet-to-edge distance (0.0-1.0).
+        noise_seed: LCG seed for pseudo-random noise.
+        n_samples: Number of samples.
+        out: Output buffer.
+
+    Returns:
+        (out, w_ptr, jet_state, jet_velocity, noise_seed)
+    """
+    N = len(bore_delay)
+    jet = jet_state
+    jet_vel = jet_velocity
+    seed = noise_seed
+
+    for i in range(n_samples):
+        # Bore pressure at embouchure
+        bore_p = bore_delay[w_ptr]
+
+        # Jet displacement: driven by bore pressure feedback + turbulence
+        # The jet flips to whichever side has lower pressure
+        jet_forcing = bore_p * 0.4
+
+        # Stochastic turbulence from LCG (models jet instability)
+        turb, seed = _flute_lcg(seed)
+        jet_forcing += turb * 0.02 * air_pressure
+
+        # Jet mass-spring-damper
+        jet_stiffness = 0.05  # Low stiffness — jet is flexible
+        jet_damping = 0.002
+        jet_accel = jet_forcing * 0.5 - jet_stiffness * jet - jet_damping * jet_vel
+        jet_vel += jet_accel
+        jet += jet_vel
+
+        # Jet position determines flow direction
+        # Positive displacement → flow into bore, negative → flow outside
+        edge_position = 0.01 * embouchure_distance  # Further edge = more stable jet
+        if abs(jet) > edge_position:
+            flow = (jet / abs(jet)) * abs(jet - edge_position * (1.0 if jet > 0 else -1.0)) * air_pressure * 0.25
+        else:
+            flow = 0.0  # Jet centered — no net flow into bore
+
+        # Open-hole bore: lower reflection than closed pipe
+        bore_reflection = 0.90  # Open hole radiates more energy
+        bore_delay[w_ptr] = -bore_reflection * (bore_p + flow * 0.15)
+
+        out[i] += bore_p * 0.08
+        w_ptr = (w_ptr + 1) % N
+
+    return out, w_ptr, jet, jet_vel, seed
+
+
+class FluteWaveguide:
+    """Stateful air-jet flute waveguide with Numba acceleration."""
+
+    def __init__(self, sample_rate: int = 44100):
+        self.sample_rate = sample_rate
+        self._bore: np.ndarray | None = None
+        self._w_ptr: int = 0
+        self._jet_state: float = 0.0
+        self._jet_velocity: float = 0.0
+        self._noise_seed: int = 12345
+        self._note: int = 60
+        self.air_pressure: float = 0.4
+        self.embouchure_distance: float = 0.5
+
+    def set_note(self, note: int) -> None:
+        """Set fundamental frequency and allocate bore delay line."""
+        self._note = note
+        f0 = 440.0 * (2.0 ** ((note - 69) / 12.0))
+        N = max(4, int(self.sample_rate / (2.0 * f0)))
+        self._bore = np.zeros(N, dtype=np.float32)
+        self._w_ptr = 0
+        self._jet_state = 0.0
+        self._jet_velocity = 0.0
+
+    def render(self, block_size: int) -> np.ndarray:
+        """Render one block of flute audio."""
+        if self._bore is None:
+            self.set_note(self._note)
+        out = np.zeros(block_size, dtype=np.float32)
+        if self._bore is not None and len(self._bore) >= 4:
+            out, self._w_ptr, self._jet_state, self._jet_velocity, self._noise_seed = flute_block(
+                self._bore, self._w_ptr, self._jet_state, self._jet_velocity,
+                self.air_pressure, self.embouchure_distance, self._noise_seed,
+                block_size, out,
+            )
+        return out
+
+    def reset(self) -> None:
+        self._bore = None
+        self._w_ptr = 0
+        self._jet_state = 0.0
+        self._jet_velocity = 0.0
