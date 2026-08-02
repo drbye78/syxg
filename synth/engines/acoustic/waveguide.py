@@ -249,3 +249,127 @@ class ClarinetWaveguide:
         self._bore = None
         self._w_ptr = 0
         self._reed = 0.0
+
+
+# ============================================================================
+# Brass — Lip Oscillator with Conical Bore
+# ============================================================================
+
+
+@njit(cache=True)
+def brass_block(
+    bore_delay: np.ndarray,
+    w_ptr: int,
+    lip_state: float,
+    lip_velocity: float,
+    mouth_pressure: float,
+    lip_tension: float,
+    n_samples: int,
+    out: np.ndarray,
+) -> tuple[np.ndarray, int, float, float]:
+    """Brass lip-reed waveguide — one block of audio.
+
+    Lip oscillator: the player's lips form a mass-spring system driven
+    by mouth pressure. When the lips open, air flows into the bore;
+    the bore pressure reflects back and modulates lip opening — a
+    self-sustaining oscillator.
+
+    Args:
+        bore_delay: Conical bore delay line (N = sr / (2*f0)).
+        w_ptr: Write position in circular buffer.
+        lip_state: Lip aperture displacement.
+        lip_velocity: Lip aperture velocity (mass-spring state).
+        mouth_pressure: Normalized mouth pressure (0.0-1.0).
+        lip_tension: Normalized lip tension (0.0-1.0, higher = tighter embouchure).
+        n_samples: Number of samples.
+        out: Output buffer.
+
+    Returns:
+        (out, w_ptr, lip_state, lip_velocity) — updated state.
+    """
+    N = len(bore_delay)
+    aperture = lip_state
+    vel = lip_velocity
+
+    # Lip mass-spring parameters
+    stiffness = 0.1 + lip_tension * 0.9  # Higher tension → higher resonant freq
+    damping = 0.001
+
+    for i in range(n_samples):
+        # Bore pressure at mouthpiece
+        bore_p = bore_delay[w_ptr]
+
+        # Pressure difference across lips
+        dp = mouth_pressure - bore_p * 0.7
+
+        # Lip mass-spring: force = pressure * area - spring_force - damping
+        spring_force = stiffness * aperture
+        damping_force = damping * vel
+        lip_accel = dp * 0.3 - spring_force - damping_force
+
+        # Verlet integration
+        vel += lip_accel
+        aperture += vel
+
+        # Clamp aperture (lips can't fully close — they beat)
+        if aperture < 0.001:
+            aperture = 0.001
+            vel = abs(vel) * 0.3  # Energy loss on lip closure
+
+        # Flow through lip aperture (nonlinear)
+        flow = aperture * abs(dp) ** 0.5
+        if dp < 0.0:
+            flow = -flow
+
+        # Conical bore: expanding cross-section means lower reflection
+        # than cylindrical (clarinet). Bell flare at output.
+        bore_reflection = 0.92  # Lower than clarinet (0.95) — conical radiation
+        bore_delay[w_ptr] = -bore_reflection * (bore_p + flow * 0.18)
+
+        # Bell radiation adds brightness
+        out[i] += (bore_p * 0.10 + flow * 0.04)
+        w_ptr = (w_ptr + 1) % N
+
+    return out, w_ptr, aperture, vel
+
+
+class BrassWaveguide:
+    """Stateful brass lip-reed waveguide with Numba acceleration."""
+
+    def __init__(self, sample_rate: int = 44100):
+        self.sample_rate = sample_rate
+        self._bore: np.ndarray | None = None
+        self._w_ptr: int = 0
+        self._lip_state: float = 0.0
+        self._lip_velocity: float = 0.0
+        self._note: int = 60
+        self.mouth_pressure: float = 0.5
+        self.lip_tension: float = 0.5
+
+    def set_note(self, note: int) -> None:
+        """Set fundamental frequency and allocate conical bore delay line."""
+        self._note = note
+        f0 = 440.0 * (2.0 ** ((note - 69) / 12.0))
+        N = max(4, int(self.sample_rate / (2.0 * f0)))
+        self._bore = np.zeros(N, dtype=np.float32)
+        self._w_ptr = 0
+        self._lip_state = 0.0
+        self._lip_velocity = 0.0
+
+    def render(self, block_size: int) -> np.ndarray:
+        """Render one block of brass audio."""
+        if self._bore is None:
+            self.set_note(self._note)
+        out = np.zeros(block_size, dtype=np.float32)
+        if self._bore is not None and len(self._bore) >= 4:
+            out, self._w_ptr, self._lip_state, self._lip_velocity = brass_block(
+                self._bore, self._w_ptr, self._lip_state, self._lip_velocity,
+                self.mouth_pressure, self.lip_tension, block_size, out,
+            )
+        return out
+
+    def reset(self) -> None:
+        self._bore = None
+        self._w_ptr = 0
+        self._lip_state = 0.0
+        self._lip_velocity = 0.0
