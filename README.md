@@ -27,7 +27,7 @@ The XG Synthesizer project aims to provide:
 - **Velocity Layers** - Multi-velocity zone mapping with crossfading
 - **Loop Support** - Loop start/end points with crossfade loops
 - **Envelope Generators** - AHDSR envelopes per sample
-- **Filters** - Low-pass, high-pass, band-pass filters per preset
+- **Filters** - Low-pass, high-pass, band-pass filters per preset (via XG modulation)
 - **LFO Modulation** - Vibrato, tremolo, and filter modulation
 - **Performance**: 256+ voices with efficient sample caching
 
@@ -100,18 +100,18 @@ Per-channel processing including:
 #### XG Specification Compliance
 
 | Feature Category | Implementation | Status |
-|-----------------|----------------|--------|
-| **Basic Messages** | Note On/Off, Control Change, Program Change | ✅ Complete |
-| **Channel Messages** | Poly Pressure, Channel Pressure, Pitch Bend | ✅ Complete |
-| **System Exclusive** | XG SysEx, Parameter Changes (spec-correct address format) | ✅ Complete |
-| **NRPN Support** | Non-Registered Parameter Numbers | ✅ Complete |
-| **RPN Support** | Registered Parameter Numbers | ✅ Complete |
-| **Bank Select** | MSB/LSB Bank Selection | ✅ Complete |
-| **Drum Setup** | Drum Kit Parameters, Note Shift | ✅ Complete |
-| **Effects** | System/variation/Insertion Effects | ✅ Complete |
-| **Multi-Part** | 32-part Multi-timbral Operation | ✅ Complete |
-| **Arpeggiator** | Pattern-based Note Generation | ✅ Complete |
-| **Microtonal** | Scale Tuning, Master Tuning | ✅ Complete |
+|---|---|---|
+| **Basic Messages** | Note On/Off, Control Change, Program Change | ✅ |
+| **Channel Messages** | Poly Pressure, Channel Pressure, Pitch Bend | ✅ |
+| **System Exclusive** | XG SysEx — spec-correct address format, ~150 parameter entries | ✅ |
+| **NRPN Support** | Non-Registered Parameter Numbers — 14-bit resolution, MSB 3-19 | ✅ |
+| **RPN Support** | Registered Parameter Numbers | ✅ |
+| **Bank Select** | MSB/LSB Bank Selection | ✅ |
+| **Drum Setup** | Drum Kit Parameters, Note Shift — per-part drum mode | ✅ |
+| **Effects** | System/Variation/Insertion — 84 variation types, 10 delay types | ✅ |
+| **Multi-Part** | 16-part Multi-timbral Operation with voice reserve | ✅ |
+| **Arpeggiator** | Pattern-based Note Generation | ✅ |
+| **Microtonal** | Scale Tuning, Master Tuning | ✅ |
 
 #### GS Compatibility
 
@@ -154,7 +154,7 @@ Per-channel processing including:
 
 ### 🎛️ **VST3/AAX Plugin**
 
-- **Native Plugin Format**: VST3 and AAX (Pro Tools) support
+- **Native Plugin Format**: VST3 and AAX (Pro Tools — requires proprietary Avid AAX SDK, not included)
 - **Python Integration**: pybind11 bridge to XG synthesizer engine (proof-of-concept — Python-in-DAW has inherent real-time limitations)
 - **Note**: The VST3 plugin embeds a Python interpreter. While functional for experimentation, this architecture is not suitable for production low-latency audio due to the Python GIL. See `vst3_plugin/README.md` for details.
 
@@ -169,8 +169,8 @@ Per-channel processing including:
 
 ### 🚀 **Performance & Architecture**
 
-- **Vectorized Processing** - SIMD-optimized audio generation
-- **Real-time Synthesis** - Low-latency performance (<5ms)
+- **Vectorized Processing** — NumPy-accelerated audio generation with Numba JIT
+- **Real-time Synthesis** — Low-latency-capable (configurable buffer sizes 64-4096 samples)
 - **Multi-format Support** - WAV, AIFF, FLAC, OGG, MP3, SF2, SFZ samples
 - **Cross-platform** - Windows, macOS, Linux support
 - **Extensible Design** - Plugin architecture for custom engines

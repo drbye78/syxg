@@ -599,19 +599,23 @@ class XGSynthesizerSystem:
         self.set_part_bank(part_num, msb, lsb)
 
     def handle_control_change(self, channel: int, controller: int, value: int):
-        """Handle control change."""
-        part_num = channel if channel < 16 else channel % 16
+        """Handle control change via centralized XGCCController (O(1) lookup)."""
+        # Delegate to centralized CC controller if available
+        cc_ctrl = getattr(self, "_cc_controller", None)
+        if cc_ctrl is not None:
+            cc_ctrl.handle_cc(channel, controller, value)
+            return
 
+        # Fallback: legacy O(n) part lookup
+        part_num = channel if channel < 16 else channel % 16
         with self.lock:
-            if controller == 7:  # Volume
+            if controller == 7:
                 self.parts[part_num]["volume"] = value
-            elif controller == 10:  # Pan
+            elif controller == 10:
                 self.parts[part_num]["pan"] = value
-            elif controller == 91:  # Reverb
+            elif controller == 91:
                 self.parts[part_num]["reverb_send"] = value
-            elif controller == 93:  # Chorus
+            elif controller == 93:
                 self.parts[part_num]["chorus_send"] = value
-            elif controller == 0:  # Bank Select MSB
-                self.set_part_bank(part_num, value, self.parts[part_num]["bank_lsb"])
             elif controller == 32:  # Bank Select LSB
                 self.set_part_bank(part_num, self.parts[part_num]["bank_msb"], value)

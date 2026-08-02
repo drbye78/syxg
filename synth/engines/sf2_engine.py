@@ -1051,7 +1051,7 @@ class SF2Engine(SynthesisEngine):
                 # Mix into output (apply master level)
                 audio_output += region_audio * preset_info.master_level
 
-            except Exception as e:
+            except (ValueError, IndexError, RuntimeError, AttributeError) as e:
                 logger.error(f"Error generating SF2 samples for region {descriptor.region_id}: {e}")
                 continue
 

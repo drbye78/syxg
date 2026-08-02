@@ -939,15 +939,11 @@ class SF2FileLoader:
                 # Get 8-bit MSB from sm24
                 msb_byte = sm24_bytes[i]
 
-                # Sign-extend the MSB byte if it's negative
-                if msb_byte & 0x80:  # If MSB is set, it's negative
-                    msb_extended = msb_byte | 0xFFFFFF00  # Sign extend to 32-bit
-                else:
-                    msb_extended = msb_byte
-
-                # Combine: shift MSB to upper 8 bits and combine with LSB
-                # The 24-bit value is: (msb << 16) | (lsb & 0xFFFF)
-                sample_24bit = (msb_extended << 16) | (lsb_word & 0xFFFF)
+                # Combine: shift MSB to upper 8 bits and combine with LSB.
+                # Then sign-extend the 24-bit result to 32-bit.
+                sample_24bit = (msb_byte << 16) | (lsb_word & 0xFFFF)
+                if sample_24bit & 0x800000:  # 24-bit sign bit set
+                    sample_24bit |= 0xFF000000  # Sign-extend to 32-bit
 
                 # Convert to 3-byte signed 24-bit representation
                 # We need to handle the sign correctly for 24-bit

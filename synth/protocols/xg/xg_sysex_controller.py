@@ -19,6 +19,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from .xg_sysex_parameter_tree import resolve_parameter as _resolve_sysex_address
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +64,8 @@ class XGSystemExclusiveController:
         0x12: "xg_special_message",
     }
 
-    # XG Parameter Addresses
+    # XG Parameter Addresses (legacy 26-entry dict — superseded by xg_sysex_parameter_tree)
+    # Use _resolve_parameter() for complete XG v2.0 coverage (~150 entries)
     XG_PARAMETER_ADDRESSES = {
         # MSB 0: RPN Parameters (handled by RPN controller)
         0x0000: "pitch_bend_range",

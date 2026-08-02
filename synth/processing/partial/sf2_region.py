@@ -105,6 +105,7 @@ class SF2Region(IRegion):
         "_filter_mod",
         "_filter_sub_blocks",
         "_filter_type",
+        "_filter_type_str",
         "_filter_work_left",
         "_filter_work_right",
         "_fine_tune",
@@ -394,6 +395,7 @@ class SF2Region(IRegion):
 
         # Filter type
         self._filter_type: int = 0
+        self._filter_type_str: str = "lowpass"  # lowpass/bandpass/highpass via XG modulation
 
         # Velocity processing
         self._instrument_index: int = 0
@@ -1048,10 +1050,10 @@ class SF2Region(IRegion):
         sf2_q_centibels = self._get_generator_value(9, 0)  # initialFilterQ
         resonance = 0.707 * (10.0 ** (sf2_q_centibels / 200.0))
 
-        # Filter type: gen 36 is decayVolEnv (standard SF2), not filter_type.
-        # Default to lowpass. Custom filter type belongs in XG modulation matrix.
+        # Filter type: lowpass (standard SF2 has no dedicated filter type generator).
+        # bandpass and highpass are available via XG modulation ("gs_filter_type" key).
         self._filter_type = 0
-        filter_type_str = "lowpass"
+        filter_type_str = getattr(self, "_filter_type_str", "lowpass")
 
         filter_obj = UltraFastResonantFilter(
             cutoff=cutoff,
@@ -1194,8 +1196,9 @@ class SF2Region(IRegion):
 
         # Reverse playback: gen 57 is exclusiveClass (standard SF2). Disabled.
 
-        # Loop crossfade: gen 45 is startloopAddrsCoarseOffset (standard SF2). Disabled.
-        self._loop_crossfade_samples = 0
+        # Loop crossfade: gen 45 is startloopAddrsCoarseOffset (standard SF2).
+        # Enable with 48-sample crossfade (~1ms at 44.1kHz) for click-free loops.
+        self._loop_crossfade_samples = 48
 
         # Load effects sends (SF2 gen 15-17)
         self._reverb_send = self._get_generator_value(16, 0) / 1000.0  # reverbEffectsSend

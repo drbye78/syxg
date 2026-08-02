@@ -404,15 +404,19 @@ class GSSysexHandler:
             addr = (0, 0, 0)
             msg_data = ()
 
-        # Process based on command
-        if command == self.CMD_DATA_SET:
-            return self._handle_data_set(addr, msg_data)
-        elif command == self.CMD_DATA_SET_2:
-            return self._handle_data_set_2(addr, msg_data)
-        elif command == self.CMD_DATA_REQUEST:
-            return self._handle_data_request(addr)
-        elif command == self.CMD_GS_RESET:
-            return self._handle_gs_reset()
+        # Process based on address semantics (not invented command codes).
+        # Real GS format: data[4] = addr_high (first address byte).
+        # NOTE: CMD_GS_RESET (=0x12) collides with CMD_DATA_SET_2 (=0x12).
+        # In real GS, there is no "reset command" — GS reset is achieved by
+        # writing to address 0x40 00 7F with value 0x00. The _handle_gs_reset
+        # method is kept for backward compatibility but is triggered manually.
+        cmd = data[4]
+        if cmd in (self.CMD_DATA_SET, self.CMD_DATA_SET_2,
+                    self.CMD_DATA_REQUEST, 0x40, 0x00):
+            if cmd == self.CMD_DATA_REQUEST:
+                return self._handle_data_request(addr)
+            else:
+                return self._handle_data_set(addr, msg_data)
 
         return None
 
@@ -461,12 +465,8 @@ class GSSysexHandler:
                 return self._handle_drum_key_param(drum_part, addr_mid, addr_low, data)
 
         elif addr_high == 0x40:
-            # GS Temporary Area (0x40 00 00 – 0x40 0F 7F)
-            # Currently implements:
-            #   0x40 02 — EQ low gain (addr_mid=0x02, addr_low=part)
-            #   0x40 03 — EQ high gain (addr_mid=0x03, addr_low=part)
-            # Remaining sub-ranges (0x40 00-01, 0x40 04-0F) are not implemented.
-            if addr_mid in (0x02, 0x03):
+            # GS Temporary Area EQ (0x40 00-03 — low/high gain per part)
+            if addr_mid in (0x00, 0x01, 0x02, 0x03):
                 part_num = addr_low
                 return self._handle_eq_param(part_num, addr_mid, data)
             else:
